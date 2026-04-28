@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+**/node_modules/
+**/.git/
+**/*.user
+**/*.suo
+appsettings.Development.json
+appsettings.Local.json

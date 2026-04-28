@@ -1,0 +1,6 @@
+@RepairDesk.API_HostAddress = http://localhost:5036
+
+GET {{RepairDesk.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

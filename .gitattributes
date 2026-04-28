@@ -1,0 +1,19 @@
+* text=auto eol=lf
+
+*.cs       text diff=csharp
+*.csproj   text merge=union
+*.sln      text eol=crlf merge=union
+*.tsx      text
+*.ts       text
+*.json     text
+*.md       text
+*.yml      text
+*.yaml     text
+
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.pdf      binary
+*.zip      binary

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RepairDesk.API/RepairDesk.API.csproj" />
+    <Project Path="src/RepairDesk.Common/RepairDesk.Common.csproj" />
+    <Project Path="src/RepairDesk.Core/RepairDesk.Core.csproj" />
+    <Project Path="src/RepairDesk.DAL/RepairDesk.DAL.csproj" />
+    <Project Path="src/RepairDesk.Infrastructure/RepairDesk.Infrastructure.csproj" />
+    <Project Path="src/RepairDesk.Services/RepairDesk.Services.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RepairDesk.Tests/RepairDesk.Tests.csproj" />
+  </Folder>
+</Solution>

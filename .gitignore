@@ -1,0 +1,93 @@
+# ============================================
+# .NET
+# ============================================
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.pdb
+*.dll
+*.exe
+project.lock.json
+project.fragment.lock.json
+artifacts/
+**/Properties/launchSettings.json
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ============================================
+# Node / Frontend
+# ============================================
+node_modules/
+dist/
+dist-ssr/
+*.local
+.pnp
+.pnp.js
+coverage/
+.next/
+out/
+build/
+*.tsbuildinfo
+.eslintcache
+
+# ============================================
+# Environment & Secrets
+# ============================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!**/wwwroot/**/*.key
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Local.json
+
+# ============================================
+# OS
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================
+# Docker
+# ============================================
+.docker/data/
+docker-compose.override.yml
+
+# ============================================
+# Misc
+# ============================================
+*.log
+*.tmp
+.cache/
