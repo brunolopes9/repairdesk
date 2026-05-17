@@ -76,7 +76,7 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
   });
 
   const lookupItems = (parts.data?.items ?? []).filter((p) => p.activo);
-  const rows = movimentos.data ?? [];
+  const rows = useMemo(() => movimentos.data ?? [], [movimentos.data]);
   const saldo = useMemo(() => rows.reduce((sum, m) => sum + m.quantidade, 0), [rows]);
 
   return (

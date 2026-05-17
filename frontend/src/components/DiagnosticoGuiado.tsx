@@ -144,10 +144,13 @@ function DiagnosticoActivo({
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const debounceRef = useRef<number | null>(null);
 
-  // Reset quando o servidor devolve novo execução
+  // Reset quando o servidor devolve novo execução. Depende só de id/completadoEm
+  // de propósito — incluir items/notasGerais nas deps causaria reset a cada
+  // edição local antes de gravar (apagaria o trabalho do utilizador).
   useEffect(() => {
     setItems(execucao.items);
     setNotasGerais(execucao.notasGerais ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [execucao.id, execucao.completadoEm]);
 
   const update = useMutation({

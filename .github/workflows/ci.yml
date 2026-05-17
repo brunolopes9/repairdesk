@@ -140,6 +140,9 @@ jobs:
     name: CodeQL
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # CodeQL upload requires GitHub Advanced Security (free on public repos, paid on private).
+    # Skip cleanly when not available — don't fail the whole CI.
+    continue-on-error: true
     permissions:
       actions: read
       contents: read
