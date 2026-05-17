@@ -1,0 +1,563 @@
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { AlertTriangle, History, PackagePlus, Pencil, SlidersHorizontal, Trash2, Upload } from 'lucide-react';
+import Modal from '../../components/Modal';
+import { Button } from '../../components/ui/Button';
+import { StatusBadge } from '../../components/ui/StatusBadge';
+import { formatCents, formatDate, parseEuros } from '../../lib/money';
+import { toast } from '../../lib/toast';
+import { stockApi } from '../../lib/stock/api';
+import {
+  PART_CATEGORIA,
+  PART_CATEGORIA_LABEL,
+  PART_MOVIMENTO_LABEL,
+  PART_MOVIMENTO_MOTIVO,
+  type Part,
+  type PartCategoria,
+  type PartForm,
+  type PartMovimento,
+  type PartMovimentoMotivo,
+} from '../../lib/stock/types';
+
+const PAGE_SIZE = 50;
+
+export default function Stock() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [categoria, setCategoria] = useState<PartCategoria | null>(null);
+  const [marca, setMarca] = useState<string | null>(null);
+  const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [page, setPage] = useState(1);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<Part | null>(null);
+  const [adjusting, setAdjusting] = useState<Part | null>(null);
+  const [historyPart, setHistoryPart] = useState<Part | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Part | null>(null);
+
+  const list = useQuery({
+    queryKey: ['stock', search, categoria, marca, lowStockOnly, page],
+    queryFn: () => stockApi.list({ q: search, categoria, marca, lowStockOnly, page, pageSize: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
+  });
+
+  const marcas = useQuery({
+    queryKey: ['stock-marcas'],
+    queryFn: () => stockApi.marcas(),
+    staleTime: 60_000,
+  });
+
+  const remove = useMutation({
+    mutationFn: (part: Part) => stockApi.remove(part.id),
+    onSuccess: () => {
+      toast.success('Peça apagada');
+      invalidate();
+      setConfirmDelete(null);
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível apagar a peça.'),
+  });
+
+  function invalidate() {
+    qc.invalidateQueries({ queryKey: ['stock'] });
+    qc.invalidateQueries({ queryKey: ['stock-marcas'] });
+    qc.invalidateQueries({ queryKey: ['dashboard'] });
+  }
+
+  const items = list.data?.items ?? [];
+  const total = list.data?.total ?? 0;
+  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalStockCents = items.reduce((sum, p) => sum + p.valorTotalStockCents, 0);
+  const lowCount = items.filter((p) => p.stockBaixo).length;
+
+  return (
+    <div className="space-y-4">
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">Stock de peças</h1>
+            <p className="text-sm text-zinc-500">
+              {total} {total === 1 ? 'peça' : 'peças'} · valor nesta página: {formatCents(totalStockCents)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="secondary" onClick={() => setImportOpen(true)} leftIcon={<Upload size={15} />}>
+              Importar CSV
+            </Button>
+            <Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<PackagePlus size={15} />}>
+              Nova peça
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={categoria ?? ''}
+            onChange={(e) => { setCategoria(e.target.value === '' ? null : (Number(e.target.value) as PartCategoria)); setPage(1); }}
+            className={inputCls}
+          >
+            <option value="">Todas categorias</option>
+            {Object.values(PART_CATEGORIA).map((value) => (
+              <option key={value} value={value}>{PART_CATEGORIA_LABEL[value]}</option>
+            ))}
+          </select>
+          <select
+            value={marca ?? ''}
+            onChange={(e) => { setMarca(e.target.value || null); setPage(1); }}
+            className={inputCls}
+          >
+            <option value="">Todas marcas</option>
+            {marcas.data?.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <label className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+            <input
+              type="checkbox"
+              checked={lowStockOnly}
+              onChange={(e) => { setLowStockOnly(e.target.checked); setPage(1); }}
+            />
+            Só stock baixo
+          </label>
+          <input
+            type="search"
+            placeholder="Pesquisar SKU, nome, modelo, fornecedor..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          />
+        </div>
+      </header>
+
+      {(lowCount > 0 || lowStockOnly) && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <AlertTriangle size={16} />
+          {lowCount > 0 ? `${lowCount} peça(s) com stock baixo nesta página.` : 'Sem peças em stock baixo nos filtros actuais.'}
+        </div>
+      )}
+
+      <section className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <table className="min-w-full text-sm">
+          <thead className="bg-zinc-50 text-left text-xs text-zinc-500 dark:bg-zinc-950">
+            <tr>
+              <th className="px-3 py-2">SKU</th>
+              <th className="px-3 py-2">Peça</th>
+              <th className="px-3 py-2">Marca / Modelo</th>
+              <th className="px-3 py-2 text-right">Stock</th>
+              <th className="px-3 py-2 text-right">Mín.</th>
+              <th className="px-3 py-2 text-right">Custo</th>
+              <th className="px-3 py-2 text-right">Valor stock</th>
+              <th className="px-3 py-2">Local</th>
+              <th className="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {items.map((part) => (
+              <tr key={part.id} className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${!part.activo ? 'opacity-50' : ''}`}>
+                <td className="px-3 py-2 font-mono text-xs text-zinc-500">{part.sku ?? '—'}</td>
+                <td className="px-3 py-2">
+                  <button type="button" onClick={() => setHistoryPart(part)} className="text-left font-medium hover:underline">
+                    {part.nome}
+                  </button>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <StatusBadge tone="zinc">{PART_CATEGORIA_LABEL[part.categoria]}</StatusBadge>
+                    {part.stockBaixo && <StatusBadge tone="amber" icon={<AlertTriangle size={11} />}>Stock baixo</StatusBadge>}
+                    {!part.activo && <StatusBadge tone="rose">Inactiva</StatusBadge>}
+                  </div>
+                </td>
+                <td className="px-3 py-2">
+                  <div>{part.marca ?? '—'}</div>
+                  <div className="text-xs text-zinc-500">{part.modelo ?? '—'}</div>
+                </td>
+                <td className={`px-3 py-2 text-right font-semibold tabular-nums ${part.stockBaixo ? 'text-amber-700 dark:text-amber-300' : ''}`}>{part.qtdStock}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-zinc-500">{part.qtdMinima}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatCents(part.custoUnitarioCents)}</td>
+                <td className="px-3 py-2 text-right font-medium tabular-nums">{formatCents(part.valorTotalStockCents)}</td>
+                <td className="px-3 py-2 text-xs text-zinc-500">{part.localArmazenamento ?? '—'}</td>
+                <td className="px-3 py-2">
+                  <div className="flex justify-end gap-1">
+                    <Button type="button" variant="icon" title="Ajustar stock" onClick={() => setAdjusting(part)}>
+                      <SlidersHorizontal size={15} />
+                    </Button>
+                    <Button type="button" variant="icon" title="Histórico" onClick={() => setHistoryPart(part)}>
+                      <History size={15} />
+                    </Button>
+                    <Button type="button" variant="icon" title="Editar" onClick={() => setEditing(part)}>
+                      <Pencil size={15} />
+                    </Button>
+                    <Button type="button" variant="icon" title="Apagar" onClick={() => setConfirmDelete(part)}>
+                      <Trash2 size={15} />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && !list.isLoading && (
+              <tr>
+                <td colSpan={9} className="px-3 py-10 text-center text-sm text-zinc-500">
+                  {search || categoria != null || marca || lowStockOnly ? 'Sem peças para estes filtros.' : 'Ainda não há peças em stock. Cria a primeira ou importa um CSV.'}
+                </td>
+              </tr>
+            )}
+            {list.isLoading && (
+              <tr>
+                <td colSpan={9} className="px-3 py-8 text-center text-sm text-zinc-500">A carregar stock...</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      {lastPage > 1 && (
+        <div className="flex items-center justify-between text-xs text-zinc-500">
+          <Button type="button" variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
+          <span>{page} / {lastPage}</span>
+          <Button type="button" variant="ghost" size="sm" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)}>Seguinte</Button>
+        </div>
+      )}
+
+      <PartFormModal open={createOpen} onClose={() => setCreateOpen(false)} onSaved={() => { invalidate(); setCreateOpen(false); }} />
+      <PartFormModal open={!!editing} editing={editing} onClose={() => setEditing(null)} onSaved={() => { invalidate(); setEditing(null); }} />
+      <AdjustStockModal part={adjusting} onClose={() => setAdjusting(null)} onSaved={() => { invalidate(); setAdjusting(null); }} />
+      <HistoryModal part={historyPart} onClose={() => setHistoryPart(null)} />
+      <ImportCsvModal open={importOpen} onClose={() => setImportOpen(false)} onDone={invalidate} />
+
+      <Modal
+        open={!!confirmDelete}
+        title="Apagar peça"
+        onClose={() => setConfirmDelete(null)}
+        footer={<>
+          <Button type="button" variant="ghost" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
+          <Button type="button" variant="danger" loading={remove.isPending} onClick={() => confirmDelete && remove.mutate(confirmDelete)}>Apagar</Button>
+        </>}
+      >
+        <p className="text-sm">
+          Apagar <strong>{confirmDelete?.nome}</strong>? A peça fica oculta por soft delete.
+        </p>
+      </Modal>
+    </div>
+  );
+}
+
+function PartFormModal({ open, editing, onClose, onSaved }: { open: boolean; editing?: Part | null; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState<PartForm>({
+    sku: null,
+    nome: '',
+    categoria: PART_CATEGORIA.Outro,
+    marca: null,
+    modelo: null,
+    priceTableEntryId: null,
+    qtdStock: 0,
+    qtdMinima: 0,
+    custoUnitarioCents: 0,
+    fornecedor: null,
+    localArmazenamento: null,
+    notas: null,
+  });
+  const [activo, setActivo] = useState(true);
+  const [stockStr, setStockStr] = useState('0');
+  const [minStr, setMinStr] = useState('0');
+  const [custoStr, setCustoStr] = useState('0,00');
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        sku: editing.sku,
+        nome: editing.nome,
+        categoria: editing.categoria,
+        marca: editing.marca,
+        modelo: editing.modelo,
+        priceTableEntryId: editing.priceTableEntryId,
+        qtdStock: editing.qtdStock,
+        qtdMinima: editing.qtdMinima,
+        custoUnitarioCents: editing.custoUnitarioCents,
+        fornecedor: editing.fornecedor,
+        localArmazenamento: editing.localArmazenamento,
+        notas: editing.notas,
+      });
+      setActivo(editing.activo);
+      setStockStr(String(editing.qtdStock));
+      setMinStr(String(editing.qtdMinima));
+      setCustoStr((editing.custoUnitarioCents / 100).toFixed(2).replace('.', ','));
+    } else if (open) {
+      setForm({ sku: null, nome: '', categoria: PART_CATEGORIA.Outro, marca: null, modelo: null, priceTableEntryId: null, qtdStock: 0, qtdMinima: 0, custoUnitarioCents: 0, fornecedor: null, localArmazenamento: null, notas: null });
+      setActivo(true);
+      setStockStr('0');
+      setMinStr('0');
+      setCustoStr('0,00');
+    }
+  }, [editing, open]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const payload = {
+        ...form,
+        sku: form.sku?.trim() || null,
+        nome: form.nome.trim(),
+        marca: form.marca?.trim() || null,
+        modelo: form.modelo?.trim() || null,
+        fornecedor: form.fornecedor?.trim() || null,
+        localArmazenamento: form.localArmazenamento?.trim() || null,
+        notas: form.notas?.trim() || null,
+        qtdStock: Number(stockStr || 0),
+        qtdMinima: Number(minStr || 0),
+        custoUnitarioCents: parseEuros(custoStr) ?? 0,
+      };
+      if (editing) return stockApi.update(editing.id, { ...payload, activo });
+      return stockApi.create(payload);
+    },
+    onSuccess: () => {
+      toast.success(editing ? 'Peça guardada' : 'Peça criada');
+      onSaved();
+    },
+    onError: (err) => toast.fromError(err, 'Erro ao guardar peça.'),
+  });
+
+  return (
+    <Modal
+      open={open}
+      title={editing ? 'Editar peça' : 'Nova peça'}
+      onClose={onClose}
+      footer={<>
+        <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+        <Button type="button" loading={save.isPending} disabled={!form.nome.trim()} onClick={() => save.mutate()}>
+          {editing ? 'Guardar' : 'Criar'}
+        </Button>
+      </>}
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="SKU"><input value={form.sku ?? ''} onChange={(e) => setForm({ ...form, sku: e.target.value || null })} placeholder="LCD-IP12-A" className={inputCls} /></Field>
+          <Field label="Categoria">
+            <select value={form.categoria} onChange={(e) => setForm({ ...form, categoria: Number(e.target.value) as PartCategoria })} className={inputCls}>
+              {Object.values(PART_CATEGORIA).map((value) => <option key={value} value={value}>{PART_CATEGORIA_LABEL[value]}</option>)}
+            </select>
+          </Field>
+        </div>
+        <Field label="Nome *"><input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ecrã iPhone 12" className={inputCls} /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Marca"><input value={form.marca ?? ''} onChange={(e) => setForm({ ...form, marca: e.target.value || null })} placeholder="Apple" className={inputCls} /></Field>
+          <Field label="Modelo"><input value={form.modelo ?? ''} onChange={(e) => setForm({ ...form, modelo: e.target.value || null })} placeholder="iPhone 12" className={inputCls} /></Field>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Stock"><input inputMode="numeric" value={stockStr} onChange={(e) => setStockStr(e.target.value)} className={inputCls} /></Field>
+          <Field label="Mínimo"><input inputMode="numeric" value={minStr} onChange={(e) => setMinStr(e.target.value)} className={inputCls} /></Field>
+          <Field label="Custo (€)"><input inputMode="decimal" value={custoStr} onChange={(e) => setCustoStr(e.target.value)} className={inputCls} /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Fornecedor"><input value={form.fornecedor ?? ''} onChange={(e) => setForm({ ...form, fornecedor: e.target.value || null })} placeholder="Mobiltrust" className={inputCls} /></Field>
+          <Field label="Local"><input value={form.localArmazenamento ?? ''} onChange={(e) => setForm({ ...form, localArmazenamento: e.target.value || null })} placeholder="Prateleira A3" className={inputCls} /></Field>
+        </div>
+        <Field label="Notas"><textarea rows={2} value={form.notas ?? ''} onChange={(e) => setForm({ ...form, notas: e.target.value || null })} className={inputCls + ' resize-none'} /></Field>
+        {editing && (
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
+            Activa
+          </label>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function AdjustStockModal({ part, onClose, onSaved }: { part: Part | null; onClose: () => void; onSaved: () => void }) {
+  const [motivo, setMotivo] = useState<PartMovimentoMotivo>(PART_MOVIMENTO_MOTIVO.Entrada);
+  const [qty, setQty] = useState('1');
+  const [notas, setNotas] = useState('');
+
+  useEffect(() => {
+    if (part) {
+      setMotivo(PART_MOVIMENTO_MOTIVO.Entrada);
+      setQty('1');
+      setNotas('');
+    }
+  }, [part]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      if (!part) throw new Error('Sem peça seleccionada.');
+      const raw = Number(qty);
+      const signed = motivo === PART_MOVIMENTO_MOTIVO.Saida
+        ? -Math.abs(raw)
+        : motivo === PART_MOVIMENTO_MOTIVO.AjusteManual
+          ? raw
+          : Math.abs(raw);
+      return stockApi.addMovimento(part.id, {
+        quantidade: signed,
+        motivo,
+        reparacaoId: null,
+        notas: notas.trim() || null,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Stock actualizado');
+      onSaved();
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível ajustar stock.'),
+  });
+
+  return (
+    <Modal
+      open={!!part}
+      title={`Ajustar stock${part ? ` · ${part.nome}` : ''}`}
+      onClose={onClose}
+      footer={<>
+        <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+        <Button type="button" loading={save.isPending} disabled={!qty || Number(qty) === 0} onClick={() => save.mutate()}>Guardar movimento</Button>
+      </>}
+    >
+      {part && (
+        <div className="space-y-3">
+          <div className="rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-950">
+            Stock actual: <strong>{part.qtdStock}</strong> · mínimo: {part.qtdMinima}
+          </div>
+          <Field label="Motivo">
+            <select value={motivo} onChange={(e) => setMotivo(Number(e.target.value) as PartMovimentoMotivo)} className={inputCls}>
+              <option value={PART_MOVIMENTO_MOTIVO.Entrada}>Entrada</option>
+              <option value={PART_MOVIMENTO_MOTIVO.Saida}>Saída</option>
+              <option value={PART_MOVIMENTO_MOTIVO.AjusteManual}>Ajuste manual</option>
+              <option value={PART_MOVIMENTO_MOTIVO.Devolucao}>Devolução</option>
+            </select>
+          </Field>
+          <Field label={motivo === PART_MOVIMENTO_MOTIVO.AjusteManual ? 'Delta (+/-)' : 'Quantidade'}>
+            <input inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Notas"><textarea rows={2} value={notas} onChange={(e) => setNotas(e.target.value)} className={inputCls + ' resize-none'} /></Field>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function HistoryModal({ part, onClose }: { part: Part | null; onClose: () => void }) {
+  const history = useQuery({
+    queryKey: ['stock-movimentos', part?.id],
+    queryFn: () => stockApi.movimentos({ partId: part!.id }),
+    enabled: !!part,
+  });
+  return (
+    <Modal open={!!part} title={`Histórico${part ? ` · ${part.nome}` : ''}`} onClose={onClose}>
+      <MovimentosList movimentos={history.data ?? []} loading={history.isLoading} />
+    </Modal>
+  );
+}
+
+function MovimentosList({ movimentos, loading }: { movimentos: PartMovimento[]; loading: boolean }) {
+  if (loading) return <p className="text-sm text-zinc-500">A carregar movimentos...</p>;
+  if (movimentos.length === 0) return <p className="text-sm text-zinc-500">Ainda não há movimentos.</p>;
+  return (
+    <ul className="max-h-96 space-y-2 overflow-y-auto">
+      {movimentos.map((m) => (
+        <li key={m.id} className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="font-medium">{PART_MOVIMENTO_LABEL[m.motivo]}</span>
+              <span className={`ml-2 font-mono ${m.quantidade < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {m.quantidade > 0 ? '+' : ''}{m.quantidade}
+              </span>
+            </div>
+            <span className="text-xs text-zinc-500">{formatDate(m.createdAt)}</span>
+          </div>
+          <div className="mt-1 text-xs text-zinc-500">
+            Stock {m.stockAntes} → {m.stockDepois}
+            {m.reparacaoId && <> · reparação ligada</>}
+          </div>
+          {m.notas && <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{m.notas}</div>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ImportCsvModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+  const [csv, setCsv] = useState('');
+  const [result, setResult] = useState<Awaited<ReturnType<typeof stockApi.importCsv>> | null>(null);
+
+  const imp = useMutation({
+    mutationFn: () => stockApi.importCsv(csv),
+    onSuccess: (r) => {
+      setResult(r);
+      toast.success(`${r.criadas} peça(s) importada(s)`);
+      onDone();
+    },
+    onError: (err) => toast.fromError(err, 'Erro ao importar CSV.'),
+  });
+
+  function reset() {
+    setCsv('');
+    setResult(null);
+  }
+
+  return (
+    <Modal
+      open={open}
+      title="Importar peças de CSV"
+      onClose={() => { reset(); onClose(); }}
+      footer={result ? (
+        <Button type="button" onClick={() => { reset(); onClose(); }}>Fechar</Button>
+      ) : (
+        <>
+          <Button type="button" variant="ghost" onClick={() => { reset(); onClose(); }}>Cancelar</Button>
+          <Button type="button" loading={imp.isPending} disabled={!csv.trim()} onClick={() => imp.mutate()}>Importar</Button>
+        </>
+      )}
+    >
+      <div className="space-y-3">
+        {result ? (
+          <div className="space-y-3 text-sm">
+            <div className="grid grid-cols-3 gap-2">
+              <Stat label="Criadas" value={result.criadas} tone="emerald" />
+              <Stat label="Ignoradas" value={result.ignoradas} tone="zinc" />
+              <Stat label="Com erro" value={result.comErro} tone="rose" />
+            </div>
+            {result.erros.length > 0 && (
+              <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
+                {result.erros.map((e, i) => (
+                  <li key={i} className="text-xs">
+                    <span className="font-mono text-zinc-500">L{e.linha}</span> <strong>{e.campo}:</strong>{' '}
+                    <span className="text-rose-700 dark:text-rose-300">{e.mensagem}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
+              Colunas: <strong>nome</strong> obrigatório. Opcionais: sku, categoria, marca, modelo, stock, minimo, custo, fornecedor, local, notas.
+            </div>
+            <textarea
+              rows={9}
+              value={csv}
+              onChange={(e) => setCsv(e.target.value)}
+              placeholder={'sku,nome,categoria,marca,modelo,stock,minimo,custo,fornecedor,local\nLCD-IP12,Ecrã iPhone 12,ecra,Apple,iPhone 12,3,1,42.00,Mobiltrust,A3'}
+              className={inputCls + ' font-mono text-xs'}
+            />
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone: 'emerald' | 'zinc' | 'rose' }) {
+  const cls = tone === 'emerald'
+    ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200'
+    : tone === 'rose'
+      ? 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800/60 dark:bg-rose-950/30 dark:text-rose-200'
+      : 'border-zinc-300 bg-zinc-50 text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200';
+  return (
+    <div className={`rounded-lg border p-3 text-center ${cls}`}>
+      <div className="text-2xl font-semibold">{value}</div>
+      <div className="text-[10px] uppercase">{label}</div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+const inputCls = 'block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';

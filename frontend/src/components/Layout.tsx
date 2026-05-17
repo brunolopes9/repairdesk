@@ -1,29 +1,129 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState, type ComponentType } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Users,
+  Wrench,
+  Briefcase,
+  Receipt,
+  PackageSearch,
+  Tags,
+  Settings,
+  LogOut,
+  Pin,
+  PinOff,
+  Sun,
+  Moon,
+  Monitor,
+} from 'lucide-react';
+import { useAuth } from '../lib/auth/AuthContext';
+import { tenantSettingsApi } from '../lib/tenantSettings/api';
+import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Theme } from '../lib/theme';
 
-const nav = [
-  { to: '/', label: 'Dashboard', icon: '📊' },
-  { to: '/clientes', label: 'Clientes', icon: '👥' },
-  { to: '/reparacoes', label: 'Reparações', icon: '🔧' },
-  { to: '/pecas', label: 'Peças', icon: '📦' },
-  { to: '/faturacao', label: 'Faturação', icon: '🧾' },
+type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
+
+const nav: Array<{ to: string; label: string; icon: IconCmp }> = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/clientes', label: 'Clientes', icon: Users },
+  { to: '/reparacoes', label: 'Reparações', icon: Wrench },
+  { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
+  { to: '/despesas', label: 'Despesas', icon: Receipt },
+  { to: '/stock', label: 'Stock', icon: PackageSearch },
+  { to: '/precos', label: 'Preços', icon: Tags },
+  { to: '/definicoes', label: 'Definições', icon: Settings },
 ];
 
+const SIDEBAR_PIN_KEY = 'rd.sidebar.pinned';
+
 export default function Layout() {
+  const { user, logout, hasRole } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [hovered, setHovered] = useState(false);
+  const [pinned, setPinned] = useState<boolean>(() => {
+    try { return localStorage.getItem(SIDEBAR_PIN_KEY) === '1'; } catch { return false; }
+  });
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
+
+  useEffect(() => {
+    try { localStorage.setItem(SIDEBAR_PIN_KEY, pinned ? '1' : '0'); } catch { /* ignore */ }
+  }, [pinned]);
+
+  useEffect(() => {
+    setStoredTheme(theme);
+    applyTheme(theme);
+    if (theme === 'system') return watchSystemTheme(() => applyTheme('system'));
+  }, [theme]);
+
+  function cycleTheme() {
+    setTheme((t) => (t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light'));
+  }
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  const themeLabel = theme === 'light' ? 'Claro' : theme === 'dark' ? 'Escuro' : 'Sistema';
+
+  const expanded = hovered || pinned;
+
+  const onboarding = useQuery({
+    queryKey: ['onboarding-status'],
+    queryFn: () => tenantSettingsApi.onboardingStatus(),
+    staleTime: 30_000,
+    enabled: Boolean(user) && hasRole('Admin'),
+  });
+
+  useEffect(() => {
+    if (!user || !hasRole('Admin') || !onboarding.data || onboarding.data.onboardingCompletado) return;
+    if (location.pathname === '/bemvindo') return;
+
+    const key = `rd.onboarding.redirected.${user.tenantId}`;
+    try {
+      if (sessionStorage.getItem(key) === '1') return;
+      sessionStorage.setItem(key, '1');
+    } catch {
+      /* sessionStorage may be unavailable; redirect anyway */
+    }
+
+    navigate('/bemvindo', { replace: true });
+  }, [hasRole, location.pathname, navigate, onboarding.data, user]);
+
+  async function handleLogout() {
+    await logout();
+    navigate('/login', { replace: true });
+  }
+
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+      <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:pl-20">
           <div className="flex items-center gap-2 font-semibold">
             <span className="text-brand-500">●</span> RepairDesk
           </div>
-          <span className="text-xs text-zinc-500">LopesTech</span>
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
+            {user && <span className="hidden sm:inline">{user.displayName}</span>}
+            <button
+              type="button"
+              onClick={cycleTheme}
+              title={`Tema: ${themeLabel} — clica para alternar`}
+              className="rounded-md border border-zinc-200 p-1.5 text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              <ThemeIcon size={14} strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-6">
+      <main className="mx-auto max-w-5xl px-4 pb-24 pt-6 sm:pl-20">
         <Outlet />
       </main>
 
+      {/* Bottom nav (mobile) */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-10 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95 sm:hidden"
         aria-label="Bottom navigation"
@@ -40,9 +140,7 @@ export default function Layout() {
                   }`
                 }
               >
-                <span aria-hidden className="text-base">
-                  {item.icon}
-                </span>
+                <item.icon size={18} strokeWidth={1.75} aria-hidden />
                 {item.label}
               </NavLink>
             </li>
@@ -50,27 +148,84 @@ export default function Layout() {
         </ul>
       </nav>
 
-      <aside className="fixed left-0 top-14 hidden h-[calc(100vh-3.5rem)] w-56 border-r border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950 sm:block">
-        <ul className="space-y-1">
+      {/* Sidebar (desktop) — comprimida por defeito (w-14), expande no hover (w-56) */}
+      <aside
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className={`fixed left-0 top-0 z-30 hidden h-screen border-r border-zinc-200 bg-white/95 backdrop-blur transition-[width] duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-950/95 sm:flex sm:flex-col ${
+          expanded ? 'w-56 shadow-xl shadow-black/5' : 'w-14'
+        }`}
+      >
+        {/* Logo + pin */}
+        <div className="flex h-14 items-center gap-2 border-b border-zinc-200 px-3 dark:border-zinc-800">
+          <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-50 text-brand-600 dark:bg-zinc-800">●</span>
+          <span
+            className={`flex-1 truncate text-sm font-semibold transition-opacity ${
+              expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            RepairDesk
+          </span>
+          {expanded && (
+            <button
+              type="button"
+              onClick={() => setPinned((p) => !p)}
+              className="rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
+              aria-label={pinned ? 'Desafixar menu' : 'Fixar menu aberto'}
+              title={pinned ? 'Desafixar' : 'Fixar aberto'}
+            >
+              {pinned ? <Pin size={14} strokeWidth={2} /> : <PinOff size={14} strokeWidth={2} />}
+            </button>
+          )}
+        </div>
+
+        {/* Nav items */}
+        <ul className="flex-1 space-y-1 p-2">
           {nav.map((item) => (
             <li key={item.to}>
               <NavLink
                 to={item.to}
                 end={item.to === '/'}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                  `group flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition ${
                     isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-500'
+                      ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-400'
                       : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
                   }`
                 }
+                title={item.label}
               >
-                <span aria-hidden>{item.icon}</span>
-                {item.label}
+                <item.icon size={20} strokeWidth={1.75} aria-hidden />
+                <span
+                  className={`flex-1 truncate transition-opacity duration-150 ${
+                    expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+                  }`}
+                >
+                  {item.label}
+                </span>
               </NavLink>
             </li>
           ))}
         </ul>
+
+        {/* Footer: user + sair (visível só quando expandido) */}
+        {user && (
+          <div
+            className={`border-t border-zinc-200 p-2 transition-opacity dark:border-zinc-800 ${
+              expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            <div className="px-3 py-1.5 text-xs text-zinc-500 truncate">{user.displayName}</div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              <LogOut size={16} strokeWidth={1.75} aria-hidden />
+              <span>Sair</span>
+            </button>
+          </div>
+        )}
       </aside>
     </div>
   );

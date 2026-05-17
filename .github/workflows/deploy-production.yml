@@ -1,0 +1,158 @@
+name: Deploy production
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to deploy, e.g. v0.1.0"
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: Build and push release images
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.version || github.ref }}
+
+      - name: Resolve version
+        id: meta
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          fi
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must match vX.Y.Z, got: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/src/RepairDesk.API/Dockerfile
+          push: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-api:${{ steps.meta.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-api:${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}
+
+      - name: Build and push Web
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-web:${{ steps.meta.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-web:${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}
+
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload compose file
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_SSH_PORT || 22 }}
+          source: docker-compose.prod.yml
+          target: ${{ secrets.PROD_DEPLOY_PATH }}
+
+      - name: Pull and restart containers
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN || github.token }}
+          IMAGE_NAMESPACE: ${{ env.IMAGE_NAMESPACE }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          REGISTRY: ${{ env.REGISTRY }}
+          DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_SSH_PORT || 22 }}
+          envs: GHCR_USERNAME,GHCR_TOKEN,IMAGE_NAMESPACE,IMAGE_TAG,REGISTRY,DEPLOY_PATH
+          script: |
+            set -eu
+            cd "$DEPLOY_PATH"
+            if [ -x ./backup-db.sh ]; then
+              ./backup-db.sh "pre-${IMAGE_TAG}"
+            fi
+            if [ -n "${GHCR_TOKEN:-}" ]; then
+              echo "$GHCR_TOKEN" | docker login "$REGISTRY" -u "$GHCR_USERNAME" --password-stdin
+            fi
+            export IMAGE_NAMESPACE IMAGE_TAG REGISTRY
+            docker compose --env-file .env.production -f docker-compose.prod.yml pull
+            docker compose --env-file .env.production -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
+
+      - name: Smoke test
+        shell: bash
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --retry 10 --retry-delay 6 --retry-connrefused "$PROD_API_URL/api/health"
+
+      - name: Optional Discord notification
+        if: always()
+        env:
+          WEBHOOK: ${{ secrets.PROD_DISCORD_WEBHOOK }}
+          STATUS: ${{ job.status }}
+          VERSION: ${{ needs.build-and-push.outputs.image_tag }}
+        shell: bash
+        run: |
+          if [ -z "${WEBHOOK:-}" ]; then
+            exit 0
+          fi
+          curl -H "Content-Type: application/json" \
+            -d "{\"content\":\"RepairDesk production deploy ${STATUS}: ${VERSION}\"}" \
+            "$WEBHOOK"

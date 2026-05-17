@@ -1,0 +1,98 @@
+name: repairdesk
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: ${MSSQL_PID:-Express}
+      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:?DB_SA_PASSWORD is required}
+    volumes:
+      - db_data:/var/opt/mssql
+    networks:
+      - repairdesk-private
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -No -Q "SELECT 1" || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    volumes:
+      - cache_data:/data
+    networks:
+      - repairdesk-private
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/repairdesk-api:${IMAGE_TAG:?IMAGE_TAG is required}
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: Server=db,1433;Database=${DB_NAME:-RepairDesk};User Id=sa;Password=${DB_SA_PASSWORD:?DB_SA_PASSWORD is required};TrustServerCertificate=True;Encrypt=True;
+      Redis__Connection: cache:6379,password=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      Jwt__Issuer: ${JWT_ISSUER:?JWT_ISSUER is required}
+      Jwt__Audience: ${JWT_AUDIENCE:?JWT_AUDIENCE is required}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?JWT_SIGNING_KEY is required}
+      Seed__AdminEmail: ${SEED_ADMIN_EMAIL:?SEED_ADMIN_EMAIL is required}
+      Seed__AdminPassword: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD is required}
+      Seed__AdminDisplayName: ${SEED_ADMIN_DISPLAY_NAME:-RepairDesk Admin}
+      Storage__Provider: ${Storage__Provider:-local}
+      Storage__LocalRoot: ${Storage__LocalRoot:-/data/photos}
+      Storage__R2__AccountId: ${Storage__R2__AccountId:-}
+      Storage__R2__AccessKey: ${Storage__R2__AccessKey:-}
+      Storage__R2__Secret: ${Storage__R2__Secret:-}
+      Storage__R2__Bucket: ${Storage__R2__Bucket:-}
+    volumes:
+      - photos_data:/data/photos
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    networks:
+      - repairdesk-private
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/api/health > /dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  web:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/repairdesk-web:${IMAGE_TAG:?IMAGE_TAG is required}
+    restart: unless-stopped
+    ports:
+      - "${WEB_HTTP_PORT:-127.0.0.1:8088}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - repairdesk-private
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ > /dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  db_data:
+  cache_data:
+  photos_data:
+
+networks:
+  repairdesk-private:
+    driver: bridge

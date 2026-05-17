@@ -1,0 +1,53 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Lisbon
+    open-pull-requests-limit: 5
+    groups:
+      dotnet-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:15"
+      timezone: Europe/Lisbon
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directory: /backend/src/RepairDesk.API
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:30"
+      timezone: Europe/Lisbon
+
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:45"
+      timezone: Europe/Lisbon
+
+  - package-ecosystem: github-actions
+    directory: /.github/workflows
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: Europe/Lisbon

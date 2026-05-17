@@ -1,0 +1,612 @@
+using FluentValidation;
+using RepairDesk.Common.Helpers;
+using RepairDesk.Core.Abstractions;
+using RepairDesk.Core.Entities;
+using RepairDesk.Core.Enums;
+using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.Clientes;
+// ImeiValidator do Common.Helpers
+
+namespace RepairDesk.Services.Reparacoes;
+
+public interface IReparacaoService
+{
+    Task<PagedResult<ReparacaoDto>> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default);
+    Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default);
+    Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default);
+    Task<ReparacaoDto> UpdateAsync(Guid id, UpdateReparacaoRequest req, CancellationToken ct = default);
+    Task<ReparacaoDto> ChangeEstadoAsync(Guid id, ChangeEstadoRequest req, CancellationToken ct = default);
+    Task<ReparacaoDto> ReabrirAsync(Guid id, string? notas, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
+    Task<ReparacaoHistoricoResponse> HistoricoPorImeiAsync(string imei, Guid? excludeId, CancellationToken ct = default);
+    Task<ImportReparacoesResponse> ImportCsvAsync(string csv, CancellationToken ct = default);
+    Task<byte[]> ExportCsvAsync(CancellationToken ct = default);
+}
+
+public class ReparacaoService : IReparacaoService
+{
+    private readonly IReparacaoRepository _repo;
+    private readonly IClienteRepository _clientes;
+    private readonly IDespesaRepository _despesas;
+    private readonly IGarantiaRepository _garantias;
+    private readonly ITenantRepository _tenants;
+    private readonly ITenantContext _tenant;
+    private readonly ICurrentUser _user;
+    private readonly IValidator<CreateReparacaoRequest> _createV;
+    private readonly IValidator<UpdateReparacaoRequest> _updateV;
+    private readonly IValidator<ChangeEstadoRequest> _estadoV;
+
+    public ReparacaoService(
+        IReparacaoRepository repo,
+        IClienteRepository clientes,
+        IDespesaRepository despesas,
+        IGarantiaRepository garantias,
+        ITenantRepository tenants,
+        ITenantContext tenant,
+        ICurrentUser user,
+        IValidator<CreateReparacaoRequest> createV,
+        IValidator<UpdateReparacaoRequest> updateV,
+        IValidator<ChangeEstadoRequest> estadoV)
+    {
+        _repo = repo;
+        _clientes = clientes;
+        _despesas = despesas;
+        _garantias = garantias;
+        _tenants = tenants;
+        _tenant = tenant;
+        _user = user;
+        _createV = createV;
+        _updateV = updateV;
+        _estadoV = estadoV;
+    }
+
+    public async Task<PagedResult<ReparacaoDto>> SearchAsync(
+        string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (items, total) = await _repo.SearchAsync(query, estado, clienteId, page, pageSize, ct);
+        var dtos = new List<ReparacaoDto>(items.Count);
+        foreach (var r in items)
+        {
+            var custo = await _despesas.SumByReparacaoAsync(r.Id, ct);
+            dtos.Add(ToDto(r, custo));
+        }
+        return new PagedResult<ReparacaoDto>(dtos, page, pageSize, total);
+    }
+
+    public async Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default)
+    {
+        var r = await _repo.FindByIdWithTimelineAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+        var timeline = r.Timeline
+            .OrderBy(t => t.MudouEm)
+            .Select(t => new EstadoLogDto(t.Id, t.EstadoFrom, t.EstadoTo, t.MudouEm, t.Notas))
+            .ToList();
+        var custo = await _despesas.SumByReparacaoAsync(r.Id, ct);
+        return new ReparacaoDetalhadaDto(ToDto(r, custo), timeline);
+    }
+
+    public async Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default)
+    {
+        await _createV.ValidateAndThrowAsync(req, ct);
+        if (!_tenant.HasTenant) throw new ForbiddenException("no_tenant", "Tenant não definido.");
+
+        var cliente = await _clientes.FindByIdAsync(req.ClienteId, ct)
+            ?? throw new NotFoundException("Cliente", req.ClienteId);
+
+        var estadoInicial = req.EstadoInicial ?? RepairStatus.Recebido;
+        if (estadoInicial != RepairStatus.Recebido && estadoInicial != RepairStatus.Orcamento)
+            throw new RepairDesk.Core.Exceptions.ValidationException("estado_inicial_invalido", "Estado inicial só pode ser Recebido ou Orçamento.");
+
+        var now = DateTime.UtcNow;
+        var rep = new Reparacao
+        {
+            ClienteId = cliente.Id,
+            Equipamento = req.Equipamento.Trim(),
+            Avaria = req.Avaria.Trim(),
+            Imei = NormalizeImei(req.Imei),
+            OrcamentoCents = req.OrcamentoCents,
+            // Copia orçamento → preço final por default (utilizador pode editar)
+            PrecoFinalCents = req.OrcamentoCents,
+            Notas = req.Notas?.Trim(),
+            Estado = estadoInicial,
+            EstadoSince = now,
+            PublicSlug = PublicSlugGenerator.New(),
+        };
+        rep.Timeline.Add(new ReparacaoEstadoLog
+        {
+            EstadoFrom = null,
+            EstadoTo = estadoInicial,
+            MudouEm = now,
+            UserId = _user.UserId,
+            Notas = estadoInicial == RepairStatus.Orcamento ? "Orçamento criado" : "Recebida",
+        });
+        await _repo.CreateWithNextNumeroAsync(rep, _tenant.TenantId!.Value, ct);
+        rep.Cliente = cliente;
+        return ToDto(rep, 0);
+    }
+
+    public async Task<ReparacaoDto> UpdateAsync(Guid id, UpdateReparacaoRequest req, CancellationToken ct = default)
+    {
+        await _updateV.ValidateAndThrowAsync(req, ct);
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+
+        if (req.ClienteId is not null && req.ClienteId.Value != rep.ClienteId)
+        {
+            var novoCliente = await _clientes.FindByIdAsync(req.ClienteId.Value, ct)
+                ?? throw new NotFoundException("Cliente", req.ClienteId.Value);
+            rep.ClienteId = novoCliente.Id;
+            rep.Cliente = novoCliente;
+        }
+
+        rep.Equipamento = req.Equipamento.Trim();
+        rep.Avaria = req.Avaria.Trim();
+        rep.Imei = NormalizeImei(req.Imei);
+        rep.Diagnostico = req.Diagnostico?.Trim();
+        rep.OrcamentoCents = req.OrcamentoCents;
+        rep.OrcamentoAprovado = req.OrcamentoAprovado;
+        rep.PrecoFinalCents = req.PrecoFinalCents;
+        // CustoPecasCents e derivado dos movimentos de stock, nao editado manualmente.
+        rep.HorasGastas = req.HorasGastas;
+        rep.Notas = req.Notas?.Trim();
+        rep.EstadoPagamento = req.EstadoPagamento;
+
+        await _repo.SaveAsync(ct);
+        rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
+        var custo = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+        return ToDto(rep, custo);
+    }
+
+    public async Task<ReparacaoDto> ChangeEstadoAsync(Guid id, ChangeEstadoRequest req, CancellationToken ct = default)
+    {
+        await _estadoV.ValidateAndThrowAsync(req, ct);
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+
+        if (rep.Estado == req.Estado)
+            throw new ConflictException("estado_unchanged", $"Reparação já está no estado {req.Estado}.");
+
+        if (!IsValidTransition(rep.Estado, req.Estado))
+            throw new ConflictException("estado_invalid_transition",
+                $"Transição inválida: {rep.Estado} → {req.Estado}.");
+
+        var now = DateTime.UtcNow;
+        var log = new ReparacaoEstadoLog
+        {
+            ReparacaoId = rep.Id,
+            EstadoFrom = rep.Estado,
+            EstadoTo = req.Estado,
+            MudouEm = now,
+            UserId = _user.UserId,
+            Notas = req.Notas?.Trim(),
+        };
+        rep.Estado = req.Estado;
+        rep.EstadoSince = now;
+        if (req.Estado == RepairStatus.Entregue)
+        {
+            rep.EntregueEm = now;
+            // Default Pago ao entregar — utilizador pode override editando manualmente
+            if (rep.EstadoPagamento == PaymentStatus.NaoPago)
+                rep.EstadoPagamento = PaymentStatus.Pago;
+        }
+
+        _repo.AddEstadoLog(log);
+        await _repo.SaveAsync(ct);
+
+        // Auto-emite garantia ao Entregar (se ainda não existir)
+        if (req.Estado == RepairStatus.Entregue)
+        {
+            await EmitirGarantiaSeNecessarioAsync(rep, now, ct);
+        }
+
+        rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
+        var custoChange = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+        return ToDto(rep, custoChange);
+    }
+
+    private async Task EmitirGarantiaSeNecessarioAsync(Reparacao rep, DateTime agora, CancellationToken ct)
+    {
+        var existente = await _garantias.FindByReparacaoAsync(rep.Id, ct);
+        if (existente is not null) return;
+
+        var tenant = _tenant.TenantId is { } tid ? await _tenants.FindByIdAsync(tid, ct) : null;
+        var dias = tenant?.GarantiaDiasDefault ?? 90;
+        var g = new Garantia
+        {
+            ReparacaoId = rep.Id,
+            Slug = PublicSlugGenerator.New(),
+            DataInicio = agora,
+            DataFim = agora.AddDays(dias),
+            DiasGarantia = dias,
+            Cobertura = tenant?.GarantiaCoberturaDefault,
+            Exclusoes = tenant?.GarantiaExclusoesDefault,
+        };
+        await _garantias.AddAsync(g, ct);
+        await _garantias.SaveAsync(ct);
+    }
+
+    public async Task<ReparacaoDto> ReabrirAsync(Guid id, string? notas, CancellationToken ct = default)
+    {
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+
+        if (rep.Estado != RepairStatus.Entregue && rep.Estado != RepairStatus.Cancelado)
+            throw new ConflictException("reabrir_estado_invalido",
+                $"Só é possível reabrir reparações Entregues ou Canceladas. Estado actual: {rep.Estado}.");
+
+        var now = DateTime.UtcNow;
+        var estadoFrom = rep.Estado;
+        // Volta para Pronto (Reparado) e desmarca pago. EntregueEm preservado para histórico.
+        rep.Estado = RepairStatus.Pronto;
+        rep.EstadoSince = now;
+        rep.EstadoPagamento = PaymentStatus.NaoPago;
+        rep.EntregueEm = null;
+
+        var log = new ReparacaoEstadoLog
+        {
+            ReparacaoId = rep.Id,
+            EstadoFrom = estadoFrom,
+            EstadoTo = RepairStatus.Pronto,
+            MudouEm = now,
+            UserId = _user.UserId,
+            Notas = string.IsNullOrWhiteSpace(notas) ? "Reaberta para correcção" : $"Reaberta: {notas}",
+        };
+        _repo.AddEstadoLog(log);
+        await _repo.SaveAsync(ct);
+        rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
+        var custo = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+        return ToDto(rep, custo);
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+        _repo.Remove(rep);
+        await _repo.SaveAsync(ct);
+    }
+
+    public async Task<ImportReparacoesResponse> ImportCsvAsync(string csv, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(csv))
+            throw new RepairDesk.Core.Exceptions.ValidationException("csv_vazio", "CSV vazio.");
+        if (!_tenant.HasTenant)
+            throw new ForbiddenException("no_tenant", "Tenant não definido.");
+
+        var rows = CsvParser.Parse(csv);
+        if (rows.Count < 2)
+            throw new RepairDesk.Core.Exceptions.ValidationException("csv_sem_dados", "CSV precisa de header + pelo menos 1 linha de dados.");
+
+        var header = rows[0].Select(h => h.Trim().ToLowerInvariant()).ToArray();
+        int Idx(params string[] names) => header
+            .Select((h, i) => new { h, i })
+            .FirstOrDefault(x => names.Contains(x.h))?.i ?? -1;
+
+        var iEquip = Idx("equipamento", "device");
+        var iAvaria = Idx("avaria", "problema", "issue");
+        var iCNome = Idx("cliente", "clientenome", "cliente_nome", "nome");
+        var iCTel = Idx("telefone", "clientetelefone", "cliente_telefone", "phone");
+        var iCNif = Idx("nif", "clientenif", "cliente_nif");
+        var iCEmail = Idx("email", "clienteemail", "cliente_email");
+        var iImei = Idx("imei", "serial");
+        var iEstado = Idx("estado", "status");
+        var iOrc = Idx("orcamento", "orçamento", "estimativa");
+        var iPreco = Idx("preco", "preço", "precofinal", "preço_final", "preco_final", "valor");
+        var iData = Idx("recebidoem", "data", "recebido_em", "dataentrada", "data_entrada");
+        var iPago = Idx("pago", "pagamento", "estadopagamento");
+        var iDiag = Idx("diagnostico", "diagnóstico", "diagnostic");
+        var iNotas = Idx("notas", "observacoes", "observações", "notes");
+
+        if (iEquip < 0 || iAvaria < 0 || (iCNif < 0 && iCTel < 0 && iCNome < 0))
+            throw new RepairDesk.Core.Exceptions.ValidationException(
+                "csv_falta_coluna",
+                "Faltam colunas obrigatórias. Mínimo: equipamento, avaria + (cliente OU telefone OU nif).");
+
+        var erros = new List<ImportReparacaoError>();
+        var clienteCache = new Dictionary<string, Cliente>(); // key: nif|tel|nome+tel
+        var clientesCriados = 0;
+        var clientesReutilizados = 0;
+        var criadas = 0;
+
+        for (int i = 1; i < rows.Count; i++)
+        {
+            var linha = i + 1;
+            var row = rows[i];
+            string? Get(int idx) => idx >= 0 && idx < row.Length ? row[idx].Trim() : null;
+
+            var equip = Get(iEquip);
+            var avaria = Get(iAvaria);
+            if (string.IsNullOrWhiteSpace(equip) || string.IsNullOrWhiteSpace(avaria))
+            {
+                erros.Add(new ImportReparacaoError(linha, "equipamento/avaria", "Equipamento e avaria são obrigatórios.", equip));
+                continue;
+            }
+
+            var nif = Get(iCNif);
+            var tel = Get(iCTel);
+            var telNorm = string.IsNullOrWhiteSpace(tel) ? null : new string(tel.Where(c => !char.IsWhiteSpace(c)).ToArray());
+            var nomeC = Get(iCNome);
+
+            try
+            {
+                Cliente? cliente = null;
+                var cacheKey = nif ?? telNorm ?? nomeC ?? Guid.NewGuid().ToString();
+                if (!clienteCache.TryGetValue(cacheKey, out cliente!))
+                {
+                    if (!string.IsNullOrWhiteSpace(nif))
+                        cliente = await _clientes.FindByNifAsync(nif, ct);
+                    if (cliente is null && !string.IsNullOrWhiteSpace(telNorm))
+                        cliente = await _clientes.FindByTelefoneAsync(telNorm, ct);
+
+                    if (cliente is null)
+                    {
+                        if (string.IsNullOrWhiteSpace(nomeC) && string.IsNullOrWhiteSpace(telNorm) && string.IsNullOrWhiteSpace(nif))
+                        {
+                            erros.Add(new ImportReparacaoError(linha, "cliente", "Sem dados suficientes para identificar/criar cliente.", null));
+                            continue;
+                        }
+                        cliente = new Cliente
+                        {
+                            Nome = string.IsNullOrWhiteSpace(nomeC) ? (telNorm ?? nif ?? "Cliente sem nome") : nomeC,
+                            Telefone = telNorm,
+                            Email = Get(iCEmail),
+                            Nif = nif,
+                        };
+                        await _clientes.AddAsync(cliente, ct);
+                        await _clientes.SaveAsync(ct);
+                        clientesCriados++;
+                    }
+                    else
+                    {
+                        clientesReutilizados++;
+                    }
+                    clienteCache[cacheKey] = cliente;
+                }
+
+                var estado = ParseEstado(Get(iEstado));
+                var orcCents = ParseEuros(Get(iOrc));
+                var precoCents = ParseEuros(Get(iPreco)) ?? orcCents;
+                var pago = ParsePago(Get(iPago));
+                var imei = NormalizeImei(Get(iImei));
+                var data = ParseData(Get(iData)) ?? DateTime.UtcNow;
+
+                var rep = new Reparacao
+                {
+                    ClienteId = cliente.Id,
+                    Equipamento = equip,
+                    Avaria = avaria,
+                    Imei = imei,
+                    Diagnostico = Get(iDiag),
+                    OrcamentoCents = orcCents,
+                    PrecoFinalCents = precoCents,
+                    Notas = Get(iNotas),
+                    Estado = estado,
+                    EstadoSince = data,
+                    EntregueEm = estado == RepairStatus.Entregue ? data : null,
+                    OrcamentoAprovado = estado != RepairStatus.Orcamento,
+                    EstadoPagamento = pago,
+                    PublicSlug = PublicSlugGenerator.New(),
+                };
+                rep.Timeline.Add(new ReparacaoEstadoLog
+                {
+                    EstadoFrom = null,
+                    EstadoTo = estado,
+                    MudouEm = data,
+                    UserId = _user.UserId,
+                    Notas = "Importado de CSV",
+                });
+                await _repo.CreateWithNextNumeroAsync(rep, _tenant.TenantId!.Value, ct);
+                criadas++;
+            }
+            catch (Exception ex)
+            {
+                erros.Add(new ImportReparacaoError(linha, "?", ex.Message, equip));
+            }
+        }
+
+        return new ImportReparacoesResponse(
+            TotalLinhas: rows.Count - 1,
+            Criadas: criadas,
+            ClientesCriados: clientesCriados,
+            ClientesReutilizados: clientesReutilizados,
+            ComErro: erros.Count,
+            Erros: erros);
+    }
+
+    public async Task<byte[]> ExportCsvAsync(CancellationToken ct = default)
+    {
+        var rows = await _repo.ExportAllAsync(ct);
+        var csv = new CsvBuilder();
+        csv.Row(
+            "numero", "equipamento", "avaria", "imei", "diagnostico",
+            "clientenome", "telefone", "nif", "email",
+            "estado", "estadosince", "recebidoem", "entregueem",
+            "orcamento", "precofinal", "pago", "notas", "slug");
+
+        foreach (var r in rows)
+        {
+            var estadoLabel = r.Estado switch
+            {
+                RepairStatus.Orcamento => "Orçamento",
+                RepairStatus.Recebido => "Recebido",
+                RepairStatus.Diagnostico => "Diagnóstico",
+                RepairStatus.AguardaPeca => "Aguarda peça",
+                RepairStatus.EmReparacao => "Em reparação",
+                RepairStatus.Pronto => "Pronto",
+                RepairStatus.Entregue => "Entregue",
+                RepairStatus.Cancelado => "Cancelado",
+                _ => r.Estado.ToString(),
+            };
+            var pagoLabel = r.EstadoPagamento switch
+            {
+                PaymentStatus.Pago => "Sim",
+                PaymentStatus.PagoParcial => "Parcial",
+                PaymentStatus.Anulado => "Anulado",
+                _ => "Não",
+            };
+            csv.Row(
+                r.Numero,
+                r.Equipamento,
+                r.Avaria,
+                r.Imei,
+                r.Diagnostico,
+                r.Cliente?.Nome,
+                r.Cliente?.Telefone,
+                r.Cliente?.Nif,
+                r.Cliente?.Email,
+                estadoLabel,
+                r.EstadoSince,
+                r.CreatedAt,
+                r.EntregueEm,
+                r.OrcamentoCents.HasValue ? (r.OrcamentoCents.Value / 100m) : (object?)null,
+                r.PrecoFinalCents.HasValue ? (r.PrecoFinalCents.Value / 100m) : (object?)null,
+                pagoLabel,
+                r.Notas,
+                r.PublicSlug);
+        }
+        return csv.ToUtf8WithBom();
+    }
+
+    private static RepairStatus ParseEstado(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return RepairStatus.Recebido;
+        var n = raw.Trim().ToLowerInvariant();
+        // numérico directo
+        if (int.TryParse(n, out var num) && Enum.IsDefined(typeof(RepairStatus), num))
+            return (RepairStatus)num;
+        return n switch
+        {
+            "orcamento" or "orçamento" or "orcamento pendente" => RepairStatus.Orcamento,
+            "recebido" or "recebida" or "novo" or "entrada" => RepairStatus.Recebido,
+            "diagnostico" or "diagnóstico" or "em análise" or "em analise" or "analise" => RepairStatus.Diagnostico,
+            "aguarda peca" or "aguarda peça" or "aguardar peca" or "aguardar peça" or "aguarda" => RepairStatus.AguardaPeca,
+            "em reparacao" or "em reparação" or "reparacao" or "reparação" or "a reparar" => RepairStatus.EmReparacao,
+            "pronto" or "reparado" or "reparada" or "terminado" => RepairStatus.Pronto,
+            "entregue" or "entregado" or "fechado" or "concluído" or "concluido" => RepairStatus.Entregue,
+            "cancelado" or "cancelada" or "anulado" => RepairStatus.Cancelado,
+            _ => RepairStatus.Recebido,
+        };
+    }
+
+    private static PaymentStatus ParsePago(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return PaymentStatus.NaoPago;
+        var n = raw.Trim().ToLowerInvariant();
+        return n switch
+        {
+            "1" or "sim" or "s" or "y" or "yes" or "true" or "pago" or "x" or "✓" => PaymentStatus.Pago,
+            "parcial" or "pago parcial" or "metade" or "1/2" => PaymentStatus.PagoParcial,
+            "anulado" or "void" => PaymentStatus.Anulado,
+            _ => PaymentStatus.NaoPago,
+        };
+    }
+
+    private static int? ParseEuros(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var s = raw.Trim().Replace("€", "").Replace(" ", "").Replace(" ", "");
+        // PT: vírgula decimal, ponto separador de milhares
+        // EN: ponto decimal, vírgula separador de milhares
+        // heurística: o último separador presente é o decimal
+        var lastComma = s.LastIndexOf(',');
+        var lastDot = s.LastIndexOf('.');
+        if (lastComma >= 0 && lastDot >= 0)
+        {
+            if (lastComma > lastDot) s = s.Replace(".", "").Replace(",", ".");
+            else s = s.Replace(",", "");
+        }
+        else if (lastComma >= 0) s = s.Replace(",", ".");
+
+        if (!decimal.TryParse(s, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var d)) return null;
+        return (int)Math.Round(d * 100);
+    }
+
+    private static DateTime? ParseData(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var formats = new[] { "yyyy-MM-dd", "yyyy-MM-ddTHH:mm:ss", "yyyy-MM-ddTHH:mm:ssZ", "dd/MM/yyyy", "dd-MM-yyyy", "dd/MM/yyyy HH:mm", "dd-MM-yyyy HH:mm" };
+        if (DateTime.TryParseExact(raw.Trim(), formats, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt))
+            return dt;
+        if (DateTime.TryParse(raw.Trim(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out dt))
+            return dt;
+        return null;
+    }
+
+    public async Task<ReparacaoHistoricoResponse> HistoricoPorImeiAsync(string imei, Guid? excludeId, CancellationToken ct = default)
+    {
+        var normalizado = ImeiValidator.Normalize(imei);
+        if (string.IsNullOrWhiteSpace(normalizado) || normalizado.Length < 6)
+            return new ReparacaoHistoricoResponse(normalizado, false, 0, Array.Empty<ReparacaoHistoricoItem>());
+
+        var luhn = ImeiValidator.IsValid(normalizado);
+        var rows = await _repo.SearchByImeiAsync(normalizado, excludeId, ct);
+        var items = rows.Select(r => new ReparacaoHistoricoItem(
+            r.Id,
+            r.Numero,
+            r.Equipamento,
+            r.Imei,
+            r.Cliente is not null
+                ? new ClienteResumo(r.Cliente.Id, r.Cliente.Nome, r.Cliente.Telefone ?? string.Empty)
+                : new ClienteResumo(r.ClienteId, "(?)", string.Empty),
+            r.Estado,
+            r.CreatedAt,
+            r.EntregueEm,
+            r.PrecoFinalCents,
+            r.Diagnostico)).ToList();
+        return new ReparacaoHistoricoResponse(normalizado, luhn, items.Count, items);
+    }
+
+    private static string? NormalizeImei(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var clean = ImeiValidator.Normalize(raw);
+        return string.IsNullOrEmpty(clean) ? null : clean;
+    }
+
+    private static bool IsValidTransition(RepairStatus from, RepairStatus to)
+    {
+        // Workflow granular (Sprint 17):
+        //   Orcamento → Recebido
+        //   Recebido → Diagnostico
+        //   Diagnostico → AguardaPeca | EmReparacao | Pronto
+        //   AguardaPeca → EmReparacao | Diagnostico (re-diagnóstico se peça era diferente)
+        //   EmReparacao → Pronto | AguardaPeca (descobre que precisa de mais peça)
+        //   Pronto → Entregue | Diagnostico (reabrir)
+        //   * → Cancelado (qualquer estado pode ser cancelado)
+        // Entregue e Cancelado são terminais.
+        if (from == RepairStatus.Entregue) return false;
+        if (from == RepairStatus.Cancelado) return false;
+
+        return (from, to) switch
+        {
+            (_, RepairStatus.Cancelado) => true,
+            (RepairStatus.Orcamento, RepairStatus.Recebido) => true,
+            (RepairStatus.Recebido, RepairStatus.Diagnostico) => true,
+            (RepairStatus.Diagnostico, RepairStatus.AguardaPeca) => true,
+            (RepairStatus.Diagnostico, RepairStatus.EmReparacao) => true,
+            (RepairStatus.Diagnostico, RepairStatus.Pronto) => true,
+            (RepairStatus.AguardaPeca, RepairStatus.EmReparacao) => true,
+            (RepairStatus.AguardaPeca, RepairStatus.Diagnostico) => true,
+            (RepairStatus.EmReparacao, RepairStatus.Pronto) => true,
+            (RepairStatus.EmReparacao, RepairStatus.AguardaPeca) => true,
+            (RepairStatus.Pronto, RepairStatus.Entregue) => true,
+            (RepairStatus.Pronto, RepairStatus.Diagnostico) => true, // reabrir
+            _ => false
+        };
+    }
+
+    private static ReparacaoDto ToDto(Reparacao r, int custoDespesasCents)
+    {
+        var receita = r.PrecoFinalCents ?? 0;
+        var lucro = receita - custoDespesasCents - r.CustoPecasCents;
+        var cliente = r.Cliente is not null
+            ? new ClienteResumo(r.Cliente.Id, r.Cliente.Nome, r.Cliente.Telefone ?? string.Empty)
+            : new ClienteResumo(r.ClienteId, "(?)", "");
+        return new ReparacaoDto(
+            r.Id, r.Numero, cliente,
+            r.Equipamento, r.Avaria, r.Imei, r.Diagnostico,
+            r.Estado, r.EstadoSince, r.CreatedAt, r.EntregueEm,
+            r.OrcamentoCents, r.OrcamentoAprovado, r.PrecoFinalCents,
+            r.CustoPecasCents, r.HorasGastas, lucro,
+            custoDespesasCents,
+            r.Notas, r.EstadoPagamento,
+            r.PublicSlug);
+    }
+}

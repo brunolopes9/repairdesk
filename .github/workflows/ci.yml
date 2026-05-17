@@ -10,6 +10,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   backend:
     name: Backend (.NET 10)
@@ -18,12 +23,21 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('backend/**/*.csproj', 'backend/**/*.props', 'backend/global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore
         run: dotnet restore
@@ -32,7 +46,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --configuration Release --no-build --logger "trx;LogFileName=tests.trx"
+        run: dotnet test --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory TestResults
 
       - name: Upload test results
         if: always()
@@ -40,21 +54,46 @@ jobs:
         with:
           name: backend-test-results
           path: backend/**/TestResults/*.trx
+          if-no-files-found: warn
 
   frontend:
-    name: Frontend (React + Vite)
+    name: Frontend build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: 'npm'
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  lint:
+    name: Frontend lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install
@@ -63,5 +102,80 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Build
-        run: npm run build
+  security:
+    name: Fast security checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Check vulnerable NuGet packages
+        working-directory: backend
+        run: dotnet list package --vulnerable --include-transitive
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm audit
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: csharp,javascript-typescript
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build backend for CodeQL
+        working-directory: backend
+        run: |
+          dotnet restore
+          dotnet build --configuration Release --no-restore
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend for CodeQL
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4

@@ -45,10 +45,23 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Default: Server=db,1433;Database=RepairDesk;User Id=sa;Password=${DB_SA_PASSWORD:-Repair!Desk2026};TrustServerCertificate=True;
-      Redis__Connection: cache:6379
+      ConnectionStrings__Default: Server=db,1433;Database=RepairDesk;User Id=sa;Password=${DB_SA_PASSWORD:-Repair!Desk2026};TrustServerCertificate=True;Encrypt=False;
+      Jwt__Issuer: ${JWT_ISSUER:-repairdesk-local}
+      Jwt__Audience: ${JWT_AUDIENCE:-repairdesk-local}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-replace-this-key-at-least-32-chars-long-please-please-please}
+      Seed__AdminEmail: ${SEED_ADMIN_EMAIL:-bruno.miguel.martins.lopes@gmail.com}
+      Seed__AdminPassword: ${SEED_ADMIN_PASSWORD:-ChangeMe!2026}
+      Seed__AdminDisplayName: ${SEED_ADMIN_DISPLAY_NAME:-Bruno Lopes}
+      Storage__Provider: ${Storage__Provider:-local}
+      Storage__LocalRoot: ${Storage__LocalRoot:-/data/photos}
+      Storage__R2__AccountId: ${Storage__R2__AccountId:-}
+      Storage__R2__AccessKey: ${Storage__R2__AccessKey:-}
+      Storage__R2__Secret: ${Storage__R2__Secret:-}
+      Storage__R2__Bucket: ${Storage__R2__Bucket:-}
     ports:
       - "5080:8080"
+    volumes:
+      - photos_data:/data/photos
     depends_on:
       db:
         condition: service_healthy
@@ -57,9 +70,23 @@ services:
     networks:
       - repairdesk-net
 
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: repairdesk-web
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - repairdesk-net
+
 volumes:
   db_data:
   cache_data:
+  photos_data:
 
 networks:
   repairdesk-net:

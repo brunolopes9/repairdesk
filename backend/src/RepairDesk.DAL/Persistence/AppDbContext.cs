@@ -1,11 +1,12 @@
 using System.Linq.Expressions;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 
 namespace RepairDesk.DAL.Persistence;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
 {
     private readonly ITenantContext _tenantContext;
 
@@ -16,11 +17,36 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Cliente> Clientes => Set<Cliente>();
+    public DbSet<Reparacao> Reparacoes => Set<Reparacao>();
+    public DbSet<ReparacaoEstadoLog> ReparacaoEstadoLogs => Set<ReparacaoEstadoLog>();
+    public DbSet<Trabalho> Trabalhos => Set<Trabalho>();
+    public DbSet<Despesa> Despesas => Set<Despesa>();
+    public DbSet<DiagnosticoTemplate> DiagnosticoTemplates => Set<DiagnosticoTemplate>();
+    public DbSet<DiagnosticoTemplateItem> DiagnosticoTemplateItems => Set<DiagnosticoTemplateItem>();
+    public DbSet<DiagnosticoExecucao> DiagnosticoExecucoes => Set<DiagnosticoExecucao>();
+    public DbSet<DiagnosticoExecucaoItem> DiagnosticoExecucaoItems => Set<DiagnosticoExecucaoItem>();
+    public DbSet<Garantia> Garantias => Set<Garantia>();
+    public DbSet<Avaliacao> Avaliacoes => Set<Avaliacao>();
+    public DbSet<PriceTableEntry> PriceTableEntries => Set<PriceTableEntry>();
+    public DbSet<ReparacaoFoto> ReparacaoFotos => Set<ReparacaoFoto>();
+    public DbSet<Part> Parts => Set<Part>();
+    public DbSet<PartMovimento> PartMovimentos => Set<PartMovimento>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        modelBuilder.Entity<AppUser>().ToTable("Auth_Users");
+        modelBuilder.Entity<AppRole>().ToTable("Auth_Roles");
+        modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>>().ToTable("Auth_UserRoles");
+        modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityUserClaim<Guid>>().ToTable("Auth_UserClaims");
+        modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityUserLogin<Guid>>().ToTable("Auth_UserLogins");
+        modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityUserToken<Guid>>().ToTable("Auth_UserTokens");
+        modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityRoleClaim<Guid>>().ToTable("Auth_RoleClaims");
+
         ApplyGlobalFilters(modelBuilder);
     }
 
@@ -47,12 +73,13 @@ public class AppDbContext : DbContext
             if (isMultiTenant)
             {
                 var prop = Expression.Property(parameter, nameof(ITenantEntity.TenantId));
+                var propAsNullable = Expression.Convert(prop, typeof(Guid?));
                 var tenantIdExpr = Expression.Property(
                     Expression.Constant(this),
                     nameof(CurrentTenantId));
                 var tenantCheck = Expression.OrElse(
                     Expression.Equal(tenantIdExpr, Expression.Constant(null, typeof(Guid?))),
-                    Expression.Equal(prop, Expression.Convert(tenantIdExpr, typeof(Guid))));
+                    Expression.Equal(propAsNullable, tenantIdExpr));
                 body = body is null ? tenantCheck : Expression.AndAlso(body, tenantCheck);
             }
 

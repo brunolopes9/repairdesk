@@ -5,4 +5,9 @@
     <ProjectReference Include="..\RepairDesk.Common\RepairDesk.Common.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.0.23.3" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
 </Project>

@@ -1,7 +1,24 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Abstractions;
+using RepairDesk.Core.Entities;
 using RepairDesk.DAL.Persistence;
+using RepairDesk.Infrastructure.Storage;
+using RepairDesk.Services.Auth;
+using RepairDesk.Services.Clientes;
+using RepairDesk.Services.Dashboard;
+using RepairDesk.Services.Despesas;
+using RepairDesk.Services.Documents;
+using RepairDesk.Services.Diagnostico;
+using RepairDesk.Services.Parts;
+using RepairDesk.Services.PublicPortal;
+using RepairDesk.Services.Reparacoes;
+using RepairDesk.Services.TenantSettings;
+using RepairDesk.Services.Trabalhos;
 using Serilog;
 
 #pragma warning disable CA1852 // Program class is referenced by Mvc.Testing
@@ -12,7 +29,8 @@ Log.Logger = new LoggerConfiguration()
     .Enrich.WithMachineName()
     .Enrich.WithThreadId()
     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-    .WriteTo.File("logs/repairdesk-.log",
+    .WriteTo.File(
+        Environment.GetEnvironmentVariable("REPAIRDESK_LOG_FILE") ?? "logs/repairdesk-.log",
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 14,
         outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] [{MachineName}/{ThreadId}] {Message:lj} {Properties:j}{NewLine}{Exception}")
@@ -28,15 +46,158 @@ try
         .Enrich.FromLogContext());
 
     builder.Services.AddHttpContextAccessor();
+    builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
     builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
-    var connStr = builder.Configuration.GetConnectionString("Default")
-        ?? throw new InvalidOperationException("ConnectionStrings:Default not configured.");
+    if (!builder.Environment.IsEnvironment("Testing"))
+    {
+        var connStr = builder.Configuration.GetConnectionString("Default")
+            ?? throw new InvalidOperationException("ConnectionStrings:Default not configured.");
 
-    builder.Services.AddDbContext<AppDbContext>(opt =>
-        opt.UseSqlServer(connStr, sql =>
-            sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
+        builder.Services.AddDbContext<AppDbContext>(opt =>
+            opt.UseSqlServer(connStr, sql =>
+                sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
+    }
+
+    // Identity
+    builder.Services
+        .AddIdentityCore<AppUser>(o =>
+        {
+            o.Password.RequiredLength = 8;
+            o.Password.RequireDigit = true;
+            o.Password.RequireLowercase = true;
+            o.Password.RequireUppercase = true;
+            o.Password.RequireNonAlphanumeric = false;
+            o.User.RequireUniqueEmail = true;
+            o.Lockout.MaxFailedAccessAttempts = 5;
+            o.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        })
+        .AddRoles<AppRole>()
+        .AddEntityFrameworkStores<AppDbContext>()
+        .AddDefaultTokenProviders();
+
+    // JWT auth — TokenValidationParameters configured lazily via IOptions<JwtOptions>
+    builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+    builder.Services.AddSingleton<Microsoft.Extensions.Options.IConfigureOptions<JwtBearerOptions>, ConfigureJwtBearerOptions>();
+
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer();
+
+    builder.Services.AddAuthorization();
+
+    builder.Services.AddScoped<ITokenService, JwtTokenService>();
+    builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+    builder.Services.AddScoped<IRefreshTokenStore, RefreshTokenStore>();
+
+    // Clientes
+    builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+    builder.Services.AddScoped<IClienteService, ClienteService>();
+    builder.Services.AddScoped<FluentValidation.IValidator<CreateClienteRequest>, CreateClienteValidator>();
+    builder.Services.AddScoped<FluentValidation.IValidator<UpdateClienteRequest>, UpdateClienteValidator>();
+
+    // Reparações
+    builder.Services.AddScoped<IReparacaoRepository, ReparacaoRepository>();
+    builder.Services.AddScoped<IReparacaoService, ReparacaoService>();
+    builder.Services.AddScoped<FluentValidation.IValidator<CreateReparacaoRequest>, CreateReparacaoValidator>();
+    builder.Services.AddScoped<FluentValidation.IValidator<UpdateReparacaoRequest>, UpdateReparacaoValidator>();
+    builder.Services.AddScoped<FluentValidation.IValidator<ChangeEstadoRequest>, ChangeEstadoValidator>();
+
+    // Trabalhos
+    builder.Services.AddScoped<ITrabalhoRepository, TrabalhoRepository>();
+    builder.Services.AddScoped<ITrabalhoService, TrabalhoService>();
+    builder.Services.AddScoped<FluentValidation.IValidator<CreateTrabalhoRequest>, CreateTrabalhoValidator>();
+    builder.Services.AddScoped<FluentValidation.IValidator<UpdateTrabalhoRequest>, UpdateTrabalhoValidator>();
+
+    // Despesas
+    builder.Services.AddScoped<IDespesaRepository, DespesaRepository>();
+    builder.Services.AddScoped<IDespesaService, DespesaService>();
+    builder.Services.AddScoped<FluentValidation.IValidator<CreateDespesaRequest>, CreateDespesaValidator>();
+    builder.Services.AddScoped<FluentValidation.IValidator<UpdateDespesaRequest>, UpdateDespesaValidator>();
+
+    // Dashboard
+    builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
+    builder.Services.AddScoped<IDashboardService, DashboardService>();
+
+    // Documents (PDF orçamento)
+    QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+    builder.Services.AddScoped<ITenantRepository, TenantRepository>();
+    builder.Services.AddScoped<IOrcamentoPdfService, OrcamentoPdfService>();
+
+    // Tenant settings
+    builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();
+
+    // Public portal (anonymous, rate-limited)
+    builder.Services.AddScoped<IPublicPortalService, PublicPortalService>();
+
+    // Diagnóstico guiado + Health Score
+    builder.Services.AddScoped<IDiagnosticoRepository, RepairDesk.DAL.Persistence.DiagnosticoRepository>();
+    builder.Services.AddScoped<IDiagnosticoService, DiagnosticoService>();
+
+    // Garantia + Avaliações
+    builder.Services.AddScoped<IGarantiaRepository, RepairDesk.DAL.Persistence.GarantiaRepository>();
+    builder.Services.AddScoped<IAvaliacaoRepository, RepairDesk.DAL.Persistence.AvaliacaoRepository>();
+
+    // Tabela de preços
+    builder.Services.AddScoped<IPriceTableRepository, RepairDesk.DAL.Persistence.PriceTableRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.PriceTable.IPriceTableService, RepairDesk.Services.PriceTable.PriceTableService>();
+
+    // Stock de peças
+    builder.Services.AddScoped<IPartRepository, PartRepository>();
+    builder.Services.AddScoped<IPartService, PartService>();
+    builder.Services.AddScoped<FluentValidation.IValidator<CreatePartRequest>, CreatePartValidator>();
+    builder.Services.AddScoped<FluentValidation.IValidator<UpdatePartRequest>, UpdatePartValidator>();
+    builder.Services.AddScoped<FluentValidation.IValidator<CreatePartMovimentoRequest>, CreatePartMovimentoValidator>();
+
+    // Fotos (storage abstracto — default: local filesystem)
+    builder.Services.AddScoped<IReparacaoFotoRepository, RepairDesk.DAL.Persistence.ReparacaoFotoRepository>();
+    var storageProvider = builder.Configuration["Storage:Provider"]?.Trim().ToLowerInvariant() ?? "local";
+    switch (storageProvider)
+    {
+        case "local":
+            builder.Services.AddSingleton<IPhotoStorage, LocalFileSystemPhotoStorage>();
+            break;
+        case "r2":
+            builder.Services.AddSingleton<IPhotoStorage, CloudflareR2PhotoStorage>();
+            break;
+        default:
+            throw new InvalidOperationException("Storage:Provider must be 'local' or 'r2'.");
+    }
+    builder.Services.AddScoped<RepairDesk.Services.Fotos.IFotoService, RepairDesk.Services.Fotos.FotoService>();
+
+    // Rate limiting (login: 5 per 15 min per IP). Disabled in Testing env.
+    var isTesting = builder.Environment.IsEnvironment("Testing");
+    builder.Services.AddRateLimiter(opt =>
+    {
+        opt.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        opt.AddPolicy("login", ctx =>
+        {
+            if (isTesting)
+                return RateLimitPartition.GetNoLimiter("login");
+            var key = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+        });
+        opt.AddPolicy("public-portal", ctx =>
+        {
+            if (isTesting)
+                return RateLimitPartition.GetNoLimiter("public-portal");
+            var key = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+        });
+    });
 
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
@@ -63,6 +224,7 @@ try
     }
 
     app.UseCors();
+    app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();
@@ -83,3 +245,5 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+public partial class Program;

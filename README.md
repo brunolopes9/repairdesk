@@ -1,10 +1,20 @@
 # RepairDesk
 
+[![CI](https://github.com/brunolopes9/repairdesk/actions/workflows/ci.yml/badge.svg)](https://github.com/brunolopes9/repairdesk/actions/workflows/ci.yml)
+[![Deploy staging](https://github.com/brunolopes9/repairdesk/actions/workflows/deploy-staging.yml/badge.svg)](https://github.com/brunolopes9/repairdesk/actions/workflows/deploy-staging.yml)
+
 SaaS de gestão de reparações, clientes, peças, fornecedores e (futuramente) faturação certificada para Portugal. Construído pela **LopesTech** (Bruno Lopes).
 
 > **Estado:** Sprint 0 — fundação. Backend .NET 10 + frontend React 19 + SQL Server em Docker. Multi-tenant ready (single-tenant na Fase 1).
 
 ---
+
+## Funcionalidades principais
+
+- Gestão de clientes, reparações, trabalhos, despesas e tabela de preços.
+- Stock de peças com SKU, mínimo, fornecedor, localização, movimentos e alertas de stock baixo.
+- Ligação de peças usadas a reparações, com decremento automático de stock e recálculo de custo de peças.
+- Portal público para cliente acompanhar reparação e garantia.
 
 ## Stack
 
@@ -136,6 +146,35 @@ Detalhe completo no `Contexto/RepairDesk_DOCUMENTO_DEFINITIVO.docx`.
 ## Faturação e AT
 
 A Fase 1 **não emite** faturas pelo software — apenas regista referências às que são emitidas no Portal das Finanças. A integração com WebService AT (`Fatcorews.wsdl`) chega no Sprint 7. A certificação AT do software de emissão (Despacho 8632/2014) só faz sentido depois de validar o produto com clientes a pagar.
+
+## CI/CD
+
+O repo usa GitHub Actions:
+
+- `ci.yml`: corre em pull requests e pushes para `main`.
+  - backend: `dotnet restore`, `dotnet build`, `dotnet test`;
+  - frontend: `npm ci`, `npm run build`;
+  - lint: `npm run lint`;
+  - security: gitleaks, audit npm/NuGet e CodeQL.
+- `deploy-staging.yml`: corre em push para `main`, publica imagens no GitHub Container Registry e actualiza staging via SSH.
+- `deploy-production.yml`: corre em tags `v*.*.*` e usa GitHub Environments para approval manual antes de producao.
+
+### Release
+
+1. Garantir que `main` esta verde no CI.
+2. Actualizar `CHANGELOG.md`.
+3. Criar tag SemVer:
+
+```bash
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+4. O workflow `deploy-production.yml` constroi as imagens `repairdesk-api` e `repairdesk-web`.
+5. Aprovar o environment `production` no GitHub.
+6. Confirmar smoke test em `/api/health`.
+
+Staging e automatico em merge para `main`. Producao e manual por tag.
 
 ## Licença
 

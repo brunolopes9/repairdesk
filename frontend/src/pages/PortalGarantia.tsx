@@ -1,0 +1,131 @@
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from 'react-router-dom';
+import { AlertTriangle, Check, CheckCircle2, ShieldCheck, ShieldOff, ShieldX } from 'lucide-react';
+import { publicPortalApi } from '../lib/publicPortal/api';
+
+export default function PortalGarantia() {
+  const { slug } = useParams<{ slug: string }>();
+  const g = useQuery({
+    queryKey: ['public-garantia', slug],
+    queryFn: () => publicPortalApi.getGarantia(slug!),
+    enabled: !!slug,
+    retry: 0,
+  });
+
+  if (g.isLoading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-gradient-to-b from-zinc-50 to-white p-6 dark:from-zinc-950 dark:to-zinc-900">
+        <div className="text-sm text-zinc-500">A carregar…</div>
+      </div>
+    );
+  }
+
+  if (g.isError || !g.data) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-gradient-to-b from-zinc-50 to-white p-6 text-center dark:from-zinc-950 dark:to-zinc-900">
+        <div className="max-w-sm">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+            <ShieldOff size={32} strokeWidth={1.75} />
+          </div>
+          <h1 className="mt-4 text-xl font-semibold">Garantia não encontrada</h1>
+          <p className="mt-2 text-sm text-zinc-500">
+            O link parece estar partido. Pede ajuda à loja.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const data = g.data;
+  const activa = data.activa;
+  const bgGrad = activa
+    ? 'from-emerald-500/20 to-emerald-500/5'
+    : data.anulada
+      ? 'from-rose-500/20 to-rose-500/5'
+      : 'from-zinc-500/20 to-zinc-500/5';
+  const StatusIcon = data.anulada ? ShieldX : activa ? ShieldCheck : ShieldOff;
+  const statusIconCls = data.anulada
+    ? 'text-rose-600 dark:text-rose-400'
+    : activa
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : 'text-zinc-500 dark:text-zinc-400';
+  const statusLabel = data.anulada
+    ? 'Anulada'
+    : activa
+      ? `Activa · ${data.diasRestantes} ${data.diasRestantes === 1 ? 'dia restante' : 'dias restantes'}`
+      : 'Expirada';
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white pb-12 dark:from-zinc-950 dark:to-zinc-900">
+      <div className="mx-auto max-w-2xl px-4 pt-6">
+        <header className="flex items-center gap-3">
+          {data.logoUrl ? (
+            <img src={data.logoUrl} alt={data.loja} className="h-10 w-10 rounded-lg object-cover" onError={(e) => ((e.target as HTMLImageElement).style.opacity = '0')} />
+          ) : (
+            <div className="grid h-10 w-10 place-items-center rounded-lg bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+              <ShieldCheck size={18} strokeWidth={2} />
+            </div>
+          )}
+          <div>
+            <div className="text-sm font-semibold">{data.loja}</div>
+            <div className="text-[11px] text-zinc-500">Verificação de garantia</div>
+          </div>
+        </header>
+
+        <section className={`mt-6 rounded-3xl border border-zinc-200/70 bg-gradient-to-br ${bgGrad} p-6 shadow-sm backdrop-blur dark:border-zinc-800/70`}>
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-zinc-500">
+            <StatusIcon size={14} strokeWidth={2} className={statusIconCls} />
+            Garantia
+          </div>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">{data.equipamentoPublico}</h1>
+          <div className={`mt-2 inline-flex items-center gap-1.5 text-base font-medium ${statusIconCls}`}>
+            {activa && <Check size={16} strokeWidth={2.5} />}
+            {statusLabel}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div className="text-[11px] uppercase text-zinc-500">Início</div>
+              <div className="font-medium">{new Date(data.dataInicio).toLocaleDateString('pt-PT')}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase text-zinc-500">Fim</div>
+              <div className="font-medium">{new Date(data.dataFim).toLocaleDateString('pt-PT')}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase text-zinc-500">Período</div>
+              <div className="font-medium">{data.diasGarantia} dias</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase text-zinc-500">Código</div>
+              <div className="font-mono text-xs">{data.slug}</div>
+            </div>
+          </div>
+        </section>
+
+        {data.cobertura && (
+          <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <CheckCircle2 size={15} strokeWidth={2} className="text-emerald-600 dark:text-emerald-400" />
+              Cobertura
+            </h2>
+            <p className="whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300">{data.cobertura}</p>
+          </section>
+        )}
+        {data.exclusoes && (
+          <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <AlertTriangle size={15} strokeWidth={2} className="text-amber-600 dark:text-amber-400" />
+              Exclusões
+            </h2>
+            <p className="whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300">{data.exclusoes}</p>
+          </section>
+        )}
+
+        <footer className="mt-10 text-center text-[11px] text-zinc-400">
+          Verifica esta garantia em qualquer altura — link permanente.<br />
+          Gerado pelo RepairDesk · LopesTech
+        </footer>
+      </div>
+    </div>
+  );
+}
