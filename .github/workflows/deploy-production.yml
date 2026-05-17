@@ -85,10 +85,30 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-web:${{ steps.meta.outputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-web:${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}
 
+  check-prod-config:
+    name: Check production secrets configured
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+        shell: bash
+        run: |
+          if [ -n "$PROD_SSH_HOST" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Production deploy ready (SSH secrets configured)."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Production deploy skipped — no PROD_SSH_HOST secret. Configure repo Settings → Secrets to enable."
+          fi
+
   deploy:
     name: Deploy to production
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: [build-and-push, check-prod-config]
+    if: needs.check-prod-config.outputs.ready == 'true'
     environment:
       name: production
     steps:

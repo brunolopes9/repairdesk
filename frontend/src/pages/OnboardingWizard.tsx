@@ -599,25 +599,28 @@ function RepairStep({
 function DashboardTourStep({ reparacaoId, onContinue }: { reparacaoId: string | null; onContinue: () => void }) {
   const [tip, setTip] = useState(0);
   const tips = [
-    'Aqui aparecem as reparações que ainda precisam de atenção. Se o balcão estiver cheio, começa por aqui.',
-    'Este número ajuda-te a não esquecer trabalhos prontos que ainda não foram pagos.',
-    'A reparação que acabaste de criar fica sempre acessível pela lista e pelo dashboard.',
+    'No dashboard real, aqui aparecem as reparações que ainda precisam de atenção. Quando o balcão estiver cheio, começa sempre por aqui.',
+    'Ajuda-te a não esquecer trabalhos já concluídos que ainda não foram pagos. O dashboard separa receita realizada de receita pendente — sem auto-engano.',
+    'Cada reparação fica acessível pela lista, pelo kanban e pelo dashboard. Clica para entrar, mudar de estado, acrescentar fotos ou imprimir o orçamento.',
   ];
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-zinc-500">Agora que já há dados, o dashboard passa a ser o teu ponto de partida.</p>
+      <p className="text-sm text-zinc-500">
+        Os números abaixo são <strong>apenas exemplos</strong> para te mostrar como o dashboard se comporta.
+        Clica em cada card para entenderes o que ali vai aparecer no dia-a-dia.
+      </p>
       <div className="relative rounded-xl border border-zinc-200 bg-zinc-50 p-4 pb-28 dark:border-zinc-800 dark:bg-zinc-950 sm:pb-24">
         <div className="grid gap-3 sm:grid-cols-3">
-          <TourCard active={tip === 0} title="Em curso" value="1 reparação" tip={tips[0]} index={1} onClick={() => setTip(0)} />
-          <TourCard active={tip === 1} title="Receita pendente" value="89,00 €" tip={tips[1]} index={2} onClick={() => setTip(1)} />
-          <TourCard active={tip === 2} title="Próximo passo" value="Abrir reparação" tip={tips[2]} index={3} onClick={() => setTip(2)} />
+          <TourCard active={tip === 0} title="Em curso (exemplo)" value="3 reparações" tip={tips[0]} index={1} onClick={() => setTip(0)} />
+          <TourCard active={tip === 1} title="Receita pendente (exemplo)" value="240,00 €" tip={tips[1]} index={2} onClick={() => setTip(1)} />
+          <TourCard active={tip === 2} title="Acesso rápido" value="Abrir reparação" tip={tips[2]} index={3} onClick={() => setTip(2)} />
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
         {reparacaoId && (
           <Link to={`/reparacoes/${reparacaoId}`}>
-            <Button variant="secondary" type="button">Ver reparação</Button>
+            <Button variant="secondary" type="button">Ver a minha reparação</Button>
           </Link>
         )}
         <Button onClick={onContinue} rightIcon={<ArrowRight size={15} />}>Continuar</Button>
@@ -685,7 +688,7 @@ function TeamStep({
 }) {
   function finish() {
     if (invite.modo === 'equipa' && invite.email.trim()) {
-      toast.info('Convites ficam para a próxima sprint.', 'Já deixámos o arranque marcado como concluído.');
+      toast.success('Email guardado.', 'Avisamos-te assim que o convite puder ser enviado.');
     }
     onFinish();
   }
@@ -700,23 +703,23 @@ function TeamStep({
           className={`rounded-xl border p-4 text-left transition ${invite.modo === 'solo' ? selectedCls : unselectedCls}`}
         >
           <div className="font-semibold">Trabalho sozinho</div>
-          <p className="mt-1 text-sm text-zinc-500">Perfeito, {userName}. Podes convidar alguém mais tarde.</p>
+          <p className="mt-1 text-sm text-zinc-500">Perfeito, {userName}. Podes adicionar funcionários a qualquer altura nas definições.</p>
         </button>
         <button
           type="button"
           onClick={() => setInvite({ ...invite, modo: 'equipa' })}
           className={`rounded-xl border p-4 text-left transition ${invite.modo === 'equipa' ? selectedCls : unselectedCls}`}
         >
-          <div className="font-semibold">Convidar funcionário</div>
-          <p className="mt-1 text-sm text-zinc-500">Deixa o email apontado para enviares quando a feature estiver activa.</p>
+          <div className="font-semibold">Vou trabalhar acompanhado</div>
+          <p className="mt-1 text-sm text-zinc-500">Deixa o email apontado e damos-te sinal quando o convite ficar pronto.</p>
         </button>
       </div>
       {invite.modo === 'equipa' && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Email">
-            <input className={inputCls} type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} />
+          <Field label="Email do colega">
+            <input className={inputCls} type="email" placeholder="ex: joana@oficina.pt" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} />
           </Field>
-          <Field label="Permissão">
+          <Field label="Permissão prevista">
             <select className={inputCls} value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })}>
               <option value="Tecnico">Técnico</option>
               <option value="Admin">Admin</option>

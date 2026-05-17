@@ -68,10 +68,30 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-web:${{ env.IMAGE_TAG }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-web:staging
 
+  check-staging-config:
+    name: Check staging secrets configured
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+        shell: bash
+        run: |
+          if [ -n "$STAGING_SSH_HOST" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Staging deploy ready (SSH secrets configured)."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Staging deploy skipped — no STAGING_SSH_HOST secret. Configure repo Settings → Secrets to enable."
+          fi
+
   deploy:
     name: Deploy to staging
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: [build-and-push, check-staging-config]
+    if: needs.check-staging-config.outputs.ready == 'true'
     environment:
       name: staging
     steps:
