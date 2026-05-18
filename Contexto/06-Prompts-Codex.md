@@ -3115,6 +3115,102 @@ Quando utilizador insere NIF no form de cliente:
 
 ---
 
+## Codex Coding #C12 — Módulo de Vendas (POS-style)
+
+```
+[CONTEXTO]
+Hoje RepairDesk só tem Reparações + Trabalhos + Despesas + Stock.
+Falta: venda directa de produto (acessórios, telemóveis novos, peças
+avulsas). Bruno passou para regime normal IVA e quer vender telemóveis
+via dropshipping Molano — precisa de registar vendas e emitir fatura.
+
+Mesma necessidade aparece noutras oficinas: vender capas, películas,
+cabos com margem.
+
+[OBJECTIVO]
+Módulo de Vendas tipo POS rápido. Operador procura peça, mete no
+carrinho, define cliente (ou anónimo), cobra, emite fatura via Moloni
+(#C9 já feito), decrementa stock.
+
+[TAREFAS]
+1. **Entidades**:
+   - Venda (Id, TenantId, Numero auto-incremental, Data, ClienteId?,
+     TotalCents, IvaCents, PaymentMethod enum, Status enum,
+     InvoiceExternalId?, InvoicePdfUrl?, Notas, CreatedBy, CreatedAt)
+   - VendaItem (VendaId, PartId? + descrição livre se não-stock,
+     Quantidade, PrecoUnitarioCents, DescontoCents, IvaRate decimal)
+   - Migration `Sprint43Vendas`
+
+2. **Service**:
+   - `VendaService.CreateAsync` valida stock (não permite vender mais que stock)
+   - Ao marcar `Paga` → cria PartMovimento UsoEmReparacao... espera, criar
+     novo motivo `VendaCliente` no enum PartMovimentoMotivo
+   - Emite fatura Moloni (reusa MoloniBillingProvider de #C9) se Tenant
+     tem provider configurado
+   - Idempotência: chamar "Emitir fatura" 2x devolve mesma
+
+3. **Endpoints**:
+   - `POST /api/vendas` (criar)
+   - `GET /api/vendas?from=&to=&page=` (listar)
+   - `GET /api/vendas/{id}`
+   - `POST /api/vendas/{id}/marcar-paga` (com payment method)
+   - `POST /api/vendas/{id}/emitir-fatura` (reusa Moloni)
+   - `POST /api/vendas/{id}/cancelar`
+
+4. **Frontend `/vendas`**:
+   - Vista POS: search bar em cima (search por SKU, nome peça, ou marca)
+   - Resultado: lista de peças clickable → adiciona ao carrinho
+   - Carrinho lateral direito: linha por item, qty editável, sub-total
+   - Buttons: "Cliente: Anónimo" (click para escolher) ; "Cobrar (€XX,YY)"
+   - Modal cobrar: payment method (Numerário, MBWay, Multibanco, Transferência)
+   - Após cobrar: opção "Emitir fatura Moloni" → PDF aparece
+   - Mobile-friendly (POS de balcão pode estar em tablet)
+
+5. **Dashboard**:
+   - Card adicional "Vendas hoje: €X" / "Vendas mês: €Y"
+   - Top produtos vendidos (Top 5 por receita)
+
+6. **PDF receipt**:
+   - Mesmo template do orçamento mas tipo "Recibo de Venda"
+   - Inclui items + IVA + Total
+   - Fallback se Moloni não configurado: emite recibo não-fiscal com
+     label "Documento não fiscal — emitir fatura no software certificado"
+
+7. **Tests**:
+   - Multi-tenant isolation
+   - Stock decrementa correctamente
+   - Tentar vender mais do que stock → 422
+   - Idempotência da emissão de fatura
+
+[CONSTRAINTS]
+- IVA por item (não só global) — peças podem ter taxas diferentes
+- Suporte cliente anónimo (fatura simplificada Moloni FS)
+- Suporte cliente cadastrado (fatura FT)
+- NÃO permitir vender peça com stock 0 sem aviso
+- Soft delete (cancelamento) preserva audit log
+- Decimal precision: cents
+
+[OUTPUT]
+- Branch codex/sprint-43-vendas
+- 2 entities + migration
+- VendaService + tests
+- 5 endpoints
+- Página /vendas com POS UI
+- Card dashboard
+- PDF template Recibo
+
+[VERIFICAÇÃO]
+- Bruno cria venda: escolhe peça do stock + cliente Maria Silva
+- Vê total com IVA 23%
+- Marca paga via MBWay
+- Click "Emitir fatura Moloni" → PDF FS aparece
+- Stock dessa peça diminui em 1
+- Auditoria mostra evento Venda Created
+- Dashboard mostra "Vendas hoje: €XX"
+```
+
+---
+
 ## Anti-padrões a evitar nos prompts (aprendi na conversa)
 
 ### ❌ Mau: "podes melhorar isto?"
