@@ -11,6 +11,7 @@ import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { templatesForTrabalhoStatus } from '../../lib/whatsapp/templates';
 import { trabalhosApi } from '../../lib/trabalhos/api';
+import { toast } from '../../lib/toast';
 import {
   CATEGORIA_LABEL,
   JOB_CATEGORY,
@@ -39,6 +40,12 @@ export default function TrabalhoDetalhe() {
   const tenant = useQuery({
     queryKey: ['tenant-settings'],
     queryFn: () => tenantSettingsApi.getMine(),
+    staleTime: 5 * 60_000,
+  });
+
+  const billing = useQuery({
+    queryKey: ['tenant-billing-settings'],
+    queryFn: () => tenantSettingsApi.getBilling(),
     staleTime: 5 * 60_000,
   });
 
@@ -154,6 +161,15 @@ export default function TrabalhoDetalhe() {
     },
   });
 
+  const emitirFatura = useMutation({
+    mutationFn: () => trabalhosApi.emitirFatura(id!),
+    onSuccess: (invoice) => {
+      qc.invalidateQueries({ queryKey: ['trabalho', id] });
+      toast.success(`Fatura ${invoice.number} emitida`, invoice.pdfUrl ? 'PDF disponível na ficha.' : undefined);
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível emitir a fatura.'),
+  });
+
   const reabrir = useMutation({
     mutationFn: () => trabalhosApi.reabrir(id!),
     onSuccess: () => {
@@ -179,6 +195,9 @@ export default function TrabalhoDetalhe() {
   // 3 tiers: aberto / frozen (Concluído sem pagamento) / locked (Concluído + Pago)
   const isFrozen = t.status === TRABALHO_STATUS.Concluido;
   const isLocked = isFrozen && t.estadoPagamento === PAYMENT_STATUS.Pago;
+  const canEmitMoloniInvoice = t.estadoPagamento === PAYMENT_STATUS.Pago
+    && billing.data?.provider === 1
+    && !t.invoiceExternalId;
   const possibleNext = TRABALHO_VALID_TRANSITIONS[t.status] ?? [];
 
   const valorParaCobrar = t.precoFinalCents ?? t.orcamentoCents ?? null;
@@ -268,6 +287,25 @@ export default function TrabalhoDetalhe() {
           >
             📄 PDF Orçamento
           </button>
+          {t.invoiceExternalId ? (
+            <a
+              href={t.invoicePdfUrl ?? '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+            >
+              Fatura {t.invoiceNumber ?? t.invoiceExternalId}
+            </a>
+          ) : canEmitMoloniInvoice && (
+            <button
+              type="button"
+              disabled={emitirFatura.isPending}
+              onClick={() => emitirFatura.mutate()}
+              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {emitirFatura.isPending ? 'A emitir…' : 'Emitir fatura via Moloni'}
+            </button>
+          )}
           {(t.status === TRABALHO_STATUS.EmExecucao || t.status === TRABALHO_STATUS.Concluido) && (
             <a
               href="https://irs.portaldasfinancas.gov.pt/recibos/portal/emitir"

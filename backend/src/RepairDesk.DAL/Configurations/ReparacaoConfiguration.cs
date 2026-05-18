@@ -23,6 +23,10 @@ public class ReparacaoConfiguration : IEntityTypeConfiguration<Reparacao>
 
         builder.Property(x => x.Estado).HasConversion<int>();
         builder.Property(x => x.EstadoPagamento).HasConversion<int>();
+        builder.Property(x => x.InvoiceProvider).HasConversion<int>();
+        builder.Property(x => x.InvoiceExternalId).HasMaxLength(120);
+        builder.Property(x => x.InvoicePdfUrl).HasMaxLength(1000);
+        builder.Property(x => x.InvoiceNumber).HasMaxLength(120);
 
         builder.HasOne(x => x.Cliente)
             .WithMany()
@@ -47,6 +51,8 @@ public class ReparacaoConfiguration : IEntityTypeConfiguration<Reparacao>
             .HasFilter("[EquipmentFieldTemplateId] IS NOT NULL");
         builder.HasIndex(x => x.PublicSlug).IsUnique()
             .HasFilter("[PublicSlug] IS NOT NULL");
+        builder.HasIndex(x => new { x.TenantId, x.InvoiceExternalId })
+            .HasFilter("[InvoiceExternalId] IS NOT NULL");
     }
 }
 

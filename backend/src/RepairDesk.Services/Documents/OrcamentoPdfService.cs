@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.EquipmentFields;
 
 namespace RepairDesk.Services.Documents;
 
@@ -19,6 +20,7 @@ public class OrcamentoPdfService : IOrcamentoPdfService
     private readonly IDespesaRepository _despesas;
     private readonly ITenantRepository _tenants;
     private readonly ITenantContext _tenantContext;
+    private readonly IEquipmentFieldService _equipmentFields;
     private readonly IConfiguration _config;
 
     public OrcamentoPdfService(
@@ -28,6 +30,7 @@ public class OrcamentoPdfService : IOrcamentoPdfService
         IDespesaRepository despesas,
         ITenantRepository tenants,
         ITenantContext tenantContext,
+        IEquipmentFieldService equipmentFields,
         IConfiguration config)
     {
         _reparacoes = reparacoes;
@@ -36,6 +39,7 @@ public class OrcamentoPdfService : IOrcamentoPdfService
         _despesas = despesas;
         _tenants = tenants;
         _tenantContext = tenantContext;
+        _equipmentFields = equipmentFields;
         _config = config;
     }
 
@@ -54,6 +58,7 @@ public class OrcamentoPdfService : IOrcamentoPdfService
         var cliente = await _clientes.FindByIdAsync(rep.ClienteId, ct)
             ?? throw new NotFoundException("Cliente", rep.ClienteId);
         var emissor = await BuildEmissorAsync(ct);
+        var camposEquipamento = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
 
         // Linhas a partir das despesas linked (peças) — se houver
         var totalDespesas = await _despesas.SumByReparacaoAsync(rep.Id, ct);
@@ -80,6 +85,10 @@ public class OrcamentoPdfService : IOrcamentoPdfService
             Linhas: linhas,
             TotalCents: precoTotal,
             Observacoes: rep.Notas,
+            CamposEquipamento: camposEquipamento
+                .Where(c => !string.IsNullOrWhiteSpace(c.Value))
+                .Select(c => new OrcamentoCampoEquipamento(c.Label, c.Value!))
+                .ToList(),
             PortalUrl: BuildPortalUrl(rep.PublicSlug));
 
         var pdf = OrcamentoPdfRenderer.Render(data);

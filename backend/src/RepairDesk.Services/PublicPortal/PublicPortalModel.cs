@@ -32,7 +32,13 @@ public sealed record PublicRepairDto(
     /// <summary>Já existe avaliação submetida (esconde o card "Como correu?").</summary>
     bool JaAvaliado,
     /// <summary>Fotos públicas (Antes/Durante/Depois marcadas como visíveis).</summary>
-    IReadOnlyList<PublicFotoDto> Fotos);
+    IReadOnlyList<PublicFotoDto> Fotos,
+    IReadOnlyList<PublicEquipmentFieldDto> CamposEquipamento);
+
+public sealed record PublicEquipmentFieldDto(
+    string Label,
+    string? Value,
+    int Ordem);
 
 public sealed record PublicFotoDto(
     Guid Id,

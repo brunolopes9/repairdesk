@@ -17,6 +17,9 @@ public class ReparacaoRepository : IReparacaoRepository
     public Task<Reparacao?> FindByIdWithTimelineAsync(Guid id, CancellationToken ct = default)
         => _db.Reparacoes
             .Include(r => r.Cliente)
+            .Include(r => r.EquipmentFieldTemplate)
+            .Include(r => r.EquipmentFieldValues)
+                .ThenInclude(v => v.FieldDefinition)
             .Include(r => r.Timeline.OrderBy(t => t.MudouEm))
             .FirstOrDefaultAsync(r => r.Id == id, ct);
 
@@ -24,6 +27,9 @@ public class ReparacaoRepository : IReparacaoRepository
         => _db.Reparacoes
             .IgnoreQueryFilters() // endpoint público — sem filtro de tenant
             .Include(r => r.Cliente)
+            .Include(r => r.EquipmentFieldTemplate)
+            .Include(r => r.EquipmentFieldValues)
+                .ThenInclude(v => v.FieldDefinition)
             .Include(r => r.Timeline.OrderBy(t => t.MudouEm))
             .Where(r => !r.IsDeleted)
             .FirstOrDefaultAsync(r => r.PublicSlug == slug, ct);

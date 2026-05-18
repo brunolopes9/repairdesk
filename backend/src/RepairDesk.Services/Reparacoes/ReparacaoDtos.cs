@@ -1,5 +1,6 @@
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.EquipmentFields;
 
 namespace RepairDesk.Services.Reparacoes;
 
@@ -10,7 +11,9 @@ public sealed record CreateReparacaoRequest(
     string? Imei,
     int? OrcamentoCents,
     string? Notas,
-    RepairStatus? EstadoInicial = null);
+    RepairStatus? EstadoInicial = null,
+    Guid? EquipmentFieldTemplateId = null,
+    IReadOnlyList<SetEquipmentFieldValueRequest>? Fields = null);
 
 public sealed record UpdateReparacaoRequest(
     string Equipamento,
@@ -24,7 +27,9 @@ public sealed record UpdateReparacaoRequest(
     decimal HorasGastas,
     string? Notas,
     PaymentStatus EstadoPagamento,
-    Guid? ClienteId = null);
+    Guid? ClienteId = null,
+    Guid? EquipmentFieldTemplateId = null,
+    IReadOnlyList<SetEquipmentFieldValueRequest>? Fields = null);
 
 public sealed record ChangeEstadoRequest(RepairStatus Estado, string? Notas);
 
@@ -58,7 +63,15 @@ public sealed record ReparacaoDto(
     int CustoDespesasCents,
     string? Notas,
     PaymentStatus EstadoPagamento,
-    string? PublicSlug);
+    string? PublicSlug,
+    BillingProvider InvoiceProvider,
+    string? InvoiceExternalId,
+    string? InvoicePdfUrl,
+    string? InvoiceNumber,
+    DateTime? InvoiceEmittedAt,
+    Guid? EquipmentFieldTemplateId,
+    string? EquipmentFieldTemplateNome,
+    IReadOnlyList<EquipmentFieldValueDto> Fields);
 
 public sealed record ReparacaoDetalhadaDto(
     ReparacaoDto Reparacao,

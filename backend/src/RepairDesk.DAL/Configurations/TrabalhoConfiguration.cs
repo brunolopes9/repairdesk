@@ -21,6 +21,10 @@ public class TrabalhoConfiguration : IEntityTypeConfiguration<Trabalho>
         builder.Property(x => x.Categoria).HasConversion<int>();
         builder.Property(x => x.Status).HasConversion<int>();
         builder.Property(x => x.EstadoPagamento).HasConversion<int>();
+        builder.Property(x => x.InvoiceProvider).HasConversion<int>();
+        builder.Property(x => x.InvoiceExternalId).HasMaxLength(120);
+        builder.Property(x => x.InvoicePdfUrl).HasMaxLength(1000);
+        builder.Property(x => x.InvoiceNumber).HasMaxLength(120);
 
         builder.HasOne(x => x.Cliente)
             .WithMany()
@@ -31,5 +35,7 @@ public class TrabalhoConfiguration : IEntityTypeConfiguration<Trabalho>
             .HasFilter("[IsDeleted] = 0");
         builder.HasIndex(x => new { x.TenantId, x.Status });
         builder.HasIndex(x => new { x.TenantId, x.Categoria });
+        builder.HasIndex(x => new { x.TenantId, x.InvoiceExternalId })
+            .HasFilter("[InvoiceExternalId] IS NOT NULL");
     }
 }

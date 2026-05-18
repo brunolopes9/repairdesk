@@ -25,4 +25,10 @@ public class Trabalho : BaseEntity, ITenantEntity
 
     public string? Notas { get; set; }
     public PaymentStatus EstadoPagamento { get; set; } = PaymentStatus.NaoPago;
+
+    public BillingProvider InvoiceProvider { get; set; } = BillingProvider.None;
+    public string? InvoiceExternalId { get; set; }
+    public string? InvoicePdfUrl { get; set; }
+    public string? InvoiceNumber { get; set; }
+    public DateTime? InvoiceEmittedAt { get; set; }
 }

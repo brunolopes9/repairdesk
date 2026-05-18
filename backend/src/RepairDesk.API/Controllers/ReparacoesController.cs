@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Core.Enums;
+using RepairDesk.Services.Billing;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Documents;
+using RepairDesk.Services.EquipmentFields;
 using RepairDesk.Services.Reparacoes;
 
 namespace RepairDesk.API.Controllers;
@@ -14,11 +16,13 @@ public class ReparacoesController : ControllerBase
 {
     private readonly IReparacaoService _service;
     private readonly IOrcamentoPdfService _pdf;
+    private readonly IBillingProvider _billing;
 
-    public ReparacoesController(IReparacaoService service, IOrcamentoPdfService pdf)
+    public ReparacoesController(IReparacaoService service, IOrcamentoPdfService pdf, IBillingProvider billing)
     {
         _service = service;
         _pdf = pdf;
+        _billing = billing;
     }
 
     [HttpGet]
@@ -49,12 +53,20 @@ public class ReparacoesController : ControllerBase
     public Task<ReparacaoDto> ChangeEstado(Guid id, [FromBody] ChangeEstadoRequest req, CancellationToken ct)
         => _service.ChangeEstadoAsync(id, req, ct);
 
+    [HttpPost("{id:guid}/fields")]
+    public Task<IReadOnlyList<EquipmentFieldValueDto>> SetFields(Guid id, [FromBody] SetEquipmentFieldValuesRequest req, CancellationToken ct)
+        => _service.SetFieldsAsync(id, req, ct);
+
     [HttpGet("{id:guid}/orcamento.pdf")]
     public async Task<IActionResult> OrcamentoPdf(Guid id, CancellationToken ct)
     {
         var (pdf, filename) = await _pdf.ForReparacaoAsync(id, ct);
         return File(pdf, "application/pdf", filename);
     }
+
+    [HttpPost("{id:guid}/emitir-fatura")]
+    public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
+        => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);
 
     /// <summary>Histórico de reparações com mesmo IMEI dentro do tenant.</summary>
     [HttpGet("historico-imei")]

@@ -53,7 +53,7 @@ public class EquipmentFieldRepository : IEquipmentFieldRepository
 
     public async Task<IReadOnlyList<EquipmentFieldValue>> ListValuesByReparacaoAsync(Guid reparacaoId, bool includeDefinition = true, CancellationToken ct = default)
     {
-        var q = _db.EquipmentFieldValues.AsNoTracking().Where(v => v.ReparacaoId == reparacaoId);
+        var q = _db.EquipmentFieldValues.Where(v => v.ReparacaoId == reparacaoId);
         if (includeDefinition) q = q.Include(v => v.FieldDefinition);
         return await q
             .OrderBy(v => v.FieldDefinition!.Ordem)
@@ -72,7 +72,11 @@ public class EquipmentFieldRepository : IEquipmentFieldRepository
 
     public void AddTemplate(EquipmentFieldTemplate template) => _db.EquipmentFieldTemplates.Add(template);
     public void AddValue(EquipmentFieldValue value) => _db.EquipmentFieldValues.Add(value);
-    public void RemoveTemplate(EquipmentFieldTemplate template) => _db.EquipmentFieldTemplates.Remove(template);
+    public void RemoveTemplate(EquipmentFieldTemplate template)
+    {
+        template.IsActive = false;
+        template.IsDeleted = true;
+    }
     public void RemoveDefinition(EquipmentFieldDefinition definition) => _db.EquipmentFieldDefinitions.Remove(definition);
     public void RemoveValue(EquipmentFieldValue value) => _db.EquipmentFieldValues.Remove(value);
     public Task SaveAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);

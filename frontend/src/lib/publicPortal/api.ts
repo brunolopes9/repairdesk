@@ -62,6 +62,12 @@ export interface PublicTimelineEntry {
   mudouEm: string;
 }
 
+export interface PublicEquipmentFieldDto {
+  label: string;
+  value: string | null;
+  ordem: number;
+}
+
 export interface PublicRepairDto {
   slug: string;
   equipamentoPublico: string;
@@ -83,6 +89,7 @@ export interface PublicRepairDto {
   garantiaSlug: string | null;
   jaAvaliado: boolean;
   fotos: PublicFotoDto[];
+  camposEquipamento: PublicEquipmentFieldDto[];
 }
 
 export interface PublicFotoDto {

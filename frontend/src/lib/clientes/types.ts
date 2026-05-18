@@ -17,6 +17,14 @@ export interface ClienteForm {
   notas: string | null;
 }
 
+export interface AtNifLookup {
+  nif: string;
+  nome: string;
+  morada: string | null;
+  status: string;
+  checkedAtUtc: string;
+}
+
 export interface PagedResult<T> {
   items: T[];
   page: number;

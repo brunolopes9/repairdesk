@@ -2,6 +2,7 @@ using System.Net;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.Billing;
 
 namespace RepairDesk.API.Infrastructure;
 
@@ -31,6 +32,7 @@ public class ProblemDetailsExceptionMiddleware
                 NotFoundException => HttpStatusCode.NotFound,
                 ConflictException => HttpStatusCode.Conflict,
                 RepairDesk.Core.Exceptions.ValidationException => HttpStatusCode.UnprocessableEntity,
+                BillingProviderException => HttpStatusCode.UnprocessableEntity,
                 ForbiddenException => HttpStatusCode.Forbidden,
                 _ => HttpStatusCode.BadRequest
             };

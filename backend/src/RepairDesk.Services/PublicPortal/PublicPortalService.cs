@@ -2,6 +2,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.EquipmentFields;
 
 namespace RepairDesk.Services.PublicPortal;
 
@@ -21,6 +22,7 @@ public class PublicPortalService : IPublicPortalService
     private readonly IGarantiaRepository _garantias;
     private readonly IAvaliacaoRepository _avaliacoes;
     private readonly IReparacaoFotoRepository _fotos;
+    private readonly IEquipmentFieldService _equipmentFields;
 
     public PublicPortalService(
         IReparacaoRepository repo,
@@ -28,7 +30,8 @@ public class PublicPortalService : IPublicPortalService
         IDiagnosticoRepository diagnostico,
         IGarantiaRepository garantias,
         IAvaliacaoRepository avaliacoes,
-        IReparacaoFotoRepository fotos)
+        IReparacaoFotoRepository fotos,
+        IEquipmentFieldService equipmentFields)
     {
         _repo = repo;
         _tenants = tenants;
@@ -36,6 +39,7 @@ public class PublicPortalService : IPublicPortalService
         _garantias = garantias;
         _avaliacoes = avaliacoes;
         _fotos = fotos;
+        _equipmentFields = equipmentFields;
     }
 
     public async Task<PublicGarantiaDto> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default)
@@ -118,7 +122,8 @@ public class PublicPortalService : IPublicPortalService
         var garantia = await _garantias.FindByReparacaoAsync(rep.Id, ct);
         var avaliacao = await _avaliacoes.FindByReparacaoAsync(rep.Id, ct);
         var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos);
+        var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
+        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos);
     }
 
     public async Task<PublicRepairDto> AprovarOrcamentoAsync(string slug, bool aceitar, CancellationToken ct = default)
@@ -144,10 +149,18 @@ public class PublicPortalService : IPublicPortalService
         var garantia = await _garantias.FindByReparacaoAsync(rep.Id, ct);
         var avaliacao = await _avaliacoes.FindByReparacaoAsync(rep.Id, ct);
         var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos);
+        var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
+        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos);
     }
 
-    private static PublicRepairDto ToDto(Reparacao rep, Tenant? tenant, DiagnosticoExecucao? diag, Garantia? garantia, bool jaAvaliado, IReadOnlyList<ReparacaoFoto> fotos)
+    private static PublicRepairDto ToDto(
+        Reparacao rep,
+        Tenant? tenant,
+        DiagnosticoExecucao? diag,
+        Garantia? garantia,
+        bool jaAvaliado,
+        IReadOnlyList<ReparacaoFoto> fotos,
+        IReadOnlyList<EquipmentFieldValueDto> campos)
     {
         var primeiroNome = rep.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente";
         var loja = new PublicLoja(
@@ -196,7 +209,11 @@ public class PublicPortalService : IPublicPortalService
             DiagnosticoDestaques: destaques,
             GarantiaSlug: garantia?.Slug,
             JaAvaliado: jaAvaliado,
-            Fotos: fotos.Select(f => new PublicFotoDto(f.Id, (int)f.Tipo, f.Legenda, f.CreatedAt)).ToList());
+            Fotos: fotos.Select(f => new PublicFotoDto(f.Id, (int)f.Tipo, f.Legenda, f.CreatedAt)).ToList(),
+            CamposEquipamento: campos
+                .Where(c => !string.IsNullOrWhiteSpace(c.Value))
+                .Select(c => new PublicEquipmentFieldDto(c.Label, c.Value, c.Ordem))
+                .ToList());
     }
 }
 

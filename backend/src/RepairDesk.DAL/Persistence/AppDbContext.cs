@@ -24,6 +24,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     }
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantBillingSettings> TenantBillingSettings => Set<TenantBillingSettings>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Reparacao> Reparacoes => Set<Reparacao>();
@@ -300,6 +301,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     {
         var normalized = name.ToLowerInvariant();
         return normalized.Contains("password")
+               || normalized.Contains("apikey")
+               || normalized.Contains("secret")
                || normalized.Contains("token")
                || normalized.Contains("securitystamp")
                || normalized.Contains("concurrencystamp");

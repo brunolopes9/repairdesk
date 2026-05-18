@@ -11,7 +11,9 @@ public class TrabalhoRepository : ITrabalhoRepository
     public TrabalhoRepository(AppDbContext db) => _db = db;
 
     public Task<Trabalho?> FindByIdAsync(Guid id, CancellationToken ct = default)
-        => _db.Trabalhos.FirstOrDefaultAsync(t => t.Id == id, ct);
+        => _db.Trabalhos
+            .Include(t => t.Cliente)
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
 
     public async Task CreateWithNextNumeroAsync(Trabalho trabalho, Guid tenantId, CancellationToken ct = default)
     {

@@ -1,4 +1,5 @@
 import type { PagedResult } from '../clientes/types';
+import type { EquipmentFieldValue, SetEquipmentFieldValue } from '../equipmentFields/types';
 
 export const REPAIR_STATUS = {
   Recebido: 0,
@@ -111,6 +112,14 @@ export interface Reparacao {
   custoDespesasCents: number;
   notas: string | null;
   estadoPagamento: PaymentStatus;
+  invoiceProvider: 0 | 1 | 2;
+  invoiceExternalId: string | null;
+  invoicePdfUrl: string | null;
+  invoiceNumber: string | null;
+  invoiceEmittedAt: string | null;
+  equipmentFieldTemplateId: string | null;
+  equipmentFieldTemplateNome: string | null;
+  fields: EquipmentFieldValue[];
 }
 
 export interface ReparacaoDetalhada {
@@ -126,6 +135,8 @@ export interface CreateReparacaoForm {
   orcamentoCents: number | null;
   notas: string | null;
   estadoInicial?: RepairStatus | null;
+  equipmentFieldTemplateId?: string | null;
+  fields?: SetEquipmentFieldValue[] | null;
 }
 
 export interface UpdateReparacaoForm {
@@ -141,6 +152,8 @@ export interface UpdateReparacaoForm {
   horasGastas: number;
   notas: string | null;
   estadoPagamento: PaymentStatus;
+  equipmentFieldTemplateId?: string | null;
+  fields?: SetEquipmentFieldValue[] | null;
 }
 
 export type ReparacoesPage = PagedResult<Reparacao>;

@@ -115,6 +115,16 @@ export default function PortalCliente() {
             <div className="font-medium">{data.equipamentoPublico}</div>
             <div className="mt-1 text-zinc-500">{data.avariaPublica}</div>
           </div>
+          {data.camposEquipamento?.length > 0 && (
+            <dl className="mt-3 grid grid-cols-1 gap-2 rounded-xl bg-zinc-50 p-3 text-sm dark:bg-zinc-950 sm:grid-cols-2">
+              {data.camposEquipamento.map((field) => (
+                <div key={`${field.label}-${field.ordem}`}>
+                  <dt className="text-[11px] uppercase tracking-wide text-zinc-500">{field.label}</dt>
+                  <dd className="font-medium text-zinc-800 dark:text-zinc-100">{field.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </Card>
 
         {data.healthScore != null && (

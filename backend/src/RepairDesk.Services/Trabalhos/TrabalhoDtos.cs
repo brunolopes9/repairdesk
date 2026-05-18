@@ -44,5 +44,9 @@ public sealed record TrabalhoDto(
     string? Notas,
     PaymentStatus EstadoPagamento,
     int CustoDespesasCents,
-    int LucroCents);
-
+    int LucroCents,
+    BillingProvider InvoiceProvider,
+    string? InvoiceExternalId,
+    string? InvoicePdfUrl,
+    string? InvoiceNumber,
+    DateTime? InvoiceEmittedAt);

@@ -101,6 +101,17 @@ public static class OrcamentoPdfRenderer
                 c.Item().Text(o.Titulo).FontSize(13).Bold();
                 if (!string.IsNullOrWhiteSpace(o.Descricao))
                     c.Item().Text(o.Descricao!).FontSize(10).FontColor(Colors.Grey.Darken2);
+                if (o.CamposEquipamento is { Count: > 0 })
+                {
+                    var campos = string.Join("  ·  ", o.CamposEquipamento
+                        .Where(x => !string.IsNullOrWhiteSpace(x.Value))
+                        .Select(x => $"{x.Label}: {x.Value}"));
+                    if (!string.IsNullOrWhiteSpace(campos))
+                    {
+                        c.Item().PaddingTop(4).Text("DADOS DO EQUIPAMENTO").FontSize(8).Bold().LetterSpacing(0.1f).FontColor(Colors.Grey.Darken1);
+                        c.Item().Text(campos).FontSize(9).FontColor(Colors.Grey.Darken2);
+                    }
+                }
             });
 
             // Tabela de linhas

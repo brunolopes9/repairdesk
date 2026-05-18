@@ -182,6 +182,11 @@ public class TrabalhoService : ITrabalhoService
             t.CreatedAt, t.DataInicio, t.DataConclusao,
             t.OrcamentoCents, t.PrecoFinalCents, t.HorasGastas,
             t.Notas, t.EstadoPagamento,
-            custoDespesasCents, lucro);
+            custoDespesasCents, lucro,
+            t.InvoiceProvider,
+            t.InvoiceExternalId,
+            t.InvoicePdfUrl,
+            t.InvoiceNumber,
+            t.InvoiceEmittedAt);
     }
 }

@@ -32,6 +32,9 @@ export const trabalhosApi = {
   update(id: string, form: UpdateTrabalhoForm) {
     return api.put<Trabalho>(`/trabalhos/${id}`, form).then((r) => r.data);
   },
+  emitirFatura(id: string, payload: { vatPercent?: number | null; paymentMethod?: string | null } = {}) {
+    return api.post<InvoiceDto>(`/trabalhos/${id}/emitir-fatura`, payload).then((r) => r.data);
+  },
   reabrir(id: string) {
     return api.post<Trabalho>(`/trabalhos/${id}/reabrir`).then((r) => r.data);
   },
@@ -39,3 +42,9 @@ export const trabalhosApi = {
     return api.delete(`/trabalhos/${id}`).then(() => undefined);
   },
 };
+
+export interface InvoiceDto {
+  number: string;
+  pdfUrl: string | null;
+  emittedAt: string;
+}

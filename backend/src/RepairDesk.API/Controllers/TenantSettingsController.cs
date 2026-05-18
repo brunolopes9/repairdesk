@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RepairDesk.Services.Billing;
 using RepairDesk.Services.TenantSettings;
 
 namespace RepairDesk.API.Controllers;
@@ -10,7 +11,13 @@ namespace RepairDesk.API.Controllers;
 public class TenantSettingsController : ControllerBase
 {
     private readonly ITenantSettingsService _service;
-    public TenantSettingsController(ITenantSettingsService service) => _service = service;
+    private readonly ITenantBillingSettingsService _billing;
+
+    public TenantSettingsController(ITenantSettingsService service, ITenantBillingSettingsService billing)
+    {
+        _service = service;
+        _billing = billing;
+    }
 
     [HttpGet("me")]
     public Task<TenantSettingsDto> GetMine(CancellationToken ct) => _service.GetMineAsync(ct);
@@ -26,4 +33,20 @@ public class TenantSettingsController : ControllerBase
     [HttpPost("me/onboarding/complete")]
     public Task<OnboardingStatusDto> CompleteOnboarding(CancellationToken ct)
         => _service.CompleteOnboardingAsync(ct);
+
+    [HttpGet("me/billing")]
+    public Task<TenantBillingSettingsDto> GetBilling(CancellationToken ct)
+        => _billing.GetMineAsync(ct);
+
+    [HttpPut("me/billing")]
+    public Task<TenantBillingSettingsDto> UpdateBilling([FromBody] UpdateTenantBillingSettingsRequest req, CancellationToken ct)
+        => _billing.UpdateMineAsync(req, ct);
+
+    [HttpPost("me/billing/test-connection")]
+    public Task<BillingConnectionTestDto> TestBillingConnection(CancellationToken ct)
+        => _billing.TestConnectionAsync(ct);
+
+    [HttpPost("me/billing/sync-series")]
+    public Task<IReadOnlyList<BillingSerieDto>> SyncBillingSeries(CancellationToken ct)
+        => _billing.SyncSeriesAsync(ct);
 }

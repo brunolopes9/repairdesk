@@ -28,6 +28,48 @@ public static class DbInitializer
         await SeedAdminAsync(sp, logger, ct);
         await BackfillPublicSlugsAsync(db, logger, ct);
         await SeedDiagnosticoTemplatesAsync(db, logger, ct);
+        await SeedEquipmentFieldTemplatesAsync(db, logger, ct);
+    }
+
+    private static async Task SeedEquipmentFieldTemplatesAsync(AppDbContext db, ILogger logger, CancellationToken ct)
+    {
+        if (db.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) == true) return;
+        if (await db.EquipmentFieldTemplates.IgnoreQueryFilters().AnyAsync(t => t.TenantId == LopesTechTenantId, ct)) return;
+
+        logger.LogInformation("Seeding default equipment field templates for LopesTech...");
+
+        EquipmentFieldTemplate Build(string nome, DeviceCategory categoria, int ordem, params (string label, bool visible)[] fields)
+        {
+            var template = new EquipmentFieldTemplate
+            {
+                TenantId = LopesTechTenantId,
+                Nome = nome,
+                Categoria = categoria,
+                IsActive = true,
+                Ordem = ordem,
+            };
+            for (var i = 0; i < fields.Length; i++)
+            {
+                var (label, visible) = fields[i];
+                template.Fields.Add(new EquipmentFieldDefinition
+                {
+                    TenantId = LopesTechTenantId,
+                    Label = label,
+                    Type = EquipmentFieldType.Text,
+                    Required = false,
+                    Ordem = i,
+                    VisibleInPortal = visible,
+                });
+            }
+            return template;
+        }
+
+        db.EquipmentFieldTemplates.AddRange(
+            Build("Telemóvel", DeviceCategory.Smartphone, 0, ("IMEI", false), ("Marca", true), ("Modelo", true)),
+            Build("Laptop", DeviceCategory.Laptop, 1, ("Marca", true), ("Modelo", true), ("CPU", true), ("RAM", true), ("Storage", true), ("GPU", true)),
+            Build("Desktop", DeviceCategory.Desktop, 2, ("Marca", true), ("Modelo", true), ("CPU", true), ("RAM", true), ("Storage", true), ("GPU", true), ("MotherBoard", true)));
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Equipment field templates seeded.");
     }
 
     private static async Task SeedDiagnosticoTemplatesAsync(AppDbContext db, ILogger logger, CancellationToken ct)

@@ -11,6 +11,8 @@ O produto usa versionamento SemVer pragmatico: `MAJOR.MINOR.PATCH`.
 
 - Stock de peças: entidades `Part`/`PartMovimento`, CRUD API, stock baixo, movimentos assinados, import CSV, UI `/stock` e integração com reparações.
 
+- Campos personalizados de equipamento por tenant: templates configuraveis, values por reparacao, API admin, UI em definicoes/reparacoes, portal publico e PDF de orcamento.
+
 ### Changed
 
 ### Fixed

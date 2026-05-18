@@ -26,6 +26,10 @@ public sealed record OrcamentoLinha(
     string Descricao,
     int ValorCents);
 
+public sealed record OrcamentoCampoEquipamento(
+    string Label,
+    string Value);
+
 public sealed record OrcamentoData(
     string Numero,
     string Tipo,             // ex: "Reparação", "Trabalho"
@@ -38,4 +42,5 @@ public sealed record OrcamentoData(
     IReadOnlyList<OrcamentoLinha> Linhas,
     int TotalCents,
     string? Observacoes,
+    IReadOnlyList<OrcamentoCampoEquipamento>? CamposEquipamento = null,
     string? PortalUrl = null);

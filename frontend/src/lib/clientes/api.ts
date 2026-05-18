@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { Cliente, ClienteForm, PagedResult } from './types';
+import type { AtNifLookup, Cliente, ClienteForm, PagedResult } from './types';
 
 export const clientesApi = {
   list(query: string, page = 1, pageSize = 20) {
@@ -26,6 +26,9 @@ export const clientesApi = {
     return api.delete<HardDeleteClienteResponse>(`/clientes/${id}/hard-delete`, {
       data: { confirm, motivo: motivo || null },
     }).then((r) => r.data);
+  },
+  lookupAtNif(nif: string, signal?: AbortSignal) {
+    return api.get<AtNifLookup>(`/at/nif-lookup/${nif}`, { signal }).then((r) => r.data);
   },
   importCsv(csv: string) {
     return api.post<ImportClientesResponse>('/clientes/import', { csv }).then((r) => r.data);

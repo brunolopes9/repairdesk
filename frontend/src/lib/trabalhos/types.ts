@@ -93,6 +93,11 @@ export interface Trabalho {
   estadoPagamento: PaymentStatus;
   custoDespesasCents: number;
   lucroCents: number;
+  invoiceProvider: 0 | 1 | 2;
+  invoiceExternalId: string | null;
+  invoicePdfUrl: string | null;
+  invoiceNumber: string | null;
+  invoiceEmittedAt: string | null;
 }
 
 export interface CreateTrabalhoForm {

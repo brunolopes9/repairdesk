@@ -21,9 +21,16 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { isAxiosError } from 'axios';
+import EquipmentFieldsForm, {
+  buildEquipmentFieldValues,
+  initEquipmentFieldValues,
+  missingRequiredEquipmentFields,
+  type EquipmentFieldValuesMap,
+} from '../../components/EquipmentFieldsForm';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
+import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { precosApi, type PriceTableEntry } from '../../lib/precos/api';
 import { downloadFile } from '../../lib/downloadPdf';
@@ -357,6 +364,8 @@ function CreateReparacaoModal({
   const [comoOrcamento, setComoOrcamento] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [precoSugerirOpen, setPrecoSugerirOpen] = useState(false);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [fieldValues, setFieldValues] = useState<EquipmentFieldValuesMap>({});
 
   const imeiNormalizado = imei.replace(/\D/g, '');
   const imeiSearchEnabled = imeiNormalizado.length >= 6;
@@ -375,6 +384,16 @@ function CreateReparacaoModal({
     placeholderData: keepPreviousData,
   });
 
+  const templates = useQuery({
+    queryKey: ['equipment-field-templates-active'],
+    queryFn: () => equipmentFieldTemplatesApi.active(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const selectedTemplate = templates.data?.find((template) => template.id === templateId) ?? null;
+  const requiredMissing = missingRequiredEquipmentFields(selectedTemplate, fieldValues);
+
   const create = useMutation({
     mutationFn: () =>
       reparacoesApi.create({
@@ -385,6 +404,8 @@ function CreateReparacaoModal({
         orcamentoCents: orcamento ? Math.round(parseFloat(orcamento.replace(',', '.')) * 100) : null,
         notas: null,
         estadoInicial: comoOrcamento ? 7 : null,
+        equipmentFieldTemplateId: selectedTemplate?.id ?? null,
+        fields: selectedTemplate ? buildEquipmentFieldValues(selectedTemplate, fieldValues) : null,
       }),
     onSuccess: (rep) => {
       reset();
@@ -406,7 +427,15 @@ function CreateReparacaoModal({
     setImei('');
     setOrcamento('');
     setComoOrcamento(false);
+    setTemplateId(null);
+    setFieldValues({});
     setError(null);
+  }
+
+  function handleTemplateChange(id: string) {
+    const nextTemplate = templates.data?.find((template) => template.id === id) ?? null;
+    setTemplateId(nextTemplate?.id ?? null);
+    setFieldValues(nextTemplate ? initEquipmentFieldValues(nextTemplate) : {});
   }
 
   return (
@@ -431,7 +460,7 @@ function CreateReparacaoModal({
           </button>
           <button
             type="button"
-            disabled={!clienteId || !equipamento || !avaria || create.isPending}
+            disabled={!clienteId || !equipamento || !avaria || requiredMissing || create.isPending}
             onClick={() => create.mutate()}
             className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
           >
@@ -550,6 +579,26 @@ function CreateReparacaoModal({
             </div>
           )}
         </Field>
+        <Field label="Categoria equipamento">
+          <select
+            value={templateId ?? ''}
+            onChange={(e) => handleTemplateChange(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">Sem template personalizado</option>
+            {templates.data?.map((template) => (
+              <option key={template.id} value={template.id}>{template.nome}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-zinc-500">
+            Usa templates para portateis/desktops com CPU, RAM, storage e outros dados tecnicos.
+          </p>
+        </Field>
+        <EquipmentFieldsForm
+          template={selectedTemplate}
+          values={fieldValues}
+          onChange={(fieldId, value) => setFieldValues((current) => ({ ...current, [fieldId]: value }))}
+        />
         <Field label="Orçamento (€)">
           <input
             inputMode="decimal"

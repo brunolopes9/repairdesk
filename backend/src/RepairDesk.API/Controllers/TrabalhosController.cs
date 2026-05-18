@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Core.Enums;
+using RepairDesk.Services.Billing;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Documents;
 using RepairDesk.Services.Trabalhos;
@@ -14,10 +15,13 @@ public class TrabalhosController : ControllerBase
 {
     private readonly ITrabalhoService _service;
     private readonly IOrcamentoPdfService _pdf;
-    public TrabalhosController(ITrabalhoService service, IOrcamentoPdfService pdf)
+    private readonly IBillingProvider _billing;
+
+    public TrabalhosController(ITrabalhoService service, IOrcamentoPdfService pdf, IBillingProvider billing)
     {
         _service = service;
         _pdf = pdf;
+        _billing = billing;
     }
 
     [HttpGet("{id:guid}/orcamento.pdf")]
@@ -26,6 +30,10 @@ public class TrabalhosController : ControllerBase
         var (pdf, filename) = await _pdf.ForTrabalhoAsync(id, ct);
         return File(pdf, "application/pdf", filename);
     }
+
+    [HttpPost("{id:guid}/emitir-fatura")]
+    public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
+        => _billing.EmitTrabalhoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);
 
     [HttpPost("{id:guid}/reabrir")]
     public Task<TrabalhoDto> Reabrir(Guid id, CancellationToken ct) => _service.ReabrirAsync(id, ct);

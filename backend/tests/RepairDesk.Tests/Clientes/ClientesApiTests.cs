@@ -48,7 +48,7 @@ public class ClientesApiTests : IClassFixture<RepairDeskApiFactory>
     public async Task Create_WithDuplicateNif_Returns409()
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
-        var nif = "510000000";
+        var nif = "500000000";
 
         var first = await client.PostAsJsonAsync("/api/clientes",
             new CreateClienteRequest("João", "912000000", null, nif, null));

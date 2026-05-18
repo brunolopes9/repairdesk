@@ -7,6 +7,7 @@ import type {
   RepairStatus,
   UpdateReparacaoForm,
 } from './types';
+import type { EquipmentFieldValue, SetEquipmentFieldValue } from '../equipmentFields/types';
 
 export const reparacoesApi = {
   list(filters: { q?: string; estado?: RepairStatus | null; clienteId?: string; page?: number; pageSize?: number } = {}) {
@@ -34,6 +35,12 @@ export const reparacoesApi = {
   changeEstado(id: string, estado: RepairStatus, notas?: string) {
     return api.post<Reparacao>(`/reparacoes/${id}/estado`, { estado, notas: notas ?? null }).then((r) => r.data);
   },
+  emitirFatura(id: string, payload: { vatPercent?: number | null; paymentMethod?: string | null } = {}) {
+    return api.post<InvoiceDto>(`/reparacoes/${id}/emitir-fatura`, payload).then((r) => r.data);
+  },
+  setFields(id: string, templateId: string | null, values: SetEquipmentFieldValue[]) {
+    return api.post<EquipmentFieldValue[]>(`/reparacoes/${id}/fields`, { templateId, values }).then((r) => r.data);
+  },
   reabrir(id: string, notas?: string) {
     return api.post<Reparacao>(`/reparacoes/${id}/reabrir`, { notas: notas ?? null }).then((r) => r.data);
   },
@@ -49,6 +56,12 @@ export const reparacoesApi = {
     return api.delete(`/reparacoes/${id}`).then(() => undefined);
   },
 };
+
+export interface InvoiceDto {
+  number: string;
+  pdfUrl: string | null;
+  emittedAt: string;
+}
 
 export interface HistoricoImeiItem {
   id: string;

@@ -1,4 +1,6 @@
 export type RegimeFiscal = 0 | 1 | 2;
+export type BillingProvider = 0 | 1 | 2;
+export type BillingDocumentType = 0 | 1;
 
 export const REGIME_FISCAL_LABELS: Record<RegimeFiscal, string> = {
   0: 'Isenção Art. 53',
@@ -44,3 +46,40 @@ export interface OnboardingStatus {
 }
 
 export type UpdateTenantSettings = Omit<TenantSettings, 'id' | 'onboardingCompletado'>;
+
+export interface TenantBillingSettings {
+  provider: BillingProvider;
+  hasApiKey: boolean;
+  apiKeyMasked: string | null;
+  clientId: string | null;
+  hasClientSecret: boolean;
+  hasRefreshToken: boolean;
+  companyId: number | null;
+  defaultDocumentType: BillingDocumentType;
+  defaultSerieId: number | null;
+  sandboxMode: boolean;
+  defaultProductId: number | null;
+  defaultTaxId: number | null;
+  defaultPaymentMethodId: number | null;
+  defaultMaturityDateId: number | null;
+  fallbackCustomerId: number | null;
+  exemptionReason: string | null;
+}
+
+export type UpdateTenantBillingSettings = TenantBillingSettings & {
+  apiKey: string | null;
+  clientSecret: string | null;
+  refreshToken: string | null;
+};
+
+export interface BillingConnectionTest {
+  success: boolean;
+  message: string;
+}
+
+export interface BillingSerie {
+  id: number;
+  name: string;
+  code: string | null;
+  isActive: boolean;
+}

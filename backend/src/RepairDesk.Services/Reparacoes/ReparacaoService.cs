@@ -5,6 +5,7 @@ using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.EquipmentFields;
 // ImeiValidator do Common.Helpers
 
 namespace RepairDesk.Services.Reparacoes;
@@ -17,6 +18,7 @@ public interface IReparacaoService
     Task<ReparacaoDto> UpdateAsync(Guid id, UpdateReparacaoRequest req, CancellationToken ct = default);
     Task<ReparacaoDto> ChangeEstadoAsync(Guid id, ChangeEstadoRequest req, CancellationToken ct = default);
     Task<ReparacaoDto> ReabrirAsync(Guid id, string? notas, CancellationToken ct = default);
+    Task<IReadOnlyList<EquipmentFieldValueDto>> SetFieldsAsync(Guid id, SetEquipmentFieldValuesRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoHistoricoResponse> HistoricoPorImeiAsync(string imei, Guid? excludeId, CancellationToken ct = default);
     Task<ImportReparacoesResponse> ImportCsvAsync(string csv, CancellationToken ct = default);
@@ -30,6 +32,7 @@ public class ReparacaoService : IReparacaoService
     private readonly IDespesaRepository _despesas;
     private readonly IGarantiaRepository _garantias;
     private readonly ITenantRepository _tenants;
+    private readonly IEquipmentFieldService _equipmentFields;
     private readonly ITenantContext _tenant;
     private readonly ICurrentUser _user;
     private readonly IValidator<CreateReparacaoRequest> _createV;
@@ -42,6 +45,7 @@ public class ReparacaoService : IReparacaoService
         IDespesaRepository despesas,
         IGarantiaRepository garantias,
         ITenantRepository tenants,
+        IEquipmentFieldService equipmentFields,
         ITenantContext tenant,
         ICurrentUser user,
         IValidator<CreateReparacaoRequest> createV,
@@ -53,6 +57,7 @@ public class ReparacaoService : IReparacaoService
         _despesas = despesas;
         _garantias = garantias;
         _tenants = tenants;
+        _equipmentFields = equipmentFields;
         _tenant = tenant;
         _user = user;
         _createV = createV;
@@ -83,7 +88,8 @@ public class ReparacaoService : IReparacaoService
             .Select(t => new EstadoLogDto(t.Id, t.EstadoFrom, t.EstadoTo, t.MudouEm, t.Notas))
             .ToList();
         var custo = await _despesas.SumByReparacaoAsync(r.Id, ct);
-        return new ReparacaoDetalhadaDto(ToDto(r, custo), timeline);
+        var fields = await _equipmentFields.GetValuesAsync(r.Id, visibleInPortalOnly: false, ct);
+        return new ReparacaoDetalhadaDto(ToDto(r, custo, fields), timeline);
     }
 
     public async Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default)
@@ -122,8 +128,15 @@ public class ReparacaoService : IReparacaoService
             Notas = estadoInicial == RepairStatus.Orcamento ? "Orçamento criado" : "Recebida",
         });
         await _repo.CreateWithNextNumeroAsync(rep, _tenant.TenantId!.Value, ct);
+        IReadOnlyList<EquipmentFieldValueDto> fields = Array.Empty<EquipmentFieldValueDto>();
+        if (req.EquipmentFieldTemplateId is not null || req.Fields is not null)
+        {
+            fields = await _equipmentFields.SetValuesAsync(rep.Id,
+                new SetEquipmentFieldValuesRequest(req.EquipmentFieldTemplateId, req.Fields ?? Array.Empty<SetEquipmentFieldValueRequest>()),
+                ct);
+        }
         rep.Cliente = cliente;
-        return ToDto(rep, 0);
+        return ToDto(rep, 0, fields);
     }
 
     public async Task<ReparacaoDto> UpdateAsync(Guid id, UpdateReparacaoRequest req, CancellationToken ct = default)
@@ -152,9 +165,17 @@ public class ReparacaoService : IReparacaoService
         rep.EstadoPagamento = req.EstadoPagamento;
 
         await _repo.SaveAsync(ct);
+        IReadOnlyList<EquipmentFieldValueDto>? fields = null;
+        if (req.Fields is not null)
+        {
+            fields = await _equipmentFields.SetValuesAsync(rep.Id,
+                new SetEquipmentFieldValuesRequest(req.EquipmentFieldTemplateId, req.Fields),
+                ct);
+        }
         rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
         var custo = await _despesas.SumByReparacaoAsync(rep.Id, ct);
-        return ToDto(rep, custo);
+        fields ??= await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: false, ct);
+        return ToDto(rep, custo, fields);
     }
 
     public async Task<ReparacaoDto> ChangeEstadoAsync(Guid id, ChangeEstadoRequest req, CancellationToken ct = default)
@@ -262,6 +283,9 @@ public class ReparacaoService : IReparacaoService
         _repo.Remove(rep);
         await _repo.SaveAsync(ct);
     }
+
+    public Task<IReadOnlyList<EquipmentFieldValueDto>> SetFieldsAsync(Guid id, SetEquipmentFieldValuesRequest req, CancellationToken ct = default)
+        => _equipmentFields.SetValuesAsync(id, req, ct);
 
     public async Task<ImportReparacoesResponse> ImportCsvAsync(string csv, CancellationToken ct = default)
     {
@@ -592,7 +616,7 @@ public class ReparacaoService : IReparacaoService
         };
     }
 
-    private static ReparacaoDto ToDto(Reparacao r, int custoDespesasCents)
+    private static ReparacaoDto ToDto(Reparacao r, int custoDespesasCents, IReadOnlyList<EquipmentFieldValueDto>? fields = null)
     {
         var receita = r.PrecoFinalCents ?? 0;
         var lucro = receita - custoDespesasCents - r.CustoPecasCents;
@@ -607,6 +631,14 @@ public class ReparacaoService : IReparacaoService
             r.CustoPecasCents, r.HorasGastas, lucro,
             custoDespesasCents,
             r.Notas, r.EstadoPagamento,
-            r.PublicSlug);
+            r.PublicSlug,
+            r.InvoiceProvider,
+            r.InvoiceExternalId,
+            r.InvoicePdfUrl,
+            r.InvoiceNumber,
+            r.InvoiceEmittedAt,
+            r.EquipmentFieldTemplateId,
+            r.EquipmentFieldTemplate?.Nome,
+            fields ?? Array.Empty<EquipmentFieldValueDto>());
     }
 }

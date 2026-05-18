@@ -13,11 +13,13 @@ using RepairDesk.Infrastructure.At;
 using RepairDesk.Infrastructure.Storage;
 using RepairDesk.Services.Auth;
 using RepairDesk.Services.Audit;
+using RepairDesk.Services.Billing;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Dashboard;
 using RepairDesk.Services.Despesas;
 using RepairDesk.Services.Documents;
 using RepairDesk.Services.Diagnostico;
+using RepairDesk.Services.EquipmentFields;
 using RepairDesk.Services.Parts;
 using RepairDesk.Services.PublicPortal;
 using RepairDesk.Services.Reparacoes;
@@ -36,6 +38,7 @@ try
     builder.Host.UseSerilog(RepairDeskSerilog.Configure);
 
     builder.Services.AddHttpContextAccessor();
+    builder.Services.AddDataProtection();
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
     builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
@@ -102,6 +105,7 @@ try
     builder.Services.AddScoped<IAuditService, AuditService>();
     builder.Services.AddScoped<IAtNifLookupService, AtNifLookupService>();
     builder.Services.AddSingleton<IAtNifRemoteClient, AtDadosToiSoapClient>();
+    builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
 
     // Clientes
     builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
@@ -113,6 +117,8 @@ try
 
     // Reparações
     builder.Services.AddScoped<IReparacaoRepository, ReparacaoRepository>();
+    builder.Services.AddScoped<IEquipmentFieldRepository, EquipmentFieldRepository>();
+    builder.Services.AddScoped<IEquipmentFieldService, EquipmentFieldService>();
     builder.Services.AddScoped<IReparacaoService, ReparacaoService>();
     builder.Services.AddScoped<FluentValidation.IValidator<CreateReparacaoRequest>, CreateReparacaoValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateReparacaoRequest>, UpdateReparacaoValidator>();
@@ -141,6 +147,10 @@ try
 
     // Tenant settings
     builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();
+    builder.Services.AddScoped<ITenantBillingSettingsRepository, TenantBillingSettingsRepository>();
+    builder.Services.AddScoped<ITenantBillingSettingsService, TenantBillingSettingsService>();
+    builder.Services.AddScoped<IBillingProvider, MoloniBillingProvider>();
+    builder.Services.AddHttpClient<IMoloniClient, MoloniClient>();
 
     // Public portal (anonymous, rate-limited)
     builder.Services.AddScoped<IPublicPortalService, PublicPortalService>();

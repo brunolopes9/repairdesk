@@ -49,6 +49,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Default: Server=db,1433;Database=RepairDesk;User Id=sa;Password=${DB_SA_PASSWORD:-Repair!Desk2026};TrustServerCertificate=True;Encrypt=False;
+      Redis__Connection: cache:6379
       Jwt__Issuer: ${JWT_ISSUER:-repairdesk-local}
       Jwt__Audience: ${JWT_AUDIENCE:-repairdesk-local}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-replace-this-key-at-least-32-chars-long-please-please-please}
@@ -72,10 +73,16 @@ services:
       Backup__DatabaseName: ${Backup__DatabaseName:-RepairDesk}
       Backup__R2__Bucket: ${Backup__R2__Bucket:-}
       Backup__R2__Prefix: ${Backup__R2__Prefix:-backups}
+      AtNifLookup__Production: ${AT_PRODUCTION:-false}
+      AtNifLookup__CertPath: ${AT_CERT_PATH:-}
+      AtNifLookup__KeyPath: ${AT_KEY_PATH:-}
+      AtNifLookup__KeyPassword: ${AT_KEY_PASSWORD:-}
+      AtNifLookup__MaxDailyCallsPerTenant: ${AT_NIF_MAX_DAILY_CALLS:-100}
     ports:
       - "5080:8080"
     volumes:
       - photos_data:/data/photos
+      - ${AT_SECRETS_HOST_PATH:-./secrets/at}:/run/secrets/at:ro
       # Backups em bind mount: ficheiros .bak ficam em ./backups/ no host
       # (fora do Docker) — sobrevivem mesmo a 'docker compose down -v'.
       - ./backups:/backups

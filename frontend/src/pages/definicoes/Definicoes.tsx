@@ -1,17 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { AlertTriangle, CheckCircle2, Settings, ShieldCheck, Star } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Cpu, Plus, Settings, ShieldCheck, Star, Trash2 } from 'lucide-react';
 import { EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { validateNif } from '../../lib/nif/validator';
 import { validateIban } from '../../lib/iban/validator';
 import { backupApi, formatBytes } from '../../lib/admin/backup';
+import { equipmentFieldTemplatesApi, toUpsert } from '../../lib/equipmentFields/api';
+import {
+  DEVICE_CATEGORY_LABEL,
+  EQUIPMENT_FIELD_TYPE,
+  EQUIPMENT_FIELD_TYPE_LABEL,
+  type EquipmentFieldTemplate,
+  type UpsertEquipmentFieldTemplate,
+} from '../../lib/equipmentFields/types';
 import { toast } from '../../lib/toast';
 import {
   REGIME_FISCAL_LABELS,
   type RegimeFiscal,
+  type TenantBillingSettings,
   type TenantSettings,
+  type UpdateTenantBillingSettings,
   type UpdateTenantSettings,
 } from '../../lib/tenantSettings/types';
 
@@ -20,8 +30,10 @@ type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 const SECTIONS = [
   { id: 'empresa', label: 'Empresa' },
   { id: 'fiscal', label: 'Fiscal' },
+  { id: 'faturacao', label: 'Faturação' },
   { id: 'pagamentos', label: 'Pagamentos' },
   { id: 'posvenda', label: 'Pós-venda' },
+  { id: 'campos', label: 'Campos personalizados' },
   { id: 'aparencia', label: 'Aparência' },
   { id: 'backups', label: 'Backups' },
 ] as const;
@@ -153,8 +165,10 @@ export default function Definicoes() {
       <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         {section === 'empresa' && <EmpresaSection form={form} update={update} />}
         {section === 'fiscal' && <FiscalSection form={form} update={update} />}
+        {section === 'faturacao' && <FaturacaoSection />}
         {section === 'pagamentos' && <PagamentosSection form={form} update={update} />}
         {section === 'posvenda' && <PosVendaSection form={form} update={update} />}
+        {section === 'campos' && <CamposPersonalizadosSection />}
         {section === 'aparencia' && <AparenciaSection form={form} update={update} />}
         {section === 'backups' && <BackupsSection />}
       </div>
@@ -307,6 +321,166 @@ function FiscalSection({
   );
 }
 
+function FaturacaoSection() {
+  const qc = useQueryClient();
+  const billing = useQuery({
+    queryKey: ['tenant-billing-settings'],
+    queryFn: () => tenantSettingsApi.getBilling(),
+  });
+
+  const [form, setForm] = useState<UpdateTenantBillingSettings | null>(null);
+  const [series, setSeries] = useState<{ id: number; name: string }[]>([]);
+
+  useEffect(() => {
+    if (billing.data) setForm(toBillingForm(billing.data));
+  }, [billing.data]);
+
+  const save = useMutation({
+    mutationFn: (payload: UpdateTenantBillingSettings) => tenantSettingsApi.updateBilling(payload),
+    onSuccess: (saved) => {
+      qc.setQueryData(['tenant-billing-settings'], saved);
+      setForm(toBillingForm(saved));
+      toast.success('Faturação guardada', 'As definições Moloni foram atualizadas.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível guardar a faturação.'),
+  });
+
+  const test = useMutation({
+    mutationFn: () => tenantSettingsApi.testBillingConnection(),
+    onSuccess: (r) => toast.success('Ligação validada', r.message),
+    onError: (err) => toast.fromError(err, 'A Moloni rejeitou a ligação.'),
+  });
+
+  const sync = useMutation({
+    mutationFn: () => tenantSettingsApi.syncBillingSeries(),
+    onSuccess: async (items) => {
+      setSeries(items.map((s) => ({ id: s.id, name: s.name })));
+      await qc.invalidateQueries({ queryKey: ['tenant-billing-settings'] });
+      toast.success('Séries sincronizadas', items.length ? `${items.length} série(s) recebida(s).` : 'Sem séries disponíveis.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível sincronizar séries.'),
+  });
+
+  if (billing.isLoading || !form) {
+    return <p className="text-sm text-zinc-500">A carregar faturação…</p>;
+  }
+
+  function update<K extends keyof UpdateTenantBillingSettings>(key: K, value: UpdateTenantBillingSettings[K]) {
+    if (!form) return;
+    setForm({ ...form, [key]: value });
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <p className="font-medium">Moloni certificado AT</p>
+        <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+          Usa a conta Moloni do tenant para emitir documentos fiscais. O access token fica cifrado no servidor.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <Field label="Provider">
+          <select value={form.provider} onChange={(e) => update('provider', Number(e.target.value) as 0 | 1 | 2)} className={inputCls}>
+            <option value={0}>Desativado</option>
+            <option value={1}>Moloni</option>
+            <option value={2} disabled>InvoiceXpress (brevemente)</option>
+          </select>
+        </Field>
+        <Field label="Modo">
+          <label className="flex min-h-[38px] items-center gap-2 rounded-lg border border-zinc-200 px-3 text-sm dark:border-zinc-800">
+            <input type="checkbox" checked={form.sandboxMode} onChange={(e) => update('sandboxMode', e.target.checked)} />
+            <span>Sandbox Moloni</span>
+          </label>
+        </Field>
+        <Field label="Access token / API key" hint="A API clássica da Moloni usa OAuth2; para MVP cola aqui o access token sandbox.">
+          <input
+            type="password"
+            value={form.apiKey ?? ''}
+            onChange={(e) => update('apiKey', e.target.value || null)}
+            className={inputCls}
+            placeholder={form.hasApiKey ? '****' : 'Access token Moloni'}
+          />
+        </Field>
+        <Field label="Company ID">
+          <NumberInput value={form.companyId} onChange={(v) => update('companyId', v)} />
+        </Field>
+        <Field label="Tipo documento">
+          <select value={form.defaultDocumentType} onChange={(e) => update('defaultDocumentType', Number(e.target.value) as 0 | 1)} className={inputCls}>
+            <option value={0}>Fatura simplificada</option>
+            <option value={1}>Fatura</option>
+          </select>
+        </Field>
+        <Field label="Série Moloni">
+          <div className="flex gap-2">
+            <NumberInput value={form.defaultSerieId} onChange={(v) => update('defaultSerieId', v)} />
+            <button
+              type="button"
+              onClick={() => sync.mutate()}
+              disabled={sync.isPending}
+              className="rounded-lg border border-zinc-200 px-3 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {sync.isPending ? 'A sincronizar…' : 'Sincronizar'}
+            </button>
+          </div>
+          {series.length > 0 && (
+            <select className={`${inputCls} mt-2`} value={form.defaultSerieId ?? ''} onChange={(e) => update('defaultSerieId', numOrNull(e.target.value))}>
+              <option value="">Escolher série</option>
+              {series.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>)}
+            </select>
+          )}
+        </Field>
+      </div>
+
+      <div className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <h3 className="text-sm font-semibold">IDs Moloni necessários para emissão</h3>
+        <p className="mt-1 text-xs text-zinc-500">
+          O Moloni exige IDs internos para produto/serviço, IVA, método de pagamento e cliente fallback. Preenche estes valores a partir da tua conta sandbox antes de emitir.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <Field label="Produto/serviço ID">
+            <NumberInput value={form.defaultProductId} onChange={(v) => update('defaultProductId', v)} />
+          </Field>
+          <Field label="Tax ID IVA">
+            <NumberInput value={form.defaultTaxId} onChange={(v) => update('defaultTaxId', v)} />
+          </Field>
+          <Field label="Método pagamento ID">
+            <NumberInput value={form.defaultPaymentMethodId} onChange={(v) => update('defaultPaymentMethodId', v)} />
+          </Field>
+          <Field label="Maturity date ID">
+            <NumberInput value={form.defaultMaturityDateId} onChange={(v) => update('defaultMaturityDateId', v)} />
+          </Field>
+          <Field label="Cliente fallback ID" hint="Usado quando o cliente não tem NIF ou não existe na Moloni.">
+            <NumberInput value={form.fallbackCustomerId} onChange={(v) => update('fallbackCustomerId', v)} />
+          </Field>
+          <Field label="Motivo isenção" hint="Ex: M02 para Isenção Art. 53, confirmar com contabilista.">
+            <input value={form.exemptionReason ?? ''} onChange={(e) => update('exemptionReason', e.target.value || null)} className={inputCls} placeholder="M02" />
+          </Field>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => save.mutate(form)}
+          disabled={save.isPending}
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+        >
+          {save.isPending ? 'A guardar…' : 'Guardar faturação'}
+        </button>
+        <button
+          type="button"
+          onClick={() => test.mutate()}
+          disabled={test.isPending}
+          className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          {test.isPending ? 'A testar…' : 'Testar conexão'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PagamentosSection({
   form,
   update,
@@ -398,6 +572,197 @@ function PosVendaSection({
           className={inputCls}
         />
       </Field>
+    </div>
+  );
+}
+
+function CamposPersonalizadosSection() {
+  const qc = useQueryClient();
+  const templates = useQuery({
+    queryKey: ['equipment-field-templates'],
+    queryFn: () => equipmentFieldTemplatesApi.list(true),
+  });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<UpsertEquipmentFieldTemplate | null>(null);
+
+  useEffect(() => {
+    if (!templates.data || templates.data.length === 0 || selectedId) return;
+    const first = templates.data[0];
+    setSelectedId(first.id);
+    setDraft(toUpsert(first));
+  }, [selectedId, templates.data]);
+
+  function pick(template: EquipmentFieldTemplate) {
+    setSelectedId(template.id);
+    setDraft(toUpsert(template));
+  }
+
+  function newTemplate() {
+    setSelectedId(null);
+    setDraft({
+      nome: 'Laptop',
+      categoria: 2,
+      isActive: true,
+      fields: [
+        { label: 'Marca', type: EQUIPMENT_FIELD_TYPE.Text, options: [], required: false, ordem: 0, visibleInPortal: true },
+        { label: 'Modelo', type: EQUIPMENT_FIELD_TYPE.Text, options: [], required: false, ordem: 1, visibleInPortal: true },
+      ],
+    });
+  }
+
+  const save = useMutation({
+    mutationFn: () => {
+      if (!draft) throw new Error('Sem template para guardar.');
+      return selectedId ? equipmentFieldTemplatesApi.update(selectedId, draft) : equipmentFieldTemplatesApi.create(draft);
+    },
+    onSuccess: (saved) => {
+      toast.success('Template guardado');
+      setSelectedId(saved.id);
+      setDraft(toUpsert(saved));
+      qc.invalidateQueries({ queryKey: ['equipment-field-templates'] });
+      qc.invalidateQueries({ queryKey: ['equipment-field-templates-active'] });
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível guardar o template.'),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => equipmentFieldTemplatesApi.remove(id),
+    onSuccess: () => {
+      toast.success('Template apagado');
+      setSelectedId(null);
+      setDraft(null);
+      qc.invalidateQueries({ queryKey: ['equipment-field-templates'] });
+      qc.invalidateQueries({ queryKey: ['equipment-field-templates-active'] });
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível apagar. Se estiver em uso, desactiva-o.'),
+  });
+
+  const updateDraft = (patch: Partial<UpsertEquipmentFieldTemplate>) =>
+    setDraft((d) => d ? { ...d, ...patch } : d);
+
+  const updateField = (index: number, patch: Partial<UpsertEquipmentFieldTemplate['fields'][number]>) =>
+    setDraft((d) => {
+      if (!d) return d;
+      const fields = d.fields.map((f, i) => i === index ? { ...f, ...patch } : f);
+      return { ...d, fields };
+    });
+
+  const addField = () =>
+    setDraft((d) => d ? {
+      ...d,
+      fields: [...d.fields, { label: '', type: EQUIPMENT_FIELD_TYPE.Text, options: [], required: false, ordem: d.fields.length, visibleInPortal: true }],
+    } : d);
+
+  const removeField = (index: number) =>
+    setDraft((d) => d ? { ...d, fields: d.fields.filter((_, i) => i !== index).map((f, i) => ({ ...f, ordem: i })) } : d);
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
+      <aside className="space-y-2">
+        <button
+          type="button"
+          onClick={newTemplate}
+          className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
+        >
+          <Plus size={14} /> Novo template
+        </button>
+        {templates.isLoading && <p className="text-xs text-zinc-500">A carregar...</p>}
+        <ul className="space-y-1">
+          {templates.data?.map((template) => (
+            <li key={template.id}>
+              <button
+                type="button"
+                onClick={() => pick(template)}
+                className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
+                  selectedId === template.id
+                    ? 'border-brand-300 bg-brand-50 text-brand-900 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-200'
+                    : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <span className="block font-medium">{template.nome}</span>
+                <span className="text-[11px] text-zinc-500">
+                  {DEVICE_CATEGORY_LABEL[template.categoria] ?? 'Outro'} · {template.fields.length} campos
+                  {!template.isActive && ' · inactivo'}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
+
+      {draft ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-[1fr_180px_120px]">
+            <Field label="Nome do template">
+              <input value={draft.nome} onChange={(e) => updateDraft({ nome: e.target.value })} className={inputCls} />
+            </Field>
+            <Field label="Categoria">
+              <select value={draft.categoria} onChange={(e) => updateDraft({ categoria: Number(e.target.value) })} className={inputCls}>
+                {Object.entries(DEVICE_CATEGORY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </Field>
+            <label className="mt-6 flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={draft.isActive} onChange={(e) => updateDraft({ isActive: e.target.checked })} />
+              Activo
+            </label>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-semibold"><Cpu size={15} /> Campos</h3>
+              <button type="button" onClick={addField} disabled={draft.fields.length >= 20} className="rounded-md border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:hover:bg-zinc-800">
+                + Campo
+              </button>
+            </div>
+
+            {draft.fields.map((field, index) => (
+              <div key={field.id ?? index} className="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800 md:grid-cols-[1fr_130px_1fr_auto]">
+                <input value={field.label} onChange={(e) => updateField(index, { label: e.target.value })} placeholder="Label" className={inputCls} />
+                <select value={field.type} onChange={(e) => updateField(index, { type: Number(e.target.value) as typeof field.type })} className={inputCls}>
+                  {Object.entries(EQUIPMENT_FIELD_TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <input
+                  value={field.options.join(', ')}
+                  disabled={field.type !== EQUIPMENT_FIELD_TYPE.Select}
+                  onChange={(e) => updateField(index, { options: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })}
+                  placeholder="Opções, separadas por vírgula"
+                  className={inputCls}
+                />
+                <button type="button" onClick={() => removeField(index)} className="rounded-md p-2 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" title="Remover campo">
+                  <Trash2 size={15} />
+                </button>
+                <div className="flex flex-wrap gap-4 text-xs text-zinc-600 dark:text-zinc-300 md:col-span-4">
+                  <label className="flex items-center gap-1"><input type="checkbox" checked={field.required} onChange={(e) => updateField(index, { required: e.target.checked })} /> Obrigatório</label>
+                  <label className="flex items-center gap-1"><input type="checkbox" checked={field.visibleInPortal} onChange={(e) => updateField(index, { visibleInPortal: e.target.checked })} /> Visível no portal/PDF</label>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-between gap-2">
+            <button
+              type="button"
+              disabled={!selectedId || remove.isPending}
+              onClick={() => selectedId && remove.mutate(selectedId)}
+              className="rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"
+            >
+              Apagar
+            </button>
+            <button
+              type="button"
+              disabled={!draft.nome.trim() || save.isPending}
+              onClick={() => save.mutate()}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+            >
+              {save.isPending ? 'A guardar...' : 'Guardar template'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
+          Escolhe um template ou cria um novo.
+        </div>
+      )}
     </div>
   );
 }
@@ -604,7 +969,34 @@ function TenantNifFeedback({ nif }: { nif: string }) {
   return null;
 }
 
+function NumberInput({ value, onChange }: { value: number | null; onChange: (value: number | null) => void }) {
+  return (
+    <input
+      type="number"
+      min={0}
+      value={value ?? ''}
+      onChange={(e) => onChange(numOrNull(e.target.value))}
+      className={inputCls}
+    />
+  );
+}
+
+function numOrNull(value: string): number | null {
+  if (value.trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function toForm(t: TenantSettings): UpdateTenantSettings {
   const { id: _id, ...rest } = t;
   return rest;
+}
+
+function toBillingForm(t: TenantBillingSettings): UpdateTenantBillingSettings {
+  return {
+    ...t,
+    apiKey: t.apiKeyMasked ?? null,
+    clientSecret: t.hasClientSecret ? '****' : null,
+    refreshToken: t.hasRefreshToken ? '****' : null,
+  };
 }

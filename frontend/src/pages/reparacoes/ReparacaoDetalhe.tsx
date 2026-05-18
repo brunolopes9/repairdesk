@@ -6,6 +6,12 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tansta
 import { isAxiosError } from 'axios';
 import DespesasImputadas from '../../components/DespesasImputadas';
 import DiagnosticoGuiado from '../../components/DiagnosticoGuiado';
+import EquipmentFieldsForm, {
+  buildEquipmentFieldValues,
+  initEquipmentFieldValues,
+  missingRequiredEquipmentFields,
+  type EquipmentFieldValuesMap,
+} from '../../components/EquipmentFieldsForm';
 import FotosReparacao from '../../components/FotosReparacao';
 import Modal from '../../components/Modal';
 import PecasUsadas from '../../components/PecasUsadas';
@@ -13,7 +19,10 @@ import WhatsAppMenu from '../../components/WhatsAppMenu';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { clientesApi } from '../../lib/clientes/api';
+import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
+import type { EquipmentFieldTemplate } from '../../lib/equipmentFields/types';
 import { reparacoesApi } from '../../lib/reparacoes/api';
+import { toast } from '../../lib/toast';
 import {
   PAYMENT_STATUS,
   PRIMARY_STATUSES,
@@ -41,6 +50,19 @@ export default function ReparacaoDetalhe() {
     staleTime: 5 * 60_000,
   });
 
+  const billing = useQuery({
+    queryKey: ['tenant-billing-settings'],
+    queryFn: () => tenantSettingsApi.getBilling(),
+    staleTime: 5 * 60_000,
+  });
+
+  const fieldTemplates = useQuery({
+    queryKey: ['equipment-field-templates-active'],
+    queryFn: () => equipmentFieldTemplatesApi.active(),
+    enabled: !!id,
+    staleTime: 60_000,
+  });
+
   const [equipamento, setEquipamento] = useState('');
   const [avaria, setAvaria] = useState('');
   const [imei, setImei] = useState('');
@@ -55,6 +77,8 @@ export default function ReparacaoDetalhe() {
   const [changeClienteOpen, setChangeClienteOpen] = useState(false);
   const [pagamentoPrompt, setPagamentoPrompt] = useState<RepairStatus | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [fieldTemplateId, setFieldTemplateId] = useState<string | null>(null);
+  const [fieldValues, setFieldValues] = useState<EquipmentFieldValuesMap>({});
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -67,8 +91,35 @@ export default function ReparacaoDetalhe() {
     setPrecoFinal(r.precoFinalCents != null ? (r.precoFinalCents / 100).toFixed(2) : '');
     setPago(r.estadoPagamento === PAYMENT_STATUS.Pago);
     setNotas(r.notas ?? '');
+    setFieldTemplateId(r.equipmentFieldTemplateId ?? null);
+    setFieldValues(Object.fromEntries((r.fields ?? []).map((field) => [field.fieldDefinitionId, field.value ?? ''])));
     hydratedRef.current = true;
   }, [detail.data]);
+
+  const activeFieldTemplate = fieldTemplateId
+    ? fieldTemplates.data?.find((template) => template.id === fieldTemplateId) ?? null
+    : null;
+  const archivedFieldTemplate: EquipmentFieldTemplate | null =
+    !activeFieldTemplate && fieldTemplateId && detail.data?.reparacao.fields.length
+      ? {
+          id: fieldTemplateId,
+          nome: detail.data.reparacao.equipmentFieldTemplateNome ?? 'Template arquivado',
+          categoria: 99,
+          isActive: false,
+          ordem: 999,
+          fields: detail.data.reparacao.fields.map((field) => ({
+            id: field.fieldDefinitionId,
+            label: field.label,
+            type: field.type,
+            options: [],
+            required: field.required,
+            ordem: field.ordem,
+            visibleInPortal: field.visibleInPortal,
+          })),
+        }
+      : null;
+  const selectedFieldTemplate = activeFieldTemplate ?? archivedFieldTemplate;
+  const requiredMissing = missingRequiredEquipmentFields(selectedFieldTemplate, fieldValues);
 
   const update = useMutation({
     mutationFn: () => {
@@ -98,6 +149,29 @@ export default function ReparacaoDetalhe() {
     onError: (err) => {
       if (isAxiosError(err)) {
         setError((err.response?.data as { detail?: string } | undefined)?.detail ?? 'Erro ao guardar.');
+      }
+    },
+  });
+
+  const saveEquipmentFields = useMutation({
+    mutationFn: () => {
+      const r = detail.data!.reparacao;
+      return reparacoesApi.setFields(
+        r.id,
+        selectedFieldTemplate?.id ?? null,
+        selectedFieldTemplate ? buildEquipmentFieldValues(selectedFieldTemplate, fieldValues) : [],
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reparacao', id] });
+      qc.invalidateQueries({ queryKey: ['reparacoes'] });
+      qc.invalidateQueries({ queryKey: ['public-repair'] });
+      setSavedAt(new Date());
+      setError(null);
+    },
+    onError: (err) => {
+      if (isAxiosError(err)) {
+        setError((err.response?.data as { detail?: string } | undefined)?.detail ?? 'Erro ao guardar campos personalizados.');
       }
     },
   });
@@ -206,6 +280,12 @@ export default function ReparacaoDetalhe() {
       });
   }
 
+  function handleFieldTemplateChange(templateId: string) {
+    const nextTemplate = fieldTemplates.data?.find((template) => template.id === templateId) ?? null;
+    setFieldTemplateId(nextTemplate?.id ?? null);
+    setFieldValues(nextTemplate ? initEquipmentFieldValues(nextTemplate, fieldValues) : {});
+  }
+
   const changeCliente = useMutation({
     mutationFn: (newClienteId: string) => {
       const r = detail.data!.reparacao;
@@ -240,6 +320,15 @@ export default function ReparacaoDetalhe() {
     },
   });
 
+  const emitirFatura = useMutation({
+    mutationFn: () => reparacoesApi.emitirFatura(id!),
+    onSuccess: (invoice) => {
+      qc.invalidateQueries({ queryKey: ['reparacao', id] });
+      toast.success(`Fatura ${invoice.number} emitida`, invoice.pdfUrl ? 'PDF disponível na ficha.' : undefined);
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível emitir a fatura.'),
+  });
+
   // Reabrir: volta para estado Pronto + desmarca Pago via endpoint dedicado.
   const reabrir = useMutation({
     mutationFn: () => reparacoesApi.reabrir(id!),
@@ -270,6 +359,9 @@ export default function ReparacaoDetalhe() {
   //  - Locked (Entregue + Pago): encerrado; só Reabrir desbloqueia
   const isFrozen = r.estado === 5;
   const isLocked = isFrozen && r.estadoPagamento === PAYMENT_STATUS.Pago;
+  const canEmitMoloniInvoice = r.estadoPagamento === PAYMENT_STATUS.Pago
+    && billing.data?.provider === 1
+    && !r.invoiceExternalId;
 
   // Dias parado no estado actual (usado para escolher template WhatsApp p.ex. "Lembrete levantamento" se >7d em Pronto)
   const staleDays = Math.floor((Date.now() - new Date(r.estadoSince).getTime()) / 86_400_000);
@@ -366,6 +458,25 @@ export default function ReparacaoDetalhe() {
           >
             📄 PDF Orçamento
           </button>
+          {r.invoiceExternalId ? (
+            <a
+              href={r.invoicePdfUrl ?? '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+            >
+              Fatura {r.invoiceNumber ?? r.invoiceExternalId}
+            </a>
+          ) : canEmitMoloniInvoice && (
+            <button
+              type="button"
+              disabled={emitirFatura.isPending}
+              onClick={() => emitirFatura.mutate()}
+              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {emitirFatura.isPending ? 'A emitir…' : 'Emitir fatura via Moloni'}
+            </button>
+          )}
           {(r.estado === 4 || r.estado === 5) && (
             <a
               href="https://irs.portaldasfinancas.gov.pt/recibos/portal/emitir"
@@ -492,6 +603,48 @@ export default function ReparacaoDetalhe() {
             placeholder="Lembretes, contactos com cliente, etc."
           />
         </Field>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">Campos personalizados</h2>
+            <p className="text-xs text-zinc-500">Dados estruturados do equipamento para laptops, desktops e IT repair.</p>
+          </div>
+          <button
+            type="button"
+            disabled={isFrozen || requiredMissing || saveEquipmentFields.isPending}
+            onClick={() => saveEquipmentFields.mutate()}
+            className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
+          >
+            {saveEquipmentFields.isPending ? 'A guardar...' : 'Guardar campos'}
+          </button>
+        </div>
+        <Field label="Template">
+          <select
+            disabled={isFrozen}
+            value={fieldTemplateId ?? ''}
+            onChange={(e) => handleFieldTemplateChange(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">Sem template</option>
+            {archivedFieldTemplate && (
+              <option value={archivedFieldTemplate.id}>{archivedFieldTemplate.nome} (arquivado)</option>
+            )}
+            {fieldTemplates.data?.map((template) => (
+              <option key={template.id} value={template.id}>{template.nome}</option>
+            ))}
+          </select>
+        </Field>
+        <EquipmentFieldsForm
+          template={selectedFieldTemplate}
+          values={fieldValues}
+          disabled={isFrozen}
+          onChange={(fieldId, value) => setFieldValues((current) => ({ ...current, [fieldId]: value }))}
+        />
+        {requiredMissing && (
+          <p className="text-xs text-red-600 dark:text-red-400">Preenche os campos obrigatorios antes de guardar.</p>
+        )}
       </section>
 
       <DiagnosticoGuiado reparacaoId={r.id} readOnly={isFrozen} />
