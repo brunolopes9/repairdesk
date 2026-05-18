@@ -24,7 +24,13 @@ Docs oficiais usadas:
    - Taxa IVA usada pela loja.
    - Método de pagamento.
    - Cliente fallback, por exemplo `Consumidor final`.
-4. O plano gratuito foi considerado como referência de 50 documentos/mês, mas antes de beta deve ser confirmado no site Moloni: `{{TODO confirmar plano gratuito actual}}`.
+4. **Plano necessário — CONFIRMADO em 2026-05-18 na página oficial de planos:**
+   - Solo (3,50€/mês) — ❌ SEM API
+   - Base (6,49€/mês) — ❌ SEM API
+   - **Flex (10,90€/mês + IVA = ~13,41€/mês) — primeiro plano com API e e-commerce** ✅
+   - Pro (15,90€/mês + IVA) — ✅ tem API
+   - Trial: 30 dias grátis com qualquer plano.
+   - **Não existe plano gratuito perpétuo com API.** O "free tier 50 docs/mês" mencionado em documentação antiga é trial, não permanente.
 
 ## Configuração no RepairDesk
 
@@ -64,9 +70,18 @@ Em `Definições > Faturação`:
 
 ## Limites e upgrade
 
-- Confirmar mensalmente os limites comerciais Moloni antes de vender a beta.
-- Quando a oficina ultrapassar o limite gratuito, o upgrade acontece no Moloni, não no RepairDesk.
-- O RepairDesk deve mostrar erro claro quando a Moloni responder com limite/plano insuficiente.
+- Confirmado em 2026-05-18: integração RepairDesk ↔ Moloni exige plano Flex (~13€/mês com IVA) ou superior.
+- Para tenants em plano Solo/Base sem API: o RepairDesk deve degradar graciosamente — mostrar mensagem "Faturação automática requer plano Moloni Flex ou superior. Emite manualmente no painel Moloni e regista o número aqui."
+- Adicionar campo `InvoiceNumberManual` na entidade Reparacao/Trabalho para permitir registo de fatura emitida manualmente.
+- O RepairDesk deve mostrar erro claro quando a Moloni responder com erro de permissão/plano insuficiente.
+
+## Alternativas a considerar (Sprint futuro)
+
+Se preço Moloni Flex for barreira para tenants pequenos:
+- **InvoiceXpress** — também certificado AT, verificar tabela de planos com API.
+- **Vendus** — provider PT certificado, planos a partir de ~€8/mês.
+- **Faturalo** — opções low-cost.
+- Estratégia ideal: RepairDesk suporta `IBillingProvider` multi-implementação (já está abstraído via `BillingProvider` enum no Sprint 40 do Codex). Adicionar `InvoiceXpressBillingProvider` etc. permite ao tenant escolher.
 
 ## Notas técnicas
 
