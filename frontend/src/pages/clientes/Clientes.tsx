@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Download, FolderUp, Pencil, Search, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, Download, FolderUp, Pencil, Search, UserPlus, Users } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { isAxiosError } from 'axios';
 import { clientesApi, type ImportClientesResponse } from '../../lib/clientes/api';
 import { downloadFile } from '../../lib/downloadPdf';
 import { displayPhone } from '../../lib/phone/formatter';
+import { validateNif } from '../../lib/nif/validator';
 import type { Cliente, ClienteForm } from '../../lib/clientes/types';
 import ClienteFormView from './ClienteForm';
 
@@ -124,10 +125,20 @@ export default function Clientes() {
           >
             <Link to={`/clientes/${c.id}`} className="flex-1 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
               <div className="font-medium">{c.nome}</div>
-              <div className="text-xs text-zinc-500">
+              <div className="flex flex-wrap items-center gap-x-1 text-xs text-zinc-500">
                 {c.telefone ? displayPhone(c.telefone) : <em className="opacity-60">sem telefone</em>}
-                {c.email && <> · {c.email}</>}
-                {c.nif && <> · NIF {c.nif}</>}
+                {c.email && <span>· {c.email}</span>}
+                {c.nif && (
+                  <span className="inline-flex items-center gap-1">
+                    · NIF {c.nif}
+                    {!validateNif(c.nif).isValid && (
+                      <span className="inline-flex items-center gap-0.5 rounded-sm bg-amber-100 px-1 text-[10px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" title="NIF com check-digit inválido — verifica em editar">
+                        <AlertTriangle size={9} strokeWidth={2.5} />
+                        inválido
+                      </span>
+                    )}
+                  </span>
+                )}
               </div>
             </Link>
             <div className="flex items-center gap-1">

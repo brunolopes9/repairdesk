@@ -20,6 +20,7 @@ import {
   Search,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
+import HealthIndicator from './HealthIndicator';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
 import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Theme } from '../lib/theme';
 
@@ -103,6 +104,7 @@ export default function Layout() {
           </div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
             {user && <span className="hidden sm:inline">{user.displayName}</span>}
+            <HealthIndicator />
             <button
               type="button"
               onClick={() => {
