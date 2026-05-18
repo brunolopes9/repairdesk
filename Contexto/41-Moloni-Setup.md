@@ -91,9 +91,13 @@ Se preço Moloni Flex for barreira para tenants pequenos:
 - Produção usa `https://api.moloni.pt/v1`.
 - Sandbox usa `https://api-sandbox.moloni.pt/v1`.
 
+## Refresh automático de tokens (Sprint 41)
+
+Implementado em 2026-05-18. O `MoloniClient` agora tenta a chamada com o access token actual; se a Moloni rejeitar com erro `invalid_token` (ou HTTP 401), faz refresh automático via `/v1/grant/?grant_type=refresh_token`, actualiza `ApiKeyCipherText` e `RefreshTokenCipherText` cifrados em DB, e tenta uma vez. Resultado: o operador só precisa de colar o conjunto inicial (Developer ID, Client Secret, Access Token, Refresh Token) e o sistema mantém-se autenticado durante os 14 dias de validade do refresh token. Quando o refresh também expirar, mostra erro claro pedindo re-autenticação.
+
 ## Riscos / próximos passos
 
-1. OAuth2 completo: a API clássica Moloni usa access/refresh tokens. MVP aceita access token manual; antes de produção deve haver flow de refresh automático.
+1. OAuth2 completo (authorization_code flow): para SaaS multi-tenant, ideal seria um botão "Ligar Moloni" que redirecciona o utilizador para o Moloni autorizar — sem partilhar password com o RepairDesk. Implementar quando primeiro tenant externo aparecer.
 2. Cliente fiscal completo: RepairDesk hoje só tem nome/telefone/email/NIF, sem morada. Para clientes empresariais pode ser melhor sincronizar/criar cliente Moloni com morada completa.
 3. IDs internos Moloni: produto, taxa, método pagamento e cliente fallback são obrigatórios para emissão fiável. Melhorar com botões de sincronização dedicados.
 4. Certificação: a legalidade do documento depende da Moloni e da conta do tenant estar bem configurada.

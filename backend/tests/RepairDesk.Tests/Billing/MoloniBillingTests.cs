@@ -3,6 +3,7 @@ using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
@@ -44,6 +45,35 @@ public class MoloniBillingTests
 
         await act.Should().ThrowAsync<BillingProviderException>()
             .WithMessage($"*{(int)status}*falhou*");
+    }
+
+    [Fact]
+    public async Task MoloniClient_PostAsync_OnAuthFailure_RefreshesTokenAndRetries()
+    {
+        var settings = Settings();
+        settings.ClientId = "repairdesk-test";
+        settings.ClientSecretCipherText = "enc:client-secret";
+        settings.RefreshTokenCipherText = "enc:old-refresh";
+
+        var repo = new FakeSettingsRepository(settings);
+
+        var handler = new QueueHttpHandler(
+            // 1st call: returns invalid_token -> triggers refresh
+            Json(HttpStatusCode.OK, """{"error":"invalid_token","error_description":"Token expired"}"""),
+            // 2nd call: refresh endpoint returns fresh tokens
+            Json(HttpStatusCode.OK, """{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600,"token_type":"bearer"}"""),
+            // 3rd call: retry the original POST -> success
+            Json(HttpStatusCode.OK, """{"document_set_id":99,"name":"M","active_by_default":1}"""));
+
+        var client = NewMoloniClient(handler, repo);
+        var series = await client.GetSeriesAsync(settings);
+
+        series.Should().NotBeNull();
+        handler.Requests.Should().HaveCount(3);
+
+        settings.ApiKeyCipherText.Should().NotBeNullOrWhiteSpace();
+        settings.ApiKeyCipherText.Should().NotBe("enc:token");
+        settings.RefreshTokenCipherText.Should().NotBe("enc:old-refresh");
     }
 
     [Fact]
@@ -134,7 +164,7 @@ public class MoloniBillingTests
         dto.HasApiKey.Should().BeTrue();
     }
 
-    private static MoloniClient NewMoloniClient(QueueHttpHandler handler)
+    private static MoloniClient NewMoloniClient(QueueHttpHandler handler, ITenantBillingSettingsRepository? repo = null)
     {
         var cfg = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -143,7 +173,12 @@ public class MoloniBillingTests
                 ["Billing:Moloni:SandboxBaseUrl"] = "https://api-sandbox.moloni.test/v1",
             })
             .Build();
-        return new MoloniClient(new HttpClient(handler), new PrefixSecretProtector(), cfg);
+        return new MoloniClient(
+            new HttpClient(handler),
+            new PrefixSecretProtector(),
+            cfg,
+            repo ?? new FakeSettingsRepository(null),
+            NullLogger<MoloniClient>.Instance);
     }
 
     private static TenantBillingSettings Settings(Guid? tenantId = null) => new()

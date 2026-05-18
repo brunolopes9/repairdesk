@@ -1,7 +1,9 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
@@ -16,12 +18,21 @@ public class MoloniClient : IMoloniClient
     private readonly HttpClient _http;
     private readonly ISecretProtector _secrets;
     private readonly IConfiguration _configuration;
+    private readonly ITenantBillingSettingsRepository _repo;
+    private readonly ILogger<MoloniClient> _logger;
 
-    public MoloniClient(HttpClient http, ISecretProtector secrets, IConfiguration configuration)
+    public MoloniClient(
+        HttpClient http,
+        ISecretProtector secrets,
+        IConfiguration configuration,
+        ITenantBillingSettingsRepository repo,
+        ILogger<MoloniClient> logger)
     {
         _http = http;
         _secrets = secrets;
         _configuration = configuration;
+        _repo = repo;
+        _logger = logger;
     }
 
     public async Task TestConnectionAsync(TenantBillingSettings settings, CancellationToken ct = default)
@@ -178,7 +189,10 @@ public class MoloniClient : IMoloniClient
         return await _http.GetStreamAsync(url, ct);
     }
 
-    private async Task<T> PostAsync<T>(TenantBillingSettings settings, string endpoint, object payload, CancellationToken ct)
+    private Task<T> PostAsync<T>(TenantBillingSettings settings, string endpoint, object payload, CancellationToken ct)
+        => PostAsync<T>(settings, endpoint, payload, allowRefresh: true, ct);
+
+    private async Task<T> PostAsync<T>(TenantBillingSettings settings, string endpoint, object payload, bool allowRefresh, CancellationToken ct)
     {
         var accessToken = ResolveAccessToken(settings);
         var baseUrl = ResolveBaseUrl(settings);
@@ -186,6 +200,14 @@ public class MoloniClient : IMoloniClient
 
         using var response = await _http.PostAsJsonAsync(uri, payload, JsonOptions, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
+
+        if (allowRefresh && IsAuthFailure(response.StatusCode, content) && CanRefresh(settings))
+        {
+            _logger.LogInformation("Moloni access token rejected; attempting refresh for tenant {TenantId}", settings.TenantId);
+            await RefreshAccessTokenAsync(settings, ct);
+            return await PostAsync<T>(settings, endpoint, payload, allowRefresh: false, ct);
+        }
+
         if (!response.IsSuccessStatusCode)
         {
             var msg = ExtractMoloniError(content);
@@ -204,6 +226,85 @@ public class MoloniClient : IMoloniClient
 
         return JsonSerializer.Deserialize<T>(root.GetRawText(), JsonOptions)
                ?? throw new BillingProviderException("moloni_invalid_response", "Resposta Moloni inesperada.");
+    }
+
+    private static bool CanRefresh(TenantBillingSettings settings)
+        => !string.IsNullOrWhiteSpace(settings.ClientId)
+           && !string.IsNullOrWhiteSpace(settings.ClientSecretCipherText)
+           && !string.IsNullOrWhiteSpace(settings.RefreshTokenCipherText);
+
+    private static bool IsAuthFailure(HttpStatusCode status, string content)
+    {
+        if (status == HttpStatusCode.Unauthorized) return true;
+        if (string.IsNullOrWhiteSpace(content)) return false;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return false;
+
+            if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
+            {
+                var code = error.GetString() ?? string.Empty;
+                if (code.Contains("token", StringComparison.OrdinalIgnoreCase) ||
+                    code.Equals("invalid_grant", StringComparison.OrdinalIgnoreCase) ||
+                    code.Equals("invalid_client", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        catch (JsonException)
+        {
+            // not JSON — fallthrough
+        }
+
+        return false;
+    }
+
+    private async Task RefreshAccessTokenAsync(TenantBillingSettings settings, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(settings.ClientId))
+            throw new ValidationException("moloni_client_id_missing", "Developer ID Moloni nao configurado.");
+        if (string.IsNullOrWhiteSpace(settings.ClientSecretCipherText))
+            throw new ValidationException("moloni_client_secret_missing", "Client Secret Moloni nao configurado.");
+        if (string.IsNullOrWhiteSpace(settings.RefreshTokenCipherText))
+            throw new ValidationException("moloni_refresh_token_missing", "Refresh token Moloni nao configurado. Re-autentica em Definicoes > Faturacao.");
+
+        var clientSecret = _secrets.Unprotect(settings.ClientSecretCipherText);
+        var refreshToken = _secrets.Unprotect(settings.RefreshTokenCipherText);
+        var baseUrl = ResolveBaseUrl(settings).TrimEnd('/');
+
+        var refreshUri =
+            $"{baseUrl}/grant/?grant_type=refresh_token" +
+            $"&client_id={Uri.EscapeDataString(settings.ClientId)}" +
+            $"&client_secret={Uri.EscapeDataString(clientSecret)}" +
+            $"&refresh_token={Uri.EscapeDataString(refreshToken)}";
+
+        using var response = await _http.GetAsync(refreshUri, ct);
+        var content = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var msg = ExtractMoloniError(content);
+            _logger.LogWarning("Moloni refresh token rejected: {Status} {Body}", (int)response.StatusCode, msg);
+            throw new BillingProviderException(
+                "moloni_refresh_failed",
+                $"Refresh token Moloni rejeitado (HTTP {(int)response.StatusCode}). Re-autentica em Definicoes > Faturacao: {msg}");
+        }
+
+        using var doc = JsonDocument.Parse(content);
+        var root = doc.RootElement;
+        var newAccessToken = GetString(root, "access_token");
+        var newRefreshToken = GetString(root, "refresh_token");
+
+        if (string.IsNullOrWhiteSpace(newAccessToken) || string.IsNullOrWhiteSpace(newRefreshToken))
+            throw new BillingProviderException("moloni_refresh_invalid_response", "Resposta de refresh Moloni invalida.");
+
+        settings.ApiKeyCipherText = _secrets.Protect(newAccessToken);
+        settings.RefreshTokenCipherText = _secrets.Protect(newRefreshToken);
+
+        await _repo.SaveAsync(ct);
+        _logger.LogInformation("Moloni access token refreshed for tenant {TenantId}", settings.TenantId);
     }
 
     private static bool IsInvalidMoloniResponse(JsonElement root, out string message)

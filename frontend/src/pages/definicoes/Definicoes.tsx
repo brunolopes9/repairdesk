@@ -375,7 +375,8 @@ function FaturacaoSection() {
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
         <p className="font-medium">Moloni certificado AT</p>
         <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-          Usa a conta Moloni do tenant para emitir documentos fiscais. O access token fica cifrado no servidor.
+          Usa a conta Moloni do tenant para emitir documentos fiscais. Os secrets ficam cifrados no servidor.
+          O access token expira em 1h — se preencheres Developer ID, Client Secret e Refresh Token, o RepairDesk renova automaticamente.
         </p>
       </div>
 
@@ -393,13 +394,40 @@ function FaturacaoSection() {
             <span>Sandbox Moloni</span>
           </label>
         </Field>
-        <Field label="Access token / API key" hint="A API clássica da Moloni usa OAuth2; para MVP cola aqui o access token sandbox.">
+        <Field label="Developer ID" hint="O teu Developer ID definido em Moloni > Configurações > Developers (ex: repairdesk-lopestech).">
+          <input
+            type="text"
+            value={form.clientId ?? ''}
+            onChange={(e) => update('clientId', e.target.value || null)}
+            className={inputCls}
+            placeholder="repairdesk-lopestech"
+          />
+        </Field>
+        <Field label="Client Secret" hint="Chave Secreta gerada no painel Developer Moloni. Necessária para refresh automático de tokens.">
+          <input
+            type="password"
+            value={form.clientSecret ?? ''}
+            onChange={(e) => update('clientSecret', e.target.value || null)}
+            className={inputCls}
+            placeholder={form.hasClientSecret ? '****' : 'Client Secret Moloni'}
+          />
+        </Field>
+        <Field label="Access token" hint="Cola o access_token obtido via grant password. Renovado automaticamente a partir do refresh token.">
           <input
             type="password"
             value={form.apiKey ?? ''}
             onChange={(e) => update('apiKey', e.target.value || null)}
             className={inputCls}
             placeholder={form.hasApiKey ? '****' : 'Access token Moloni'}
+          />
+        </Field>
+        <Field label="Refresh token" hint="Cola o refresh_token recebido junto com o access_token. Válido 14 dias; é renovado a cada refresh automático.">
+          <input
+            type="password"
+            value={form.refreshToken ?? ''}
+            onChange={(e) => update('refreshToken', e.target.value || null)}
+            className={inputCls}
+            placeholder={form.hasRefreshToken ? '****' : 'Refresh token Moloni'}
           />
         </Field>
         <Field label="Company ID">
