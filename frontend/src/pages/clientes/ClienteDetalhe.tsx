@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Mail, MessageCircle, Pencil, Phone, ShieldAlert } from 'lucide-react';
 import { displayPhone } from '../../lib/phone/formatter';
 import Modal from '../../components/Modal';
+import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { Button } from '../../components/ui/Button';
 import { clientesApi } from '../../lib/clientes/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
@@ -120,7 +121,12 @@ export default function ClienteDetalhe() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-2 text-sm">
-        <button onClick={() => navigate(-1)} className="text-zinc-500 hover:underline">← voltar</button>
+        <Breadcrumb
+          items={[
+            { label: 'Clientes', to: '/clientes' },
+            { label: c.nome ?? 'Cliente' },
+          ]}
+        />
         <div className="flex items-center gap-2">
           <button
             type="button"

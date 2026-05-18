@@ -7,6 +7,7 @@ import { isAxiosError } from 'axios';
 import DespesasImputadas from '../../components/DespesasImputadas';
 import Modal from '../../components/Modal';
 import WhatsAppMenu from '../../components/WhatsAppMenu';
+import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { templatesForTrabalhoStatus } from '../../lib/whatsapp/templates';
@@ -214,7 +215,12 @@ export default function TrabalhoDetalhe() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between text-sm">
-        <button onClick={() => navigate(-1)} className="text-zinc-500 hover:underline">← voltar</button>
+        <Breadcrumb
+          items={[
+            { label: 'Trabalhos', to: '/trabalhos' },
+            { label: `#${t.numero} · ${t.titulo}` },
+          ]}
+        />
         <div className="flex items-center gap-2">
           {isFrozen && (
             <button

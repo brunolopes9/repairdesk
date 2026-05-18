@@ -68,10 +68,18 @@ build/
 !.env.production.example
 *.pem
 *.key
+*.cer
+*.p12
+*.pfx
 !**/wwwroot/**/*.key
 appsettings.Development.json
 appsettings.Production.json
 appsettings.Local.json
+
+# Segredos AT NIF lookup (ficheiros reais nunca devem entrar no repo).
+# .gitkeep mantido para criar a pasta no bind mount Docker.
+secrets/at/*
+!secrets/at/.gitkeep
 
 # ============================================
 # OS

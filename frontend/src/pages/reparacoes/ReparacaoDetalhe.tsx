@@ -16,6 +16,7 @@ import FotosReparacao from '../../components/FotosReparacao';
 import Modal from '../../components/Modal';
 import PecasUsadas from '../../components/PecasUsadas';
 import WhatsAppMenu from '../../components/WhatsAppMenu';
+import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { clientesApi } from '../../lib/clientes/api';
@@ -379,7 +380,12 @@ export default function ReparacaoDetalhe() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-2 text-sm">
-        <button onClick={() => navigate(-1)} className="text-zinc-500 hover:underline">← voltar</button>
+        <Breadcrumb
+          items={[
+            { label: 'Reparações', to: '/reparacoes' },
+            { label: `#${r.numero} · ${r.equipamento}` },
+          ]}
+        />
         <div className="flex items-center gap-2">
           {isFrozen && (
             <button
