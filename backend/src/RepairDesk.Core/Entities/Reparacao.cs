@@ -11,6 +11,9 @@ public class Reparacao : BaseEntity, ITenantEntity
     public Guid ClienteId { get; set; }
     public Cliente? Cliente { get; set; }
 
+    public Guid? EquipmentFieldTemplateId { get; set; }
+    public EquipmentFieldTemplate? EquipmentFieldTemplate { get; set; }
+
     public required string Equipamento { get; set; }
     public string? Imei { get; set; }
     public required string Avaria { get; set; }
@@ -38,4 +41,5 @@ public class Reparacao : BaseEntity, ITenantEntity
     public string? PublicSlug { get; set; }
 
     public List<ReparacaoEstadoLog> Timeline { get; set; } = new();
+    public List<EquipmentFieldValue> EquipmentFieldValues { get; set; } = new();
 }

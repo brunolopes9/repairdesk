@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import CommandPalette from './components/CommandPalette';
 import CookieBanner from './components/CookieBanner';
+import GShortcuts from './components/GShortcuts';
 import KeyboardHelp from './components/KeyboardHelp';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -70,6 +71,7 @@ export default function App() {
       <AuthProvider>
         <CommandPalette />
         <KeyboardHelp />
+        <GShortcuts />
         <Suspense fallback={<RouteLoading />}>
           <Routes>
             {/* Portal cliente público — sem layout, sem auth */}

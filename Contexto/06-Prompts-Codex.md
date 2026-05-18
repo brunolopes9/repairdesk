@@ -2854,6 +2854,267 @@ Sem Serilog. `/api/health` provavelmente devolve 200 vazio.
 
 ---
 
+## Codex Coding #C9 — Integração Moloni (Path A da Decisão Fiscal)
+
+```
+[CONTEXTO]
+Decisão fiscal fechada em Contexto/35-Faturacao-Decisao-Final.md:
+Path A — integrar Moloni (provider PT certificado, N0xxx/AT).
+Cada tenant configura a sua própria conta Moloni (API key).
+RepairDesk chama API Moloni em nome do tenant para emitir faturas legais.
+
+A própria Bruno decisão: 2026-05-17 "Sim, concordo e quero o path A".
+
+[OBJECTIVO]
+Quando uma Reparacao ou Trabalho é marcado como Pago, ter botão
+"Emitir fatura" que:
+- chama API Moloni com dados do tenant + cliente + reparação
+- recebe PDF + numero fatura assinado
+- armazena InvoiceId + URL PDF em RepairDesk
+- mostra "Fatura emitida #FA 2026/123" no detalhe
+
+[TAREFAS]
+1. **Entidade TenantBillingSettings** (1-1 com Tenant):
+   - Provider enum (None=0, Moloni=1, InvoiceXpress=2 — só Moloni implementado agora)
+   - ApiKey (encriptado at-rest com IDataProtector)
+   - CompanyId (empresa no Moloni)
+   - DefaultDocumentType (FaturaSimplificada/Fatura)
+   - DefaultSerieId
+   - SandboxMode bool
+   - Migration `Sprint40Billing`
+
+2. **Settings UI** em /definicoes tab "Faturação":
+   - Selector provider (só Moloni activo por agora)
+   - Campo API key (password masked, pre-fill se já gravado mostrando ****)
+   - Botão "Testar conexão" → chama Moloni `/companies/getOne` valida 200
+   - Botão "Sincronizar séries" → lista séries Moloni, persiste DefaultSerieId
+   - Toggle "Modo sandbox" para testar sem emitir factura real
+
+3. **Service IBillingProvider + MoloniBillingProvider**:
+   - `EmitInvoiceAsync(reparacaoOrTrabalhoId, vatPercent, paymentMethod, ct)`
+     → POST Moloni `/documents/invoices/insert` com items, cliente, totais
+     → recebe document_id + URL PDF
+     → grava em Reparacao/Trabalho: InvoiceProvider=Moloni, InvoiceExternalId, InvoicePdfUrl, InvoiceNumber, EmittedAt
+   - `GetPdfStreamAsync(invoiceId, ct)` → re-fetch URL PDF
+   - Idempotência: se Reparacao.InvoiceExternalId já existe, devolve esse sem re-emitir
+
+4. **Endpoint POST /api/reparacoes/{id}/emitir-fatura** + `/api/trabalhos/{id}/emitir-fatura`:
+   - 422 se reparação não estiver paga
+   - 422 se TenantBillingSettings.Provider == None
+   - 422 se já tem InvoiceExternalId
+   - Chama IBillingProvider.EmitInvoiceAsync
+   - Devolve InvoiceDto {number, pdfUrl, emittedAt}
+
+5. **UI ReparacaoDetalhe / TrabalhoDetalhe**:
+   - Botão "Emitir fatura via Moloni" (só visível se Reparação paga + Provider configurado + sem InvoiceId ainda)
+   - Após emitir: mostra "Fatura #FA 2026/123 emitida em 18/05" + link PDF
+   - PDF abre em new tab
+
+6. **Tests**:
+   - MoloniBillingProvider com Moq do HttpClient (resposta sucesso + 401 + 422 + 500)
+   - Idempotência: chamar 2x devolve mesmo invoiceId
+   - Encriptação at-rest: chave nunca em plain text na DB
+
+[CONSTRAINTS]
+- API keys NUNCA logadas — usar Serilog Destructure policy
+- IDataProtector para encriptar ApiKey antes de SaveChanges
+- Erro Moloni → mostrar ao operador (não engolir silenciosamente)
+- NÃO emitir fatura duas vezes (idempotência por reparacaoId/trabalhoId)
+- Sandbox mode: env var MOLONI_SANDBOX=true usa endpoint api-sandbox.moloni.pt
+- Multi-tenant: cada tenant tem own settings + own Moloni account
+- NÃO inventar formato Moloni — usar docs oficiais https://www.moloni.pt/dev/
+
+[OUTPUT]
+- Branch codex/sprint-40-moloni
+- Entity TenantBillingSettings + migration + repo
+- IBillingProvider + MoloniBillingProvider + tests
+- 2 endpoints (reparacoes, trabalhos)
+- Settings tab UI
+- Botão "Emitir fatura" nos detalhes
+- Documentação `Contexto/41-Moloni-Setup.md`:
+  - Como criar conta Moloni (free tier permite 50 docs/mês)
+  - Onde está o API key
+  - Como testar conexão
+  - Limites Moloni e quando upgrade
+
+[VERIFICAÇÃO]
+- Bruno cria conta Moloni sandbox, mete API key em /definicoes/faturacao
+- Click "Testar conexão" → 200 OK
+- Vai a Reparacao paga → click "Emitir fatura via Moloni"
+- Vê toast "Fatura #FA 2026/1 emitida"
+- Click link PDF → abre PDF assinado com ATCUD válido
+- Verifica em Moloni sandbox que fatura existe
+- Bruno faz click 2x: 2ª chamada devolve mesma fatura sem duplicar
+```
+
+---
+
+## Codex Coding #C10 — Custom fields configuráveis em equipamento (Reddit insight #8)
+
+```
+[CONTEXTO]
+Reddit insight em Contexto/37-Insights-Mercado-Reddit.md secção 8:
+"Segmento IT-repair (não só telemóveis) quer custom fields em equipamento:
+marca/modelo/CPU/RAM/storage/videocard etc. RepairDesk actualmente só tem
+string livre 'equipamento' + opcional IMEI."
+
+Adicionar custom fields configuráveis por tenant abre o produto a oficinas IT
+sem comprometer o caso telemóvel.
+
+[OBJECTIVO]
+1. Tenant configura templates de custom fields (ex: "Laptop": CPU, RAM, Storage, GPU)
+2. Ao criar reparação, escolhe template e preenche custom values
+3. Custom fields aparecem no PDF orçamento + portal cliente público (configurável)
+
+[TAREFAS]
+1. **Schema novo**:
+   - EquipmentFieldTemplate (Id, TenantId, Nome, Categoria DeviceCategory, IsActive)
+   - EquipmentFieldDefinition (Id, TemplateId, Label, Type enum [text, number, select, boolean],
+     Options json para selects, Required bool, Order int, VisibleInPortal bool)
+   - EquipmentFieldValue (Id, ReparacaoId, FieldDefinitionId, Value string)
+   - Migration `Sprint41CustomEquipmentFields`
+
+2. **Seed inicial**: 3 templates default por tenant:
+   - "Telemóvel" — IMEI, Marca, Modelo (mantém compatibilidade com actual)
+   - "Laptop" — Marca, Modelo, CPU, RAM, Storage, GPU
+   - "Desktop" — Marca, Modelo, CPU, RAM, Storage, GPU, MotherBoard
+
+3. **API admin** (admin role):
+   - GET/POST/PUT/DELETE `/api/equipment-field-templates`
+   - Reordering via PATCH `/order`
+
+4. **API público** (autenticado):
+   - GET `/api/equipment-field-templates/active` (só visíveis ao operador)
+   - POST `/api/reparacoes/{id}/fields` (set bulk values)
+
+5. **Frontend**:
+   - /definicoes nova tab "Campos personalizados"
+   - UI dynamic form builder (add field, choose type, mark required, reorder)
+   - Em /reparacoes/nova: selector "Categoria equipamento" → mostra fields do template
+   - Em /reparacoes/{id}: edição inline dos custom values
+   - Portal cliente (PortalCliente.tsx): mostra fields onde VisibleInPortal=true
+
+6. **PDF**: orçamento + ficha entrada incluem custom fields visible
+
+7. **Tests**:
+   - Definition required → 422 se valor vazio
+   - Multi-tenant: template tenant A não visível em tenant B
+   - Soft delete preserva values históricos
+
+[CONSTRAINTS]
+- Manter compatibilidade: Reparacao.Equipamento string field actual continua a existir
+  como fallback se nenhum template estiver associado
+- NÃO permitir delete de template usado por reparações activas — só "deactivate"
+- Limites: max 20 fields por template, max 10 templates activos por tenant
+- Type select: max 50 options
+- Bulk insert das values usa single SaveChanges
+
+[OUTPUT]
+- Branch codex/sprint-41-custom-fields
+- 3 entities + migration + repo + service
+- 2 admin controllers (Templates + Fields)
+- Nova tab Definições + UI dynamic builder
+- Integração em ReparacaoForm e ReparacaoDetalhe
+- Portal cliente mostra fields VisibleInPortal
+- Tests unitários + integration
+
+[VERIFICAÇÃO]
+- Bruno cria template "Laptop" com 6 fields
+- Cria reparação categoria Laptop → vê fields automáticos para preencher
+- PDF orçamento mostra "CPU: i7-12700H · RAM: 16 GB · Storage: 512 GB NVMe"
+- Portal cliente mostra mesmos fields se VisibleInPortal=true
+- Apaga template → bloqueado porque há reparações activas a usar
+```
+
+---
+
+## Codex Coding #C11 — Verificação NIF via webservice AT (diferenciador real)
+
+```
+[CONTEXTO]
+Bruno tem certificado de Produtor de Software AT
+(`ChaveCifraPublicaAT2027.cer` em `finanças/secrets/`) e adesão ao serviço de
+webservices da AT. Pode validar NIFs PT em real-time contra a base de dados
+da AT — verifica nome+morada da empresa, status fiscal, etc.
+
+Outro software de oficinas PT não faz isto. Diferenciador real:
+"Insere o NIF, vê o nome da empresa automaticamente."
+
+[OBJECTIVO]
+Quando utilizador insere NIF no form de cliente:
+1. Validação local Luhn (já existe NifValidator)
+2. Se ok, chamar webservice AT (rate-limited)
+3. Se AT confirma, sugere "Nome empresa: Lopestech Lda - Aceitar?"
+4. Bruno aceita e o nome fica preenchido automaticamente
+
+[TAREFAS]
+1. **Backend service IAtNifLookupService** + `AtNifLookupService`:
+   - Carrega cert PFX/CER from disk path (env AT_CERT_PATH)
+   - Carrega private key (env AT_KEY_PATH + AT_KEY_PASSWORD)
+   - Usa System.ServiceModel para chamar SOAP webservice
+   - Endpoint: https://servicos.portaldasfinancas.gov.pt/sgdtoi/dadosTOI (produção)
+              https://servicostst.portaldasfinancas.gov.pt:701/sgdtoi/dadosTOI (teste)
+   - Retorna {nif, nome, morada, status} ou null se NIF inválido na AT
+
+2. **Cache Redis** com TTL 30 dias por NIF (NIF não muda muito):
+   - Key `at:nif:{nif}` value JSON
+   - Reduz custo+latência
+
+3. **Rate limit**: max 100 calls/dia por tenant (AT cobra ou pode banir)
+   - Counter Redis incrementado a cada hit
+
+4. **Endpoint** `GET /api/at/nif-lookup/{nif}`:
+   - Validação local Luhn primeiro
+   - Cache hit → 200 com dados
+   - Cache miss → AT webservice → cache → 200
+   - 429 se rate limit excedido
+   - 503 se AT offline
+
+5. **Frontend ClienteForm**:
+   - Após NIF válido (Luhn ok) → query auto ao endpoint
+   - Mostra spinner "A verificar AT..."
+   - Resultado: "Lopestech Lda · Aceitar nome?" botão
+   - Click → preenche campo `nome` automaticamente
+
+6. **Doc `Contexto/42-AT-NIF-Lookup.md`**:
+   - Setup do certificado em ambiente Docker
+   - Configurar volume secrets/at no container
+   - Como obter cert + chave (Bruno já tem)
+   - Testar em ambiente AT testes primeiro
+
+7. **Tests**:
+   - Mock SOAP service responses (válido + 404 + AT-offline)
+   - Cache miss → call AT → cache hit
+   - Rate limit increments
+
+[CONSTRAINTS]
+- Certificate NUNCA hardcoded — env path
+- Logs NÃO incluem NIF completo (mascarar 4 últimos dígitos)
+- Idempotente: chamar 2x com mesmo NIF devolve mesmo resultado da cache
+- Default em dev: usar AT testes endpoint (não production) — env AT_PRODUCTION=false
+- NÃO bloquear UI se AT offline — fall back para "valida Luhn ok, AT indisponível"
+- Respeitar RGPD: o que vier da AT é dado público (Portal das Finanças)
+  mas guardar em cache constitui processing — documentar legal-base
+
+[OUTPUT]
+- Branch codex/sprint-42-at-nif-lookup
+- IAtNifLookupService + AtNifLookupService implementation
+- Redis cache key strategy
+- 1 endpoint + frontend integration em ClienteForm
+- Doc setup
+- Tests mocked
+
+[VERIFICAÇÃO]
+- Bruno insere NIF 263758141 no form
+- 200ms depois vê "Bruno Lopes (LopesTech) · Aceitar nome?"
+- Click → nome preenchido
+- Repete 100x mesmo NIF → cache hit, sem chamada AT real
+- Rate limit excedido (em test) → mensagem amigável
+- AT offline → fall back silencioso, NIF Luhn-válido continua a passar
+```
+
+---
+
 ## Anti-padrões a evitar nos prompts (aprendi na conversa)
 
 ### ❌ Mau: "podes melhorar isto?"

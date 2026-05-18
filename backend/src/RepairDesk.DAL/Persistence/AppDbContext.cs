@@ -38,6 +38,9 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<Avaliacao> Avaliacoes => Set<Avaliacao>();
     public DbSet<PriceTableEntry> PriceTableEntries => Set<PriceTableEntry>();
     public DbSet<ReparacaoFoto> ReparacaoFotos => Set<ReparacaoFoto>();
+    public DbSet<EquipmentFieldTemplate> EquipmentFieldTemplates => Set<EquipmentFieldTemplate>();
+    public DbSet<EquipmentFieldDefinition> EquipmentFieldDefinitions => Set<EquipmentFieldDefinition>();
+    public DbSet<EquipmentFieldValue> EquipmentFieldValues => Set<EquipmentFieldValue>();
     public DbSet<Part> Parts => Set<Part>();
     public DbSet<PartMovimento> PartMovimentos => Set<PartMovimento>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();

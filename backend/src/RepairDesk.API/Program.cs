@@ -9,6 +9,7 @@ using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.DAL.Persistence;
+using RepairDesk.Infrastructure.At;
 using RepairDesk.Infrastructure.Storage;
 using RepairDesk.Services.Auth;
 using RepairDesk.Services.Audit;
@@ -38,8 +39,23 @@ try
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
     builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
+    builder.Services.Configure<AtNifLookupOptions>(builder.Configuration.GetSection(AtNifLookupOptions.SectionName));
     builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
     builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+
+    var redisConnection = builder.Configuration["Redis:Connection"];
+    if (!builder.Environment.IsEnvironment("Testing") && !string.IsNullOrWhiteSpace(redisConnection))
+    {
+        builder.Services.AddStackExchangeRedisCache(o =>
+        {
+            o.Configuration = redisConnection;
+            o.InstanceName = "repairdesk:";
+        });
+    }
+    else
+    {
+        builder.Services.AddDistributedMemoryCache();
+    }
 
     if (!builder.Environment.IsEnvironment("Testing"))
     {
@@ -84,6 +100,8 @@ try
     builder.Services.AddScoped<IAuditLogger, EfAuditLogger>();
     builder.Services.AddScoped<IAuditRepository, AuditRepository>();
     builder.Services.AddScoped<IAuditService, AuditService>();
+    builder.Services.AddScoped<IAtNifLookupService, AtNifLookupService>();
+    builder.Services.AddSingleton<IAtNifRemoteClient, AtDadosToiSoapClient>();
 
     // Clientes
     builder.Services.AddScoped<IClienteRepository, ClienteRepository>();

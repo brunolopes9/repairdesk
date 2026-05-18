@@ -29,6 +29,11 @@ public class ReparacaoConfiguration : IEntityTypeConfiguration<Reparacao>
             .HasForeignKey(x => x.ClienteId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.EquipmentFieldTemplate)
+            .WithMany()
+            .HasForeignKey(x => x.EquipmentFieldTemplateId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasMany(x => x.Timeline)
             .WithOne(x => x.Reparacao!)
             .HasForeignKey(x => x.ReparacaoId)
@@ -38,6 +43,8 @@ public class ReparacaoConfiguration : IEntityTypeConfiguration<Reparacao>
             .HasFilter("[IsDeleted] = 0");
         builder.HasIndex(x => new { x.TenantId, x.Estado });
         builder.HasIndex(x => new { x.TenantId, x.ClienteId });
+        builder.HasIndex(x => new { x.TenantId, x.EquipmentFieldTemplateId })
+            .HasFilter("[EquipmentFieldTemplateId] IS NOT NULL");
         builder.HasIndex(x => x.PublicSlug).IsUnique()
             .HasFilter("[PublicSlug] IS NOT NULL");
     }
