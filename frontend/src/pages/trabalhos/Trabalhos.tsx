@@ -6,6 +6,7 @@ import { isAxiosError } from 'axios';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
+import { displayPhone } from '../../lib/phone/formatter';
 import { trabalhosApi } from '../../lib/trabalhos/api';
 import {
   CATEGORIA_LABEL,
@@ -176,7 +177,7 @@ function Card({ t, onClick, onDelete }: { t: Trabalho; onClick: () => void; onDe
         <div className="font-medium">{t.titulo}</div>
         {t.cliente && (
           <div className="text-xs text-zinc-500">
-            {t.cliente.nome}{t.cliente.telefone && ` · ${t.cliente.telefone}`}
+            {t.cliente.nome}{t.cliente.telefone && ` · ${displayPhone(t.cliente.telefone)}`}
           </div>
         )}
         <div className="mt-1 flex items-center justify-between text-xs">
@@ -275,7 +276,7 @@ function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onCl
                   {clientes.data.items.map(c => (
                     <li key={c.id}>
                       <button type="button" onClick={() => setClienteId(c.id)} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                        {c.nome} <span className="text-xs text-zinc-500">· {c.telefone}</span>
+                        {c.nome} <span className="text-xs text-zinc-500">· {displayPhone(c.telefone)}</span>
                       </button>
                     </li>
                   ))}

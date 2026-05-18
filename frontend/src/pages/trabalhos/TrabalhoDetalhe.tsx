@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, Lock, MessageCircle, Phone, Snowflake } from 'lucide-react';
+import { AlertTriangle, Lock, Phone, Snowflake } from 'lucide-react';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import DespesasImputadas from '../../components/DespesasImputadas';
 import Modal from '../../components/Modal';
+import WhatsAppMenu from '../../components/WhatsAppMenu';
+import { tenantSettingsApi } from '../../lib/tenantSettings/api';
+import { displayPhone } from '../../lib/phone/formatter';
+import { templatesForTrabalhoStatus } from '../../lib/whatsapp/templates';
 import { trabalhosApi } from '../../lib/trabalhos/api';
 import {
   CATEGORIA_LABEL,
@@ -30,6 +34,12 @@ export default function TrabalhoDetalhe() {
     queryKey: ['trabalho', id],
     queryFn: () => trabalhosApi.get(id!),
     enabled: !!id,
+  });
+
+  const tenant = useQuery({
+    queryKey: ['tenant-settings'],
+    queryFn: () => tenantSettingsApi.getMine(),
+    staleTime: 5 * 60_000,
   });
 
   const [titulo, setTitulo] = useState('');
@@ -171,15 +181,16 @@ export default function TrabalhoDetalhe() {
   const isLocked = isFrozen && t.estadoPagamento === PAYMENT_STATUS.Pago;
   const possibleNext = TRABALHO_VALID_TRANSITIONS[t.status] ?? [];
 
-  const waMessage = (() => {
-    switch (t.status) {
-      case 0: return `Olá! É da LopesTech sobre o orçamento de "${t.titulo}".`;
-      case 1: return `Olá! Confirmo que o trabalho "${t.titulo}" foi aceite e vou avançar.`;
-      case 2: return `Olá! O trabalho "${t.titulo}" está em execução. Aviso quando estiver pronto.`;
-      case 3: return `Olá! O trabalho "${t.titulo}" está concluído.${t.precoFinalCents ? ` Valor: ${formatCents(t.precoFinalCents)}.` : ''}`;
-      default: return `Olá! É da LopesTech sobre o trabalho #${t.numero}.`;
-    }
-  })();
+  const valorParaCobrar = t.precoFinalCents ?? t.orcamentoCents ?? null;
+  const waVars = {
+    cliente_nome: t.cliente?.nome?.split(' ')[0] ?? 'olá',
+    equipamento: t.titulo,
+    loja_nome: tenant.data?.name ?? undefined,
+    numero_reparacao: t.numero,
+    valor: valorParaCobrar != null ? formatCents(valorParaCobrar) : undefined,
+    link_review_google: tenant.data?.googleReviewUrl ?? undefined,
+  };
+  const waTemplates = templatesForTrabalhoStatus(t.status);
 
   return (
     <div className="space-y-5">
@@ -241,12 +252,8 @@ export default function TrabalhoDetalhe() {
             {cleanPhone && (
               <div className="flex flex-wrap gap-2">
                 <a href={`tel:${cleanPhone}`} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"><Phone size={12} strokeWidth={2} /> Ligar</a>
-                <a
-                  href={`https://wa.me/${cleanPhone.replace('+', '')}?text=${encodeURIComponent(waMessage)}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-lg bg-green-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-600"
-                ><MessageCircle size={12} strokeWidth={2} /> WhatsApp</a>
-                <span className="self-center text-xs text-zinc-500">{t.cliente.telefone}</span>
+                <WhatsAppMenu phone={cleanPhone} vars={waVars} customList={waTemplates} />
+                <span className="self-center text-xs text-zinc-500">{displayPhone(t.cliente.telefone)}</span>
               </div>
             )}
           </>

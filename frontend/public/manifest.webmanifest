@@ -1,0 +1,37 @@
+{
+  "name": "RepairDesk · LopesTech",
+  "short_name": "RepairDesk",
+  "description": "Gestão de oficinas de reparação — clientes, reparações, stock, faturação.",
+  "lang": "pt-PT",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#0ea5e9",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nova reparação",
+      "short_name": "Nova",
+      "description": "Criar uma reparação rapidamente",
+      "url": "/reparacoes",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    }
+  ]
+}

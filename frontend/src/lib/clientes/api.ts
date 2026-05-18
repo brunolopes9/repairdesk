@@ -19,6 +19,14 @@ export const clientesApi = {
   remove(id: string) {
     return api.delete(`/clientes/${id}`).then(() => undefined);
   },
+  exportRgpd(id: string) {
+    return api.get<Blob>(`/clientes/${id}/exportar`, { responseType: 'blob' }).then((r) => r.data);
+  },
+  hardDelete(id: string, confirm: string, motivo?: string | null) {
+    return api.delete<HardDeleteClienteResponse>(`/clientes/${id}/hard-delete`, {
+      data: { confirm, motivo: motivo || null },
+    }).then((r) => r.data);
+  },
   importCsv(csv: string) {
     return api.post<ImportClientesResponse>('/clientes/import', { csv }).then((r) => r.data);
   },
@@ -38,4 +46,14 @@ export interface ImportClientesResponse {
   comErro: number;
   clientesCriados: Cliente[];
   erros: ImportError[];
+}
+
+export interface HardDeleteClienteResponse {
+  clienteId: string;
+  nome: string;
+  deletedAt: string;
+  reparacoes: number;
+  trabalhos: number;
+  despesas: number;
+  fotos: number;
 }

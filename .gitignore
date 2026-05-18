@@ -85,6 +85,8 @@ desktop.ini
 # ============================================
 .docker/data/
 docker-compose.override.yml
+/backups/
+*.bak
 
 # ============================================
 # Misc

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
+using RepairDesk.Core.Enums;
 
 namespace RepairDesk.API.Controllers;
 
@@ -17,17 +18,20 @@ public class AuthController : ControllerBase
     private readonly UserManager<AppUser> _users;
     private readonly ITokenService _tokens;
     private readonly IRefreshTokenService _refresh;
+    private readonly IAuditLogger _audit;
     private readonly ILogger<AuthController> _log;
 
     public AuthController(
         UserManager<AppUser> users,
         ITokenService tokens,
         IRefreshTokenService refresh,
+        IAuditLogger audit,
         ILogger<AuthController> log)
     {
         _users = users;
         _tokens = tokens;
         _refresh = refresh;
+        _audit = audit;
         _log = log;
     }
 
@@ -59,6 +63,7 @@ public class AuthController : ControllerBase
         user.LastLoginAt = DateTime.UtcNow;
         user.LastLoginIp = ip;
         await _users.UpdateAsync(user);
+        await _audit.LogAsync(AuditAction.Login, "AppUser", user.Id, new { email = user.Email }, user.TenantId, user.Id, ct);
 
         return await IssueTokensAsync(user, ip, ct);
     }

@@ -46,4 +46,18 @@ public class HttpCurrentUser : ICurrentUser
 
     public string? Email => _accessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Email);
     public bool IsAuthenticated => _accessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
+    public string? IpAddress
+    {
+        get
+        {
+            var ctx = _accessor.HttpContext;
+            var forwarded = ctx?.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            return string.IsNullOrWhiteSpace(forwarded)
+                ? ctx?.Connection.RemoteIpAddress?.ToString()
+                : forwarded.Split(',')[0].Trim();
+        }
+    }
+
+    public string? UserAgent => _accessor.HttpContext?.Request.Headers.UserAgent.ToString();
+    public bool IsInRole(string role) => _accessor.HttpContext?.User?.IsInRole(role) ?? false;
 }

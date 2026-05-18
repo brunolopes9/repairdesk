@@ -1,19 +1,37 @@
 ﻿# Pricing Proposta — RepairDesk PT
 
-Atualizado: 2026-05-15  
-Task: #56 — análise de pricing dos concorrentes
+Atualizado: 2026-05-18 (revisto com insights Reddit + decisão pricing-por-tenant)
+Task original: #56 — análise de pricing dos concorrentes
 
-## Decisão recomendada
+## Decisão recomendada (revista 2026-05-18)
 
-O pricing deve ser **por loja**, não por utilizador. O mercado português de pequenas oficinas é sensível a custos fixos e muitas lojas têm 1-3 pessoas. Cobrar por user demasiado cedo cria a sensação de penalizar crescimento interno, enquanto cobrar por loja é mais simples de explicar: "quanto custa ter a oficina organizada".
+Duas decisões críticas tomadas baseadas em [`37-Insights-Mercado-Reddit.md`](37-Insights-Mercado-Reddit.md):
 
-Proposta base:
+**1. Pricing por TENANT, não por LOCATION.** Diferenciador competitivo vs RepairDesk-US que cobra per location e foi rejeitado por exactamente isso na thread Reddit. Tenant = entidade legal. **Multi-loja dentro do mesmo tenant é incluído**. Mensagem comercial: *"preço único, todas as tuas lojas incluídas"*.
+
+**2. Tier "Solo" adicionado** para segmento side-gig (técnicos part-time, freelancers IT) identificado na thread r/CRM. Estes utilizadores usam hoje vTiger CRM self-hosted (free) ou Frappe — não querem pagar €19+ mas pagariam €9-12.
+
+Proposta base actualizada:
 
 | Tier | Preço mensal | Cliente-alvo | Ideia central |
 |---|---:|---|---|
-| Starter | 19€/mês por loja | Técnico solo / loja pequena com ~30 reparações/mês | Tirar a loja do papel, WhatsApp e Excel |
-| Pro | 39€/mês por loja | Loja ativa com 1-5 pessoas | Operação completa, cliente informado e lucro visível |
-| Enterprise | 89€/mês por empresa | Multi-loja / operação profissional | Multi-loja, whitelabel, automação e suporte prioritário |
+| **Solo** ⭐ novo | **9€/mês** | Técnico side-gig / freelancer IT / ~10 reparações/mês | Substituir Excel pessoal por algo profissional |
+| Starter | 19€/mês | Técnico solo full-time / loja pequena ~30 reparações/mês | Tirar a loja do papel, WhatsApp e Excel |
+| Pro | 39€/mês | Loja ativa com 1-5 pessoas | Operação completa, cliente informado e lucro visível |
+| Enterprise | 89€/mês | Multi-loja / operação profissional + whitelabel | SLA, prioridade, integrações custom |
+
+### Notas sobre tier Solo (novo)
+
+- **Limitações vs Starter:** máx 30 reparações activas + 50 clientes + sem multi-utilizador + sem custom branding no portal cliente
+- **Sem suporte por email** — só base de conhecimento + comunidade
+- **Não fragmenta o produto** — todas as features visíveis na UI. Limites suaves com aviso "upgrade para Starter quando precisares".
+- **Margem absoluta menor** mas captura segmento que ia para CRM-self-hosted
+- **Conversão para Starter:** quando freelancer crescer e atingir limites → upgrade natural
+
+### Removido vs versão anterior
+
+- "por loja" → agora é **"por tenant"**. Uma conta abrange todas as lojas físicas.
+- Não há mais hesitação sobre "Multi-loja é Enterprise apenas". Multi-loja é incluído em todos os tiers (Solo limitado a 1, outros ilimitados).
 
 Os preços devem ser comunicados como **preços sem IVA quando aplicável**. Enquanto a LopesTech estiver no regime de isenção do Art. 53.º do CIVA, a fatura não liquida IVA. Quando sair do regime, o preço público B2B deve passar a ser apresentado como `+ IVA` para não comprimir margem.
 

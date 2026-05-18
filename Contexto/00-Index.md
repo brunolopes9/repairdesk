@@ -46,6 +46,9 @@ Para alguém novo a este projeto (futuro Bruno, futuro Claude, futuro sócio):
 33. **[`34-Beta-Launch-Criteria.md`](34-Beta-Launch-Criteria.md)** — 🎯 critérios objectivos MUST/SHOULD/NICE-have para lançar beta, diferenciação real, gap analysis e timeline 6-8 semanas. Reflexão crítica anti-feature-creep.
 34. **[`35-Faturacao-Decisao-Final.md`](35-Faturacao-Decisao-Final.md)** — 🔒 decisão fechada Path A (Moloni/InvoiceXpress). Explica Camada 1 (certificação) vs Camada 2 (webservices AT) — fecha confusão histórica. Prompt Codex preparado.
 35. **[`36-Video-Demo-Script.md`](36-Video-Demo-Script.md)** — 🎬 script 90s pronto para gravar. 8 cenas + storyboard + notas técnicas + checklist + versão 15s para Stories. Materializar diferenciação que o produto já tem.
+36. **[`37-Insights-Mercado-Reddit.md`](37-Insights-Mercado-Reddit.md)** — 🚨 captura de 2 threads Reddit r/mobilerepair + r/CRM. Achado crítico: colisão de nome com "RepairDesk" US — rebrand urgente antes do beta. + 11 outros insights (pricing per-tenant, SKU auto, segmento solo, custom fields, trade-ins, integração contabilidade).
+37. **[`38-Rebrand-Mapping.md`](38-Rebrand-Mapping.md)** — mapeamento exacto de onde aparece "RepairDesk" no código + UI + docs. 8 sítios alta prioridade (UI visível), 21 ocorrências copy legal, plus branding técnico. Processo de rebrand em 4 fases + shortlist inicial de nomes.
+38. **[`40-Ideias-Spin-off-Automation.md`](40-Ideias-Spin-off-Automation.md)** — 🧊 análise crítica de Bruno querer lançar spin-off de automações em paralelo com RepairDesk. **Recomendação: NÃO agora.** Mercado saturado, é agência não produto, foco mata possibilidade. 3 ideias melhores (extracções do RepairDesk) + métrica para revisitar Q4 2026.
 
 ---
 

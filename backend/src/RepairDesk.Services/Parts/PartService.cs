@@ -71,6 +71,14 @@ public class PartService : IPartService
         if (sku is not null && await _repo.SkuExistsAsync(sku, null, ct))
             throw new ConflictException("sku_in_use", "Ja existe uma peça com esse SKU.");
 
+        // Auto-SKU se não fornecido — resolve dor identificada em
+        // Contexto/37-Insights-Mercado-Reddit.md (RepairQ tem SKU manual fraco).
+        // Formato: {PREFIX}-{NNNN} onde prefix vem da categoria.
+        if (sku is null)
+        {
+            sku = await GenerateNextSkuAsync(req.Categoria, ct);
+        }
+
         var part = new Part
         {
             Sku = sku,
@@ -315,6 +323,40 @@ public class PartService : IPartService
 
     private static string? TrimOrNull(string? raw)
         => string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
+
+    /// <summary>
+    /// Gera SKU automático no formato {PREFIX}-{NNNN}.
+    /// Prefix vem da categoria (ECRA, BAT, CON, etc).
+    /// Numero é o próximo livre dentro do tenant — itera até encontrar não-usado.
+    /// </summary>
+    private async Task<string> GenerateNextSkuAsync(PartCategoria categoria, CancellationToken ct)
+    {
+        var prefix = SkuPrefixFor(categoria);
+        for (var n = 1; n <= 9999; n++)
+        {
+            var candidate = $"{prefix}-{n:0000}";
+            if (!await _repo.SkuExistsAsync(candidate, null, ct))
+            {
+                return candidate;
+            }
+        }
+        // Edge case: 9999 SKUs já em uso para esta categoria. Cai para timestamp.
+        return $"{prefix}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}";
+    }
+
+    private static string SkuPrefixFor(PartCategoria categoria) => categoria switch
+    {
+        PartCategoria.Ecra => "ECRA",
+        PartCategoria.Bateria => "BAT",
+        PartCategoria.Conector => "CON",
+        PartCategoria.Camara => "CAM",
+        PartCategoria.VidroTraseiro => "VID",
+        PartCategoria.CaboFlex => "FLX",
+        PartCategoria.Tampa => "TMP",
+        PartCategoria.Adesivo => "ADE",
+        PartCategoria.Consumivel => "CSM",
+        _ => "PCA",
+    };
 
     private static PartDto ToDto(Part p) =>
         new(

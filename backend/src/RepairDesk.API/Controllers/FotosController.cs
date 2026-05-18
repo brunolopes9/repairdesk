@@ -40,7 +40,12 @@ public class FotosController : ControllerBase
 public class FotosItemController : ControllerBase
 {
     private readonly IFotoService _service;
-    public FotosItemController(IFotoService service) => _service = service;
+    private readonly IPhotoExportLinkService _photoLinks;
+    public FotosItemController(IFotoService service, IPhotoExportLinkService photoLinks)
+    {
+        _service = service;
+        _photoLinks = photoLinks;
+    }
 
     [HttpGet("{fotoId:guid}/content")]
     public async Task<IActionResult> Content(Guid fotoId, CancellationToken ct)
@@ -59,6 +64,16 @@ public class FotosItemController : ControllerBase
     {
         await _service.DeleteAsync(fotoId, ct);
         return NoContent();
+    }
+
+    [HttpGet("{fotoId:guid}/export-content")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ExportContent(Guid fotoId, [FromQuery] long expires, [FromQuery] string sig, CancellationToken ct)
+    {
+        _photoLinks.Validate(fotoId, expires, sig);
+        var (stream, contentType, fileName) = await _service.DownloadAsync(fotoId, ct);
+        Response.Headers["Cache-Control"] = "private, max-age=300";
+        return File(stream, contentType, fileName);
     }
 }
 

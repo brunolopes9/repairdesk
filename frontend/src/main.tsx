@@ -8,6 +8,16 @@ import { applyTheme, getStoredTheme } from './lib/theme';
 // Aplica tema cedo para evitar flash
 applyTheme(getStoredTheme());
 
+// Registar service worker (PWA installable + shell cache).
+// Só em produção — em dev (Vite HMR) seria barrigudo.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* silently ignore — não bloqueia a app */
+    });
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 },

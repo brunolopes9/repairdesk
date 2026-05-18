@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { isAxiosError } from 'axios';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { Cliente, ClienteForm } from '../../lib/clientes/types';
+import { validateNif } from '../../lib/nif/validator';
+import { formatPhonePT } from '../../lib/phone/formatter';
 
 interface Props {
   initial?: Cliente | null;
@@ -80,6 +83,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
           onChange={(e) => setTelefone(e.target.value)}
           className={inputCls}
         />
+        <PhoneFeedback phone={telefone} />
       </Field>
       <Field label="Email" errors={errors.email}>
         <input
@@ -98,6 +102,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
           onChange={(e) => setNif(e.target.value.replace(/\D/g, ''))}
           className={inputCls}
         />
+        <NifFeedback nif={nif} />
       </Field>
       <Field label="Notas" errors={errors.notas}>
         <textarea
@@ -141,4 +146,49 @@ function Field({
       )}
     </div>
   );
+}
+
+function PhoneFeedback({ phone }: { phone: string }) {
+  if (!phone) return null;
+  const info = formatPhonePT(phone);
+  if (info.kind === 'incomplete') {
+    return (
+      <p className="mt-1 text-xs text-zinc-500">
+        {info.digits.length}/9 dígitos
+      </p>
+    );
+  }
+  if (info.isValid) {
+    const kindLabel = info.kind === 'mobile' ? 'Telemóvel' : 'Fixo';
+    return (
+      <p className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
+        <CheckCircle2 size={12} strokeWidth={2} /> {kindLabel} · {info.display}
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+      <AlertTriangle size={12} strokeWidth={2} /> Formato não-reconhecido (esperado 9 dígitos PT)
+    </p>
+  );
+}
+
+function NifFeedback({ nif }: { nif: string }) {
+  if (!nif) return null;
+  const v = validateNif(nif);
+  if (v.isValid) {
+    return (
+      <p className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
+        <CheckCircle2 size={12} strokeWidth={2} /> {v.message}
+      </p>
+    );
+  }
+  if (v.message) {
+    return (
+      <p className="mt-1 inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+        <AlertTriangle size={12} strokeWidth={2} /> {v.message}
+      </p>
+    );
+  }
+  return null;
 }

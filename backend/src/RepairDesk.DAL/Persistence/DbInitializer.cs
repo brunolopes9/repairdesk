@@ -258,6 +258,6 @@ public static class DbInitializer
         logger.LogInformation("Admin user {Email} seeded with role Admin.", email);
 
         if (password == DefaultAdminPassword)
-            logger.LogWarning("⚠ Admin created with DEFAULT password '{Pwd}'. Set Seed:AdminPassword env to override.", DefaultAdminPassword);
+            logger.LogWarning("Admin created with default seed password. Set Seed:AdminPassword env to override before exposing the app.");
     }
 }

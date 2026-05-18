@@ -1,3 +1,4 @@
+using RepairDesk.Common.Helpers;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Exceptions;
@@ -42,11 +43,15 @@ public class TenantSettingsService : ITenantSettingsService
         if (string.IsNullOrWhiteSpace(req.Name))
             throw new ValidationException("name_required", "Nome obrigatório.");
 
+        var nifClean = Clean(req.Nif);
+        if (!string.IsNullOrWhiteSpace(nifClean) && !NifValidator.IsValid(nifClean))
+            throw new ValidationException("nif_invalid", "NIF inválido — verifica os 9 dígitos e o check-digit.");
+
         var tenant = await RequireCurrentTenantAsync(ct);
 
         tenant.Name = req.Name.Trim();
         tenant.LegalName = Clean(req.LegalName);
-        tenant.Nif = Clean(req.Nif);
+        tenant.Nif = nifClean;
         tenant.Address = Clean(req.Address);
         tenant.PostalCode = Clean(req.PostalCode);
         tenant.Locality = Clean(req.Locality);

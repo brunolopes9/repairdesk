@@ -242,6 +242,57 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("Auth_Users", (string)null);
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.AuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("AppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChangesJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppUserId")
+                        .HasFilter("[AppUserId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .IsDescending(false, true);
+
+                    b.HasIndex("TenantId", "EntityType", "EntityId", "CreatedAt")
+                        .IsDescending(false, false, false, true);
+
+                    b.ToTable("AuditEntries", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.Avaliacao", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1465,6 +1516,16 @@ namespace RepairDesk.DAL.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.AuditEntry", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.AppUser", "AppUser")
+                        .WithMany()
+                        .HasForeignKey("AppUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.Avaliacao", b =>

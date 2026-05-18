@@ -18,3 +18,89 @@ html, body, #root {
 @media (prefers-color-scheme: dark) {
   html, body { background: #0b0d12; color: #e5e7eb; }
 }
+
+/* ============================================================
+   Print stylesheet — Sprint 39
+   ------------------------------------------------------------
+   Permite imprimir fichas de reparação / detalhes de cliente
+   directamente do browser sem chamar o endpoint PDF QuestPDF.
+   - Esconde navegação (header, sidebar, bottom-nav, footer)
+   - Esconde toasts, modals, popovers, cookie banner
+   - Esconde botões e dropdowns interactivos (não fazem sentido em papel)
+   - Conteúdo expande full-width, preto sobre branco
+   - Cada página pode marcar conteúdo essencial com `.print-only` ou
+     opt-out com `.print:hidden` (utility tailwind nativa).
+   ============================================================ */
+@media print {
+  /* Reset base — eliminar dark mode + sombras */
+  html, body, #root {
+    background: white !important;
+    color: #000 !important;
+    height: auto;
+  }
+
+  /* Chrome navigation */
+  header.sticky,
+  aside,
+  nav[aria-label="Bottom navigation"],
+  [role="region"][aria-label="Aviso de cookies"],
+  [data-sonner-toaster],
+  [role="menu"],
+  [role="tooltip"] {
+    display: none !important;
+  }
+
+  /* Modal overlays — só uteis em ecrã */
+  [role="dialog"],
+  .fixed.inset-0 {
+    display: none !important;
+  }
+
+  /* Action buttons / dropdowns sem valor em papel */
+  button[type="button"]:not(.print-keep),
+  a[target="_blank"],
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Main content expande ocupando a página */
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Cores planas */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Forças cores tipo "tinta": preserva ring/border mas em greys */
+  .border, .border-zinc-200, .border-zinc-800 {
+    border-color: #999 !important;
+  }
+  .bg-white, .bg-zinc-50, .bg-zinc-900, .bg-zinc-950 {
+    background: white !important;
+  }
+  .text-zinc-500, .text-zinc-400 {
+    color: #555 !important;
+  }
+
+  /* Page break controls */
+  h1, h2, h3 { page-break-after: avoid; }
+  table, ul, ol { page-break-inside: auto; }
+  tr, li { page-break-inside: avoid; }
+
+  /* Fontes mais compactas para caber em A4 */
+  body { font-size: 11pt; }
+  h1 { font-size: 18pt; }
+  h2 { font-size: 14pt; }
+  h3 { font-size: 12pt; }
+
+  /* "print-only" — só visível na impressão */
+  .print-only { display: block !important; }
+}
+
+/* Esconde elementos com classe `print-only` em ecrã normal */
+.print-only { display: none; }

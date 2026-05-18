@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { FolderUp, Plus, Search, Tags } from 'lucide-react';
+import { FolderUp, Pencil, Plus, Search, Tags, X as XIcon } from 'lucide-react';
 import { isAxiosError } from 'axios';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonTable } from '../../components/ui';
@@ -145,8 +145,8 @@ export default function Precos() {
                 </td>
                 <td className="px-3 py-2 text-right text-xs text-zinc-500 tabular-nums">{e.tempoEstimadoMin ? `${e.tempoEstimadoMin}m` : '—'}</td>
                 <td className="px-3 py-2 text-right">
-                  <button type="button" onClick={() => setEditing(e)} className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">✎</button>
-                  <button type="button" onClick={() => setConfirmDelete(e)} className="ml-2 text-xs text-zinc-400 hover:text-rose-600">✕</button>
+                  <button type="button" onClick={() => setEditing(e)} aria-label="Editar" className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"><Pencil size={12} strokeWidth={2} /></button>
+                  <button type="button" onClick={() => setConfirmDelete(e)} aria-label="Apagar" className="ml-1 rounded-md p-1 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-rose-950/40"><XIcon size={12} strokeWidth={2} /></button>
                 </td>
               </tr>
             ))}

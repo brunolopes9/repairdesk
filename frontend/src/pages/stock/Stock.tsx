@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { AlertTriangle, History, PackagePlus, Pencil, SlidersHorizontal, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, History, PackagePlus, PackageSearch, Pencil, Search, SlidersHorizontal, Trash2, Upload } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { Button } from '../../components/ui/Button';
-import { StatusBadge } from '../../components/ui/StatusBadge';
+import { Button, EmptyState, PageHeader, StatusBadge } from '../../components/ui';
 import { formatCents, formatDate, parseEuros } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { stockApi } from '../../lib/stock/api';
@@ -71,23 +70,22 @@ export default function Stock() {
 
   return (
     <div className="space-y-4">
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Stock de peças</h1>
-            <p className="text-sm text-zinc-500">
-              {total} {total === 1 ? 'peça' : 'peças'} · valor nesta página: {formatCents(totalStockCents)}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title="Stock de peças"
+        description="Inventário, custos, fornecedores e alertas de stock baixo. Ao usar uma peça numa reparação, o stock decrementa automaticamente."
+        meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'peça' : 'peças'} · valor nesta página: {formatCents(totalStockCents)}</span>}
+        actions={
+          <>
             <Button type="button" variant="secondary" onClick={() => setImportOpen(true)} leftIcon={<Upload size={15} />}>
               Importar CSV
             </Button>
             <Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<PackagePlus size={15} />}>
               Nova peça
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      />
+      <header className="space-y-3">
 
         <div className="flex flex-wrap gap-2">
           <select
@@ -191,8 +189,27 @@ export default function Stock() {
             ))}
             {items.length === 0 && !list.isLoading && (
               <tr>
-                <td colSpan={9} className="px-3 py-10 text-center text-sm text-zinc-500">
-                  {search || categoria != null || marca || lowStockOnly ? 'Sem peças para estes filtros.' : 'Ainda não há peças em stock. Cria a primeira ou importa um CSV.'}
+                <td colSpan={9} className="px-3 py-2">
+                  {search || categoria != null || marca || lowStockOnly ? (
+                    <EmptyState
+                      icon={Search}
+                      title="Sem peças para estes filtros"
+                      description="Ajusta os filtros — categoria, marca, search ou stock baixo — ou limpa-os para ver tudo."
+                      compact
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={PackageSearch}
+                      title="Ainda não há peças em stock"
+                      description="Adiciona a primeira peça manualmente, ou importa um CSV com SKU, nome, marca, modelo, quantidade e custo."
+                      action={
+                        <div className="flex flex-wrap justify-center gap-2">
+                          <Button type="button" variant="secondary" leftIcon={<Upload size={15} />} onClick={() => setImportOpen(true)}>Importar CSV</Button>
+                          <Button type="button" leftIcon={<PackagePlus size={15} />} onClick={() => setCreateOpen(true)}>Criar peça</Button>
+                        </div>
+                      }
+                    />
+                  )}
                 </td>
               </tr>
             )}
@@ -324,7 +341,9 @@ function PartFormModal({ open, editing, onClose, onSaved }: { open: boolean; edi
     >
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="SKU"><input value={form.sku ?? ''} onChange={(e) => setForm({ ...form, sku: e.target.value || null })} placeholder="LCD-IP12-A" className={inputCls} /></Field>
+          <Field label="SKU" hint="Deixa vazio para gerar automaticamente (ex: ECRA-0001).">
+            <input value={form.sku ?? ''} onChange={(e) => setForm({ ...form, sku: e.target.value || null })} placeholder="Auto · ou define o teu (LCD-IP12-A)" className={inputCls} />
+          </Field>
           <Field label="Categoria">
             <select value={form.categoria} onChange={(e) => setForm({ ...form, categoria: Number(e.target.value) as PartCategoria })} className={inputCls}>
               {Object.values(PART_CATEGORIA).map((value) => <option key={value} value={value}>{PART_CATEGORIA_LABEL[value]}</option>)}
@@ -551,11 +570,12 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: 'eme
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{label}</span>
       {children}
+      {hint && <span className="mt-1 block text-[11px] text-zinc-500">{hint}</span>}
     </label>
   );
 }

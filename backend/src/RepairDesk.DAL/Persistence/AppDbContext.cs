@@ -1,19 +1,26 @@
 using System.Linq.Expressions;
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
+using RepairDesk.Core.Enums;
 
 namespace RepairDesk.DAL.Persistence;
 
 public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
 {
     private readonly ITenantContext _tenantContext;
+    private readonly ICurrentUser? _currentUser;
+    private bool _hardDeleteMode;
+    private bool _suppressAudit;
 
-    public AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenantContext)
+    public AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenantContext, ICurrentUser? currentUser = null)
         : base(options)
     {
         _tenantContext = tenantContext;
+        _currentUser = currentUser;
     }
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
@@ -33,6 +40,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<ReparacaoFoto> ReparacaoFotos => Set<ReparacaoFoto>();
     public DbSet<Part> Parts => Set<Part>();
     public DbSet<PartMovimento> PartMovimentos => Set<PartMovimento>();
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -96,24 +104,46 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     {
         StampAuditFields();
         EnforceTenantOnInsert();
-        return base.SaveChanges();
+        var auditEntries = CaptureAuditEntries();
+        var result = base.SaveChanges();
+        PersistAuditEntries(auditEntries);
+        return result;
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         StampAuditFields();
         EnforceTenantOnInsert();
-        return base.SaveChanges(acceptAllChangesOnSuccess);
+        var auditEntries = CaptureAuditEntries();
+        var result = base.SaveChanges(acceptAllChangesOnSuccess);
+        PersistAuditEntries(auditEntries);
+        return result;
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         => SaveChangesAsync(true, cancellationToken);
 
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         StampAuditFields();
         EnforceTenantOnInsert();
-        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        var auditEntries = CaptureAuditEntries();
+        var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        await PersistAuditEntriesAsync(auditEntries, cancellationToken);
+        return result;
+    }
+
+    public IDisposable HardDeleteScope()
+    {
+        var previousHardDelete = _hardDeleteMode;
+        var previousSuppressAudit = _suppressAudit;
+        _hardDeleteMode = true;
+        _suppressAudit = true;
+        return new Scope(() =>
+        {
+            _hardDeleteMode = previousHardDelete;
+            _suppressAudit = previousSuppressAudit;
+        });
     }
 
     private void StampAuditFields()
@@ -129,7 +159,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
                 case EntityState.Modified:
                     entry.Entity.UpdatedAt = now;
                     break;
-                case EntityState.Deleted when entry.Entity is BaseEntity:
+                case EntityState.Deleted when entry.Entity is BaseEntity && !_hardDeleteMode:
                     entry.State = EntityState.Modified;
                     entry.Entity.IsDeleted = true;
                     entry.Entity.UpdatedAt = now;
@@ -149,6 +179,141 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
             {
                 entry.Entity.TenantId = tenantId;
             }
+        }
+    }
+
+    private List<AuditEntry> CaptureAuditEntries()
+    {
+        if (_suppressAudit) return new List<AuditEntry>();
+
+        var now = DateTime.UtcNow;
+        var entries = new List<AuditEntry>();
+        foreach (var entry in ChangeTracker.Entries()
+                     .Where(e => e.Entity is not AuditEntry && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+        {
+            var tenantId = GetTenantId(entry);
+            if (tenantId is null) continue;
+
+            var entityId = GetEntityId(entry);
+            var action = ResolveAuditAction(entry);
+            var changes = BuildChanges(entry, action);
+            entries.Add(new AuditEntry
+            {
+                TenantId = tenantId.Value,
+                AppUserId = _currentUser?.UserId,
+                Action = action,
+                EntityType = entry.Metadata.ClrType.Name,
+                EntityId = entityId,
+                ChangesJson = changes.Count == 0 ? null : JsonSerializer.Serialize(changes),
+                IpAddress = _currentUser?.IpAddress,
+                UserAgent = _currentUser?.UserAgent,
+                CreatedAt = now,
+            });
+        }
+        return entries;
+    }
+
+    private void PersistAuditEntries(IReadOnlyList<AuditEntry> auditEntries)
+    {
+        if (auditEntries.Count == 0) return;
+        try
+        {
+            _suppressAudit = true;
+            AuditEntries.AddRange(auditEntries);
+            base.SaveChanges();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.TraceError($"Failed to persist audit entries: {ex}");
+        }
+        finally
+        {
+            _suppressAudit = false;
+        }
+    }
+
+    private async Task PersistAuditEntriesAsync(IReadOnlyList<AuditEntry> auditEntries, CancellationToken ct)
+    {
+        if (auditEntries.Count == 0) return;
+        try
+        {
+            _suppressAudit = true;
+            AuditEntries.AddRange(auditEntries);
+            await base.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.TraceError($"Failed to persist audit entries: {ex}");
+        }
+        finally
+        {
+            _suppressAudit = false;
+        }
+    }
+
+    private Guid? GetTenantId(EntityEntry entry)
+    {
+        if (entry.Entity is ITenantEntity tenantEntity && tenantEntity.TenantId != Guid.Empty)
+            return tenantEntity.TenantId;
+        return _tenantContext.TenantId;
+    }
+
+    private static Guid? GetEntityId(EntityEntry entry)
+    {
+        var prop = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "Id");
+        return prop?.CurrentValue is Guid id ? id : prop?.OriginalValue is Guid original ? original : null;
+    }
+
+    private static AuditAction ResolveAuditAction(EntityEntry entry)
+    {
+        if (entry.State == EntityState.Added) return AuditAction.Create;
+        if (entry.State == EntityState.Deleted) return AuditAction.Delete;
+        if (entry.Properties.Any(p => p.Metadata.Name == nameof(BaseEntity.IsDeleted) && p.IsModified && p.CurrentValue is true))
+            return AuditAction.Delete;
+        return AuditAction.Update;
+    }
+
+    private static Dictionary<string, object?> BuildChanges(EntityEntry entry, AuditAction action)
+    {
+        var result = new Dictionary<string, object?>();
+        foreach (var prop in entry.Properties)
+        {
+            var name = prop.Metadata.Name;
+            if (IsSensitiveAuditProperty(name)) continue;
+            if (prop.Metadata.IsPrimaryKey()) continue;
+            if (action == AuditAction.Update && !prop.IsModified) continue;
+
+            result[name] = action switch
+            {
+                AuditAction.Create => new { current = prop.CurrentValue },
+                AuditAction.Delete => new { original = prop.OriginalValue, current = prop.CurrentValue },
+                _ => new { original = prop.OriginalValue, current = prop.CurrentValue },
+            };
+        }
+        return result;
+    }
+
+    private static bool IsSensitiveAuditProperty(string name)
+    {
+        var normalized = name.ToLowerInvariant();
+        return normalized.Contains("password")
+               || normalized.Contains("token")
+               || normalized.Contains("securitystamp")
+               || normalized.Contains("concurrencystamp");
+    }
+
+    private sealed class Scope : IDisposable
+    {
+        private readonly Action _onDispose;
+        private bool _disposed;
+
+        public Scope(Action onDispose) => _onDispose = onDispose;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _onDispose();
         }
     }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, Lock, MessageCircle, Phone, Search, Snowflake } from 'lucide-react';
+import { AlertTriangle, Lock, Phone, Search, Snowflake } from 'lucide-react';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
@@ -9,6 +9,9 @@ import DiagnosticoGuiado from '../../components/DiagnosticoGuiado';
 import FotosReparacao from '../../components/FotosReparacao';
 import Modal from '../../components/Modal';
 import PecasUsadas from '../../components/PecasUsadas';
+import WhatsAppMenu from '../../components/WhatsAppMenu';
+import { tenantSettingsApi } from '../../lib/tenantSettings/api';
+import { displayPhone } from '../../lib/phone/formatter';
 import { clientesApi } from '../../lib/clientes/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import {
@@ -30,6 +33,12 @@ export default function ReparacaoDetalhe() {
     queryKey: ['reparacao', id],
     queryFn: () => reparacoesApi.get(id!),
     enabled: !!id,
+  });
+
+  const tenant = useQuery({
+    queryKey: ['tenant-settings'],
+    queryFn: () => tenantSettingsApi.getMine(),
+    staleTime: 5 * 60_000,
   });
 
   const [equipamento, setEquipamento] = useState('');
@@ -262,24 +271,18 @@ export default function ReparacaoDetalhe() {
   const isFrozen = r.estado === 5;
   const isLocked = isFrozen && r.estadoPagamento === PAYMENT_STATUS.Pago;
 
-  // Mensagem WhatsApp contextual por estado
-  const waMessage = (() => {
-    const equip = r.equipamento;
-    switch (r.estado) {
-      case 7: // Orçamento
-        return `Olá! É da LopesTech sobre o orçamento do ${equip}. Posso confirmar consigo?`;
-      case 0: // Recebido
-        return `Olá! É da LopesTech. Recebi o seu ${equip} para reparação. Em breve dou-lhe o diagnóstico.`;
-      case 1: // Diagnóstico Concluído / Aguarda peça
-        return `Olá! É da LopesTech. Já vi o seu ${equip}, fiz o diagnóstico e encomendei a peça. Aviso assim que estiver pronto.`;
-      case 4: // Reparado
-        return `Olá! O seu ${equip} já está reparado e pronto para levantar. ${r.precoFinalCents ? `Valor a pagar: ${formatCents(r.precoFinalCents)}. ` : ''}Pode passar para o levantar.`;
-      case 5: // Entregue
-        return `Olá! Obrigado pela confiança na LopesTech sobre o ${equip}. Qualquer dúvida estou à disposição.`;
-      default:
-        return `Olá! É da LopesTech sobre a reparação #${r.numero} (${equip}).`;
-    }
-  })();
+  // Dias parado no estado actual (usado para escolher template WhatsApp p.ex. "Lembrete levantamento" se >7d em Pronto)
+  const staleDays = Math.floor((Date.now() - new Date(r.estadoSince).getTime()) / 86_400_000);
+  const valorParaCobrar = r.precoFinalCents ?? r.orcamentoCents ?? null;
+  const waVars = {
+    cliente_nome: r.cliente.nome?.split(' ')[0] ?? 'olá',
+    equipamento: r.equipamento,
+    loja_nome: tenant.data?.name ?? undefined,
+    numero_reparacao: r.numero,
+    valor: valorParaCobrar != null ? formatCents(valorParaCobrar) : undefined,
+    link_review_google: tenant.data?.googleReviewUrl ?? undefined,
+    data_pronto: r.estado === 4 ? formatDate(r.estadoSince) : undefined,
+  };
 
   return (
     <div className="space-y-5">
@@ -349,15 +352,8 @@ export default function ReparacaoDetalhe() {
             >
               <Phone size={12} strokeWidth={2} /> Ligar
             </a>
-            <a
-              href={`https://wa.me/${cleanPhone.replace('+', '')}?text=${encodeURIComponent(waMessage)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg bg-green-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-600"
-            >
-              <MessageCircle size={12} strokeWidth={2} /> WhatsApp
-            </a>
-            <span className="self-center text-xs text-zinc-500">{r.cliente.telefone}</span>
+            <WhatsAppMenu phone={cleanPhone} vars={waVars} estado={r.estado} staleDays={staleDays} />
+            <span className="self-center text-xs text-zinc-500">{displayPhone(r.cliente.telefone)}</span>
           </div>
         )}
         <p className="text-xs text-zinc-500">recebido {formatDate(r.recebidoEm)}</p>
@@ -667,7 +663,7 @@ function ChangeClienteModal({ open, onClose, onPick }: { open: boolean; onClose:
             <li key={c.id}>
               <button type="button" onClick={() => onPick(c.id)} className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
                 <div className="font-medium">{c.nome}</div>
-                {c.telefone && <div className="text-xs text-zinc-500">{c.telefone}</div>}
+                {c.telefone && <div className="text-xs text-zinc-500">{displayPhone(c.telefone)}</div>}
               </button>
             </li>
           ))}

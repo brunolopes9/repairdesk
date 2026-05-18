@@ -3,12 +3,15 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using RepairDesk.API.Backups;
+using RepairDesk.API.HostedServices;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.DAL.Persistence;
 using RepairDesk.Infrastructure.Storage;
 using RepairDesk.Services.Auth;
+using RepairDesk.Services.Audit;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Dashboard;
 using RepairDesk.Services.Despesas;
@@ -23,30 +26,18 @@ using Serilog;
 
 #pragma warning disable CA1852 // Program class is referenced by Mvc.Testing
 
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .Enrich.FromLogContext()
-    .Enrich.WithMachineName()
-    .Enrich.WithThreadId()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-    .WriteTo.File(
-        Environment.GetEnvironmentVariable("REPAIRDESK_LOG_FILE") ?? "logs/repairdesk-.log",
-        rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 14,
-        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] [{MachineName}/{ThreadId}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-    .CreateLogger();
+Log.Logger = RepairDeskSerilog.CreateBootstrapLogger();
 
 try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.Host.UseSerilog((ctx, services, cfg) => cfg
-        .ReadFrom.Configuration(ctx.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext());
+    builder.Host.UseSerilog(RepairDeskSerilog.Configure);
 
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
+    builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
     builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
     builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
@@ -90,10 +81,15 @@ try
     builder.Services.AddScoped<ITokenService, JwtTokenService>();
     builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
     builder.Services.AddScoped<IRefreshTokenStore, RefreshTokenStore>();
+    builder.Services.AddScoped<IAuditLogger, EfAuditLogger>();
+    builder.Services.AddScoped<IAuditRepository, AuditRepository>();
+    builder.Services.AddScoped<IAuditService, AuditService>();
 
     // Clientes
     builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+    builder.Services.AddScoped<IClienteRgpdRepository, ClienteRgpdRepository>();
     builder.Services.AddScoped<IClienteService, ClienteService>();
+    builder.Services.AddScoped<IClienteRgpdService, ClienteRgpdService>();
     builder.Services.AddScoped<FluentValidation.IValidator<CreateClienteRequest>, CreateClienteValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateClienteRequest>, UpdateClienteValidator>();
 
@@ -165,6 +161,21 @@ try
             throw new InvalidOperationException("Storage:Provider must be 'local' or 'r2'.");
     }
     builder.Services.AddScoped<RepairDesk.Services.Fotos.IFotoService, RepairDesk.Services.Fotos.FotoService>();
+    builder.Services.AddScoped<RepairDesk.Services.Fotos.IPhotoExportLinkService, RepairDesk.Services.Fotos.PhotoExportLinkService>();
+
+    // Backups (scheduler only registers when enabled; admin endpoint remains available)
+    builder.Services.AddSingleton<IBackupFileSystem, BackupFileSystem>();
+    builder.Services.AddSingleton<ISqlServerBackupExecutor, SqlServerBackupExecutor>();
+    builder.Services.AddSingleton<IBackupRemoteStorage, R2BackupStorage>();
+    builder.Services.AddSingleton<IBackupService, BackupService>();
+    if (builder.Configuration.GetValue("Backup:Enabled", false))
+        builder.Services.AddHostedService<BackupHostedService>();
+
+    builder.Services.AddHealthChecks()
+        .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("API process is alive."), tags: ["live"])
+        .AddCheck<RepairDeskDbHealthCheck>("db", tags: ["ready", "db"])
+        .AddCheck<PhotoStorageHealthCheck>("storage", tags: ["ready", "storage"])
+        .AddCheck<BackupHealthCheck>("backup", tags: ["backup"]);
 
     // Rate limiting (login: 5 per 15 min per IP). Disabled in Testing env.
     var isTesting = builder.Environment.IsEnvironment("Testing");
@@ -214,8 +225,20 @@ try
 
     var app = builder.Build();
 
+    app.UseMiddleware<CorrelationIdMiddleware>();
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+        {
+            if (httpContext.Items.TryGetValue(CorrelationIdMiddleware.ItemName, out var correlationId))
+                diagnosticContext.Set("CorrelationId", correlationId);
+
+            var tenantId = httpContext.User.FindFirst(HttpTenantContext.TenantIdClaim)?.Value;
+            if (!string.IsNullOrWhiteSpace(tenantId))
+                diagnosticContext.Set("TenantId", tenantId);
+        };
+    });
     app.UseMiddleware<ProblemDetailsExceptionMiddleware>();
-    app.UseSerilogRequestLogging();
 
     if (app.Environment.IsDevelopment())
     {
@@ -227,6 +250,12 @@ try
     app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
+    app.MapHealthChecks("/api/health/live", HealthCheckJsonResponseWriter.OptionsForTag("live", forceHealthyStatusCode: true));
+    app.MapHealthChecks("/api/health/ready", HealthCheckJsonResponseWriter.OptionsForTag("ready"));
+    app.MapHealthChecks("/api/health/db", HealthCheckJsonResponseWriter.OptionsForTag("db"));
+    app.MapHealthChecks("/api/health/storage", HealthCheckJsonResponseWriter.OptionsForTag("storage"));
+    app.MapHealthChecks("/api/health/backup", HealthCheckJsonResponseWriter.OptionsForTag("backup"));
+    MetricsEndpoint.Map(app);
     app.MapControllers();
 
     if (!app.Configuration.GetValue("Database:SkipAutoMigrate", false))

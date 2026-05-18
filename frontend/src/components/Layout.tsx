@@ -9,6 +9,7 @@ import {
   Receipt,
   PackageSearch,
   Tags,
+  ClipboardList,
   Settings,
   LogOut,
   Pin,
@@ -16,6 +17,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
@@ -23,7 +25,7 @@ import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Them
 
 type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
 
-const nav: Array<{ to: string; label: string; icon: IconCmp }> = [
+const nav: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean }> = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/clientes', label: 'Clientes', icon: Users },
   { to: '/reparacoes', label: 'Reparações', icon: Wrench },
@@ -31,6 +33,7 @@ const nav: Array<{ to: string; label: string; icon: IconCmp }> = [
   { to: '/despesas', label: 'Despesas', icon: Receipt },
   { to: '/stock', label: 'Stock', icon: PackageSearch },
   { to: '/precos', label: 'Preços', icon: Tags },
+  { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
   { to: '/definicoes', label: 'Definições', icon: Settings },
 ];
 
@@ -102,6 +105,20 @@ export default function Layout() {
             {user && <span className="hidden sm:inline">{user.displayName}</span>}
             <button
               type="button"
+              onClick={() => {
+                // Dispara o mesmo atalho que abre o CommandPalette
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+              }}
+              title="Procurar / acções (Ctrl+K)"
+              aria-label="Procurar"
+              className="hidden items-center gap-1.5 rounded-md border border-zinc-200 px-2 py-1 text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 sm:flex"
+            >
+              <Search size={12} strokeWidth={2} />
+              <span>Procurar</span>
+              <kbd className="ml-1 rounded border border-zinc-200 bg-white px-1 text-[10px] text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900">Ctrl K</kbd>
+            </button>
+            <button
+              type="button"
               onClick={cycleTheme}
               title={`Tema: ${themeLabel} — clica para alternar`}
               className="rounded-md border border-zinc-200 p-1.5 text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
@@ -121,6 +138,17 @@ export default function Layout() {
 
       <main className="mx-auto max-w-5xl px-4 pb-24 pt-6 sm:pl-20">
         <Outlet />
+        <div className="mt-12 border-t border-zinc-200 pt-4 text-center text-[11px] text-zinc-400 dark:border-zinc-800">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+            <span>© {new Date().getFullYear()} LopesTech</span>
+            <span aria-hidden>·</span>
+            <NavLink to="/privacidade" className="hover:text-zinc-600 dark:hover:text-zinc-300">Privacidade</NavLink>
+            <span aria-hidden>·</span>
+            <NavLink to="/termos" className="hover:text-zinc-600 dark:hover:text-zinc-300">Termos</NavLink>
+            <span aria-hidden>·</span>
+            <NavLink to="/cookies" className="hover:text-zinc-600 dark:hover:text-zinc-300">Cookies</NavLink>
+          </div>
+        </div>
       </main>
 
       {/* Bottom nav (mobile) */}
@@ -129,7 +157,7 @@ export default function Layout() {
         aria-label="Bottom navigation"
       >
         <ul className="mx-auto flex max-w-5xl">
-          {nav.map((item) => (
+          {nav.filter((item) => !item.adminOnly || hasRole('Admin')).map((item) => (
             <li key={item.to} className="flex-1">
               <NavLink
                 to={item.to}
@@ -181,7 +209,7 @@ export default function Layout() {
 
         {/* Nav items */}
         <ul className="flex-1 space-y-1 p-2">
-          {nav.map((item) => (
+          {nav.filter((item) => !item.adminOnly || hasRole('Admin')).map((item) => (
             <li key={item.to}>
               <NavLink
                 to={item.to}

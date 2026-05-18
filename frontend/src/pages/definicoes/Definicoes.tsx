@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Settings, ShieldCheck, Star } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Settings, ShieldCheck, Star } from 'lucide-react';
 import { EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
+import { validateNif } from '../../lib/nif/validator';
+import { validateIban } from '../../lib/iban/validator';
+import { backupApi, formatBytes } from '../../lib/admin/backup';
+import { toast } from '../../lib/toast';
 import {
   REGIME_FISCAL_LABELS,
   type RegimeFiscal,
@@ -19,6 +23,7 @@ const SECTIONS = [
   { id: 'pagamentos', label: 'Pagamentos' },
   { id: 'posvenda', label: 'Pós-venda' },
   { id: 'aparencia', label: 'Aparência' },
+  { id: 'backups', label: 'Backups' },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]['id'];
@@ -151,6 +156,7 @@ export default function Definicoes() {
         {section === 'pagamentos' && <PagamentosSection form={form} update={update} />}
         {section === 'posvenda' && <PosVendaSection form={form} update={update} />}
         {section === 'aparencia' && <AparenciaSection form={form} update={update} />}
+        {section === 'backups' && <BackupsSection />}
       </div>
     </div>
   );
@@ -191,7 +197,9 @@ function EmpresaSection({
           className={inputCls}
           inputMode="numeric"
           placeholder="263758141"
+          maxLength={9}
         />
+        <TenantNifFeedback nif={form.nif ?? ''} />
       </Field>
       <Field label="Telefone">
         <input
@@ -316,6 +324,7 @@ function PagamentosSection({
           className={`${inputCls} font-mono`}
           placeholder="PT50 0000 0000 0000 0000 0000 0"
         />
+        <IbanFeedback iban={form.iban ?? ''} />
       </Field>
     </div>
   );
@@ -459,6 +468,141 @@ function Field({
 
 const inputCls =
   'block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus:ring-brand-900/40';
+
+function BackupsSection() {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin-backups'],
+    queryFn: () => backupApi.list(),
+    staleTime: 30_000,
+  });
+
+  const runNow = useMutation({
+    mutationFn: () => backupApi.runNow(),
+    onSuccess: (r) => {
+      toast.success('Backup concluído', `${r.fileName} (${formatBytes(r.sizeBytes)})${r.uploadedToR2 ? ' · enviado para R2' : ''}`);
+      refetch();
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível correr o backup agora.'),
+  });
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex items-start gap-3">
+          <ShieldCheck size={18} strokeWidth={2} className="mt-0.5 flex-none text-emerald-600 dark:text-emerald-400" />
+          <div className="flex-1 space-y-1">
+            <p className="font-medium">Backups automáticos</p>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">
+              Backup da base de dados todos os dias às 03:00. Ficheiros guardados em <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">./backups/</code> no host (sobrevive a <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">docker compose down -v</code>). Retention 30 dias local.
+              {' '}Se configurares Cloudflare R2 (env <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">Backup__R2__Bucket</code>), cópia off-site automática.
+            </p>
+            {data?.latestLocalBackupAt && (
+              <p className="mt-1 text-xs text-zinc-500">
+                Último backup: <strong>{new Date(data.latestLocalBackupAt).toLocaleString('pt-PT')}</strong>
+              </p>
+            )}
+            {data?.status === 'disabled' && (
+              <p className="mt-1 inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+                <AlertTriangle size={11} strokeWidth={2} /> Backup desactivado em <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">.env</code>. Mete <code>Backup__Enabled=true</code> e reinicia.
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => runNow.mutate()}
+            disabled={runNow.isPending}
+            className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-60"
+          >
+            {runNow.isPending ? 'A correr…' : 'Correr backup agora'}
+          </button>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            Atualizar lista
+          </button>
+        </div>
+      </div>
+
+      <BackupListSection title="Backups locais" items={data?.local ?? []} loading={isLoading} error={isError} />
+      {data?.r2 && data.r2.length > 0 && (
+        <BackupListSection title="Backups em Cloudflare R2 (off-site)" items={data.r2} loading={false} error={false} />
+      )}
+    </div>
+  );
+}
+
+function BackupListSection({ title, items, loading, error }: { title: string; items: ReturnType<typeof backupApi.list> extends Promise<infer T> ? T extends { local: infer L } ? L : never : never; loading: boolean; error: boolean }) {
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-semibold">{title} <span className="text-xs font-normal text-zinc-500">· {items.length}</span></h3>
+      {loading ? (
+        <p className="text-xs text-zinc-500">A carregar…</p>
+      ) : error ? (
+        <p className="text-xs text-rose-600">Não foi possível obter a lista.</p>
+      ) : items.length === 0 ? (
+        <p className="text-xs text-zinc-500">Sem backups ainda. Carrega "Correr backup agora" para criar o primeiro.</p>
+      ) : (
+        <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+          {items.map((b) => (
+            <li key={`${b.location}-${b.fileName}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-xs">{b.fileName}</div>
+                <div className="text-[11px] text-zinc-500">
+                  {new Date(b.timestamp).toLocaleString('pt-PT')} · {formatBytes(b.sizeBytes)}
+                </div>
+              </div>
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{b.status}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function IbanFeedback({ iban }: { iban: string }) {
+  if (!iban) return null;
+  const v = validateIban(iban);
+  if (v.isValid) {
+    return (
+      <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400">
+        <CheckCircle2 size={11} strokeWidth={2} /> {v.display}
+      </p>
+    );
+  }
+  if (v.message) {
+    return (
+      <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+        <AlertTriangle size={11} strokeWidth={2} /> {v.message}
+      </p>
+    );
+  }
+  return null;
+}
+
+function TenantNifFeedback({ nif }: { nif: string }) {
+  if (!nif) return null;
+  const v = validateNif(nif);
+  if (v.isValid) {
+    return (
+      <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400">
+        <CheckCircle2 size={11} strokeWidth={2} /> {v.message}
+      </p>
+    );
+  }
+  if (v.message) {
+    return (
+      <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+        <AlertTriangle size={11} strokeWidth={2} /> {v.message}
+      </p>
+    );
+  }
+  return null;
+}
 
 function toForm(t: TenantSettings): UpdateTenantSettings {
   const { id: _id, ...rest } = t;

@@ -38,6 +38,8 @@ public class RepairDeskApiFactory : WebApplicationFactory<Program>
                 ["Seed:AdminEmail"] = AdminEmail,
                 ["Seed:AdminPassword"] = AdminPassword,
                 ["Seed:AdminDisplayName"] = AdminDisplayName,
+                ["Storage:Provider"] = "local",
+                ["Storage:LocalRoot"] = Path.Combine(Path.GetTempPath(), $"repairdesk-test-storage-{_dbName}"),
             });
         });
 

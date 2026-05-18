@@ -140,7 +140,7 @@ jobs:
           STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
         run: |
           set -euo pipefail
-          curl --fail --show-error --retry 10 --retry-delay 6 --retry-connrefused "$STAGING_API_URL/api/health"
+          curl --fail --show-error --retry 10 --retry-delay 6 --retry-connrefused "$STAGING_API_URL/api/health/ready"
 
       - name: Optional Discord notification
         if: always()

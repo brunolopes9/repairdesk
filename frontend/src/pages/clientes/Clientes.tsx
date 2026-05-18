@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Download, FolderUp, Search, UserPlus, Users } from 'lucide-react';
+import { Download, FolderUp, Pencil, Search, UserPlus, Users } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { isAxiosError } from 'axios';
 import { clientesApi, type ImportClientesResponse } from '../../lib/clientes/api';
 import { downloadFile } from '../../lib/downloadPdf';
+import { displayPhone } from '../../lib/phone/formatter';
 import type { Cliente, ClienteForm } from '../../lib/clientes/types';
 import ClienteFormView from './ClienteForm';
 
@@ -124,7 +125,7 @@ export default function Clientes() {
             <Link to={`/clientes/${c.id}`} className="flex-1 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
               <div className="font-medium">{c.nome}</div>
               <div className="text-xs text-zinc-500">
-                {c.telefone || <em className="opacity-60">sem telefone</em>}
+                {c.telefone ? displayPhone(c.telefone) : <em className="opacity-60">sem telefone</em>}
                 {c.email && <> · {c.email}</>}
                 {c.nif && <> · NIF {c.nif}</>}
               </div>
@@ -133,11 +134,11 @@ export default function Clientes() {
               <button
                 type="button"
                 onClick={() => openEdit(c)}
-                className="rounded-md p-1.5 text-xs text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800"
+                className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800"
                 title="Editar"
                 aria-label="Editar"
               >
-                ✎
+                <Pencil size={13} strokeWidth={2} />
               </button>
               <button
                 type="button"

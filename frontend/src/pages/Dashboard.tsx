@@ -12,8 +12,10 @@ import {
   Clock,
   Lightbulb,
   ChevronRight,
+  PackageSearch,
   X,
 } from 'lucide-react';
+import { stockApi } from '../lib/stock/api';
 import {
   dashboardApi,
   periodRange,
@@ -130,13 +132,20 @@ export default function Dashboard() {
   });
   const onboardingIncomplete = onboarding.data ? !onboarding.data.onboardingCompletado : false;
 
+  const lowStock = useQuery({
+    queryKey: ['parts-low-stock'],
+    queryFn: () => stockApi.lowStock(),
+    staleTime: 60_000,
+  });
+
   const totalEmCurso = emCursoItems.length;
+  const lowStockCount = lowStock.data?.length ?? 0;
   const totalAlertas =
     (alertas.data
       ? alertas.data.reparacoesNaoPagas.length +
         alertas.data.trabalhosNaoPagos.length +
         alertas.data.despesasOrfas.length
-      : 0);
+      : 0) + lowStockCount;
 
   return (
     <div className="space-y-8">
@@ -160,7 +169,26 @@ export default function Dashboard() {
           tone="amber"
           count={totalAlertas}
         >
-          <AlertasSection data={alertas.data} loading={alertas.isLoading} />
+          <div className="space-y-3">
+            {lowStockCount > 0 && (
+              <Link
+                to="/stock?lowStock=1"
+                className="flex items-start gap-3 rounded-xl border border-rose-300 bg-rose-50 p-4 text-left transition hover:bg-rose-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-rose-800/60 dark:bg-rose-950/30 dark:hover:bg-rose-950/50"
+              >
+                <PackageSearch size={20} strokeWidth={2} className="flex-none text-rose-700 dark:text-rose-300" aria-hidden />
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">
+                    {lowStockCount} {lowStockCount === 1 ? 'peça' : 'peças'} com stock baixo
+                  </div>
+                  <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                    Encomendar antes que pare uma reparação — clica para ver a lista
+                  </div>
+                </div>
+                <ChevronRight size={16} strokeWidth={2} className="flex-none text-zinc-400" aria-hidden />
+              </Link>
+            )}
+            <AlertasSection data={alertas.data} loading={alertas.isLoading} />
+          </div>
         </Zone>
       )}
 

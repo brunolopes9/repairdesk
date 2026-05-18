@@ -28,6 +28,47 @@ Objetivo inicial:
 
 Leitura honesta: sem backup testado, nao ha backup. Ha apenas esperanca cara.
 
+## Implementacao beta no RepairDesk
+
+Sprint #C6 implementa o minimo operacional para desbloquear beta:
+
+- API .NET executa backup diario por `BackgroundService` quando `Backup__Enabled=true`.
+- SQL Server gera `.bak` nativo para volume partilhado `/backups`.
+- Retencao local: 30 dias (`Backup__RetentionDays=30`).
+- Copia off-site: Cloudflare R2, bucket privado EU, prefixo `backups/`.
+- Healthcheck dedicado: `/api/health/backup` considera unhealthy se o backup local mais recente tiver mais de 26h.
+- Endpoints admin:
+  - `POST /api/admin/backup/now`
+  - `GET /api/admin/backup/list`
+
+T-SQL usado pelo job:
+
+```sql
+BACKUP DATABASE [RepairDesk]
+TO DISK = N'/backups/repairdesk-YYYYMMDD-HHMM.bak'
+WITH INIT, COMPRESSION, CHECKSUM;
+GO
+```
+
+Configuracao minima em producao:
+
+```env
+Backup__Enabled=true
+Backup__CronSchedule=03:00
+Backup__RetentionDays=30
+Backup__LocalPath=/backups
+Backup__DatabaseName=RepairDesk
+Backup__R2__Bucket=repairdesk-prod-backups
+Backup__R2__Prefix=backups
+
+# Credenciais R2 podem ser reutilizadas do Storage:R2
+Storage__R2__AccountId=...
+Storage__R2__AccessKey=...
+Storage__R2__Secret=...
+```
+
+Para beta, full diario com RPO 24h e suficiente para sair do zero. O plano recomendado deste runbook continua a apontar para log backups horarios numa fase seguinte, para reduzir RPO para 1h.
+
 ## 1. Estrategia 3-2-1
 
 Regra 3-2-1 para o RepairDesk:
@@ -325,6 +366,79 @@ Checklist mensal:
 [ ] RPO medido: ____ min/h
 [ ] Log do teste guardado em /Contexto ou cofre operacional
 [ ] Falhas viraram tickets
+```
+
+### 8.3 Restore exacto a partir de ficheiro local
+
+Assumindo que o backup esta no volume partilhado `/backups` do container SQL Server:
+
+```bash
+docker exec repairdesk-db /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "$DB_SA_PASSWORD" -No \
+  -Q "RESTORE FILELISTONLY FROM DISK = N'/backups/repairdesk-20260518-0300.bak';"
+```
+
+Se os logical names forem `RepairDesk` e `RepairDesk_log`, restaurar para um container fresco:
+
+```bash
+docker exec repairdesk-db /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "$DB_SA_PASSWORD" -No \
+  -Q "RESTORE DATABASE [RepairDesk] FROM DISK = N'/backups/repairdesk-20260518-0300.bak' WITH REPLACE, RECOVERY, CHECKSUM, MOVE N'RepairDesk' TO N'/var/opt/mssql/data/RepairDesk.mdf', MOVE N'RepairDesk_log' TO N'/var/opt/mssql/data/RepairDesk_log.ldf';"
+```
+
+Se a DB ja existir e for necessario substituir:
+
+```bash
+docker exec repairdesk-db /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "$DB_SA_PASSWORD" -No \
+  -Q "ALTER DATABASE [RepairDesk] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [RepairDesk] FROM DISK = N'/backups/repairdesk-20260518-0300.bak' WITH REPLACE, RECOVERY, CHECKSUM, MOVE N'RepairDesk' TO N'/var/opt/mssql/data/RepairDesk.mdf', MOVE N'RepairDesk_log' TO N'/var/opt/mssql/data/RepairDesk_log.ldf'; ALTER DATABASE [RepairDesk] SET MULTI_USER;"
+```
+
+Validar depois do restore:
+
+```bash
+docker exec repairdesk-db /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "$DB_SA_PASSWORD" -No \
+  -Q "DBCC CHECKDB([RepairDesk]) WITH NO_INFOMSGS;"
+```
+
+### 8.4 Descarregar backup do R2 manualmente
+
+Com AWS CLI apontada ao endpoint S3-compatible da Cloudflare:
+
+```bash
+export R2_ACCOUNT_ID="..."
+export R2_ACCESS_KEY_ID="..."
+export R2_SECRET_ACCESS_KEY="..."
+export R2_BUCKET="repairdesk-prod-backups"
+export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+
+aws --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+  s3 ls "s3://${R2_BUCKET}/backups/"
+
+aws --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+  s3 cp "s3://${R2_BUCKET}/backups/repairdesk-20260518-0300.bak" \
+  "./backups/restore/repairdesk-20260518-0300.bak"
+```
+
+Script parametrizado no repo:
+
+```bash
+R2_ACCOUNT_ID="..." \
+R2_ACCESS_KEY_ID="..." \
+R2_SECRET_ACCESS_KEY="..." \
+R2_BUCKET="repairdesk-prod-backups" \
+DB_SA_PASSWORD="..." \
+scripts/restore-from-r2.sh backups/repairdesk-20260518-0300.bak RepairDesk
+```
+
+Se `RESTORE FILELISTONLY` mostrar logical names diferentes, passar:
+
+```bash
+DATA_LOGICAL_NAME="NomeLogicoData" \
+LOG_LOGICAL_NAME="NomeLogicoLog" \
+scripts/restore-from-r2.sh backups/repairdesk-20260518-0300.bak RepairDesk
 ```
 
 ## 9. Runbooks por cenario

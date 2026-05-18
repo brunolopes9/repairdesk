@@ -10,6 +10,7 @@ services:
       MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:?DB_SA_PASSWORD is required}
     volumes:
       - db_data:/var/opt/mssql
+      - backups_data:/backups
     networks:
       - repairdesk-private
     healthcheck:
@@ -55,8 +56,20 @@ services:
       Storage__R2__AccessKey: ${Storage__R2__AccessKey:-}
       Storage__R2__Secret: ${Storage__R2__Secret:-}
       Storage__R2__Bucket: ${Storage__R2__Bucket:-}
+      Metrics__Enabled: ${Metrics__Enabled:-false}
+      Metrics__AllowedIps__0: ${Metrics__AllowedIps__0:-127.0.0.1}
+      Metrics__BasicAuthUsername: ${Metrics__BasicAuthUsername:-}
+      Metrics__BasicAuthPassword: ${Metrics__BasicAuthPassword:-}
+      Backup__Enabled: ${Backup__Enabled:-true}
+      Backup__CronSchedule: ${Backup__CronSchedule:-03:00}
+      Backup__RetentionDays: ${Backup__RetentionDays:-30}
+      Backup__LocalPath: ${Backup__LocalPath:-/backups}
+      Backup__DatabaseName: ${Backup__DatabaseName:-RepairDesk}
+      Backup__R2__Bucket: ${Backup__R2__Bucket:?Backup__R2__Bucket is required}
+      Backup__R2__Prefix: ${Backup__R2__Prefix:-backups}
     volumes:
       - photos_data:/data/photos
+      - backups_data:/backups
     depends_on:
       db:
         condition: service_healthy
@@ -65,7 +78,7 @@ services:
     networks:
       - repairdesk-private
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/api/health > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/api/health/ready > /dev/null && curl --fail --silent http://localhost:8080/api/health/backup > /dev/null || exit 1"]
       interval: 20s
       timeout: 5s
       retries: 10
@@ -92,6 +105,7 @@ volumes:
   db_data:
   cache_data:
   photos_data:
+  backups_data:
 
 networks:
   repairdesk-private:

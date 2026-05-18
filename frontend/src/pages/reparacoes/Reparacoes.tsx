@@ -34,6 +34,7 @@ import {
   type RepairStatus,
 } from '../../lib/reparacoes/types';
 import { formatCents, formatDate } from '../../lib/money';
+import { displayPhone } from '../../lib/phone/formatter';
 
 const TABS: Array<{ value: RepairStatus | null; label: string }> = [
   { value: null, label: 'Todas' },
@@ -316,7 +317,7 @@ function ReparacaoCard({ r, onClick, onDelete }: { r: Reparacao; onClick: () => 
         </div>
         <div className="font-medium">{r.equipamento}</div>
         <div className="text-xs text-zinc-500">
-          {r.cliente.nome}{r.cliente.telefone && ` · ${r.cliente.telefone}`}
+          {r.cliente.nome}{r.cliente.telefone && ` · ${displayPhone(r.cliente.telefone)}`}
         </div>
         <div className="text-xs text-zinc-500 line-clamp-1">{r.avaria}</div>
         <div className="mt-1 flex items-center justify-between text-xs">
@@ -479,7 +480,7 @@ function CreateReparacaoModal({
                         className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
                       >
                         <div className="font-medium">{c.nome}</div>
-                        {c.telefone && <div className="text-xs text-zinc-500">{c.telefone}</div>}
+                        {c.telefone && <div className="text-xs text-zinc-500">{displayPhone(c.telefone)}</div>}
                       </button>
                     </li>
                   ))}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Camera } from 'lucide-react';
+import { Camera, Pencil } from 'lucide-react';
 import Modal from './Modal';
 import {
   FOTO_TIPO,
@@ -152,8 +152,9 @@ export default function FotosReparacao({ reparacaoId, readOnly = false }: Props)
                           <button
                             type="button"
                             onClick={() => setEditing(foto)}
-                            className="rounded bg-white/90 px-1 text-[10px] text-zinc-700 hover:bg-white dark:bg-zinc-900/90 dark:text-zinc-200"
-                          >✎</button>
+                            aria-label="Editar foto"
+                            className="rounded bg-white/90 p-1 text-zinc-700 hover:bg-white dark:bg-zinc-900/90 dark:text-zinc-200"
+                          ><Pencil size={11} strokeWidth={2} /></button>
                           <button
                             type="button"
                             onClick={() => { if (confirm('Apagar foto?')) remove.mutate(foto.id); }}

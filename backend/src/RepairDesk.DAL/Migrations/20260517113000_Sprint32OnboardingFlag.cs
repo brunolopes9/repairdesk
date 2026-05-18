@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace RepairDesk.DAL.Migrations
 {
     /// <inheritdoc />
-    [Migration("20260517113000_Sprint32OnboardingFlag")]
     public partial class Sprint32OnboardingFlag : Migration
     {
         /// <inheritdoc />

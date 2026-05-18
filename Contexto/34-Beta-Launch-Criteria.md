@@ -62,11 +62,11 @@ Falha qualquer um → não lançar.
 ### 4. RGPD
 - [x] Privacy-by-design audit feito (`29-Privacy-By-Design-Audit.md`)
 - [x] Soft delete + retention
-- [ ] **Página de privacidade** (Política RGPD pública)
-- [ ] **Direito ao esquecimento** UI — botão "Apagar definitivamente cliente + reparações"
-- [ ] **Export de dados** por cliente (Art. 20.º — portabilidade)
+- [x] **Páginas legais públicas** — `/privacidade`, `/termos`, `/cookies` (revisão por advogado antes de produção)
+- [ ] **Direito ao esquecimento** UI — botão "Apagar definitivamente cliente + reparações" (Codex #C7 fará)
+- [ ] **Export de dados** por cliente (Art. 20.º — portabilidade) (Codex #C7 fará)
 
-**Status:** 2/5 🔴
+**Status:** 3/5 🟡
 
 ### 5. Operacional
 - [ ] **Health checks** (`/api/health/db`, `/api/health/ready`)

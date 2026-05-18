@@ -10,8 +10,13 @@ namespace RepairDesk.API.Controllers;
 public class ClientesController : ControllerBase
 {
     private readonly IClienteService _service;
+    private readonly IClienteRgpdService _rgpd;
 
-    public ClientesController(IClienteService service) => _service = service;
+    public ClientesController(IClienteService service, IClienteRgpdService rgpd)
+    {
+        _service = service;
+        _rgpd = rgpd;
+    }
 
     [HttpGet]
     public Task<PagedResult<ClienteDto>> Search(
@@ -58,4 +63,22 @@ public class ClientesController : ControllerBase
         var filename = $"clientes_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
         return File(bytes, "text/csv; charset=utf-8", filename);
     }
+
+    [HttpGet("{id:guid}/exportar")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ExportarCliente(Guid id, CancellationToken ct)
+    {
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var dto = await _rgpd.ExportAsync(id, baseUrl, ct);
+        var filename = $"cliente_{id:N}_rgpd.json";
+        return File(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(dto, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        }), "application/json; charset=utf-8", filename);
+    }
+
+    [HttpDelete("{id:guid}/hard-delete")]
+    [Authorize(Roles = "Admin")]
+    public Task<HardDeleteClienteResponse> HardDelete(Guid id, [FromBody] HardDeleteClienteRequest req, CancellationToken ct)
+        => _rgpd.HardDeleteAsync(id, req, ct);
 }

@@ -7,9 +7,11 @@ Objetivo: monitorização mínima viável para RepairDesk SaaS B2B, com alertas 
 Estado atual observado no código:
 
 - Backend `.NET 10`.
-- Serilog já configurado em `RepairDesk.API/Program.cs`.
-- Sinks atuais: console + ficheiro diário.
-- Endpoint simples: `GET /api/health`.
+- Serilog configurado em `RepairDesk.API/Program.cs`.
+- Logs em desenvolvimento: console human-readable + ficheiro local diario.
+- Logs em producao: JSON no stdout, parseable por Docker/Better Stack.
+- Correlation ID por request via header `X-Correlation-ID`.
+- Health checks granulares: `/api/health/live`, `/api/health/ready`, `/api/health/db`, `/api/health/storage`.
 - Sem APM.
 - Sem alertas.
 - Sem dashboard público.
@@ -28,7 +30,7 @@ Não começar com Datadog/NewRelic. Não começar self-hosting Prometheus/Grafan
 Primeiro dia de implementação:
 
 - Integrar Sentry no backend e frontend.
-- Criar monitor Better Stack para API `/api/health` e frontend.
+- Criar monitor Better Stack para API `/api/health/ready` e frontend.
 - Criar status page `status.repairdesk.pt`.
 - Testar alerta manual.
 
@@ -38,7 +40,7 @@ Critério: se isto está mal, algo está partido ou vai partir em breve.
 
 | Área | Métrica | Threshold inicial | Severidade | Ação |
 |---|---|---:|---|---|
-| Uptime API | `GET /api/health` responde 200 | falha 2 checks seguidos | P1 | Confirmar deploy/DB/container. |
+| Uptime API | `GET /api/health/ready` responde 200 | falha 2 checks seguidos | P1 | Confirmar deploy/DB/container. |
 | Uptime Web | homepage/app responde 200 | falha 2 checks seguidos | P1 | Confirmar nginx/frontend/CDN. |
 | Error rate | 5xx por minuto | >5% durante 5 min ou >10 erros/5 min | P1/P2 | Ver Sentry + logs. |
 | Exceptions novas | erro novo em produção | 1 evento novo | P2 | Triage no mesmo dia. |
@@ -102,7 +104,7 @@ Configuração inicial:
 
 Usar para:
 
-- Monitor API `/api/health`.
+- Monitor API `/api/health/ready`.
 - Monitor frontend.
 - SSL monitor.
 - Heartbeat de backup diário.
@@ -318,25 +320,51 @@ Nota: inicializar Sentry uma vez. Se usar `builder.WebHost.UseSentry()`, configu
 
 ### Health checks reais
 
-O endpoint atual `/api/health` diz que o processo responde, mas não prova que DB está OK.
+O endpoint legado `/api/health` diz que o processo responde, mas não prova que DB/storage estão OK.
 
-Adicionar health checks:
+Implementacao no RepairDesk:
 
 ```csharp
 builder.Services.AddHealthChecks()
-    .AddSqlServer(
-        builder.Configuration.GetConnectionString("Default")!,
-        name: "sqlserver",
-        timeout: TimeSpan.FromSeconds(3));
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
+    .AddCheck<RepairDeskDbHealthCheck>("db", tags: ["ready", "db"])
+    .AddCheck<PhotoStorageHealthCheck>("storage", tags: ["ready", "storage"]);
 
-app.MapHealthChecks("/api/health/live");
-app.MapHealthChecks("/api/health/ready");
+app.MapHealthChecks("/api/health/live", HealthCheckJsonResponseWriter.OptionsForTag("live", forceHealthyStatusCode: true));
+app.MapHealthChecks("/api/health/ready", HealthCheckJsonResponseWriter.OptionsForTag("ready"));
+app.MapHealthChecks("/api/health/db", HealthCheckJsonResponseWriter.OptionsForTag("db"));
+app.MapHealthChecks("/api/health/storage", HealthCheckJsonResponseWriter.OptionsForTag("storage"));
 ```
 
 Política:
 
 - `/live`: processo está vivo, sem DB. Usado pelo orchestrator.
 - `/ready`: API + DB + dependências críticas. Usado por Better Stack.
+- `/db`: faz probe `SELECT 1` quando a base de dados e relacional.
+- `/storage`: faz upload/existe/delete de um ficheiro probe de 1 byte.
+- Checks pesados têm cache interna de 5s.
+
+### `/api/metrics` opcional
+
+O endpoint Prometheus-style existe mas fica desligado por defeito:
+
+```json
+{
+  "Metrics": {
+    "Enabled": false,
+    "AllowedIps": [ "127.0.0.1", "::1" ],
+    "BasicAuthUsername": "",
+    "BasicAuthPassword": ""
+  }
+}
+```
+
+Regras:
+
+- Nunca expor publicamente sem Basic Auth ou IP allowlist.
+- Para Uptime Kuma/Prometheus local no mesmo VPS, usar `AllowedIps=127.0.0.1`.
+- Para acesso remoto temporario, preferir Basic Auth por secret/env var.
+- O endpoint inicial expoe so uptime, memoria privada e thread count.
 
 ### OpenTelemetry - Fase 2
 
@@ -379,6 +407,83 @@ Opção app-level:
 - Filtrar para `Warning+` em produção para não gastar ingestão.
 
 Regra: não enviar logs `Information` de todos os requests para cloud enquanto o produto está pequeno. Uptime + Sentry resolvem 80%.
+
+### Como ligar Better Stack agora
+
+1. Criar conta em Better Stack.
+2. Criar monitor HTTP:
+   - Nome: `RepairDesk API ready`
+   - URL: `https://api.repairdesk.pt/api/health/ready`
+   - Expected status: `200`
+   - Check frequency: 30s ou 60s no free tier.
+   - Confirmation period: 2 falhas seguidas.
+3. Criar monitor HTTP para web:
+   - Nome: `RepairDesk Web`
+   - URL: `https://app.repairdesk.pt/`
+   - Expected status: `200`
+4. Criar SSL monitor para `app.repairdesk.pt` e `api.repairdesk.pt`.
+5. Criar status page `status.repairdesk.pt` com componentes:
+   - Web App
+   - API
+   - Base de dados
+   - Storage de fotos
+   - Backups
+6. Logs:
+   - MVP: usar Docker stdout. A API ja escreve JSON em producao.
+   - Se ligares ingestion Better Stack, filtrar `Warning+` primeiro para poupar quota.
+
+Alerta exemplo: DB down >1 minuto
+
+```text
+Monitor: RepairDesk API ready
+URL: https://api.repairdesk.pt/api/health/ready
+Condition: HTTP status != 200
+Confirmation: 2 consecutive failed checks at 30s interval
+Severity: P1
+Message: API not ready. Check /api/health/db, SQL container and last deploy.
+```
+
+Quando a DB falha, `/api/health/ready` deve devolver `503` e `/api/health/db` mostra a dependencia `db` como `Unhealthy`.
+
+### Uptime Kuma self-hosted
+
+Usar se Bruno preferir custo zero total em VPS propria.
+
+Setup recomendado no Hetzner:
+
+```yaml
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    volumes:
+      - uptime_kuma:/app/data
+    ports:
+      - "127.0.0.1:3001:3001"
+
+volumes:
+  uptime_kuma:
+```
+
+Depois expor por Caddy/Nginx em `monitor.repairdesk.pt` com HTTPS e password forte.
+
+Monitors a criar:
+
+| Nome | Tipo | URL | Intervalo | Retry |
+|---|---|---|---:|---:|
+| RepairDesk API ready | HTTP(s) | `https://api.repairdesk.pt/api/health/ready` | 30s | 2 |
+| RepairDesk API live | HTTP(s) | `https://api.repairdesk.pt/api/health/live` | 60s | 2 |
+| RepairDesk Web | HTTP(s) | `https://app.repairdesk.pt/` | 60s | 2 |
+| RepairDesk DB | HTTP(s) | `https://api.repairdesk.pt/api/health/db` | 60s | 1 |
+| RepairDesk Storage | HTTP(s) | `https://api.repairdesk.pt/api/health/storage` | 60s | 1 |
+
+Notificacoes:
+
+- Telegram privado ou Discord webhook para P1/P2.
+- Email como fallback.
+- Nao usar WhatsApp pessoal como canal primario; cria ansiedade e interrupcoes.
+
+Regra de ouro: monitorizar `ready` para disponibilidade real do produto; usar `live` so para saber se o processo da API esta vivo.
 
 ## 6. Frontend - Sentry Browser SDK
 
@@ -532,7 +637,7 @@ Implementação inicial:
 ### Hora 3-4
 
 - Criar conta Better Stack.
-- Monitor API `/api/health`.
+- Monitor API `/api/health/ready`.
 - Monitor frontend.
 - Configurar alerta email/Telegram.
 

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Mail, MessageCircle, Phone } from 'lucide-react';
+import { Download, Mail, MessageCircle, Pencil, Phone, ShieldAlert } from 'lucide-react';
+import { displayPhone } from '../../lib/phone/formatter';
 import Modal from '../../components/Modal';
+import { Button } from '../../components/ui/Button';
 import { clientesApi } from '../../lib/clientes/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { STATUS_COLOR, STATUS_LABEL, type Reparacao } from '../../lib/reparacoes/types';
@@ -14,6 +16,7 @@ import {
   type Trabalho,
 } from '../../lib/trabalhos/types';
 import { formatCents, formatDateOnly } from '../../lib/money';
+import { toast } from '../../lib/toast';
 import ClienteFormView from './ClienteForm';
 
 export default function ClienteDetalhe() {
@@ -41,6 +44,9 @@ export default function ClienteDetalhe() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hardDeleteOpen, setHardDeleteOpen] = useState(false);
+  const [hardDeleteConfirm, setHardDeleteConfirm] = useState('');
+  const [hardDeleteMotivo, setHardDeleteMotivo] = useState('');
 
   const update = useMutation({
     mutationFn: (form: Parameters<typeof clientesApi.update>[1]) => clientesApi.update(id!, form),
@@ -59,12 +65,38 @@ export default function ClienteDetalhe() {
     },
   });
 
+  const exportRgpd = useMutation({
+    mutationFn: () => clientesApi.exportRgpd(id!),
+    onSuccess: (blob) => {
+      const nome = cliente.data?.nome ?? 'cliente';
+      downloadBlob(blob, `repairdesk-${safeFileName(nome)}-rgpd.json`);
+      toast.success('Exportação RGPD gerada', 'O JSON inclui cliente, reparações, trabalhos, fotos e auditoria.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível exportar os dados do cliente.'),
+  });
+
+  const hardDelete = useMutation({
+    mutationFn: () => clientesApi.hardDelete(id!, hardDeleteConfirm, hardDeleteMotivo.trim() || null),
+    onSuccess: (res) => {
+      toast.success(
+        'Cliente apagado definitivamente',
+        `${res.reparacoes} reparação(ões), ${res.trabalhos} trabalho(s), ${res.despesas} despesa(s) e ${res.fotos} foto(s) removidos.`,
+      );
+      qc.invalidateQueries({ queryKey: ['clientes'] });
+      qc.invalidateQueries({ queryKey: ['audit'] });
+      navigate('/clientes');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível apagar definitivamente o cliente.'),
+  });
+
   if (cliente.isLoading) return <div className="text-sm text-zinc-500">A carregar…</div>;
   if (cliente.isError || !cliente.data) return <div className="text-sm text-red-600">Cliente não encontrado.</div>;
 
   const c = cliente.data;
   const reps = reparacoes.data?.items ?? [];
   const trabs = trabalhos.data?.items ?? [];
+  const hardDeleteExpected = `APAGAR ${c.nome}`;
+  const canHardDelete = hardDeleteConfirm === hardDeleteExpected;
 
   // KPIs
   const repsPagas = reps.filter((r) => r.estado === 5);
@@ -93,9 +125,9 @@ export default function ClienteDetalhe() {
           <button
             type="button"
             onClick={() => setEditOpen(true)}
-            className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
-            ✎ Editar
+            <Pencil size={12} strokeWidth={2} /> Editar
           </button>
           <button
             type="button"
@@ -111,7 +143,7 @@ export default function ClienteDetalhe() {
         <h1 className="text-2xl font-semibold tracking-tight">{c.nome}</h1>
         <div className="space-y-1 text-sm text-zinc-600 dark:text-zinc-300">
           {c.telefone ? (
-            <div className="flex items-center gap-1.5"><Phone size={13} strokeWidth={2} className="text-zinc-400" /> {c.telefone}</div>
+            <div className="flex items-center gap-1.5"><Phone size={13} strokeWidth={2} className="text-zinc-400" /> {displayPhone(c.telefone)}</div>
           ) : (
             <div className="italic text-zinc-400">sem telefone (Messenger)</div>
           )}
@@ -144,6 +176,41 @@ export default function ClienteDetalhe() {
         <Kpi label="Lucro gerado" value={formatCents(lucroTotal)} tone={lucroTotal >= 0 ? 'emerald' : 'red'} />
         <Kpi label="Em curso" value={String(abertosCount)} tone={abertosCount > 0 ? 'amber' : undefined} />
         <Kpi label="Última visita" value={ultimaVisita ? formatDateOnly(ultimaVisita) : '—'} />
+      </section>
+
+      {/* RGPD */}
+      <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-950 dark:text-amber-100">
+              <ShieldAlert size={16} strokeWidth={2} /> RGPD e portabilidade
+            </h2>
+            <p className="mt-1 text-xs text-amber-800 dark:text-amber-200/80">
+              Exportação Art. 20.º e eliminação definitiva Art. 17.º. A eliminação é irreversível.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              leftIcon={<Download size={14} strokeWidth={2} />}
+              loading={exportRgpd.isPending}
+              onClick={() => exportRgpd.mutate()}
+            >
+              Exportar dados
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              leftIcon={<ShieldAlert size={14} strokeWidth={2} />}
+              onClick={() => setHardDeleteOpen(true)}
+            >
+              Apagar definitivamente (RGPD)
+            </Button>
+          </div>
+        </div>
       </section>
 
       {/* Reparações */}
@@ -210,8 +277,89 @@ export default function ClienteDetalhe() {
           Apagar <strong>{c.nome}</strong>? O histórico de reparações/trabalhos fica preservado mas o cliente deixa de aparecer nas listas.
         </p>
       </Modal>
+
+      <Modal
+        open={hardDeleteOpen}
+        title="Apagar definitivamente (RGPD)"
+        onClose={() => {
+          if (hardDelete.isPending) return;
+          setHardDeleteOpen(false);
+          setHardDeleteConfirm('');
+          setHardDeleteMotivo('');
+        }}
+        footer={<>
+          <button
+            type="button"
+            disabled={hardDelete.isPending}
+            onClick={() => {
+              setHardDeleteOpen(false);
+              setHardDeleteConfirm('');
+              setHardDeleteMotivo('');
+            }}
+            className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-300"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={!canHardDelete || hardDelete.isPending}
+            onClick={() => hardDelete.mutate()}
+            className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {hardDelete.isPending ? 'A apagar definitivamente...' : 'Apagar definitivamente'}
+          </button>
+        </>}
+      >
+        <div className="space-y-3 text-sm">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-200">
+            Isto remove fisicamente <strong>{c.nome}</strong>, reparações, trabalhos, despesas, fotos e histórico relacionado.
+            Não é soft-delete e não há recuperação pela aplicação.
+          </div>
+          <label className="block">
+            <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+              Escreve exactamente <span className="font-mono">{hardDeleteExpected}</span>
+            </span>
+            <input
+              value={hardDeleteConfirm}
+              onChange={(e) => setHardDeleteConfirm(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-950"
+              autoComplete="off"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Motivo interno (opcional)</span>
+            <textarea
+              value={hardDeleteMotivo}
+              onChange={(e) => setHardDeleteMotivo(e.target.value)}
+              rows={3}
+              className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950"
+              placeholder="Ex: pedido formal do cliente em 18/05/2026"
+            />
+          </label>
+        </div>
+      </Modal>
     </div>
   );
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function safeFileName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase() || 'cliente';
 }
 
 function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'emerald' | 'red' | 'amber' }) {
