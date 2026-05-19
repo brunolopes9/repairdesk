@@ -610,16 +610,22 @@ export default function Vendas() {
                   <FileText size={13} /> Emitir fatura Moloni
                 </button>
               )}
-              {vendaDetalhe.status !== VENDA_STATUS.Cancelada && !vendaDetalhe.invoiceExternalId && (
+              {vendaDetalhe.status !== VENDA_STATUS.Cancelada && (
                 <button
                   type="button"
                   onClick={() => {
-                    if (confirm(`Cancelar venda #${vendaDetalhe.numero}? O stock será reposto.`)) {
-                      cancelar.mutate(vendaDetalhe.id);
-                    }
+                    const temFatura = !!vendaDetalhe.invoiceExternalId;
+                    const msg = temFatura
+                      ? `Cancelar venda #${vendaDetalhe.numero}?\n\n` +
+                        `Vai fazer 2 coisas:\n` +
+                        `  1. Anular fatura ${vendaDetalhe.invoiceNumber} no Moloni (cancel ou NC)\n` +
+                        `  2. Reverter stock dos artigos\n\nContinuar?`
+                      : `Cancelar venda #${vendaDetalhe.numero}? O stock será reposto.`;
+                    if (confirm(msg)) cancelar.mutate(vendaDetalhe.id);
                   }}
                   disabled={cancelar.isPending}
                   className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
+                  title={vendaDetalhe.invoiceExternalId ? 'Anula fatura no Moloni + reverte stock (1 clique)' : 'Cancela venda + reverte stock'}
                 >
                   <XCircle size={13} /> Cancelar venda
                 </button>

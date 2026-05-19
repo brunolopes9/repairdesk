@@ -304,8 +304,42 @@ public class VendaService : IVendaService
     {
         var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
         if (venda.Status == VendaStatus.Cancelada) return ToDto(venda);
-        if (venda.InvoiceExternalId is not null)
-            throw new ConflictException("venda_faturada", "Venda com fatura emitida nao pode ser cancelada sem nota de credito.");
+
+        // Se ja tem fatura emitida no Moloni, anula primeiro (documentCancel ou NC).
+        // RepairDesk eh ponto central: 1 clique cancela tudo.
+        if (venda.InvoiceExternalId is not null && _tenant.TenantId is { } tenantId)
+        {
+            var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
+            if (settings?.Provider == BillingProvider.Moloni && int.TryParse(venda.InvoiceExternalId, out var originalDocId))
+            {
+                var cancelled = await _moloni.CancelDocumentAsync(
+                    settings,
+                    originalDocId,
+                    $"Cancelado via RepairDesk — venda #{venda.Numero}",
+                    ct);
+
+                if (!cancelled)
+                {
+                    // Fallback: emite Nota de Credito
+                    var items = venda.Items.Select(i => new MoloniInvoiceDraftItem(
+                        i.Descricao, null, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents, i.IvaRate)).ToList();
+                    var customerId = settings.FallbackCustomerId ?? 0;
+                    if (customerId > 0)
+                    {
+                        await _moloni.InsertCreditNoteAsync(settings, new MoloniCreditNoteDraft(
+                            originalDocId, customerId, $"Venda #{venda.Numero}", items,
+                            $"Cancelamento da Fatura {venda.InvoiceNumber} via RepairDesk"), ct);
+                    }
+                }
+            }
+
+            // Limpa Invoice* locais (ja anulada/NC emitida no Moloni)
+            venda.InvoiceProvider = BillingProvider.None;
+            venda.InvoiceExternalId = null;
+            venda.InvoiceNumber = null;
+            venda.InvoicePdfUrl = null;
+            venda.InvoiceEmittedAt = null;
+        }
 
         if (venda.Status == VendaStatus.Paga)
         {
