@@ -3211,6 +3211,263 @@ carrinho, define cliente (ou anónimo), cobra, emite fatura via Moloni
 
 ---
 
+## Codex Coding #C13 — OAuth2 authorization_code flow para Moloni (substituir password grant)
+
+```
+[CONTEXTO]
+RepairDesk multi-tenant SaaS. Sprint 42 implementou `password grant` Moloni: user mete email + password
+num modal, backend troca por tokens (encrypt + save), refresh automático (Sprint 41).
+
+Funciona para LopesTech (single tenant) mas tem 2 problemas para SaaS:
+1. Bruno fica desconfortável a pedir password a outros donos de oficina
+2. Algumas oficinas não vão querer dar password do Moloni a SaaS terceiro
+
+[ESTADO ACTUAL]
+- backend/src/RepairDesk.Services/Billing/MoloniClient.cs tem ConnectViaPasswordGrantAsync
+- TenantBillingSettings tem: ClientId, ClientSecretCipherText, ApiKeyCipherText, RefreshTokenCipherText
+- /api/tenant-settings/me/billing/moloni/connect existe (password grant)
+- Frontend tem botão "Ligar Moloni" + modal email/password
+
+[OBJECTIVO]
+Adicionar fluxo OAuth2 authorization_code (web flow) como ALTERNATIVA. User clica "Ligar via OAuth",
+abre janela popup com auth Moloni, autoriza, popup fecha, RepairDesk recebe code via callback,
+troca por tokens. Manter password grant disponível para devs/sandbox.
+
+[REQUISITOS FUNCIONAIS]
+1. Endpoint público POST /api/billing/moloni/oauth/start (autenticado JWT do tenant):
+   - Gera state aleatório de 32 chars
+   - Guarda state em Redis com TTL 10min → tenantId
+   - Retorna URL: https://www.moloni.pt/ac/root/oauth/?response_type=code&client_id=...&redirect_uri=...&state=...
+2. Endpoint público GET /api/billing/moloni/oauth/callback (sem JWT — Moloni redirect):
+   - Recebe ?code=...&state=...
+   - Lê state do Redis → encontra tenantId
+   - Chama /v1/grant/?grant_type=authorization_code para trocar code por tokens
+   - Encripta + salva access_token + refresh_token em TenantBillingSettings desse tenant
+   - Redireciona browser para /definicoes?moloni=connected
+   - Se erro: redirect /definicoes?moloni=error&msg=...
+3. Frontend Definições > Faturação:
+   - Botão "Ligar via OAuth (recomendado)" abre window.open(url, 'moloni-oauth', 'width=500,height=700')
+   - Mantém botão "Ligar com email/password" como secundário
+   - Após popup fechar, refazer query getBilling → vê estado actualizado
+4. UI configurável: Bruno configura redirect URI no painel Moloni Developer:
+   - Dev: http://localhost:5080/api/billing/moloni/oauth/callback (mas Moloni não aceita localhost)
+   - Prod: https://app.repairdesk.pt/api/billing/moloni/oauth/callback
+   - Solução dev: usar ngrok ou Cloudflare Tunnel, documentar em 41-Moloni-Setup.md
+
+[CONSTRAINTS]
+- NÃO substituir password grant (manter como fallback)
+- NÃO permitir authorization_code sem state válido (CSRF protection)
+- NÃO logar code ou tokens em plaintext
+- NÃO redireccionar para URL externo no callback (só /definicoes)
+- Manter retrocompatibilidade com Sprint 42 password grant flow
+
+[OUTPUT ESPERADO]
+- backend/src/RepairDesk.API/Controllers/BillingOAuthController.cs (novo, sem [Authorize] no callback)
+- backend/src/RepairDesk.Services/Billing/MoloniClient.cs: novo método ExchangeAuthorizationCodeAsync
+- backend/src/RepairDesk.Services/Billing/TenantBillingSettingsService.cs: StartOAuthAsync + CompleteOAuthAsync
+- backend/src/RepairDesk.Services/Billing/BillingModels.cs: novos DTOs MoloniOAuthStartDto, etc
+- Frontend: novo botão + listener postMessage do popup
+- Tests: BillingOAuthApiTests.cs
+- Doc: actualizar Contexto/41-Moloni-Setup.md com fluxo OAuth + setup ngrok para dev
+
+[VERIFICAÇÃO]
+- `dotnet test --filter "BillingOAuth"` passa
+- `docker compose up -d` arranca
+- Em dev com ngrok configurado, clica Ligar via OAuth → autoriza Moloni → vê "ligado" sem nunca dar password
+- Re-clica Ligar via OAuth quando já ligado → erro claro "já ligado, desliga primeiro"
+- Cancela popup → state expira em 10min, sem residual
+
+Branch: codex/sprint-44-oauth-moloni
+```
+
+---
+
+## Codex Coding #C14 — Auto-descoberta de IDs operacionais Moloni
+
+```
+[CONTEXTO]
+Em Definições > Faturação a UI ainda exige que o user copie 5 IDs do painel Moloni:
+- Produto/serviço ID
+- Tax ID IVA
+- Método pagamento ID
+- Maturity date ID
+- Cliente fallback ID
+
+UX feedback Bruno: "isso é palha — devia ser automático".
+
+A API Moloni tem endpoints para listar tudo:
+- POST /v1/products/getAll
+- POST /v1/taxes/getAll
+- POST /v1/paymentMethods/getAll
+- POST /v1/maturityDates/getAll
+- POST /v1/customers/getAll (filtrar por "Consumidor final")
+
+[ESTADO ACTUAL]
+- Sprint 42 já tem GetCompaniesAsync e auto-discovery se 1 só empresa
+- MoloniClient.PostAsync com refresh automático Sprint 41
+- ITenantBillingSettingsService.SyncSeriesAsync padrão estabelecido
+
+[OBJECTIVO]
+Endpoint POST /api/tenant-settings/me/billing/moloni/auto-discover:
+- Lista produtos → se houver um com nome contendo "reparação" ou "serviço", auto-seleciona
+- Lista taxes → seleciona pela percentagem (regime fiscal do tenant: normal=23%, isenção=0%)
+- Lista paymentMethods → auto-seleciona "Numerário" ou primeiro activo
+- Lista maturityDates → auto-seleciona "Pronto pagamento"
+- Lista customers → procura "Consumidor final", se não existir CRIA via /customers/insert
+- Atualiza TenantBillingSettings com IDs descobertos
+- Retorna {productsFound, taxesFound, paymentMethodsFound, ...} para UI mostrar resultado
+
+[REQUISITOS FUNCIONAIS]
+1. Endpoint só funciona se tenant já ligado (settings.ApiKeyCipherText != null)
+2. Se não encontrar produto adequado: criar "Serviço de reparação" via /v1/products/insert
+3. Se não encontrar cliente "Consumidor final": criar com VAT 999999990 e nome "Consumidor Final"
+4. Loggar cada decisão (created vs found)
+5. Frontend: botão "Auto-configurar tudo" na secção 3 (visível só se ligado)
+   - Mostra spinner + lista de checks: "✓ Produto encontrado" / "✓ Cliente criado" etc
+   - No fim: refresh form com IDs preenchidos
+
+[CONSTRAINTS]
+- NÃO criar produtos/clientes duplicados — sempre procurar primeiro
+- NÃO assumir que conta tem só 1 produto (filtrar por nome)
+- NÃO falhar tudo se 1 passo falhar — continuar e reportar quais falharam
+
+[OUTPUT ESPERADO]
+- MoloniClient: GetProductsAsync, GetTaxesAsync, GetPaymentMethodsAsync, GetMaturityDatesAsync, GetCustomersAsync, InsertProductAsync, InsertCustomerAsync
+- TenantBillingSettingsService.AutoDiscoverAsync
+- Endpoint POST /api/tenant-settings/me/billing/moloni/auto-discover
+- Frontend: botão + UI de progresso
+- Tests: AutoDiscoverTests.cs
+
+[VERIFICAÇÃO]
+- Conta Moloni com 1 produto "Serviço": auto-seleciona
+- Conta Moloni sem produtos: cria "Serviço de reparação"
+- Em regime normal: seleciona IVA 23%; em isenção: IVA 0% com motivo M01
+
+Branch: codex/sprint-45-moloni-autodiscover
+```
+
+---
+
+## Codex Coding #C15 — Notificações push (PWA) quando estado de reparação muda
+
+```
+[CONTEXTO]
+RepairDesk já é PWA (Sprint 38). Cliente final vê estado em /portal/{slug}. Mas tem de fazer F5
+para ver actualizações. Idealmente: notificação push automática quando estado muda
+(ex: "A tua reparação iPhone 12 está pronta para levantar!").
+
+[ESTADO ACTUAL]
+- Service Worker registado em frontend/public/sw.js (Sprint 38)
+- manifest.webmanifest configurado
+- Backend tem evento de mudança de estado (ReparacaoService.UpdateStatusAsync)
+- Não há sistema de subscriptions push nem VAPID keys
+
+[OBJECTIVO]
+Permitir que o cliente final subscreva notificações push no portal público. Quando estado da
+reparação dele mudar, recebe notificação no browser/mobile mesmo com app fechada.
+
+[REQUISITOS FUNCIONAIS]
+1. Backend:
+   - Gerar VAPID keys (script setup ou auto-generate no primeiro boot, guardar em DB)
+   - Entidade PushSubscription { Id, ReparacaoId, Endpoint, Keys (auth, p256dh), CreatedAt }
+   - Endpoint POST /api/public/portal/{slug}/push/subscribe — body: subscription do browser
+   - Quando ReparacaoService.UpdateStatusAsync corre: enfileirar job para enviar push para todas as subscriptions dessa reparação
+   - Worker BackgroundService consome jobs e envia via lib WebPush (ex: WebPush.NetCore)
+2. Frontend:
+   - No portal público: botão "Receber notificações" se browser suporta + cliente não subscreveu ainda
+   - Pede permissão, regista subscription no SW, POST ao backend
+   - SW listen 'push' event → mostra notification com título, body, link de volta ao portal
+3. Privacidade RGPD:
+   - Cliente pode revogar (DELETE subscription)
+   - Auto-purge subscriptions de reparações Entregues há > 30 dias
+
+[CONSTRAINTS]
+- NÃO usar Firebase Cloud Messaging (vendor lock-in)
+- NÃO armazenar mais que endpoint + keys (sem dados pessoais)
+- Web Push standard W3C, funciona Chrome/Edge/Firefox/Safari 16+
+- VAPID keys em config; nunca em git
+
+[OUTPUT ESPERADO]
+- Migration EF Core para PushSubscription
+- Service IPushNotificationService
+- Background worker
+- Frontend: hook usePushSubscription
+- Tests para subscribe/unsubscribe/send
+- Doc Contexto/42-Push-Notifications.md
+
+[VERIFICAÇÃO]
+- Cliente subscreve no portal → endpoint guardado
+- Operador muda estado → cliente recebe notificação no telemóvel
+- Click na notificação → abre /portal/{slug}
+
+Branch: codex/sprint-46-push-notifications
+```
+
+---
+
+## Codex Coding #C16 — Relatório fiscal trimestral (IVA + Receita) para contabilista
+
+```
+[CONTEXTO]
+Bruno passou para regime normal IVA. Tem de entregar IVA trimestral à AT (Moloni faz SAFT mensal
+automático, mas Bruno precisa de relatório resumido para conferir antes da entrega da declaração).
+
+Outras oficinas (futuros tenants) também vão precisar.
+
+[ESTADO ACTUAL]
+- Reparacao + Trabalho têm InvoiceProvider, InvoiceNumber, InvoiceEmittedAt
+- Auditoria/AuditLogService existente
+- Sem relatórios fiscais
+
+[OBJECTIVO]
+Página /relatorios/iva onde tenant seleciona trimestre (T1/T2/T3/T4 + ano) e vê:
+- Total facturado (sem IVA)
+- IVA liquidado (output)
+- Reverse charge intra-UE (compras Molano declaradas pelo tenant manualmente)
+- Detalhe por documento (lista exportável CSV/PDF)
+- Comparação com trimestre anterior (gráfico simples)
+
+[REQUISITOS FUNCIONAIS]
+1. Endpoint GET /api/relatorios/iva?ano=2026&trimestre=2
+   Retorna: { totalSemIvaCents, ivaLiquidadoCents, ivaCompras (manual)Cents, documentos[] }
+2. Filtra por:
+   - Reparações com InvoiceEmittedAt no período + tenantId actual
+   - Trabalhos com InvoiceEmittedAt no período + tenantId actual
+3. Calcula IVA com base em settings.regimeFiscal:
+   - Normal: assume IVA 23% liquidado sobre PrecoFinal
+   - Isenção art. 53: IVA = 0
+4. Exportações:
+   - CSV: 1 linha por documento (data, tipo, número, cliente, base, IVA, total)
+   - PDF: capa com totais + tabela
+5. UI:
+   - Tabs: T1, T2, T3, T4 + selector ano
+   - KPI cards: receita, IVA liquidado, IVA a entregar
+   - Tabela paginada documentos
+   - Botões Exportar CSV / PDF
+
+[CONSTRAINTS]
+- NÃO chamar Moloni API (relatório calculado da nossa DB; serve para conferir, não substituir SAFT)
+- Multi-tenant: TenantId em todas as queries
+- Datas em UTC, mas display em Europe/Lisbon
+
+[OUTPUT ESPERADO]
+- Service IRelatorioFiscalService
+- Controller RelatoriosController
+- Frontend: src/pages/relatorios/Iva.tsx + route /relatorios/iva
+- Item de menu "Relatórios" no sidebar
+- PDF render via QuestPDF (já usado para orcamentos)
+- Tests para cálculos com regimes diferentes
+
+[VERIFICAÇÃO]
+- Tenant LopesTech regime normal: T2 2026 mostra IVA 23% sobre todas as faturas
+- Tenant fictício art. 53: IVA = 0 em todas linhas
+- CSV exportado abre no Excel/Numbers sem corrupção
+
+Branch: codex/sprint-47-relatorio-iva
+```
+
+---
+
 ## Anti-padrões a evitar nos prompts (aprendi na conversa)
 
 ### ❌ Mau: "podes melhorar isto?"
