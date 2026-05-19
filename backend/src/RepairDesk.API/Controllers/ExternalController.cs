@@ -24,6 +24,22 @@ public class ExternalController : ControllerBase
     public ExternalController(IExternalCheckoutService checkout) => _checkout = checkout;
 
     /// <summary>
+    /// Health check para integradores. Confirma que a API key é válida, devolve hora do
+    /// servidor (para clock skew) e o tenantId resolvido. Resposta tem de ser O(1) — não
+    /// toca BD além do que o ApiKeyAuthHandler já fez.
+    /// </summary>
+    [HttpGet("health")]
+    public ActionResult<ExternalHealthResponse> Health()
+    {
+        var tenantClaim = User.FindFirst("tenant_id")?.Value;
+        return Ok(new ExternalHealthResponse(
+            Status: "ok",
+            ServerTime: DateTimeOffset.UtcNow,
+            ApiVersion: "1.0",
+            TenantId: tenantClaim is null ? null : Guid.Parse(tenantClaim)));
+    }
+
+    /// <summary>
     /// Fecha uma venda inteira atomicamente. Use isto a partir de loja online (depois do pagamento
     /// ter sido confirmado via Stripe/EuPago) em vez de fazer 3 chamadas separadas.
     /// </summary>

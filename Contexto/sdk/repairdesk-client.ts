@@ -163,6 +163,15 @@ export interface ExternalGarantiaResumo {
   equipamento: string | null;
 }
 
+export interface ExternalHealthResponse {
+  status: 'ok';
+  /** ISO 8601 UTC do servidor RepairDesk — útil para detectar clock skew >5s. */
+  serverTime: string;
+  apiVersion: string;
+  /** TenantId resolvido pela API key — confirma que a chave aponta para o tenant esperado. */
+  tenantId: string | null;
+}
+
 export interface ExternalGarantiaDetalhe {
   slug: string;
   origem: 'Reparacao' | 'Venda';
@@ -254,6 +263,17 @@ export class RepairDeskClient {
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.maxRetries = opts.maxRetries ?? 2;
     this.onRequest = opts.onRequest;
+  }
+
+  /**
+   * Health check rápido — confirma que a API key é válida e devolve a hora do servidor.
+   * Use no startup da loja online ou periodicamente para detectar:
+   *  - API key revogada (401)
+   *  - Clock skew (compara serverTime com Date.now())
+   *  - Tenant errado (tenantId não bate com o esperado)
+   */
+  health(): Promise<ExternalHealthResponse> {
+    return this.request('GET', '/api/external/health');
   }
 
   /** Fecha venda atómica (cliente lookup-or-create + venda + fatura + garantia). */

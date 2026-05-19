@@ -21,6 +21,13 @@ public interface IExternalCheckoutService
     Task<ExternalGarantiaDetalhe?> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default);
 }
 
+/// <summary>Resposta do health check — usada por integradores para clock skew e confirmação do tenant.</summary>
+public sealed record ExternalHealthResponse(
+    string Status,
+    DateTimeOffset ServerTime,
+    string ApiVersion,
+    Guid? TenantId);
+
 /// <summary>Detalhe da garantia para integrações externas — espelha PublicGarantiaDto sem mascaramento.</summary>
 public sealed record ExternalGarantiaDetalhe(
     string Slug,

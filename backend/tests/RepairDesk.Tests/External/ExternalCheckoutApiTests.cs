@@ -208,6 +208,29 @@ public class ExternalCheckoutApiTests : IClassFixture<RepairDeskApiFactory>
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task Health_WithoutAuth_Returns401()
+    {
+        var client = _factory.CreateClient();
+        var resp = await client.GetAsync("/api/external/health");
+        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Health_WithApiKey_ReturnsStatusAndTenantId()
+    {
+        var (_, apiClient) = await NewKeyAsync();
+        var resp = await apiClient.GetAsync("/api/external/health");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await resp.Content.ReadFromJsonAsync<ExternalHealthResponse>();
+        body.Should().NotBeNull();
+        body!.Status.Should().Be("ok");
+        body.ApiVersion.Should().NotBeNullOrEmpty();
+        body.TenantId.Should().NotBeNull().And.NotBe(Guid.Empty);
+        // serverTime deve estar perto de "agora" (clock skew test).
+        (DateTimeOffset.UtcNow - body.ServerTime).Duration().Should().BeLessThan(TimeSpan.FromMinutes(1));
+    }
+
     // -- helpers --
 
     private static ExternalCheckoutRequest SampleRequest(string nif = "504000004", string nome = "Maria Silva")

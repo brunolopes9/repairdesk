@@ -167,6 +167,7 @@ try {
 
 | Método | Caminho | Para quê |
 |---|---|---|
+| GET | `/api/external/health` | Health check (status, serverTime, tenantId) |
 | POST | `/api/external/checkout` | Fechar venda atómica |
 | GET | `/api/external/orders/{id}` | Estado venda |
 | POST | `/api/external/orders/{id}/cancel` | Devolução 14d |
