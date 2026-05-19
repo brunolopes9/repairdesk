@@ -505,7 +505,17 @@ public class MoloniClient : IMoloniClient
         var baseUrl = ResolveBaseUrl(settings);
         var uri = $"{baseUrl.TrimEnd('/')}/{endpoint.TrimStart('/')}?access_token={Uri.EscapeDataString(accessToken)}&json=true&human_errors=true";
 
-        using var response = await _http.PostAsJsonAsync(uri, payload, JsonOptions, ct);
+        // Moloni docs sao explicitas: com json=true na querystring, o body eh JSON mas o
+        // Content-Type tem de ser application/x-www-form-urlencoded (sim, weird).
+        // PostAsJsonAsync envia application/json -> Moloni rejeita endpoints "leves" como
+        // companies/getAll com 403 "No company_id received". Aqui construimos a requisicao
+        // manualmente com o header correcto.
+        var json = JsonSerializer.Serialize(payload, JsonOptions);
+        using var request = new HttpRequestMessage(HttpMethod.Post, uri)
+        {
+            Content = new StringContent(json, System.Text.Encoding.UTF8, "application/x-www-form-urlencoded"),
+        };
+        using var response = await _http.SendAsync(request, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
 
         if (allowRefresh && IsAuthFailure(response.StatusCode, content) && CanRefresh(settings))
