@@ -69,4 +69,16 @@ public class VendasController : ControllerBase
         var (pdf, filename) = await _pdf.ForVendaAsync(id, ct);
         return File(pdf, "application/pdf", filename);
     }
+
+    /// <summary>Exporta vendas em CSV (Excel-friendly, UTF-8 com BOM). Filtrado por intervalo de datas.</summary>
+    [HttpGet("export.csv")]
+    public async Task<IActionResult> ExportCsv(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        var bytes = await _service.ExportCsvAsync(from, to, ct);
+        var stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+        return File(bytes, "text/csv; charset=utf-8", $"vendas_{stamp}.csv");
+    }
 }

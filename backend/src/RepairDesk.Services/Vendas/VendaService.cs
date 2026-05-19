@@ -1,3 +1,5 @@
+using System.Globalization;
+using RepairDesk.Common.Helpers;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
@@ -17,6 +19,7 @@ public interface IVendaService
     Task<VendaDto> CancelarAsync(Guid id, CancellationToken ct = default);
     Task<VendaDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
     Task<VendaDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default);
+    Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default);
 }
 
 public class VendaService : IVendaService
@@ -168,6 +171,64 @@ public class VendaService : IVendaService
 
     /// <summary>Limpa apenas referencias locais da fatura. Util quando o utilizador ja anulou a
     /// fatura manualmente no painel Moloni (status 'Anulado') e so quer sincronizar com o RepairDesk.</summary>
+    public async Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default)
+    {
+        // SearchAsync com pageSize generoso. 1000 vendas chega para vários meses.
+        var (rows, _) = await _vendas.SearchAsync(fromUtc, toUtc, 1, 1000, ct);
+
+        var csv = new CsvBuilder();
+        csv.Row(
+            "numero", "data", "cliente_nome", "cliente_nif",
+            "total_eur", "iva_eur", "metodo_pagamento", "status",
+            "invoice_provider", "invoice_numero", "invoice_emitida_em",
+            "notas");
+
+        foreach (var v in rows)
+        {
+            // Calcular IVA total da venda a partir dos items
+            var totalCents = v.Items.Sum(i => Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents));
+            var ivaCents = v.Items.Sum(i =>
+            {
+                if (i.IvaRate <= 0) return 0;
+                var gross = Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents);
+                return (int)Math.Round(gross - gross / (1m + i.IvaRate / 100m));
+            });
+
+            var statusLabel = v.Status switch
+            {
+                VendaStatus.Pendente => "Pendente",
+                VendaStatus.Paga => "Paga",
+                VendaStatus.Cancelada => "Cancelada",
+                _ => v.Status.ToString(),
+            };
+            var paymentLabel = v.PaymentMethod switch
+            {
+                PaymentMethod.Dinheiro => "Numerario",
+                PaymentMethod.Multibanco => "Multibanco",
+                PaymentMethod.MBWay => "MBWay",
+                PaymentMethod.TransferenciaBancaria => "Transferencia",
+                PaymentMethod.Cartao => "Cartao",
+                _ => "Outro",
+            };
+
+            csv.Row(
+                v.Numero,
+                v.Data.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                v.Cliente?.Nome ?? "",
+                v.Cliente?.Nif ?? "",
+                (totalCents / 100m).ToString("0.00", CultureInfo.InvariantCulture),
+                (ivaCents / 100m).ToString("0.00", CultureInfo.InvariantCulture),
+                paymentLabel,
+                statusLabel,
+                v.InvoiceProvider == BillingProvider.Moloni ? "Moloni" : "",
+                v.InvoiceNumber ?? "",
+                v.InvoiceEmittedAt?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "",
+                v.Notas ?? "");
+        }
+
+        return csv.ToUtf8WithBom();
+    }
+
     public async Task<VendaDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default)
     {
         var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);

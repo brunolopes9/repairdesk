@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, FileText, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound, XCircle, CheckCircle2, History as HistoryIcon } from 'lucide-react';
+import { CreditCard, Download, FileText, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound, XCircle, CheckCircle2, History as HistoryIcon } from 'lucide-react';
+import { downloadFile } from '../../lib/downloadPdf';
 import { toast } from '../../lib/toast';
 import { clientesApi } from '../../lib/clientes/api';
 import type { Cliente } from '../../lib/clientes/types';
@@ -384,6 +385,17 @@ export default function Vendas() {
               onChange={(e) => setHistoricoTo(e.target.value)}
               className="rounded-md border border-zinc-200 px-2 py-1 dark:border-zinc-800 dark:bg-zinc-950"
             />
+            <button
+              type="button"
+              onClick={() => downloadFile(
+                `/vendas/export.csv?from=${historicoFrom}T00:00:00Z&to=${historicoTo}T23:59:59Z`,
+                `vendas_${historicoFrom}_${historicoTo}.csv`,
+              )}
+              className="ml-1 inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+              title="Exportar CSV do período seleccionado (Excel-friendly, UTF-8 com BOM)"
+            >
+              <Download size={13} /> CSV
+            </button>
           </div>
         </div>
 
