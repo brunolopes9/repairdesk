@@ -503,13 +503,13 @@ public class MoloniClient : IMoloniClient
     {
         var accessToken = ResolveAccessToken(settings);
         var baseUrl = ResolveBaseUrl(settings);
-        var uri = $"{baseUrl.TrimEnd('/')}/{endpoint.TrimStart('/')}?access_token={Uri.EscapeDataString(accessToken)}&json=true&human_errors=true";
+        // Moloni docs mostram URLs com trailing slash antes do `?` (e.g. companies/getAll/?...).
+        // Garantir que o endpoint acaba em `/` antes do querystring para evitar 403 espurios.
+        var path = endpoint.TrimStart('/').TrimEnd('/') + "/";
+        var uri = $"{baseUrl.TrimEnd('/')}/{path}?access_token={Uri.EscapeDataString(accessToken)}&json=true&human_errors=true";
 
         // Moloni docs sao explicitas: com json=true na querystring, o body eh JSON mas o
         // Content-Type tem de ser application/x-www-form-urlencoded (sim, weird).
-        // PostAsJsonAsync envia application/json -> Moloni rejeita endpoints "leves" como
-        // companies/getAll com 403 "No company_id received". Aqui construimos a requisicao
-        // manualmente com o header correcto.
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         using var request = new HttpRequestMessage(HttpMethod.Post, uri)
         {
@@ -517,6 +517,16 @@ public class MoloniClient : IMoloniClient
         };
         using var response = await _http.SendAsync(request, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            // Log do body completo para conseguirmos diagnosticar erros Moloni
+            _logger.LogWarning(
+                "Moloni {Endpoint} retornou {Status}. Body: {Body}",
+                endpoint,
+                (int)response.StatusCode,
+                content?.Length > 800 ? content[..800] : content);
+        }
 
         if (allowRefresh && IsAuthFailure(response.StatusCode, content) && CanRefresh(settings))
         {
