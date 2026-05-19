@@ -7,6 +7,7 @@ using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Billing;
 using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.Webhooks;
 
 namespace RepairDesk.Services.Vendas;
 
@@ -38,6 +39,7 @@ public class VendaService : IVendaService
     private readonly IGarantiaRepository _garantias;
     private readonly ITenantRepository _tenants;
     private readonly IReparacaoRepository _reparacoes;
+    private readonly IWebhookPublisher _webhooks;
 
     public VendaService(
         IVendaRepository vendas,
@@ -50,7 +52,8 @@ public class VendaService : IVendaService
         IInvoiceXpressClient invoiceXpress,
         IGarantiaRepository garantias,
         ITenantRepository tenants,
-        IReparacaoRepository reparacoes)
+        IReparacaoRepository reparacoes,
+        IWebhookPublisher webhooks)
     {
         _vendas = vendas;
         _parts = parts;
@@ -63,6 +66,7 @@ public class VendaService : IVendaService
         _garantias = garantias;
         _tenants = tenants;
         _reparacoes = reparacoes;
+        _webhooks = webhooks;
     }
 
     public async Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
@@ -260,6 +264,22 @@ public class VendaService : IVendaService
         };
         await _garantias.AddAsync(g, ct);
         await _garantias.SaveAsync(ct);
+
+        if (_tenant.TenantId is { } publishTenantId)
+        {
+            await _webhooks.PublishAsync(publishTenantId, WebhookEvents.GarantiaEmitida, new
+            {
+                garantiaId = g.Id,
+                slug = g.Slug,
+                origem = "Venda",
+                vendaId = venda.Id,
+                vendaNumero = venda.Numero,
+                clienteId = venda.ClienteId,
+                dataInicio = g.DataInicio,
+                dataFim = g.DataFim,
+                diasGarantia = g.DiasGarantia,
+            }, ct);
+        }
     }
 
     public async Task<InvoiceDto> EmitirFaturaAsync(Guid id, CancellationToken ct = default)
@@ -530,6 +550,19 @@ public class VendaService : IVendaService
 
         venda.Status = VendaStatus.Cancelada;
         await _vendas.SaveAsync(ct);
+
+        if (_tenant.TenantId is { } publishTenantId)
+        {
+            await _webhooks.PublishAsync(publishTenantId, WebhookEvents.VendaCancelada, new
+            {
+                vendaId = venda.Id,
+                vendaNumero = venda.Numero,
+                clienteId = venda.ClienteId,
+                totalCents = venda.TotalCents,
+                invoiceNumber = venda.InvoiceNumber,
+            }, ct);
+        }
+
         return ToDto(venda);
     }
 

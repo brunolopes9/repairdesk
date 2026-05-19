@@ -236,12 +236,18 @@ public class VendaServiceTests
             new FakeInvoiceXpressNoOp(),
             new GarantiaRepository(db),
             new TenantRepository(db),
-            new ReparacaoRepository(db));
+            new ReparacaoRepository(db),
+            new NoOpWebhookPublisher());
 
     private sealed class TestTenantContext(Guid tenantId) : ITenantContext
     {
         public Guid? TenantId { get; } = tenantId;
         public bool HasTenant => true;
+    }
+
+    private sealed class NoOpWebhookPublisher : RepairDesk.Services.Webhooks.IWebhookPublisher
+    {
+        public Task PublishAsync(Guid tenantId, string eventType, object payload, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class FakeBillingSettingsRepository : ITenantBillingSettingsRepository
