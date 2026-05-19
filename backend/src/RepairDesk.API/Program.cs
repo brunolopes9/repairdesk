@@ -21,10 +21,13 @@ using RepairDesk.Services.Documents;
 using RepairDesk.Services.Diagnostico;
 using RepairDesk.Services.EquipmentFields;
 using RepairDesk.Services.Parts;
+using RepairDesk.Services.Push;
 using RepairDesk.Services.PublicPortal;
 using RepairDesk.Services.Reparacoes;
+using RepairDesk.Services.Relatorios;
 using RepairDesk.Services.TenantSettings;
 using RepairDesk.Services.Trabalhos;
+using RepairDesk.Services.Vendas;
 using Serilog;
 
 #pragma warning disable CA1852 // Program class is referenced by Mvc.Testing
@@ -43,6 +46,7 @@ try
     builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
     builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
     builder.Services.Configure<AtNifLookupOptions>(builder.Configuration.GetSection(AtNifLookupOptions.SectionName));
+    builder.Services.Configure<PushOptions>(builder.Configuration.GetSection(PushOptions.SectionName));
     builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
     builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
@@ -140,10 +144,19 @@ try
     builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
     builder.Services.AddScoped<IDashboardService, DashboardService>();
 
+    // Vendas / POS
+    builder.Services.AddScoped<IVendaRepository, VendaRepository>();
+    builder.Services.AddScoped<IVendaService, VendaService>();
+
+    // Relatorios fiscais
+    builder.Services.AddScoped<IRelatorioFiscalRepository, RelatorioFiscalRepository>();
+    builder.Services.AddScoped<IRelatorioFiscalService, RelatorioFiscalService>();
+
     // Documents (PDF orçamento)
     QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
     builder.Services.AddScoped<ITenantRepository, TenantRepository>();
     builder.Services.AddScoped<IOrcamentoPdfService, OrcamentoPdfService>();
+    builder.Services.AddScoped<IVendaPdfService, VendaPdfService>();
 
     // Tenant settings
     builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();
@@ -154,6 +167,17 @@ try
 
     // Public portal (anonymous, rate-limited)
     builder.Services.AddScoped<IPublicPortalService, PublicPortalService>();
+    builder.Services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
+    builder.Services.AddScoped<ISystemSettingRepository, SystemSettingRepository>();
+    builder.Services.AddScoped<IVapidKeyProvider, VapidKeyProvider>();
+    builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
+    builder.Services.AddSingleton<IPushNotificationQueue, PushNotificationQueue>();
+    builder.Services.AddSingleton<IWebPushSender, WebPushSender>();
+    if (!builder.Environment.IsEnvironment("Testing"))
+    {
+        builder.Services.AddHostedService<PushNotificationWorker>();
+        builder.Services.AddHostedService<PushSubscriptionCleanupWorker>();
+    }
 
     // Diagnóstico guiado + Health Score
     builder.Services.AddScoped<IDiagnosticoRepository, RepairDesk.DAL.Persistence.DiagnosticoRepository>();

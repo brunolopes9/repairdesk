@@ -45,6 +45,36 @@ public sealed record ConnectMoloniRequest(string Username, string Password);
 
 public sealed record MoloniCompanyDto(int Id, string Name);
 
+public sealed record MoloniProductDto(int Id, string Name, bool IsActive);
+
+public sealed record MoloniTaxDto(int Id, string Name, decimal Value, bool IsActive, string? ExemptionReasonCode);
+
+public sealed record MoloniPaymentMethodDto(int Id, string Name, bool IsActive);
+
+public sealed record MoloniMaturityDateDto(int Id, string Name, bool IsActive);
+
+public sealed record MoloniCustomerDto(int Id, string Name, string? Vat, bool IsActive);
+
+public sealed record MoloniAutoDiscoverStepDto(
+    string Key,
+    string Label,
+    bool Success,
+    bool Created,
+    int? Id,
+    string? Name,
+    string? Message);
+
+public sealed record MoloniAutoDiscoverResultDto(
+    int ProductsFound,
+    int TaxesFound,
+    int PaymentMethodsFound,
+    int MaturityDatesFound,
+    int CustomersFound,
+    IReadOnlyList<MoloniAutoDiscoverStepDto> Steps,
+    TenantBillingSettingsDto Settings);
+
+public sealed record MoloniOAuthStartDto(string AuthorizationUrl, DateTime ExpiresAt);
+
 public sealed record EmitInvoiceRequest(decimal? VatPercent, string? PaymentMethod);
 
 public sealed record InvoiceDto(string Number, string? PdfUrl, DateTime EmittedAt);

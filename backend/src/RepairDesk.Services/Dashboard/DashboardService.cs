@@ -124,6 +124,8 @@ public class DashboardService : IDashboardService
             s.ReceitaCentsMes,
             s.DespesasCentsMes,
             s.ReceitaCentsMes - s.DespesasCentsMes,
+            s.VendasHojeCents,
+            s.VendasMesCents,
             s.ReparacoesAbertas,
             s.TrabalhosAbertos,
             s.ReparacoesEntreguesMes,
@@ -131,8 +133,11 @@ public class DashboardService : IDashboardService
         var topClientes = s.TopClientes
             .Select(t => new TopCliente(t.Id, t.Nome, t.TotalCents, t.Trabalhos))
             .ToList();
+        var topProdutos = s.TopProdutosVendidos
+            .Select(t => new TopProdutoVendido(t.PartId, t.Descricao, t.Quantidade, t.TotalCents))
+            .ToList();
         var receita = s.ReceitaPorCategoria.Select(r => new CategoriaBreakdown(r.Label, r.Count, r.TotalCents)).ToList();
         var despesa = s.DespesaPorCategoria.Select(r => new CategoriaBreakdown(r.Label, r.Count, r.TotalCents)).ToList();
-        return new DashboardResponse(kpis, receita, despesa, topClientes);
+        return new DashboardResponse(kpis, receita, despesa, topClientes, topProdutos);
     }
 }

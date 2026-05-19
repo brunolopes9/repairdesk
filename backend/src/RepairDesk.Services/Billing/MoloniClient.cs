@@ -77,39 +77,26 @@ public class MoloniClient : IMoloniClient
 
     public async Task<MoloniInvoiceResult> InsertInvoiceAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default)
     {
-        EnsureReadyToInvoice(settings, draft.VatPercent);
+        var draftItems = draft.Items is { Count: > 0 }
+            ? draft.Items
+            : new[]
+            {
+                new MoloniInvoiceDraftItem(
+                    draft.ItemName,
+                    draft.Summary,
+                    1,
+                    draft.AmountCents,
+                    0,
+                    draft.VatPercent),
+            };
+
+        EnsureReadyToInvoice(settings, draftItems.Max(i => i.VatPercent));
 
         var today = DateTime.UtcNow.Date;
-        var price = Math.Round(draft.AmountCents / 100m, 2);
-        var product = new Dictionary<string, object?>
-        {
-            ["product_id"] = settings.DefaultProductId!.Value,
-            ["name"] = draft.ItemName,
-            ["summary"] = draft.Summary,
-            ["qty"] = 1,
-            ["price"] = price,
-            ["discount"] = 0,
-            ["order"] = 1,
-        };
-
-        if (draft.VatPercent > 0)
-        {
-            product["taxes"] = new[]
-            {
-                new Dictionary<string, object?>
-                {
-                    ["tax_id"] = settings.DefaultTaxId!.Value,
-                    ["value"] = draft.VatPercent,
-                    ["order"] = 1,
-                    ["cumulative"] = 0,
-                },
-            };
-        }
-        else
-        {
-            product["exemption_reason"] = settings.ExemptionReason;
-            product["taxes"] = Array.Empty<object>();
-        }
+        var products = draftItems
+            .Select((item, index) => BuildProduct(settings, item, index + 1))
+            .ToArray();
+        var documentType = draft.DocumentTypeOverride ?? settings.DefaultDocumentType;
 
         var payload = new Dictionary<string, object?>
         {
@@ -121,28 +108,29 @@ public class MoloniClient : IMoloniClient
             ["our_reference"] = draft.Reference,
             ["your_reference"] = draft.Reference,
             ["status"] = 1,
-            ["products"] = new[] { product },
+            ["products"] = products,
         };
 
         if (settings.DefaultMaturityDateId is { } maturityDateId)
             payload["maturity_date_id"] = maturityDateId;
 
-        if (settings.DefaultDocumentType == BillingDocumentType.FaturaSimplificada
+        if (documentType == BillingDocumentType.FaturaSimplificada
             && settings.DefaultPaymentMethodId is { } paymentMethodId)
         {
+            var totalGross = draftItems.Sum(i => Math.Max(0, i.Quantity * i.UnitPriceCents - i.DiscountCents)) / 100m;
             payload["payments"] = new[]
             {
                 new Dictionary<string, object?>
                 {
                     ["payment_method_id"] = paymentMethodId,
                     ["date"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                    ["value"] = price,
+                    ["value"] = Math.Round(totalGross, 2),
                     ["notes"] = draft.PaymentMethod,
                 },
             };
         }
 
-        var endpoint = settings.DefaultDocumentType == BillingDocumentType.FaturaSimplificada
+        var endpoint = documentType == BillingDocumentType.FaturaSimplificada
             ? "simplifiedInvoices/insert"
             : "invoices/insert";
 
@@ -169,6 +157,49 @@ public class MoloniClient : IMoloniClient
             number,
             GetString(pdf, "url"),
             DateTime.UtcNow);
+    }
+
+    private static Dictionary<string, object?> BuildProduct(TenantBillingSettings settings, MoloniInvoiceDraftItem item, int order)
+    {
+        var grossUnit = item.UnitPriceCents / 100m;
+        var netUnit = item.VatPercent > 0
+            ? grossUnit / (1 + item.VatPercent / 100m)
+            : grossUnit;
+        var discountPercent = item.Quantity * item.UnitPriceCents <= 0
+            ? 0m
+            : Math.Round(item.DiscountCents / (decimal)(item.Quantity * item.UnitPriceCents) * 100m, 4);
+
+        var product = new Dictionary<string, object?>
+        {
+            ["product_id"] = settings.DefaultProductId!.Value,
+            ["name"] = item.Name,
+            ["summary"] = item.Summary,
+            ["qty"] = item.Quantity,
+            ["price"] = Math.Round(netUnit, 4),
+            ["discount"] = discountPercent,
+            ["order"] = order,
+        };
+
+        if (item.VatPercent > 0)
+        {
+            product["taxes"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["tax_id"] = settings.DefaultTaxId!.Value,
+                    ["value"] = item.VatPercent,
+                    ["order"] = 1,
+                    ["cumulative"] = 0,
+                },
+            };
+        }
+        else
+        {
+            product["exemption_reason"] = settings.ExemptionReason;
+            product["taxes"] = Array.Empty<object>();
+        }
+
+        return product;
     }
 
     public async Task ConnectViaPasswordGrantAsync(TenantBillingSettings settings, string username, string password, CancellationToken ct = default)
@@ -221,6 +252,56 @@ public class MoloniClient : IMoloniClient
         _logger.LogInformation("Moloni connected via password grant for tenant {TenantId}", settings.TenantId);
     }
 
+    public async Task ExchangeAuthorizationCodeAsync(TenantBillingSettings settings, string code, string redirectUri, CancellationToken ct = default)
+    {
+        if (settings.Provider != BillingProvider.Moloni)
+            throw new ValidationException("billing_provider_not_moloni", "Configura Moloni como provider antes de ligar.");
+        if (string.IsNullOrWhiteSpace(settings.ClientId))
+            throw new ValidationException("moloni_client_id_missing", "Preenche o Developer ID Moloni antes de ligar.");
+        if (string.IsNullOrWhiteSpace(settings.ClientSecretCipherText))
+            throw new ValidationException("moloni_client_secret_missing", "Preenche o Client Secret Moloni antes de ligar.");
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ValidationException("moloni_code_missing", "A Moloni nao devolveu codigo de autorizacao.");
+        if (string.IsNullOrWhiteSpace(redirectUri))
+            throw new ValidationException("moloni_redirect_uri_missing", "Redirect URI Moloni nao configurado.");
+
+        var clientSecret = _secrets.Unprotect(settings.ClientSecretCipherText);
+        var baseUrl = ResolveBaseUrl(settings).TrimEnd('/');
+
+        var uri =
+            $"{baseUrl}/grant/?grant_type=authorization_code" +
+            $"&client_id={Uri.EscapeDataString(settings.ClientId)}" +
+            $"&client_secret={Uri.EscapeDataString(clientSecret)}" +
+            $"&code={Uri.EscapeDataString(code)}" +
+            $"&redirect_uri={Uri.EscapeDataString(redirectUri)}";
+
+        using var response = await _http.GetAsync(uri, ct);
+        var content = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var msg = ExtractMoloniError(content);
+            _logger.LogWarning("Moloni authorization code exchange rejected for tenant {TenantId}: {Status} {Body}", settings.TenantId, (int)response.StatusCode, msg);
+            throw new BillingProviderException(
+                "moloni_oauth_exchange_failed",
+                $"Moloni rejeitou a autorizacao (HTTP {(int)response.StatusCode}): {msg}");
+        }
+
+        using var doc = JsonDocument.Parse(content);
+        var root = doc.RootElement;
+        var accessToken = GetString(root, "access_token");
+        var refreshToken = GetString(root, "refresh_token");
+
+        if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(refreshToken))
+            throw new BillingProviderException("moloni_oauth_invalid_response", "Resposta de autenticacao Moloni invalida.");
+
+        settings.ApiKeyCipherText = _secrets.Protect(accessToken);
+        settings.RefreshTokenCipherText = _secrets.Protect(refreshToken);
+
+        await _repo.SaveAsync(ct);
+        _logger.LogInformation("Moloni connected via authorization_code for tenant {TenantId}", settings.TenantId);
+    }
+
     public async Task<IReadOnlyList<MoloniCompanyDto>> GetCompaniesAsync(TenantBillingSettings settings, CancellationToken ct = default)
     {
         if (settings.Provider != BillingProvider.Moloni)
@@ -240,6 +321,161 @@ public class MoloniClient : IMoloniClient
             companies.Add(new MoloniCompanyDto(id, name));
         }
         return companies;
+    }
+
+    public async Task<IReadOnlyList<MoloniProductDto>> GetProductsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        var result = await PostAsync<JsonElement>(
+            settings,
+            "products/getAll",
+            new { company_id = settings.CompanyId!.Value, qty = 500, page = 1 },
+            ct);
+
+        return EnumerateItems(result, "products", "data")
+            .Select(item =>
+            {
+                var id = GetIntAny(item, "product_id", "id");
+                var name = GetStringAny(item, "name", "title") ?? $"Produto {id}";
+                return id > 0 ? new MoloniProductDto(id, name, GetActive(item)) : null;
+            })
+            .Where(x => x is not null)
+            .Cast<MoloniProductDto>()
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<MoloniTaxDto>> GetTaxesAsync(TenantBillingSettings settings, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        var result = await PostAsync<JsonElement>(
+            settings,
+            "taxes/getAll",
+            new { company_id = settings.CompanyId!.Value, qty = 500, page = 1 },
+            ct);
+
+        return EnumerateItems(result, "taxes", "data")
+            .Select(item =>
+            {
+                var id = GetIntAny(item, "tax_id", "id");
+                var name = GetStringAny(item, "name", "title") ?? $"IVA {id}";
+                var value = GetDecimalAny(item, "value", "percentage", "tax_value");
+                var exemptionCode = GetStringAny(item, "exemption_reason", "exemption_reason_code", "saft_exemption_reason");
+                return id > 0 ? new MoloniTaxDto(id, name, value, GetActive(item), exemptionCode) : null;
+            })
+            .Where(x => x is not null)
+            .Cast<MoloniTaxDto>()
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<MoloniPaymentMethodDto>> GetPaymentMethodsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        var result = await PostAsync<JsonElement>(
+            settings,
+            "paymentMethods/getAll",
+            new { company_id = settings.CompanyId!.Value, qty = 500, page = 1 },
+            ct);
+
+        return EnumerateItems(result, "payment_methods", "paymentMethods", "data")
+            .Select(item =>
+            {
+                var id = GetIntAny(item, "payment_method_id", "id");
+                var name = GetStringAny(item, "name", "title") ?? $"Método {id}";
+                return id > 0 ? new MoloniPaymentMethodDto(id, name, GetActive(item)) : null;
+            })
+            .Where(x => x is not null)
+            .Cast<MoloniPaymentMethodDto>()
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<MoloniMaturityDateDto>> GetMaturityDatesAsync(TenantBillingSettings settings, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        var result = await PostAsync<JsonElement>(
+            settings,
+            "maturityDates/getAll",
+            new { company_id = settings.CompanyId!.Value, qty = 500, page = 1 },
+            ct);
+
+        return EnumerateItems(result, "maturity_dates", "maturityDates", "data")
+            .Select(item =>
+            {
+                var id = GetIntAny(item, "maturity_date_id", "id");
+                var name = GetStringAny(item, "name", "title") ?? $"Prazo {id}";
+                return id > 0 ? new MoloniMaturityDateDto(id, name, GetActive(item)) : null;
+            })
+            .Where(x => x is not null)
+            .Cast<MoloniMaturityDateDto>()
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<MoloniCustomerDto>> GetCustomersAsync(TenantBillingSettings settings, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        var result = await PostAsync<JsonElement>(
+            settings,
+            "customers/getAll",
+            new { company_id = settings.CompanyId!.Value, qty = 500, page = 1 },
+            ct);
+
+        return EnumerateItems(result, "customers", "data")
+            .Select(item =>
+            {
+                var id = GetIntAny(item, "customer_id", "id");
+                var name = GetStringAny(item, "name", "title") ?? $"Cliente {id}";
+                var vat = GetStringAny(item, "vat", "nif", "tax_number");
+                return id > 0 ? new MoloniCustomerDto(id, name, vat, GetActive(item)) : null;
+            })
+            .Where(x => x is not null)
+            .Cast<MoloniCustomerDto>()
+            .ToArray();
+    }
+
+    public async Task<MoloniProductDto> InsertProductAsync(TenantBillingSettings settings, string name, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        var payload = new Dictionary<string, object?>
+        {
+            ["company_id"] = settings.CompanyId!.Value,
+            ["name"] = name,
+            ["reference"] = "REPAIR-SERVICE",
+            ["summary"] = name,
+            ["price"] = 0m,
+            ["type"] = 1,
+            ["has_stock"] = 0,
+            ["visible"] = 1,
+        };
+
+        var result = await PostAsync<JsonElement>(settings, "products/insert", payload, ct);
+        var id = GetIntAny(result, "product_id", "id");
+        if (id <= 0)
+            throw new BillingProviderException("moloni_product_insert_missing_id", "A Moloni criou produto sem devolver product_id.");
+
+        return new MoloniProductDto(id, name, true);
+    }
+
+    public async Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        var payload = new Dictionary<string, object?>
+        {
+            ["company_id"] = settings.CompanyId!.Value,
+            ["name"] = name,
+            ["vat"] = vat,
+            ["number"] = vat,
+            ["language_id"] = 1,
+            ["country_id"] = 1,
+            ["address"] = "Consumidor final",
+            ["zip_code"] = "0000-000",
+            ["city"] = "Portugal",
+        };
+
+        var result = await PostAsync<JsonElement>(settings, "customers/insert", payload, ct);
+        var id = GetIntAny(result, "customer_id", "id");
+        if (id <= 0)
+            throw new BillingProviderException("moloni_customer_insert_missing_id", "A Moloni criou cliente sem devolver customer_id.");
+
+        return new MoloniCustomerDto(id, name, vat, true);
     }
 
     public async Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string documentId, CancellationToken ct = default)
@@ -465,7 +701,7 @@ public class MoloniClient : IMoloniClient
             throw new ValidationException("moloni_serie_missing", "Configura a serie Moloni por defeito.");
         if (settings.DefaultProductId is null or <= 0)
             throw new ValidationException("moloni_product_missing", "Configura o produto/servico Moloni por defeito.");
-        if (vatPercent > 0 && settings.DefaultTaxId is null or <= 0)
+        if (vatPercent > 0 && (settings.DefaultTaxId is null or <= 0))
             throw new ValidationException("moloni_tax_missing", "Configura o TaxId Moloni para documentos com IVA.");
         if (vatPercent <= 0 && string.IsNullOrWhiteSpace(settings.ExemptionReason))
             throw new ValidationException("moloni_exemption_missing", "Configura o motivo de isencao Moloni.");
@@ -485,6 +721,74 @@ public class MoloniClient : IMoloniClient
         return $"Moloni #{fallbackId}";
     }
 
+    private static IEnumerable<JsonElement> EnumerateItems(JsonElement root, params string[] arrayPropertyNames)
+    {
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in root.EnumerateArray())
+                yield return item;
+            yield break;
+        }
+
+        if (root.ValueKind != JsonValueKind.Object)
+            yield break;
+
+        foreach (var propertyName in arrayPropertyNames)
+        {
+            if (root.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in prop.EnumerateArray())
+                    yield return item;
+                yield break;
+            }
+        }
+    }
+
+    private static int GetIntAny(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = GetInt(element, name);
+            if (value != 0) return value;
+        }
+
+        return 0;
+    }
+
+    private static decimal GetDecimalAny(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var prop)) continue;
+            var value = ReadDecimal(prop);
+            if (value != 0m) return value;
+        }
+
+        return 0m;
+    }
+
+    private static string? GetStringAny(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = GetString(element, name);
+            if (!string.IsNullOrWhiteSpace(value)) return value;
+        }
+
+        return null;
+    }
+
+    private static bool GetActive(JsonElement item)
+    {
+        foreach (var name in new[] { "active", "is_active", "visible", "enabled" })
+        {
+            if (item.TryGetProperty(name, out var prop))
+                return ReadBool(prop);
+        }
+
+        return true;
+    }
+
     private static int GetInt(JsonElement element, string name)
     {
         if (!element.TryGetProperty(name, out var prop)) return 0;
@@ -496,6 +800,29 @@ public class MoloniClient : IMoloniClient
         if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out var value)) return value;
         if (prop.ValueKind == JsonValueKind.String && int.TryParse(prop.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value)) return value;
         return 0;
+    }
+
+    private static decimal ReadDecimal(JsonElement prop)
+    {
+        if (prop.ValueKind == JsonValueKind.Number && prop.TryGetDecimal(out var value)) return value;
+        if (prop.ValueKind == JsonValueKind.String && decimal.TryParse(prop.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out value)) return value;
+        return 0m;
+    }
+
+    private static bool ReadBool(JsonElement prop)
+    {
+        if (prop.ValueKind == JsonValueKind.True) return true;
+        if (prop.ValueKind == JsonValueKind.False) return false;
+        if (prop.ValueKind == JsonValueKind.Number) return ReadInt(prop) != 0;
+        if (prop.ValueKind == JsonValueKind.String)
+        {
+            var value = prop.GetString();
+            return string.Equals(value, "1", StringComparison.Ordinal)
+                   || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
     }
 
     private static string? GetString(JsonElement element, string name)

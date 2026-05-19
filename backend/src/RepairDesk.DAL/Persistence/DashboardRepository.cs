@@ -33,9 +33,19 @@ public class DashboardRepository : IDashboardRepository
                         && (t.EstadoPagamento == PaymentStatus.Pago || t.EstadoPagamento == PaymentStatus.PagoParcial))
             .Select(t => new { t.PrecoFinalCents, t.OrcamentoCents, t.Categoria })
             .ToListAsync(ct);
+        var vendasPagas = await _db.Vendas
+            .Where(v => v.Status == VendaStatus.Paga && v.Data >= fromUtc && v.Data < toUtc)
+            .Select(v => new { v.Id, v.ClienteId, ClienteNome = v.Cliente != null ? v.Cliente.Nome : null, v.TotalCents, v.Data })
+            .ToListAsync(ct);
 
         var receitaCents = reparacoesPagas.Sum(r => r.PrecoFinalCents ?? r.OrcamentoCents ?? 0)
-                         + trabalhosPagos.Sum(t => t.PrecoFinalCents ?? t.OrcamentoCents ?? 0);
+                         + trabalhosPagos.Sum(t => t.PrecoFinalCents ?? t.OrcamentoCents ?? 0)
+                         + vendasPagas.Sum(v => v.TotalCents);
+        var hoje = DateTime.UtcNow.Date;
+        var vendasHojeCents = vendasPagas
+            .Where(v => v.Data >= hoje && v.Data < hoje.AddDays(1))
+            .Sum(v => v.TotalCents);
+        var vendasMesCents = vendasPagas.Sum(v => v.TotalCents);
 
         // Despesas do mês
         var despesas = await _db.Despesas
@@ -68,6 +78,10 @@ public class DashboardRepository : IDashboardRepository
                 LabelFor(g.Key),
                 g.Count(),
                 g.Sum(t => t.PrecoFinalCents ?? t.OrcamentoCents ?? 0))));
+        if (vendasPagas.Count > 0)
+        {
+            receitaPorCategoria.Add(new CategoriaTotal("Vendas", vendasPagas.Count, vendasPagas.Sum(v => v.TotalCents)));
+        }
 
         // Despesa por categoria
         var despesaPorCategoria = despesas
@@ -93,8 +107,13 @@ public class DashboardRepository : IDashboardRepository
                      && t.ClienteId != null && t.Cliente != null)
             .Select(t => new { ClienteId = t.ClienteId!.Value, Nome = t.Cliente!.Nome, Cents = t.PrecoFinalCents ?? t.OrcamentoCents ?? 0 })
             .ToListAsync(ct);
+        var clientesVendas = await _db.Vendas
+            .Where(v => v.Status == VendaStatus.Paga && v.Data >= ninetyDaysAgo
+                     && v.ClienteId != null && v.Cliente != null)
+            .Select(v => new { ClienteId = v.ClienteId!.Value, Nome = v.Cliente!.Nome, Cents = v.TotalCents })
+            .ToListAsync(ct);
 
-        var topClientes = clientesReparacoes.Cast<dynamic>().Concat(clientesTrabalhos.Cast<dynamic>())
+        var topClientes = clientesReparacoes.Cast<dynamic>().Concat(clientesTrabalhos.Cast<dynamic>()).Concat(clientesVendas.Cast<dynamic>())
             .GroupBy(x => (Guid)x.ClienteId)
             .Select(g => new TopClienteRow(
                 g.Key,
@@ -104,17 +123,35 @@ public class DashboardRepository : IDashboardRepository
             .OrderByDescending(c => c.TotalCents)
             .Take(5)
             .ToList();
+        var vendaItemsPagos = await _db.VendaItems
+            .AsNoTracking()
+            .Where(i => i.Venda != null && i.Venda.Status == VendaStatus.Paga && i.Venda.Data >= fromUtc && i.Venda.Data < toUtc)
+            .Select(i => new { i.PartId, i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents })
+            .ToListAsync(ct);
+        var topProdutos = vendaItemsPagos
+            .GroupBy(i => new { i.PartId, i.Descricao })
+            .Select(g => new TopProdutoVendidoRow(
+                g.Key.PartId,
+                g.Key.Descricao,
+                g.Sum(x => x.Quantidade),
+                g.Sum(x => Math.Max(0, x.Quantidade * x.PrecoUnitarioCents - x.DescontoCents))))
+            .OrderByDescending(x => x.TotalCents)
+            .Take(5)
+            .ToList();
 
         return new DashboardSnapshot(
             ReceitaCentsMes: receitaCents,
             DespesasCentsMes: despesasCents,
+            VendasHojeCents: vendasHojeCents,
+            VendasMesCents: vendasMesCents,
             ReparacoesAbertas: reparacoesAbertas,
             TrabalhosAbertos: trabalhosAbertos,
             ReparacoesEntreguesMes: reparacoesEntreguesMes,
             TrabalhosConcluidosMes: trabalhosConcluidosMes,
             ReceitaPorCategoria: receitaPorCategoria.OrderByDescending(c => c.TotalCents).ToList(),
             DespesaPorCategoria: despesaPorCategoria,
-            TopClientes: topClientes);
+            TopClientes: topClientes,
+            TopProdutosVendidos: topProdutos);
     }
 
     public async Task<FinanceiroSnapshot> GetFinanceiroAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)

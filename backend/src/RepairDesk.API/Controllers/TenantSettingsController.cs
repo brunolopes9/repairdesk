@@ -61,4 +61,8 @@ public class TenantSettingsController : ControllerBase
     [HttpGet("me/billing/moloni/companies")]
     public Task<IReadOnlyList<MoloniCompanyDto>> ListMoloniCompanies(CancellationToken ct)
         => _billing.ListCompaniesAsync(ct);
+
+    [HttpPost("me/billing/moloni/auto-discover")]
+    public Task<MoloniAutoDiscoverResultDto> AutoDiscoverMoloni(CancellationToken ct)
+        => _billing.AutoDiscoverAsync(ct);
 }

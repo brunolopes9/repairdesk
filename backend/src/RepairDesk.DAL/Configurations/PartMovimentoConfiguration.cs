@@ -25,7 +25,13 @@ public class PartMovimentoConfiguration : IEntityTypeConfiguration<PartMovimento
             .HasForeignKey(x => x.ReparacaoId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne(x => x.Venda)
+            .WithMany()
+            .HasForeignKey(x => x.VendaId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(x => new { x.TenantId, x.PartId, x.CreatedAt });
         builder.HasIndex(x => new { x.TenantId, x.ReparacaoId }).HasFilter("[ReparacaoId] IS NOT NULL");
+        builder.HasIndex(x => new { x.TenantId, x.VendaId }).HasFilter("[VendaId] IS NOT NULL");
     }
 }

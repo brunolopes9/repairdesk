@@ -14,5 +14,7 @@ public class PartMovimento : BaseEntity, ITenantEntity
     public PartMovimentoMotivo Motivo { get; set; } = PartMovimentoMotivo.AjusteManual;
     public Guid? ReparacaoId { get; set; }
     public Reparacao? Reparacao { get; set; }
+    public Guid? VendaId { get; set; }
+    public Venda? Venda { get; set; }
     public string? Notas { get; set; }
 }

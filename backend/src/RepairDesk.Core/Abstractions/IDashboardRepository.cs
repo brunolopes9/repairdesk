@@ -14,16 +14,20 @@ public interface IDashboardRepository
 public sealed record DashboardSnapshot(
     int ReceitaCentsMes,
     int DespesasCentsMes,
+    int VendasHojeCents,
+    int VendasMesCents,
     int ReparacoesAbertas,
     int TrabalhosAbertos,
     int ReparacoesEntreguesMes,
     int TrabalhosConcluidosMes,
     IReadOnlyList<CategoriaTotal> ReceitaPorCategoria,
     IReadOnlyList<CategoriaTotal> DespesaPorCategoria,
-    IReadOnlyList<TopClienteRow> TopClientes);
+    IReadOnlyList<TopClienteRow> TopClientes,
+    IReadOnlyList<TopProdutoVendidoRow> TopProdutosVendidos);
 
 public sealed record CategoriaTotal(string Label, int Count, int TotalCents);
 public sealed record TopClienteRow(Guid Id, string Nome, int TotalCents, int Trabalhos);
+public sealed record TopProdutoVendidoRow(Guid? PartId, string Descricao, int Quantidade, int TotalCents);
 
 public sealed record FinanceiroSnapshot(
     int ReceitaRealizadaCents,

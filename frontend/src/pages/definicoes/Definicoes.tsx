@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { AlertTriangle, CheckCircle2, Cpu, Plus, Settings, ShieldCheck, Star, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Cpu, Loader2, Plus, Settings, ShieldCheck, Star, Trash2, Wand2 } from 'lucide-react';
 import { EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { validateNif } from '../../lib/nif/validator';
@@ -18,6 +18,7 @@ import {
 import { toast } from '../../lib/toast';
 import {
   REGIME_FISCAL_LABELS,
+  type MoloniAutoDiscoverStep,
   type RegimeFiscal,
   type TenantBillingSettings,
   type TenantSettings,
@@ -336,10 +337,56 @@ function FaturacaoSection() {
   const [series, setSeries] = useState<{ id: number; name: string }[]>([]);
   const [showConnect, setShowConnect] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [autoDiscoverSteps, setAutoDiscoverSteps] = useState<MoloniAutoDiscoverStep[]>([]);
+  const oauthPollRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (billing.data) setForm(toBillingForm(billing.data));
   }, [billing.data]);
+
+  useEffect(() => {
+    function stopPolling() {
+      if (oauthPollRef.current != null) {
+        window.clearInterval(oauthPollRef.current);
+        oauthPollRef.current = null;
+      }
+    }
+
+    function handleOAuthMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as { type?: string; status?: string; message?: string } | null;
+      if (data?.type !== 'moloni-oauth') return;
+
+      stopPolling();
+      qc.invalidateQueries({ queryKey: ['tenant-billing-settings'] });
+      if (data.status === 'connected') toast.success('Ligado a Moloni', 'Autorizacao concluida sem partilhar password.');
+      else toast.error('Ligacao Moloni falhou', data.message ?? 'Tenta novamente.');
+    }
+
+    window.addEventListener('message', handleOAuthMessage);
+    return () => {
+      stopPolling();
+      window.removeEventListener('message', handleOAuthMessage);
+    };
+  }, [qc]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('moloni');
+    if (!status) return;
+
+    const message = params.get('msg') ?? undefined;
+    if (window.opener) {
+      window.opener.postMessage({ type: 'moloni-oauth', status, message }, window.location.origin);
+      window.close();
+      return;
+    }
+
+    qc.invalidateQueries({ queryKey: ['tenant-billing-settings'] });
+    if (status === 'connected') toast.success('Ligado a Moloni', 'Autorizacao concluida.');
+    if (status === 'error') toast.error('Ligacao Moloni falhou', message ?? 'Tenta novamente.');
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [qc]);
 
   const save = useMutation({
     mutationFn: (payload: UpdateTenantBillingSettings) => tenantSettingsApi.updateBilling(payload),
@@ -367,6 +414,59 @@ function FaturacaoSection() {
     onError: (err) => toast.fromError(err, 'Não foi possível sincronizar séries.'),
   });
 
+  const detectCompany = useMutation({
+    mutationFn: () => tenantSettingsApi.listMoloniCompanies(),
+    onSuccess: async (companies) => {
+      if (companies.length === 0) {
+        toast.fromError(new Error('Sem empresas'), 'A tua conta Moloni não tem empresas configuradas.');
+        return;
+      }
+      if (companies.length === 1) {
+        const c = companies[0];
+        setForm((prev) => (prev ? { ...prev, companyId: c.id } : prev));
+        save.mutate({ ...form!, companyId: c.id });
+        toast.success('Empresa detectada', `${c.name} (ID ${c.id}) seleccionada automaticamente.`);
+      } else {
+        const names = companies.map((c) => `${c.name} (${c.id})`).join('\n');
+        const choice = window.prompt(
+          `A tua conta Moloni tem ${companies.length} empresas:\n\n${names}\n\nCola o ID da que queres usar:`,
+          String(companies[0].id),
+        );
+        const id = choice ? parseInt(choice, 10) : NaN;
+        if (Number.isFinite(id) && companies.some((c) => c.id === id)) {
+          setForm((prev) => (prev ? { ...prev, companyId: id } : prev));
+          save.mutate({ ...form!, companyId: id });
+        }
+      }
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível listar empresas Moloni.'),
+  });
+
+  const autoDiscover = useMutation({
+    mutationFn: () => tenantSettingsApi.autoDiscoverMoloni(),
+    onMutate: () => {
+      setAutoDiscoverSteps([
+        { key: 'product', label: 'Produto/serviço', success: false, created: false, id: null, name: null, message: 'A procurar serviço de reparação...' },
+        { key: 'tax', label: 'IVA', success: false, created: false, id: null, name: null, message: 'A escolher imposto...' },
+        { key: 'payment', label: 'Método de pagamento', success: false, created: false, id: null, name: null, message: 'A escolher Numerário...' },
+        { key: 'maturity', label: 'Prazo de vencimento', success: false, created: false, id: null, name: null, message: 'A escolher pronto pagamento...' },
+        { key: 'customer', label: 'Cliente fallback', success: false, created: false, id: null, name: null, message: 'A procurar Consumidor Final...' },
+      ]);
+    },
+    onSuccess: (result) => {
+      qc.setQueryData(['tenant-billing-settings'], result.settings);
+      setForm(toBillingForm(result.settings));
+      setAutoDiscoverSteps(result.steps);
+      const failed = result.steps.filter((step) => !step.success).length;
+      if (failed > 0) {
+        toast.warning('Auto-configuração parcial', `${failed} item(ns) precisam de revisão manual.`);
+      } else {
+        toast.success('Moloni auto-configurado', 'IDs operacionais preenchidos automaticamente.');
+      }
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível auto-configurar a Moloni.'),
+  });
+
   const disconnect = useMutation({
     mutationFn: () => tenantSettingsApi.disconnectMoloni(),
     onSuccess: (saved) => {
@@ -375,6 +475,28 @@ function FaturacaoSection() {
       toast.success('Desligado', 'A conta Moloni foi desligada. Os tokens foram apagados.');
     },
     onError: (err) => toast.fromError(err, 'Não foi possível desligar.'),
+  });
+
+  const startOAuth = useMutation({
+    mutationFn: () => tenantSettingsApi.startMoloniOAuth(),
+    onSuccess: (result) => {
+      const popup = window.open(result.authorizationUrl, 'moloni-oauth', 'width=500,height=700');
+      if (!popup) {
+        toast.error('Popup bloqueado', 'Permite popups para abrir a autorizacao Moloni.');
+        return;
+      }
+
+      oauthPollRef.current = window.setInterval(() => {
+        if (popup.closed) {
+          if (oauthPollRef.current != null) {
+            window.clearInterval(oauthPollRef.current);
+            oauthPollRef.current = null;
+          }
+          qc.invalidateQueries({ queryKey: ['tenant-billing-settings'] });
+        }
+      }, 1000);
+    },
+    onError: (err) => toast.fromError(err, 'Nao foi possivel iniciar OAuth Moloni.'),
   });
 
   if (billing.isLoading || !form) {
@@ -479,14 +601,24 @@ function FaturacaoSection() {
           </div>
         ) : (
           <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowConnect(true)}
-              disabled={!canConnect || form.provider !== 1}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Ligar Moloni
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => startOAuth.mutate()}
+                disabled={!canConnect || form.provider !== 1 || startOAuth.isPending}
+                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {startOAuth.isPending ? 'A abrir...' : 'Ligar via OAuth (recomendado)'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowConnect(true)}
+                disabled={!canConnect || form.provider !== 1}
+                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Ligar com email/password
+              </button>
+            </div>
             {!canConnect && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Preenche Developer ID e Client Secret no passo 1 e clica em <strong>Guardar credenciais</strong> primeiro.
@@ -508,9 +640,19 @@ function FaturacaoSection() {
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field
               label="Company ID"
-              hint="ID numérico da empresa Moloni. Vês na URL quando abres a empresa no painel Moloni."
+              hint="ID numérico da empresa Moloni. Clica Detectar para auto-preencher (se só tens 1 empresa) ou escolher de uma lista."
             >
-              <NumberInput value={form.companyId} onChange={(v) => update('companyId', v)} />
+              <div className="flex gap-2">
+                <NumberInput value={form.companyId} onChange={(v) => update('companyId', v)} />
+                <button
+                  type="button"
+                  onClick={() => detectCompany.mutate()}
+                  disabled={detectCompany.isPending}
+                  className="rounded-lg border border-zinc-200 px-3 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  {detectCompany.isPending ? 'A detectar...' : 'Detectar'}
+                </button>
+              </div>
             </Field>
             <Field
               label="Tipo de documento por defeito"
@@ -543,6 +685,57 @@ function FaturacaoSection() {
           </div>
 
           {/* IDs avançados — colapsível */}
+          <div className="rounded-lg border border-brand-200 bg-brand-50/40 p-4 dark:border-brand-900/40 dark:bg-brand-950/20">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Auto-configurar IDs operacionais</p>
+                <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                  Procura serviço de reparação, IVA, Numerário, pronto pagamento e Consumidor Final na tua conta Moloni.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => autoDiscover.mutate()}
+                disabled={autoDiscover.isPending || !form.companyId}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {autoDiscover.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                {autoDiscover.isPending ? 'A configurar...' : 'Auto-configurar tudo'}
+              </button>
+            </div>
+            {!form.companyId && (
+              <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+                Confirma primeiro o Company ID Moloni para saber onde procurar.
+              </p>
+            )}
+            {(autoDiscover.isPending || autoDiscoverSteps.length > 0) && (
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {autoDiscoverSteps.map((step) => (
+                  <div
+                    key={step.key}
+                    className="flex min-h-[44px] items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-950"
+                  >
+                    {autoDiscover.isPending ? (
+                      <Loader2 size={15} className="shrink-0 animate-spin text-brand-600" />
+                    ) : step.success ? (
+                      <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
+                    ) : (
+                      <AlertTriangle size={15} className="shrink-0 text-amber-600" />
+                    )}
+                    <span className="min-w-0">
+                      <span className="block font-medium text-zinc-800 dark:text-zinc-100">{step.label}</span>
+                      <span className="block truncate text-zinc-500">
+                        {step.success
+                          ? `${step.created ? 'Criado' : 'Encontrado'}: ${step.name ?? step.id}`
+                          : step.message}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
             <button
               type="button"
@@ -555,7 +748,7 @@ function FaturacaoSection() {
             {showAdvanced && (
               <div className="border-t border-zinc-200 px-4 py-4 dark:border-zinc-800">
                 <p className="mb-3 text-xs text-zinc-500">
-                  Vais ao painel Moloni e copias estes IDs internos. Em sprint futuro vão ser auto-descobertos.
+                  Estes campos ficam preenchidos pela auto-configuração. Mantêm-se editáveis para corrigires casos especiais.
                 </p>
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <Field label="Produto/serviço ID" hint="Cria em Moloni → Tabelas → Artigos um 'Serviço de reparação' e copia o ID.">

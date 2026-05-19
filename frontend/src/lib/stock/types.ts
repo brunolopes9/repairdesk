@@ -34,11 +34,12 @@ export const PART_MOVIMENTO_MOTIVO = {
   AjusteManual: 2,
   UsoEmReparacao: 3,
   Devolucao: 4,
+  VendaCliente: 5,
 } as const;
 
 export type PartMovimentoMotivo = (typeof PART_MOVIMENTO_MOTIVO)[keyof typeof PART_MOVIMENTO_MOTIVO];
 
-export const PART_MOVIMENTO_LABEL: Record<PartMovimentoMotivo, string> = {
+export const PART_MOVIMENTO_LABEL: Record<number, string> = {
   0: 'Entrada',
   1: 'Saída',
   2: 'Ajuste manual',

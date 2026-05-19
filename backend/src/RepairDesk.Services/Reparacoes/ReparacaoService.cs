@@ -6,6 +6,7 @@ using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.EquipmentFields;
+using RepairDesk.Services.Push;
 // ImeiValidator do Common.Helpers
 
 namespace RepairDesk.Services.Reparacoes;
@@ -33,6 +34,7 @@ public class ReparacaoService : IReparacaoService
     private readonly IGarantiaRepository _garantias;
     private readonly ITenantRepository _tenants;
     private readonly IEquipmentFieldService _equipmentFields;
+    private readonly IPushNotificationQueue _pushQueue;
     private readonly ITenantContext _tenant;
     private readonly ICurrentUser _user;
     private readonly IValidator<CreateReparacaoRequest> _createV;
@@ -46,6 +48,7 @@ public class ReparacaoService : IReparacaoService
         IGarantiaRepository garantias,
         ITenantRepository tenants,
         IEquipmentFieldService equipmentFields,
+        IPushNotificationQueue pushQueue,
         ITenantContext tenant,
         ICurrentUser user,
         IValidator<CreateReparacaoRequest> createV,
@@ -58,6 +61,7 @@ public class ReparacaoService : IReparacaoService
         _garantias = garantias;
         _tenants = tenants;
         _equipmentFields = equipmentFields;
+        _pushQueue = pushQueue;
         _tenant = tenant;
         _user = user;
         _createV = createV;
@@ -218,6 +222,9 @@ public class ReparacaoService : IReparacaoService
         {
             await EmitirGarantiaSeNecessarioAsync(rep, now, ct);
         }
+
+        if (!string.IsNullOrWhiteSpace(rep.PublicSlug))
+            await _pushQueue.EnqueueStatusChangedAsync(new RepairStatusChangedPushJob(rep.Id), ct);
 
         rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
         var custoChange = await _despesas.SumByReparacaoAsync(rep.Id, ct);

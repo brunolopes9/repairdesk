@@ -55,6 +55,56 @@ Em `Definições > Faturação`:
 3. O RepairDesk chama `companies/getOne` com `company_id`.
 4. Se a Moloni devolver erro, o operador vê a mensagem no toast/API ProblemDetails.
 
+## OAuth2 authorization_code (recomendado para SaaS)
+
+Sprint 44 adiciona o botao `Ligar via OAuth (recomendado)` em `Definicoes > Faturacao`.
+Este fluxo evita pedir a password Moloni ao dono da oficina:
+
+1. O tenant guarda `Provider = Moloni`, `Developer ID` e `Client Secret`.
+2. Clica `Ligar via OAuth (recomendado)`.
+3. O RepairDesk chama `POST /api/billing/moloni/oauth/start`, cria `state` aleatorio de 32 caracteres e guarda em Redis/memory cache por 10 minutos.
+4. O browser abre popup Moloni com:
+   `https://www.moloni.pt/ac/root/oauth/?response_type=code&client_id=...&redirect_uri=...&state=...`
+5. Depois de autorizar, a Moloni chama:
+   `/api/billing/moloni/oauth/callback?code=...&state=...`
+6. O backend valida o `state`, troca o `code` por `access_token` + `refresh_token`, cifra ambos e redirecciona para `/definicoes?moloni=connected`.
+
+Configuracao de redirect URI:
+
+- Producao: `https://app.repairdesk.pt/api/billing/moloni/oauth/callback`
+- Dev local: a Moloni pode nao aceitar `localhost`; usar ngrok ou Cloudflare Tunnel.
+
+Exemplo com ngrok:
+
+```powershell
+ngrok http 5080
+```
+
+Depois configurar no painel Moloni Developer:
+
+```text
+https://<subdominio-ngrok>/api/billing/moloni/oauth/callback
+```
+
+E no backend:
+
+```json
+{
+  "Billing": {
+    "Moloni": {
+      "OAuthRedirectUri": "https://<subdominio-ngrok>/api/billing/moloni/oauth/callback"
+    }
+  }
+}
+```
+
+Seguranca:
+
+- O callback so aceita `state` existente e ainda valido.
+- O `state` e apagado apos uso para evitar replay.
+- O backend nao regista `code`, `access_token` ou `refresh_token` em plaintext.
+- O callback redirecciona apenas para `/definicoes`, nunca para URL externo.
+
 ## Como emitir
 
 1. Marcar Reparação ou Trabalho como `Pago`.

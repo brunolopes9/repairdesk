@@ -9,6 +9,7 @@ public interface IBillingProvider
 {
     Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default);
     Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default);
+    Task<InvoiceDto> EmitVendaInvoiceAsync(Guid vendaId, CancellationToken ct = default);
     Task<Stream> GetPdfStreamAsync(string invoiceId, CancellationToken ct = default);
 }
 
@@ -16,6 +17,7 @@ public class MoloniBillingProvider : IBillingProvider
 {
     private readonly IReparacaoRepository _reparacoes;
     private readonly ITrabalhoRepository _trabalhos;
+    private readonly IVendaRepository _vendas;
     private readonly ITenantBillingSettingsRepository _settingsRepo;
     private readonly ITenantRepository _tenants;
     private readonly ITenantContext _tenant;
@@ -24,6 +26,7 @@ public class MoloniBillingProvider : IBillingProvider
     public MoloniBillingProvider(
         IReparacaoRepository reparacoes,
         ITrabalhoRepository trabalhos,
+        IVendaRepository vendas,
         ITenantBillingSettingsRepository settingsRepo,
         ITenantRepository tenants,
         ITenantContext tenant,
@@ -31,6 +34,7 @@ public class MoloniBillingProvider : IBillingProvider
     {
         _reparacoes = reparacoes;
         _trabalhos = trabalhos;
+        _vendas = vendas;
         _settingsRepo = settingsRepo;
         _tenants = tenants;
         _tenant = tenant;
@@ -103,6 +107,54 @@ public class MoloniBillingProvider : IBillingProvider
         trabalho.InvoiceNumber = result.Number;
         trabalho.InvoiceEmittedAt = result.EmittedAt;
         await _trabalhos.SaveAsync(ct);
+
+        return new InvoiceDto(result.Number, result.PdfUrl, result.EmittedAt);
+    }
+
+    public async Task<InvoiceDto> EmitVendaInvoiceAsync(Guid vendaId, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(vendaId, ct)
+            ?? throw new NotFoundException("Venda", vendaId);
+
+        if (venda.InvoiceExternalId is not null)
+            return ToDto(venda.InvoiceNumber, venda.InvoicePdfUrl, venda.InvoiceEmittedAt);
+        if (venda.Status != VendaStatus.Paga)
+            throw new ValidationException("invoice_requires_paid", "So podes emitir fatura quando a venda estiver paga.");
+        if (venda.Items.Count == 0)
+            throw new ValidationException("invoice_items_missing", "A venda nao tem linhas para faturar.");
+
+        var settings = await RequireSettingsAsync(ct);
+        var customerId = await ResolveCustomerIdAsync(settings, venda.Cliente, ct);
+        var documentType = venda.ClienteId is null
+            ? BillingDocumentType.FaturaSimplificada
+            : BillingDocumentType.Fatura;
+
+        var items = venda.Items.Select(i => new MoloniInvoiceDraftItem(
+            i.Descricao,
+            i.Part?.Sku,
+            i.Quantidade,
+            i.PrecoUnitarioCents,
+            i.DescontoCents,
+            i.IvaRate)).ToList();
+
+        var result = await _moloni.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
+            customerId,
+            $"Venda #{venda.Numero}",
+            $"Venda #{venda.Numero}",
+            venda.Notas,
+            venda.TotalCents,
+            items.Max(i => i.VatPercent),
+            venda.PaymentMethod.ToString(),
+            documentType,
+            items),
+            ct);
+
+        venda.InvoiceProvider = BillingProvider.Moloni;
+        venda.InvoiceExternalId = result.ExternalId;
+        venda.InvoicePdfUrl = result.PdfUrl;
+        venda.InvoiceNumber = result.Number;
+        venda.InvoiceEmittedAt = result.EmittedAt;
+        await _vendas.SaveAsync(ct);
 
         return new InvoiceDto(result.Number, result.PdfUrl, result.EmittedAt);
     }

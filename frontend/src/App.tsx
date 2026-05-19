@@ -24,9 +24,11 @@ const Trabalhos = lazy(() => import('./pages/trabalhos/Trabalhos'));
 const TrabalhoDetalhe = lazy(() => import('./pages/trabalhos/TrabalhoDetalhe'));
 const Despesas = lazy(() => import('./pages/despesas/Despesas'));
 const Stock = lazy(() => import('./pages/stock/Stock'));
+const Vendas = lazy(() => import('./pages/vendas/Vendas'));
 const Auditoria = lazy(() => import('./pages/auditoria/Auditoria'));
 const Definicoes = lazy(() => import('./pages/definicoes/Definicoes'));
 const Precos = lazy(() => import('./pages/precos/Precos'));
+const RelatorioIva = lazy(() => import('./pages/relatorios/Iva'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
 const PortalCliente = lazy(() => import('./pages/PortalCliente'));
 const PortalGarantia = lazy(() => import('./pages/PortalGarantia'));
@@ -107,8 +109,10 @@ export default function App() {
               <Route path="/trabalhos" element={<Trabalhos />} />
               <Route path="/trabalhos/:id" element={<TrabalhoDetalhe />} />
               <Route path="/despesas" element={<Despesas />} />
+              <Route path="/vendas" element={<Vendas />} />
               <Route path="/stock" element={<Stock />} />
               <Route path="/precos" element={<Precos />} />
+              <Route path="/relatorios/iva" element={<RelatorioIva />} />
               <Route path="/auditoria" element={<Auditoria />} />
               <Route path="/definicoes" element={<Definicoes />} />
               <Route path="*" element={<NotFound />} />

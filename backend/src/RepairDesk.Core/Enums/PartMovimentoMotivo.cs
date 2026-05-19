@@ -7,4 +7,5 @@ public enum PartMovimentoMotivo
     AjusteManual = 2,
     UsoEmReparacao = 3,
     Devolucao = 4,
+    VendaCliente = 5,
 }

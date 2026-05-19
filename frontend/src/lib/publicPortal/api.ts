@@ -120,6 +120,23 @@ export interface AvaliacaoSubmittedDto {
   googleReviewUrl: string | null;
 }
 
+export interface BrowserPushSubscriptionPayload {
+  endpoint: string;
+  expirationTime?: number | null;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
+export interface PushSubscriptionResultDto {
+  subscribed: boolean;
+}
+
+export interface VapidPublicKeyDto {
+  publicKey: string;
+}
+
 export const publicPortalApi = {
   get(slug: string) {
     return httpPublic.get<PublicRepairDto>(`/public/repair/${slug}`).then((r) => r.data);
@@ -136,5 +153,18 @@ export const publicPortalApi = {
   },
   getGarantia(slug: string) {
     return httpPublic.get<PublicGarantiaDto>(`/public/warranty/${slug}`).then((r) => r.data);
+  },
+  getVapidPublicKey() {
+    return httpPublic.get<VapidPublicKeyDto>('/public/portal/push/vapid-public-key').then((r) => r.data);
+  },
+  subscribePush(slug: string, subscription: BrowserPushSubscriptionPayload) {
+    return httpPublic
+      .post<PushSubscriptionResultDto>(`/public/portal/${slug}/push/subscribe`, subscription)
+      .then((r) => r.data);
+  },
+  unsubscribePush(slug: string, endpoint: string) {
+    return httpPublic
+      .delete<PushSubscriptionResultDto>(`/public/portal/${slug}/push/unsubscribe`, { data: { endpoint } })
+      .then((r) => r.data);
   },
 };

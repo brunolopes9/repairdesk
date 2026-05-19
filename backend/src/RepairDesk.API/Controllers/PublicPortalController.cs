@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using RepairDesk.Services.Push;
 using RepairDesk.Services.PublicPortal;
 
 namespace RepairDesk.API.Controllers;
@@ -47,4 +48,31 @@ public class PublicWarrantyController : ControllerBase
     [HttpGet("{slug}")]
     public Task<PublicGarantiaDto> Get(string slug, CancellationToken ct)
         => _service.GetGarantiaBySlugAsync(slug, ct);
+}
+
+/// <summary>
+/// Subscrições Web Push do portal público. Sem autenticação; o slug não-adivinhável
+/// limita o âmbito à reparação do cliente.
+/// </summary>
+[ApiController]
+[Route("api/public/portal")]
+[AllowAnonymous]
+[EnableRateLimiting("public-portal")]
+public class PublicPortalPushController : ControllerBase
+{
+    private readonly IPushNotificationService _push;
+
+    public PublicPortalPushController(IPushNotificationService push) => _push = push;
+
+    [HttpGet("push/vapid-public-key")]
+    public Task<VapidPublicKeyDto> GetVapidPublicKey(CancellationToken ct)
+        => _push.GetVapidPublicKeyAsync(ct);
+
+    [HttpPost("{slug}/push/subscribe")]
+    public Task<PushSubscriptionResultDto> Subscribe(string slug, [FromBody] BrowserPushSubscriptionDto request, CancellationToken ct)
+        => _push.SubscribeAsync(slug, request, ct);
+
+    [HttpDelete("{slug}/push/unsubscribe")]
+    public Task<PushSubscriptionResultDto> Unsubscribe(string slug, [FromBody] UnsubscribePushRequest request, CancellationToken ct)
+        => _push.UnsubscribeAsync(slug, request, ct);
 }

@@ -267,7 +267,7 @@ public class PartService : IPartService
         var ok = req.Motivo switch
         {
             PartMovimentoMotivo.Entrada or PartMovimentoMotivo.Devolucao => req.Quantidade > 0,
-            PartMovimentoMotivo.Saida or PartMovimentoMotivo.UsoEmReparacao => req.Quantidade < 0,
+            PartMovimentoMotivo.Saida or PartMovimentoMotivo.UsoEmReparacao or PartMovimentoMotivo.VendaCliente => req.Quantidade < 0,
             PartMovimentoMotivo.AjusteManual => req.Quantidade != 0,
             _ => false,
         };

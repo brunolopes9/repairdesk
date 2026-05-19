@@ -2,8 +2,11 @@ using System.Net;
 using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
@@ -114,6 +117,7 @@ public class MoloniBillingTests
         var provider = new MoloniBillingProvider(
             new FakeReparacaoRepository(reparacao),
             new FakeTrabalhoRepository(),
+            new FakeVendaRepository(),
             new FakeSettingsRepository(Settings(tenantId)),
             new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
             new FakeTenantContext(tenantId),
@@ -136,7 +140,11 @@ public class MoloniBillingTests
             repo,
             new FakeTenantContext(tenantId),
             protector,
-            new FakeMoloniClient());
+            new FakeMoloniClient(),
+            NewMemoryCache(),
+            NewConfig(),
+            new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
+            NullLogger<TenantBillingSettingsService>.Instance);
 
         await service.UpdateMineAsync(new UpdateTenantBillingSettingsRequest(
             BillingProvider.Moloni,
@@ -202,6 +210,12 @@ public class MoloniBillingTests
         var provider = DataProtectionProvider.Create(dir);
         return new DataProtectionSecretProtector(provider);
     }
+
+    private static MemoryDistributedCache NewMemoryCache()
+        => new(Options.Create(new MemoryDistributedCacheOptions()));
+
+    private static IConfiguration NewConfig()
+        => new ConfigurationBuilder().Build();
 
     private static HttpResponseMessage Json(HttpStatusCode status, string json) => new(status)
     {
@@ -279,6 +293,19 @@ public class MoloniBillingTests
         public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
+    private sealed class FakeVendaRepository : IVendaRepository
+    {
+        public Task<Venda?> FindByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Venda?>(null);
+        public Task<Venda?> FindByIdWithItemsAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Venda?>(null);
+        public Task CreateWithNextNumeroAsync(Venda venda, Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<(IReadOnlyList<Venda> Items, int Total)> SearchAsync(DateTime? fromUtc, DateTime? toUtc, int page, int pageSize, CancellationToken ct = default)
+            => Task.FromResult(((IReadOnlyList<Venda>)Array.Empty<Venda>(), 0));
+        public Task<int> SumPaidBetweenAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<IReadOnlyList<TopVendaItemRow>> TopItemsByRevenueAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<TopVendaItemRow>)Array.Empty<TopVendaItemRow>());
+        public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
+    }
+
     private sealed class FakeTenantRepository(Tenant tenant) : ITenantRepository
     {
         public Task<Tenant?> FindByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Tenant?>(tenant);
@@ -301,7 +328,22 @@ public class MoloniBillingTests
         public Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string documentId, CancellationToken ct = default)
             => Task.FromResult<Stream>(new MemoryStream());
         public Task ConnectViaPasswordGrantAsync(TenantBillingSettings settings, string username, string password, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ExchangeAuthorizationCodeAsync(TenantBillingSettings settings, string code, string redirectUri, CancellationToken ct = default) => Task.CompletedTask;
         public Task<IReadOnlyList<MoloniCompanyDto>> GetCompaniesAsync(TenantBillingSettings settings, CancellationToken ct = default)
             => Task.FromResult((IReadOnlyList<MoloniCompanyDto>)Array.Empty<MoloniCompanyDto>());
+        public Task<IReadOnlyList<MoloniProductDto>> GetProductsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<MoloniProductDto>)Array.Empty<MoloniProductDto>());
+        public Task<IReadOnlyList<MoloniTaxDto>> GetTaxesAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<MoloniTaxDto>)Array.Empty<MoloniTaxDto>());
+        public Task<IReadOnlyList<MoloniPaymentMethodDto>> GetPaymentMethodsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<MoloniPaymentMethodDto>)Array.Empty<MoloniPaymentMethodDto>());
+        public Task<IReadOnlyList<MoloniMaturityDateDto>> GetMaturityDatesAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<MoloniMaturityDateDto>)Array.Empty<MoloniMaturityDateDto>());
+        public Task<IReadOnlyList<MoloniCustomerDto>> GetCustomersAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<MoloniCustomerDto>)Array.Empty<MoloniCustomerDto>());
+        public Task<MoloniProductDto> InsertProductAsync(TenantBillingSettings settings, string name, CancellationToken ct = default)
+            => Task.FromResult(new MoloniProductDto(1, name, true));
+        public Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, CancellationToken ct = default)
+            => Task.FromResult(new MoloniCustomerDto(1, name, vat, true));
     }
 }

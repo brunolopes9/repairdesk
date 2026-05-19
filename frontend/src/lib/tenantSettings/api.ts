@@ -2,6 +2,8 @@ import { api } from '../api';
 import type {
   BillingConnectionTest,
   BillingSerie,
+  MoloniAutoDiscoverResult,
+  MoloniOAuthStart,
   OnboardingStatus,
   TenantBillingSettings,
   TenantSettings,
@@ -39,6 +41,9 @@ export const tenantSettingsApi = {
       .post<TenantBillingSettings>('/tenant-settings/me/billing/moloni/connect', payload)
       .then((r) => r.data);
   },
+  startMoloniOAuth() {
+    return api.post<MoloniOAuthStart>('/billing/moloni/oauth/start').then((r) => r.data);
+  },
   disconnectMoloni() {
     return api
       .post<TenantBillingSettings>('/tenant-settings/me/billing/moloni/disconnect')
@@ -47,6 +52,11 @@ export const tenantSettingsApi = {
   listMoloniCompanies() {
     return api
       .get<{ id: number; name: string }[]>('/tenant-settings/me/billing/moloni/companies')
+      .then((r) => r.data);
+  },
+  autoDiscoverMoloni() {
+    return api
+      .post<MoloniAutoDiscoverResult>('/tenant-settings/me/billing/moloni/auto-discover')
       .then((r) => r.data);
   },
 };

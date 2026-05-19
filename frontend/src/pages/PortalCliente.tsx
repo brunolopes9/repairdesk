@@ -4,6 +4,8 @@ import { useParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import {
   AlertCircle,
+  Bell,
+  BellOff,
   Check,
   CheckCircle2,
   Frown,
@@ -31,6 +33,7 @@ import {
   type PublicRepairDto,
   type PublicTimelineEntry,
 } from '../lib/publicPortal/api';
+import { usePushSubscription } from '../lib/publicPortal/usePushSubscription';
 import { formatCents } from '../lib/money';
 
 type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
@@ -90,6 +93,8 @@ export default function PortalCliente() {
         <Greeting nome={data.clientePrimeiroNome} estado={data.estado} />
 
         <EstadoCard data={data} />
+
+        <PushNotificationsCard slug={data.slug} />
 
         <Timeline timeline={data.timeline} estadoActual={data.estado} />
 
@@ -157,6 +162,39 @@ export default function PortalCliente() {
         </footer>
       </div>
     </div>
+  );
+}
+
+function PushNotificationsCard({ slug }: { slug: string }) {
+  const push = usePushSubscription(slug);
+
+  if (!push.supported || push.status === 'unsupported') return null;
+
+  const isBusy = push.status === 'busy' || push.status === 'checking';
+  const isSubscribed = push.status === 'subscribed';
+  const denied = push.status === 'denied';
+
+  return (
+    <Card titulo="Notificações" icon={isSubscribed ? BellOff : Bell} tone={isSubscribed ? 'emerald' : undefined}>
+      <p className="text-sm text-zinc-600 dark:text-zinc-300">
+        {isSubscribed
+          ? 'Avisamos-te quando a loja mudar o estado desta reparação.'
+          : denied
+            ? 'As notificações estão bloqueadas neste browser. Podes alterar isso nas definições do browser.'
+            : 'Recebe um aviso quando houver novidades, sem precisares de actualizar a página.'}
+      </p>
+      {push.error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{push.error}</p>}
+      {!denied && (
+        <button
+          type="button"
+          onClick={isSubscribed ? push.unsubscribe : push.subscribe}
+          disabled={isBusy}
+          className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-zinc-900 px-3 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          {isBusy ? 'A tratar...' : isSubscribed ? 'Deixar de receber' : 'Receber notificações'}
+        </button>
+      )}
+    </Card>
   );
 }
 

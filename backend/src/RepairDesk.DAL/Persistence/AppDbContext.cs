@@ -44,6 +44,10 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<EquipmentFieldValue> EquipmentFieldValues => Set<EquipmentFieldValue>();
     public DbSet<Part> Parts => Set<Part>();
     public DbSet<PartMovimento> PartMovimentos => Set<PartMovimento>();
+    public DbSet<Venda> Vendas => Set<Venda>();
+    public DbSet<VendaItem> VendaItems => Set<VendaItem>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

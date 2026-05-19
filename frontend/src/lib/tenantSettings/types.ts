@@ -77,6 +77,31 @@ export interface BillingConnectionTest {
   message: string;
 }
 
+export interface MoloniOAuthStart {
+  authorizationUrl: string;
+  expiresAt: string;
+}
+
+export interface MoloniAutoDiscoverStep {
+  key: string;
+  label: string;
+  success: boolean;
+  created: boolean;
+  id: number | null;
+  name: string | null;
+  message: string | null;
+}
+
+export interface MoloniAutoDiscoverResult {
+  productsFound: number;
+  taxesFound: number;
+  paymentMethodsFound: number;
+  maturityDatesFound: number;
+  customersFound: number;
+  steps: MoloniAutoDiscoverStep[];
+  settings: TenantBillingSettings;
+}
+
 export interface BillingSerie {
   id: number;
   name: string;

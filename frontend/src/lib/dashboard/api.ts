@@ -4,6 +4,8 @@ export interface DashboardKpis {
   receitaCentsMes: number;
   despesasCentsMes: number;
   lucroCentsMes: number;
+  vendasHojeCents: number;
+  vendasMesCents: number;
   reparacoesAbertas: number;
   trabalhosAbertos: number;
   reparacoesEntreguesMes: number;
@@ -23,11 +25,19 @@ export interface TopCliente {
   trabalhos: number;
 }
 
+export interface TopProdutoVendido {
+  partId: string | null;
+  descricao: string;
+  quantidade: number;
+  totalCents: number;
+}
+
 export interface DashboardResponse {
   kpis: DashboardKpis;
   receitaPorCategoria: CategoriaBreakdown[];
   despesaPorCategoria: CategoriaBreakdown[];
   topClientes: TopCliente[];
+  topProdutosVendidos: TopProdutoVendido[];
 }
 
 export interface CategoriaFinanceira {

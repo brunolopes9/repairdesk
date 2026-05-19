@@ -6,6 +6,8 @@ public sealed record DashboardKpis(
     int ReceitaCentsMes,
     int DespesasCentsMes,
     int LucroCentsMes,
+    int VendasHojeCents,
+    int VendasMesCents,
     int ReparacoesAbertas,
     int TrabalhosAbertos,
     int ReparacoesEntreguesMes,
@@ -14,12 +16,14 @@ public sealed record DashboardKpis(
 public sealed record CategoriaBreakdown(string Label, int Count, int TotalCents);
 
 public sealed record TopCliente(Guid Id, string Nome, int TotalCents, int Trabalhos);
+public sealed record TopProdutoVendido(Guid? PartId, string Descricao, int Quantidade, int TotalCents);
 
 public sealed record DashboardResponse(
     DashboardKpis Kpis,
     IReadOnlyList<CategoriaBreakdown> ReceitaPorCategoria,
     IReadOnlyList<CategoriaBreakdown> DespesaPorCategoria,
-    IReadOnlyList<TopCliente> TopClientes);
+    IReadOnlyList<TopCliente> TopClientes,
+    IReadOnlyList<TopProdutoVendido> TopProdutosVendidos);
 
 public sealed record FinanceiroResponse(
     int ReceitaRealizadaCents,

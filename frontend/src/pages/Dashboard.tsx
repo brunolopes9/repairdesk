@@ -229,7 +229,7 @@ export default function Dashboard() {
         }
       >
         <div className="space-y-6">
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Kpi
               label="Lucro realizado"
               value={formatCents(financeiro.data?.lucroRealizadoCents)}
@@ -260,6 +260,20 @@ export default function Dashboard() {
               label="Em curso"
               value={data ? `${data.kpis.reparacoesAbertas + data.kpis.trabalhosAbertos}` : '—'}
               sublabel={data ? `${data.kpis.reparacoesAbertas} reparações · ${data.kpis.trabalhosAbertos} trabalhos` : undefined}
+              loading={isLoading}
+            />
+            <Kpi
+              label="Vendas hoje"
+              value={formatCents(data?.kpis.vendasHojeCents)}
+              sublabel={data ? `Mes: ${formatCents(data.kpis.vendasMesCents)}` : undefined}
+              tone="emerald"
+              loading={isLoading}
+            />
+            <Kpi
+              label="Vendas mes"
+              value={formatCents(data?.kpis.vendasMesCents)}
+              sublabel="POS e venda direta"
+              tone="zinc"
               loading={isLoading}
             />
           </section>
