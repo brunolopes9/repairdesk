@@ -281,15 +281,34 @@ export default function Vendas() {
                     <div className="text-sm font-medium">{line.part.nome}</div>
                     <div className="text-xs text-zinc-500">{formatCents(line.precoUnitarioCents)} · IVA {line.ivaRate}%</div>
                   </div>
-                  <button type="button" onClick={() => setCart((c) => c.filter((l) => l.part.id !== line.part.id))} className="text-zinc-400 hover:text-red-600">
-                    <Trash2 size={16} />
+                  <button
+                    type="button"
+                    onClick={() => setCart((c) => c.filter((l) => l.part.id !== line.part.id))}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                    aria-label="Remover artigo do carrinho"
+                  >
+                    <Trash2 size={18} />
                   </button>
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => updateQty(line.part.id, -1)} className="rounded border border-zinc-200 p-1 dark:border-zinc-800"><Minus size={14} /></button>
-                    <span className="w-8 text-center text-sm">{line.quantidade}</span>
-                    <button type="button" onClick={() => updateQty(line.part.id, 1)} className="rounded border border-zinc-200 p-1 dark:border-zinc-800"><Plus size={14} /></button>
+                    <button
+                      type="button"
+                      onClick={() => updateQty(line.part.id, -1)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded border border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                      aria-label="Diminuir quantidade"
+                    >
+                      <Minus size={16} />
+                    </button>
+                    <span className="w-10 text-center text-base font-medium tabular-nums">{line.quantidade}</span>
+                    <button
+                      type="button"
+                      onClick={() => updateQty(line.part.id, 1)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded border border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                      aria-label="Aumentar quantidade"
+                    >
+                      <Plus size={16} />
+                    </button>
                   </div>
                   <strong className="text-sm">{formatCents(line.quantidade * line.precoUnitarioCents - line.descontoCents)}</strong>
                 </div>
@@ -326,7 +345,7 @@ export default function Vendas() {
                   key={opt.value}
                   type="button"
                   onClick={() => setPaymentMethod(opt.value)}
-                  className={`rounded-md border px-2 py-2 text-xs ${paymentMethod === opt.value ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-zinc-900' : 'border-zinc-200 dark:border-zinc-800'}`}
+                  className={`min-h-11 rounded-md border px-2 text-sm font-medium ${paymentMethod === opt.value ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-zinc-900' : 'border-zinc-200 dark:border-zinc-800'}`}
                 >
                   {opt.label}
                 </button>
