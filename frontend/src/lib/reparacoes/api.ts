@@ -44,6 +44,14 @@ export const reparacoesApi = {
   anularFatura(id: string) {
     return api.post<Reparacao>(`/reparacoes/${id}/anular-fatura`).then((r) => r.data);
   },
+  bulkEmitFaturas(ids: string[]) {
+    return api
+      .post<Array<{ id: string; success: boolean; invoiceNumber: string | null; errorMessage: string | null }>>(
+        '/reparacoes/bulk-emit-faturas',
+        { ids },
+      )
+      .then((r) => r.data);
+  },
   setFields(id: string, templateId: string | null, values: SetEquipmentFieldValue[]) {
     return api.post<EquipmentFieldValue[]>(`/reparacoes/${id}/fields`, { templateId, values }).then((r) => r.data);
   },

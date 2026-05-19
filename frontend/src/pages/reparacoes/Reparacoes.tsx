@@ -33,6 +33,7 @@ import { clientesApi } from '../../lib/clientes/api';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { precosApi, type PriceTableEntry } from '../../lib/precos/api';
+import { toast } from '../../lib/toast';
 import { downloadFile } from '../../lib/downloadPdf';
 import {
   STATUS_LABEL,
@@ -79,11 +80,29 @@ export default function Reparacoes() {
   const [confirmDelete, setConfirmDelete] = useState<Reparacao | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(false);
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
 
   const pagasSemFatura = useQuery({
     queryKey: ['reparacoes-pagas-sem-fatura'],
     queryFn: () => reparacoesApi.listPagasSemFatura(100),
     staleTime: 30_000,
+  });
+
+  const bulkEmit = useMutation({
+    mutationFn: (ids: string[]) => reparacoesApi.bulkEmitFaturas(ids),
+    onSuccess: (results) => {
+      const ok = results.filter((r) => r.success).length;
+      const fail = results.filter((r) => !r.success).length;
+      qc.invalidateQueries({ queryKey: ['reparacoes-pagas-sem-fatura'] });
+      qc.invalidateQueries({ queryKey: ['reparacoes'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      setBulkSelected(new Set());
+      if (fail === 0) {
+        toast.success(`${ok} faturas emitidas`, 'Todas comunicadas à AT com sucesso.');
+      } else {
+        toast.warning(`${ok} OK, ${fail} falharam`, results.filter((r) => !r.success).slice(0, 3).map((r) => r.errorMessage).join(' • '));
+      }
+    },
   });
 
   function setViewMode(v: ViewMode) {
@@ -330,46 +349,107 @@ export default function Reparacoes() {
       <Modal
         open={pagasSemFaturaOpen}
         title="Reparações pagas sem fatura"
-        onClose={() => setPagasSemFaturaOpen(false)}
+        onClose={() => {
+          setPagasSemFaturaOpen(false);
+          setBulkSelected(new Set());
+        }}
       >
         <p className="mb-3 text-xs text-zinc-500">
-          Estas reparações estão marcadas como pagas mas ainda não têm fatura Moloni emitida.
-          Clica numa linha para abrir o detalhe e emitir a fatura.
+          Reparações pagas sem fatura Moloni. Selecciona várias e clica <strong>Emitir todas</strong> para
+          faturar em batch, ou clica numa linha para abrir o detalhe.
         </p>
         {(pagasSemFatura.data?.length ?? 0) === 0 ? (
           <p className="text-sm text-zinc-500">Nenhuma reparação pendente de fatura — tudo em dia ✓</p>
         ) : (
-          <div className="max-h-[60vh] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-800">
-                <tr>
-                  <th className="px-2 py-2 text-left font-medium">Nº</th>
-                  <th className="px-2 py-2 text-left font-medium">Equipamento</th>
-                  <th className="px-2 py-2 text-left font-medium">Cliente</th>
-                  <th className="px-2 py-2 text-right font-medium">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagasSemFatura.data!.map((r) => (
-                  <tr
-                    key={r.id}
-                    onClick={() => {
-                      setPagasSemFaturaOpen(false);
-                      navigate(`/reparacoes/${r.id}`);
-                    }}
-                    className="cursor-pointer border-b border-zinc-100 hover:bg-amber-50/50 dark:border-zinc-900 dark:hover:bg-amber-950/30"
-                  >
-                    <td className="px-2 py-2 font-mono text-xs">#{r.numero}</td>
-                    <td className="px-2 py-2">{r.equipamento}</td>
-                    <td className="px-2 py-2 text-zinc-600 dark:text-zinc-400">{r.cliente.nome}</td>
-                    <td className="px-2 py-2 text-right font-medium tabular-nums">
-                      {formatCents(r.precoFinalCents ?? r.orcamentoCents)}
-                    </td>
+          <>
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-950">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={bulkSelected.size > 0 && bulkSelected.size === pagasSemFatura.data!.length}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setBulkSelected(new Set(pagasSemFatura.data!.map((r) => r.id)));
+                    } else {
+                      setBulkSelected(new Set());
+                    }
+                  }}
+                />
+                <span>
+                  {bulkSelected.size === 0
+                    ? 'Seleccionar todas'
+                    : `${bulkSelected.size} de ${pagasSemFatura.data!.length} seleccionadas`}
+                </span>
+              </label>
+              <button
+                type="button"
+                disabled={bulkSelected.size === 0 || bulkEmit.isPending}
+                onClick={() => {
+                  const total = pagasSemFatura.data!
+                    .filter((r) => bulkSelected.has(r.id))
+                    .reduce((sum, r) => sum + (r.precoFinalCents ?? r.orcamentoCents ?? 0), 0);
+                  const ok = confirm(
+                    `Vais emitir ${bulkSelected.size} faturas Moloni — total ${formatCents(total)}.\n\n` +
+                    `Cada fatura é comunicada à AT em tempo real e entra na declaração IVA trimestral.\n\nContinuar?`
+                  );
+                  if (ok) bulkEmit.mutate(Array.from(bulkSelected));
+                }}
+                className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                {bulkEmit.isPending ? 'A emitir…' : `Emitir ${bulkSelected.size} faturas`}
+              </button>
+            </div>
+            <div className="max-h-[55vh] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-800">
+                  <tr>
+                    <th className="w-8 px-2 py-2"></th>
+                    <th className="px-2 py-2 text-left font-medium">Nº</th>
+                    <th className="px-2 py-2 text-left font-medium">Equipamento</th>
+                    <th className="px-2 py-2 text-left font-medium">Cliente</th>
+                    <th className="px-2 py-2 text-right font-medium">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pagasSemFatura.data!.map((r) => (
+                    <tr
+                      key={r.id}
+                      className="border-b border-zinc-100 hover:bg-amber-50/50 dark:border-zinc-900 dark:hover:bg-amber-950/30"
+                    >
+                      <td className="px-2 py-2">
+                        <input
+                          type="checkbox"
+                          checked={bulkSelected.has(r.id)}
+                          onChange={(e) => {
+                            const next = new Set(bulkSelected);
+                            if (e.target.checked) next.add(r.id);
+                            else next.delete(r.id);
+                            setBulkSelected(next);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                      <td
+                        className="cursor-pointer px-2 py-2 font-mono text-xs"
+                        onClick={() => { setPagasSemFaturaOpen(false); navigate(`/reparacoes/${r.id}`); }}
+                      >#{r.numero}</td>
+                      <td
+                        className="cursor-pointer px-2 py-2"
+                        onClick={() => { setPagasSemFaturaOpen(false); navigate(`/reparacoes/${r.id}`); }}
+                      >{r.equipamento}</td>
+                      <td
+                        className="cursor-pointer px-2 py-2 text-zinc-600 dark:text-zinc-400"
+                        onClick={() => { setPagasSemFaturaOpen(false); navigate(`/reparacoes/${r.id}`); }}
+                      >{r.cliente.nome}</td>
+                      <td className="px-2 py-2 text-right font-medium tabular-nums">
+                        {formatCents(r.precoFinalCents ?? r.orcamentoCents)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </Modal>
     </div>

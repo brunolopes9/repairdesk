@@ -77,6 +77,29 @@ public class ReparacoesController : ControllerBase
     public Task<ReparacaoDto> AnularFatura(Guid id, CancellationToken ct)
         => _service.AnularFaturaAsync(id, ct);
 
+    /// <summary>Emite fatura para várias reparações pagas em batch. Devolve resultado por linha.</summary>
+    [HttpPost("bulk-emit-faturas")]
+    public async Task<IReadOnlyList<BulkEmitResult>> BulkEmitFaturas([FromBody] BulkEmitRequest req, CancellationToken ct)
+    {
+        if (req.Ids is null || req.Ids.Count == 0)
+            return Array.Empty<BulkEmitResult>();
+
+        var results = new List<BulkEmitResult>(req.Ids.Count);
+        foreach (var id in req.Ids)
+        {
+            try
+            {
+                var invoice = await _billing.EmitReparacaoInvoiceAsync(id, null, null, ct);
+                results.Add(new BulkEmitResult(id, true, invoice.Number, null));
+            }
+            catch (Exception ex)
+            {
+                results.Add(new BulkEmitResult(id, false, null, ex.Message));
+            }
+        }
+        return results;
+    }
+
     /// <summary>Histórico de reparações com mesmo IMEI dentro do tenant.</summary>
     [HttpGet("historico-imei")]
     public Task<ReparacaoHistoricoResponse> HistoricoPorImei(
@@ -100,6 +123,8 @@ public class ReparacoesController : ControllerBase
     }
 
     public sealed record ReabrirRequest(string? Notas);
+    public sealed record BulkEmitRequest(IReadOnlyList<Guid> Ids);
+    public sealed record BulkEmitResult(Guid Id, bool Success, string? InvoiceNumber, string? ErrorMessage);
 
     [HttpPost("{id:guid}/reabrir")]
     public Task<ReparacaoDto> Reabrir(Guid id, [FromBody] ReabrirRequest? req, CancellationToken ct)
