@@ -14,6 +14,7 @@ public interface ITrabalhoService
     Task<TrabalhoDto> CreateAsync(CreateTrabalhoRequest req, CancellationToken ct = default);
     Task<TrabalhoDto> UpdateAsync(Guid id, UpdateTrabalhoRequest req, CancellationToken ct = default);
     Task<TrabalhoDto> ReabrirAsync(Guid id, CancellationToken ct = default);
+    Task<TrabalhoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
@@ -23,6 +24,8 @@ public class TrabalhoService : ITrabalhoService
     private readonly IClienteRepository _clientes;
     private readonly IDespesaRepository _despesas;
     private readonly ITenantContext _tenant;
+    private readonly ITenantBillingSettingsRepository _billingSettings;
+    private readonly RepairDesk.Services.Billing.IMoloniClient _moloni;
     private readonly IValidator<CreateTrabalhoRequest> _createV;
     private readonly IValidator<UpdateTrabalhoRequest> _updateV;
 
@@ -31,6 +34,8 @@ public class TrabalhoService : ITrabalhoService
         IClienteRepository clientes,
         IDespesaRepository despesas,
         ITenantContext tenant,
+        ITenantBillingSettingsRepository billingSettings,
+        RepairDesk.Services.Billing.IMoloniClient moloni,
         IValidator<CreateTrabalhoRequest> createV,
         IValidator<UpdateTrabalhoRequest> updateV)
     {
@@ -38,8 +43,51 @@ public class TrabalhoService : ITrabalhoService
         _clientes = clientes;
         _despesas = despesas;
         _tenant = tenant;
+        _billingSettings = billingSettings;
+        _moloni = moloni;
         _createV = createV;
         _updateV = updateV;
+    }
+
+    public async Task<TrabalhoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default)
+    {
+        var t = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Trabalho", id);
+        if (string.IsNullOrEmpty(t.InvoiceExternalId))
+            throw new ConflictException("trabalho_sem_fatura", "Este trabalho nao tem fatura emitida para anular.");
+
+        if (_tenant.TenantId is { } tenantId)
+        {
+            var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
+            if (settings?.Provider == BillingProvider.Moloni && int.TryParse(t.InvoiceExternalId, out var originalDocId))
+            {
+                var valor = t.PrecoFinalCents ?? t.OrcamentoCents ?? 0;
+                var items = new List<RepairDesk.Services.Billing.MoloniInvoiceDraftItem>
+                {
+                    new(t.Titulo, t.Descricao, 1, valor, 0, 23m),
+                };
+                var customerId = settings.FallbackCustomerId ?? 0;
+                if (customerId <= 0)
+                    throw new RepairDesk.Core.Exceptions.ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
+
+                await _moloni.InsertCreditNoteAsync(settings, new RepairDesk.Services.Billing.MoloniCreditNoteDraft(
+                    originalDocId,
+                    customerId,
+                    $"Trabalho #{t.Numero}",
+                    items,
+                    $"Anulacao da Fatura {t.InvoiceNumber} via RepairDesk"
+                ), ct);
+            }
+        }
+
+        t.InvoiceProvider = BillingProvider.None;
+        t.InvoiceExternalId = null;
+        t.InvoiceNumber = null;
+        t.InvoicePdfUrl = null;
+        t.InvoiceEmittedAt = null;
+
+        await _repo.SaveAsync(ct);
+        var custo = await _despesas.SumByTrabalhoAsync(t.Id, ct);
+        return ToDto(t, custo);
     }
 
     public async Task<PagedResult<TrabalhoDto>> SearchAsync(

@@ -72,6 +72,11 @@ public class ReparacoesController : ControllerBase
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
         => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);
 
+    /// <summary>Emite Nota de Credito no Moloni para anular a fatura desta reparacao + limpa referencias locais.</summary>
+    [HttpPost("{id:guid}/anular-fatura")]
+    public Task<ReparacaoDto> AnularFatura(Guid id, CancellationToken ct)
+        => _service.AnularFaturaAsync(id, ct);
+
     /// <summary>Histórico de reparações com mesmo IMEI dentro do tenant.</summary>
     [HttpGet("historico-imei")]
     public Task<ReparacaoHistoricoResponse> HistoricoPorImei(

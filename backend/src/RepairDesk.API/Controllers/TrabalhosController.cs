@@ -35,6 +35,11 @@ public class TrabalhosController : ControllerBase
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
         => _billing.EmitTrabalhoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);
 
+    /// <summary>Emite Nota de Credito Moloni + limpa referencias locais.</summary>
+    [HttpPost("{id:guid}/anular-fatura")]
+    public Task<TrabalhoDto> AnularFatura(Guid id, CancellationToken ct)
+        => _service.AnularFaturaAsync(id, ct);
+
     [HttpPost("{id:guid}/reabrir")]
     public Task<TrabalhoDto> Reabrir(Guid id, CancellationToken ct) => _service.ReabrirAsync(id, ct);
 

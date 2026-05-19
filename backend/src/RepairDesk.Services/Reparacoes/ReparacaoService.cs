@@ -15,6 +15,7 @@ public interface IReparacaoService
 {
     Task<PagedResult<ReparacaoDto>> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default);
     Task<IReadOnlyList<ReparacaoDto>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default);
+    Task<ReparacaoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default);
     Task<ReparacaoDto> UpdateAsync(Guid id, UpdateReparacaoRequest req, CancellationToken ct = default);
@@ -38,6 +39,8 @@ public class ReparacaoService : IReparacaoService
     private readonly IPushNotificationQueue _pushQueue;
     private readonly ITenantContext _tenant;
     private readonly ICurrentUser _user;
+    private readonly ITenantBillingSettingsRepository _billingSettings;
+    private readonly RepairDesk.Services.Billing.IMoloniClient _moloni;
     private readonly IValidator<CreateReparacaoRequest> _createV;
     private readonly IValidator<UpdateReparacaoRequest> _updateV;
     private readonly IValidator<ChangeEstadoRequest> _estadoV;
@@ -52,6 +55,8 @@ public class ReparacaoService : IReparacaoService
         IPushNotificationQueue pushQueue,
         ITenantContext tenant,
         ICurrentUser user,
+        ITenantBillingSettingsRepository billingSettings,
+        RepairDesk.Services.Billing.IMoloniClient moloni,
         IValidator<CreateReparacaoRequest> createV,
         IValidator<UpdateReparacaoRequest> updateV,
         IValidator<ChangeEstadoRequest> estadoV)
@@ -65,6 +70,8 @@ public class ReparacaoService : IReparacaoService
         _pushQueue = pushQueue;
         _tenant = tenant;
         _user = user;
+        _billingSettings = billingSettings;
+        _moloni = moloni;
         _createV = createV;
         _updateV = updateV;
         _estadoV = estadoV;
@@ -95,6 +102,48 @@ public class ReparacaoService : IReparacaoService
             dtos.Add(ToDto(r, custo));
         }
         return dtos;
+    }
+
+    public async Task<ReparacaoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default)
+    {
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+        if (string.IsNullOrEmpty(rep.InvoiceExternalId))
+            throw new ConflictException("reparacao_sem_fatura", "Esta reparacao nao tem fatura emitida para anular.");
+
+        // RepairDesk eh ponto central — emite NC via Moloni antes de limpar referencias locais.
+        if (_tenant.TenantId is { } tenantId)
+        {
+            var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
+            if (settings?.Provider == BillingProvider.Moloni && int.TryParse(rep.InvoiceExternalId, out var originalDocId))
+            {
+                var valor = rep.PrecoFinalCents ?? rep.OrcamentoCents ?? 0;
+                var items = new List<RepairDesk.Services.Billing.MoloniInvoiceDraftItem>
+                {
+                    new($"Reparacao {rep.Equipamento}", rep.Avaria, 1, valor, 0, 23m),
+                };
+                var customerId = settings.FallbackCustomerId ?? 0;
+                if (customerId <= 0)
+                    throw new RepairDesk.Core.Exceptions.ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
+
+                await _moloni.InsertCreditNoteAsync(settings, new RepairDesk.Services.Billing.MoloniCreditNoteDraft(
+                    originalDocId,
+                    customerId,
+                    $"Reparacao #{rep.Numero}",
+                    items,
+                    $"Anulacao da Fatura {rep.InvoiceNumber} via RepairDesk"
+                ), ct);
+            }
+        }
+
+        rep.InvoiceProvider = BillingProvider.None;
+        rep.InvoiceExternalId = null;
+        rep.InvoiceNumber = null;
+        rep.InvoicePdfUrl = null;
+        rep.InvoiceEmittedAt = null;
+
+        await _repo.SaveAsync(ct);
+        var custoFinal = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+        return ToDto(rep, custoFinal);
     }
 
     public async Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default)
