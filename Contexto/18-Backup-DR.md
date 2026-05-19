@@ -41,6 +41,16 @@ Sprint #C6 implementa o minimo operacional para desbloquear beta:
   - `POST /api/admin/backup/now`
   - `GET /api/admin/backup/list`
 
+Sprint #C22 adiciona UI operacional em **Definicoes > Backups**:
+
+- endpoint novo `GET /api/admin/backups` com dashboard de retention e health;
+- endpoint novo `POST /api/admin/backups/now` para backup manual;
+- endpoint `GET /api/admin/backups/{id}/restore-preview` para comparar estado atual vs metadata do backup;
+- endpoint `POST /api/admin/backups/{id}/restore` com confirmacao `RESTORE`, safety backup antes de restaurar e auditoria;
+- restore exige role `Admin` + `SuperAdmin`, porque substitui a DB inteira.
+
+Detalhe operacional: `Contexto/49-Backup-Restore-Operations.md`.
+
 T-SQL usado pelo job:
 
 ```sql

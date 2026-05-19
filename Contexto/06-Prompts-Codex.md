@@ -3874,6 +3874,358 @@ Branch: codex/sprint-60-orcamentos-moloni
 
 ---
 
+---
+
+## Prompt #C23 — Garantia 3 anos poliforme (Reparação OU Venda) — DL 84/2021
+
+```
+[CONTEXTO]
+- Projeto: RepairDesk SaaS — backoffice oficinas reparação PT
+- Stack: .NET 10 + EF Core 10 + SQL Server, React 19 + Vite + Tailwind v4
+- Multi-tenant, Clean Architecture
+- Fundador: Bruno Lopes (LopesTech, Viseu) — dogfooding
+- Repo: este projecto está em RepairDesk/
+
+[ESTADO ACTUAL]
+- Entity `Garantia` (backend/src/RepairDesk.Core/Entities/Garantia.cs) só liga a `Reparacao` via `ReparacaoId` (required).
+- Portal público `/g/{slug}` mostra detalhes da garantia da reparação.
+- Vendas (entity `Venda`) emitem fatura via Moloni mas NÃO geram garantia digital.
+- Sprint 60 (#C22) acabou de adicionar campos de orçamento Moloni — já existe migration recente. NÃO conflitar com `20260519121849_Sprint60EstimateFields`.
+- Bruno vai começar a vender telemóveis refurbished (dropshipping Molano) — sem garantia automática perde compliance.
+
+[CONTEXTO LEGAL — leio Contexto/51-Garantia-3-Anos-Vendas.md]
+- DL 84/2021 (em vigor 2022-01-01) obriga 3 anos garantia conformidade
+- Bens segunda mão (refurbished): pode reduzir até 18 meses SE expressamente acordado por escrito na fatura
+- Ónus prova com vendedor durante 2 anos
+- Direito de regresso do vendedor sobre fornecedor (Art. 21.º)
+
+[OBJECTIVO]
+Tornar `Garantia` poliforme (Reparacao OU Venda) e auto-emitir garantia quando Venda passa a Status=Paga.
+
+[REQUISITOS FUNCIONAIS]
+1. Refactor entity `Garantia`:
+   - `ReparacaoId` → `Guid?` (nullable)
+   - Adicionar `VendaId Guid?` (nullable) + navegação `Venda? Venda`
+   - Adicionar `GarantiaSourceType` enum (Reparacao=0, Venda=1) — facilita queries
+   - Check constraint EF: exatamente um de `ReparacaoId` ou `VendaId` preenchido (raw SQL via HasCheckConstraint)
+2. Migration EF Core nova (timestamp posterior a 20260519121849):
+   - Renomear/alterar coluna ReparacaoId para nullable
+   - Adicionar coluna VendaId nullable + FK + index
+   - Adicionar coluna GarantiaSourceType int não-nullable, default 0
+   - Adicionar check constraint
+   - **CRITICAL**: criar Designer file também — falha conhecida (cf. memory feedback_codex_bugs_recorrentes)
+3. Auto-emit em VendaService.MarcarPagaAsync após Status=Paga:
+   - Dias garantia default 1095 (3 anos)
+   - Configurável via TenantBillingSettings (adicionar `GarantiaVendaDiasDefault int? default null`)
+   - Cobertura/Exclusões default com texto legal DL 84/2021
+   - Slug único (reusar GarantiaSlugGenerator existente)
+4. Adaptar portal público `/g/{slug}`:
+   - Frontend PortalGarantia.tsx: se `vendaId != null` mostrar dados Venda (artigos, IMEI se disponível, fatura)
+   - Se `reparacaoId != null` mostrar dados Reparação (já existe)
+5. ClienteRgpdRepository + Service: carregar garantias por VendaId também
+6. Dashboard widget novo: "Garantias activas" (count) + "Expiram em 30 dias" (count + lista)
+
+[CONSTRAINTS]
+- NÃO mexer no fluxo de garantias-reparação que já existe (não introduzir regressão)
+- Migration: usar HasCheckConstraint do EF Core (não Raw SQL inline)
+- Texto legal de cobertura/exclusões: usar conteúdo do Contexto/51-Garantia-3-Anos-Vendas.md secção "Auto-emissão"
+- NÃO commitar credenciais
+- Multi-tenant: TenantId em todas as queries
+- Português PT-PT nas mensagens UI
+
+[OUTPUT ESPERADO]
+- Lista de ficheiros alterados/criados (paths absolutos)
+- Migration EF Core com Designer file
+- Testes:
+  * GarantiaServiceTests novo método: AutoEmitOnVendaPaga_CreatesGarantiaWith3Years
+  * GarantiaServiceTests: VendaCancelada_AnulaGarantia
+  * Portal endpoint test: GET /g/{slug} com slug de venda retorna 200
+- Comando teste: `dotnet test --filter "FullyQualifiedName~Garantia"`
+
+[VERIFICAÇÃO]
+- `dotnet build` passa sem warnings novos
+- `dotnet test` passa todos os tests (incluindo os 135 existentes)
+- Cenário manual: criar venda, marcar paga → garantia aparece em /g/{slug} com data fim 3 anos
+- ClienteDetalhe.tsx mostra garantias agora também para vendas (se já mostra para reparações)
+
+Branch: codex/sprint-61-garantia-vendas
+```
+
+---
+
+## Prompt #C24 — IMEI tracking em VendaItem + validação Luhn
+
+```
+[CONTEXTO]
+- Stack mesma de cima. Bruno vai vender telemóveis Molano (refurbished) com 6 gradings.
+- Cada telemóvel tem IMEI único — Bruno precisa de o ter ligado à venda para:
+  * Garantia (cruzar com Sprint 58/#C23 acima)
+  * Eventual cruzamento com BD de roubados (cf. memory project_imei_autoridades)
+  * Devoluções: confirmar que o IMEI devolvido é o que vendemos
+  * Compliance: alguns países exigem registo de IMEI por venda
+
+[ESTADO ACTUAL]
+- Entity `VendaItem` (backend/src/RepairDesk.Core/Entities/VendaItem.cs) tem: PartId, Descricao, Quantidade, PrecoUnitarioCents, DescontoCents, IvaRate.
+- Sem campo IMEI.
+- Entity `Part` é o catálogo de stock (capas, telemóveis, peças). Tem `Categoria` (PartCategoria enum).
+- Em reparações já existe IMEI no Reparacao.
+
+[OBJECTIVO]
+Permitir registar IMEI por linha de venda, validar com Luhn, e cruzar com vendas anteriores (anti-duplicação).
+
+[REQUISITOS FUNCIONAIS]
+1. Adicionar campos a `VendaItem`:
+   - `Imei string?` (15 chars max, nullable)
+   - `Imei2 string?` (para dual-SIM, nullable)
+2. Migration EF Core (timestamp posterior a #C23):
+   - Adicionar colunas
+   - Index não único em (TenantId, Imei) para lookup rápido
+3. Validação backend (VendaService.CreateAsync):
+   - Se item.PartId aponta para Part com Categoria == Telemovel/Smartphone, IMEI é obrigatório
+   - Validar Luhn checksum no IMEI
+   - Verificar se IMEI já foi vendido neste tenant (warning, não erro — pode ser devolução/re-venda)
+4. Frontend Vendas POS:
+   - Campo IMEI no modal "Adicionar artigo" — mostra só quando PartCategoria sugere telemóvel
+   - Validação client-side Luhn (mesma fórmula)
+5. PDF recibo venda inclui IMEI quando presente
+6. Garantia digital (do #C23) inclui IMEI no portal `/g/{slug}` quando disponível
+
+[CONSTRAINTS]
+- IMEI nunca em logs (PII potencial)
+- Audit log: registar venda com IMEI mas mascarar últimos 4 dígitos no UI de audit ("357XXXXXXX0001")
+- NÃO bloquear venda se IMEI já vendido antes — só warning ao operador
+
+[OUTPUT ESPERADO]
+- Migration + Designer file
+- ImeiValidator helper estático com Luhn
+- Tests: ImeiValidatorTests com IMEIs válidos/inválidos conhecidos (357...)
+- Tests: VendaServiceTests.CreateWithDuplicateImei_LogsWarning
+
+[VERIFICAÇÃO]
+- `dotnet test` passa
+- IMEI inválido bloqueia criação venda
+- IMEI duplicado entre vendas: warning no operador via toast
+
+Branch: codex/sprint-62-imei-vendas
+```
+
+---
+
+## Prompt #C25 — Importer CSV de Clientes/Peças (migração GestWin)
+
+```
+[CONTEXTO]
+- Stack mesma. Estratégia comercial: converter lojas que usam GestWin/PHC/Vendus/etc para RepairDesk.
+- Maior fricção: migração de dados existentes (clientes + stock de peças).
+
+[ESTADO ACTUAL]
+- `ClientesController` tem endpoint `/api/clientes/import` (exists, ver clientesApi.importCsv na frontend).
+- Stock/Parts não tem importer.
+
+[OBJECTIVO]
+Endpoint genérico e UI wizard para importar CSVs de Clientes e Peças, com detecção de duplicados e relatório de erros por linha.
+
+[REQUISITOS FUNCIONAIS]
+1. Backend novo endpoint `/api/parts/import` (POST multipart CSV):
+   - Detectar separador (vírgula ou ponto-e-vírgula — comum em PT)
+   - Cabeçalhos flexíveis: sku|codigo, nome|descricao, preco|preco_venda, custo|preco_custo, stock|qtd_stock, etc.
+   - Por linha: validar, criar Part ou actualizar se SKU existe
+   - Devolver relatório com criados, ignorados, erros (linha + campo + mensagem + valor)
+2. Reforçar endpoint existente de Clientes:
+   - Suportar BOM UTF-8 + UTF-16 LE
+   - Detectar separador automaticamente
+   - Validar NIF PT (algoritmo já no projeto, ver AtNifLookup)
+   - Idempotência: re-importar mesmo CSV não duplica
+3. Frontend wizard `/configuracoes/importar`:
+   - Step 1: escolher tipo (Clientes ou Peças)
+   - Step 2: upload CSV + preview primeiras 5 linhas
+   - Step 3: mapping de colunas (auto-detectar) com override manual
+   - Step 4: dry-run (mostrar quantos vão ser criados/ignorados, erros)
+   - Step 5: confirmar e importar
+4. Logging audit: AuditAction.Import com {tipo, totalLinhas, criados, ignorados, erros}
+
+[CONSTRAINTS]
+- Limite tamanho CSV: 5 MB / 10k linhas (chunking não obrigatório nesta fase)
+- Streaming não obrigatório nesta fase — `MemoryStream` aceitável
+- Validação SQL injection: nunca interpolar CSV directamente em queries (já é certo via EF Core)
+- Encoding: aceitar UTF-8, UTF-8 BOM, ANSI/Windows-1252 (comum em CSV portugueses)
+
+[OUTPUT ESPERADO]
+- Backend: PartsImportService + endpoint + DTOs
+- Frontend: ImportWizardPage com 5 steps
+- Tests: PartsImportServiceTests com CSV exemplos (válido, com erros, vazio, BOM)
+- Documentação: Contexto/52-Migracao-GestWin-PHC.md com mapping de campos conhecidos GestWin → RepairDesk
+
+[VERIFICAÇÃO]
+- Importar CSV exemplo (criar 2 ficheiros tests/Fixtures/clientes_sample.csv e parts_sample.csv)
+- 100 linhas a importar < 5s
+- Erros mostram número de linha original do CSV
+
+Branch: codex/sprint-63-importer-csv
+```
+
+---
+
+## Prompt #C26 — Pricing page + Stripe subscriptions (Solo / Pro / Multi)
+
+```
+[CONTEXTO]
+- Stack mesma. RepairDesk está em fase de monetização — Bruno quer começar a cobrar.
+- Concorrentes (cf. Contexto/01-Concorrentes.md): RepairDesk (Lahore) cobra $50-$100/mês, RO App €40-80/mês.
+- Bruno quer cobrar abaixo do mercado para entrar: €15 Solo, €35 Pro, €60 Multi-loja.
+
+[ESTADO ACTUAL]
+- Multi-tenant funciona, cada Tenant tem AppUsers.
+- Não há paywall — todas as features estão disponíveis a todos os tenants.
+- Sem integração Stripe ainda.
+
+[OBJECTIVO]
+Implementar 3 planos via Stripe subscriptions, com paywall progressivo e trial 14 dias.
+
+[REQUISITOS FUNCIONAIS]
+1. Entity `TenantSubscription`: TenantId, StripeCustomerId, StripeSubscriptionId, Plan (Solo/Pro/Multi), Status (Trial/Active/PastDue/Cancelled), TrialEndsAt, CurrentPeriodEnd, CancelAt
+2. Plans matrix:
+   - Solo €15/mês: 1 utilizador, ilimitado reparações/trabalhos/vendas, Moloni integration
+   - Pro €35/mês: até 5 utilizadores, todas features Solo + multi-utilizador + audit log avançado + push notifications
+   - Multi-loja €60/mês: ilimitado utilizadores + multi-localização + relatórios avançados
+3. Stripe webhook handler `/api/stripe/webhook`:
+   - customer.subscription.created/updated/deleted
+   - invoice.payment_succeeded / payment_failed
+   - Verificar assinatura webhook (header Stripe-Signature)
+4. Paywall middleware: bloquear endpoints quando subscription.Status != Active|Trial. Retornar 402 Payment Required com plano sugerido.
+5. Página `/configuracoes/subscription`:
+   - Plano actual + status + próxima cobrança
+   - Botão "Mudar plano" → Stripe Checkout
+   - Botão "Cancelar"
+   - Portal Stripe Customer Portal embutido para gestão completa
+6. Página pública `/pricing` (sem login):
+   - 3 cards comparativos
+   - CTA "Começar grátis 14 dias" → registo
+7. Email automático 3 dias antes de fim de trial
+
+[CONSTRAINTS]
+- Stripe keys NUNCA hard-coded — appsettings + secrets
+- Webhook idempotente (Stripe pode enviar mesmo evento várias vezes)
+- Tax: Stripe Tax habilitado para PT (IVA 23%)
+- Cancelamento: end of period, não imediato (Stripe default)
+- Não bloquear acesso a /exportar dados (RGPD Art. 20.º — cliente tem sempre direito ao export)
+
+[OUTPUT ESPERADO]
+- Stripe.net NuGet adicionado
+- Webhook handler + verificação assinatura
+- Frontend pricing + subscription pages
+- Tests: webhook handler com payloads exemplo (fixtures)
+- Documentação: Contexto/53-Pricing-Stripe.md com setup steps Stripe dashboard
+
+[VERIFICAÇÃO]
+- `dotnet test` passa
+- Stripe CLI: `stripe trigger customer.subscription.created` chega ao webhook
+- Trial 14 dias funciona end-to-end (criar tenant → 14 dias acesso → bloqueio até pagar)
+- /exportar dados continua a funcionar mesmo com subscription cancelada
+
+Branch: codex/sprint-64-stripe-pricing
+```
+
+---
+
+## Prompt #C27 — Onboarding wizard novo tenant
+
+```
+[CONTEXTO]
+- Stack mesma. Bruno quer reduzir time-to-value para novo cliente (Solo plan).
+- Sem onboarding, novo utilizador entra em dashboard vazio e não sabe por onde começar.
+
+[ESTADO ACTUAL]
+- Registo cria Tenant + AppUser admin → redirect para `/dashboard` vazio.
+- Definicoes.tsx tem 3-step config Moloni (mas só se já souber).
+
+[OBJECTIVO]
+Wizard de 4 passos após primeiro login que prepara tenant para uso imediato.
+
+[REQUISITOS FUNCIONAIS]
+1. Detectar tenant "novo" (sem reparações/trabalhos/vendas) e redirect para `/welcome`
+2. Step 1 — Dados da empresa: Nome, NIF, telefone, morada, logo upload (já existe TenantSettings parcial?)
+3. Step 2 — Faturação: escolher provider (Moloni/InvoiceXpress/Nenhum) — se Moloni, modal "Ligar Moloni" reaproveitado
+4. Step 3 — Importar dados (opcional): "Tem clientes/stock para importar?" → CSV importer (#C25 acima) ou skip
+5. Step 4 — Convidar equipa (opcional para Solo): email + role; skip se Solo
+6. Final: redirect para dashboard com tutorial overlay (3-4 tooltips em features chave) — usar lib leve (driver.js)
+
+[CONSTRAINTS]
+- Onboarding nunca obrigatório — skip-able em qualquer passo
+- Não criar utilizador admin se já existe (idempotente)
+- Logo: validar tipo (png/jpg/svg) e tamanho (max 500KB)
+
+[OUTPUT ESPERADO]
+- Pages: /welcome com 4 steps (router protegido por OnboardingGuard)
+- TenantSettings entity (se ainda não existe completa)
+- Tests E2E Playwright (já existe stack Sprint 57): completar onboarding end-to-end
+
+[VERIFICAÇÃO]
+- Novo registo → /welcome em 1s
+- Skip todos os passos → vai para /dashboard com tutorial
+- Voltar a `/welcome` depois de completo: redirect para /dashboard (já não é novo)
+
+Branch: codex/sprint-65-onboarding
+```
+
+---
+
+## Prompt #C28 — Landing page pública `lopestech.pt/repairdesk`
+
+```
+[CONTEXTO]
+- Stack mesma. Para angariar clientes, RepairDesk precisa de presença pública.
+- Bruno tem domínio lopestech.pt — vai usar subpath /repairdesk OU subdomínio repairdesk.lopestech.pt.
+
+[ESTADO ACTUAL]
+- App é só backoffice. Sem landing page.
+- Há portal cliente público `/p/{slug}` e garantia `/g/{slug}` mas não landing institucional.
+
+[OBJECTIVO]
+Landing page SEO-optimizada que converta lojas de reparação interessadas em trial 14 dias (Solo plan).
+
+[REQUISITOS FUNCIONAIS]
+1. Rota `/` (substituir redirect actual para /login) — só mostra landing quando NOT authenticated
+2. Sections:
+   - Hero: "O backoffice moderno para lojas de reparação portuguesas" + CTA "Começar grátis 14 dias"
+   - Problemas (gancho): "Cansado do GestWin? Cliente perde a tua reparação? Contabilista não consegue exportar SAFT?" — provocador mas honesto
+   - Features (3 colunas): Reparações + Vendas/POS, Faturação certificada Moloni, Portal cliente
+   - Comparação RepairDesk vs concorrentes (tabela): GestWin / PHC / Vendus / RepairDesk PT — features chave
+   - Pricing preview (3 cards mini com link para /pricing)
+   - Testemunho LopesTech (Bruno mesmo, foto, citação)
+   - FAQ: 5-8 perguntas (compliance fiscal, migração de dados, segurança, etc.)
+   - CTA final + footer
+3. SEO técnico:
+   - Meta tags (title, description, og:image)
+   - Schema.org SoftwareApplication
+   - sitemap.xml + robots.txt
+   - Open Graph image
+4. Performance: lighthouse score >90 em mobile e desktop
+5. Acessibilidade: WCAG AA
+
+[CONSTRAINTS]
+- Imagens optimizadas (WebP/AVIF, lazy load)
+- Sem trackers third-party iniciais (Plausible.io self-host plus tarde)
+- Texto: PT-PT, tom directo (não corporate)
+- Não inventar testemunhos de clientes que não existem
+
+[OUTPUT ESPERADO]
+- pages/landing/Landing.tsx + sections em pages/landing/sections/
+- public/og-image.png (gerar com Bruno ou placeholder)
+- sitemap.xml + robots.txt em /api/sitemap e /api/robots
+- Tests Playwright: landing carrega < 2s, links funcionam
+
+[VERIFICAÇÃO]
+- Lighthouse mobile + desktop >90
+- HTML válido (W3C validator)
+- /repairdesk → landing visível para anónimos
+- /repairdesk autenticado → redirect /dashboard
+
+Branch: codex/sprint-66-landing
+```
+
+---
+
 ## Anti-padrões a evitar nos prompts (aprendi na conversa)
 
 ### ❌ Mau: "podes melhorar isto?"

@@ -53,6 +53,8 @@ dist-ssr/
 .pnp
 .pnp.js
 coverage/
+test-results/
+playwright-report/
 .next/
 out/
 build/

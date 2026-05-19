@@ -254,6 +254,16 @@ O repo usa GitHub Actions:
 - **`deploy-staging.yml`** — corre em push para `main`, publica imagens no GitHub Container Registry e actualiza staging via SSH
 - **`deploy-production.yml`** — corre em tags `v*.*.*`, usa GitHub Environments para approval manual
 
+### E2E Playwright
+
+```bash
+cd e2e
+npm install
+npm test
+```
+
+Antes de correr localmente, sobe o compose com `E2E_ENABLED=true`, `E2E_USE_MOLONI_STUB=true` e `E2E_API_KEY` definido. Instrucoes completas em [`e2e/README.md`](e2e/README.md).
+
 ### Cortar uma release
 
 ```bash
