@@ -491,18 +491,22 @@ export default function Vendas() {
                     type="button"
                     onClick={() => {
                       const ok = confirm(
-                        'Já anulaste esta fatura no painel Moloni (via Nota de Crédito)?\n\n' +
-                        'Esta acção só limpa a referência da fatura no RepairDesk. NÃO chama a Moloni.\n\n' +
-                        'Se ainda não anulaste no Moloni, vai primeiro a moloni.pt → Documentos → ' +
-                        `Fatura ${vendaDetalhe.invoiceNumber} → Criar Nota de Crédito.`
+                        `Anular fatura ${vendaDetalhe.invoiceNumber}\n\n` +
+                        'O RepairDesk vai pedir à Moloni que emita uma Nota de Crédito ' +
+                        'que estorna esta fatura.\n\n' +
+                        'Resultado fiscal:\n' +
+                        `  Fatura: +${formatCents(vendaDetalhe.totalCents)} IVA liquidado\n` +
+                        `  NC: -${formatCents(vendaDetalhe.totalCents)} IVA\n` +
+                        '  Saldo na AT: 0,00 € (nada a pagar)\n\n' +
+                        'Continuar?'
                       );
                       if (ok) anularFatura.mutate(vendaDetalhe.id);
                     }}
                     disabled={anularFatura.isPending}
                     className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
-                    title="Já anulei no Moloni — limpa referência aqui"
+                    title="Emite NC Moloni que anula a fatura (saldo IVA = 0)"
                   >
-                    {anularFatura.isPending ? 'A anular…' : 'Anular fatura aqui'}
+                    {anularFatura.isPending ? 'A anular…' : 'Anular fatura (NC)'}
                   </button>
                 </div>
               </div>
