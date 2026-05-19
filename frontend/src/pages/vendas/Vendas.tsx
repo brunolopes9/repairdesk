@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, FileText, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound, XCircle, CheckCircle2, History as HistoryIcon } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../../lib/toast';
 import { clientesApi } from '../../lib/clientes/api';
 import type { Cliente } from '../../lib/clientes/types';
 import { formatCents } from '../../lib/money';
@@ -127,7 +127,7 @@ export default function Vendas() {
       qc.invalidateQueries({ queryKey: ['vendas-parts'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       setVendaDetalhe(null);
-      toast.success('Venda cancelada', { description: 'O stock foi reposto.' });
+      toast.success('Venda cancelada', 'O stock foi reposto.');
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel cancelar.'),
   });
