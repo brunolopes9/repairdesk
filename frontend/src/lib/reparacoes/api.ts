@@ -41,6 +41,9 @@ export const reparacoesApi = {
   emitirFatura(id: string, payload: { vatPercent?: number | null; paymentMethod?: string | null } = {}) {
     return api.post<InvoiceDto>(`/reparacoes/${id}/emitir-fatura`, payload).then((r) => r.data);
   },
+  anularFatura(id: string) {
+    return api.post<Reparacao>(`/reparacoes/${id}/anular-fatura`).then((r) => r.data);
+  },
   setFields(id: string, templateId: string | null, values: SetEquipmentFieldValue[]) {
     return api.post<EquipmentFieldValue[]>(`/reparacoes/${id}/fields`, { templateId, values }).then((r) => r.data);
   },

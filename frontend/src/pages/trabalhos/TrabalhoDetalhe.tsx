@@ -171,6 +171,15 @@ export default function TrabalhoDetalhe() {
     onError: (err) => toast.fromError(err, 'Não foi possível emitir a fatura.'),
   });
 
+  const anularFatura = useMutation({
+    mutationFn: () => trabalhosApi.anularFatura(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['trabalho', id] });
+      toast.success('Fatura anulada', 'Nota de Crédito emitida no Moloni. AT actualiza saldo IVA para zero.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível anular a fatura.'),
+  });
+
   const reabrir = useMutation({
     mutationFn: () => trabalhosApi.reabrir(id!),
     onSuccess: () => {
@@ -294,14 +303,31 @@ export default function TrabalhoDetalhe() {
             📄 PDF Orçamento
           </button>
           {t.invoiceExternalId ? (
-            <a
-              href={t.invoicePdfUrl ?? '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
-            >
-              Fatura {t.invoiceNumber ?? t.invoiceExternalId}
-            </a>
+            <>
+              <a
+                href={t.invoicePdfUrl ?? '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+              >
+                Fatura {t.invoiceNumber ?? t.invoiceExternalId}
+              </a>
+              <button
+                type="button"
+                disabled={anularFatura.isPending}
+                onClick={() => {
+                  const ok = confirm(
+                    'ATENÇÃO: Vai emitir Nota de Crédito Moloni para ANULAR a fatura ' +
+                    `${t.invoiceNumber ?? t.invoiceExternalId}.\n\nContinuar?`
+                  );
+                  if (ok) anularFatura.mutate();
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+                title="Emite NC Moloni que anula esta fatura"
+              >
+                {anularFatura.isPending ? 'A anular…' : 'Anular fatura (NC)'}
+              </button>
+            </>
           ) : canEmitMoloniInvoice && (
             <button
               type="button"

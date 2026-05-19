@@ -330,6 +330,16 @@ export default function ReparacaoDetalhe() {
     onError: (err) => toast.fromError(err, 'Não foi possível emitir a fatura.'),
   });
 
+  const anularFatura = useMutation({
+    mutationFn: () => reparacoesApi.anularFatura(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reparacao', id] });
+      qc.invalidateQueries({ queryKey: ['reparacoes-pagas-sem-fatura'] });
+      toast.success('Fatura anulada', 'Nota de Crédito emitida no Moloni. A AT actualiza saldo IVA para zero.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível anular a fatura.'),
+  });
+
   // Reabrir: volta para estado Pronto + desmarca Pago via endpoint dedicado.
   const reabrir = useMutation({
     mutationFn: () => reparacoesApi.reabrir(id!),
@@ -465,14 +475,33 @@ export default function ReparacaoDetalhe() {
             📄 PDF Orçamento
           </button>
           {r.invoiceExternalId ? (
-            <a
-              href={r.invoicePdfUrl ?? '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
-            >
-              Fatura {r.invoiceNumber ?? r.invoiceExternalId}
-            </a>
+            <>
+              <a
+                href={r.invoicePdfUrl ?? '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+              >
+                Fatura {r.invoiceNumber ?? r.invoiceExternalId}
+              </a>
+              <button
+                type="button"
+                disabled={anularFatura.isPending}
+                onClick={() => {
+                  const ok = confirm(
+                    'ATENÇÃO: Vai emitir Nota de Crédito Moloni para ANULAR a fatura ' +
+                    `${r.invoiceNumber ?? r.invoiceExternalId}.\n\n` +
+                    'A AT vai actualizar o saldo IVA para zero.\n\n' +
+                    'Continuar?'
+                  );
+                  if (ok) anularFatura.mutate();
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+                title="Emite NC Moloni que anula esta fatura — útil se emitiste por engano"
+              >
+                {anularFatura.isPending ? 'A anular…' : 'Anular fatura (NC)'}
+              </button>
+            </>
           ) : canEmitMoloniInvoice && (
             <button
               type="button"

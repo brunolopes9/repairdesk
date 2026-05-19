@@ -35,6 +35,9 @@ export const trabalhosApi = {
   emitirFatura(id: string, payload: { vatPercent?: number | null; paymentMethod?: string | null } = {}) {
     return api.post<InvoiceDto>(`/trabalhos/${id}/emitir-fatura`, payload).then((r) => r.data);
   },
+  anularFatura(id: string) {
+    return api.post<Trabalho>(`/trabalhos/${id}/anular-fatura`).then((r) => r.data);
+  },
   reabrir(id: string) {
     return api.post<Trabalho>(`/trabalhos/${id}/reabrir`).then((r) => r.data);
   },
