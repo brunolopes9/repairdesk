@@ -3798,6 +3798,82 @@ Branch: codex/sprint-59-backups-ui
 
 ---
 
+## Codex Coding #C22 — Orçamentos Moloni unificados (estratégia híbrida)
+
+```
+[CONTEXTO]
+Hoje o RepairDesk gera orcamentos via PDF proprio (QuestPDF, branded
+LopesTech). Funciona mas nao tem ATCUD nem certificacao AT — orcamento
+informal.
+
+Moloni tem endpoint para emitir Orcamentos certificados:
+- POST /v1/estimates/insert (provavelmente, confirmar via WebFetch da doc)
+- Tem numeracao sequencial gerida pelo Moloni
+- ATCUD + processado por software certificado N. 2860/AT
+- Quando cliente aceita, pode converter em Fatura num clique (Moloni tem
+  endpoint estimateToInvoice ou similar)
+
+Bruno: 'nos estamos a fazer orcamentos pelo nosso proprio pdf, mas o
+moloni permite nos fazermos orçamentos, basta unificar isso no repairdesk'
+
+[ESTRATEGIA — HIBRIDO]
+Manter os dois caminhos coexistentes:
+1. 'PDF Orcamento' (existente, rapido, branded) — para orcamentos informais
+2. 'Emitir Orcamento Moloni' (novo) — para orcamento certificado formal
+
+Quando cliente aceita orcamento Moloni, RepairDesk converte em Fatura
+chamando Moloni (sem reemitir — usa o documento original).
+
+[OBJECTIVO]
+Adicionar opcao 'Emitir orcamento via Moloni' em Reparacao + Trabalho.
+Reaproveita arquitectura IBillingProvider.
+
+[REQUISITOS FUNCIONAIS]
+1. MoloniClient:
+   - InsertEstimateAsync(settings, draft) — POST /v1/estimates/insert
+   - GetEstimateStatusAsync — saber se foi aceite/cancelado
+   - ConvertEstimateToInvoiceAsync(estimateId) — POST /v1/documentsToInvoice
+2. Entity additions:
+   - Reparacao: EstimateExternalId, EstimateNumber, EstimatePdfUrl, EstimateEmittedAt
+   - Trabalho: idem
+   - Migration: Sprint60EstimateFields
+3. Service methods:
+   - ReparacaoService.EmitirOrcamentoMoloniAsync
+   - ReparacaoService.ConverterOrcamentoEmFaturaAsync (so se EstimateExternalId existe)
+   - Idem Trabalho
+4. UI (ReparacaoDetalhe + TrabalhoDetalhe):
+   - Botao 'PDF Orcamento' (existente, mantém)
+   - Botao NOVO 'Emitir Orcamento Moloni' (azul)
+   - Se ja tem estimate emitido: badge azul 'Orcamento M/2026/X' + 2 botoes:
+     - 'Ver PDF Moloni' (link assinado)
+     - 'Converter em Fatura' (quando cliente aceita)
+   - Botoes mutuamente exclusivos com 'Emitir fatura via Moloni' direto
+     (ou tens orcamento + converte, ou emites fatura directa)
+
+[CONSTRAINTS]
+- Mantém compatibilidade com PDF orcamento existente
+- Audit log toda operacao de emit/convert
+- Confirm() antes de emitir (igual ao da fatura — vai para Moloni real)
+- Sandbox vs Producao detectado igual aos outros endpoints
+
+[OUTPUT ESPERADO]
+- backend: 1 migration, 2 entities updated, IMoloniClient + 3 metodos,
+  2 services updated, 2 controllers updated
+- frontend: 2 detail pages updated, novo MutationHook estimateMoloni
+- Testes para fluxo completo (emit estimate -> convert to invoice)
+- Doc Contexto/50-Orcamentos-Moloni.md
+
+[VERIFICAÇÃO]
+- Emitir orcamento via Moloni para reparacao -> PDF do Moloni aparece
+- Cliente aprova mentalmente -> botao 'Converter em Fatura' funciona
+- Fatura aparece, orcamento fica 'Convertido' no Moloni
+- Auto-sync (Sprint 53) deteta orcamentos anulados e limpa local
+
+Branch: codex/sprint-60-orcamentos-moloni
+```
+
+---
+
 ## Anti-padrões a evitar nos prompts (aprendi na conversa)
 
 ### ❌ Mau: "podes melhorar isto?"
