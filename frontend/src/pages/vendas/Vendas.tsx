@@ -193,7 +193,16 @@ export default function Vendas() {
             {!lastVenda.invoiceExternalId && (
               <button
                 type="button"
-                onClick={() => emitirFatura.mutate(lastVenda.id)}
+                onClick={() => {
+                  const ok = confirm(
+                    'ATENÇÃO: Esta fatura vai ser comunicada à Autoridade Tributária em tempo real através da Moloni.\n\n' +
+                    'Não é uma simulação — vai contar para a tua declaração IVA trimestral.\n\n' +
+                    `Total: ${formatCents(lastVenda.totalCents)}\n` +
+                    `Cliente: ${lastVenda.cliente?.nome ?? 'Consumidor final'}\n\n` +
+                    'Tem a certeza que queres emitir?'
+                  );
+                  if (ok) emitirFatura.mutate(lastVenda.id);
+                }}
                 className="inline-flex items-center gap-2 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
               >
                 <FileText size={16} /> Emitir fatura Moloni
@@ -479,7 +488,15 @@ export default function Vendas() {
               {vendaDetalhe.status === VENDA_STATUS.Paga && !vendaDetalhe.invoiceExternalId && (
                 <button
                   type="button"
-                  onClick={() => emitirFatura.mutate(vendaDetalhe.id)}
+                  onClick={() => {
+                    const ok = confirm(
+                      'ATENÇÃO: Esta fatura vai ser comunicada à Autoridade Tributária em tempo real.\n\n' +
+                      'Não é uma simulação — vai contar para a tua declaração IVA.\n\n' +
+                      `Venda #${vendaDetalhe.numero} · Total: ${formatCents(vendaDetalhe.totalCents)}\n\n` +
+                      'Tem a certeza?'
+                    );
+                    if (ok) emitirFatura.mutate(vendaDetalhe.id);
+                  }}
                   disabled={emitirFatura.isPending}
                   className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-60"
                 >

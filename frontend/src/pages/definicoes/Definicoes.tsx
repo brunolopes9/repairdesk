@@ -541,6 +541,19 @@ function FaturacaoSection() {
 
   return (
     <div className="space-y-6">
+      {/* Banner de aviso PROD vs sandbox */}
+      {connected && !form.sandboxMode && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm dark:border-red-900/40 dark:bg-red-950/30">
+          <p className="font-medium text-red-900 dark:text-red-200">⚠️ Modo PRODUÇÃO — todas as faturas vão à AT</p>
+          <p className="mt-1 text-xs text-red-800 dark:text-red-300">
+            Estás ligado à Moloni em produção. Cada fatura emitida é <strong>comunicada à Autoridade Tributária em tempo real</strong>
+            e entra na tua declaração IVA trimestral. Para testes seguros, activa "Modo sandbox" no passo 1 (quando a sandbox
+            Moloni estiver disponível). Se emitires uma fatura por engano, podes anular emitindo uma Nota de Crédito no painel
+            Moloni — saldo IVA fica a zero.
+          </p>
+        </div>
+      )}
+
       {/* Header explicativo */}
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
         <p className="font-medium">Moloni — certificação AT Nº 2860</p>

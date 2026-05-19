@@ -477,7 +477,18 @@ export default function ReparacaoDetalhe() {
             <button
               type="button"
               disabled={emitirFatura.isPending}
-              onClick={() => emitirFatura.mutate()}
+              onClick={() => {
+                const valor = r.precoFinalCents ?? r.orcamentoCents ?? 0;
+                const ok = confirm(
+                  'ATENÇÃO: Esta fatura vai ser comunicada à Autoridade Tributária em tempo real via Moloni.\n\n' +
+                  'Não é uma simulação — entra na tua declaração IVA trimestral.\n\n' +
+                  `Reparação #${r.numero} · ${r.equipamento}\n` +
+                  `Cliente: ${r.cliente.nome}\n` +
+                  `Total: ${formatCents(valor)}\n\n` +
+                  'Tem a certeza?'
+                );
+                if (ok) emitirFatura.mutate();
+              }}
               className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
               {emitirFatura.isPending ? 'A emitir…' : 'Emitir fatura via Moloni'}
