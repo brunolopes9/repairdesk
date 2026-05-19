@@ -230,9 +230,14 @@ try
     builder.Services.AddScoped<IServiceApiKeyRepository, RepairDesk.DAL.Persistence.ServiceApiKeyRepository>();
     builder.Services.AddScoped<RepairDesk.Services.ServiceApiKeys.IServiceApiKeyService, RepairDesk.Services.ServiceApiKeys.ServiceApiKeyService>();
 
-    // Webhook subscriptions (Sprint 101)
+    // Webhook subscriptions (Sprint 101) + delivery infra (Sprint 102)
     builder.Services.AddScoped<IWebhookSubscriptionRepository, RepairDesk.DAL.Persistence.WebhookSubscriptionRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Webhooks.IWebhookSubscriptionService, RepairDesk.Services.Webhooks.WebhookSubscriptionService>();
+    builder.Services.AddScoped<IWebhookDeliveryRepository, RepairDesk.DAL.Persistence.WebhookDeliveryRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Webhooks.IWebhookPublisher, RepairDesk.Services.Webhooks.WebhookPublisher>();
+    builder.Services.AddHttpClient("webhook")
+        .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(20));
+    builder.Services.AddHostedService<RepairDesk.API.Webhooks.WebhookDeliveryHostedService>();
 
     // External checkout (Sprint 73) — atómico para loja online / integrações
     builder.Services.AddScoped<RepairDesk.Services.External.IExternalCheckoutService, RepairDesk.Services.External.ExternalCheckoutService>();
