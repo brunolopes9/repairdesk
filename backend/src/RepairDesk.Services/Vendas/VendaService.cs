@@ -189,15 +189,22 @@ public class VendaService : IVendaService
         if (string.IsNullOrEmpty(venda.InvoiceExternalId))
             throw new ConflictException("venda_sem_fatura", "Esta venda nao tem fatura emitida para anular.");
 
-        // RepairDesk eh o ponto central: anular fatura no RepairDesk -> emite Nota de Credito na Moloni
-        // automaticamente. O utilizador nao precisa de saltar entre apps.
+        // Estratégia: tentar documentCancel primeiro (1 documento, mais limpo). Se Moloni rejeitar
+        // (porque ja foi processado pela AT, etc), fallback para Nota de Credito.
         if (_tenant.TenantId is { } tenantId)
         {
             var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
             if (settings?.Provider == BillingProvider.Moloni && int.TryParse(venda.InvoiceExternalId, out var originalDocId))
             {
-                try
+                var cancelled = await _moloni.CancelDocumentAsync(
+                    settings,
+                    originalDocId,
+                    $"Anulado via RepairDesk — venda #{venda.Numero}",
+                    ct);
+
+                if (!cancelled)
                 {
+                    // Fallback: emite Nota de Credito (caso documentCancel nao seja aplicavel)
                     var items = venda.Items.Select(i => new MoloniInvoiceDraftItem(
                         i.Descricao,
                         null,
@@ -207,7 +214,8 @@ public class VendaService : IVendaService
                         i.IvaRate)).ToList();
 
                     var customerId = settings.FallbackCustomerId ?? 0;
-                    if (customerId <= 0) throw new ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
+                    if (customerId <= 0)
+                        throw new ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
 
                     await _moloni.InsertCreditNoteAsync(settings, new MoloniCreditNoteDraft(
                         originalDocId,
@@ -216,11 +224,6 @@ public class VendaService : IVendaService
                         items,
                         $"Anulacao da Fatura {venda.InvoiceNumber} via RepairDesk"
                     ), ct);
-                }
-                catch (BillingProviderException)
-                {
-                    // Re-throw — operador precisa de saber que a NC falhou e tem de tratar manualmente
-                    throw;
                 }
             }
         }

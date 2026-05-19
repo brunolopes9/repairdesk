@@ -155,6 +155,8 @@ public class BillingOAuthApiTests : IClassFixture<RepairDeskApiFactory>
             => Task.FromResult<Stream>(new MemoryStream());
         public Task<MoloniInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, MoloniCreditNoteDraft draft, CancellationToken ct = default)
             => Task.FromResult(new MoloniInvoiceResult("NC1", "NC 2026/1", null, DateTime.UtcNow));
+        public Task<bool> CancelDocumentAsync(TenantBillingSettings settings, int documentId, string observation, CancellationToken ct = default)
+            => Task.FromResult(true);
         public Task ConnectViaPasswordGrantAsync(TenantBillingSettings settings, string username, string password, CancellationToken ct = default)
             => Task.CompletedTask;
 

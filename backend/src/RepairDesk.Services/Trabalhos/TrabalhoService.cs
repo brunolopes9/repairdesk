@@ -60,22 +60,31 @@ public class TrabalhoService : ITrabalhoService
             var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
             if (settings?.Provider == BillingProvider.Moloni && int.TryParse(t.InvoiceExternalId, out var originalDocId))
             {
-                var valor = t.PrecoFinalCents ?? t.OrcamentoCents ?? 0;
-                var items = new List<RepairDesk.Services.Billing.MoloniInvoiceDraftItem>
-                {
-                    new(t.Titulo, t.Descricao, 1, valor, 0, 23m),
-                };
-                var customerId = settings.FallbackCustomerId ?? 0;
-                if (customerId <= 0)
-                    throw new RepairDesk.Core.Exceptions.ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
-
-                await _moloni.InsertCreditNoteAsync(settings, new RepairDesk.Services.Billing.MoloniCreditNoteDraft(
+                var cancelled = await _moloni.CancelDocumentAsync(
+                    settings,
                     originalDocId,
-                    customerId,
-                    $"Trabalho #{t.Numero}",
-                    items,
-                    $"Anulacao da Fatura {t.InvoiceNumber} via RepairDesk"
-                ), ct);
+                    $"Anulado via RepairDesk — trabalho #{t.Numero}",
+                    ct);
+
+                if (!cancelled)
+                {
+                    var valor = t.PrecoFinalCents ?? t.OrcamentoCents ?? 0;
+                    var items = new List<RepairDesk.Services.Billing.MoloniInvoiceDraftItem>
+                    {
+                        new(t.Titulo, t.Descricao, 1, valor, 0, 23m),
+                    };
+                    var customerId = settings.FallbackCustomerId ?? 0;
+                    if (customerId <= 0)
+                        throw new RepairDesk.Core.Exceptions.ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
+
+                    await _moloni.InsertCreditNoteAsync(settings, new RepairDesk.Services.Billing.MoloniCreditNoteDraft(
+                        originalDocId,
+                        customerId,
+                        $"Trabalho #{t.Numero}",
+                        items,
+                        $"Anulacao da Fatura {t.InvoiceNumber} via RepairDesk"
+                    ), ct);
+                }
             }
         }
 

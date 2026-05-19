@@ -15,6 +15,12 @@ public interface IMoloniClient
     // O reference parameter aponta à fatura original via related_documents.
     Task<MoloniInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, MoloniCreditNoteDraft draft, CancellationToken ct = default);
 
+    // Cancela documento Moloni directamente (status -> Anulado, sem criar 2º documento).
+    // Restricoes Moloni: so funciona se status=fechado, nao pendente AT, sem codigo AT associado,
+    // nao gerou outros documentos. Para faturas simplificadas geralmente funciona.
+    // Devolve true se cancelado com sucesso, false se Moloni rejeitou (chamar InsertCreditNote como fallback).
+    Task<bool> CancelDocumentAsync(TenantBillingSettings settings, int documentId, string observation, CancellationToken ct = default);
+
     // OAuth2 password grant: troca username+password (uma vez) por tokens. Tokens guardados cifrados em settings; password nunca persistida.
     Task ConnectViaPasswordGrantAsync(TenantBillingSettings settings, string username, string password, CancellationToken ct = default);
     Task ExchangeAuthorizationCodeAsync(TenantBillingSettings settings, string code, string redirectUri, CancellationToken ct = default);

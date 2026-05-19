@@ -202,6 +202,42 @@ public class MoloniClient : IMoloniClient
         return product;
     }
 
+    public async Task<bool> CancelDocumentAsync(TenantBillingSettings settings, int documentId, string observation, CancellationToken ct = default)
+    {
+        if (settings.Provider != BillingProvider.Moloni)
+            throw new ValidationException("billing_provider_not_moloni", "Configura Moloni como provider.");
+        if (settings.CompanyId is null or <= 0)
+            throw new ValidationException("moloni_company_missing", "Configura o CompanyId Moloni.");
+        if (documentId <= 0)
+            throw new ValidationException("moloni_document_id_invalid", "ID do documento Moloni inválido.");
+
+        try
+        {
+            var result = await PostAsync<JsonElement>(
+                settings,
+                "documents/documentCancel",
+                new
+                {
+                    company_id = settings.CompanyId!.Value,
+                    document_id = documentId,
+                    observation = string.IsNullOrWhiteSpace(observation) ? "Cancelado via RepairDesk" : observation,
+                },
+                ct);
+
+            // Moloni devolve { valid: 1, message } se ok
+            var valid = result.ValueKind == JsonValueKind.Object && result.TryGetProperty("valid", out var v) && ReadInt(v) == 1;
+            _logger.LogInformation("Moloni documentCancel docId={DocId} -> {Result}", documentId, valid ? "OK" : "rejected");
+            return valid;
+        }
+        catch (BillingProviderException ex)
+        {
+            // Moloni rejeita se: nao fechado, pendente AT, gerou outros docs, etc.
+            // Caller deve fallback para InsertCreditNoteAsync.
+            _logger.LogInformation("Moloni documentCancel falhou para docId={DocId}: {Msg}", documentId, ex.Message);
+            return false;
+        }
+    }
+
     public async Task<MoloniInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, MoloniCreditNoteDraft draft, CancellationToken ct = default)
     {
         EnsureReadyToInvoice(settings, draft.Items.FirstOrDefault()?.VatPercent ?? 23m);

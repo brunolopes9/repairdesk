@@ -110,28 +110,38 @@ public class ReparacaoService : IReparacaoService
         if (string.IsNullOrEmpty(rep.InvoiceExternalId))
             throw new ConflictException("reparacao_sem_fatura", "Esta reparacao nao tem fatura emitida para anular.");
 
-        // RepairDesk eh ponto central — emite NC via Moloni antes de limpar referencias locais.
+        // Estrategia: tentar documentCancel primeiro (1 doc anulado, sem criar NC).
+        // Se Moloni rejeitar (ja processado pela AT, etc), fallback para Nota de Credito.
         if (_tenant.TenantId is { } tenantId)
         {
             var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
             if (settings?.Provider == BillingProvider.Moloni && int.TryParse(rep.InvoiceExternalId, out var originalDocId))
             {
-                var valor = rep.PrecoFinalCents ?? rep.OrcamentoCents ?? 0;
-                var items = new List<RepairDesk.Services.Billing.MoloniInvoiceDraftItem>
-                {
-                    new($"Reparacao {rep.Equipamento}", rep.Avaria, 1, valor, 0, 23m),
-                };
-                var customerId = settings.FallbackCustomerId ?? 0;
-                if (customerId <= 0)
-                    throw new RepairDesk.Core.Exceptions.ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
-
-                await _moloni.InsertCreditNoteAsync(settings, new RepairDesk.Services.Billing.MoloniCreditNoteDraft(
+                var cancelled = await _moloni.CancelDocumentAsync(
+                    settings,
                     originalDocId,
-                    customerId,
-                    $"Reparacao #{rep.Numero}",
-                    items,
-                    $"Anulacao da Fatura {rep.InvoiceNumber} via RepairDesk"
-                ), ct);
+                    $"Anulado via RepairDesk — reparacao #{rep.Numero}",
+                    ct);
+
+                if (!cancelled)
+                {
+                    var valor = rep.PrecoFinalCents ?? rep.OrcamentoCents ?? 0;
+                    var items = new List<RepairDesk.Services.Billing.MoloniInvoiceDraftItem>
+                    {
+                        new($"Reparacao {rep.Equipamento}", rep.Avaria, 1, valor, 0, 23m),
+                    };
+                    var customerId = settings.FallbackCustomerId ?? 0;
+                    if (customerId <= 0)
+                        throw new RepairDesk.Core.Exceptions.ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
+
+                    await _moloni.InsertCreditNoteAsync(settings, new RepairDesk.Services.Billing.MoloniCreditNoteDraft(
+                        originalDocId,
+                        customerId,
+                        $"Reparacao #{rep.Numero}",
+                        items,
+                        $"Anulacao da Fatura {rep.InvoiceNumber} via RepairDesk"
+                    ), ct);
+                }
             }
         }
 
