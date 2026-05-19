@@ -15,6 +15,7 @@ public interface IVendaService
     Task<EmitVendaFaturaResponse> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default);
     Task<InvoiceDto> EmitirFaturaAsync(Guid id, CancellationToken ct = default);
     Task<VendaDto> CancelarAsync(Guid id, CancellationToken ct = default);
+    Task<VendaDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
 }
 
 public class VendaService : IVendaService
@@ -159,6 +160,24 @@ public class VendaService : IVendaService
             throw new ValidationException("venda_nao_paga", "So podes emitir fatura depois de marcar a venda como paga.");
 
         return await _billing.EmitVendaInvoiceAsync(id, ct);
+    }
+
+    public async Task<VendaDto> AnularFaturaAsync(Guid id, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        if (string.IsNullOrEmpty(venda.InvoiceExternalId))
+            throw new ConflictException("venda_sem_fatura", "Esta venda nao tem fatura emitida para anular.");
+
+        // Espelha cancelamento manual no Moloni (operador anulou la via NC).
+        // Limpa InvoiceExternalId/Number/Url/EmittedAt para a venda sair do Relatorio IVA.
+        venda.InvoiceProvider = BillingProvider.None;
+        venda.InvoiceExternalId = null;
+        venda.InvoiceNumber = null;
+        venda.InvoicePdfUrl = null;
+        venda.InvoiceEmittedAt = null;
+
+        await _vendas.SaveAsync(ct);
+        return ToDto(venda);
     }
 
     public async Task<VendaDto> CancelarAsync(Guid id, CancellationToken ct = default)

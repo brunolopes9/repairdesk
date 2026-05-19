@@ -20,6 +20,9 @@ export const vendasApi = {
   cancelar(id: string) {
     return api.post<Venda>(`/vendas/${id}/cancelar`).then((r) => r.data);
   },
+  anularFatura(id: string) {
+    return api.post<Venda>(`/vendas/${id}/anular-fatura`).then((r) => r.data);
+  },
   reciboUrl(id: string) {
     return `${api.defaults.baseURL ?? ''}/vendas/${id}/recibo.pdf`;
   },

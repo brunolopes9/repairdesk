@@ -53,6 +53,12 @@ public class VendasController : ControllerBase
     public Task<VendaDto> Cancelar(Guid id, CancellationToken ct)
         => _service.CancelarAsync(id, ct);
 
+    /// <summary>Anula referência da fatura no RepairDesk (para casos onde o operador já anulou no Moloni via NC).
+    /// Não chama Moloni — apenas limpa InvoiceExternalId/InvoiceNumber/etc localmente.</summary>
+    [HttpPost("{id:guid}/anular-fatura")]
+    public Task<VendaDto> AnularFatura(Guid id, CancellationToken ct)
+        => _service.AnularFaturaAsync(id, ct);
+
     [HttpGet("{id:guid}/recibo.pdf")]
     public async Task<IActionResult> ReciboPdf(Guid id, CancellationToken ct)
     {

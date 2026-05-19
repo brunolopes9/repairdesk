@@ -132,6 +132,17 @@ export default function Vendas() {
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel cancelar.'),
   });
 
+  const anularFatura = useMutation({
+    mutationFn: (id: string) => vendasApi.anularFatura(id),
+    onSuccess: (venda) => {
+      qc.invalidateQueries({ queryKey: ['vendas-historico'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      setVendaDetalhe(venda);
+      toast.success('Fatura anulada no RepairDesk', 'O documento já não aparece no Relatório IVA.');
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Não foi possível anular fatura.'),
+  });
+
   function addPart(part: Part) {
     if (part.qtdStock <= 0) {
       toast.warning('Esta peca esta sem stock.');
@@ -467,12 +478,33 @@ export default function Vendas() {
 
             {vendaDetalhe.invoiceNumber && (
               <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-xs dark:border-emerald-900/40 dark:bg-emerald-950/30">
-                <strong>Fatura emitida:</strong> {vendaDetalhe.invoiceNumber}
-                {vendaDetalhe.invoicePdfUrl && (
-                  <a href={vendaDetalhe.invoicePdfUrl} target="_blank" rel="noreferrer" className="ml-2 underline">
-                    ver PDF
-                  </a>
-                )}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <strong>Fatura emitida:</strong> {vendaDetalhe.invoiceNumber}
+                    {vendaDetalhe.invoicePdfUrl && (
+                      <a href={vendaDetalhe.invoicePdfUrl} target="_blank" rel="noreferrer" className="ml-2 underline">
+                        ver PDF
+                      </a>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ok = confirm(
+                        'Já anulaste esta fatura no painel Moloni (via Nota de Crédito)?\n\n' +
+                        'Esta acção só limpa a referência da fatura no RepairDesk. NÃO chama a Moloni.\n\n' +
+                        'Se ainda não anulaste no Moloni, vai primeiro a moloni.pt → Documentos → ' +
+                        `Fatura ${vendaDetalhe.invoiceNumber} → Criar Nota de Crédito.`
+                      );
+                      if (ok) anularFatura.mutate(vendaDetalhe.id);
+                    }}
+                    disabled={anularFatura.isPending}
+                    className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
+                    title="Já anulei no Moloni — limpa referência aqui"
+                  >
+                    {anularFatura.isPending ? 'A anular…' : 'Anular fatura aqui'}
+                  </button>
+                </div>
               </div>
             )}
 
