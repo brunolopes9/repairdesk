@@ -16,6 +16,7 @@ public interface IVendaService
     Task<InvoiceDto> EmitirFaturaAsync(Guid id, CancellationToken ct = default);
     Task<VendaDto> CancelarAsync(Guid id, CancellationToken ct = default);
     Task<VendaDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
+    Task<VendaDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default);
 }
 
 public class VendaService : IVendaService
@@ -163,6 +164,23 @@ public class VendaService : IVendaService
             throw new ValidationException("venda_nao_paga", "So podes emitir fatura depois de marcar a venda como paga.");
 
         return await _billing.EmitVendaInvoiceAsync(id, ct);
+    }
+
+    /// <summary>Limpa apenas referencias locais da fatura. Util quando o utilizador ja anulou a
+    /// fatura manualmente no painel Moloni (status 'Anulado') e so quer sincronizar com o RepairDesk.</summary>
+    public async Task<VendaDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        if (string.IsNullOrEmpty(venda.InvoiceExternalId))
+            throw new ConflictException("venda_sem_fatura", "Esta venda nao tem fatura para limpar.");
+
+        venda.InvoiceProvider = BillingProvider.None;
+        venda.InvoiceExternalId = null;
+        venda.InvoiceNumber = null;
+        venda.InvoicePdfUrl = null;
+        venda.InvoiceEmittedAt = null;
+        await _vendas.SaveAsync(ct);
+        return ToDto(venda);
     }
 
     public async Task<VendaDto> AnularFaturaAsync(Guid id, CancellationToken ct = default)

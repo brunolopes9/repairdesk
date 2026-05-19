@@ -6,6 +6,7 @@ import { clientesApi } from '../../lib/clientes/api';
 import type { Cliente } from '../../lib/clientes/types';
 import { formatCents } from '../../lib/money';
 import { stockApi } from '../../lib/stock/api';
+import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import type { Part } from '../../lib/stock/types';
 import { vendasApi } from '../../lib/vendas/api';
 import { PAYMENT_METHOD, VENDA_STATUS, type PaymentMethod, type Venda } from '../../lib/vendas/types';
@@ -39,6 +40,12 @@ export default function Vendas() {
     queryKey: ['vendas-parts', q],
     queryFn: () => stockApi.list({ q, pageSize: 12 }),
     staleTime: 10_000,
+  });
+
+  const billing = useQuery({
+    queryKey: ['tenant-billing-settings'],
+    queryFn: () => tenantSettingsApi.getBilling(),
+    staleTime: 5 * 60_000,
   });
 
   const clientes = useQuery({
@@ -205,12 +212,16 @@ export default function Vendas() {
               <button
                 type="button"
                 onClick={() => {
+                  const isSandbox = billing.data?.sandboxMode === true;
                   const ok = confirm(
-                    'ATENÇÃO: Esta fatura vai ser comunicada à Autoridade Tributária em tempo real através da Moloni.\n\n' +
-                    'Não é uma simulação — vai contar para a tua declaração IVA trimestral.\n\n' +
-                    `Total: ${formatCents(lastVenda.totalCents)}\n` +
-                    `Cliente: ${lastVenda.cliente?.nome ?? 'Consumidor final'}\n\n` +
-                    'Tem a certeza que queres emitir?'
+                    isSandbox
+                      ? 'MODO SANDBOX — fatura de teste\n\n' +
+                        'Não é comunicada à AT real. Útil para validar o fluxo.\n\n' +
+                        `Total: ${formatCents(lastVenda.totalCents)}\nContinuar?`
+                      : 'ATENÇÃO: MODO PRODUÇÃO — fatura real à AT\n\n' +
+                        'Vai ser comunicada em tempo real. Entra na tua declaração IVA.\n\n' +
+                        `Total: ${formatCents(lastVenda.totalCents)}\n` +
+                        `Cliente: ${lastVenda.cliente?.nome ?? 'Consumidor final'}\n\nTem a certeza?`
                   );
                   if (ok) emitirFatura.mutate(lastVenda.id);
                 }}
@@ -525,11 +536,14 @@ export default function Vendas() {
                 <button
                   type="button"
                   onClick={() => {
+                    const isSandbox = billing.data?.sandboxMode === true;
                     const ok = confirm(
-                      'ATENÇÃO: Esta fatura vai ser comunicada à Autoridade Tributária em tempo real.\n\n' +
-                      'Não é uma simulação — vai contar para a tua declaração IVA.\n\n' +
-                      `Venda #${vendaDetalhe.numero} · Total: ${formatCents(vendaDetalhe.totalCents)}\n\n` +
-                      'Tem a certeza?'
+                      isSandbox
+                        ? 'MODO SANDBOX — fatura de teste\n\nNão é comunicada à AT real.\n\n' +
+                          `Venda #${vendaDetalhe.numero} · Total: ${formatCents(vendaDetalhe.totalCents)}\nContinuar?`
+                        : 'ATENÇÃO: MODO PRODUÇÃO — fatura real à AT\n\n' +
+                          'Vai ser comunicada em tempo real. Entra na declaração IVA.\n\n' +
+                          `Venda #${vendaDetalhe.numero} · Total: ${formatCents(vendaDetalhe.totalCents)}\n\nTem a certeza?`
                     );
                     if (ok) emitirFatura.mutate(vendaDetalhe.id);
                   }}

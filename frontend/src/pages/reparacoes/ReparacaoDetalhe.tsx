@@ -508,13 +508,20 @@ export default function ReparacaoDetalhe() {
               disabled={emitirFatura.isPending}
               onClick={() => {
                 const valor = r.precoFinalCents ?? r.orcamentoCents ?? 0;
+                const isSandbox = billing.data?.sandboxMode === true;
                 const ok = confirm(
-                  'ATENÇÃO: Esta fatura vai ser comunicada à Autoridade Tributária em tempo real via Moloni.\n\n' +
-                  'Não é uma simulação — entra na tua declaração IVA trimestral.\n\n' +
-                  `Reparação #${r.numero} · ${r.equipamento}\n` +
-                  `Cliente: ${r.cliente.nome}\n` +
-                  `Total: ${formatCents(valor)}\n\n` +
-                  'Tem a certeza?'
+                  isSandbox
+                    ? 'MODO SANDBOX — fatura de teste\n\n' +
+                      'O documento vai ser criado na sandbox Moloni. NÃO é comunicado à AT real.\n' +
+                      'Útil para validar o fluxo sem impacto fiscal.\n\n' +
+                      `Reparação #${r.numero} · ${r.equipamento}\n` +
+                      `Total: ${formatCents(valor)}\n\nContinuar?`
+                    : 'ATENÇÃO: MODO PRODUÇÃO — fatura real\n\n' +
+                      'Vai ser comunicada à Autoridade Tributária em tempo real.\n' +
+                      'Entra na tua declaração IVA trimestral.\n\n' +
+                      `Reparação #${r.numero} · ${r.equipamento}\n` +
+                      `Cliente: ${r.cliente.nome}\n` +
+                      `Total: ${formatCents(valor)}\n\nTem a certeza?`
                 );
                 if (ok) emitirFatura.mutate();
               }}
