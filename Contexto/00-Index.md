@@ -51,6 +51,8 @@ Para alguém novo a este projeto (futuro Bruno, futuro Claude, futuro sócio):
 38. **[`40-Ideias-Spin-off-Automation.md`](40-Ideias-Spin-off-Automation.md)** — 🧊 análise crítica de Bruno querer lançar spin-off de automações em paralelo com RepairDesk. **Recomendação: NÃO agora.** Mercado saturado, é agência não produto, foco mata possibilidade. 3 ideias melhores (extracções do RepairDesk) + métrica para revisitar Q4 2026.
 39. **[`41-Moloni-Setup.md`](41-Moloni-Setup.md)** — 💳 passo-a-passo para Bruno criar conta Moloni + obter API key + configurar série, **antes** do Codex aterrar #C9. Multi-tenant: cada oficina cria a sua conta. Free tier 50 docs/mês. Sandbox primeiro.
 40. **[`42-Moloni-Troubleshooting.md`](42-Moloni-Troubleshooting.md)** — 🛠️ guia de 12 erros comuns na integração Moloni (503 sandbox down, 422 credenciais, plano sem API, refresh expirado, séries em falta, CompanyId/ProductId missing, IVA M02, etc) + tabela rápida de status HTTP. Útil para suporte beta.
+41. **[`43-Moloni-Setup-Beta-Users.md`](43-Moloni-Setup-Beta-Users.md)** — 📋 guia passo-a-passo para tenants beta ligarem Moloni: registo, OAuth, e configuração de IDs operacionais (vai ser auto-descoberto no Sprint 45 #C14).
+42. **[`45-Features-Beta.md`](45-Features-Beta.md)** — 🎯 documentação operacional das 3 features novas do Codex (#C12 Vendas/POS, #C15 Push notifications PWA, #C16 Relatório IVA trimestral): quando usar, como funcionar, stack técnico, RGPD, FAQ. Roadmap para os beta users.
 
 ---
 
