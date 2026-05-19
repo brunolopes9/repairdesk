@@ -34,4 +34,12 @@ public class WebhooksController : ControllerBase
         await _service.DeleteAsync(id, ct);
         return NoContent();
     }
+
+    [HttpGet("{id:guid}/deliveries")]
+    public Task<IReadOnlyList<WebhookDeliveryDto>> Deliveries(Guid id, [FromQuery] int take = 50, CancellationToken ct = default)
+        => _service.ListDeliveriesAsync(id, take, ct);
+
+    [HttpPost("deliveries/{deliveryId:guid}/retry")]
+    public Task<WebhookDeliveryDto> RetryDelivery(Guid deliveryId, CancellationToken ct)
+        => _service.RetryDeliveryAsync(deliveryId, ct);
 }

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Copy, Plus, ShieldCheck, Trash2, Webhook } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Copy, History, Plus, RefreshCw, ShieldCheck, Trash2, Webhook } from 'lucide-react';
 import Modal from '../../components/Modal';
+import JsonViewer from '../../components/JsonViewer';
 import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
 import { toast } from '../../lib/toast';
-import { webhooksApi, type CreateWebhookSubscriptionResponse, type WebhookSubscription } from '../../lib/webhooks/api';
+import { webhooksApi, type CreateWebhookSubscriptionResponse, type WebhookDelivery, type WebhookSubscription } from '../../lib/webhooks/api';
 import { formatDate } from '../../lib/money';
 
 interface FormState {
@@ -25,6 +26,24 @@ export default function Webhooks() {
   const [editing, setEditing] = useState<WebhookSubscription | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [createdSecret, setCreatedSecret] = useState<CreateWebhookSubscriptionResponse | null>(null);
+  const [deliveriesOf, setDeliveriesOf] = useState<WebhookSubscription | null>(null);
+  const [inspectingDelivery, setInspectingDelivery] = useState<WebhookDelivery | null>(null);
+
+  const deliveriesQuery = useQuery({
+    queryKey: ['webhook-deliveries', deliveriesOf?.id],
+    queryFn: () => webhooksApi.deliveries(deliveriesOf!.id, 50),
+    enabled: !!deliveriesOf,
+  });
+
+  const retryMut = useMutation({
+    mutationFn: (deliveryId: string) => webhooksApi.retryDelivery(deliveryId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['webhook-deliveries', deliveriesOf?.id] });
+      qc.invalidateQueries({ queryKey: ['webhooks'] });
+      toast.success('Delivery reagendada para retry imediato.');
+    },
+    onError: (e) => toast.fromError(e, 'Erro ao reagendar.'),
+  });
 
   function openCreate() {
     setEditing(null);
@@ -122,14 +141,24 @@ export default function Webhooks() {
                   {s.lastDeliveryAt ? formatDate(s.lastDeliveryAt) : '—'}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); if (confirm(`Remover webhook "${s.name}"?`)) deleteMut.mutate(s.id); }}
-                    className="rounded-md p-1 text-zinc-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
-                    aria-label="Remover"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDeliveriesOf(s); }}
+                      className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100 hover:text-brand-600 dark:hover:bg-zinc-800"
+                      title="Ver últimas entregas"
+                    >
+                      <History size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); if (confirm(`Remover webhook "${s.name}"?`)) deleteMut.mutate(s.id); }}
+                      className="rounded-md p-1 text-zinc-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+                      aria-label="Remover"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -194,6 +223,70 @@ export default function Webhooks() {
       </Modal>
 
       <Modal
+        open={!!deliveriesOf}
+        title={`Últimas entregas · ${deliveriesOf?.name ?? ''}`}
+        onClose={() => setDeliveriesOf(null)}
+      >
+        <div className="max-h-[60vh] overflow-y-auto">
+          {deliveriesQuery.isLoading && <SkeletonRow columns={4} />}
+          {!deliveriesQuery.isLoading && (deliveriesQuery.data?.length ?? 0) === 0 && (
+            <EmptyState icon={History} title="Sem entregas ainda" description="Quando o RepairDesk publicar um evento que esta subscription ouve, aparece aqui." />
+          )}
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {deliveriesQuery.data?.map((d) => (
+              <li key={d.id} className="py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs">{d.eventType}</span>
+                      <DeliveryStatusBadge status={d.status} code={d.lastResponseCode} />
+                      <span className="text-[11px] text-zinc-500">tent. {d.attempts}</span>
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-zinc-500">
+                      {formatDate(d.createdAt)}
+                      {d.nextRetryAt && d.status === 'Pending' && <span> · retry: {formatDate(d.nextRetryAt)}</span>}
+                      {d.lastError && <span className="text-rose-600"> · {d.lastError}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setInspectingDelivery(d)}
+                      className="rounded-md px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      Payload
+                    </button>
+                    {d.status === 'Failed' && (
+                      <button
+                        type="button"
+                        onClick={() => retryMut.mutate(d.id)}
+                        disabled={retryMut.isPending}
+                        className="flex items-center gap-1 rounded-md border border-brand-300 bg-brand-50 px-2 py-1 text-[11px] text-brand-700 hover:bg-brand-100 dark:border-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
+                      >
+                        <RefreshCw size={11} /> Retry
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!inspectingDelivery}
+        title={`Payload · ${inspectingDelivery?.eventType ?? ''}`}
+        onClose={() => setInspectingDelivery(null)}
+      >
+        {inspectingDelivery && (
+          <div className="max-h-[60vh] overflow-y-auto">
+            <JsonViewer value={inspectingDelivery.payloadJson} />
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         open={!!createdSecret}
         title="Webhook criado — guarda o secret"
         onClose={() => setCreatedSecret(null)}
@@ -240,3 +333,9 @@ export default function Webhooks() {
 
 const inputCls =
   'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-zinc-700 dark:bg-zinc-900';
+
+function DeliveryStatusBadge({ status, code }: { status: WebhookDelivery['status']; code: number | null }) {
+  if (status === 'Delivered') return <StatusBadge tone="emerald">200 {code && code !== 200 ? code : ''}</StatusBadge>;
+  if (status === 'Failed') return <StatusBadge tone="rose">{code ?? 'Falhou'}</StatusBadge>;
+  return <StatusBadge tone="amber">Pendente</StatusBadge>;
+}

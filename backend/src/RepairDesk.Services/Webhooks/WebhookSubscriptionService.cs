@@ -13,6 +13,9 @@ public interface IWebhookSubscriptionService
     Task<WebhookSubscriptionDto> UpdateAsync(Guid id, UpdateWebhookSubscriptionRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     IReadOnlyList<string> ListEventTypes();
+    Task<IReadOnlyList<WebhookDeliveryDto>> ListDeliveriesAsync(Guid subscriptionId, int take, CancellationToken ct = default);
+    /// <summary>Reagenda uma delivery Failed para retry imediato — reset Attempts e Status.</summary>
+    Task<WebhookDeliveryDto> RetryDeliveryAsync(Guid deliveryId, CancellationToken ct = default);
 }
 
 public sealed record WebhookSubscriptionDto(
@@ -40,18 +43,71 @@ public sealed record UpdateWebhookSubscriptionRequest(
 /// <summary>Plain secret devolvido APENAS na criação — depois fica só no servidor (consulta na BD requer SuperAdmin).</summary>
 public sealed record CreateWebhookSubscriptionResponse(WebhookSubscriptionDto Subscription, string Secret);
 
+public sealed record WebhookDeliveryDto(
+    Guid Id,
+    Guid WebhookSubscriptionId,
+    string EventType,
+    string Status,
+    int Attempts,
+    int? LastResponseCode,
+    string? LastError,
+    DateTime? NextRetryAt,
+    DateTime? DeliveredAt,
+    DateTime? FailedAt,
+    DateTime CreatedAt,
+    string PayloadJson);
+
 public class WebhookSubscriptionService : IWebhookSubscriptionService
 {
     private readonly IWebhookSubscriptionRepository _repo;
+    private readonly IWebhookDeliveryRepository _deliveries;
     private readonly ITenantContext _tenant;
     private readonly IAuditLogger _audit;
 
-    public WebhookSubscriptionService(IWebhookSubscriptionRepository repo, ITenantContext tenant, IAuditLogger audit)
+    public WebhookSubscriptionService(
+        IWebhookSubscriptionRepository repo,
+        IWebhookDeliveryRepository deliveries,
+        ITenantContext tenant,
+        IAuditLogger audit)
     {
         _repo = repo;
+        _deliveries = deliveries;
         _tenant = tenant;
         _audit = audit;
     }
+
+    public async Task<IReadOnlyList<WebhookDeliveryDto>> ListDeliveriesAsync(Guid subscriptionId, int take, CancellationToken ct = default)
+    {
+        var sub = await _repo.FindByIdAsync(subscriptionId, ct)
+            ?? throw new NotFoundException("WebhookSubscription", subscriptionId);
+        var rows = await _deliveries.ListBySubscriptionAsync(sub.Id, Math.Clamp(take, 1, 200), ct);
+        return rows.Select(ToDeliveryDto).ToList();
+    }
+
+    public async Task<WebhookDeliveryDto> RetryDeliveryAsync(Guid deliveryId, CancellationToken ct = default)
+    {
+        var d = await _deliveries.FindByIdAsync(deliveryId, ct)
+            ?? throw new NotFoundException("WebhookDelivery", deliveryId);
+        // Validar que a delivery pertence ao tenant actual (defesa em profundidade —
+        // FindByIdAsync já aplica tenant filter, mas a verificação extra documenta a intenção).
+        if (_tenant.TenantId is { } tid && d.TenantId != tid)
+            throw new NotFoundException("WebhookDelivery", deliveryId);
+
+        d.Status = WebhookDeliveryStatus.Pending;
+        d.Attempts = 0;
+        d.NextRetryAt = DateTime.UtcNow;
+        d.FailedAt = null;
+        d.LastError = null;
+        d.LastResponseCode = null;
+        await _deliveries.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, "WebhookDelivery", d.Id, new { action = "manual_retry" }, ct: ct);
+        return ToDeliveryDto(d);
+    }
+
+    private static WebhookDeliveryDto ToDeliveryDto(WebhookDelivery d) =>
+        new(d.Id, d.WebhookSubscriptionId, d.EventType, d.Status.ToString(),
+            d.Attempts, d.LastResponseCode, d.LastError,
+            d.NextRetryAt, d.DeliveredAt, d.FailedAt, d.CreatedAt, d.PayloadJson);
 
     public IReadOnlyList<string> ListEventTypes() => WebhookEvents.All;
 

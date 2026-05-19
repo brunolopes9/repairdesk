@@ -28,6 +28,21 @@ export interface CreateWebhookSubscriptionResponse {
   secret: string;
 }
 
+export interface WebhookDelivery {
+  id: string;
+  webhookSubscriptionId: string;
+  eventType: string;
+  status: 'Pending' | 'Delivered' | 'Failed';
+  attempts: number;
+  lastResponseCode: number | null;
+  lastError: string | null;
+  nextRetryAt: string | null;
+  deliveredAt: string | null;
+  failedAt: string | null;
+  createdAt: string;
+  payloadJson: string;
+}
+
 export const webhooksApi = {
   list() {
     return api.get<WebhookSubscription[]>('/webhooks').then((r) => r.data);
@@ -43,5 +58,11 @@ export const webhooksApi = {
   },
   remove(id: string) {
     return api.delete(`/webhooks/${id}`).then(() => undefined);
+  },
+  deliveries(id: string, take = 50) {
+    return api.get<WebhookDelivery[]>(`/webhooks/${id}/deliveries?take=${take}`).then((r) => r.data);
+  },
+  retryDelivery(deliveryId: string) {
+    return api.post<WebhookDelivery>(`/webhooks/deliveries/${deliveryId}/retry`).then((r) => r.data);
   },
 };
