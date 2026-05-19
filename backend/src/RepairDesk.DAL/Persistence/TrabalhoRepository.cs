@@ -66,6 +66,18 @@ public class TrabalhoRepository : ITrabalhoRepository
         return (items, total);
     }
 
+    public async Task<IReadOnlyList<Trabalho>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default)
+    {
+        var capped = Math.Clamp(limit, 1, 200);
+        return await _db.Trabalhos
+            .AsNoTracking()
+            .Include(t => t.Cliente)
+            .Where(t => t.EstadoPagamento == PaymentStatus.Pago && t.InvoiceExternalId == null)
+            .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
+            .Take(capped)
+            .ToListAsync(ct);
+    }
+
     public void Remove(Trabalho trabalho) => _db.Trabalhos.Remove(trabalho);
     public Task SaveAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

@@ -291,6 +291,8 @@ public class MoloniBillingTests
         public Task CreateWithNextNumeroAsync(Trabalho trabalho, Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
         public Task<(IReadOnlyList<Trabalho> Items, int Total)> SearchAsync(string? query, TrabalhoStatus? status, JobCategory? categoria, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
             => Task.FromResult(((IReadOnlyList<Trabalho>)Array.Empty<Trabalho>(), 0));
+        public Task<IReadOnlyList<Trabalho>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<Trabalho>)Array.Empty<Trabalho>());
         public void Remove(Trabalho trabalho) { }
         public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
     }

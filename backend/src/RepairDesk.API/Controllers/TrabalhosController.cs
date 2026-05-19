@@ -40,6 +40,36 @@ public class TrabalhosController : ControllerBase
     public Task<TrabalhoDto> AnularFatura(Guid id, CancellationToken ct)
         => _service.AnularFaturaAsync(id, ct);
 
+    [HttpGet("pagas-sem-fatura")]
+    public Task<IReadOnlyList<TrabalhoDto>> PagasSemFatura([FromQuery] int limit = 100, CancellationToken ct = default)
+        => _service.ListPagasSemFaturaAsync(limit, ct);
+
+    /// <summary>Emite fatura para vários trabalhos pagos em batch.</summary>
+    [HttpPost("bulk-emit-faturas")]
+    public async Task<IReadOnlyList<BulkEmitResult>> BulkEmitFaturas([FromBody] BulkEmitRequest req, CancellationToken ct)
+    {
+        if (req.Ids is null || req.Ids.Count == 0)
+            return Array.Empty<BulkEmitResult>();
+
+        var results = new List<BulkEmitResult>(req.Ids.Count);
+        foreach (var id in req.Ids)
+        {
+            try
+            {
+                var invoice = await _billing.EmitTrabalhoInvoiceAsync(id, null, null, ct);
+                results.Add(new BulkEmitResult(id, true, invoice.Number, null));
+            }
+            catch (Exception ex)
+            {
+                results.Add(new BulkEmitResult(id, false, null, ex.Message));
+            }
+        }
+        return results;
+    }
+
+    public sealed record BulkEmitRequest(IReadOnlyList<Guid> Ids);
+    public sealed record BulkEmitResult(Guid Id, bool Success, string? InvoiceNumber, string? ErrorMessage);
+
     [HttpPost("{id:guid}/reabrir")]
     public Task<TrabalhoDto> Reabrir(Guid id, CancellationToken ct) => _service.ReabrirAsync(id, ct);
 

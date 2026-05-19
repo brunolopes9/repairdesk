@@ -15,6 +15,7 @@ public interface ITrabalhoRepository
         int page,
         int pageSize,
         CancellationToken ct = default);
+    Task<IReadOnlyList<Trabalho>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default);
     void Remove(Trabalho trabalho);
     Task SaveAsync(CancellationToken ct = default);
 }

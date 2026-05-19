@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { BriefcaseBusiness, Plus, Search } from 'lucide-react';
+import { AlertTriangle, BriefcaseBusiness, Plus, Search } from 'lucide-react';
 import { isAxiosError } from 'axios';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
+import { toast } from '../../lib/toast';
 import { clientesApi } from '../../lib/clientes/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { trabalhosApi } from '../../lib/trabalhos/api';
@@ -36,6 +37,28 @@ export default function Trabalhos() {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Trabalho | null>(null);
+  const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(false);
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+
+  const pagasSemFatura = useQuery({
+    queryKey: ['trabalhos-pagas-sem-fatura'],
+    queryFn: () => trabalhosApi.listPagasSemFatura(100),
+    staleTime: 30_000,
+  });
+
+  const bulkEmit = useMutation({
+    mutationFn: (ids: string[]) => trabalhosApi.bulkEmitFaturas(ids),
+    onSuccess: (results) => {
+      const ok = results.filter((r) => r.success).length;
+      const fail = results.filter((r) => !r.success).length;
+      qc.invalidateQueries({ queryKey: ['trabalhos-pagas-sem-fatura'] });
+      qc.invalidateQueries({ queryKey: ['trabalhos'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      setBulkSelected(new Set());
+      if (fail === 0) toast.success(`${ok} faturas emitidas`, 'Todas comunicadas à AT com sucesso.');
+      else toast.warning(`${ok} OK, ${fail} falharam`, results.filter((r) => !r.success).slice(0, 3).map((r) => r.errorMessage).join(' • '));
+    },
+  });
 
   const remove = useMutation({
     mutationFn: (t: Trabalho) => trabalhosApi.remove(t.id),
@@ -61,7 +84,22 @@ export default function Trabalhos() {
         title="Trabalhos"
         description="Servicos, websites, software e outros trabalhos fora da reparacao de bancada."
         meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'trabalho' : 'trabalhos'}</span>}
-        actions={<Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>Novo</Button>}
+        actions={
+          <>
+            {(pagasSemFatura.data?.length ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setPagasSemFaturaOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
+                title="Trabalhos pagos sem fatura Moloni emitida"
+              >
+                <AlertTriangle size={13} />
+                {pagasSemFatura.data!.length} {pagasSemFatura.data!.length === 1 ? 'pendente fatura' : 'pendentes fatura'}
+              </button>
+            )}
+            <Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>Novo</Button>
+          </>
+        }
       />
 
       <div className="-mx-4 overflow-x-auto px-4 pb-1">
@@ -159,6 +197,104 @@ export default function Trabalhos() {
         </>}
       >
         {confirmDelete && <p className="text-sm">Apagar <strong>#{confirmDelete.numero} {confirmDelete.titulo}</strong>?</p>}
+      </Modal>
+
+      <Modal
+        open={pagasSemFaturaOpen}
+        title="Trabalhos pagos sem fatura"
+        onClose={() => { setPagasSemFaturaOpen(false); setBulkSelected(new Set()); }}
+      >
+        <p className="mb-3 text-xs text-zinc-500">
+          Trabalhos pagos sem fatura Moloni. Selecciona vários e clica <strong>Emitir todas</strong> para
+          faturar em batch, ou clica numa linha para abrir o detalhe.
+        </p>
+        {(pagasSemFatura.data?.length ?? 0) === 0 ? (
+          <p className="text-sm text-zinc-500">Nenhum trabalho pendente de fatura — tudo em dia ✓</p>
+        ) : (
+          <>
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-950">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={bulkSelected.size > 0 && bulkSelected.size === pagasSemFatura.data!.length}
+                  onChange={(e) => {
+                    if (e.target.checked) setBulkSelected(new Set(pagasSemFatura.data!.map((t) => t.id)));
+                    else setBulkSelected(new Set());
+                  }}
+                />
+                <span>
+                  {bulkSelected.size === 0
+                    ? 'Seleccionar todos'
+                    : `${bulkSelected.size} de ${pagasSemFatura.data!.length} seleccionados`}
+                </span>
+              </label>
+              <button
+                type="button"
+                disabled={bulkSelected.size === 0 || bulkEmit.isPending}
+                onClick={() => {
+                  const total = pagasSemFatura.data!
+                    .filter((t) => bulkSelected.has(t.id))
+                    .reduce((sum, t) => sum + (t.precoFinalCents ?? t.orcamentoCents ?? 0), 0);
+                  const ok = confirm(
+                    `Vais emitir ${bulkSelected.size} faturas Moloni — total ${formatCents(total)}.\n\n` +
+                    `Cada fatura é comunicada à AT em tempo real e entra na declaração IVA trimestral.\n\nContinuar?`
+                  );
+                  if (ok) bulkEmit.mutate(Array.from(bulkSelected));
+                }}
+                className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                {bulkEmit.isPending ? 'A emitir…' : `Emitir ${bulkSelected.size} faturas`}
+              </button>
+            </div>
+            <div className="max-h-[55vh] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-800">
+                  <tr>
+                    <th className="w-8 px-2 py-2"></th>
+                    <th className="px-2 py-2 text-left font-medium">Nº</th>
+                    <th className="px-2 py-2 text-left font-medium">Título</th>
+                    <th className="px-2 py-2 text-left font-medium">Cliente</th>
+                    <th className="px-2 py-2 text-right font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagasSemFatura.data!.map((t) => (
+                    <tr key={t.id} className="border-b border-zinc-100 hover:bg-amber-50/50 dark:border-zinc-900 dark:hover:bg-amber-950/30">
+                      <td className="px-2 py-2">
+                        <input
+                          type="checkbox"
+                          checked={bulkSelected.has(t.id)}
+                          onChange={(e) => {
+                            const next = new Set(bulkSelected);
+                            if (e.target.checked) next.add(t.id);
+                            else next.delete(t.id);
+                            setBulkSelected(next);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                      <td
+                        className="cursor-pointer px-2 py-2 font-mono text-xs"
+                        onClick={() => { setPagasSemFaturaOpen(false); navigate(`/trabalhos/${t.id}`); }}
+                      >#{t.numero}</td>
+                      <td
+                        className="cursor-pointer px-2 py-2"
+                        onClick={() => { setPagasSemFaturaOpen(false); navigate(`/trabalhos/${t.id}`); }}
+                      >{t.titulo}</td>
+                      <td
+                        className="cursor-pointer px-2 py-2 text-zinc-600 dark:text-zinc-400"
+                        onClick={() => { setPagasSemFaturaOpen(false); navigate(`/trabalhos/${t.id}`); }}
+                      >{t.cliente?.nome ?? '—'}</td>
+                      <td className="px-2 py-2 text-right font-medium tabular-nums">
+                        {formatCents(t.precoFinalCents ?? t.orcamentoCents)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </Modal>
     </div>
   );

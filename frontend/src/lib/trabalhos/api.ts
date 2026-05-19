@@ -38,6 +38,17 @@ export const trabalhosApi = {
   anularFatura(id: string) {
     return api.post<Trabalho>(`/trabalhos/${id}/anular-fatura`).then((r) => r.data);
   },
+  listPagasSemFatura(limit: number = 100) {
+    return api.get<Trabalho[]>('/trabalhos/pagas-sem-fatura', { params: { limit } }).then((r) => r.data);
+  },
+  bulkEmitFaturas(ids: string[]) {
+    return api
+      .post<Array<{ id: string; success: boolean; invoiceNumber: string | null; errorMessage: string | null }>>(
+        '/trabalhos/bulk-emit-faturas',
+        { ids },
+      )
+      .then((r) => r.data);
+  },
   reabrir(id: string) {
     return api.post<Trabalho>(`/trabalhos/${id}/reabrir`).then((r) => r.data);
   },
