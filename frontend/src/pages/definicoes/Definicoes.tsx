@@ -581,7 +581,8 @@ function FaturacaoSection() {
         <div>
           <h3 className="text-sm font-semibold">2. Ligar conta Moloni</h3>
           <p className="text-xs text-zinc-500">
-            Autorização inicial. O RepairDesk troca as credenciais por tokens encriptados — a password nunca é guardada.
+            Vamos abrir o login Moloni numa nova janela. Tu autorizas — o RepairDesk nunca vê a tua password.
+            Standard OAuth2 (mesma tecnologia usada por Google, GitHub, etc).
           </p>
         </div>
 
@@ -600,25 +601,45 @@ function FaturacaoSection() {
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => startOAuth.mutate()}
-                disabled={!canConnect || form.provider !== 1 || startOAuth.isPending}
-                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {startOAuth.isPending ? 'A abrir...' : 'Ligar via OAuth (recomendado)'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowConnect(true)}
-                disabled={!canConnect || form.provider !== 1}
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              >
-                Ligar com email/password
-              </button>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <p className="font-medium">⚠️ Antes de clicar: configura o URL de callback no painel Moloni</p>
+              <p className="mt-1">
+                No painel Moloni → Configurações → Developers → URI de Resposta, cola exactamente:
+              </p>
+              <code className="mt-1 block select-all rounded bg-amber-100/70 px-2 py-1 font-mono text-[11px] dark:bg-amber-900/30">
+                {typeof window !== 'undefined' ? `${window.location.origin}/api/billing/moloni/oauth/callback` : ''}
+              </code>
+              <p className="mt-2">
+                Tem de coincidir <strong>exactamente</strong> (Moloni rejeita se houver diferença, mesmo `/` no fim).
+                Clica <strong>Atualizar</strong> no painel Moloni e volta aqui.
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => startOAuth.mutate()}
+              disabled={!canConnect || form.provider !== 1 || startOAuth.isPending}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {startOAuth.isPending ? 'A abrir...' : 'Ligar Moloni via OAuth'}
+            </button>
+            <details className="text-xs">
+              <summary className="cursor-pointer text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">Avançado: ligar com email + password (não recomendado)</summary>
+              <div className="mt-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+                <p className="mb-2 text-zinc-600 dark:text-zinc-400">
+                  Método legacy <code>password grant</code>. Funciona, mas a Moloni recomenda OAuth para apps web.
+                  Useful se OAuth não conseguir por razões de redirect URI.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowConnect(true)}
+                  disabled={!canConnect || form.provider !== 1}
+                  className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  Usar email + password
+                </button>
+              </div>
+            </details>
             {!canConnect && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Preenche Developer ID e Client Secret no passo 1 e clica em <strong>Guardar credenciais</strong> primeiro.
