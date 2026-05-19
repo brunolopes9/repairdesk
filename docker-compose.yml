@@ -82,6 +82,10 @@ services:
       - "5080:8080"
     volumes:
       - photos_data:/data/photos
+      # DataProtection keys (cifram tokens Moloni, refresh tokens, etc).
+      # Bind mount em ./data/dp-keys para sobreviverem a 'docker compose down -v' tambem.
+      # CRITICO: sem isto, rebuilds perdem as keys e os secrets em DB tornam-se ilegiveis.
+      - ./data/dp-keys:/data/dp-keys
       - ${AT_SECRETS_HOST_PATH:-./secrets/at}:/run/secrets/at:ro
       # Backups em bind mount: ficheiros .bak ficam em ./backups/ no host
       # (fora do Docker) — sobrevivem mesmo a 'docker compose down -v'.

@@ -81,6 +81,11 @@ appsettings.Local.json
 secrets/at/*
 !secrets/at/.gitkeep
 
+# DataProtection keys — cifram tokens em DB; bind mount em data/dp-keys.
+# Devem viver fora do repo. Backup separado (têm a chave de descriptografia dos secrets em DB).
+data/dp-keys/
+data/
+
 # ============================================
 # OS
 # ============================================

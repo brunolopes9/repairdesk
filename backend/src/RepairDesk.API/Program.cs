@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -41,7 +42,23 @@ try
     builder.Host.UseSerilog(RepairDeskSerilog.Configure);
 
     builder.Services.AddHttpContextAccessor();
-    builder.Services.AddDataProtection();
+
+    // DataProtection: persistir keys em volume montado para sobreviverem a rebuilds do container.
+    // Sem isto, cada rebuild gera novas keys e os secrets cifrados em DB (tokens Moloni, etc)
+    // tornam-se ilegiveis (CryptographicException: key was not found in the key ring).
+    var dpKeysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/data/dp-keys";
+    if (!builder.Environment.IsEnvironment("Testing"))
+    {
+        try { Directory.CreateDirectory(dpKeysPath); } catch { /* ignore — bind mount tratara */ }
+        builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath))
+            .SetApplicationName("RepairDesk");
+    }
+    else
+    {
+        builder.Services.AddDataProtection().SetApplicationName("RepairDesk");
+    }
+
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
     builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
