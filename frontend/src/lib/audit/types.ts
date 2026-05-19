@@ -36,10 +36,18 @@ export interface AuditUserOption {
   email: string | null;
 }
 
+export interface AuditApiKeyOption {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  revoked: boolean;
+}
+
 export interface AuditFilterOptions {
   entityTypes: string[];
   users: AuditUserOption[];
   actions: number[];
+  apiKeys: AuditApiKeyOption[];
 }
 
 export interface AuditFilters {
@@ -52,4 +60,5 @@ export interface AuditFilters {
   to?: string;
   page?: number;
   pageSize?: number;
+  serviceApiKeyIds?: string[];
 }

@@ -16,6 +16,7 @@ export default function Auditoria() {
   const [preset, setPreset] = useState<Preset>('7d');
   const [entityTypes, setEntityTypes] = useState<string[]>([]);
   const [userIds, setUserIds] = useState<string[]>([]);
+  const [serviceApiKeyIds, setServiceApiKeyIds] = useState<string[]>([]);
   const [actions, setActions] = useState<number[]>([]);
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState(() => presetRange('7d').from);
@@ -24,15 +25,15 @@ export default function Auditoria() {
   const [selected, setSelected] = useState<AuditEntry | null>(null);
 
   const options = useQuery({ queryKey: ['audit-filters'], queryFn: () => auditApi.filters(), staleTime: 60_000 });
-  const filters = useMemo<AuditFilters>(() => ({ entityTypes, userIds, actions, search, from, to, page, pageSize: PAGE_SIZE }), [actions, entityTypes, from, page, search, to, userIds]);
-  const exportFilters = useMemo<AuditFilters>(() => ({ entityTypes, userIds, actions, search, from, to, page: 1, pageSize: PAGE_SIZE }), [actions, entityTypes, from, search, to, userIds]);
+  const filters = useMemo<AuditFilters>(() => ({ entityTypes, userIds, serviceApiKeyIds, actions, search, from, to, page, pageSize: PAGE_SIZE }), [actions, entityTypes, from, page, search, serviceApiKeyIds, to, userIds]);
+  const exportFilters = useMemo<AuditFilters>(() => ({ entityTypes, userIds, serviceApiKeyIds, actions, search, from, to, page: 1, pageSize: PAGE_SIZE }), [actions, entityTypes, from, search, serviceApiKeyIds, to, userIds]);
   const list = useQuery({ queryKey: ['audit', filters], queryFn: () => auditApi.list(filters), placeholderData: keepPreviousData });
 
   const items = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const allActions = options.data?.actions.length ? options.data.actions : [0, 1, 2, 3, 4, 5];
-  const hasFilters = Boolean(entityTypes.length || userIds.length || actions.length || search || from || to);
+  const hasFilters = Boolean(entityTypes.length || userIds.length || serviceApiKeyIds.length || actions.length || search || from || to);
 
   function applyPreset(next: Preset) {
     setPreset(next);
@@ -50,6 +51,7 @@ export default function Auditoria() {
     setTo(range.to);
     setEntityTypes([]);
     setUserIds([]);
+    setServiceApiKeyIds([]);
     setActions([]);
     setSearch('');
     setPage(1);
@@ -103,6 +105,17 @@ export default function Auditoria() {
 
           <MultiChecks title="Entidade" values={entityTypes} options={options.data?.entityTypes ?? []} onChange={(v) => { setEntityTypes(v); setPage(1); }} />
           <MultiChecks title="Utilizador" values={userIds} options={(options.data?.users ?? []).map((u) => ({ value: u.id, label: u.displayName || u.email || u.id }))} onChange={(v) => { setUserIds(v); setPage(1); }} />
+          {(options.data?.apiKeys?.length ?? 0) > 0 && (
+            <MultiChecks
+              title="Integração externa"
+              values={serviceApiKeyIds}
+              options={(options.data?.apiKeys ?? []).map((k) => ({
+                value: k.id,
+                label: k.revoked ? `${k.name} (revogada)` : k.name,
+              }))}
+              onChange={(v) => { setServiceApiKeyIds(v); setPage(1); }}
+            />
+          )}
           <MultiChecks title="Acao" values={actions.map(String)} options={allActions.map((a) => ({ value: String(a), label: AUDIT_ACTION_LABEL[a] ?? String(a) }))} onChange={(v) => { setActions(v.map(Number)); setPage(1); }} />
         </aside>
 

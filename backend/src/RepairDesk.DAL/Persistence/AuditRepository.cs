@@ -20,6 +20,8 @@ public class AuditRepository : IAuditRepository
             q = q.Where(a => a.EntityId == query.EntityId);
         if (query.UserIds.Count > 0)
             q = q.Where(a => a.AppUserId != null && query.UserIds.Contains(a.AppUserId.Value));
+        if (query.ServiceApiKeyIds.Count > 0)
+            q = q.Where(a => a.ServiceApiKeyId != null && query.ServiceApiKeyIds.Contains(a.ServiceApiKeyId.Value));
         if (query.Actions.Count > 0)
             q = q.Where(a => query.Actions.Contains(a.Action));
         if (query.From is not null)
@@ -83,7 +85,28 @@ public class AuditRepository : IAuditRepository
                 users.Add(new AuditUserOptionRow(id, $"Utilizador removido ({id.ToString()[..8]})", null));
         }
 
-        return new AuditFilterOptionsSnapshot(entityTypes, users, actions);
+        // Sprint 100: lista de API keys que aparecem no audit (ainda activas OU revogadas).
+        var apiKeyIds = await q
+            .Where(a => a.ServiceApiKeyId != null)
+            .Select(a => a.ServiceApiKeyId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+        var apiKeys = new List<AuditApiKeyOptionRow>();
+        if (apiKeyIds.Count > 0)
+        {
+            var keysQuery = includeAllTenants ? _db.ServiceApiKeys.IgnoreQueryFilters() : _db.ServiceApiKeys;
+            apiKeys = await keysQuery
+                .AsNoTracking()
+                .Where(k => apiKeyIds.Contains(k.Id))
+                .Select(k => new AuditApiKeyOptionRow(k.Id, k.Name, k.KeyPrefix, k.RevokedAt != null))
+                .OrderBy(k => k.Name)
+                .ToListAsync(ct);
+            var fetched = apiKeys.Select(k => k.Id).ToHashSet();
+            foreach (var id in apiKeyIds.Where(id => !fetched.Contains(id)))
+                apiKeys.Add(new AuditApiKeyOptionRow(id, $"Chave removida ({id.ToString()[..8]})", "", true));
+        }
+
+        return new AuditFilterOptionsSnapshot(entityTypes, users, actions, apiKeys);
     }
 
     private IQueryable<AuditEntry> BaseQuery(bool includeAllTenants)

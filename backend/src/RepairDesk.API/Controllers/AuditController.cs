@@ -49,6 +49,7 @@ public class AuditController : ControllerBase
         [FromQuery] bool includeAllTenants = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
+        [FromQuery] Guid[]? serviceApiKeyIds = null,
         CancellationToken ct = default)
         => _service.SearchAsync(new AuditSearchRequest(
             entityTypes ?? Array.Empty<string>(),
@@ -60,7 +61,8 @@ public class AuditController : ControllerBase
             to,
             includeAllTenants,
             page,
-            pageSize), ct);
+            pageSize,
+            serviceApiKeyIds ?? Array.Empty<Guid>()), ct);
 
     [HttpGet("filters")]
     public Task<AuditFilterOptionsDto> Filters([FromQuery] bool includeAllTenants = false, CancellationToken ct = default)
@@ -76,6 +78,7 @@ public class AuditController : ControllerBase
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
         [FromQuery] bool includeAllTenants = false,
+        [FromQuery] Guid[]? serviceApiKeyIds = null,
         CancellationToken ct = default)
     {
         var bytes = await _service.ExportCsvAsync(new AuditSearchRequest(
@@ -88,7 +91,8 @@ public class AuditController : ControllerBase
             to,
             includeAllTenants,
             1,
-            10_000), ct);
+            10_000,
+            serviceApiKeyIds ?? Array.Empty<Guid>()), ct);
         return File(bytes, "text/csv; charset=utf-8", $"auditoria_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv");
     }
 
@@ -102,6 +106,7 @@ public class AuditController : ControllerBase
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
         [FromQuery] bool includeAllTenants = false,
+        [FromQuery] Guid[]? serviceApiKeyIds = null,
         CancellationToken ct = default)
     {
         var (pdf, filename) = await _service.ExportPdfAsync(new AuditSearchRequest(
@@ -114,7 +119,8 @@ public class AuditController : ControllerBase
             to,
             includeAllTenants,
             1,
-            500), ct);
+            500,
+            serviceApiKeyIds ?? Array.Empty<Guid>()), ct);
         return File(pdf, "application/pdf", filename);
     }
 

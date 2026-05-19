@@ -47,7 +47,8 @@ public class AuditService : IAuditService
         return new AuditFilterOptionsDto(
             options.EntityTypes,
             options.Users.Select(u => new AuditUserOptionDto(u.Id, u.DisplayName, u.Email)).ToList(),
-            options.Actions);
+            options.Actions,
+            options.ApiKeys.Select(k => new AuditApiKeyOptionDto(k.Id, k.Name, k.KeyPrefix, k.Revoked)).ToList());
     }
 
     public async Task<byte[]> ExportCsvAsync(AuditSearchRequest req, CancellationToken ct = default)
@@ -95,7 +96,8 @@ public class AuditService : IAuditService
             req.To,
             req.IncludeAllTenants,
             page,
-            pageSize);
+            pageSize,
+            (req.ServiceApiKeyIds ?? Array.Empty<Guid>()).Distinct().ToList());
     }
 
     private static AuditEntryDto ToDto(AuditEntry a) =>

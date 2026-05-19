@@ -20,6 +20,7 @@ export function buildAuditQuery(filters: AuditFilters): string {
   const params = new URLSearchParams();
   filters.entityTypes?.filter(Boolean).forEach((v) => params.append('entityTypes', v));
   filters.userIds?.filter(Boolean).forEach((v) => params.append('userIds', v));
+  filters.serviceApiKeyIds?.filter(Boolean).forEach((v) => params.append('serviceApiKeyIds', v));
   filters.actions?.forEach((v) => params.append('actions', String(v)));
   if (filters.entityId) params.set('entityId', filters.entityId);
   if (filters.search) params.set('search', filters.search);

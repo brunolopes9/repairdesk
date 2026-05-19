@@ -22,11 +22,15 @@ public sealed record AuditQuery(
     DateTime? To,
     bool IncludeAllTenants,
     int Page,
-    int PageSize);
+    int PageSize,
+    IReadOnlyList<Guid> ServiceApiKeyIds);
 
 public sealed record AuditFilterOptionsSnapshot(
     IReadOnlyList<string> EntityTypes,
     IReadOnlyList<AuditUserOptionRow> Users,
-    IReadOnlyList<AuditAction> Actions);
+    IReadOnlyList<AuditAction> Actions,
+    IReadOnlyList<AuditApiKeyOptionRow> ApiKeys);
 
 public sealed record AuditUserOptionRow(Guid Id, string DisplayName, string? Email);
+
+public sealed record AuditApiKeyOptionRow(Guid Id, string Name, string KeyPrefix, bool Revoked);

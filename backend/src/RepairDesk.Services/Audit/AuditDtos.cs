@@ -31,11 +31,15 @@ public sealed record AuditSearchRequest(
     DateTime? To,
     bool IncludeAllTenants,
     int Page,
-    int PageSize);
+    int PageSize,
+    IReadOnlyList<Guid>? ServiceApiKeyIds = null);
 
 public sealed record AuditFilterOptionsDto(
     IReadOnlyList<string> EntityTypes,
     IReadOnlyList<AuditUserOptionDto> Users,
-    IReadOnlyList<AuditAction> Actions);
+    IReadOnlyList<AuditAction> Actions,
+    IReadOnlyList<AuditApiKeyOptionDto> ApiKeys);
 
 public sealed record AuditUserOptionDto(Guid Id, string DisplayName, string? Email);
+
+public sealed record AuditApiKeyOptionDto(Guid Id, string Name, string KeyPrefix, bool Revoked);
