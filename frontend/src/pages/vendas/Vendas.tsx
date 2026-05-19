@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, FileText, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound } from 'lucide-react';
+import { CreditCard, FileText, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound, XCircle, CheckCircle2, History as HistoryIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { clientesApi } from '../../lib/clientes/api';
 import type { Cliente } from '../../lib/clientes/types';
@@ -8,7 +8,7 @@ import { formatCents } from '../../lib/money';
 import { stockApi } from '../../lib/stock/api';
 import type { Part } from '../../lib/stock/types';
 import { vendasApi } from '../../lib/vendas/api';
-import { PAYMENT_METHOD, type PaymentMethod, type Venda } from '../../lib/vendas/types';
+import { PAYMENT_METHOD, VENDA_STATUS, type PaymentMethod, type Venda } from '../../lib/vendas/types';
 
 type CartLine = {
   part: Part;
@@ -95,8 +95,41 @@ export default function Vendas() {
       toast.success(`Fatura ${invoice.number} emitida`);
       if (invoice.pdfUrl) window.open(invoice.pdfUrl, '_blank', 'noopener,noreferrer');
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['vendas-historico'] });
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel emitir fatura.'),
+  });
+
+  // Histórico de vendas — últimos 30 dias por defeito
+  const [historicoFrom, setHistoricoFrom] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [historicoTo, setHistoricoTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [vendaDetalhe, setVendaDetalhe] = useState<Venda | null>(null);
+
+  const historico = useQuery({
+    queryKey: ['vendas-historico', historicoFrom, historicoTo],
+    queryFn: () => vendasApi.list({
+      from: `${historicoFrom}T00:00:00Z`,
+      to: `${historicoTo}T23:59:59Z`,
+      page: 1,
+      pageSize: 50,
+    }),
+    staleTime: 15_000,
+  });
+
+  const cancelar = useMutation({
+    mutationFn: (id: string) => vendasApi.cancelar(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['vendas-historico'] });
+      qc.invalidateQueries({ queryKey: ['vendas-parts'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      setVendaDetalhe(null);
+      toast.success('Venda cancelada', 'O stock foi reposto.');
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel cancelar.'),
   });
 
   function addPart(part: Part) {
@@ -279,6 +312,198 @@ export default function Vendas() {
           </div>
         </aside>
       </div>
+
+      {/* Histórico de vendas */}
+      <section className="space-y-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <HistoryIcon size={16} /> Histórico de vendas
+          </h2>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-zinc-500">De</span>
+            <input
+              type="date"
+              value={historicoFrom}
+              onChange={(e) => setHistoricoFrom(e.target.value)}
+              className="rounded-md border border-zinc-200 px-2 py-1 dark:border-zinc-800 dark:bg-zinc-950"
+            />
+            <span className="text-zinc-500">até</span>
+            <input
+              type="date"
+              value={historicoTo}
+              onChange={(e) => setHistoricoTo(e.target.value)}
+              className="rounded-md border border-zinc-200 px-2 py-1 dark:border-zinc-800 dark:bg-zinc-950"
+            />
+          </div>
+        </div>
+
+        {historico.isLoading ? (
+          <p className="py-4 text-center text-sm text-zinc-500">A carregar…</p>
+        ) : (historico.data?.items.length ?? 0) === 0 ? (
+          <p className="py-4 text-center text-sm text-zinc-500">Sem vendas no período seleccionado.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-800">
+                <tr>
+                  <th className="px-2 py-2 text-left font-medium">Nº</th>
+                  <th className="px-2 py-2 text-left font-medium">Data</th>
+                  <th className="px-2 py-2 text-left font-medium">Cliente</th>
+                  <th className="px-2 py-2 text-right font-medium">Total</th>
+                  <th className="px-2 py-2 text-center font-medium">Estado</th>
+                  <th className="px-2 py-2 text-center font-medium">Fatura</th>
+                  <th className="px-2 py-2 text-right font-medium">Acções</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historico.data!.items.map((v) => (
+                  <tr key={v.id} className="border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-900 dark:hover:bg-zinc-900/40">
+                    <td className="px-2 py-2 font-mono text-xs">#{String(v.numero).padStart(5, '0')}</td>
+                    <td className="px-2 py-2 text-xs text-zinc-600 dark:text-zinc-400">
+                      {new Date(v.data).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}
+                    </td>
+                    <td className="px-2 py-2">{v.cliente?.nome ?? <span className="italic text-zinc-500">anónimo</span>}</td>
+                    <td className="px-2 py-2 text-right font-medium">{formatCents(v.totalCents)}</td>
+                    <td className="px-2 py-2 text-center">
+                      {v.status === VENDA_STATUS.Paga ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          <CheckCircle2 size={11} /> Paga
+                        </span>
+                      ) : v.status === VENDA_STATUS.Cancelada ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                          <XCircle size={11} /> Cancelada
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                          Pendente
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-center text-xs">
+                      {v.invoiceNumber ? (
+                        <span className="font-mono text-emerald-700 dark:text-emerald-400">{v.invoiceNumber}</span>
+                      ) : (
+                        <span className="text-zinc-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setVendaDetalhe(v)}
+                          className="rounded-md border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
+                        >
+                          Ver
+                        </button>
+                        <a
+                          href={vendasApi.reciboUrl(v.id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
+                          title="Recibo PDF"
+                        >
+                          <Receipt size={13} />
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Modal detalhe de venda */}
+      {vendaDetalhe && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setVendaDetalhe(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Venda #{String(vendaDetalhe.numero).padStart(5, '0')}</h2>
+                <p className="text-xs text-zinc-500">
+                  {new Date(vendaDetalhe.data).toLocaleString('pt-PT')} · {vendaDetalhe.cliente?.nome ?? 'Cliente anónimo'}
+                </p>
+              </div>
+              <button type="button" onClick={() => setVendaDetalhe(null)} className="text-zinc-400 hover:text-zinc-700">✕</button>
+            </div>
+
+            <div className="mt-4 space-y-1.5 rounded-lg border border-zinc-100 p-3 text-sm dark:border-zinc-800">
+              {vendaDetalhe.items.map((i) => (
+                <div key={i.id} className="flex justify-between gap-3">
+                  <div>
+                    <div className="font-medium">{i.descricao}</div>
+                    <div className="text-xs text-zinc-500">
+                      {i.quantidade} × {formatCents(i.precoUnitarioCents)}
+                      {i.descontoCents > 0 ? ` − ${formatCents(i.descontoCents)} desc.` : ''}
+                      {' '}· IVA {i.ivaRate}%
+                    </div>
+                  </div>
+                  <div className="text-right font-mono text-xs">{formatCents(i.totalCents)}</div>
+                </div>
+              ))}
+              <div className="mt-2 flex justify-between border-t border-zinc-200 pt-2 text-sm font-semibold dark:border-zinc-800">
+                <span>Total ({formatCents(vendaDetalhe.ivaCents)} IVA incl.)</span>
+                <span>{formatCents(vendaDetalhe.totalCents)}</span>
+              </div>
+            </div>
+
+            {vendaDetalhe.invoiceNumber && (
+              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-xs dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                <strong>Fatura emitida:</strong> {vendaDetalhe.invoiceNumber}
+                {vendaDetalhe.invoicePdfUrl && (
+                  <a href={vendaDetalhe.invoicePdfUrl} target="_blank" rel="noreferrer" className="ml-2 underline">
+                    ver PDF
+                  </a>
+                )}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <a
+                href={vendasApi.reciboUrl(vendaDetalhe.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
+              >
+                <Receipt size={13} /> Recibo PDF
+              </a>
+              {vendaDetalhe.status === VENDA_STATUS.Paga && !vendaDetalhe.invoiceExternalId && (
+                <button
+                  type="button"
+                  onClick={() => emitirFatura.mutate(vendaDetalhe.id)}
+                  disabled={emitirFatura.isPending}
+                  className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+                >
+                  <FileText size={13} /> Emitir fatura Moloni
+                </button>
+              )}
+              {vendaDetalhe.status !== VENDA_STATUS.Cancelada && !vendaDetalhe.invoiceExternalId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Cancelar venda #${vendaDetalhe.numero}? O stock será reposto.`)) {
+                      cancelar.mutate(vendaDetalhe.id);
+                    }
+                  }}
+                  disabled={cancelar.isPending}
+                  className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
+                >
+                  <XCircle size={13} /> Cancelar venda
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
