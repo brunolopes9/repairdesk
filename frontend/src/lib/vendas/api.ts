@@ -2,7 +2,7 @@ import { api } from '../api';
 import type { CreateVendaRequest, EmitVendaFaturaResponse, PaymentMethod, Venda, VendasPage } from './types';
 
 export const vendasApi = {
-  list(params: { from?: string; to?: string; page?: number; pageSize?: number } = {}) {
+  list(params: { from?: string; to?: string; clienteId?: string; page?: number; pageSize?: number } = {}) {
     return api.get<VendasPage>('/vendas', { params }).then((r) => r.data);
   },
   get(id: string) {
@@ -29,4 +29,38 @@ export const vendasApi = {
   reciboUrl(id: string) {
     return `${api.defaults.baseURL ?? ''}/vendas/${id}/recibo.pdf`;
   },
+  imeiLookup(imei: string) {
+    return api
+      .get<VendaImeiLookup>(`/vendas/imei-lookup/${encodeURIComponent(imei)}`)
+      .then((r) => r.data)
+      .catch((err) => {
+        if (err?.response?.status === 404) return null;
+        throw err;
+      });
+  },
+  reparacoesRelacionadas(vendaId: string) {
+    return api
+      .get<VendaReparacaoRelacionada[]>(`/vendas/${vendaId}/reparacoes-relacionadas`)
+      .then((r) => r.data);
+  },
 };
+
+export interface VendaImeiLookup {
+  vendaId: string;
+  numero: number;
+  data: string;
+  descricao: string;
+  clienteNome: string | null;
+}
+
+export interface VendaReparacaoRelacionada {
+  reparacaoId: string;
+  reparacaoNumero: number;
+  recebidoEm: string;
+  equipamento: string;
+  imei: string;
+  /** RepairStatus enum: 0=Recebido, 1=Diagnostico, ..., 5=Entregue, 6=Cancelado */
+  estado: number;
+  diasDesdeAVenda: number;
+  orcamentoCents: number | null;
+}

@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { AlertTriangle, CheckCircle2, Cpu, Loader2, Plus, Settings, ShieldCheck, Star, Trash2, Wand2 } from 'lucide-react';
-import { EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
+import { AlertTriangle, CheckCircle2, Clock3, Cloud, Copy, Cpu, DatabaseBackup, HardDrive, Key, Loader2, Plus, RefreshCw, RotateCcw, Settings, ShieldCheck, Star, Trash2, Wand2 } from 'lucide-react';
+import Modal from '../../components/Modal';
+import { EmptyState, PageHeader, SkeletonCard, SkeletonRow } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
+import { serviceKeysApi, type ServiceApiKey } from '../../lib/serviceKeys/api';
+import { toast } from '../../lib/toast';
 import { validateNif } from '../../lib/nif/validator';
 import { validateIban } from '../../lib/iban/validator';
-import { backupApi, formatBytes } from '../../lib/admin/backup';
+import { backupApi, formatBytes, type BackupFileDto, type BackupHealthStatus, type BackupSnapshotDto } from '../../lib/admin/backup';
 import { equipmentFieldTemplatesApi, toUpsert } from '../../lib/equipmentFields/api';
 import {
   DEVICE_CATEGORY_LABEL,
@@ -36,6 +39,7 @@ const SECTIONS = [
   { id: 'posvenda', label: 'Pós-venda' },
   { id: 'campos', label: 'Campos personalizados' },
   { id: 'aparencia', label: 'Aparência' },
+  { id: 'apikeys', label: 'Chaves de API' },
   { id: 'backups', label: 'Backups' },
 ] as const;
 
@@ -146,13 +150,13 @@ export default function Definicoes() {
       )}
 
       {/* Tabs */}
-      <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label="Secções">
+      <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-zinc-200 px-4 dark:border-zinc-800 sm:mx-0 sm:px-0" aria-label="Secções">
         {SECTIONS.map((s) => (
           <button
             key={s.id}
             type="button"
             onClick={() => setSection(s.id)}
-            className={`relative -mb-px px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
+            className={`relative -mb-px min-h-11 whitespace-nowrap px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
               section === s.id
                 ? 'border-b-2 border-brand-500 text-brand-600 dark:text-brand-400'
                 : 'border-b-2 border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
@@ -171,6 +175,7 @@ export default function Definicoes() {
         {section === 'posvenda' && <PosVendaSection form={form} update={update} />}
         {section === 'campos' && <CamposPersonalizadosSection />}
         {section === 'aparencia' && <AparenciaSection form={form} update={update} />}
+        {section === 'apikeys' && <ApiKeysSection />}
         {section === 'backups' && <BackupsSection />}
       </div>
     </div>
@@ -527,7 +532,13 @@ function FaturacaoSection() {
   }
 
   if (billing.isLoading || !form) {
-    return <p className="text-sm text-zinc-500">A carregar faturação…</p>;
+    return (
+      <div className="space-y-3">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
   }
 
   function update<K extends keyof UpdateTenantBillingSettings>(key: K, value: UpdateTenantBillingSettings[K]) {
@@ -535,9 +546,15 @@ function FaturacaoSection() {
     setForm({ ...form, [key]: value });
   }
 
-  const connected = form.hasApiKey && form.hasRefreshToken;
+  const isMoloni = form.provider === 1;
+  const isInvoiceXpress = form.provider === 2;
+  const connected = isMoloni
+    ? form.hasApiKey && form.hasRefreshToken
+    : isInvoiceXpress
+      ? form.hasApiKey && !!form.clientId
+      : false;
   const regimeNormal = tenant.data?.regimeFiscal === 1;
-  const canConnect = !!form.clientId && (form.hasClientSecret || !!form.clientSecret);
+  const canConnect = isMoloni && !!form.clientId && (form.hasClientSecret || !!form.clientSecret);
 
   return (
     <div className="space-y-6">
@@ -554,7 +571,18 @@ function FaturacaoSection() {
         </div>
       )}
 
+      {isInvoiceXpress && (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <p className="font-medium">InvoiceXpress - provider certificado AT</p>
+          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+            Usa a tua conta InvoiceXpress existente. Preenche Account Name, API key e serie por defeito; o RepairDesk cria
+            faturas, faturas simplificadas e notas de credito pela API.
+          </p>
+        </div>
+      )}
+
       {/* Header explicativo */}
+      {!isInvoiceXpress && (
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
         <p className="font-medium">Moloni — certificação AT Nº 2860</p>
         <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
@@ -562,6 +590,8 @@ function FaturacaoSection() {
           o RepairDesk gere os tokens automaticamente — não precisas de copiar ou renovar nada.
         </p>
       </div>
+
+      )}
 
       {/* Passo 1: Provider + credenciais da app */}
       <section className="space-y-4">
@@ -574,7 +604,7 @@ function FaturacaoSection() {
             <select value={form.provider} onChange={(e) => update('provider', Number(e.target.value) as 0 | 1 | 2)} className={inputCls}>
               <option value={0}>Desativado</option>
               <option value={1}>Moloni</option>
-              <option value={2} disabled>InvoiceXpress (em breve)</option>
+              <option value={2}>InvoiceXpress</option>
             </select>
           </Field>
           <Field label="Ambiente" hint="Sandbox para testes; Produção para faturas reais.">
@@ -583,6 +613,7 @@ function FaturacaoSection() {
               <span>Modo sandbox</span>
             </label>
           </Field>
+          {isMoloni && (
           <Field label="Developer ID" hint="Identificador único da tua app na Moloni (ex: repairdesk-lopestech).">
             <input
               type="text"
@@ -593,6 +624,8 @@ function FaturacaoSection() {
               autoComplete="off"
             />
           </Field>
+          )}
+          {isMoloni && (
           <Field label="Client Secret" hint="Chave gerada pela Moloni após guardares o Developer ID. Encriptada no servidor.">
             <input
               type="password"
@@ -603,6 +636,40 @@ function FaturacaoSection() {
               autoComplete="off"
             />
           </Field>
+          )}
+          {isInvoiceXpress && (
+            <>
+              <Field label="Account Name" hint="Subdominio da tua conta: https://ACCOUNT.app.invoicexpress.com">
+                <input
+                  type="text"
+                  value={form.clientId ?? ''}
+                  onChange={(e) => update('clientId', e.target.value || null)}
+                  className={inputCls}
+                  placeholder="a-minha-loja"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="API key" hint="Chave da tua conta InvoiceXpress. Fica encriptada no servidor.">
+                <input
+                  type="password"
+                  value={form.apiKey ?? ''}
+                  onChange={(e) => update('apiKey', e.target.value || null)}
+                  className={inputCls}
+                  placeholder={form.hasApiKey ? '••••••••••••' : 'API key InvoiceXpress'}
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="NIF da empresa" hint="Vem das definicoes da empresa; confirma antes de emitir faturas reais.">
+                <input
+                  type="text"
+                  value={tenant.data?.nif ?? ''}
+                  className={inputCls}
+                  disabled
+                  placeholder="Preenche em Empresa > NIF"
+                />
+              </Field>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -616,6 +683,8 @@ function FaturacaoSection() {
         </div>
       </section>
 
+      {isMoloni && (
+      <>
       {/* Passo 2: Ligar conta Moloni (OAuth password grant) */}
       <section className="space-y-3 border-t border-zinc-200 pt-5 dark:border-zinc-800">
         <div>
@@ -634,7 +703,7 @@ function FaturacaoSection() {
               type="button"
               onClick={() => disconnect.mutate()}
               disabled={disconnect.isPending}
-              className="ml-auto rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60 dark:hover:bg-red-950/40"
+              className="ml-auto min-h-10 rounded-md px-3 py-2 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60 dark:hover:bg-red-950/40"
             >
               {disconnect.isPending ? 'A desligar…' : 'Desligar'}
             </button>
@@ -660,7 +729,7 @@ function FaturacaoSection() {
               type="button"
               onClick={() => startOAuth.mutate()}
               disabled={!canConnect || form.provider !== 1 || startOAuth.isPending || !redirectUri}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-11 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {startOAuth.isPending ? 'A abrir...' : 'Ligar Moloni via OAuth'}
             </button>
@@ -674,7 +743,7 @@ function FaturacaoSection() {
                   type="button"
                   onClick={() => setShowConnect(true)}
                   disabled={!canConnect || form.provider !== 1}
-                  className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  className="min-h-11 rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 >
                   Usar email + password
                 </button>
@@ -690,7 +759,9 @@ function FaturacaoSection() {
       </section>
 
       {/* Passo 3: Configuração da empresa Moloni (só visível se ligado) */}
-      {connected && (
+      </>
+      )}
+      {isMoloni && connected && (
         <section className="space-y-4 border-t border-zinc-200 pt-5 dark:border-zinc-800">
           <div>
             <h3 className="text-sm font-semibold">3. Configuração da empresa</h3>
@@ -834,6 +905,52 @@ function FaturacaoSection() {
                   )}
                 </div>
               </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {isInvoiceXpress && (
+        <section className="space-y-4 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+          <div>
+            <h3 className="text-sm font-semibold">2. Configuracao InvoiceXpress</h3>
+            <p className="text-xs text-zinc-500">
+              Define o tipo de documento, a serie por defeito e o motivo de isencao quando aplicavel.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field
+              label="Tipo de documento por defeito"
+              hint="Simplificada para B2C; Fatura para clientes com NIF ou empresas."
+            >
+              <select value={form.defaultDocumentType} onChange={(e) => update('defaultDocumentType', Number(e.target.value) as 0 | 1)} className={inputCls}>
+                <option value={0}>Fatura simplificada</option>
+                <option value={1}>Fatura</option>
+              </select>
+            </Field>
+            <Field label="Serie InvoiceXpress" hint="Sequence ID da serie ativa na InvoiceXpress. Podes sincronizar ou preencher manualmente.">
+              <div className="flex gap-2">
+                <NumberInput value={form.defaultSerieId} onChange={(v) => update('defaultSerieId', v)} />
+                <button
+                  type="button"
+                  onClick={() => sync.mutate()}
+                  disabled={sync.isPending || !form.clientId || (!form.hasApiKey && !form.apiKey)}
+                  className="rounded-lg border border-zinc-200 px-3 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  {sync.isPending ? 'A sincronizar...' : 'Sincronizar'}
+                </button>
+              </div>
+              {series.length > 0 && (
+                <select className={`${inputCls} mt-2`} value={form.defaultSerieId ?? ''} onChange={(e) => update('defaultSerieId', numOrNull(e.target.value))}>
+                  <option value="">Escolher serie</option>
+                  {series.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>)}
+                </select>
+              )}
+            </Field>
+            {!regimeNormal && (
+              <Field label="Motivo isencao IVA" hint="Codigo M01-M99. Obrigatorio para faturas sem IVA.">
+                <input value={form.exemptionReason ?? ''} onChange={(e) => update('exemptionReason', e.target.value || null)} className={inputCls} placeholder="M01" />
+              </Field>
             )}
           </div>
         </section>
@@ -1138,6 +1255,50 @@ function PosVendaSection({
         />
       </Field>
 
+      <div className="mt-6 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <ShieldCheck size={15} strokeWidth={2} className="text-emerald-600 dark:text-emerald-400" />
+          Garantia de Vendas (DL 84/2021)
+        </h3>
+        <p className="mt-1 text-xs text-zinc-500">
+          Aplica-se quando vendes equipamentos no balcão (POS) ou online. Bens novos: 3 anos (1095 dias). Refurbished pode reduzir até 18 meses (540 dias) <strong>se acordado expressamente</strong>.
+        </p>
+      </div>
+
+      <Field
+        label="Dias de garantia em Vendas (default)"
+        hint="Mínimo legal: 540 (refurbished com acordo expresso) · Padrão consumo: 1095 (3 anos)."
+      >
+        <input
+          type="number"
+          min={540}
+          max={3650}
+          value={form.garantiaVendaDiasDefault ?? 1095}
+          onChange={(e) => update('garantiaVendaDiasDefault', Math.max(540, Number(e.target.value) || 1095))}
+          className={inputCls}
+        />
+      </Field>
+
+      <Field label="Cobertura (Vendas)" hint="Aparece na garantia digital + PDF. Usa linguagem clara ao consumidor.">
+        <textarea
+          rows={4}
+          value={form.garantiaVendaCoberturaDefault ?? ''}
+          onChange={(e) => update('garantiaVendaCoberturaDefault', e.target.value || null)}
+          placeholder="Ex: Conformidade do bem com o descrito na fatura (DL 84/2021). Direito a reparação, substituição, redução de preço ou resolução do contrato."
+          className={`${inputCls} resize-none`}
+        />
+      </Field>
+
+      <Field label="Exclusões (Vendas)">
+        <textarea
+          rows={4}
+          value={form.garantiaVendaExclusoesDefault ?? ''}
+          onChange={(e) => update('garantiaVendaExclusoesDefault', e.target.value || null)}
+          placeholder="Ex: Danos por uso indevido, líquidos, quedas, abertura/desmontagem, desgaste normal de bateria e acessórios."
+          className={`${inputCls} resize-none`}
+        />
+      </Field>
+
       <div className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Star size={15} strokeWidth={2} className="text-amber-500" />
@@ -1255,14 +1416,20 @@ function CamposPersonalizadosSection() {
         >
           <Plus size={14} /> Novo template
         </button>
-        {templates.isLoading && <p className="text-xs text-zinc-500">A carregar...</p>}
+        {templates.isLoading && (
+          <div className="space-y-2">
+            <SkeletonRow columns={1} />
+            <SkeletonRow columns={1} />
+            <SkeletonRow columns={1} />
+          </div>
+        )}
         <ul className="space-y-1">
           {templates.data?.map((template) => (
             <li key={template.id}>
               <button
                 type="button"
                 onClick={() => pick(template)}
-                className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
+                className={`min-h-11 w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
                   selectedId === template.id
                     ? 'border-brand-300 bg-brand-50 text-brand-900 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-200'
                     : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800'
@@ -1290,16 +1457,16 @@ function CamposPersonalizadosSection() {
                 {Object.entries(DEVICE_CATEGORY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </Field>
-            <label className="mt-6 flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={draft.isActive} onChange={(e) => updateDraft({ isActive: e.target.checked })} />
+            <label className="flex min-h-11 items-center gap-2 text-sm sm:mt-6">
+              <input type="checkbox" checked={draft.isActive} onChange={(e) => updateDraft({ isActive: e.target.checked })} className="scale-125 sm:scale-100" />
               Activo
             </label>
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-sm font-semibold"><Cpu size={15} /> Campos</h3>
-              <button type="button" onClick={addField} disabled={draft.fields.length >= 20} className="rounded-md border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:hover:bg-zinc-800">
+              <button type="button" onClick={addField} disabled={draft.fields.length >= 20} className="min-h-10 rounded-md border border-zinc-200 px-3 py-2 text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:hover:bg-zinc-800">
                 + Campo
               </button>
             </div>
@@ -1317,23 +1484,23 @@ function CamposPersonalizadosSection() {
                   placeholder="Opções, separadas por vírgula"
                   className={inputCls}
                 />
-                <button type="button" onClick={() => removeField(index)} className="rounded-md p-2 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" title="Remover campo">
+                <button type="button" onClick={() => removeField(index)} className="grid h-10 w-10 place-items-center rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" title="Remover campo">
                   <Trash2 size={15} />
                 </button>
                 <div className="flex flex-wrap gap-4 text-xs text-zinc-600 dark:text-zinc-300 md:col-span-4">
-                  <label className="flex items-center gap-1"><input type="checkbox" checked={field.required} onChange={(e) => updateField(index, { required: e.target.checked })} /> Obrigatório</label>
-                  <label className="flex items-center gap-1"><input type="checkbox" checked={field.visibleInPortal} onChange={(e) => updateField(index, { visibleInPortal: e.target.checked })} /> Visível no portal/PDF</label>
+                  <label className="flex min-h-10 items-center gap-2"><input type="checkbox" checked={field.required} onChange={(e) => updateField(index, { required: e.target.checked })} className="scale-125 sm:scale-100" /> Obrigatório</label>
+                  <label className="flex min-h-10 items-center gap-2"><input type="checkbox" checked={field.visibleInPortal} onChange={(e) => updateField(index, { visibleInPortal: e.target.checked })} className="scale-125 sm:scale-100" /> Visível no portal/PDF</label>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="flex justify-between gap-2">
+          <div className="flex flex-col-reverse justify-between gap-2 sm:flex-row">
             <button
               type="button"
               disabled={!selectedId || remove.isPending}
               onClick={() => selectedId && remove.mutate(selectedId)}
-              className="rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"
+              className="min-h-11 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"
             >
               Apagar
             </button>
@@ -1341,7 +1508,7 @@ function CamposPersonalizadosSection() {
               type="button"
               disabled={!draft.nome.trim() || save.isPending}
               onClick={() => save.mutate()}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+              className="min-h-11 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
             >
               {save.isPending ? 'A guardar...' : 'Guardar template'}
             </button>
@@ -1421,9 +1588,676 @@ function Field({
 }
 
 const inputCls =
-  'block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus:ring-brand-900/40';
+  'block min-h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:bg-zinc-950 dark:focus:ring-brand-900/40';
+
+type BackupLocationFilter = 'all' | 'local' | 'r2';
+
+function ApiKeysSection() {
+  const qc = useQueryClient();
+  const keys = useQuery({
+    queryKey: ['service-keys'],
+    queryFn: () => serviceKeysApi.list(),
+  });
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [revokedFor, setRevokedFor] = useState<ServiceApiKey | null>(null);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [plainKey, setPlainKey] = useState<{ value: string; name: string } | null>(null);
+
+  const create = useMutation({
+    mutationFn: () => serviceKeysApi.create(newKeyName.trim()),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['service-keys'] });
+      setPlainKey({ value: res.plainKey, name: res.key.name });
+      setCreateOpen(false);
+      setNewKeyName('');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível criar a chave.'),
+  });
+
+  const revoke = useMutation({
+    mutationFn: (k: ServiceApiKey) => serviceKeysApi.revoke(k.id, revokeReason.trim() || null),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service-keys'] });
+      setRevokedFor(null);
+      setRevokeReason('');
+      toast.success('Chave revogada');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível revogar.'),
+  });
+
+  const active = (keys.data ?? []).filter((k) => k.revokedAt === null);
+  const revoked = (keys.data ?? []).filter((k) => k.revokedAt !== null);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <Key size={20} strokeWidth={2} className="mt-0.5 flex-none text-zinc-500" />
+        <div className="flex-1 text-sm">
+          <h3 className="font-semibold">Chaves de API</h3>
+          <p className="mt-1 text-xs text-zinc-500">
+            Para integrações servidor-a-servidor (loja online, importadores). Cada chave dá acesso total
+            aos endpoints da API no contexto deste tenant — guarda como secret. A plain key só é mostrada
+            no momento da criação.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+        >
+          <Plus size={13} /> Nova chave
+        </button>
+      </div>
+
+      {keys.isLoading && <SkeletonCard />}
+
+      {!keys.isLoading && active.length === 0 && revoked.length === 0 && (
+        <p className="rounded-lg border border-dashed border-zinc-300 bg-white p-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900">
+          Ainda não há chaves criadas.
+        </p>
+      )}
+
+      {active.length > 0 && (
+        <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="border-b border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-500 dark:border-zinc-800">Activas ({active.length})</div>
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {active.map((k) => (
+              <li key={k.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">{k.name}</div>
+                  <div className="font-mono text-[11px] text-zinc-500">{k.keyPrefix}</div>
+                  <div className="text-[11px] text-zinc-400">
+                    Criada {new Date(k.createdAt).toLocaleDateString('pt-PT')}
+                    {k.lastUsedAt
+                      ? ` · último uso ${new Date(k.lastUsedAt).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}`
+                      : ' · nunca usada'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRevokedFor(k)}
+                  className="rounded-md px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                >
+                  Revogar
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {revoked.length > 0 && (
+        <details className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <summary className="cursor-pointer px-4 py-2 text-xs font-medium text-zinc-500">
+            Revogadas ({revoked.length})
+          </summary>
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {revoked.map((k) => (
+              <li key={k.id} className="px-4 py-3 text-sm opacity-70">
+                <div className="font-medium line-through">{k.name}</div>
+                <div className="font-mono text-[11px] text-zinc-500">{k.keyPrefix}</div>
+                <div className="text-[11px] text-zinc-400">
+                  Revogada {k.revokedAt && new Date(k.revokedAt).toLocaleDateString('pt-PT')}
+                  {k.revokedReason && ` · ${k.revokedReason}`}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      <Modal
+        open={createOpen}
+        title="Nova chave de API"
+        onClose={() => { if (!create.isPending) { setCreateOpen(false); setNewKeyName(''); } }}
+        footer={<>
+          <button type="button" disabled={create.isPending} onClick={() => { setCreateOpen(false); setNewKeyName(''); }}
+            className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-300">Cancelar</button>
+          <button type="button" disabled={!newKeyName.trim() || create.isPending} onClick={() => create.mutate()}
+            className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
+            {create.isPending ? 'A criar…' : 'Gerar chave'}
+          </button>
+        </>}
+      >
+        <label className="block text-sm">
+          <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Nome (descritivo) *</span>
+          <input
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            placeholder="Ex: Loja online produção"
+            maxLength={200}
+            autoFocus
+            className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950"
+          />
+        </label>
+      </Modal>
+
+      <Modal
+        open={plainKey !== null}
+        title="Chave criada"
+        onClose={() => setPlainKey(null)}
+        footer={<button type="button" onClick={() => setPlainKey(null)}
+          className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white">Fechar</button>}
+      >
+        {plainKey && (
+          <div className="space-y-3 text-sm">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+              <strong>Guarda esta chave agora.</strong> Depois de fechar, só verás o prefix —
+              não é possível recuperar o valor completo.
+            </div>
+            <div>
+              <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{plainKey.name}</div>
+              <div className="mt-1 flex items-center gap-2 rounded-lg border border-zinc-300 bg-zinc-50 p-2 dark:border-zinc-700 dark:bg-zinc-950">
+                <code className="flex-1 break-all text-xs">{plainKey.value}</code>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(plainKey.value).then(() => toast.success('Copiado'))}
+                  className="inline-flex items-center gap-1 rounded-md bg-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+                >
+                  <Copy size={12} /> Copiar
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-zinc-500">
+              Uso: header <code>Authorization: ApiKey {plainKey.value.slice(0, 20)}…</code> ou <code>X-Api-Key</code>.
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={revokedFor !== null}
+        title="Revogar chave"
+        onClose={() => { if (!revoke.isPending) { setRevokedFor(null); setRevokeReason(''); } }}
+        footer={<>
+          <button type="button" disabled={revoke.isPending}
+            onClick={() => { setRevokedFor(null); setRevokeReason(''); }}
+            className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-300">Cancelar</button>
+          <button type="button" disabled={revoke.isPending}
+            onClick={() => revokedFor && revoke.mutate(revokedFor)}
+            className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
+            {revoke.isPending ? 'A revogar…' : 'Revogar'}
+          </button>
+        </>}
+      >
+        {revokedFor && (
+          <div className="space-y-3 text-sm">
+            <p>
+              Revogar <strong>{revokedFor.name}</strong> ({revokedFor.keyPrefix})?
+              Requests futuros com esta chave vão falhar com 401.
+            </p>
+            <label className="block">
+              <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Motivo (opcional)</span>
+              <input
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+                placeholder="Ex: comprometida, rotação, projecto descontinuado"
+                maxLength={500}
+                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-zinc-700 dark:bg-zinc-950"
+              />
+            </label>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
 
 function BackupsSection() {
+  const [locationFilter, setLocationFilter] = useState<BackupLocationFilter>('all');
+  const [restoreTarget, setRestoreTarget] = useState<BackupFileDto | null>(null);
+  const [restoreText, setRestoreText] = useState('');
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin-backups'],
+    queryFn: () => backupApi.list(),
+    staleTime: 30_000,
+  });
+
+  const preview = useQuery({
+    queryKey: ['admin-backup-restore-preview', restoreTarget?.id],
+    queryFn: () => backupApi.restorePreview(restoreTarget!.id),
+    enabled: Boolean(restoreTarget),
+    retry: false,
+  });
+
+  const runNow = useMutation({
+    mutationFn: () => backupApi.runNow(),
+    onSuccess: (r) => {
+      toast.success('Backup concluido', `${r.fileName} (${formatBytes(r.sizeBytes)})${r.uploadedToR2 ? ' - enviado para R2' : ''}`);
+      refetch();
+    },
+    onError: (err) => toast.fromError(err, 'Nao foi possivel correr o backup agora.'),
+  });
+
+  const restore = useMutation({
+    mutationFn: () => {
+      if (!restoreTarget) throw new Error('Sem backup seleccionado.');
+      return backupApi.restore(restoreTarget.id, restoreText);
+    },
+    onSuccess: (r) => {
+      toast.success('Restore concluido', `Base de dados restaurada a partir de ${r.restoredBackup.fileName}.`);
+      setRestoreTarget(null);
+      setRestoreText('');
+      refetch();
+    },
+    onError: (err) => toast.fromError(err, 'Nao foi possivel restaurar este backup.'),
+  });
+
+  const allItems = useMemo(() => {
+    const items = data?.items?.length ? data.items : [...(data?.local ?? []), ...(data?.r2 ?? [])];
+    return items
+      .filter((item) => {
+        const key = backupLocationKey(item.location);
+        return locationFilter === 'all' || key === locationFilter;
+      })
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [data, locationFilter]);
+
+  const health = normalizeBackupHealth(data?.healthStatus);
+  const localCount = data?.local.length ?? 0;
+  const r2Count = data?.r2.length ?? 0;
+
+  return (
+    <div className="space-y-5">
+      <div className={`rounded-lg border p-4 text-sm ${health.panelClass}`}>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="flex items-start gap-3">
+            <health.Icon size={18} strokeWidth={2} className={`mt-0.5 flex-none ${health.iconClass}`} />
+            <div className="space-y-1">
+              <p className="font-medium">Backups e restore</p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                Restore 1-click cria primeiro um backup de seguranca, regista auditoria e exige permissao especial de owner.
+                Os ficheiros nunca sao descarregados directamente pela interface.
+              </p>
+              <p className={`inline-flex items-center gap-1 text-xs ${health.textClass}`}>
+                {health.label}
+                {data?.latestBackupAt && (
+                  <span className="text-zinc-500 dark:text-zinc-400">
+                    - ultimo backup em {new Date(data.latestBackupAt).toLocaleString('pt-PT')}
+                  </span>
+                )}
+              </p>
+              {data?.status === 'disabled' && (
+                <p className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+                  <AlertTriangle size={11} strokeWidth={2} /> Agendamento desligado. Usa <code>Backup__Enabled=true</code> em producao.
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => runNow.mutate()}
+              disabled={runNow.isPending}
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-60"
+            >
+              {runNow.isPending ? <Loader2 size={14} className="animate-spin" /> : <DatabaseBackup size={14} />}
+              Forcar backup agora
+            </button>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-600 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              <RefreshCw size={14} /> Atualizar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <BackupMetric icon={HardDrive} label="Backups locais / R2" value={`${localCount} / ${r2Count}`} />
+        <BackupMetric icon={Clock3} label="Idade do mais recente" value={formatBackupAge(data?.latestBackupAgeHours)} />
+        <BackupMetric icon={DatabaseBackup} label="Espaco local usado" value={formatBytes(data?.localBytesUsed ?? 0)} />
+        <BackupMetric icon={Cloud} label="Retention policy" value={`${data?.localRetentionDays ?? 30}d local / ${data?.r2RetentionDays ?? 90}d R2`} />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-lg border border-zinc-200 p-1 text-xs dark:border-zinc-800">
+          {[
+            ['all', 'Ambos'],
+            ['local', 'So Local'],
+            ['r2', 'So R2'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setLocationFilter(value as BackupLocationFilter)}
+              className={`rounded-md px-3 py-1.5 transition ${
+                locationFilter === value
+                  ? 'bg-brand-600 text-white'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-zinc-500">{allItems.length} backup(s), ordenados por data desc.</p>
+      </div>
+
+      <BackupTable items={allItems} loading={isLoading} error={isError} onRestore={setRestoreTarget} />
+
+      {restoreTarget && (
+        <RestoreConfirmation
+          backup={restoreTarget}
+          preview={preview.data ?? null}
+          loading={preview.isLoading}
+          error={preview.isError}
+          confirmation={restoreText}
+          onConfirmationChange={setRestoreText}
+          restoring={restore.isPending}
+          onCancel={() => {
+            if (!restore.isPending) {
+              setRestoreTarget(null);
+              setRestoreText('');
+            }
+          }}
+          onRestore={() => restore.mutate()}
+        />
+      )}
+    </div>
+  );
+}
+
+function BackupMetric({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof DatabaseBackup;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <Icon size={14} strokeWidth={2} />
+        {label}
+      </div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function BackupTable({
+  items,
+  loading,
+  error,
+  onRestore,
+}: {
+  items: BackupFileDto[];
+  loading: boolean;
+  error: boolean;
+  onRestore: (item: BackupFileDto) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <SkeletonRow columns={2} />
+        <SkeletonRow columns={2} />
+      </div>
+    );
+  }
+  if (error) return <p className="text-xs text-rose-600">Nao foi possivel obter a lista.</p>;
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
+        Sem backups para este filtro. Usa "Forcar backup agora" para criar um snapshot manual.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <table className="w-full min-w-[720px] text-left text-sm">
+        <thead className="bg-zinc-50 text-xs text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400">
+          <tr>
+            <th className="px-3 py-2 font-medium">Data</th>
+            <th className="px-3 py-2 font-medium">Tamanho</th>
+            <th className="px-3 py-2 font-medium">Localizacao</th>
+            <th className="px-3 py-2 font-medium">Status</th>
+            <th className="px-3 py-2 font-medium">Idade</th>
+            <th className="px-3 py-2 text-right font-medium">Acao</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {items.map((b) => (
+            <tr key={b.id} className="align-middle">
+              <td className="px-3 py-2">
+                <div className="font-mono text-xs">{b.fileName}</div>
+                <div className="text-[11px] text-zinc-500">{new Date(b.timestamp).toLocaleString('pt-PT')}</div>
+              </td>
+              <td className="px-3 py-2 tabular-nums">{formatBytes(b.sizeBytes)}</td>
+              <td className="px-3 py-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                  {backupLocationKey(b.location) === 'r2' ? <Cloud size={11} /> : <HardDrive size={11} />}
+                  {backupLocationLabel(b.location)}
+                </span>
+              </td>
+              <td className="px-3 py-2">
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${backupStatusClass(b.status)}`}>
+                  {backupStatusLabel(b.status)}
+                </span>
+              </td>
+              <td className="px-3 py-2 text-zinc-600 dark:text-zinc-300">{formatBackupAge(b.ageHours)}</td>
+              <td className="px-3 py-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => onRestore(b)}
+                  className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 dark:border-rose-900/70 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                >
+                  <RotateCcw size={13} /> Restore
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RestoreConfirmation({
+  backup,
+  preview,
+  loading,
+  error,
+  confirmation,
+  onConfirmationChange,
+  restoring,
+  onCancel,
+  onRestore,
+}: {
+  backup: BackupFileDto;
+  preview: Awaited<ReturnType<typeof backupApi.restorePreview>> | null;
+  loading: boolean;
+  error: boolean;
+  confirmation: string;
+  onConfirmationChange: (value: string) => void;
+  restoring: boolean;
+  onCancel: () => void;
+  onRestore: () => void;
+}) {
+  const canRestore = confirmation.trim() === 'RESTORE' && !loading && !error && !restoring;
+  const backupSnapshot = preview?.backupSnapshot ?? backup.snapshot;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4">
+      <div className="w-full max-w-2xl rounded-xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-rose-100 p-2 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
+            <AlertTriangle size={20} strokeWidth={2} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-base font-semibold">Confirmar restore</h3>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              Vais SUBSTITUIR os dados actuais. Esta accao NAO PODE ser desfeita.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <SnapshotPanel
+            title="Estado actual"
+            subtitle={preview?.currentSnapshot ? new Date(preview.currentSnapshot.capturedAt).toLocaleString('pt-PT') : 'A calcular...'}
+            snapshot={preview?.currentSnapshot ?? null}
+            loading={loading}
+          />
+          <SnapshotPanel
+            title={`Backup ${new Date(backup.timestamp).toLocaleString('pt-PT')}`}
+            subtitle={`${backupLocationLabel(backup.location)} - ${formatBytes(backup.sizeBytes)}`}
+            snapshot={backupSnapshot ?? null}
+            loading={loading}
+            missingText="Este backup nao tem metadados de contagem. O restore ainda e possivel, mas valida primeiro pelo timestamp."
+          />
+        </div>
+
+        {error && (
+          <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
+            Nao foi possivel preparar a pre-visualizacao. Confirma as permissoes: restore exige Admin + SuperAdmin.
+          </p>
+        )}
+
+        <label className="mt-4 block">
+          <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Escreve RESTORE para confirmar
+          </span>
+          <input
+            value={confirmation}
+            onChange={(e) => onConfirmationChange(e.target.value)}
+            className={`${inputCls} font-mono`}
+            placeholder="RESTORE"
+            autoFocus
+          />
+        </label>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={restoring}
+            className="min-h-11 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onRestore}
+            disabled={!canRestore}
+            className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+          >
+            {restoring ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
+            Restaurar backup
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SnapshotPanel({
+  title,
+  subtitle,
+  snapshot,
+  loading,
+  missingText = 'Sem dados.',
+}: {
+  title: string;
+  subtitle: string;
+  snapshot: BackupSnapshotDto | null;
+  loading: boolean;
+  missingText?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <p className="text-sm font-medium">{title}</p>
+      <p className="text-[11px] text-zinc-500">{subtitle}</p>
+      {loading ? (
+        <div className="mt-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <SkeletonRow columns={2} />
+        </div>
+      ) : snapshot ? (
+        <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          <SnapshotStat label="Reparacoes" value={snapshot.reparacoes} />
+          <SnapshotStat label="Clientes" value={snapshot.clientes} />
+          <SnapshotStat label="Trabalhos" value={snapshot.trabalhos} />
+          <SnapshotStat label="Vendas" value={snapshot.vendas} />
+          <SnapshotStat label="Despesas" value={snapshot.despesas} />
+        </dl>
+      ) : (
+        <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">{missingText}</p>
+      )}
+    </div>
+  );
+}
+
+function SnapshotStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <dt className="text-zinc-500">{label}</dt>
+      <dd className="font-semibold tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+function normalizeBackupHealth(value: BackupHealthStatus | undefined) {
+  if (value === 'Green' || value === 0) {
+    return {
+      label: 'Saudavel: ultimo backup recente',
+      Icon: ShieldCheck,
+      panelClass: 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-emerald-950/20',
+      iconClass: 'text-emerald-600 dark:text-emerald-400',
+      textClass: 'text-emerald-700 dark:text-emerald-400',
+    };
+  }
+  if (value === 'Yellow' || value === 1) {
+    return {
+      label: 'Atencao: backup a aproximar-se do limite',
+      Icon: AlertTriangle,
+      panelClass: 'border-amber-200 bg-amber-50/60 dark:border-amber-900/50 dark:bg-amber-950/20',
+      iconClass: 'text-amber-600 dark:text-amber-400',
+      textClass: 'text-amber-700 dark:text-amber-400',
+    };
+  }
+  return {
+    label: 'Critico: sem backup recente ou ultimo falhou',
+    Icon: AlertTriangle,
+    panelClass: 'border-rose-200 bg-rose-50/60 dark:border-rose-900/50 dark:bg-rose-950/20',
+    iconClass: 'text-rose-600 dark:text-rose-400',
+    textClass: 'text-rose-700 dark:text-rose-400',
+  };
+}
+
+function backupLocationKey(location: BackupFileDto['location']): 'local' | 'r2' {
+  return location === 'R2' || location === 1 ? 'r2' : 'local';
+}
+
+function backupLocationLabel(location: BackupFileDto['location']): string {
+  return backupLocationKey(location) === 'r2' ? 'R2' : 'Local';
+}
+
+function backupStatusLabel(status: string): string {
+  return status.toLowerCase() === 'ok' || status.toLowerCase() === 'available' ? 'OK' : 'Falhado';
+}
+
+function backupStatusClass(status: string): string {
+  return backupStatusLabel(status) === 'OK'
+    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+    : 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300';
+}
+
+function formatBackupAge(hours: number | null | undefined): string {
+  if (hours == null) return 'Sem backups';
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} min`;
+  if (hours < 48) return `${Math.round(hours)} h`;
+  return `${Math.round(hours / 24)} dias`;
+}
+
+export function BackupsSectionLegacy() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-backups'],
     queryFn: () => backupApi.list(),
@@ -1467,14 +2301,14 @@ function BackupsSection() {
             type="button"
             onClick={() => runNow.mutate()}
             disabled={runNow.isPending}
-            className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-60"
+            className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-60"
           >
             {runNow.isPending ? 'A correr…' : 'Correr backup agora'}
           </button>
           <button
             type="button"
             onClick={() => refetch()}
-            className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="min-h-11 rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-600 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             Atualizar lista
           </button>
@@ -1489,12 +2323,15 @@ function BackupsSection() {
   );
 }
 
-function BackupListSection({ title, items, loading, error }: { title: string; items: ReturnType<typeof backupApi.list> extends Promise<infer T> ? T extends { local: infer L } ? L : never : never; loading: boolean; error: boolean }) {
+export function BackupListSection({ title, items, loading, error }: { title: string; items: ReturnType<typeof backupApi.list> extends Promise<infer T> ? T extends { local: infer L } ? L : never : never; loading: boolean; error: boolean }) {
   return (
     <div>
       <h3 className="mb-2 text-sm font-semibold">{title} <span className="text-xs font-normal text-zinc-500">· {items.length}</span></h3>
       {loading ? (
-        <p className="text-xs text-zinc-500">A carregar…</p>
+        <div className="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <SkeletonRow columns={2} />
+          <SkeletonRow columns={2} />
+        </div>
       ) : error ? (
         <p className="text-xs text-rose-600">Não foi possível obter a lista.</p>
       ) : items.length === 0 ? (

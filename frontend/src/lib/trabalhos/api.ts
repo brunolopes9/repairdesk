@@ -38,6 +38,12 @@ export const trabalhosApi = {
   anularFatura(id: string) {
     return api.post<Trabalho>(`/trabalhos/${id}/anular-fatura`).then((r) => r.data);
   },
+  emitirOrcamentoMoloni(id: string) {
+    return api.post<Trabalho>(`/trabalhos/${id}/emitir-orcamento-moloni`).then((r) => r.data);
+  },
+  converterOrcamentoEmFatura(id: string) {
+    return api.post<Trabalho>(`/trabalhos/${id}/converter-orcamento-fatura`).then((r) => r.data);
+  },
   listPagasSemFatura(limit: number = 100) {
     return api.get<Trabalho[]>('/trabalhos/pagas-sem-fatura', { params: { limit } }).then((r) => r.data);
   },

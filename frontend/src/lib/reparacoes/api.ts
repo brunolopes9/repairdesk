@@ -44,6 +44,12 @@ export const reparacoesApi = {
   anularFatura(id: string) {
     return api.post<Reparacao>(`/reparacoes/${id}/anular-fatura`).then((r) => r.data);
   },
+  emitirOrcamentoMoloni(id: string) {
+    return api.post<Reparacao>(`/reparacoes/${id}/emitir-orcamento-moloni`).then((r) => r.data);
+  },
+  converterOrcamentoEmFatura(id: string) {
+    return api.post<Reparacao>(`/reparacoes/${id}/converter-orcamento-fatura`).then((r) => r.data);
+  },
   bulkEmitFaturas(ids: string[]) {
     return api
       .post<Array<{ id: string; success: boolean; invoiceNumber: string | null; errorMessage: string | null }>>(

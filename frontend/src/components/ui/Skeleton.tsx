@@ -24,18 +24,22 @@ export function SkeletonRow({ columns = 4, widths }: { columns?: number; widths?
   );
 }
 
-export function SkeletonTable({ columns, rows }: { columns: number; rows: number }) {
+export function SkeletonTable({ columns, rows, minWidth }: { columns: number; rows: number; minWidth?: string }) {
+  const width = minWidth ?? (columns >= 7 ? 'min-w-[760px]' : columns >= 5 ? 'min-w-[640px]' : 'min-w-[480px]');
+
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="grid gap-px bg-zinc-100 p-3 dark:bg-zinc-800" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-        {Array.from({ length: columns }).map((_, index) => (
-          <Skeleton key={`h-${index}`} className="h-3 bg-zinc-300 dark:bg-zinc-700" />
-        ))}
-      </div>
-      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {Array.from({ length: rows }).map((_, row) => (
-          <SkeletonRow key={row} columns={columns} />
-        ))}
+    <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className={width}>
+        <div className="grid gap-px bg-zinc-100 p-3 dark:bg-zinc-800" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+          {Array.from({ length: columns }).map((_, index) => (
+            <Skeleton key={`h-${index}`} className="h-3 bg-zinc-300 dark:bg-zinc-700" />
+          ))}
+        </div>
+        <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {Array.from({ length: rows }).map((_, row) => (
+            <SkeletonRow key={row} columns={columns} />
+          ))}
+        </div>
       </div>
     </div>
   );

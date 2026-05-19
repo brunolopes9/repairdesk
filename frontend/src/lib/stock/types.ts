@@ -10,6 +10,9 @@ export const PART_CATEGORIA = {
   Tampa: 6,
   Adesivo: 7,
   Consumivel: 8,
+  Smartphone: 9,
+  Tablet: 10,
+  Acessorio: 11,
   Outro: 99,
 } as const;
 
@@ -25,8 +28,17 @@ export const PART_CATEGORIA_LABEL: Record<PartCategoria, string> = {
   6: 'Tampa',
   7: 'Adesivo',
   8: 'Consumível',
+  9: 'Smartphone',
+  10: 'Tablet',
+  11: 'Acessório',
   99: 'Outro',
 };
+
+/// Categorias onde IMEI é obrigatório quando vendido (Sprint 59).
+export const PART_CATEGORIA_REQUER_IMEI: ReadonlySet<PartCategoria> = new Set([
+  PART_CATEGORIA.Smartphone,
+  PART_CATEGORIA.Tablet,
+]);
 
 export const PART_MOVIMENTO_MOTIVO = {
   Entrada: 0,

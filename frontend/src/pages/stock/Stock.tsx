@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { AlertTriangle, History, PackagePlus, PackageSearch, Pencil, Search, SlidersHorizontal, Trash2, Upload } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { Button, EmptyState, PageHeader, StatusBadge } from '../../components/ui';
+import { Button, EmptyState, PageHeader, SkeletonCard, SkeletonTable, StatusBadge } from '../../components/ui';
 import { formatCents, formatDate, parseEuros } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { stockApi } from '../../lib/stock/api';
@@ -87,7 +87,7 @@ export default function Stock() {
       />
       <header className="space-y-3">
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <select
             value={categoria ?? ''}
             onChange={(e) => { setCategoria(e.target.value === '' ? null : (Number(e.target.value) as PartCategoria)); setPage(1); }}
@@ -106,11 +106,12 @@ export default function Stock() {
             <option value="">Todas marcas</option>
             {marcas.data?.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
-          <label className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+          <label className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
             <input
               type="checkbox"
               checked={lowStockOnly}
               onChange={(e) => { setLowStockOnly(e.target.checked); setPage(1); }}
+              className="scale-125 sm:scale-100"
             />
             Só stock baixo
           </label>
@@ -119,7 +120,7 @@ export default function Stock() {
             placeholder="Pesquisar SKU, nome, modelo, fornecedor..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="min-h-11 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
       </header>
@@ -131,8 +132,11 @@ export default function Stock() {
         </div>
       )}
 
+      {list.isLoading ? (
+        <SkeletonTable columns={9} rows={8} minWidth="min-w-[920px]" />
+      ) : (
       <section className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <table className="min-w-full text-sm">
+        <table className="min-w-[920px] text-sm">
           <thead className="bg-zinc-50 text-left text-xs text-zinc-500 dark:bg-zinc-950">
             <tr>
               <th className="px-3 py-2">SKU</th>
@@ -213,14 +217,10 @@ export default function Stock() {
                 </td>
               </tr>
             )}
-            {list.isLoading && (
-              <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-sm text-zinc-500">A carregar stock...</td>
-              </tr>
-            )}
           </tbody>
         </table>
       </section>
+      )}
 
       {lastPage > 1 && (
         <div className="flex items-center justify-between text-xs text-zinc-500">
@@ -340,7 +340,7 @@ function PartFormModal({ open, editing, onClose, onSaved }: { open: boolean; edi
       </>}
     >
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="SKU" hint="Deixa vazio para gerar automaticamente (ex: ECRA-0001).">
             <input value={form.sku ?? ''} onChange={(e) => setForm({ ...form, sku: e.target.value || null })} placeholder="Auto · ou define o teu (LCD-IP12-A)" className={inputCls} />
           </Field>
@@ -351,23 +351,23 @@ function PartFormModal({ open, editing, onClose, onSaved }: { open: boolean; edi
           </Field>
         </div>
         <Field label="Nome *"><input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ecrã iPhone 12" className={inputCls} /></Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Marca"><input value={form.marca ?? ''} onChange={(e) => setForm({ ...form, marca: e.target.value || null })} placeholder="Apple" className={inputCls} /></Field>
           <Field label="Modelo"><input value={form.modelo ?? ''} onChange={(e) => setForm({ ...form, modelo: e.target.value || null })} placeholder="iPhone 12" className={inputCls} /></Field>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Stock"><input inputMode="numeric" value={stockStr} onChange={(e) => setStockStr(e.target.value)} className={inputCls} /></Field>
           <Field label="Mínimo"><input inputMode="numeric" value={minStr} onChange={(e) => setMinStr(e.target.value)} className={inputCls} /></Field>
           <Field label="Custo (€)"><input inputMode="decimal" value={custoStr} onChange={(e) => setCustoStr(e.target.value)} className={inputCls} /></Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Fornecedor"><input value={form.fornecedor ?? ''} onChange={(e) => setForm({ ...form, fornecedor: e.target.value || null })} placeholder="Mobiltrust" className={inputCls} /></Field>
           <Field label="Local"><input value={form.localArmazenamento ?? ''} onChange={(e) => setForm({ ...form, localArmazenamento: e.target.value || null })} placeholder="Prateleira A3" className={inputCls} /></Field>
         </div>
         <Field label="Notas"><textarea rows={2} value={form.notas ?? ''} onChange={(e) => setForm({ ...form, notas: e.target.value || null })} className={inputCls + ' resize-none'} /></Field>
         {editing && (
           <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
+            <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="scale-125 sm:scale-100" />
             Activa
           </label>
         )}
@@ -459,7 +459,14 @@ function HistoryModal({ part, onClose }: { part: Part | null; onClose: () => voi
 }
 
 function MovimentosList({ movimentos, loading }: { movimentos: PartMovimento[]; loading: boolean }) {
-  if (loading) return <p className="text-sm text-zinc-500">A carregar movimentos...</p>;
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
+  }
   if (movimentos.length === 0) return <p className="text-sm text-zinc-500">Ainda não há movimentos.</p>;
   return (
     <ul className="max-h-96 space-y-2 overflow-y-auto">
@@ -521,7 +528,7 @@ function ImportCsvModal({ open, onClose, onDone }: { open: boolean; onClose: () 
       <div className="space-y-3">
         {result ? (
           <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <Stat label="Criadas" value={result.criadas} tone="emerald" />
               <Stat label="Ignoradas" value={result.ignoradas} tone="zinc" />
               <Stat label="Com erro" value={result.comErro} tone="rose" />
@@ -580,4 +587,4 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-const inputCls = 'block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';
+const inputCls = 'block min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';

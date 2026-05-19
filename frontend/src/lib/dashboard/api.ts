@@ -93,7 +93,66 @@ export const dashboardApi = {
   avaliacoes() {
     return api.get<AvaliacoesDashboardResponse>('/dashboard/avaliacoes').then((r) => r.data);
   },
+  garantiasResumo(dias = 30, limit = 8) {
+    return api
+      .get<GarantiasResumoResponse>('/dashboard/garantias-resumo', { params: { dias, limit } })
+      .then((r) => r.data);
+  },
+  reparacoesEmGarantia(dias = 90, limit = 30) {
+    return api
+      .get<ReparacoesEmGarantiaResponse>('/dashboard/reparacoes-em-garantia', { params: { dias, limit } })
+      .then((r) => r.data);
+  },
+  reparacoesEmGarantiaCsv(dias = 90) {
+    return api
+      .get<Blob>('/dashboard/reparacoes-em-garantia/export.csv', {
+        params: { dias },
+        responseType: 'blob',
+      })
+      .then((r) => r.data);
+  },
 };
+
+export interface ReparacaoEmGarantia {
+  reparacaoId: string;
+  reparacaoNumero: number;
+  recebidoEm: string;
+  equipamento: string;
+  imei: string;
+  vendaId: string;
+  vendaNumero: number;
+  vendaData: string;
+  clienteNome: string | null;
+  orcamentoCents: number | null;
+}
+
+export interface ReparacoesEmGarantiaResponse {
+  totalReparacoes: number;
+  totalEntregues: number;
+  totalPorcento: number;
+  valorOrcamentoCents: number;
+  itens: ReparacaoEmGarantia[];
+}
+
+export interface GarantiaProximaExpirar {
+  id: string;
+  slug: string;
+  dataFim: string;
+  diasRestantes: number;
+  origem: 'Reparacao' | 'Venda';
+  documentoReferencia: string | null;
+  equipamentoOuArtigo: string | null;
+  clienteNome: string | null;
+  clienteTelefone: string | null;
+}
+
+export interface GarantiasResumoResponse {
+  activas: number;
+  expiramEm30Dias: number;
+  expiraramHoje: number;
+  anuladas: number;
+  proximasAExpirar: GarantiaProximaExpirar[];
+}
 
 export interface AvaliacaoRecente {
   id: string;

@@ -27,7 +27,7 @@ export default function Modal({ open, title, onClose, children, footer }: Props)
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
       <div
-        className="w-full max-w-lg rounded-t-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-2xl"
+        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-2xl"
         role="dialog"
         aria-modal="true"
       >
@@ -36,15 +36,15 @@ export default function Modal({ open, title, onClose, children, footer }: Props)
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="grid h-10 w-10 place-items-center rounded-md text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800"
             aria-label="Fechar"
           >
             ×
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && (
-          <footer className="flex justify-end gap-2 border-t border-zinc-200 px-5 py-3 dark:border-zinc-800">
+          <footer className="flex flex-col-reverse gap-2 border-t border-zinc-200 px-5 py-3 dark:border-zinc-800 [&>button]:min-h-11 [&>button]:w-full sm:flex-row sm:justify-end sm:[&>button]:w-auto">
             {footer}
           </footer>
         )}

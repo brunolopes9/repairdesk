@@ -90,6 +90,14 @@ export interface PublicRepairDto {
   jaAvaliado: boolean;
   fotos: PublicFotoDto[];
   camposEquipamento: PublicEquipmentFieldDto[];
+  /** Sprint 88: cobertura por garantia de venda anterior, quando aplicável. */
+  coberturaGarantia: PublicCoberturaGarantia | null;
+}
+
+export interface PublicCoberturaGarantia {
+  garantiaSlug: string;
+  dataFimGarantia: string;
+  diasRestantes: number;
 }
 
 export interface PublicFotoDto {
@@ -97,6 +105,14 @@ export interface PublicFotoDto {
   tipo: number; // 0=Antes, 1=Durante, 2=Depois
   legenda: string | null;
   criadaEm: string;
+}
+
+export interface PublicGarantiaItemDto {
+  descricao: string;
+  quantidade: number;
+  precoUnitarioCents: number;
+  totalCents: number;
+  imeiMascarado: string | null;
 }
 
 export interface PublicGarantiaDto {
@@ -112,6 +128,10 @@ export interface PublicGarantiaDto {
   diasRestantes: number;
   cobertura: string | null;
   exclusoes: string | null;
+  origem: 'Reparacao' | 'Venda';
+  documentoReferencia: string | null;
+  numeroFatura: string | null;
+  items: PublicGarantiaItemDto[] | null;
 }
 
 export interface AvaliacaoSubmittedDto {

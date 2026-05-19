@@ -35,6 +35,7 @@ import {
 } from '../lib/publicPortal/api';
 import { usePushSubscription } from '../lib/publicPortal/usePushSubscription';
 import { formatCents } from '../lib/money';
+import { SkeletonCard } from '../components/ui';
 
 type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
 
@@ -57,7 +58,9 @@ export default function PortalCliente() {
   if (repair.isLoading) {
     return (
       <div className="grid min-h-screen place-items-center bg-gradient-to-b from-zinc-50 to-white p-6 dark:from-zinc-950 dark:to-zinc-900">
-        <div className="text-sm text-zinc-500">A carregar…</div>
+        <div className="w-full max-w-md">
+          <SkeletonCard />
+        </div>
       </div>
     );
   }
@@ -107,6 +110,35 @@ export default function PortalCliente() {
             decidir={decidir.mutate}
             pending={decidir.isPending}
           />
+        )}
+
+        {data.coberturaGarantia && (
+          <div className="rounded-2xl border border-emerald-300 bg-emerald-50/70 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                <ShieldCheck size={18} strokeWidth={2} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                  ✓ Reparação coberta pela garantia
+                </div>
+                <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200/80">
+                  Este equipamento foi comprado aqui anteriormente e ainda está dentro do período de garantia
+                  ({data.coberturaGarantia.diasRestantes} {data.coberturaGarantia.diasRestantes === 1 ? 'dia restante' : 'dias restantes'},
+                  até {new Date(data.coberturaGarantia.dataFimGarantia).toLocaleDateString('pt-PT')}).
+                  A reparação não terá custos para si.
+                </p>
+                <a
+                  href={`/g/${data.coberturaGarantia.garantiaSlug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-700 hover:underline dark:text-emerald-300"
+                >
+                  Ver garantia →
+                </a>
+              </div>
+            </div>
+          </div>
         )}
 
         {data.diagnostico && data.estado !== PUBLIC_ESTADO.Orcamento && (

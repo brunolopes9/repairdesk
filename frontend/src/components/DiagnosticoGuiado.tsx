@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Stethoscope } from 'lucide-react';
+import { SkeletonRow } from './ui';
 import {
   DEVICE_CATEGORY,
   DEVICE_CATEGORY_LABEL,
@@ -58,7 +59,9 @@ export default function DiagnosticoGuiado({ reparacaoId, readOnly = false }: Pro
           <Stethoscope size={15} strokeWidth={2} className="text-zinc-500" />
           Diagnóstico Guiado
         </h2>
-        <p className="mt-2 text-xs text-zinc-500">A carregar…</p>
+        <div className="mt-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <SkeletonRow columns={2} />
+        </div>
       </section>
     );
   }
@@ -86,7 +89,7 @@ export default function DiagnosticoGuiado({ reparacaoId, readOnly = false }: Pro
             <select
               value={selectedTemplateId ?? ''}
               onChange={(e) => setSelectedTemplateId(e.target.value || null)}
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+              className="mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
             >
               <option value="">— default por categoria —</option>
               {templates.data?.map((t) => (
@@ -102,7 +105,7 @@ export default function DiagnosticoGuiado({ reparacaoId, readOnly = false }: Pro
               <select
                 value={selectedCategoria}
                 onChange={(e) => setSelectedCategoria(Number(e.target.value) as DeviceCategory)}
-                className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                className="mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
               >
                 {Object.entries(DEVICE_CATEGORY).map(([_, v]) => (
                   <option key={v} value={v}>
@@ -117,7 +120,7 @@ export default function DiagnosticoGuiado({ reparacaoId, readOnly = false }: Pro
           type="button"
           disabled={start.isPending}
           onClick={() => start.mutate()}
-          className="mt-3 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+          className="mt-3 min-h-11 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
           {start.isPending ? 'A iniciar…' : '✚ Iniciar diagnóstico'}
         </button>
@@ -279,7 +282,7 @@ function DiagnosticoActivo({
                       placeholder="Nota / detalhe…"
                       value={item.notas ?? ''}
                       onChange={(e) => setItemNotas(item.id, e.target.value)}
-                      className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                      className="mt-2 min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-950"
                     />
                   )}
                   {readOnly && item.notas && (
@@ -304,7 +307,7 @@ function DiagnosticoActivo({
                 triggerAutoSave();
               }}
               placeholder="Observações para o relatório do cliente…"
-              className="mt-1 w-full resize-none rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+              className="mt-1 min-h-20 w-full resize-none rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
             />
           </label>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
@@ -317,7 +320,7 @@ function DiagnosticoActivo({
                 onClick={() => {
                   if (confirm('Apagar diagnóstico? Vais perder o checklist actual.')) remove.mutate();
                 }}
-                className="rounded-md px-2 py-1 text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                className="min-h-10 rounded-md px-3 py-2 text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
               >
                 Apagar
               </button>
@@ -326,7 +329,7 @@ function DiagnosticoActivo({
                   type="button"
                   onClick={() => update.mutate(true)}
                   disabled={update.isPending}
-                  className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
+                  className="min-h-10 rounded-md bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
                 >
                   ✓ Marcar concluído
                 </button>
@@ -347,13 +350,13 @@ function ResultButtons({ value, onChange }: { value: Resultado; onChange: (r: Re
     { value: RESULTADO.NaoTestado, label: 'N/T', cls: 'bg-zinc-100 text-zinc-700 ring-zinc-300 dark:bg-zinc-800 dark:text-zinc-300' },
   ];
   return (
-    <div className="flex gap-1">
+    <div className="flex flex-wrap gap-1">
       {opts.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 transition ${
+          className={`min-h-10 rounded-md px-3 py-1 text-[11px] font-medium ring-1 transition ${
             value === o.value ? o.cls + ' ring-2 shadow-sm' : 'bg-white text-zinc-500 ring-zinc-200 hover:bg-zinc-50 dark:bg-zinc-900 dark:ring-zinc-700'
           }`}
         >

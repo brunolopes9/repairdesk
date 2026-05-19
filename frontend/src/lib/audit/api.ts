@@ -1,19 +1,31 @@
 import { api } from '../api';
-import type { AuditPage } from './types';
+import type { AuditFilterOptions, AuditFilters, AuditPage } from './types';
 
 export const auditApi = {
-  list(filters: { entityType?: string; entityId?: string; from?: string; to?: string; page?: number; pageSize?: number } = {}) {
-    return api
-      .get<AuditPage>('/audit', {
-        params: {
-          entityType: filters.entityType || undefined,
-          entityId: filters.entityId || undefined,
-          from: filters.from || undefined,
-          to: filters.to || undefined,
-          page: filters.page ?? 1,
-          pageSize: filters.pageSize ?? 50,
-        },
-      })
-      .then((r) => r.data);
+  list(filters: AuditFilters = {}) {
+    return api.get<AuditPage>(`/audit/search?${buildAuditQuery(filters)}`).then((r) => r.data);
+  },
+  filters() {
+    return api.get<AuditFilterOptions>('/audit/filters').then((r) => r.data);
+  },
+  exportCsvPath(filters: AuditFilters) {
+    return `/audit/export.csv?${buildAuditQuery(filters)}`;
+  },
+  exportPdfPath(filters: AuditFilters) {
+    return `/audit/export.pdf?${buildAuditQuery(filters)}`;
   },
 };
+
+export function buildAuditQuery(filters: AuditFilters): string {
+  const params = new URLSearchParams();
+  filters.entityTypes?.filter(Boolean).forEach((v) => params.append('entityTypes', v));
+  filters.userIds?.filter(Boolean).forEach((v) => params.append('userIds', v));
+  filters.actions?.forEach((v) => params.append('actions', String(v)));
+  if (filters.entityId) params.set('entityId', filters.entityId);
+  if (filters.search) params.set('search', filters.search);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  params.set('page', String(filters.page ?? 1));
+  params.set('pageSize', String(filters.pageSize ?? 50));
+  return params.toString();
+}

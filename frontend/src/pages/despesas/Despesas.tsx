@@ -80,11 +80,11 @@ export default function Despesas() {
         actions={<Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>Nova</Button>}
       />
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <select
           value={categoria ?? ''}
           onChange={(e) => { setCategoria(e.target.value === '' ? null : (Number(e.target.value) as DespesaCategoria)); setPage(1); }}
-          className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+          className="min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
         >
           <option value="">Todas categorias</option>
           {Object.entries(DESPESA_CATEGORIA).map(([_, v]) => (
@@ -98,7 +98,7 @@ export default function Despesas() {
             placeholder="Pesquisar descricao, fornecedor..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+            className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
       </div>
@@ -106,7 +106,7 @@ export default function Despesas() {
       <ul className="space-y-2">
         {list.isLoading && Array.from({ length: 4 }).map((_, index) => <SkeletonCard key={index} />)}
         {items.map((d) => (
-          <li key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <li key={d.id} className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
               onClick={() => setEditing(d)}
@@ -130,12 +130,12 @@ export default function Despesas() {
                 </div>
               )}
             </button>
-            <div className="flex items-center gap-3 px-4">
+            <div className="flex items-center justify-between gap-3 px-4 pb-3 sm:justify-end sm:pb-0">
               <span className="font-semibold text-red-600 dark:text-red-400">−{formatCents(d.valorCents)}</span>
               <button
                 type="button"
                 onClick={() => setConfirmDelete(d)}
-                className="rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800"
+                className="grid h-10 w-10 place-items-center rounded-md text-xs text-zinc-500 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800"
                 aria-label="Apagar"
               >
                 ✕
@@ -156,10 +156,10 @@ export default function Despesas() {
       </ul>
 
       {lastPage > 1 && (
-        <div className="flex items-center justify-between text-xs text-zinc-500">
-          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">← Anterior</button>
+        <div className="flex items-center justify-between gap-3 text-xs text-zinc-500">
+          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">← Anterior</button>
           <span>{page} / {lastPage}</span>
-          <button disabled={page >= lastPage} onClick={() => setPage(p => p + 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Seguinte →</button>
+          <button disabled={page >= lastPage} onClick={() => setPage(p => p + 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Seguinte →</button>
         </div>
       )}
 

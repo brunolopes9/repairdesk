@@ -98,6 +98,10 @@ export interface Trabalho {
   invoicePdfUrl: string | null;
   invoiceNumber: string | null;
   invoiceEmittedAt: string | null;
+  estimateExternalId: string | null;
+  estimateNumber: string | null;
+  estimatePdfUrl: string | null;
+  estimateEmittedAt: string | null;
 }
 
 export interface CreateTrabalhoForm {

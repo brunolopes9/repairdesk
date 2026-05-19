@@ -106,7 +106,7 @@ export default function Clientes() {
             setSearch(e.target.value);
             setPage(1);
           }}
-          className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+          className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
         />
       </div>
 
@@ -121,7 +121,7 @@ export default function Clientes() {
         {items.map((c) => (
           <li
             key={c.id}
-            className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+            className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center sm:justify-between"
           >
             <Link to={`/clientes/${c.id}`} className="flex-1 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
               <div className="font-medium">{c.nome}</div>
@@ -141,11 +141,11 @@ export default function Clientes() {
                 )}
               </div>
             </Link>
-            <div className="flex items-center gap-1">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
               <button
                 type="button"
                 onClick={() => openEdit(c)}
-                className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800"
+                className="grid h-10 w-10 place-items-center rounded-md text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800"
                 title="Editar"
                 aria-label="Editar"
               >
@@ -154,7 +154,7 @@ export default function Clientes() {
               <button
                 type="button"
                 onClick={() => setConfirmDelete(c)}
-                className="rounded-md px-2 py-1 text-xs text-red-600 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-red-950/40"
+                className="min-h-10 flex-1 rounded-md px-3 py-2 text-xs text-red-600 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-red-950/40 sm:flex-none"
               >
                 Apagar
               </button>
@@ -174,11 +174,11 @@ export default function Clientes() {
       </ul>
 
       {lastPage > 1 && (
-        <div className="flex items-center justify-between text-xs text-zinc-500">
+        <div className="flex items-center justify-between gap-3 text-xs text-zinc-500">
           <button
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40"
+            className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40"
           >
             ← Anterior
           </button>
@@ -188,7 +188,7 @@ export default function Clientes() {
           <button
             disabled={page >= lastPage}
             onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-            className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40"
+            className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40"
           >
             Seguinte →
           </button>
@@ -424,7 +424,7 @@ function ImportCsvModal({
                 <>
                   <div className="text-zinc-500">Arrasta o ficheiro CSV para aqui</div>
                   <div className="mt-1 text-xs text-zinc-400">ou</div>
-                  <label className="mt-2 inline-block cursor-pointer rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700">
+                  <label className="mt-2 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700">
                     Selecionar ficheiro
                     <input
                       type="file"

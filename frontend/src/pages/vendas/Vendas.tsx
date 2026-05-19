@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, Download, FileText, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound, XCircle, CheckCircle2, History as HistoryIcon } from 'lucide-react';
 import { downloadFile } from '../../lib/downloadPdf';
@@ -8,9 +8,14 @@ import type { Cliente } from '../../lib/clientes/types';
 import { formatCents } from '../../lib/money';
 import { stockApi } from '../../lib/stock/api';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
-import type { Part } from '../../lib/stock/types';
-import { vendasApi } from '../../lib/vendas/api';
-import { PAYMENT_METHOD, VENDA_STATUS, type PaymentMethod, type Venda } from '../../lib/vendas/types';
+import { PART_CATEGORIA_REQUER_IMEI, type Part } from '../../lib/stock/types';
+import { isValidImei, normalizeImei } from '../../lib/imei';
+import { Link } from 'react-router-dom';
+import { vendasApi, type VendaImeiLookup, type VendaReparacaoRelacionada } from '../../lib/vendas/api';
+import { STATUS_LABEL, STATUS_COLOR } from '../../lib/reparacoes/types';
+import { PAYMENT_METHOD, VENDA_ORIGEM, VENDA_ORIGEM_LABEL, VENDA_STATUS, type PaymentMethod, type Venda } from '../../lib/vendas/types';
+import GarantiaCard from '../../components/GarantiaCard';
+import { SkeletonTable } from '../../components/ui';
 
 type CartLine = {
   part: Part;
@@ -18,6 +23,8 @@ type CartLine = {
   precoUnitarioCents: number;
   descontoCents: number;
   ivaRate: number;
+  imei?: string;
+  imei2?: string;
 };
 
 const paymentOptions: Array<{ value: PaymentMethod; label: string }> = [
@@ -73,6 +80,19 @@ export default function Vendas() {
   const cobrar = useMutation({
     mutationFn: async () => {
       if (cart.length === 0) throw new Error('Carrinho vazio.');
+
+      // Validação client-side IMEI antes de submeter — evita 422 do backend.
+      for (const line of cart) {
+        if (PART_CATEGORIA_REQUER_IMEI.has(line.part.categoria)) {
+          if (!line.imei || !isValidImei(line.imei)) {
+            throw new Error(`IMEI inválido ou em falta para ${line.part.nome}.`);
+          }
+          if (line.imei2 && !isValidImei(line.imei2)) {
+            throw new Error(`IMEI secundário inválido para ${line.part.nome}.`);
+          }
+        }
+      }
+
       const venda = await vendasApi.create({
         clienteId: cliente?.id ?? null,
         notas: null,
@@ -83,6 +103,8 @@ export default function Vendas() {
           precoUnitarioCents: line.precoUnitarioCents,
           descontoCents: line.descontoCents,
           ivaRate: line.ivaRate,
+          imei: line.imei ? normalizeImei(line.imei) : null,
+          imei2: line.imei2 ? normalizeImei(line.imei2) : null,
         })),
       });
       return vendasApi.marcarPaga(venda.id, paymentMethod, false);
@@ -202,6 +224,38 @@ export default function Vendas() {
         .filter((l) => l.quantidade > 0),
     );
   }
+
+  function updateImei(partId: string, value: string, slot: 'imei' | 'imei2') {
+    setCart((c) => c.map((l) => l.part.id === partId ? { ...l, [slot]: value } : l));
+  }
+
+  // Debounced IMEI duplicate lookup (warning, não bloqueia).
+  const [imeiWarnings, setImeiWarnings] = useState<Record<string, VendaImeiLookup | null>>({});
+  useEffect(() => {
+    const handles: number[] = [];
+    cart.forEach((line) => {
+      const imei = line.imei?.trim();
+      if (!imei || !isValidImei(imei)) {
+        setImeiWarnings((w) => {
+          if (!(line.part.id in w)) return w;
+          const next = { ...w };
+          delete next[line.part.id];
+          return next;
+        });
+        return;
+      }
+      const h = window.setTimeout(async () => {
+        try {
+          const hit = await vendasApi.imeiLookup(normalizeImei(imei));
+          setImeiWarnings((w) => ({ ...w, [line.part.id]: hit }));
+        } catch {
+          /* silencio — não bloqueia operação */
+        }
+      }, 400);
+      handles.push(h);
+    });
+    return () => handles.forEach((h) => window.clearTimeout(h));
+  }, [cart]);
 
   return (
     <div className="space-y-5">
@@ -324,6 +378,45 @@ export default function Vendas() {
                   </div>
                   <strong className="text-sm">{formatCents(line.quantidade * line.precoUnitarioCents - line.descontoCents)}</strong>
                 </div>
+                {PART_CATEGORIA_REQUER_IMEI.has(line.part.categoria) && (
+                  <div className="mt-3 space-y-2 rounded-md bg-amber-50/60 p-2 text-xs dark:bg-amber-950/30">
+                    <div className="font-medium text-amber-900 dark:text-amber-200">IMEI (obrigatório · DL 84/2021)</div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="IMEI principal (15 dígitos)"
+                      value={line.imei ?? ''}
+                      onChange={(e) => updateImei(line.part.id, e.target.value, 'imei')}
+                      className={`h-10 w-full rounded border bg-white px-2 font-mono text-sm dark:bg-zinc-950 ${
+                        line.imei && !isValidImei(line.imei)
+                          ? 'border-red-400'
+                          : 'border-zinc-200 dark:border-zinc-800'
+                      }`}
+                    />
+                    {line.imei && !isValidImei(line.imei) && (
+                      <div className="text-[10px] text-red-600">IMEI inválido (Luhn falhou).</div>
+                    )}
+                    {imeiWarnings[line.part.id] && (
+                      <div className="rounded border border-orange-300 bg-orange-50 px-2 py-1.5 text-[10px] text-orange-900 dark:border-orange-700 dark:bg-orange-950/40 dark:text-orange-200">
+                        ⚠ Este IMEI já foi vendido em{' '}
+                        <strong>{new Date(imeiWarnings[line.part.id]!.data).toLocaleDateString('pt-PT')}</strong>
+                        {' · '}Venda #{String(imeiWarnings[line.part.id]!.numero).padStart(5, '0')}
+                        {imeiWarnings[line.part.id]!.clienteNome && (
+                          <> a {imeiWarnings[line.part.id]!.clienteNome}</>
+                        )}.
+                        {' '}Devolução / re-venda?
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="IMEI 2 (opcional, dual-SIM)"
+                      value={line.imei2 ?? ''}
+                      onChange={(e) => updateImei(line.part.id, e.target.value, 'imei2')}
+                      className="h-10 w-full rounded border border-zinc-200 bg-white px-2 font-mono text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -387,14 +480,14 @@ export default function Vendas() {
               type="date"
               value={historicoFrom}
               onChange={(e) => setHistoricoFrom(e.target.value)}
-              className="rounded-md border border-zinc-200 px-2 py-1 dark:border-zinc-800 dark:bg-zinc-950"
+              className="min-h-11 rounded-md border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
             />
             <span className="text-zinc-500">até</span>
             <input
               type="date"
               value={historicoTo}
               onChange={(e) => setHistoricoTo(e.target.value)}
-              className="rounded-md border border-zinc-200 px-2 py-1 dark:border-zinc-800 dark:bg-zinc-950"
+              className="min-h-11 rounded-md border border-zinc-200 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
             />
             <button
               type="button"
@@ -402,7 +495,7 @@ export default function Vendas() {
                 `/vendas/export.csv?from=${historicoFrom}T00:00:00Z&to=${historicoTo}T23:59:59Z`,
                 `vendas_${historicoFrom}_${historicoTo}.csv`,
               )}
-              className="ml-1 inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+              className="inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 px-3 py-2 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
               title="Exportar CSV para análise interna (Excel). NÃO substitui o SAFT-PT mensal do Moloni — esse é o documento oficial para o contabilista."
             >
               <Download size={13} /> CSV
@@ -411,12 +504,12 @@ export default function Vendas() {
         </div>
 
         {historico.isLoading ? (
-          <p className="py-4 text-center text-sm text-zinc-500">A carregar…</p>
+          <SkeletonTable columns={7} rows={5} minWidth="min-w-[820px]" />
         ) : (historico.data?.items.length ?? 0) === 0 ? (
           <p className="py-4 text-center text-sm text-zinc-500">Sem vendas no período seleccionado.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="min-w-[820px] text-sm">
               <thead className="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-800">
                 <tr>
                   <th className="px-2 py-2 text-left font-medium">Nº</th>
@@ -431,7 +524,21 @@ export default function Vendas() {
               <tbody>
                 {historico.data!.items.map((v) => (
                   <tr key={v.id} className="border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-900 dark:hover:bg-zinc-900/40">
-                    <td className="px-2 py-2 font-mono text-xs">#{String(v.numero).padStart(5, '0')}</td>
+                    <td className="px-2 py-2 font-mono text-xs">
+                      #{String(v.numero).padStart(5, '0')}
+                      {v.origem !== VENDA_ORIGEM.Balcao && (
+                        <span
+                          className={`ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
+                            v.origem === VENDA_ORIGEM.Online
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                              : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                          }`}
+                          title={`Canal de origem: ${VENDA_ORIGEM_LABEL[v.origem]}`}
+                        >
+                          {VENDA_ORIGEM_LABEL[v.origem]}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2 py-2 text-xs text-zinc-600 dark:text-zinc-400">
                       {new Date(v.data).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}
                     </td>
@@ -464,7 +571,7 @@ export default function Vendas() {
                         <button
                           type="button"
                           onClick={() => setVendaDetalhe(v)}
-                          className="rounded-md border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
+                          className="min-h-10 rounded-md border border-zinc-200 px-3 py-2 text-xs hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
                         >
                           Ver
                         </button>
@@ -472,7 +579,7 @@ export default function Vendas() {
                           href={vendasApi.reciboUrl(v.id)}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-md border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
+                          className="inline-grid h-10 w-10 place-items-center rounded-md border border-zinc-200 text-xs hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
                           title="Recibo PDF"
                         >
                           <Receipt size={13} />
@@ -506,7 +613,7 @@ export default function Vendas() {
                   {new Date(vendaDetalhe.data).toLocaleString('pt-PT')} · {vendaDetalhe.cliente?.nome ?? 'Cliente anónimo'}
                 </p>
               </div>
-              <button type="button" onClick={() => setVendaDetalhe(null)} className="text-zinc-400 hover:text-zinc-700">✕</button>
+              <button type="button" onClick={() => setVendaDetalhe(null)} className="grid h-10 w-10 place-items-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800">✕</button>
             </div>
 
             <div className="mt-4 space-y-1.5 rounded-lg border border-zinc-100 p-3 text-sm dark:border-zinc-800">
@@ -528,6 +635,17 @@ export default function Vendas() {
                 <span>{formatCents(vendaDetalhe.totalCents)}</span>
               </div>
             </div>
+
+            {/* Garantia digital (DL 84/2021) — só visível quando venda paga */}
+            {vendaDetalhe.status === VENDA_STATUS.Paga && (
+              <div className="mt-3">
+                <GarantiaCard kind="venda" vendaId={vendaDetalhe.id} />
+              </div>
+            )}
+
+            {/* Sprint 91: reparações deste equipamento (cross-link via IMEI) */}
+            <VendaReparacoesRelacionadas vendaId={vendaDetalhe.id} />
+
 
             {vendaDetalhe.invoiceNumber && (
               <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-xs dark:border-emerald-900/40 dark:bg-emerald-950/30">
@@ -553,7 +671,7 @@ export default function Vendas() {
                         if (ok) anularFatura.mutate(vendaDetalhe.id);
                       }}
                       disabled={anularFatura.isPending || limparFaturaLocal.isPending}
-                      className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
+                      className="min-h-11 rounded-md border border-red-200 px-3 py-2 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
                       title="Chama Moloni para anular (documentCancel ou NC). Saldo IVA fica zero."
                     >
                       {anularFatura.isPending ? 'A anular…' : 'Anular via Moloni'}
@@ -570,7 +688,7 @@ export default function Vendas() {
                         if (ok) limparFaturaLocal.mutate(vendaDetalhe.id);
                       }}
                       disabled={anularFatura.isPending || limparFaturaLocal.isPending}
-                      className="rounded-md border border-zinc-200 px-2 py-1 text-[11px] text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                      className="min-h-11 rounded-md border border-zinc-200 px-3 py-2 text-[11px] text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
                       title="Já anulaste no Moloni — só limpa a referência aqui (sem chamar API Moloni)"
                     >
                       {limparFaturaLocal.isPending ? 'A limpar…' : 'Já anulei no Moloni'}
@@ -585,7 +703,7 @@ export default function Vendas() {
                 href={vendasApi.reciboUrl(vendaDetalhe.id)}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
+                className="inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 px-3 py-2 text-xs hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
               >
                 <Receipt size={13} /> Recibo PDF
               </a>
@@ -605,7 +723,7 @@ export default function Vendas() {
                     if (ok) emitirFatura.mutate(vendaDetalhe.id);
                   }}
                   disabled={emitirFatura.isPending}
-                  className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-60"
                 >
                   <FileText size={13} /> Emitir fatura Moloni
                 </button>
@@ -624,7 +742,7 @@ export default function Vendas() {
                     if (confirm(msg)) cancelar.mutate(vendaDetalhe.id);
                   }}
                   disabled={cancelar.isPending}
-                  className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-md border border-red-200 px-3 py-2 text-xs text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
                   title={vendaDetalhe.invoiceExternalId ? 'Anula fatura no Moloni + reverte stock (1 clique)' : 'Cancela venda + reverte stock'}
                 >
                   <XCircle size={13} /> Cancelar venda
@@ -634,6 +752,53 @@ export default function Vendas() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Sprint 91: secção que mostra reparações posteriores a esta venda com IMEIs batidos. */
+function VendaReparacoesRelacionadas({ vendaId }: { vendaId: string }) {
+  const q = useQuery({
+    queryKey: ['venda-reparacoes-relacionadas', vendaId],
+    queryFn: () => vendasApi.reparacoesRelacionadas(vendaId),
+    staleTime: 60_000,
+  });
+
+  if (q.isLoading || !q.data || q.data.length === 0) return null;
+
+  return (
+    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900/60 dark:bg-amber-950/30">
+      <div className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+        Reparações deste equipamento ({q.data.length})
+      </div>
+      <ul className="mt-2 space-y-1.5 text-xs">
+        {q.data.map((r: VendaReparacaoRelacionada) => (
+          <li key={r.reparacaoId} className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <Link
+                to={`/reparacoes/${r.reparacaoId}`}
+                className="font-mono text-brand-600 hover:underline"
+              >
+                #{String(r.reparacaoNumero).padStart(5, '0')}
+              </Link>
+              <span className="ml-2 text-zinc-600 dark:text-zinc-400">
+                {r.equipamento}
+              </span>
+              <span className="ml-2 rounded-full bg-zinc-100 px-1.5 py-0.5 text-[9px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                {r.diasDesdeAVenda}d após venda
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {r.orcamentoCents !== null && (
+                <span className="text-zinc-500">{formatCents(r.orcamentoCents)}</span>
+              )}
+              <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${STATUS_COLOR[r.estado as keyof typeof STATUS_COLOR] ?? ''}`}>
+                {STATUS_LABEL[r.estado as keyof typeof STATUS_LABEL] ?? `Estado ${r.estado}`}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

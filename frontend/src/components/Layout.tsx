@@ -117,7 +117,7 @@ export default function Layout() {
               }}
               title="Procurar / acções (Ctrl+K)"
               aria-label="Procurar"
-              className="hidden items-center gap-1.5 rounded-md border border-zinc-200 px-2 py-1 text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 sm:flex"
+              className="hidden min-h-10 items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-2 text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 sm:flex"
             >
               <Search size={12} strokeWidth={2} />
               <span>Procurar</span>
@@ -127,14 +127,14 @@ export default function Layout() {
               type="button"
               onClick={cycleTheme}
               title={`Tema: ${themeLabel} — clica para alternar`}
-              className="rounded-md border border-zinc-200 p-1.5 text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="grid h-10 w-10 place-items-center rounded-md border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               <ThemeIcon size={14} strokeWidth={2} />
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 py-2 text-xs text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               Sair
             </button>

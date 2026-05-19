@@ -32,6 +32,8 @@ import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/u
 import { clientesApi } from '../../lib/clientes/api';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
+import { vendasApi } from '../../lib/vendas/api';
+import { garantiasApi } from '../../lib/garantias/api';
 import { precosApi, type PriceTableEntry } from '../../lib/precos/api';
 import { toast } from '../../lib/toast';
 import { downloadFile } from '../../lib/downloadPdf';
@@ -170,7 +172,7 @@ export default function Reparacoes() {
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
-                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${view === 'list' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`inline-flex min-h-11 items-center gap-1 rounded-md px-2.5 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${view === 'list' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
                 title="Vista lista"
               >
                 <List size={14} /> Lista
@@ -178,7 +180,7 @@ export default function Reparacoes() {
               <button
                 type="button"
                 onClick={() => setViewMode('kanban')}
-                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${view === 'kanban' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`inline-flex min-h-11 items-center gap-1 rounded-md px-2.5 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${view === 'kanban' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
                 title="Vista Kanban"
               >
                 <LayoutGrid size={14} /> Kanban
@@ -188,7 +190,7 @@ export default function Reparacoes() {
               <button
                 type="button"
                 onClick={() => setPagasSemFaturaOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
                 title="Reparações pagas sem fatura Moloni emitida"
               >
                 <AlertTriangle size={13} />
@@ -233,7 +235,7 @@ export default function Reparacoes() {
                     setEstado(t.value);
                     setPage(1);
                   }}
-                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
+                  className={`min-h-10 whitespace-nowrap rounded-full px-3 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
                     active
                       ? 'bg-brand-600 text-white'
                       : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
@@ -257,7 +259,7 @@ export default function Reparacoes() {
             setSearch(e.target.value);
             setPage(1);
           }}
-          className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+          className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
         />
       </div>
 
@@ -286,12 +288,12 @@ export default function Reparacoes() {
           </ul>
 
           {lastPage > 1 && (
-            <div className="flex items-center justify-between text-xs text-zinc-500">
-              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
+            <div className="flex items-center justify-between gap-3 text-xs text-zinc-500">
+              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
                 ← Anterior
               </button>
               <span>{page} / {lastPage}</span>
-              <button disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
+              <button disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
                 Seguinte →
               </button>
             </div>
@@ -362,10 +364,11 @@ export default function Reparacoes() {
           <p className="text-sm text-zinc-500">Nenhuma reparação pendente de fatura — tudo em dia ✓</p>
         ) : (
           <>
-            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-950">
-              <label className="flex items-center gap-2">
+            <div className="mb-2 flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-950 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex min-h-10 items-center gap-2">
                 <input
                   type="checkbox"
+                  className="scale-125 sm:scale-100"
                   checked={bulkSelected.size > 0 && bulkSelected.size === pagasSemFatura.data!.length}
                   onChange={(e) => {
                     if (e.target.checked) {
@@ -394,7 +397,7 @@ export default function Reparacoes() {
                   );
                   if (ok) bulkEmit.mutate(Array.from(bulkSelected));
                 }}
-                className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                className="min-h-11 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 {bulkEmit.isPending ? 'A emitir…' : `Emitir ${bulkSelected.size} faturas`}
               </button>
@@ -419,6 +422,7 @@ export default function Reparacoes() {
                       <td className="px-2 py-2">
                         <input
                           type="checkbox"
+                          className="scale-125 sm:scale-100"
                           checked={bulkSelected.has(r.id)}
                           onChange={(e) => {
                             const next = new Set(bulkSelected);
@@ -479,7 +483,7 @@ function ReparacaoCard({ r, onClick, onDelete }: { r: Reparacao; onClick: () => 
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="absolute right-2 top-2 rounded-md p-1.5 text-zinc-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+        className="absolute right-2 top-2 grid h-10 w-10 place-items-center rounded-md text-zinc-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
         aria-label="Apagar reparação"
         title="Apagar"
       >
@@ -519,6 +523,22 @@ function CreateReparacaoModal({
     queryFn: () => reparacoesApi.historicoImei(imeiNormalizado),
     enabled: open && imeiSearchEnabled,
     staleTime: 30_000,
+  });
+
+  // IMEI vendido aqui? — usa endpoint Sprint 61.
+  const vendaImei = useQuery({
+    queryKey: ['venda-por-imei', imeiNormalizado],
+    queryFn: () => vendasApi.imeiLookup(imeiNormalizado),
+    enabled: open && imeiNormalizado.length === 15,
+    staleTime: 60_000,
+  });
+
+  // Se foi vendido aqui, busca garantia da venda (pode estar activa ainda).
+  const garantiaVenda = useQuery({
+    queryKey: ['garantia-venda-por-imei', vendaImei.data?.vendaId],
+    queryFn: () => garantiasApi.byVenda(vendaImei.data!.vendaId),
+    enabled: !!vendaImei.data?.vendaId,
+    staleTime: 60_000,
   });
 
   const clientes = useQuery({
@@ -720,6 +740,57 @@ function CreateReparacaoModal({
                   </ul>
                 </div>
               )}
+              {vendaImei.data && (
+                <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-2 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+                  <div className="flex items-start gap-1.5">
+                    <span className="mt-0.5 text-emerald-600 dark:text-emerald-300">✓</span>
+                    <span>
+                      Este equipamento foi vendido <strong>aqui</strong> em{' '}
+                      <strong>{new Date(vendaImei.data.data).toLocaleDateString('pt-PT')}</strong>
+                      {' · '}Venda #{String(vendaImei.data.numero).padStart(5, '0')}
+                      {vendaImei.data.clienteNome && <> a {vendaImei.data.clienteNome}</>}.
+                    </span>
+                  </div>
+                  {garantiaVenda.data && garantiaVenda.data.activa && (
+                    <div className="mt-1 pl-5 text-[11px]">
+                      Garantia activa — expira em <strong>{garantiaVenda.data.diasRestantes} {garantiaVenda.data.diasRestantes === 1 ? 'dia' : 'dias'}</strong> ({new Date(garantiaVenda.data.dataFim).toLocaleDateString('pt-PT')}).
+                      {' '}Possível reparação coberta.
+                    </div>
+                  )}
+                  {garantiaVenda.data && garantiaVenda.data.anulada && (
+                    <div className="mt-1 pl-5 text-[11px] text-rose-700 dark:text-rose-300">
+                      Garantia anulada — não aplicável.
+                    </div>
+                  )}
+                  {garantiaVenda.data && !garantiaVenda.data.activa && !garantiaVenda.data.anulada && (
+                    <div className="mt-1 pl-5 text-[11px] text-zinc-600 dark:text-zinc-400">
+                      Garantia expirada em {new Date(garantiaVenda.data.dataFim).toLocaleDateString('pt-PT')}.
+                    </div>
+                  )}
+                  {/* Sprint 82: auto-fill cliente + equipamento da venda detectada */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const venda = await vendasApi.get(vendaImei.data!.vendaId);
+                        if (venda.cliente) {
+                          setClienteId(venda.cliente.id);
+                          setClienteSearch(venda.cliente.nome);
+                        }
+                        if (!equipamento.trim()) {
+                          const item = venda.items[0];
+                          if (item) setEquipamento(item.descricao);
+                        }
+                      } catch {
+                        /* silencio — não bloqueia o operador */
+                      }
+                    }}
+                    className="mt-2 inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700"
+                  >
+                    Usar dados da venda (cliente + equipamento)
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </Field>
@@ -838,7 +909,7 @@ function NovoClienteModal({ open, onClose, onCreated }: { open: boolean; onClose
 }
 
 const inputCls =
-  'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';
+  'min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -1010,7 +1081,7 @@ function SugerirPrecoModal({
           placeholder="Pesquisar marca, modelo ou serviço… (ex: iPhone 13 ecrã)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
         />
         {debouncedSearch.length < 2 && (
           <p className="text-xs text-zinc-500">Escreve pelo menos 2 caracteres para procurar.</p>
@@ -1027,7 +1098,7 @@ function SugerirPrecoModal({
                 <button
                   type="button"
                   onClick={() => onPicked(e)}
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{e.marca} {e.modelo}</div>
@@ -1134,7 +1205,7 @@ function ImportReparacoesModal({
 
         {result ? (
           <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-center dark:border-emerald-800/60 dark:bg-emerald-950/30">
                 <div className="text-2xl font-semibold text-emerald-700 dark:text-emerald-300">{result.criadas}</div>
                 <div className="text-[10px] uppercase text-emerald-700/80 dark:text-emerald-300/80">Reparações</div>
@@ -1203,7 +1274,7 @@ function ImportReparacoesModal({
                 <>
                   <div className="text-zinc-500">Arrasta o ficheiro CSV para aqui</div>
                   <div className="mt-1 text-xs text-zinc-400">ou</div>
-                  <label className="mt-2 inline-block cursor-pointer rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700">
+                  <label className="mt-2 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700">
                     Selecionar ficheiro
                     <input type="file" accept=".csv,text/csv,text/plain" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
                   </label>

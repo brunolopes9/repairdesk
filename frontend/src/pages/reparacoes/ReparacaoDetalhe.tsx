@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, Lock, Phone, Search, Snowflake } from 'lucide-react';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import GarantiaCard from '../../components/GarantiaCard';
 import { isAxiosError } from 'axios';
 import DespesasImputadas from '../../components/DespesasImputadas';
 import DiagnosticoGuiado from '../../components/DiagnosticoGuiado';
@@ -16,13 +17,14 @@ import FotosReparacao from '../../components/FotosReparacao';
 import Modal from '../../components/Modal';
 import PecasUsadas from '../../components/PecasUsadas';
 import WhatsAppMenu from '../../components/WhatsAppMenu';
-import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { Breadcrumb, SkeletonCard } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { clientesApi } from '../../lib/clientes/api';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import type { EquipmentFieldTemplate } from '../../lib/equipmentFields/types';
 import { reparacoesApi } from '../../lib/reparacoes/api';
+import type { ReparacaoVendaOrigem } from '../../lib/reparacoes/types';
 import { toast } from '../../lib/toast';
 import {
   PAYMENT_STATUS,
@@ -340,6 +342,26 @@ export default function ReparacaoDetalhe() {
     onError: (err) => toast.fromError(err, 'Não foi possível anular a fatura.'),
   });
 
+  const emitirOrcamentoMoloni = useMutation({
+    mutationFn: () => reparacoesApi.emitirOrcamentoMoloni(id!),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['reparacao', id] });
+      qc.invalidateQueries({ queryKey: ['reparacoes'] });
+      toast.success(`Orcamento ${updated.estimateNumber ?? updated.estimateExternalId} emitido`, updated.estimatePdfUrl ? 'PDF Moloni disponivel na ficha.' : undefined);
+    },
+    onError: (err) => toast.fromError(err, 'Nao foi possivel emitir o orcamento Moloni.'),
+  });
+
+  const converterOrcamentoMoloni = useMutation({
+    mutationFn: () => reparacoesApi.converterOrcamentoEmFatura(id!),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['reparacao', id] });
+      qc.invalidateQueries({ queryKey: ['reparacoes'] });
+      toast.success(`Fatura ${updated.invoiceNumber ?? updated.invoiceExternalId} emitida`, updated.invoicePdfUrl ? 'PDF disponivel na ficha.' : undefined);
+    },
+    onError: (err) => toast.fromError(err, 'Nao foi possivel converter o orcamento em fatura.'),
+  });
+
   // Reabrir: volta para estado Pronto + desmarca Pago via endpoint dedicado.
   const reabrir = useMutation({
     mutationFn: () => reparacoesApi.reabrir(id!),
@@ -355,7 +377,21 @@ export default function ReparacaoDetalhe() {
     },
   });
 
-  if (detail.isLoading) return <div className="text-sm text-zinc-500">A carregar…</div>;
+  if (detail.isLoading) {
+    return (
+      <div className="space-y-4">
+        <SkeletonCard />
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </section>
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
+  }
   if (detail.isError || !detail.data) return <div className="text-sm text-red-600">Não encontrado.</div>;
 
   const r = detail.data.reparacao;
@@ -373,6 +409,7 @@ export default function ReparacaoDetalhe() {
   const canEmitMoloniInvoice = r.estadoPagamento === PAYMENT_STATUS.Pago
     && billing.data?.provider === 1
     && !r.invoiceExternalId;
+  const canEmitMoloniEstimate = billing.data?.provider === 1 && !r.estimateExternalId;
 
   // Dias parado no estado actual (usado para escolher template WhatsApp p.ex. "Lembrete levantamento" se >7d em Pronto)
   const staleDays = Math.floor((Date.now() - new Date(r.estadoSince).getTime()) / 86_400_000);
@@ -389,20 +426,20 @@ export default function ReparacaoDetalhe() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-2 text-sm">
+      <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <Breadcrumb
           items={[
             { label: 'Reparações', to: '/reparacoes' },
             { label: `#${r.numero} · ${r.equipamento}` },
           ]}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isFrozen && (
             <button
               type="button"
               disabled={reabrir.isPending}
               onClick={() => reabrir.mutate()}
-              className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-200 disabled:opacity-60 dark:bg-amber-950/40 dark:text-amber-300"
+              className="min-h-10 rounded-md bg-amber-100 px-3 py-2 text-xs font-medium text-amber-900 hover:bg-amber-200 disabled:opacity-60 dark:bg-amber-950/40 dark:text-amber-300"
             >
               {reabrir.isPending ? 'A reabrir…' : '🔓 Reabrir'}
             </button>
@@ -410,7 +447,7 @@ export default function ReparacaoDetalhe() {
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
-            className="rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+            className="min-h-10 rounded-md px-3 py-2 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
           >
             Apagar
           </button>
@@ -474,6 +511,54 @@ export default function ReparacaoDetalhe() {
           >
             📄 PDF Orçamento
           </button>
+          {r.estimateExternalId ? (
+            <>
+              <a
+                href={r.estimatePdfUrl ?? '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-950/30 dark:text-blue-200"
+              >
+                Orcamento {r.estimateNumber ?? r.estimateExternalId}
+              </a>
+              {!r.invoiceExternalId && (
+                <button
+                  type="button"
+                  disabled={converterOrcamentoMoloni.isPending}
+                  onClick={() => {
+                    const ok = confirm(
+                      'Converter este orcamento Moloni em fatura?\n\n' +
+                      `${r.estimateNumber ?? r.estimateExternalId} vai originar uma fatura real no Moloni.`
+                    );
+                    if (ok) converterOrcamentoMoloni.mutate();
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {converterOrcamentoMoloni.isPending ? 'A converter...' : 'Converter em Fatura'}
+                </button>
+              )}
+            </>
+          ) : canEmitMoloniEstimate && (
+            <button
+              type="button"
+              disabled={emitirOrcamentoMoloni.isPending}
+              onClick={() => {
+                const valor = r.orcamentoCents ?? r.precoFinalCents ?? 0;
+                const ok = confirm(
+                  (billing.data?.sandboxMode
+                    ? 'MODO SANDBOX - orcamento Moloni de teste\n\n'
+                    : 'ATENCAO: Vai emitir um orcamento Moloni certificado\n\n') +
+                  `Reparacao #${r.numero} - ${r.equipamento}\n` +
+                  `Cliente: ${r.cliente.nome}\n` +
+                  `Total: ${formatCents(valor)}\n\nContinuar?`
+                );
+                if (ok) emitirOrcamentoMoloni.mutate();
+              }}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {emitirOrcamentoMoloni.isPending ? 'A emitir...' : 'Emitir Orcamento Moloni'}
+            </button>
+          )}
           {r.invoiceExternalId ? (
             <>
               <a
@@ -546,6 +631,15 @@ export default function ReparacaoDetalhe() {
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{error}</div>}
 
+      {detail.data?.vendaOrigem && (
+        <VendaOrigemBanner
+          venda={detail.data.vendaOrigem}
+          reparacaoId={detail.data.reparacao.id}
+          jaMarcadaGarantia={detail.data.reparacao.orcamentoCents === 0}
+          notasAtuais={detail.data.reparacao.notas ?? ''}
+        />
+      )}
+
       <WorkflowStepper
         estado={r.estado}
         possibleNext={isFrozen ? [] : possibleNext}
@@ -554,6 +648,9 @@ export default function ReparacaoDetalhe() {
         onChange={tryChangeEstado}
         pending={changeEstado.isPending}
       />
+
+      {/* Garantia digital — só visível quando reparação Entregue */}
+      {r.estado === 5 && <GarantiaCard kind="reparacao" reparacaoId={r.id} />}
 
       <Modal
         open={pagamentoPrompt !== null}
@@ -976,7 +1073,7 @@ function WorkflowStepper({
             placeholder="Notas (opcional)"
             value={notas}
             onChange={(e) => onNotasChange(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           />
           <div className="flex flex-col gap-2 sm:flex-row">
             {nextPrimary != null && (
@@ -1022,3 +1119,116 @@ function WorkflowStepper({
     </section>
   );
 }
+
+/** Sprint 87+92: banner mostra venda original e permite marcar reparação em garantia (0€). */
+function VendaOrigemBanner({
+  venda,
+  reparacaoId,
+  jaMarcadaGarantia,
+  notasAtuais,
+}: {
+  venda: ReparacaoVendaOrigem;
+  reparacaoId: string;
+  jaMarcadaGarantia: boolean;
+  notasAtuais: string;
+}) {
+  const qc = useQueryClient();
+  const marcarGarantia = useMutation({
+    mutationFn: async () => {
+      const notaGarantia = `Reparação em garantia (vendido aqui em ${new Date(venda.vendaData).toLocaleDateString('pt-PT')} · Venda #${String(venda.vendaNumero).padStart(5, '0')})`;
+      const novasNotas = notasAtuais.includes('em garantia')
+        ? notasAtuais
+        : notasAtuais.trim()
+          ? `${notasAtuais.trim()}\n${notaGarantia}`
+          : notaGarantia;
+      // Patch minimal: apenas orçamento + notas. Outros campos preservados pelo back-end com os valores atuais (PUT padrão).
+      const current = await reparacoesApi.get(reparacaoId);
+      return reparacoesApi.update(reparacaoId, {
+        equipamento: current.reparacao.equipamento,
+        avaria: current.reparacao.avaria,
+        imei: current.reparacao.imei ?? null,
+        diagnostico: current.reparacao.diagnostico ?? null,
+        orcamentoCents: 0,
+        orcamentoAprovado: true,
+        precoFinalCents: current.reparacao.precoFinalCents ?? 0,
+        custoPecasCents: current.reparacao.custoPecasCents,
+        horasGastas: current.reparacao.horasGastas,
+        notas: novasNotas,
+        // Sprint 95 fix: reparação em garantia tem cobrança 0€ = imediatamente "paga".
+        estadoPagamento: PAYMENT_STATUS.Pago,
+        equipmentFieldTemplateId: current.reparacao.equipmentFieldTemplateId ?? null,
+        equipmentFieldValues: [],
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reparacao', reparacaoId] });
+      qc.invalidateQueries({ queryKey: ['reparacoes'] });
+      toast.success('Reparação marcada em garantia · orçamento 0€');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível marcar em garantia.'),
+  });
+
+  return (
+    <div className={`rounded-xl border p-4 ${
+      venda.garantiaActiva
+        ? 'border-emerald-300 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/30'
+        : 'border-zinc-300 bg-zinc-50/60 dark:border-zinc-700 dark:bg-zinc-900/60'
+    }`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className={`text-[10px] uppercase tracking-wider ${
+            venda.garantiaActiva
+              ? 'text-emerald-700 dark:text-emerald-300'
+              : 'text-zinc-500'
+          }`}>
+            {venda.garantiaActiva ? '✓ Em garantia interna' : 'Equipamento vendido aqui'}
+          </div>
+          <div className="mt-1 text-sm">
+            Vendido na <Link to={`/vendas`} className="font-medium text-brand-600 hover:underline">
+              Venda #{String(venda.vendaNumero).padStart(5, '0')}
+            </Link>{' '}
+            em <strong>{new Date(venda.vendaData).toLocaleDateString('pt-PT')}</strong>{' '}
+            ({venda.diasEntreVendaEReparacao} dias antes).
+          </div>
+          {venda.garantiaActiva && (
+            <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+              Garantia activa — expira em <strong>{venda.diasRestantesGarantia} dias</strong>.
+              {' '}Reparação coberta — não cobrar ao cliente.
+            </div>
+          )}
+          {!venda.garantiaActiva && venda.garantiaSlug && (
+            <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+              Garantia já não está activa.
+            </div>
+          )}
+          {venda.garantiaActiva && !jaMarcadaGarantia && (
+            <button
+              type="button"
+              onClick={() => marcarGarantia.mutate()}
+              disabled={marcarGarantia.isPending}
+              className="mt-2 inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {marcarGarantia.isPending ? 'A definir…' : 'Definir orçamento 0€ (em garantia)'}
+            </button>
+          )}
+          {jaMarcadaGarantia && (
+            <div className="mt-2 text-[11px] text-emerald-700 dark:text-emerald-300">
+              ✓ Já marcada com orçamento 0€
+            </div>
+          )}
+        </div>
+        {venda.garantiaSlug && (
+          <a
+            href={`/g/${venda.garantiaSlug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 text-xs text-brand-600 hover:underline"
+          >
+            Ver garantia →
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+

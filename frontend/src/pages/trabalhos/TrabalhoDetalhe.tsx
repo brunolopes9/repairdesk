@@ -7,7 +7,7 @@ import { isAxiosError } from 'axios';
 import DespesasImputadas from '../../components/DespesasImputadas';
 import Modal from '../../components/Modal';
 import WhatsAppMenu from '../../components/WhatsAppMenu';
-import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { Breadcrumb, SkeletonCard } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { templatesForTrabalhoStatus } from '../../lib/whatsapp/templates';
@@ -180,6 +180,26 @@ export default function TrabalhoDetalhe() {
     onError: (err) => toast.fromError(err, 'Não foi possível anular a fatura.'),
   });
 
+  const emitirOrcamentoMoloni = useMutation({
+    mutationFn: () => trabalhosApi.emitirOrcamentoMoloni(id!),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['trabalho', id] });
+      qc.invalidateQueries({ queryKey: ['trabalhos'] });
+      toast.success(`Orcamento ${updated.estimateNumber ?? updated.estimateExternalId} emitido`, updated.estimatePdfUrl ? 'PDF Moloni disponivel na ficha.' : undefined);
+    },
+    onError: (err) => toast.fromError(err, 'Nao foi possivel emitir o orcamento Moloni.'),
+  });
+
+  const converterOrcamentoMoloni = useMutation({
+    mutationFn: () => trabalhosApi.converterOrcamentoEmFatura(id!),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['trabalho', id] });
+      qc.invalidateQueries({ queryKey: ['trabalhos'] });
+      toast.success(`Fatura ${updated.invoiceNumber ?? updated.invoiceExternalId} emitida`, updated.invoicePdfUrl ? 'PDF disponivel na ficha.' : undefined);
+    },
+    onError: (err) => toast.fromError(err, 'Nao foi possivel converter o orcamento em fatura.'),
+  });
+
   const reabrir = useMutation({
     mutationFn: () => trabalhosApi.reabrir(id!),
     onSuccess: () => {
@@ -195,7 +215,20 @@ export default function TrabalhoDetalhe() {
     },
   });
 
-  if (detail.isLoading) return <div className="text-sm text-zinc-500">A carregar…</div>;
+  if (detail.isLoading) {
+    return (
+      <div className="space-y-4">
+        <SkeletonCard />
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </section>
+        <SkeletonCard />
+      </div>
+    );
+  }
   if (detail.isError || !detail.data) return <div className="text-sm text-red-600">Não encontrado.</div>;
 
   const t = detail.data;
@@ -208,6 +241,7 @@ export default function TrabalhoDetalhe() {
   const canEmitMoloniInvoice = t.estadoPagamento === PAYMENT_STATUS.Pago
     && billing.data?.provider === 1
     && !t.invoiceExternalId;
+  const canEmitMoloniEstimate = billing.data?.provider === 1 && !t.estimateExternalId;
   const possibleNext = TRABALHO_VALID_TRANSITIONS[t.status] ?? [];
 
   const valorParaCobrar = t.precoFinalCents ?? t.orcamentoCents ?? null;
@@ -223,20 +257,20 @@ export default function TrabalhoDetalhe() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between text-sm">
+      <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <Breadcrumb
           items={[
             { label: 'Trabalhos', to: '/trabalhos' },
             { label: `#${t.numero} · ${t.titulo}` },
           ]}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isFrozen && (
             <button
               type="button"
               disabled={reabrir.isPending}
               onClick={() => reabrir.mutate()}
-              className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-200 disabled:opacity-60 dark:bg-amber-950/40 dark:text-amber-300"
+              className="min-h-10 rounded-md bg-amber-100 px-3 py-2 text-xs font-medium text-amber-900 hover:bg-amber-200 disabled:opacity-60 dark:bg-amber-950/40 dark:text-amber-300"
             >
               🔓 Reabrir
             </button>
@@ -244,7 +278,7 @@ export default function TrabalhoDetalhe() {
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
-            className="rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+            className="min-h-10 rounded-md px-3 py-2 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
           >
             Apagar
           </button>
@@ -302,6 +336,54 @@ export default function TrabalhoDetalhe() {
           >
             📄 PDF Orçamento
           </button>
+          {t.estimateExternalId ? (
+            <>
+              <a
+                href={t.estimatePdfUrl ?? '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-950/30 dark:text-blue-200"
+              >
+                Orcamento {t.estimateNumber ?? t.estimateExternalId}
+              </a>
+              {!t.invoiceExternalId && (
+                <button
+                  type="button"
+                  disabled={converterOrcamentoMoloni.isPending}
+                  onClick={() => {
+                    const ok = confirm(
+                      'Converter este orcamento Moloni em fatura?\n\n' +
+                      `${t.estimateNumber ?? t.estimateExternalId} vai originar uma fatura real no Moloni.`
+                    );
+                    if (ok) converterOrcamentoMoloni.mutate();
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {converterOrcamentoMoloni.isPending ? 'A converter...' : 'Converter em Fatura'}
+                </button>
+              )}
+            </>
+          ) : canEmitMoloniEstimate && (
+            <button
+              type="button"
+              disabled={emitirOrcamentoMoloni.isPending}
+              onClick={() => {
+                const valor = t.orcamentoCents ?? t.precoFinalCents ?? 0;
+                const ok = confirm(
+                  (billing.data?.sandboxMode
+                    ? 'MODO SANDBOX - orcamento Moloni de teste\n\n'
+                    : 'ATENCAO: Vai emitir um orcamento Moloni certificado\n\n') +
+                  `Trabalho #${t.numero} - ${t.titulo}\n` +
+                  `Cliente: ${t.cliente?.nome ?? 'Fallback Moloni'}\n` +
+                  `Total: ${formatCents(valor)}\n\nContinuar?`
+                );
+                if (ok) emitirOrcamentoMoloni.mutate();
+              }}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {emitirOrcamentoMoloni.isPending ? 'A emitir...' : 'Emitir Orcamento Moloni'}
+            </button>
+          )}
           {t.invoiceExternalId ? (
             <>
               <a
@@ -553,7 +635,7 @@ function WorkflowStepper({
             placeholder="Notas (opcional)"
             value={notas}
             onChange={(e) => onNotasChange(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           />
           <div className="flex flex-col gap-2 sm:flex-row">
             {nextPrimary != null && (

@@ -74,11 +74,11 @@ export default function Precos() {
         }
       />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <select
           value={categoria ?? ''}
           onChange={(e) => { setCategoria(e.target.value === '' ? null : (Number(e.target.value) as DeviceCategory)); setPage(1); }}
-          className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+          className="min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
         >
           <option value="">Todas categorias</option>
           {Object.entries(DEVICE_CATEGORY).map(([_, v]) => (
@@ -88,7 +88,7 @@ export default function Precos() {
         <select
           value={marca ?? ''}
           onChange={(e) => { setMarca(e.target.value || null); setPage(1); }}
-          className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+          className="min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
         >
           <option value="">Todas marcas</option>
           {marcas.data?.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -100,16 +100,16 @@ export default function Precos() {
             placeholder="Pesquisar servico, modelo, notas..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+            className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
       </div>
 
       {list.isLoading ? (
-        <SkeletonTable columns={8} rows={6} />
+        <SkeletonTable columns={8} rows={6} minWidth="min-w-[900px]" />
       ) : (
         <section className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <table className="min-w-full text-sm">
+        <table className="min-w-[900px] text-sm">
           <thead className="bg-zinc-50 text-left text-xs text-zinc-500 dark:bg-zinc-950">
             <tr>
               <th className="px-3 py-2">Categoria</th>
@@ -145,8 +145,8 @@ export default function Precos() {
                 </td>
                 <td className="px-3 py-2 text-right text-xs text-zinc-500 tabular-nums">{e.tempoEstimadoMin ? `${e.tempoEstimadoMin}m` : '—'}</td>
                 <td className="px-3 py-2 text-right">
-                  <button type="button" onClick={() => setEditing(e)} aria-label="Editar" className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"><Pencil size={12} strokeWidth={2} /></button>
-                  <button type="button" onClick={() => setConfirmDelete(e)} aria-label="Apagar" className="ml-1 rounded-md p-1 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-rose-950/40"><XIcon size={12} strokeWidth={2} /></button>
+                  <button type="button" onClick={() => setEditing(e)} aria-label="Editar" className="inline-grid h-10 w-10 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"><Pencil size={14} strokeWidth={2} /></button>
+                  <button type="button" onClick={() => setConfirmDelete(e)} aria-label="Apagar" className="ml-1 inline-grid h-10 w-10 place-items-center rounded-md text-zinc-400 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-rose-950/40"><XIcon size={14} strokeWidth={2} /></button>
                 </td>
               </tr>
             ))}
@@ -170,9 +170,9 @@ export default function Precos() {
 
       {lastPage > 1 && (
         <div className="flex items-center justify-between text-xs text-zinc-500">
-          <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">← Anterior</button>
+          <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">← Anterior</button>
           <span>{page} / {lastPage}</span>
-          <button disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Seguinte →</button>
+          <button disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Seguinte →</button>
         </div>
       )}
 
@@ -299,12 +299,12 @@ function PriceFormModal({
             ))}
           </select>
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Marca *"><input value={form.marca} onChange={(e) => setForm({ ...form, marca: e.target.value })} placeholder="Apple" className={inputCls} /></Field>
           <Field label="Modelo *"><input value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })} placeholder="iPhone 13" className={inputCls} /></Field>
         </div>
         <Field label="Serviço *"><input value={form.servico} onChange={(e) => setForm({ ...form, servico: e.target.value })} placeholder="Substituição de ecrã" className={inputCls} /></Field>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Custo peça (€)"><input inputMode="decimal" value={custoStr} onChange={(e) => setCustoStr(e.target.value)} placeholder="0,00" className={inputCls} /></Field>
           <Field label="PVP (€) *"><input inputMode="decimal" value={pvpStr} onChange={(e) => setPvpStr(e.target.value)} placeholder="0,00" className={inputCls} /></Field>
           <Field label="Tempo (min)"><input inputMode="numeric" value={tempoStr} onChange={(e) => setTempoStr(e.target.value)} placeholder="30" className={inputCls} /></Field>
@@ -312,7 +312,7 @@ function PriceFormModal({
         <Field label="Notas"><textarea rows={2} value={form.notas ?? ''} onChange={(e) => setForm({ ...form, notas: e.target.value || null })} className={inputCls + ' resize-none'} /></Field>
         {editing && (
           <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
+            <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="scale-125 sm:scale-100" />
             Activo (visível em sugestões/orçamentos)
           </label>
         )}
@@ -366,7 +366,7 @@ function ImportCsvModal({ open, onClose, onDone }: { open: boolean; onClose: () 
 
         {result ? (
           <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-center dark:border-emerald-800/60 dark:bg-emerald-950/30">
                 <div className="text-2xl font-semibold text-emerald-700 dark:text-emerald-300">{result.criadas}</div>
                 <div className="text-[10px] uppercase">Criadas</div>
@@ -417,7 +417,7 @@ function ImportCsvModal({ open, onClose, onDone }: { open: boolean; onClose: () 
               ) : (
                 <>
                   <div className="text-zinc-500">Arrasta o ficheiro CSV para aqui</div>
-                  <label className="mt-2 inline-block cursor-pointer rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700">
+                  <label className="mt-2 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700">
                     Selecionar
                     <input type="file" accept=".csv,text/csv,text/plain" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
                   </label>
@@ -443,4 +443,4 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const inputCls = 'block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:border-zinc-800 dark:bg-zinc-950';
+const inputCls = 'block min-h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:border-zinc-800 dark:bg-zinc-950';

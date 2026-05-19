@@ -14,6 +14,8 @@ import {
   ChevronRight,
   FileText,
   PackageSearch,
+  Phone,
+  ShieldCheck,
   ShoppingBag,
   X,
 } from 'lucide-react';
@@ -24,10 +26,14 @@ import {
   type AlertasResponse,
   type CategoriaFinanceira,
   type DespesaOrfa,
+  type GarantiaProximaExpirar,
+  type GarantiasResumoResponse,
   type ItemPorCobrar,
   type MesFinanceiro,
   type Period,
+  type ReparacaoEmGarantia,
   type ReparacaoTop,
+  type ReparacoesEmGarantiaResponse,
 } from '../lib/dashboard/api';
 import { reparacoesApi } from '../lib/reparacoes/api';
 import { trabalhosApi } from '../lib/trabalhos/api';
@@ -104,6 +110,18 @@ export default function Dashboard() {
         ? dashboardApi.topReparacoesCurrent(5)
         : dashboardApi.topReparacoesRange(range.from.toISOString(), range.to.toISOString(), 5),
     staleTime: 60_000,
+  });
+
+  const garantias = useQuery({
+    queryKey: ['dashboard-garantias-resumo'],
+    queryFn: () => dashboardApi.garantiasResumo(30, 8),
+    staleTime: 5 * 60_000,
+  });
+
+  const reparacoesGarantia = useQuery({
+    queryKey: ['dashboard-reparacoes-em-garantia'],
+    queryFn: () => dashboardApi.reparacoesEmGarantia(90, 30),
+    staleTime: 5 * 60_000,
   });
 
   // Em curso: agrega Recebido + Diagnóstico + Aguarda Peça + Em Reparação + Reparado (5 queries paralelas).
@@ -251,6 +269,8 @@ export default function Dashboard() {
               </div>
             )}
             <AlertasSection data={alertas.data} loading={alertas.isLoading} />
+            <GarantiasSection data={garantias.data} loading={garantias.isLoading} />
+            <ReparacoesGarantiaSection data={reparacoesGarantia.data} loading={reparacoesGarantia.isLoading} />
           </div>
         </Zone>
       )}
@@ -1204,6 +1224,277 @@ function Group({
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+function ReparacoesGarantiaSection({ data, loading }: { data: ReparacoesEmGarantiaResponse | undefined; loading: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (loading || !data || data.totalReparacoes === 0) return null;
+
+  // Tone baseado em %: <5% verde (qualidade boa), 5-15% amarelo, >15% vermelho
+  const pct = data.totalPorcento;
+  const tone = pct < 5 ? 'emerald' : pct < 15 ? 'amber' : 'red';
+  const colourCls = tone === 'emerald'
+    ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/30'
+    : tone === 'amber'
+      ? 'border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/30'
+      : 'border-red-200 bg-red-50/60 dark:border-red-900/60 dark:bg-red-950/30';
+  const textCls = tone === 'emerald'
+    ? 'text-emerald-800 dark:text-emerald-200/80'
+    : tone === 'amber'
+      ? 'text-amber-800 dark:text-amber-200/80'
+      : 'text-red-800 dark:text-red-200/80';
+
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      className={`w-full rounded-xl border p-4 text-left transition hover:brightness-95 ${colourCls}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] uppercase tracking-wider text-zinc-500">
+            Reparações de equipamentos vendidos aqui · últimos 90 dias
+          </div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <div className="text-2xl font-semibold tabular-nums">{data.totalReparacoes}</div>
+            <div className={`text-sm font-medium ${textCls}`}>({pct}% do total)</div>
+          </div>
+          <div className={`text-xs ${textCls}`}>
+            {data.totalEntregues} entregue{data.totalEntregues === 1 ? '' : 's'}
+            {data.valorOrcamentoCents > 0 && (
+              <> · orçamentos {formatCents(data.valorOrcamentoCents)}</>
+            )}
+          </div>
+          {tone === 'red' && (
+            <div className="mt-1 text-[10px] text-red-700 dark:text-red-300">
+              ⚠ Taxa alta de defeitos pós-venda — considera reclamar ao fornecedor (Art. 21º DL 84/2021)
+            </div>
+          )}
+        </div>
+        <ChevronRight size={16} className="mt-1 shrink-0 text-zinc-400" />
+      </div>
+      {open && (
+        <ReparacoesGarantiaPanel items={data.itens} onClose={() => setOpen(false)} />
+      )}
+    </button>
+  );
+}
+
+function ReparacoesGarantiaPanel({ items, onClose }: { items: ReparacaoEmGarantia[]; onClose: () => void }) {
+  async function exportCsv() {
+    try {
+      const blob = await dashboardApi.reparacoesEmGarantiaCsv(90);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reparacoes_em_garantia_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* silencio */
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-xl bg-white p-5 shadow-xl dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold">Equipamentos vendidos aqui que voltaram a reparação</h2>
+            <p className="text-xs text-zinc-500">
+              Indicador de qualidade pós-venda · candidatos a direito de regresso (DL 84/2021 art. 21º)
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={exportCsv}
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              title="Descarregar CSV para enviar ao fornecedor"
+            >
+              <FileText size={13} /> CSV
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-8 w-8 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              aria-label="Fechar"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+          {items.map((r) => {
+            const dias = Math.round((new Date(r.recebidoEm).getTime() - new Date(r.vendaData).getTime()) / 86_400_000);
+            return (
+              <li key={r.reparacaoId} className="flex items-start justify-between gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link to={`/reparacoes/${r.reparacaoId}`} className="font-mono text-xs text-brand-600 hover:underline">
+                      #{String(r.reparacaoNumero).padStart(5, '0')}
+                    </Link>
+                    <span className="text-xs text-zinc-500">→ veio de Venda #{String(r.vendaNumero).padStart(5, '0')}</span>
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                      {dias} dias após venda
+                    </span>
+                  </div>
+                  <div className="mt-1 truncate font-medium">{r.equipamento}</div>
+                  <div className="text-[11px] text-zinc-500">
+                    {r.clienteNome ?? 'Consumidor final'}
+                    {' · '}
+                    <span className="font-mono">IMEI {r.imei}</span>
+                  </div>
+                </div>
+                <div className="text-right text-xs">
+                  {r.orcamentoCents !== null && (
+                    <div className="font-medium">{formatCents(r.orcamentoCents)}</div>
+                  )}
+                  <div className="text-[10px] text-zinc-400">{formatDateOnly(r.recebidoEm)}</div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function GarantiasSection({ data, loading }: { data: GarantiasResumoResponse | undefined; loading: boolean }) {
+  const [open, setOpen] = useState(false);
+
+  if (loading || !data) return null;
+  if (data.activas === 0 && data.expiramEm30Dias === 0) return null;
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+        <div className="flex items-start gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+            <ShieldCheck size={18} strokeWidth={2} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-2xl font-semibold tabular-nums">{data.activas}</div>
+            <div className="text-xs text-emerald-800 dark:text-emerald-200/80">
+              garantias activas (reparações + vendas)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {data.expiramEm30Dias > 0 && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-left transition hover:bg-amber-100/60 dark:border-amber-900/60 dark:bg-amber-950/30 dark:hover:bg-amber-900/30"
+        >
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+              <Clock size={18} strokeWidth={2} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-2xl font-semibold tabular-nums">{data.expiramEm30Dias}</div>
+              <div className="text-xs text-amber-800 dark:text-amber-200/80">
+                {data.expiramEm30Dias === 1 ? 'expira' : 'expiram'} nos próximos 30 dias — clica para contactar
+              </div>
+            </div>
+            <ChevronRight size={16} className="mt-1 shrink-0 text-amber-700/60" />
+          </div>
+        </button>
+      )}
+
+      {open && (
+        <GarantiasExpirarPanel items={data.proximasAExpirar} onClose={() => setOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+function GarantiasExpirarPanel({ items, onClose }: { items: GarantiaProximaExpirar[]; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="max-h-[85vh] w-full max-w-2xl overflow-auto rounded-xl bg-white p-5 shadow-xl dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Garantias a expirar (30 dias)</h2>
+            <p className="text-xs text-zinc-500">Contacta os clientes — oportunidade de renovação / re-engagement.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            aria-label="Fechar"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+          {items.map((g) => (
+            <li key={g.id} className="flex items-start justify-between gap-3 py-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    g.origem === 'Venda'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                  }`}>
+                    {g.origem === 'Venda' ? 'Venda' : 'Reparação'}
+                  </span>
+                  <span className="text-xs text-zinc-500">{g.documentoReferencia}</span>
+                </div>
+                <div className="mt-0.5 truncate font-medium">{g.equipamentoOuArtigo ?? '—'}</div>
+                <div className="text-[11px] text-zinc-500">
+                  {g.clienteNome ?? 'Consumidor final'}
+                  {g.clienteTelefone && (
+                    <>
+                      {' · '}
+                      <a
+                        href={`tel:${g.clienteTelefone.replace(/\s/g, '')}`}
+                        className="inline-flex items-center gap-1 text-emerald-600 hover:underline dark:text-emerald-400"
+                      >
+                        <Phone size={11} strokeWidth={2} /> {g.clienteTelefone}
+                      </a>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className={`text-xs font-medium ${
+                  g.diasRestantes <= 7
+                    ? 'text-red-600 dark:text-red-400'
+                    : g.diasRestantes <= 14
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-zinc-500'
+                }`}>
+                  {g.diasRestantes === 0 ? 'expira hoje' : `${g.diasRestantes} ${g.diasRestantes === 1 ? 'dia' : 'dias'}`}
+                </div>
+                <div className="text-[10px] text-zinc-400">{formatDateOnly(g.dataFim)}</div>
+                <a
+                  href={`/g/${g.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-brand-600 hover:underline"
+                >
+                  ver portal
+                </a>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

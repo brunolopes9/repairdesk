@@ -20,7 +20,7 @@ export function PageHeader({
         </div>
         {description && <p className="mt-1 text-sm text-zinc-500">{description}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{actions}</div>}
     </header>
   );
 }

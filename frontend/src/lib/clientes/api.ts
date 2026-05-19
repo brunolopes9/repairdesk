@@ -59,4 +59,5 @@ export interface HardDeleteClienteResponse {
   trabalhos: number;
   despesas: number;
   fotos: number;
+  vendas: number;
 }

@@ -117,6 +117,10 @@ export interface Reparacao {
   invoicePdfUrl: string | null;
   invoiceNumber: string | null;
   invoiceEmittedAt: string | null;
+  estimateExternalId: string | null;
+  estimateNumber: string | null;
+  estimatePdfUrl: string | null;
+  estimateEmittedAt: string | null;
   equipmentFieldTemplateId: string | null;
   equipmentFieldTemplateNome: string | null;
   fields: EquipmentFieldValue[];
@@ -125,6 +129,18 @@ export interface Reparacao {
 export interface ReparacaoDetalhada {
   reparacao: Reparacao;
   timeline: EstadoLog[];
+  /** Sprint 87: venda anterior cujo IMEI bate (se aplicável) — para banner "em garantia". */
+  vendaOrigem: ReparacaoVendaOrigem | null;
+}
+
+export interface ReparacaoVendaOrigem {
+  vendaId: string;
+  vendaNumero: number;
+  vendaData: string;
+  garantiaSlug: string | null;
+  garantiaActiva: boolean;
+  diasRestantesGarantia: number;
+  diasEntreVendaEReparacao: number;
 }
 
 export interface CreateReparacaoForm {

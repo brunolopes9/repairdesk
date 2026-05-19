@@ -90,7 +90,7 @@ export default function Trabalhos() {
               <button
                 type="button"
                 onClick={() => setPagasSemFaturaOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
                 title="Trabalhos pagos sem fatura Moloni emitida"
               >
                 <AlertTriangle size={13} />
@@ -109,7 +109,7 @@ export default function Trabalhos() {
               key={t.label}
               type="button"
               onClick={() => { setStatus(t.value); setPage(1); }}
-              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
+              className={`min-h-10 whitespace-nowrap rounded-full px-3 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
                 t.value === status
                   ? 'bg-brand-600 text-white'
                   : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300'
@@ -121,11 +121,11 @@ export default function Trabalhos() {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <select
           value={categoria ?? ''}
           onChange={(e) => { setCategoria(e.target.value === '' ? null : (Number(e.target.value) as JobCategory)); setPage(1); }}
-          className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+          className="min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
         >
           <option value="">Todas categorias</option>
           {Object.entries(JOB_CATEGORY).map(([_, v]) => (
@@ -139,7 +139,7 @@ export default function Trabalhos() {
             placeholder="Pesquisar titulo, cliente..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+            className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
       </div>
@@ -167,10 +167,10 @@ export default function Trabalhos() {
       </ul>
 
       {lastPage > 1 && (
-        <div className="flex items-center justify-between text-xs text-zinc-500">
-          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">← Anterior</button>
+        <div className="flex items-center justify-between gap-3 text-xs text-zinc-500">
+          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">← Anterior</button>
           <span>{page} / {lastPage}</span>
-          <button disabled={page >= lastPage} onClick={() => setPage(p => p + 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Seguinte →</button>
+          <button disabled={page >= lastPage} onClick={() => setPage(p => p + 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Seguinte →</button>
         </div>
       )}
 
@@ -212,10 +212,11 @@ export default function Trabalhos() {
           <p className="text-sm text-zinc-500">Nenhum trabalho pendente de fatura — tudo em dia ✓</p>
         ) : (
           <>
-            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-950">
-              <label className="flex items-center gap-2">
+            <div className="mb-2 flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-950 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex min-h-10 items-center gap-2">
                 <input
                   type="checkbox"
+                  className="scale-125 sm:scale-100"
                   checked={bulkSelected.size > 0 && bulkSelected.size === pagasSemFatura.data!.length}
                   onChange={(e) => {
                     if (e.target.checked) setBulkSelected(new Set(pagasSemFatura.data!.map((t) => t.id)));
@@ -241,7 +242,7 @@ export default function Trabalhos() {
                   );
                   if (ok) bulkEmit.mutate(Array.from(bulkSelected));
                 }}
-                className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                className="min-h-11 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 {bulkEmit.isPending ? 'A emitir…' : `Emitir ${bulkSelected.size} faturas`}
               </button>
@@ -263,6 +264,7 @@ export default function Trabalhos() {
                       <td className="px-2 py-2">
                         <input
                           type="checkbox"
+                          className="scale-125 sm:scale-100"
                           checked={bulkSelected.has(t.id)}
                           onChange={(e) => {
                             const next = new Set(bulkSelected);
@@ -324,7 +326,7 @@ function Card({ t, onClick, onDelete }: { t: Trabalho; onClick: () => void; onDe
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="absolute right-2 top-2 rounded-md p-1.5 text-zinc-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-red-950/40"
+        className="absolute right-2 top-2 grid h-10 w-10 place-items-center rounded-md text-zinc-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-red-950/40"
         aria-label="Apagar trabalho"
         title="Apagar"
       >
@@ -400,9 +402,9 @@ function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onCl
         </Field>
         <Field label="Cliente *">
           {clienteId ? (
-            <div className="flex items-center justify-between rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+            <div className="flex min-h-11 items-center justify-between rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
               {clientes.data?.items.find(c => c.id === clienteId)?.nome ?? 'Selecionado'}
-              <button type="button" onClick={() => setClienteId(null)} className="text-xs text-zinc-500">trocar</button>
+              <button type="button" onClick={() => setClienteId(null)} className="min-h-10 rounded-md px-2 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">trocar</button>
             </div>
           ) : (
             <>
@@ -411,7 +413,7 @@ function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onCl
                 <ul className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
                   {clientes.data.items.map(c => (
                     <li key={c.id}>
-                      <button type="button" onClick={() => setClienteId(c.id)} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                      <button type="button" onClick={() => setClienteId(c.id)} className="block min-h-11 w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
                         {c.nome} <span className="text-xs text-zinc-500">· {displayPhone(c.telefone)}</span>
                       </button>
                     </li>
@@ -432,7 +434,7 @@ function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onCl
   );
 }
 
-const inputCls = 'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';
+const inputCls = 'min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -51,13 +51,13 @@ export default function RelatorioIva() {
       />
 
       <section className="flex flex-wrap items-end gap-3">
-        <div className="flex rounded-lg border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex min-h-11 rounded-lg border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
           {QUARTERS.map((q) => (
             <button
               key={q}
               type="button"
               onClick={() => setQuarter(q)}
-              className={`h-8 rounded-md px-3 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
+              className={`min-h-9 rounded-md px-3 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
                 trimestre === q ? 'bg-brand-600 text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
               }`}
             >
@@ -74,7 +74,7 @@ export default function RelatorioIva() {
             max={2100}
             value={ano}
             onChange={(e) => { setAno(Number(e.target.value)); setPage(1); }}
-            className="h-10 w-28 rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+            className="min-h-11 w-28 rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
           />
         </label>
 
@@ -86,7 +86,7 @@ export default function RelatorioIva() {
             value={ivaCompras}
             onChange={(e) => setIvaCompras(e.target.value)}
             placeholder="0,00"
-            className="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+            className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
           />
         </label>
       </section>
@@ -124,11 +124,11 @@ export default function RelatorioIva() {
               <DocumentsTable docs={pageDocs} />
               {totalPages > 1 && (
                 <div className="flex items-center justify-between text-xs text-zinc-500">
-                  <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
+                  <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
                     Anterior
                   </button>
                   <span>{page} / {totalPages}</span>
-                  <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
+                  <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
                     Seguinte
                   </button>
                 </div>
@@ -181,7 +181,7 @@ function Bar({ label, value, vat, pct, className }: { label: string; value: numb
 function DocumentsTable({ docs }: { docs: RelatorioIvaDocumento[] }) {
   return (
     <section className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <table className="min-w-full divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+      <table className="min-w-[760px] divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
         <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-950">
           <tr>
             <th className="px-3 py-2 text-left">Data</th>

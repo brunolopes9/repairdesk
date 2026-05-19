@@ -4,8 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Mail, MessageCircle, Pencil, Phone, ShieldAlert } from 'lucide-react';
 import { displayPhone } from '../../lib/phone/formatter';
 import Modal from '../../components/Modal';
-import { Breadcrumb } from '../../components/ui/Breadcrumb';
-import { Button } from '../../components/ui/Button';
+import { Breadcrumb, Button, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { STATUS_COLOR, STATUS_LABEL, type Reparacao } from '../../lib/reparacoes/types';
@@ -16,6 +15,8 @@ import {
   TRABALHO_STATUS_LABEL,
   type Trabalho,
 } from '../../lib/trabalhos/types';
+import { vendasApi } from '../../lib/vendas/api';
+import { VENDA_STATUS, type Venda } from '../../lib/vendas/types';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import ClienteFormView from './ClienteForm';
@@ -40,6 +41,12 @@ export default function ClienteDetalhe() {
   const trabalhos = useQuery({
     queryKey: ['cliente-trabalhos', id],
     queryFn: () => trabalhosApi.list({ clienteId: id, pageSize: 100 }),
+    enabled: !!id,
+  });
+
+  const vendas = useQuery({
+    queryKey: ['cliente-vendas', id],
+    queryFn: () => vendasApi.list({ clienteId: id, pageSize: 100 }),
     enabled: !!id,
   });
 
@@ -81,7 +88,7 @@ export default function ClienteDetalhe() {
     onSuccess: (res) => {
       toast.success(
         'Cliente apagado definitivamente',
-        `${res.reparacoes} reparação(ões), ${res.trabalhos} trabalho(s), ${res.despesas} despesa(s) e ${res.fotos} foto(s) removidos.`,
+        `${res.reparacoes} reparação(ões), ${res.trabalhos} trabalho(s), ${res.vendas} venda(s), ${res.despesas} despesa(s) e ${res.fotos} foto(s) removidos.`,
       );
       qc.invalidateQueries({ queryKey: ['clientes'] });
       qc.invalidateQueries({ queryKey: ['audit'] });
@@ -90,26 +97,45 @@ export default function ClienteDetalhe() {
     onError: (err) => toast.fromError(err, 'Não foi possível apagar definitivamente o cliente.'),
   });
 
-  if (cliente.isLoading) return <div className="text-sm text-zinc-500">A carregar…</div>;
+  if (cliente.isLoading) {
+    return (
+      <div className="space-y-4">
+        <SkeletonCard />
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </section>
+        <SkeletonCard />
+      </div>
+    );
+  }
   if (cliente.isError || !cliente.data) return <div className="text-sm text-red-600">Cliente não encontrado.</div>;
 
   const c = cliente.data;
   const reps = reparacoes.data?.items ?? [];
   const trabs = trabalhos.data?.items ?? [];
+  const vds = vendas.data?.items ?? [];
   const hardDeleteExpected = `APAGAR ${c.nome}`;
   const canHardDelete = hardDeleteConfirm === hardDeleteExpected;
 
   // KPIs
   const repsPagas = reps.filter((r) => r.estado === 5);
   const trabsPagos = trabs.filter((t) => t.status === 3); // TRABALHO_STATUS.Concluido
+  const vendasPagas = vds.filter((v) => v.status === VENDA_STATUS.Paga);
   const totalGasto =
     repsPagas.reduce((s, r) => s + (r.precoFinalCents ?? r.orcamentoCents ?? 0), 0) +
-    trabsPagos.reduce((s, t) => s + (t.precoFinalCents ?? t.orcamentoCents ?? 0), 0);
+    trabsPagos.reduce((s, t) => s + (t.precoFinalCents ?? t.orcamentoCents ?? 0), 0) +
+    vendasPagas.reduce((s, v) => s + v.totalCents, 0);
   const lucroTotal =
     repsPagas.reduce((s, r) => s + r.lucroCents, 0) +
     trabsPagos.reduce((s, t) => s + t.lucroCents, 0);
-  const ultimaVisita = [...reps, ...trabs]
-    .map((x) => ('recebidoEm' in x ? x.recebidoEm : x.createdAt))
+  const ultimaVisita = [
+    ...reps.map((x) => x.recebidoEm),
+    ...trabs.map((x) => x.createdAt),
+    ...vds.map((x) => x.data),
+  ]
     .sort()
     .at(-1);
   const abertosCount =
@@ -120,25 +146,25 @@ export default function ClienteDetalhe() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-2 text-sm">
+      <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <Breadcrumb
           items={[
             { label: 'Clientes', to: '/clientes' },
             { label: c.nome ?? 'Cliente' },
           ]}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setEditOpen(true)}
-            className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             <Pencil size={12} strokeWidth={2} /> Editar
           </button>
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
-            className="rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+            className="min-h-11 rounded-md px-3 py-2 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
           >
             Apagar
           </button>
@@ -157,15 +183,15 @@ export default function ClienteDetalhe() {
           {c.nif && <div>NIF {c.nif}</div>}
         </div>
         {cleanPhone && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <a
               href={`tel:${cleanPhone}`}
-              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700"
             ><Phone size={12} strokeWidth={2} /> Ligar</a>
             <a
               href={`https://wa.me/${cleanPhone.replace('+', '')}?text=${encodeURIComponent(`Olá ${c.nome}, é da LopesTech.`)}`}
               target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg bg-green-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-600"
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-green-500 px-3 py-2 text-xs font-medium text-white hover:bg-green-600"
             ><MessageCircle size={12} strokeWidth={2} /> WhatsApp</a>
           </div>
         )}
@@ -177,7 +203,7 @@ export default function ClienteDetalhe() {
       </header>
 
       {/* KPIs */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Total gasto" value={formatCents(totalGasto)} tone="emerald" />
         <Kpi label="Lucro gerado" value={formatCents(lucroTotal)} tone={lucroTotal >= 0 ? 'emerald' : 'red'} />
         <Kpi label="Em curso" value={String(abertosCount)} tone={abertosCount > 0 ? 'amber' : undefined} />
@@ -243,6 +269,20 @@ export default function ClienteDetalhe() {
         ) : (
           <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
             {trabs.map((t) => <TrabRow key={t.id} t={t} />)}
+          </ul>
+        )}
+      </section>
+
+      {/* Vendas */}
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Vendas <span className="text-zinc-500">· {vds.length}</span></h2>
+        </div>
+        {vds.length === 0 ? (
+          <p className="mt-2 text-xs text-zinc-500">Sem vendas registadas.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
+            {vds.map((v) => <VendaRow key={v.id} v={v} />)}
           </ul>
         )}
       </section>
@@ -328,7 +368,7 @@ export default function ClienteDetalhe() {
             <input
               value={hardDeleteConfirm}
               onChange={(e) => setHardDeleteConfirm(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-950"
+              className="mt-1 block min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-950"
               autoComplete="off"
             />
           </label>
@@ -338,7 +378,7 @@ export default function ClienteDetalhe() {
               value={hardDeleteMotivo}
               onChange={(e) => setHardDeleteMotivo(e.target.value)}
               rows={3}
-              className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950"
+              className="mt-1 block min-h-24 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950"
               placeholder="Ex: pedido formal do cliente em 18/05/2026"
             />
           </label>
@@ -385,7 +425,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'eme
 function RepRow({ r }: { r: Reparacao }) {
   return (
     <li>
-      <Link to={`/reparacoes/${r.id}`} className="flex items-center justify-between gap-3 px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
+      <Link to={`/reparacoes/${r.id}`} className="flex min-h-14 items-center justify-between gap-3 px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono text-zinc-500">#{r.numero}</span>
@@ -406,10 +446,41 @@ function RepRow({ r }: { r: Reparacao }) {
   );
 }
 
+function VendaRow({ v }: { v: Venda }) {
+  const statusLabel =
+    v.status === VENDA_STATUS.Paga ? 'Paga'
+      : v.status === VENDA_STATUS.Cancelada ? 'Cancelada'
+      : 'Pendente';
+  const statusColor =
+    v.status === VENDA_STATUS.Paga ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+      : v.status === VENDA_STATUS.Cancelada ? 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+  return (
+    <li>
+      <Link to={`/vendas/${v.id}`} className="flex min-h-14 items-center justify-between gap-3 px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-zinc-500">#{v.numero}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor}`}>{statusLabel}</span>
+            <span className="text-[11px] text-zinc-500">{formatDateOnly(v.data)}</span>
+            {v.invoiceNumber && (
+              <span className="text-[10px] text-zinc-400">{v.invoiceNumber}</span>
+            )}
+          </div>
+          <div className="mt-0.5 truncate text-[11px] text-zinc-500">
+            {v.items.length} artigo{v.items.length === 1 ? '' : 's'}
+          </div>
+        </div>
+        <div className="text-right font-medium">{formatCents(v.totalCents)}</div>
+      </Link>
+    </li>
+  );
+}
+
 function TrabRow({ t }: { t: Trabalho }) {
   return (
     <li>
-      <Link to={`/trabalhos/${t.id}`} className="flex items-center justify-between gap-3 px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
+      <Link to={`/trabalhos/${t.id}`} className="flex min-h-14 items-center justify-between gap-3 px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono text-zinc-500">#{t.numero}</span>

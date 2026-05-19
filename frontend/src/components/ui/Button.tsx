@@ -20,13 +20,13 @@ const variants: Record<ButtonVariant, string> = {
     'border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800',
   ghost: 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
   danger: 'bg-rose-600 text-white shadow-sm hover:bg-rose-700 active:bg-rose-800',
-  icon: 'rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300',
+  icon: 'h-10 w-10 rounded-md p-0 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300',
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'h-7 px-2 text-xs',
-  md: 'h-9 px-3 text-sm',
-  lg: 'h-10 px-4 text-sm',
+  sm: 'min-h-11 px-3 text-xs',
+  md: 'min-h-11 px-3 text-sm',
+  lg: 'min-h-11 px-4 text-sm',
 };
 
 export const Button = forwardRef<HTMLButtonElement, Props>(function Button(

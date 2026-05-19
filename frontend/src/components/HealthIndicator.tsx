@@ -86,7 +86,7 @@ export default function HealthIndicator() {
       target="_blank"
       rel="noopener noreferrer"
       title={detail}
-      className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 px-2 py-1 text-[10px] text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
+      className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-2 text-[10px] text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
       aria-label={label}
     >
       <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`}>

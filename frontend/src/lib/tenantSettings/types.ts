@@ -31,6 +31,9 @@ export interface TenantSettings {
   garantiaDiasDefault: number;
   garantiaCoberturaDefault: string | null;
   garantiaExclusoesDefault: string | null;
+  garantiaVendaDiasDefault: number;
+  garantiaVendaCoberturaDefault: string | null;
+  garantiaVendaExclusoesDefault: string | null;
   googleReviewUrl: string | null;
 }
 

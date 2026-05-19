@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { PackagePlus, RotateCcw } from 'lucide-react';
 import { Button } from './ui/Button';
+import { SkeletonRow } from './ui/Skeleton';
 import { StatusBadge } from './ui/StatusBadge';
 import { stockApi } from '../lib/stock/api';
 import {
@@ -108,7 +109,7 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
                       <button
                         type="button"
                         onClick={() => setSelected(p)}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        className="block min-h-11 w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-medium">{p.nome}</span>
@@ -144,7 +145,10 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
       )}
 
       {movimentos.isLoading ? (
-        <p className="text-sm text-zinc-500">A carregar peças...</p>
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <SkeletonRow columns={3} />
+          <SkeletonRow columns={3} />
+        </div>
       ) : rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 dark:border-zinc-700">
           Ainda não há peças ligadas a esta reparação.
@@ -182,4 +186,4 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
   );
 }
 
-const inputCls = 'block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';
+const inputCls = 'block min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';

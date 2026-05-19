@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Camera, Pencil } from 'lucide-react';
 import Modal from './Modal';
+import { Skeleton, SkeletonRow } from './ui';
 import {
   FOTO_TIPO,
   FOTO_TIPO_COLOR,
@@ -79,7 +80,7 @@ export default function FotosReparacao({ reparacaoId, readOnly = false }: Props)
                   key={t}
                   type="button"
                   onClick={() => setUploadTipo(t)}
-                  className={`rounded-md px-2 py-1 transition ${uploadTipo === t ? FOTO_TIPO_COLOR[t] : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+                  className={`min-h-10 rounded-md px-3 py-2 transition ${uploadTipo === t ? FOTO_TIPO_COLOR[t] : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
                 >
                   {FOTO_TIPO_LABEL[t]}
                 </button>
@@ -109,7 +110,7 @@ export default function FotosReparacao({ reparacaoId, readOnly = false }: Props)
           <div className="text-zinc-500">
             Arrasta fotos para aqui (até 10 MB · JPEG/PNG/WebP) — tag: <strong>{FOTO_TIPO_LABEL[uploadTipo]}</strong>
           </div>
-          <label className="mt-2 inline-block cursor-pointer rounded-md bg-brand-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-brand-700">
+          <label className="mt-2 inline-flex min-h-10 cursor-pointer items-center justify-center rounded-md bg-brand-600 px-3 py-2 text-[11px] font-medium text-white hover:bg-brand-700">
             {upload.isPending ? 'A carregar…' : 'Selecionar'}
             <input
               type="file"
@@ -123,7 +124,10 @@ export default function FotosReparacao({ reparacaoId, readOnly = false }: Props)
       )}
 
       {list.isLoading ? (
-        <div className="text-xs text-zinc-500">A carregar…</div>
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <SkeletonRow columns={3} />
+          <SkeletonRow columns={3} />
+        </div>
       ) : items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-xs text-zinc-500 dark:border-zinc-700">
           Sem fotos ainda.
@@ -247,13 +251,13 @@ function LightboxModal({ foto, onClose }: { foto: Foto; onClose: () => void }) {
         {src ? (
           <img src={src} alt={foto.fileName} className="max-h-[85vh] max-w-full rounded-lg object-contain" />
         ) : (
-          <div className="text-white">A carregar…</div>
+          <Skeleton className="h-64 w-[min(82vw,42rem)] bg-white/20" />
         )}
         {foto.legenda && <p className="mt-2 text-center text-sm text-zinc-200">{foto.legenda}</p>}
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-sm hover:bg-white"
+          className="absolute right-4 top-4 min-h-10 rounded-full bg-white/90 px-3 py-2 text-sm hover:bg-white"
         >Fechar ✕</button>
       </div>
     </div>
@@ -290,7 +294,7 @@ function EditFotoModal({ foto, onClose, onSaved }: { foto: Foto; onClose: () => 
       <div className="space-y-3 text-sm">
         <label className="block">
           <span className="mb-1 block text-xs text-zinc-500">Tipo</span>
-          <select value={tipo} onChange={(e) => setTipo(Number(e.target.value) as FotoTipo)} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950">
+          <select value={tipo} onChange={(e) => setTipo(Number(e.target.value) as FotoTipo)} className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950">
             {([FOTO_TIPO.Antes, FOTO_TIPO.Durante, FOTO_TIPO.Depois] as FotoTipo[]).map((t) => (
               <option key={t} value={t}>{FOTO_TIPO_LABEL[t]}</option>
             ))}
@@ -298,7 +302,7 @@ function EditFotoModal({ foto, onClose, onSaved }: { foto: Foto; onClose: () => 
         </label>
         <label className="block">
           <span className="mb-1 block text-xs text-zinc-500">Legenda</span>
-          <input value={legenda} onChange={(e) => setLegenda(e.target.value)} placeholder="ex: ecrã com fissura no canto" className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950" />
+          <input value={legenda} onChange={(e) => setLegenda(e.target.value)} placeholder="ex: ecrã com fissura no canto" className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950" />
         </label>
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" checked={visivel} onChange={(e) => setVisivel(e.target.checked)} />

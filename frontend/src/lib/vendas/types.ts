@@ -6,6 +6,20 @@ export const VENDA_STATUS = {
   Cancelada: 2,
 } as const;
 
+export const VENDA_ORIGEM = {
+  Balcao: 0,
+  Online: 1,
+  Importacao: 2,
+} as const;
+
+export type VendaOrigem = (typeof VENDA_ORIGEM)[keyof typeof VENDA_ORIGEM];
+
+export const VENDA_ORIGEM_LABEL: Record<VendaOrigem, string> = {
+  0: 'Balcão',
+  1: 'Online',
+  2: 'Importada',
+};
+
 export const PAYMENT_METHOD = {
   Dinheiro: 0,
   Multibanco: 1,
@@ -35,6 +49,8 @@ export interface VendaItem {
   ivaRate: number;
   totalCents: number;
   ivaCents: number;
+  imei: string | null;
+  imei2: string | null;
 }
 
 export interface Venda {
@@ -53,6 +69,7 @@ export interface Venda {
   invoiceEmittedAt: string | null;
   notas: string | null;
   items: VendaItem[];
+  origem: VendaOrigem;
 }
 
 export interface CreateVendaItemRequest {
@@ -62,6 +79,8 @@ export interface CreateVendaItemRequest {
   precoUnitarioCents: number;
   descontoCents: number;
   ivaRate: number;
+  imei?: string | null;
+  imei2?: string | null;
 }
 
 export interface CreateVendaRequest {

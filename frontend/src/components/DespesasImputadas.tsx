@@ -14,6 +14,7 @@ import {
   type DespesaCategoria,
 } from '../lib/despesas/types';
 import { formatCents, formatDateOnly, parseEuros } from '../lib/money';
+import { SkeletonRow } from './ui';
 
 interface Props {
   trabalhoId?: string;
@@ -63,7 +64,7 @@ export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateK
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="rounded-md bg-brand-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-brand-700"
+            className="min-h-10 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-brand-700"
           >
             + Adicionar
           </button>
@@ -71,7 +72,10 @@ export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateK
       </div>
 
       {list.isLoading ? (
-        <div className="mt-3 text-sm text-zinc-500">A carregar…</div>
+        <div className="mt-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <SkeletonRow columns={2} />
+          <SkeletonRow columns={2} />
+        </div>
       ) : items.length === 0 ? (
         <div className="mt-3 rounded-lg border border-dashed border-zinc-300 p-3 text-center text-xs text-zinc-500 dark:border-zinc-700">
           {readOnly ? 'Sem registos.' : emptyMsg}
@@ -79,7 +83,7 @@ export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateK
       ) : (
         <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
           {items.map((d) => (
-            <li key={d.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+            <li key={d.id} className="flex flex-col gap-2 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
                 disabled={readOnly}
@@ -109,7 +113,7 @@ export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateK
                     type="button"
                     onClick={() => remove.mutate(d.id)}
                     disabled={remove.isPending}
-                    className="rounded-md px-1.5 text-xs text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
+                    className="grid h-10 w-10 place-items-center rounded-md text-xs text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
                     aria-label="Remover"
                   >
                     ✕
@@ -279,7 +283,7 @@ export function DespesaFormModal({
         <Field label="Descrição *">
           <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} autoFocus />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Categoria">
             <select value={categoria} onChange={e => setCategoria(Number(e.target.value) as DespesaCategoria)} className={inputCls}>
               {Object.entries(DESPESA_CATEGORIA).map(([_, v]) => <option key={v} value={v}>{DESPESA_LABEL[v]}</option>)}
@@ -289,7 +293,7 @@ export function DespesaFormModal({
             <input inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} placeholder="0,00" className={inputCls} />
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Data">
             <input type="date" value={data} onChange={e => setData(e.target.value)} className={inputCls} />
           </Field>
@@ -303,10 +307,10 @@ export function DespesaFormModal({
         {showLinkPicker && (
           <Field label="Associar a (opcional)">
             <div className="space-y-2">
-              <div className="flex gap-2">
-                <button type="button" onClick={() => { setLinkType('none'); setLinkId(''); }} className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${linkType === 'none' ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-300' : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}>Stock / overhead</button>
-                <button type="button" onClick={() => { setLinkType('reparacao'); setLinkId(''); }} className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${linkType === 'reparacao' ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-300' : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}>Reparação</button>
-                <button type="button" onClick={() => { setLinkType('trabalho'); setLinkId(''); }} className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${linkType === 'trabalho' ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-300' : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}>Trabalho</button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button type="button" onClick={() => { setLinkType('none'); setLinkId(''); }} className={`min-h-11 flex-1 rounded-md border px-3 py-2 text-xs transition ${linkType === 'none' ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-300' : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}>Stock / overhead</button>
+                <button type="button" onClick={() => { setLinkType('reparacao'); setLinkId(''); }} className={`min-h-11 flex-1 rounded-md border px-3 py-2 text-xs transition ${linkType === 'reparacao' ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-300' : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}>Reparação</button>
+                <button type="button" onClick={() => { setLinkType('trabalho'); setLinkId(''); }} className={`min-h-11 flex-1 rounded-md border px-3 py-2 text-xs transition ${linkType === 'trabalho' ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-300' : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}>Trabalho</button>
               </div>
               {linkType === 'reparacao' && (
                 <select value={linkId} onChange={e => setLinkId(e.target.value)} className={inputCls}>
@@ -338,7 +342,7 @@ export function DespesaFormModal({
   );
 }
 
-const inputCls = 'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';
+const inputCls = 'min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
