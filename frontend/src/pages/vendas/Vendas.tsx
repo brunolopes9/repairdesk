@@ -146,9 +146,20 @@ export default function Vendas() {
       qc.invalidateQueries({ queryKey: ['vendas-historico'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       setVendaDetalhe(venda);
-      toast.success('Fatura anulada no RepairDesk', 'O documento já não aparece no Relatório IVA.');
+      toast.success('Fatura anulada no Moloni', 'documentCancel ou NC emitida. O documento já não aparece no Relatório IVA.');
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Não foi possível anular fatura.'),
+    onError: (err) => toast.fromError(err, 'Não foi possível anular fatura.'),
+  });
+
+  const limparFaturaLocal = useMutation({
+    mutationFn: (id: string) => vendasApi.limparFaturaLocal(id),
+    onSuccess: (venda) => {
+      qc.invalidateQueries({ queryKey: ['vendas-historico'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      setVendaDetalhe(venda);
+      toast.success('Referência limpa', 'Venda removida do Relatório IVA do RepairDesk. (Moloni não foi chamado.)');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível limpar referência.'),
   });
 
   function addPart(part: Part) {
@@ -529,27 +540,42 @@ export default function Vendas() {
                       </a>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const ok = confirm(
-                        `Anular fatura ${vendaDetalhe.invoiceNumber}\n\n` +
-                        'O RepairDesk vai pedir à Moloni que emita uma Nota de Crédito ' +
-                        'que estorna esta fatura.\n\n' +
-                        'Resultado fiscal:\n' +
-                        `  Fatura: +${formatCents(vendaDetalhe.totalCents)} IVA liquidado\n` +
-                        `  NC: -${formatCents(vendaDetalhe.totalCents)} IVA\n` +
-                        '  Saldo na AT: 0,00 € (nada a pagar)\n\n' +
-                        'Continuar?'
-                      );
-                      if (ok) anularFatura.mutate(vendaDetalhe.id);
-                    }}
-                    disabled={anularFatura.isPending}
-                    className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
-                    title="Emite NC Moloni que anula a fatura (saldo IVA = 0)"
-                  >
-                    {anularFatura.isPending ? 'A anular…' : 'Anular fatura (NC)'}
-                  </button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ok = confirm(
+                          `Anular fatura ${vendaDetalhe.invoiceNumber} via Moloni\n\n` +
+                          'O RepairDesk vai chamar a Moloni para cancelar este documento ' +
+                          '(documentCancel ou Nota de Crédito).\n\n' +
+                          `Saldo na AT após: 0,00 € (nada a pagar)\n\nContinuar?`
+                        );
+                        if (ok) anularFatura.mutate(vendaDetalhe.id);
+                      }}
+                      disabled={anularFatura.isPending || limparFaturaLocal.isPending}
+                      className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
+                      title="Chama Moloni para anular (documentCancel ou NC). Saldo IVA fica zero."
+                    >
+                      {anularFatura.isPending ? 'A anular…' : 'Anular via Moloni'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ok = confirm(
+                          'Já anulei manualmente no painel Moloni\n\n' +
+                          'Esta acção APENAS remove a referência da fatura no RepairDesk.\n' +
+                          'NÃO chama a Moloni. Usa só se já cancelaste a fatura no painel moloni.pt.\n\n' +
+                          'A venda fica sem fatura associada e sai do Relatório IVA do RepairDesk.\n\nContinuar?'
+                        );
+                        if (ok) limparFaturaLocal.mutate(vendaDetalhe.id);
+                      }}
+                      disabled={anularFatura.isPending || limparFaturaLocal.isPending}
+                      className="rounded-md border border-zinc-200 px-2 py-1 text-[11px] text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                      title="Já anulaste no Moloni — só limpa a referência aqui (sem chamar API Moloni)"
+                    >
+                      {limparFaturaLocal.isPending ? 'A limpar…' : 'Já anulei no Moloni'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

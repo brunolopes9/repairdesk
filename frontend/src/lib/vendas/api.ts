@@ -23,6 +23,9 @@ export const vendasApi = {
   anularFatura(id: string) {
     return api.post<Venda>(`/vendas/${id}/anular-fatura`).then((r) => r.data);
   },
+  limparFaturaLocal(id: string) {
+    return api.post<Venda>(`/vendas/${id}/limpar-fatura-local`).then((r) => r.data);
+  },
   reciboUrl(id: string) {
     return `${api.defaults.baseURL ?? ''}/vendas/${id}/recibo.pdf`;
   },
