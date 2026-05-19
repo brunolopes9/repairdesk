@@ -202,6 +202,32 @@ public class MoloniClient : IMoloniClient
         return product;
     }
 
+    public async Task<int?> GetDocumentStatusAsync(TenantBillingSettings settings, int documentId, CancellationToken ct = default)
+    {
+        if (settings.Provider != BillingProvider.Moloni) return null;
+        if (settings.CompanyId is null or <= 0) return null;
+        if (documentId <= 0) return null;
+
+        try
+        {
+            var doc = await PostAsync<JsonElement>(
+                settings,
+                "documents/getOne",
+                new { company_id = settings.CompanyId!.Value, document_id = documentId },
+                ct);
+
+            if (doc.ValueKind != JsonValueKind.Object) return null;
+            if (!doc.TryGetProperty("status", out var statusProp)) return null;
+            return ReadInt(statusProp);
+        }
+        catch (Exception ex)
+        {
+            // Moloni 503/timeout/auth-fail — devolve null para o caller manter estado local
+            _logger.LogWarning("Moloni GetDocumentStatus({DocId}) falhou: {Msg}", documentId, ex.Message);
+            return null;
+        }
+    }
+
     public async Task<bool> CancelDocumentAsync(TenantBillingSettings settings, int documentId, string observation, CancellationToken ct = default)
     {
         if (settings.Provider != BillingProvider.Moloni)

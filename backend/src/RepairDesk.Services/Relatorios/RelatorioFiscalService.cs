@@ -1,7 +1,9 @@
+using Microsoft.Extensions.Logging;
 using RepairDesk.Common.Helpers;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.Billing;
 using RepairDesk.Services.Documents;
 
 namespace RepairDesk.Services.Relatorios;
@@ -18,12 +20,24 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
     private readonly IRelatorioFiscalRepository _repo;
     private readonly ITenantRepository _tenants;
     private readonly ITenantContext _tenant;
+    private readonly ITenantBillingSettingsRepository _billingSettings;
+    private readonly IMoloniClient _moloni;
+    private readonly ILogger<RelatorioFiscalService> _logger;
 
-    public RelatorioFiscalService(IRelatorioFiscalRepository repo, ITenantRepository tenants, ITenantContext tenant)
+    public RelatorioFiscalService(
+        IRelatorioFiscalRepository repo,
+        ITenantRepository tenants,
+        ITenantContext tenant,
+        ITenantBillingSettingsRepository billingSettings,
+        IMoloniClient moloni,
+        ILogger<RelatorioFiscalService> logger)
     {
         _repo = repo;
         _tenants = tenants;
         _tenant = tenant;
+        _billingSettings = billingSettings;
+        _moloni = moloni;
+        _logger = logger;
     }
 
     public async Task<RelatorioIvaResponse> GetIvaAsync(int ano, int trimestre, int ivaComprasCents = 0, CancellationToken ct = default)
@@ -32,7 +46,12 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
         var (from, to) = Periodo(ano, trimestre);
         var (prevFrom, prevTo) = PeriodoAnterior(ano, trimestre);
 
-        var docs = BuildDocumentos(await _repo.ListDocumentosAsync(from, to, ct), tenant.RegimeFiscal);
+        var rawRows = await _repo.ListDocumentosAsync(from, to, ct);
+        // Sprint 53: sincroniza com Moloni — exclui (e limpa local) documentos com status=Anulado.
+        // Se Moloni nao responder (sandbox 503, timeout, etc), mantemos estado local sem alterar.
+        var syncedRows = await SyncWithMoloniAsync(rawRows, ct);
+
+        var docs = BuildDocumentos(syncedRows, tenant.RegimeFiscal);
         var prevDocs = BuildDocumentos(await _repo.ListDocumentosAsync(prevFrom, prevTo, ct), tenant.RegimeFiscal);
         var ivaCompras = Math.Max(0, ivaComprasCents);
         var ivaLiquidado = docs.Sum(d => d.IvaCents);
@@ -67,6 +86,52 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
         var report = await GetIvaAsync(ano, trimestre, ivaComprasCents, ct);
         var pdf = RelatorioIvaPdfRenderer.Render(tenant.Name, tenant.Nif, report);
         return (pdf, $"relatorio_iva_{ano}_T{trimestre}.pdf");
+    }
+
+    /// <summary>Verifica cada doc contra Moloni. Os anulados (status=2) sao excluidos do relatorio
+    /// E os seus campos Invoice* sao limpos em DB para nao aparecerem em futuras consultas.</summary>
+    private async Task<IReadOnlyList<RelatorioFiscalDocumentoRow>> SyncWithMoloniAsync(
+        IReadOnlyList<RelatorioFiscalDocumentoRow> rows, CancellationToken ct)
+    {
+        if (rows.Count == 0) return rows;
+        if (_tenant.TenantId is not { } tenantId) return rows;
+
+        var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
+        if (settings is null || settings.Provider != BillingProvider.Moloni || string.IsNullOrEmpty(settings.ApiKeyCipherText))
+            return rows; // Moloni nao configurado/ligado — nao ha como sincronizar
+
+        var keep = new List<RelatorioFiscalDocumentoRow>(rows.Count);
+        foreach (var r in rows)
+        {
+            if (string.IsNullOrEmpty(r.InvoiceExternalId) || !int.TryParse(r.InvoiceExternalId, out var moloniDocId))
+            {
+                keep.Add(r);
+                continue;
+            }
+
+            var status = await _moloni.GetDocumentStatusAsync(settings, moloniDocId, ct);
+            // status: null=falha ao verificar (mantem), 0=Rascunho, 1=Fechado, 2=Anulado
+            if (status == 2)
+            {
+                _logger.LogInformation(
+                    "Doc Moloni {DocId} ({Tipo} #{Num}) anulado externamente — limpa local.",
+                    moloniDocId, r.Tipo, r.NumeroInterno);
+                try
+                {
+                    await _repo.ClearInvoiceFieldsAsync(r.Tipo, r.Id, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Falha a limpar local apos sync Moloni para {Tipo} {Id}", r.Tipo, r.Id);
+                }
+                // Nao adiciona ao keep — o documento esta anulado
+            }
+            else
+            {
+                keep.Add(r);
+            }
+        }
+        return keep;
     }
 
     private async Task<Core.Entities.Tenant> RequireTenantAsync(CancellationToken ct)

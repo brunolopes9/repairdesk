@@ -21,6 +21,11 @@ public interface IMoloniClient
     // Devolve true se cancelado com sucesso, false se Moloni rejeitou (chamar InsertCreditNote como fallback).
     Task<bool> CancelDocumentAsync(TenantBillingSettings settings, int documentId, string observation, CancellationToken ct = default);
 
+    // Devolve status do documento Moloni: 0=Rascunho, 1=Fechado, 2=Anulado, ou null se inexistente/erro.
+    // Permite sync RepairDesk DB com fonte de verdade fiscal (Moloni). Caller deve tratar null
+    // como 'nao conseguimos verificar — manter estado local'.
+    Task<int?> GetDocumentStatusAsync(TenantBillingSettings settings, int documentId, CancellationToken ct = default);
+
     // OAuth2 password grant: troca username+password (uma vez) por tokens. Tokens guardados cifrados em settings; password nunca persistida.
     Task ConnectViaPasswordGrantAsync(TenantBillingSettings settings, string username, string password, CancellationToken ct = default);
     Task ExchangeAuthorizationCodeAsync(TenantBillingSettings settings, string code, string redirectUri, CancellationToken ct = default);
