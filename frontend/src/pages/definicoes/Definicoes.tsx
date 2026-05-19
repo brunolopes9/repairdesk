@@ -345,6 +345,7 @@ function FaturacaoSection() {
   });
   const [pasteUrl, setPasteUrl] = useState('');
   const [showPasteModal, setShowPasteModal] = useState(false);
+  const [companyChoices, setCompanyChoices] = useState<{ id: number; name: string }[] | null>(null);
 
   useEffect(() => {
     if (billing.data) setForm(toBillingForm(billing.data));
@@ -433,16 +434,8 @@ function FaturacaoSection() {
         save.mutate({ ...form!, companyId: c.id });
         toast.success('Empresa detectada', `${c.name} (ID ${c.id}) seleccionada automaticamente.`);
       } else {
-        const names = companies.map((c) => `${c.name} (${c.id})`).join('\n');
-        const choice = window.prompt(
-          `A tua conta Moloni tem ${companies.length} empresas:\n\n${names}\n\nCola o ID da que queres usar:`,
-          String(companies[0].id),
-        );
-        const id = choice ? parseInt(choice, 10) : NaN;
-        if (Number.isFinite(id) && companies.some((c) => c.id === id)) {
-          setForm((prev) => (prev ? { ...prev, companyId: id } : prev));
-          save.mutate({ ...form!, companyId: id });
-        }
+        // Abre modal de selecção (em vez de window.prompt que obrigava a copiar ID à mão)
+        setCompanyChoices(companies);
       }
     },
     onError: (err) => toast.fromError(err, 'Não foi possível listar empresas Moloni.'),
@@ -864,6 +857,54 @@ function FaturacaoSection() {
             toast.success('Ligado a Moloni', 'Tokens recebidos e encriptados. Empresa auto-selecionada se única.');
           }}
         />
+      )}
+
+      {companyChoices && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setCompanyChoices(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <h2 className="text-base font-semibold">Escolhe a empresa Moloni</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              A tua conta Moloni tem {companyChoices.length} empresas. Selecciona a que queres usar com este tenant.
+            </p>
+
+            <ul className="mt-4 space-y-1.5">
+              {companyChoices.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => (prev ? { ...prev, companyId: c.id } : prev));
+                      if (form) save.mutate({ ...form, companyId: c.id });
+                      setCompanyChoices(null);
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2.5 text-left text-sm hover:border-brand-400 hover:bg-brand-50/50 dark:border-zinc-700 dark:hover:border-brand-600 dark:hover:bg-brand-950/30"
+                  >
+                    <span className="font-medium">{c.name}</span>
+                    <span className="font-mono text-xs text-zinc-500">ID {c.id}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCompanyChoices(null)}
+                className="rounded-lg px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showPasteModal && (
