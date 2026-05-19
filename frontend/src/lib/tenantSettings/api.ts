@@ -41,8 +41,15 @@ export const tenantSettingsApi = {
       .post<TenantBillingSettings>('/tenant-settings/me/billing/moloni/connect', payload)
       .then((r) => r.data);
   },
-  startMoloniOAuth() {
-    return api.post<MoloniOAuthStart>('/billing/moloni/oauth/start').then((r) => r.data);
+  startMoloniOAuth(redirectUri?: string) {
+    return api
+      .post<MoloniOAuthStart>('/billing/moloni/oauth/start', redirectUri ? { redirectUri } : {})
+      .then((r) => r.data);
+  },
+  completeMoloniOAuth(payload: { code: string; state: string }) {
+    return api
+      .post<TenantBillingSettings>('/billing/moloni/oauth/complete', payload)
+      .then((r) => r.data);
   },
   disconnectMoloni() {
     return api

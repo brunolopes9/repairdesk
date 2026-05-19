@@ -24,9 +24,15 @@ public class BillingOAuthController : ControllerBase
 
     [HttpPost("start")]
     [Authorize]
-    public Task<MoloniOAuthStartDto> Start(CancellationToken ct)
-        => _billing.StartMoloniOAuthAsync(BuildRedirectUri(), ct);
+    public Task<MoloniOAuthStartDto> Start([FromBody] StartOAuthRequest? body, CancellationToken ct)
+    {
+        var redirectUri = !string.IsNullOrWhiteSpace(body?.RedirectUri)
+            ? body.RedirectUri.Trim()
+            : BuildRedirectUri();
+        return _billing.StartMoloniOAuthAsync(redirectUri, ct);
+    }
 
+    // Web flow (automatico): Moloni redirecciona aqui directamente. Requer URL publico reachable.
     [HttpGet("callback")]
     [AllowAnonymous]
     public async Task<IActionResult> Callback(
@@ -51,6 +57,20 @@ public class BillingOAuthController : ControllerBase
         }
     }
 
+    // Manual flow (cola URL): para casos em que o callback URL configurado na Moloni nao chega ao RepairDesk
+    // (ex: dev local, callback aponta para outro dominio). User cola o URL completo redireccionado pela Moloni.
+    [HttpPost("complete")]
+    [Authorize]
+    public async Task<TenantBillingSettingsDto> Complete([FromBody] CompleteOAuthRequest body, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(body?.Code) || string.IsNullOrWhiteSpace(body.State))
+            throw new RepairDesk.Core.Exceptions.ValidationException(
+                "moloni_oauth_missing",
+                "Cola o URL completo redireccionado pela Moloni (com code e state).");
+
+        return await _billing.CompleteMoloniOAuthAsync(body.Code.Trim(), body.State.Trim(), ct);
+    }
+
     private string BuildRedirectUri()
     {
         var configured = _configuration["Billing:Moloni:OAuthRedirectUri"];
@@ -65,4 +85,7 @@ public class BillingOAuthController : ControllerBase
             target += $"&msg={Uri.EscapeDataString(message)}";
         return LocalRedirect(target);
     }
+
+    public sealed record StartOAuthRequest(string? RedirectUri);
+    public sealed record CompleteOAuthRequest(string Code, string State);
 }

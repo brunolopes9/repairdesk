@@ -339,6 +339,12 @@ function FaturacaoSection() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [autoDiscoverSteps, setAutoDiscoverSteps] = useState<MoloniAutoDiscoverStep[]>([]);
   const oauthPollRef = useRef<number | null>(null);
+  const [redirectUri, setRedirectUri] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('moloni_redirect_uri') ?? 'https://lopestech.pt/api/billing/moloni/callback';
+  });
+  const [pasteUrl, setPasteUrl] = useState('');
+  const [showPasteModal, setShowPasteModal] = useState(false);
 
   useEffect(() => {
     if (billing.data) setForm(toBillingForm(billing.data));
@@ -478,26 +484,54 @@ function FaturacaoSection() {
   });
 
   const startOAuth = useMutation({
-    mutationFn: () => tenantSettingsApi.startMoloniOAuth(),
+    mutationFn: () => tenantSettingsApi.startMoloniOAuth(redirectUri),
     onSuccess: (result) => {
-      const popup = window.open(result.authorizationUrl, 'moloni-oauth', 'width=500,height=700');
-      if (!popup) {
-        toast.error('Popup bloqueado', 'Permite popups para abrir a autorizacao Moloni.');
-        return;
-      }
-
-      oauthPollRef.current = window.setInterval(() => {
-        if (popup.closed) {
-          if (oauthPollRef.current != null) {
-            window.clearInterval(oauthPollRef.current);
-            oauthPollRef.current = null;
-          }
-          qc.invalidateQueries({ queryKey: ['tenant-billing-settings'] });
-        }
-      }, 1000);
+      // Abre Moloni numa nova tab e mostra modal para o user colar o URL final.
+      // (Necessario porque o callback Moloni vai para o URL configurado — ex: lopestech.pt —
+      // e nao para o RepairDesk localhost.)
+      window.open(result.authorizationUrl, '_blank', 'noopener,noreferrer');
+      setPasteUrl('');
+      setShowPasteModal(true);
     },
     onError: (err) => toast.fromError(err, 'Nao foi possivel iniciar OAuth Moloni.'),
   });
+
+  const completeOAuth = useMutation({
+    mutationFn: (params: { code: string; state: string }) => tenantSettingsApi.completeMoloniOAuth(params),
+    onSuccess: (saved) => {
+      qc.setQueryData(['tenant-billing-settings'], saved);
+      setForm(toBillingForm(saved));
+      setShowPasteModal(false);
+      setPasteUrl('');
+      toast.success('Conta Moloni ligada', 'Tokens guardados. A partir de agora, autenticação é automática.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível concluir OAuth Moloni.'),
+  });
+
+  function submitPastedUrl() {
+    try {
+      // Aceita URL completa (https://lopestech.pt/...?code=X&state=Y) ou query-string parcial
+      const trimmed = pasteUrl.trim();
+      let queryString = trimmed;
+      const qIndex = trimmed.indexOf('?');
+      if (qIndex >= 0) queryString = trimmed.substring(qIndex + 1);
+      const params = new URLSearchParams(queryString);
+      const code = params.get('code');
+      const state = params.get('state');
+      const error = params.get('error');
+      if (error) {
+        toast.fromError(new Error(error), `Moloni devolveu erro: ${error}`);
+        return;
+      }
+      if (!code || !state) {
+        toast.fromError(new Error('URL inválido'), 'O URL colado não contém ?code= e ?state=. Verifica.');
+        return;
+      }
+      completeOAuth.mutate({ code, state });
+    } catch (e) {
+      toast.fromError(e, 'Não foi possível interpretar o URL colado.');
+    }
+  }
 
   if (billing.isLoading || !form) {
     return <p className="text-sm text-zinc-500">A carregar faturação…</p>;
@@ -582,7 +616,6 @@ function FaturacaoSection() {
           <h3 className="text-sm font-semibold">2. Ligar conta Moloni</h3>
           <p className="text-xs text-zinc-500">
             Vamos abrir o login Moloni numa nova janela. Tu autorizas — o RepairDesk nunca vê a tua password.
-            Standard OAuth2 (mesma tecnologia usada por Google, GitHub, etc).
           </p>
         </div>
 
@@ -602,33 +635,34 @@ function FaturacaoSection() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-              <p className="font-medium">⚠️ Antes de clicar: configura o URL de callback no painel Moloni</p>
-              <p className="mt-1">
-                No painel Moloni → Configurações → Developers → URI de Resposta, cola exactamente:
-              </p>
-              <code className="mt-1 block select-all rounded bg-amber-100/70 px-2 py-1 font-mono text-[11px] dark:bg-amber-900/30">
-                {typeof window !== 'undefined' ? `${window.location.origin}/api/billing/moloni/oauth/callback` : ''}
-              </code>
-              <p className="mt-2">
-                Tem de coincidir <strong>exactamente</strong> (Moloni rejeita se houver diferença, mesmo `/` no fim).
-                Clica <strong>Atualizar</strong> no painel Moloni e volta aqui.
-              </p>
-            </div>
+            <Field
+              label="URL de Callback configurado no Moloni"
+              hint="Tem de coincidir EXACTAMENTE com o que tens em Moloni > Configurações > Developers > URI de Resposta."
+            >
+              <input
+                type="url"
+                value={redirectUri}
+                onChange={(e) => {
+                  setRedirectUri(e.target.value);
+                  if (typeof window !== 'undefined') localStorage.setItem('moloni_redirect_uri', e.target.value);
+                }}
+                className={inputCls}
+                placeholder="https://lopestech.pt/api/billing/moloni/callback"
+              />
+            </Field>
             <button
               type="button"
               onClick={() => startOAuth.mutate()}
-              disabled={!canConnect || form.provider !== 1 || startOAuth.isPending}
+              disabled={!canConnect || form.provider !== 1 || startOAuth.isPending || !redirectUri}
               className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {startOAuth.isPending ? 'A abrir...' : 'Ligar Moloni via OAuth'}
             </button>
             <details className="text-xs">
-              <summary className="cursor-pointer text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">Avançado: ligar com email + password (não recomendado)</summary>
+              <summary className="cursor-pointer text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">Avançado: ligar com email + password</summary>
               <div className="mt-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
                 <p className="mb-2 text-zinc-600 dark:text-zinc-400">
-                  Método legacy <code>password grant</code>. Funciona, mas a Moloni recomenda OAuth para apps web.
-                  Useful se OAuth não conseguir por razões de redirect URI.
+                  Método legacy <code>password grant</code>. Útil quando o callback OAuth não pode ser configurado.
                 </p>
                 <button
                   type="button"
@@ -830,6 +864,59 @@ function FaturacaoSection() {
             toast.success('Ligado a Moloni', 'Tokens recebidos e encriptados. Empresa auto-selecionada se única.');
           }}
         />
+      )}
+
+      {showPasteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowPasteModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <h2 className="text-base font-semibold">Cola o URL após autorizares na Moloni</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Abriste uma nova aba com login Moloni. Depois de fazeres login e autorizares,
+              a Moloni vai redireccionar-te para o teu URL de callback (ex: <code className="font-mono text-[11px]">{redirectUri}</code>).
+              Esse URL pode mostrar uma página 404 — não há problema. <strong>Copia o URL completo da barra de endereço</strong> e cola aqui.
+            </p>
+
+            <textarea
+              value={pasteUrl}
+              onChange={(e) => setPasteUrl(e.target.value)}
+              className={`${inputCls} mt-3 font-mono text-xs`}
+              placeholder="https://lopestech.pt/api/billing/moloni/callback?code=abc123...&state=xyz789..."
+              rows={3}
+              autoFocus
+            />
+
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-[11px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <strong>Como copiar:</strong> selecciona a URL completa da barra do browser (Ctrl+L → Ctrl+C) e cola aqui (Ctrl+V).
+              O RepairDesk extrai automaticamente o <code>code</code> e o <code>state</code>.
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPasteModal(false)}
+                className="rounded-lg px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={submitPastedUrl}
+                disabled={completeOAuth.isPending || !pasteUrl.trim()}
+                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+              >
+                {completeOAuth.isPending ? 'A validar...' : 'Concluir ligação'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
