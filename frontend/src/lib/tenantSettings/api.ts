@@ -34,4 +34,19 @@ export const tenantSettingsApi = {
   syncBillingSeries() {
     return api.post<BillingSerie[]>('/tenant-settings/me/billing/sync-series').then((r) => r.data);
   },
+  connectMoloni(payload: { username: string; password: string }) {
+    return api
+      .post<TenantBillingSettings>('/tenant-settings/me/billing/moloni/connect', payload)
+      .then((r) => r.data);
+  },
+  disconnectMoloni() {
+    return api
+      .post<TenantBillingSettings>('/tenant-settings/me/billing/moloni/disconnect')
+      .then((r) => r.data);
+  },
+  listMoloniCompanies() {
+    return api
+      .get<{ id: number; name: string }[]>('/tenant-settings/me/billing/moloni/companies')
+      .then((r) => r.data);
+  },
 };

@@ -49,4 +49,16 @@ public class TenantSettingsController : ControllerBase
     [HttpPost("me/billing/sync-series")]
     public Task<IReadOnlyList<BillingSerieDto>> SyncBillingSeries(CancellationToken ct)
         => _billing.SyncSeriesAsync(ct);
+
+    [HttpPost("me/billing/moloni/connect")]
+    public Task<TenantBillingSettingsDto> ConnectMoloni([FromBody] ConnectMoloniRequest req, CancellationToken ct)
+        => _billing.ConnectMoloniAsync(req, ct);
+
+    [HttpPost("me/billing/moloni/disconnect")]
+    public Task<TenantBillingSettingsDto> DisconnectMoloni(CancellationToken ct)
+        => _billing.DisconnectMoloniAsync(ct);
+
+    [HttpGet("me/billing/moloni/companies")]
+    public Task<IReadOnlyList<MoloniCompanyDto>> ListMoloniCompanies(CancellationToken ct)
+        => _billing.ListCompaniesAsync(ct);
 }

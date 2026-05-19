@@ -11,6 +11,9 @@ public interface ITenantBillingSettingsService
     Task<TenantBillingSettingsDto> UpdateMineAsync(UpdateTenantBillingSettingsRequest req, CancellationToken ct = default);
     Task<BillingConnectionTestDto> TestConnectionAsync(CancellationToken ct = default);
     Task<IReadOnlyList<BillingSerieDto>> SyncSeriesAsync(CancellationToken ct = default);
+    Task<TenantBillingSettingsDto> ConnectMoloniAsync(ConnectMoloniRequest req, CancellationToken ct = default);
+    Task<TenantBillingSettingsDto> DisconnectMoloniAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<MoloniCompanyDto>> ListCompaniesAsync(CancellationToken ct = default);
 }
 
 public class TenantBillingSettingsService : ITenantBillingSettingsService
@@ -86,6 +89,47 @@ public class TenantBillingSettingsService : ITenantBillingSettingsService
             }
         }
         return series;
+    }
+
+    public async Task<TenantBillingSettingsDto> ConnectMoloniAsync(ConnectMoloniRequest req, CancellationToken ct = default)
+    {
+        var settings = await FindOrCreateAsync(ct);
+        await _moloni.ConnectViaPasswordGrantAsync(settings, req.Username, req.Password, ct);
+
+        // Auto-descobrir Company ID se ainda não definido e só houver 1 empresa
+        if (settings.CompanyId is null or <= 0)
+        {
+            try
+            {
+                var companies = await _moloni.GetCompaniesAsync(settings, ct);
+                if (companies.Count == 1)
+                {
+                    settings.CompanyId = companies[0].Id;
+                    await _repo.SaveAsync(ct);
+                }
+            }
+            catch
+            {
+                // não bloqueia ligação se auto-descoberta falhar
+            }
+        }
+
+        return ToDto(settings);
+    }
+
+    public async Task<TenantBillingSettingsDto> DisconnectMoloniAsync(CancellationToken ct = default)
+    {
+        var settings = await FindOrCreateAsync(ct);
+        settings.ApiKeyCipherText = null;
+        settings.RefreshTokenCipherText = null;
+        await _repo.SaveAsync(ct);
+        return ToDto(settings);
+    }
+
+    public async Task<IReadOnlyList<MoloniCompanyDto>> ListCompaniesAsync(CancellationToken ct = default)
+    {
+        var settings = await FindOrCreateAsync(ct);
+        return await _moloni.GetCompaniesAsync(settings, ct);
     }
 
     private async Task<TenantBillingSettings> FindOrCreateAsync(CancellationToken ct)

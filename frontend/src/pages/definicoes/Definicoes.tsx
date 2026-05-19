@@ -327,9 +327,15 @@ function FaturacaoSection() {
     queryKey: ['tenant-billing-settings'],
     queryFn: () => tenantSettingsApi.getBilling(),
   });
+  const tenant = useQuery({
+    queryKey: ['tenant-settings'],
+    queryFn: () => tenantSettingsApi.getMine(),
+  });
 
   const [form, setForm] = useState<UpdateTenantBillingSettings | null>(null);
   const [series, setSeries] = useState<{ id: number; name: string }[]>([]);
+  const [showConnect, setShowConnect] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     if (billing.data) setForm(toBillingForm(billing.data));
@@ -340,9 +346,9 @@ function FaturacaoSection() {
     onSuccess: (saved) => {
       qc.setQueryData(['tenant-billing-settings'], saved);
       setForm(toBillingForm(saved));
-      toast.success('Faturação guardada', 'As definições Moloni foram atualizadas.');
+      toast.success('Guardado', 'Definições Moloni atualizadas.');
     },
-    onError: (err) => toast.fromError(err, 'Não foi possível guardar a faturação.'),
+    onError: (err) => toast.fromError(err, 'Não foi possível guardar.'),
   });
 
   const test = useMutation({
@@ -361,6 +367,16 @@ function FaturacaoSection() {
     onError: (err) => toast.fromError(err, 'Não foi possível sincronizar séries.'),
   });
 
+  const disconnect = useMutation({
+    mutationFn: () => tenantSettingsApi.disconnectMoloni(),
+    onSuccess: (saved) => {
+      qc.setQueryData(['tenant-billing-settings'], saved);
+      setForm(toBillingForm(saved));
+      toast.success('Desligado', 'A conta Moloni foi desligada. Os tokens foram apagados.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível desligar.'),
+  });
+
   if (billing.isLoading || !form) {
     return <p className="text-sm text-zinc-500">A carregar faturação…</p>;
   }
@@ -370,141 +386,331 @@ function FaturacaoSection() {
     setForm({ ...form, [key]: value });
   }
 
+  const connected = form.hasApiKey && form.hasRefreshToken;
+  const regimeNormal = tenant.data?.regimeFiscal === 1;
+  const canConnect = !!form.clientId && (form.hasClientSecret || !!form.clientSecret);
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* Header explicativo */}
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <p className="font-medium">Moloni certificado AT</p>
+        <p className="font-medium">Moloni — certificação AT Nº 2860</p>
         <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-          Usa a conta Moloni do tenant para emitir documentos fiscais. Os secrets ficam cifrados no servidor.
-          O access token expira em 1h — se preencheres Developer ID, Client Secret e Refresh Token, o RepairDesk renova automaticamente.
+          A faturação fiscal é emitida pela tua conta Moloni Flex (ou superior, com API). Configura uma vez,
+          o RepairDesk gere os tokens automaticamente — não precisas de copiar ou renovar nada.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Field label="Provider">
-          <select value={form.provider} onChange={(e) => update('provider', Number(e.target.value) as 0 | 1 | 2)} className={inputCls}>
-            <option value={0}>Desativado</option>
-            <option value={1}>Moloni</option>
-            <option value={2} disabled>InvoiceXpress (brevemente)</option>
-          </select>
-        </Field>
-        <Field label="Modo">
-          <label className="flex min-h-[38px] items-center gap-2 rounded-lg border border-zinc-200 px-3 text-sm dark:border-zinc-800">
-            <input type="checkbox" checked={form.sandboxMode} onChange={(e) => update('sandboxMode', e.target.checked)} />
-            <span>Sandbox Moloni</span>
-          </label>
-        </Field>
-        <Field label="Developer ID" hint="O teu Developer ID definido em Moloni > Configurações > Developers (ex: repairdesk-lopestech).">
-          <input
-            type="text"
-            value={form.clientId ?? ''}
-            onChange={(e) => update('clientId', e.target.value || null)}
-            className={inputCls}
-            placeholder="repairdesk-lopestech"
-          />
-        </Field>
-        <Field label="Client Secret" hint="Chave Secreta gerada no painel Developer Moloni. Necessária para refresh automático de tokens.">
-          <input
-            type="password"
-            value={form.clientSecret ?? ''}
-            onChange={(e) => update('clientSecret', e.target.value || null)}
-            className={inputCls}
-            placeholder={form.hasClientSecret ? '****' : 'Client Secret Moloni'}
-          />
-        </Field>
-        <Field label="Access token" hint="Cola o access_token obtido via grant password. Renovado automaticamente a partir do refresh token.">
-          <input
-            type="password"
-            value={form.apiKey ?? ''}
-            onChange={(e) => update('apiKey', e.target.value || null)}
-            className={inputCls}
-            placeholder={form.hasApiKey ? '****' : 'Access token Moloni'}
-          />
-        </Field>
-        <Field label="Refresh token" hint="Cola o refresh_token recebido junto com o access_token. Válido 14 dias; é renovado a cada refresh automático.">
-          <input
-            type="password"
-            value={form.refreshToken ?? ''}
-            onChange={(e) => update('refreshToken', e.target.value || null)}
-            className={inputCls}
-            placeholder={form.hasRefreshToken ? '****' : 'Refresh token Moloni'}
-          />
-        </Field>
-        <Field label="Company ID">
-          <NumberInput value={form.companyId} onChange={(v) => update('companyId', v)} />
-        </Field>
-        <Field label="Tipo documento">
-          <select value={form.defaultDocumentType} onChange={(e) => update('defaultDocumentType', Number(e.target.value) as 0 | 1)} className={inputCls}>
-            <option value={0}>Fatura simplificada</option>
-            <option value={1}>Fatura</option>
-          </select>
-        </Field>
-        <Field label="Série Moloni">
-          <div className="flex gap-2">
-            <NumberInput value={form.defaultSerieId} onChange={(v) => update('defaultSerieId', v)} />
-            <button
-              type="button"
-              onClick={() => sync.mutate()}
-              disabled={sync.isPending}
-              className="rounded-lg border border-zinc-200 px-3 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              {sync.isPending ? 'A sincronizar…' : 'Sincronizar'}
-            </button>
-          </div>
-          {series.length > 0 && (
-            <select className={`${inputCls} mt-2`} value={form.defaultSerieId ?? ''} onChange={(e) => update('defaultSerieId', numOrNull(e.target.value))}>
-              <option value="">Escolher série</option>
-              {series.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>)}
+      {/* Passo 1: Provider + credenciais da app */}
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold">1. Registo da aplicação</h3>
+          <p className="text-xs text-zinc-500">Dados que obténs no painel Moloni → Configurações → Developers.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <Field label="Provider">
+            <select value={form.provider} onChange={(e) => update('provider', Number(e.target.value) as 0 | 1 | 2)} className={inputCls}>
+              <option value={0}>Desativado</option>
+              <option value={1}>Moloni</option>
+              <option value={2} disabled>InvoiceXpress (em breve)</option>
             </select>
-          )}
-        </Field>
-      </div>
-
-      <div className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <h3 className="text-sm font-semibold">IDs Moloni necessários para emissão</h3>
-        <p className="mt-1 text-xs text-zinc-500">
-          O Moloni exige IDs internos para produto/serviço, IVA, método de pagamento e cliente fallback. Preenche estes valores a partir da tua conta sandbox antes de emitir.
-        </p>
-        <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field label="Produto/serviço ID">
-            <NumberInput value={form.defaultProductId} onChange={(v) => update('defaultProductId', v)} />
           </Field>
-          <Field label="Tax ID IVA">
-            <NumberInput value={form.defaultTaxId} onChange={(v) => update('defaultTaxId', v)} />
+          <Field label="Ambiente" hint="Sandbox para testes; Produção para faturas reais.">
+            <label className="flex min-h-[38px] items-center gap-2 rounded-lg border border-zinc-200 px-3 text-sm dark:border-zinc-800">
+              <input type="checkbox" checked={form.sandboxMode} onChange={(e) => update('sandboxMode', e.target.checked)} />
+              <span>Modo sandbox</span>
+            </label>
           </Field>
-          <Field label="Método pagamento ID">
-            <NumberInput value={form.defaultPaymentMethodId} onChange={(v) => update('defaultPaymentMethodId', v)} />
+          <Field label="Developer ID" hint="Identificador único da tua app na Moloni (ex: repairdesk-lopestech).">
+            <input
+              type="text"
+              value={form.clientId ?? ''}
+              onChange={(e) => update('clientId', e.target.value || null)}
+              className={inputCls}
+              placeholder="repairdesk-lopestech"
+              autoComplete="off"
+            />
           </Field>
-          <Field label="Maturity date ID">
-            <NumberInput value={form.defaultMaturityDateId} onChange={(v) => update('defaultMaturityDateId', v)} />
-          </Field>
-          <Field label="Cliente fallback ID" hint="Usado quando o cliente não tem NIF ou não existe na Moloni.">
-            <NumberInput value={form.fallbackCustomerId} onChange={(v) => update('fallbackCustomerId', v)} />
-          </Field>
-          <Field label="Motivo isenção" hint="Ex: M02 para Isenção Art. 53, confirmar com contabilista.">
-            <input value={form.exemptionReason ?? ''} onChange={(e) => update('exemptionReason', e.target.value || null)} className={inputCls} placeholder="M02" />
+          <Field label="Client Secret" hint="Chave gerada pela Moloni após guardares o Developer ID. Encriptada no servidor.">
+            <input
+              type="password"
+              value={form.clientSecret ?? ''}
+              onChange={(e) => update('clientSecret', e.target.value || null)}
+              className={inputCls}
+              placeholder={form.hasClientSecret ? '••••••••••••' : 'Chave Secreta Moloni'}
+              autoComplete="off"
+            />
           </Field>
         </div>
-      </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => save.mutate(form)}
+            disabled={save.isPending}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+          >
+            {save.isPending ? 'A guardar…' : 'Guardar credenciais'}
+          </button>
+        </div>
+      </section>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => save.mutate(form)}
-          disabled={save.isPending}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-        >
-          {save.isPending ? 'A guardar…' : 'Guardar faturação'}
-        </button>
-        <button
-          type="button"
-          onClick={() => test.mutate()}
-          disabled={test.isPending}
-          className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-        >
-          {test.isPending ? 'A testar…' : 'Testar conexão'}
-        </button>
-      </div>
+      {/* Passo 2: Ligar conta Moloni (OAuth password grant) */}
+      <section className="space-y-3 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+        <div>
+          <h3 className="text-sm font-semibold">2. Ligar conta Moloni</h3>
+          <p className="text-xs text-zinc-500">
+            Autorização inicial. O RepairDesk troca as credenciais por tokens encriptados — a password nunca é guardada.
+          </p>
+        </div>
+
+        {connected ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3 text-sm dark:border-emerald-900/40 dark:bg-emerald-950/30">
+            <CheckCircle2 size={18} strokeWidth={2} className="text-emerald-600 dark:text-emerald-400" />
+            <span className="font-medium text-emerald-900 dark:text-emerald-100">Conta Moloni ligada</span>
+            <span className="text-xs text-emerald-700 dark:text-emerald-300">Tokens renovados automaticamente.</span>
+            <button
+              type="button"
+              onClick={() => disconnect.mutate()}
+              disabled={disconnect.isPending}
+              className="ml-auto rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60 dark:hover:bg-red-950/40"
+            >
+              {disconnect.isPending ? 'A desligar…' : 'Desligar'}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowConnect(true)}
+              disabled={!canConnect || form.provider !== 1}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Ligar Moloni
+            </button>
+            {!canConnect && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Preenche Developer ID e Client Secret no passo 1 e clica em <strong>Guardar credenciais</strong> primeiro.
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Passo 3: Configuração da empresa Moloni (só visível se ligado) */}
+      {connected && (
+        <section className="space-y-4 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+          <div>
+            <h3 className="text-sm font-semibold">3. Configuração da empresa</h3>
+            <p className="text-xs text-zinc-500">
+              Define qual empresa Moloni usar, série e tipo de documento por defeito.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field
+              label="Company ID"
+              hint="ID numérico da empresa Moloni. Vês na URL quando abres a empresa no painel Moloni."
+            >
+              <NumberInput value={form.companyId} onChange={(v) => update('companyId', v)} />
+            </Field>
+            <Field
+              label="Tipo de documento por defeito"
+              hint="Simplificada: B2C sem NIF até €1000. Fatura: B2B com NIF, qualquer valor."
+            >
+              <select value={form.defaultDocumentType} onChange={(e) => update('defaultDocumentType', Number(e.target.value) as 0 | 1)} className={inputCls}>
+                <option value={0}>Fatura simplificada</option>
+                <option value={1}>Fatura</option>
+              </select>
+            </Field>
+            <Field label="Série Moloni" hint="Identificador da série comunicada à AT (ex: M, FT, 2026).">
+              <div className="flex gap-2">
+                <NumberInput value={form.defaultSerieId} onChange={(v) => update('defaultSerieId', v)} />
+                <button
+                  type="button"
+                  onClick={() => sync.mutate()}
+                  disabled={sync.isPending}
+                  className="rounded-lg border border-zinc-200 px-3 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  {sync.isPending ? 'A sincronizar…' : 'Sincronizar'}
+                </button>
+              </div>
+              {series.length > 0 && (
+                <select className={`${inputCls} mt-2`} value={form.defaultSerieId ?? ''} onChange={(e) => update('defaultSerieId', numOrNull(e.target.value))}>
+                  <option value="">Escolher série</option>
+                  {series.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>)}
+                </select>
+              )}
+            </Field>
+          </div>
+
+          {/* IDs avançados — colapsível */}
+          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-900"
+            >
+              <span>IDs operacionais Moloni (necessários para emitir)</span>
+              <span className="text-xs text-zinc-500">{showAdvanced ? 'Esconder' : 'Mostrar'}</span>
+            </button>
+            {showAdvanced && (
+              <div className="border-t border-zinc-200 px-4 py-4 dark:border-zinc-800">
+                <p className="mb-3 text-xs text-zinc-500">
+                  Vais ao painel Moloni e copias estes IDs internos. Em sprint futuro vão ser auto-descobertos.
+                </p>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field label="Produto/serviço ID" hint="Cria em Moloni → Tabelas → Artigos um 'Serviço de reparação' e copia o ID.">
+                    <NumberInput value={form.defaultProductId} onChange={(v) => update('defaultProductId', v)} />
+                  </Field>
+                  <Field label="Tax ID IVA" hint="Em Moloni → Tabelas → Impostos. Copia o ID do IVA aplicável (6%, 13%, 23%).">
+                    <NumberInput value={form.defaultTaxId} onChange={(v) => update('defaultTaxId', v)} />
+                  </Field>
+                  <Field label="Método pagamento ID" hint="Em Moloni → Tabelas → Métodos de pagamento (Numerário, MBWay, Multibanco…).">
+                    <NumberInput value={form.defaultPaymentMethodId} onChange={(v) => update('defaultPaymentMethodId', v)} />
+                  </Field>
+                  <Field label="Prazo vencimento ID" hint="Em Moloni → Tabelas → Datas de vencimento (Pronto pagamento, 30 dias…).">
+                    <NumberInput value={form.defaultMaturityDateId} onChange={(v) => update('defaultMaturityDateId', v)} />
+                  </Field>
+                  <Field label="Cliente fallback ID" hint="Cliente Moloni 'Consumidor final' usado em vendas B2C sem NIF.">
+                    <NumberInput value={form.fallbackCustomerId} onChange={(v) => update('fallbackCustomerId', v)} />
+                  </Field>
+                  {!regimeNormal && (
+                    <Field label="Motivo isenção IVA" hint="Código M01-M99. Só preencher se regime de isenção (Art. 53). Em regime normal deixa vazio.">
+                      <input value={form.exemptionReason ?? ''} onChange={(e) => update('exemptionReason', e.target.value || null)} className={inputCls} placeholder="M02" />
+                    </Field>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {connected && (
+        <div className="flex flex-wrap gap-2 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+          <button
+            type="button"
+            onClick={() => save.mutate(form)}
+            disabled={save.isPending}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+          >
+            {save.isPending ? 'A guardar…' : 'Guardar configuração'}
+          </button>
+          <button
+            type="button"
+            onClick={() => test.mutate()}
+            disabled={test.isPending}
+            className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            {test.isPending ? 'A testar…' : 'Testar emissão'}
+          </button>
+        </div>
+      )}
+
+      {showConnect && (
+        <ConnectMoloniModal
+          onClose={() => setShowConnect(false)}
+          onSuccess={(saved) => {
+            qc.setQueryData(['tenant-billing-settings'], saved);
+            setForm(toBillingForm(saved));
+            setShowConnect(false);
+            toast.success('Ligado a Moloni', 'Tokens recebidos e encriptados. Empresa auto-selecionada se única.');
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConnectMoloniModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: (saved: TenantBillingSettings) => void;
+}) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  const connect = useMutation({
+    mutationFn: () => tenantSettingsApi.connectMoloni({ username, password }),
+    onSuccess,
+    onError: (err) => toast.fromError(err, 'A Moloni rejeitou as credenciais.'),
+  });
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!username || !password) return;
+    connect.mutate();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Ligar Moloni"
+      onClick={onClose}
+    >
+      <form
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+      >
+        <h2 className="text-base font-semibold">Ligar conta Moloni</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Credenciais usadas <strong>uma única vez</strong> para obter tokens OAuth2. A password
+          NUNCA é guardada no RepairDesk — só os tokens (encriptados, renovados automaticamente).
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <Field label="Email Moloni">
+            <input
+              type="email"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className={inputCls}
+              placeholder="contacto@lopestech.pt"
+              autoComplete="off"
+              autoFocus
+              required
+            />
+          </Field>
+          <Field label="Password Moloni">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputCls}
+              placeholder="••••••••"
+              autoComplete="off"
+              required
+            />
+          </Field>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+          <strong>Segurança:</strong> usa sempre HTTPS. A password viaja apenas do teu browser para o
+          backend RepairDesk → Moloni; nada é armazenado. Se preferires, cria um subutilizador Moloni
+          dedicado ao RepairDesk com permissões mínimas.
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={connect.isPending || !username || !password}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+          >
+            {connect.isPending ? 'A ligar…' : 'Ligar'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

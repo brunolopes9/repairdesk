@@ -41,6 +41,10 @@ public sealed record BillingConnectionTestDto(bool Success, string Message);
 
 public sealed record BillingSerieDto(int Id, string Name, string? Code, bool IsActive);
 
+public sealed record ConnectMoloniRequest(string Username, string Password);
+
+public sealed record MoloniCompanyDto(int Id, string Name);
+
 public sealed record EmitInvoiceRequest(decimal? VatPercent, string? PaymentMethod);
 
 public sealed record InvoiceDto(string Number, string? PdfUrl, DateTime EmittedAt);

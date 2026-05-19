@@ -171,6 +171,77 @@ public class MoloniClient : IMoloniClient
             DateTime.UtcNow);
     }
 
+    public async Task ConnectViaPasswordGrantAsync(TenantBillingSettings settings, string username, string password, CancellationToken ct = default)
+    {
+        if (settings.Provider != BillingProvider.Moloni)
+            throw new ValidationException("billing_provider_not_moloni", "Configura Moloni como provider antes de ligar.");
+        if (string.IsNullOrWhiteSpace(settings.ClientId))
+            throw new ValidationException("moloni_client_id_missing", "Preenche o Developer ID Moloni antes de ligar.");
+        if (string.IsNullOrWhiteSpace(settings.ClientSecretCipherText))
+            throw new ValidationException("moloni_client_secret_missing", "Preenche o Client Secret Moloni antes de ligar.");
+        if (string.IsNullOrWhiteSpace(username))
+            throw new ValidationException("moloni_username_required", "Email Moloni obrigatorio.");
+        if (string.IsNullOrWhiteSpace(password))
+            throw new ValidationException("moloni_password_required", "Password Moloni obrigatoria.");
+
+        var clientSecret = _secrets.Unprotect(settings.ClientSecretCipherText);
+        var baseUrl = ResolveBaseUrl(settings).TrimEnd('/');
+
+        var uri =
+            $"{baseUrl}/grant/?grant_type=password" +
+            $"&client_id={Uri.EscapeDataString(settings.ClientId)}" +
+            $"&client_secret={Uri.EscapeDataString(clientSecret)}" +
+            $"&username={Uri.EscapeDataString(username)}" +
+            $"&password={Uri.EscapeDataString(password)}";
+
+        using var response = await _http.GetAsync(uri, ct);
+        var content = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var msg = ExtractMoloniError(content);
+            _logger.LogWarning("Moloni password grant rejected for tenant {TenantId}: {Status} {Body}", settings.TenantId, (int)response.StatusCode, msg);
+            throw new BillingProviderException(
+                "moloni_connect_failed",
+                $"Moloni rejeitou as credenciais (HTTP {(int)response.StatusCode}): {msg}");
+        }
+
+        using var doc = JsonDocument.Parse(content);
+        var root = doc.RootElement;
+        var accessToken = GetString(root, "access_token");
+        var refreshToken = GetString(root, "refresh_token");
+
+        if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(refreshToken))
+            throw new BillingProviderException("moloni_connect_invalid_response", "Resposta de autenticacao Moloni invalida.");
+
+        settings.ApiKeyCipherText = _secrets.Protect(accessToken);
+        settings.RefreshTokenCipherText = _secrets.Protect(refreshToken);
+
+        await _repo.SaveAsync(ct);
+        _logger.LogInformation("Moloni connected via password grant for tenant {TenantId}", settings.TenantId);
+    }
+
+    public async Task<IReadOnlyList<MoloniCompanyDto>> GetCompaniesAsync(TenantBillingSettings settings, CancellationToken ct = default)
+    {
+        if (settings.Provider != BillingProvider.Moloni)
+            throw new ValidationException("billing_provider_not_moloni", "Configura Moloni como provider de faturacao.");
+        if (string.IsNullOrWhiteSpace(settings.ApiKeyCipherText))
+            throw new ValidationException("moloni_not_connected", "Liga a conta Moloni antes de listar empresas.");
+
+        var result = await PostAsync<JsonElement>(settings, "companies/getAll", new { }, ct);
+        if (result.ValueKind != JsonValueKind.Array) return Array.Empty<MoloniCompanyDto>();
+
+        var companies = new List<MoloniCompanyDto>();
+        foreach (var item in result.EnumerateArray())
+        {
+            var id = GetInt(item, "company_id");
+            if (id <= 0) continue;
+            var name = GetString(item, "name") ?? $"Empresa {id}";
+            companies.Add(new MoloniCompanyDto(id, name));
+        }
+        return companies;
+    }
+
     public async Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string documentId, CancellationToken ct = default)
     {
         EnsureMoloniBasics(settings);
