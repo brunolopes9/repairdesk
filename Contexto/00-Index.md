@@ -50,6 +50,7 @@ Para alguém novo a este projeto (futuro Bruno, futuro Claude, futuro sócio):
 37. **[`38-Rebrand-Mapping.md`](38-Rebrand-Mapping.md)** — mapeamento exacto de onde aparece "RepairDesk" no código + UI + docs. 8 sítios alta prioridade (UI visível), 21 ocorrências copy legal, plus branding técnico. Processo de rebrand em 4 fases + shortlist inicial de nomes.
 38. **[`40-Ideias-Spin-off-Automation.md`](40-Ideias-Spin-off-Automation.md)** — 🧊 análise crítica de Bruno querer lançar spin-off de automações em paralelo com RepairDesk. **Recomendação: NÃO agora.** Mercado saturado, é agência não produto, foco mata possibilidade. 3 ideias melhores (extracções do RepairDesk) + métrica para revisitar Q4 2026.
 39. **[`41-Moloni-Setup.md`](41-Moloni-Setup.md)** — 💳 passo-a-passo para Bruno criar conta Moloni + obter API key + configurar série, **antes** do Codex aterrar #C9. Multi-tenant: cada oficina cria a sua conta. Free tier 50 docs/mês. Sandbox primeiro.
+40. **[`42-Moloni-Troubleshooting.md`](42-Moloni-Troubleshooting.md)** — 🛠️ guia de 12 erros comuns na integração Moloni (503 sandbox down, 422 credenciais, plano sem API, refresh expirado, séries em falta, CompanyId/ProductId missing, IVA M02, etc) + tabela rápida de status HTTP. Útil para suporte beta.
 
 ---
 
