@@ -151,6 +151,12 @@ public class BillingOAuthApiTests : IClassFixture<RepairDeskApiFactory>
             => Task.FromResult<int?>(null);
         public Task<MoloniInvoiceResult> InsertInvoiceAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default)
             => Task.FromResult(new MoloniInvoiceResult("1", "FT 2026/1", null, DateTime.UtcNow));
+        public Task<MoloniEstimateResult> InsertEstimateAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default)
+            => Task.FromResult(new MoloniEstimateResult("E1", "OR 2026/1", null, DateTime.UtcNow));
+        public Task<int?> GetEstimateStatusAsync(TenantBillingSettings settings, int estimateId, CancellationToken ct = default)
+            => Task.FromResult<int?>(1);
+        public Task<MoloniInvoiceResult> ConvertEstimateToInvoiceAsync(TenantBillingSettings settings, int estimateId, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
+            => Task.FromResult(new MoloniInvoiceResult("1", "FT 2026/1", null, DateTime.UtcNow));
         public Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string documentId, CancellationToken ct = default)
             => Task.FromResult<Stream>(new MemoryStream());
         public Task<MoloniInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, MoloniCreditNoteDraft draft, CancellationToken ct = default)

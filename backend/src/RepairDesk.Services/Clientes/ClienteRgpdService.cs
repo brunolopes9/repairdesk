@@ -41,7 +41,7 @@ public class ClienteRgpdService : IClienteRgpdService
 
         return new ClientePortableExportDto(
             DateTime.UtcNow,
-            "repairdesk-client-export-v1",
+            "repairdesk-client-export-v2",
             ToCliente(data.Cliente),
             data.Reparacoes.Select(r => ToReparacao(r, data.Timeline.Where(t => t.ReparacaoId == r.Id))).ToList(),
             data.Trabalhos.Select(ToTrabalho).ToList(),
@@ -50,6 +50,7 @@ public class ClienteRgpdService : IClienteRgpdService
             data.Garantias.Select(ToGarantia).ToList(),
             data.Avaliacoes.Select(ToAvaliacao).ToList(),
             data.PartMovimentos.Select(ToPartMovimento).ToList(),
+            data.Vendas.Select(ToVenda).ToList(),
             data.AuditEntries.Select(ToAudit).ToList());
     }
 
@@ -74,7 +75,8 @@ public class ClienteRgpdService : IClienteRgpdService
             data.Reparacoes.Count,
             data.Trabalhos.Count,
             data.Despesas.Count,
-            data.Fotos.Count);
+            data.Fotos.Count,
+            data.Vendas.Count);
 
         await _audit.LogAsync(AuditAction.HardDelete, "Cliente", clienteId, new
         {
@@ -84,6 +86,7 @@ public class ClienteRgpdService : IClienteRgpdService
             response.Trabalhos,
             response.Despesas,
             response.Fotos,
+            response.Vendas,
         }, data.Cliente.TenantId, ct: ct);
 
         return response;
@@ -112,7 +115,7 @@ public class ClienteRgpdService : IClienteRgpdService
     }
 
     private static GarantiaExportDto ToGarantia(Garantia g) =>
-        new(g.Id, g.ReparacaoId, g.Slug, g.DataInicio, g.DataFim, g.DiasGarantia, g.Cobertura, g.Exclusoes, g.Anulada, g.MotivoAnulacao);
+        new(g.Id, g.ReparacaoId, g.VendaId, g.SourceType, g.Slug, g.DataInicio, g.DataFim, g.DiasGarantia, g.Cobertura, g.Exclusoes, g.Anulada, g.MotivoAnulacao);
 
     private static AvaliacaoExportDto ToAvaliacao(Avaliacao a) =>
         new(a.Id, a.ReparacaoId, a.Score, a.Comentario, a.PublicarTestemunho, a.PedidoGoogleReview, a.CreatedAt);
@@ -120,6 +123,13 @@ public class ClienteRgpdService : IClienteRgpdService
     private static PartMovimentoExportDto ToPartMovimento(PartMovimento m) =>
         new(m.Id, m.PartId, m.Part?.Nome, m.Part?.Sku, m.Quantidade, m.StockAntes, m.StockDepois, m.Motivo, m.ReparacaoId, m.Notas, m.CreatedAt);
 
+    private static VendaExportDto ToVenda(Venda v) =>
+        new(v.Id, v.Numero, v.Data, v.TotalCents, v.IvaCents, v.PaymentMethod, v.Status,
+            v.InvoiceProvider, v.InvoiceExternalId, v.InvoiceNumber, v.InvoicePdfUrl, v.InvoiceEmittedAt, v.Notas,
+            v.Items.Select(i => new VendaItemExportDto(
+                i.Id, i.PartId, i.Part?.Sku, i.Descricao,
+                i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents, i.IvaRate, i.TotalCents)).ToList());
+
     private static AuditEntryDto ToAudit(AuditEntry a) =>
-        new(a.Id, a.TenantId, a.AppUserId, a.Action, a.EntityType, a.EntityId, a.ChangesJson, a.IpAddress, a.UserAgent, a.CreatedAt);
+        new(a.Id, a.TenantId, a.AppUserId, null, null, a.Action, a.EntityType, a.EntityId, a.ChangesJson, a.IpAddress, a.UserAgent, a.CreatedAt);
 }

@@ -170,6 +170,23 @@ public class DashboardRepository : IDashboardRepository
             .Select(t => new { t.Id, t.PrecoFinalCents, t.OrcamentoCents, t.Categoria })
             .ToListAsync(ct);
 
+        // Vendas pagas no intervalo + custo imputado das peças vendidas (COGS)
+        var vendasPagasItems = await _db.VendaItems
+            .AsNoTracking()
+            .Where(i => i.Venda != null
+                        && i.Venda.Status == VendaStatus.Paga
+                        && i.Venda.Data >= fromUtc && i.Venda.Data < toUtc)
+            .Select(i => new
+            {
+                Receita = Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents),
+                Custo = i.Part != null ? i.Part.CustoUnitarioCents * i.Quantidade : 0,
+            })
+            .ToListAsync(ct);
+        var receitaVendas = vendasPagasItems.Sum(x => x.Receita);
+        var custoVendas = vendasPagasItems.Sum(x => x.Custo);
+        var countVendas = await _db.Vendas
+            .CountAsync(v => v.Status == VendaStatus.Paga && v.Data >= fromUtc && v.Data < toUtc, ct);
+
         var reparacoesPagasIds = reparacoesPagas.Select(r => r.Id).ToHashSet();
         var trabalhosPagosIds = trabalhosPagos.Select(t => t.Id).ToHashSet();
 
@@ -221,8 +238,9 @@ public class DashboardRepository : IDashboardRepository
         var receitaReparacoes = reparacoesPagas.Sum(r => r.PrecoFinalCents ?? r.OrcamentoCents ?? 0);
         var custoReparacoes = custoPorReparacao.Values.Sum();
         var receitaTrabalhos = trabalhosPagos.Sum(t => t.PrecoFinalCents ?? t.OrcamentoCents ?? 0);
-        var receitaTotal = receitaReparacoes + receitaTrabalhos;
-        var lucroRealizado = receitaTotal - custoImputadoTotal;
+        var receitaTotal = receitaReparacoes + receitaTrabalhos + receitaVendas;
+        var custoTotalImputado = custoImputadoTotal + custoVendas;
+        var lucroRealizado = receitaTotal - custoTotalImputado;
 
         var porCategoria = new List<CategoriaFinanceiraRow>();
         if (reparacoesPagas.Count > 0)
@@ -245,11 +263,20 @@ public class DashboardRepository : IDashboardRepository
                 custo,
                 receita - custo));
         }
+        if (countVendas > 0)
+        {
+            porCategoria.Add(new CategoriaFinanceiraRow(
+                "Vendas",
+                countVendas,
+                receitaVendas,
+                custoVendas,
+                receitaVendas - custoVendas));
+        }
         porCategoria = porCategoria.OrderByDescending(c => c.ReceitaCents).ToList();
 
         return new FinanceiroSnapshot(
             ReceitaRealizadaCents: receitaTotal,
-            CustoImputadoCents: custoImputadoTotal,
+            CustoImputadoCents: custoTotalImputado,
             LucroRealizadoCents: lucroRealizado,
             ReceitaPendenteCents: receitaPendente,
             InvestimentoStockCents: investimentoStock,
@@ -289,14 +316,29 @@ public class DashboardRepository : IDashboardRepository
             .Select(d => new { Data = d.Data, Cents = d.ValorCents })
             .ToListAsync(ct);
 
+        // Vendas pagas com COGS (custo da peça × quantidade) por mês
+        var vendaItensPagos = await _db.VendaItems
+            .AsNoTracking()
+            .Where(i => i.Venda != null && i.Venda.Status == VendaStatus.Paga
+                        && i.Venda.Data >= inicio && i.Venda.Data < fim)
+            .Select(i => new
+            {
+                Data = i.Venda!.Data,
+                Receita = Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents),
+                Custo = i.Part != null ? i.Part.CustoUnitarioCents * i.Quantidade : 0,
+            })
+            .ToListAsync(ct);
+
         var result = new List<MesFinanceiroRow>();
         for (int i = 0; i < mesesAtras; i++)
         {
             var bucketStart = inicio.AddMonths(i);
             var bucketEnd = bucketStart.AddMonths(1);
             var receita = reparacoesPagas.Where(r => r.Data >= bucketStart && r.Data < bucketEnd).Sum(r => r.Cents)
-                        + trabalhosPagos.Where(t => t.Data >= bucketStart && t.Data < bucketEnd).Sum(t => t.Cents);
-            var custo = despesas.Where(d => d.Data >= bucketStart && d.Data < bucketEnd).Sum(d => d.Cents);
+                        + trabalhosPagos.Where(t => t.Data >= bucketStart && t.Data < bucketEnd).Sum(t => t.Cents)
+                        + vendaItensPagos.Where(v => v.Data >= bucketStart && v.Data < bucketEnd).Sum(v => v.Receita);
+            var custo = despesas.Where(d => d.Data >= bucketStart && d.Data < bucketEnd).Sum(d => d.Cents)
+                      + vendaItensPagos.Where(v => v.Data >= bucketStart && v.Data < bucketEnd).Sum(v => v.Custo);
             result.Add(new MesFinanceiroRow(bucketStart.Year, bucketStart.Month, receita, custo, receita - custo));
         }
         return result;
@@ -391,6 +433,47 @@ public class DashboardRepository : IDashboardRepository
             despesasOrfas,
             trabalhosNaoPagos.Sum(x => x.ValorCents) + reparacoesNaoPagas.Sum(x => x.ValorCents),
             despesasOrfas.Sum(x => x.ValorCents));
+    }
+
+    public Task<int> GetReparacoesCountAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+        => _db.Reparacoes
+            .CountAsync(r => r.CreatedAt >= fromUtc && r.CreatedAt < toUtc, ct);
+
+    public async Task<ReparacoesEmGarantiaSnapshot> GetReparacoesEmGarantiaAsync(
+        DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default)
+    {
+        // Join Reparacoes.Imei ↔ VendaItems.Imei (mesmo tenant). Cliente trouxe um
+        // equipamento vendido aqui antes — indicador de defeito pós-venda (Sprint 84).
+        // NOTA: NÃO restringe à garantia activa — qualquer reparação de equipamento
+        // vendido aqui é interessante para análise de qualidade, mesmo fora prazo.
+        var rows = await (
+            from r in _db.Reparacoes.AsNoTracking()
+            join vi in _db.VendaItems.AsNoTracking() on r.Imei equals vi.Imei
+            where r.Imei != null
+                && r.CreatedAt >= fromUtc && r.CreatedAt < toUtc
+                && vi.Venda != null
+                && vi.Venda.Status == VendaStatus.Paga
+                && vi.Venda.Data < r.CreatedAt  // venda tem de ser anterior à reparação
+            orderby r.CreatedAt descending
+            select new ReparacaoEmGarantiaRow(
+                r.Id,
+                r.Numero,
+                r.CreatedAt,
+                r.Equipamento,
+                r.Imei!,
+                r.Estado == RepairStatus.Entregue,
+                r.OrcamentoCents,
+                vi.Venda!.Id,
+                vi.Venda.Numero,
+                vi.Venda.Data,
+                vi.Venda.Cliente != null ? vi.Venda.Cliente.Nome : null))
+            .Take(limit)
+            .ToListAsync(ct);
+
+        var total = rows.Count;
+        var valorOrcamento = rows.Sum(r => r.OrcamentoCents ?? 0);
+
+        return new ReparacoesEmGarantiaSnapshot(total, valorOrcamento, rows);
     }
 
     private static string LabelFor(JobCategory c) => c switch

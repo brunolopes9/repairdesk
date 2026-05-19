@@ -10,9 +10,11 @@ public interface IVendaRepository
     Task<(IReadOnlyList<Venda> Items, int Total)> SearchAsync(
         DateTime? fromUtc,
         DateTime? toUtc,
+        Guid? clienteId,
         int page,
         int pageSize,
         CancellationToken ct = default);
+    Task<VendaImeiLookupRow?> FindVendaByImeiAsync(string imei, CancellationToken ct = default);
     Task<int> SumPaidBetweenAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     Task<IReadOnlyList<TopVendaItemRow>> TopItemsByRevenueAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
@@ -23,3 +25,10 @@ public sealed record TopVendaItemRow(
     string Descricao,
     int Quantidade,
     int TotalCents);
+
+public sealed record VendaImeiLookupRow(
+    Guid VendaId,
+    int Numero,
+    DateTime Data,
+    string Descricao,
+    string? ClienteNome);

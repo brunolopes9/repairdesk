@@ -9,7 +9,27 @@ public interface IDashboardRepository
     Task<AlertasSnapshot> GetAlertasAsync(CancellationToken ct = default);
     Task<IReadOnlyList<MesFinanceiroRow>> GetTendenciaAsync(int mesesAtras, CancellationToken ct = default);
     Task<IReadOnlyList<ReparacaoTopRow>> GetTopReparacoesAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default);
+    Task<int> GetReparacoesCountAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+    Task<ReparacoesEmGarantiaSnapshot> GetReparacoesEmGarantiaAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default);
 }
+
+public sealed record ReparacoesEmGarantiaSnapshot(
+    int Total,
+    int ValorOrcamentoCents,
+    IReadOnlyList<ReparacaoEmGarantiaRow> Items);
+
+public sealed record ReparacaoEmGarantiaRow(
+    Guid ReparacaoId,
+    int ReparacaoNumero,
+    DateTime RecebidoEm,
+    string Equipamento,
+    string Imei,
+    bool Entregue,
+    int? OrcamentoCents,
+    Guid VendaId,
+    int VendaNumero,
+    DateTime VendaData,
+    string? ClienteNome);
 
 public sealed record DashboardSnapshot(
     int ReceitaCentsMes,

@@ -69,13 +69,28 @@ public sealed record ReparacaoDto(
     string? InvoicePdfUrl,
     string? InvoiceNumber,
     DateTime? InvoiceEmittedAt,
+    string? EstimateExternalId,
+    string? EstimateNumber,
+    string? EstimatePdfUrl,
+    DateTime? EstimateEmittedAt,
     Guid? EquipmentFieldTemplateId,
     string? EquipmentFieldTemplateNome,
     IReadOnlyList<EquipmentFieldValueDto> Fields);
 
 public sealed record ReparacaoDetalhadaDto(
     ReparacaoDto Reparacao,
-    IReadOnlyList<EstadoLogDto> Timeline);
+    IReadOnlyList<EstadoLogDto> Timeline,
+    /// <summary>Sprint 87: venda anterior cujo IMEI bate (se aplicável) — para fluxo "reparação em garantia".</summary>
+    ReparacaoVendaOrigemDto? VendaOrigem);
+
+public sealed record ReparacaoVendaOrigemDto(
+    Guid VendaId,
+    int VendaNumero,
+    DateTime VendaData,
+    string? GarantiaSlug,
+    bool GarantiaActiva,
+    int DiasRestantesGarantia,
+    int DiasEntreVendaEReparacao);
 
 public sealed record ReparacaoHistoricoItem(
     Guid Id,

@@ -4,6 +4,8 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.Billing;
+using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.EquipmentFields;
 using RepairDesk.Services.Push;
@@ -16,6 +18,8 @@ public interface IReparacaoService
     Task<PagedResult<ReparacaoDto>> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default);
     Task<IReadOnlyList<ReparacaoDto>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default);
     Task<ReparacaoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
+    Task<ReparacaoDto> EmitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default);
+    Task<ReparacaoDto> ConverterOrcamentoEmFaturaAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default);
     Task<ReparacaoDto> UpdateAsync(Guid id, UpdateReparacaoRequest req, CancellationToken ct = default);
@@ -34,13 +38,16 @@ public class ReparacaoService : IReparacaoService
     private readonly IClienteRepository _clientes;
     private readonly IDespesaRepository _despesas;
     private readonly IGarantiaRepository _garantias;
+    private readonly IVendaRepository _vendas;
     private readonly ITenantRepository _tenants;
     private readonly IEquipmentFieldService _equipmentFields;
     private readonly IPushNotificationQueue _pushQueue;
     private readonly ITenantContext _tenant;
     private readonly ICurrentUser _user;
     private readonly ITenantBillingSettingsRepository _billingSettings;
-    private readonly RepairDesk.Services.Billing.IMoloniClient _moloni;
+    private readonly IMoloniClient _moloni;
+    private readonly IInvoiceXpressClient _invoiceXpress;
+    private readonly IAuditLogger _audit;
     private readonly IValidator<CreateReparacaoRequest> _createV;
     private readonly IValidator<UpdateReparacaoRequest> _updateV;
     private readonly IValidator<ChangeEstadoRequest> _estadoV;
@@ -50,13 +57,16 @@ public class ReparacaoService : IReparacaoService
         IClienteRepository clientes,
         IDespesaRepository despesas,
         IGarantiaRepository garantias,
+        IVendaRepository vendas,
         ITenantRepository tenants,
         IEquipmentFieldService equipmentFields,
         IPushNotificationQueue pushQueue,
         ITenantContext tenant,
         ICurrentUser user,
         ITenantBillingSettingsRepository billingSettings,
-        RepairDesk.Services.Billing.IMoloniClient moloni,
+        IMoloniClient moloni,
+        IInvoiceXpressClient invoiceXpress,
+        IAuditLogger audit,
         IValidator<CreateReparacaoRequest> createV,
         IValidator<UpdateReparacaoRequest> updateV,
         IValidator<ChangeEstadoRequest> estadoV)
@@ -65,6 +75,7 @@ public class ReparacaoService : IReparacaoService
         _clientes = clientes;
         _despesas = despesas;
         _garantias = garantias;
+        _vendas = vendas;
         _tenants = tenants;
         _equipmentFields = equipmentFields;
         _pushQueue = pushQueue;
@@ -72,6 +83,8 @@ public class ReparacaoService : IReparacaoService
         _user = user;
         _billingSettings = billingSettings;
         _moloni = moloni;
+        _invoiceXpress = invoiceXpress;
+        _audit = audit;
         _createV = createV;
         _updateV = updateV;
         _estadoV = estadoV;
@@ -143,6 +156,33 @@ public class ReparacaoService : IReparacaoService
                     ), ct);
                 }
             }
+            else if (settings?.Provider == BillingProvider.InvoiceXpress && rep.InvoiceProvider == BillingProvider.InvoiceXpress)
+            {
+                rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
+                var reason = $"Anulado via RepairDesk - reparacao #{rep.Numero}";
+                var cancelled = await _invoiceXpress.CancelDocumentAsync(settings, rep.InvoiceExternalId, reason, ct);
+
+                if (!cancelled)
+                {
+                    var valor = rep.PrecoFinalCents ?? rep.OrcamentoCents ?? 0;
+                    var items = new List<InvoiceXpressInvoiceDraftItem>
+                    {
+                        new($"Reparacao {rep.Equipamento}", rep.Avaria, 1, valor, 0, 23m),
+                    };
+
+                    await _invoiceXpress.InsertCreditNoteAsync(settings, new InvoiceXpressCreditNoteDraft(
+                        rep.InvoiceExternalId,
+                        new InvoiceXpressClientDraft(
+                            string.IsNullOrWhiteSpace(rep.Cliente?.Nome) ? "Consumidor Final" : rep.Cliente.Nome,
+                            rep.Cliente?.Email,
+                            rep.Cliente?.Nif,
+                            rep.Cliente?.Telefone),
+                        $"Reparacao #{rep.Numero}",
+                        items,
+                        $"Anulacao da Fatura {rep.InvoiceNumber} via RepairDesk"
+                    ), ct);
+                }
+            }
         }
 
         rep.InvoiceProvider = BillingProvider.None;
@@ -156,6 +196,82 @@ public class ReparacaoService : IReparacaoService
         return ToDto(rep, custoFinal);
     }
 
+    public async Task<ReparacaoDto> EmitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default)
+    {
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+        if (!string.IsNullOrWhiteSpace(rep.EstimateExternalId))
+        {
+            var custoExistente = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+            return ToDto(rep, custoExistente);
+        }
+
+        var settings = await RequireMoloniSettingsAsync(ct);
+        var tenant = await RequireTenantAsync(ct);
+        rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
+        var customerId = await ResolveCustomerIdAsync(settings, rep.Cliente, ct);
+        var amount = RequireAmount(rep.OrcamentoCents ?? rep.PrecoFinalCents);
+        var vat = tenant.RegimeFiscal == RegimeFiscal.IsentoArt53 ? 0m : 23m;
+
+        var estimate = await _moloni.InsertEstimateAsync(settings, new MoloniInvoiceDraft(
+            customerId,
+            $"Reparacao #{rep.Numero}",
+            $"Reparacao {rep.Equipamento}",
+            rep.Avaria,
+            amount,
+            vat,
+            null),
+            ct);
+
+        rep.EstimateExternalId = estimate.ExternalId;
+        rep.EstimateNumber = estimate.Number;
+        rep.EstimatePdfUrl = estimate.PdfUrl;
+        rep.EstimateEmittedAt = estimate.EmittedAt;
+        await _repo.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Reparacao), rep.Id, new
+        {
+            operation = "emit_moloni_estimate",
+            estimate.ExternalId,
+            estimate.Number,
+        }, ct: ct);
+
+        var custo = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+        return ToDto(rep, custo);
+    }
+
+    public async Task<ReparacaoDto> ConverterOrcamentoEmFaturaAsync(Guid id, CancellationToken ct = default)
+    {
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+        if (string.IsNullOrWhiteSpace(rep.EstimateExternalId))
+            throw new ConflictException("reparacao_sem_orcamento_moloni", "Esta reparacao nao tem orçamento Moloni emitido.");
+        if (!string.IsNullOrWhiteSpace(rep.InvoiceExternalId))
+        {
+            var custoExistente = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+            return ToDto(rep, custoExistente);
+        }
+        if (!int.TryParse(rep.EstimateExternalId, out var estimateId))
+            throw new RepairDesk.Core.Exceptions.ValidationException("moloni_estimate_id_invalid", "ID do orçamento Moloni inválido.");
+
+        var settings = await RequireMoloniSettingsAsync(ct);
+        var invoice = await _moloni.ConvertEstimateToInvoiceAsync(settings, estimateId, ct: ct);
+
+        rep.InvoiceProvider = BillingProvider.Moloni;
+        rep.InvoiceExternalId = invoice.ExternalId;
+        rep.InvoiceNumber = invoice.Number;
+        rep.InvoicePdfUrl = invoice.PdfUrl;
+        rep.InvoiceEmittedAt = invoice.EmittedAt;
+        await _repo.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Reparacao), rep.Id, new
+        {
+            operation = "convert_moloni_estimate_to_invoice",
+            estimateId = rep.EstimateExternalId,
+            invoice.ExternalId,
+            invoice.Number,
+        }, ct: ct);
+
+        var custo = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+        return ToDto(rep, custo);
+    }
+
     public async Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default)
     {
         var r = await _repo.FindByIdWithTimelineAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
@@ -165,7 +281,38 @@ public class ReparacaoService : IReparacaoService
             .ToList();
         var custo = await _despesas.SumByReparacaoAsync(r.Id, ct);
         var fields = await _equipmentFields.GetValuesAsync(r.Id, visibleInPortalOnly: false, ct);
-        return new ReparacaoDetalhadaDto(ToDto(r, custo, fields), timeline);
+
+        // Sprint 87: se IMEI bate venda anterior, anexa info para banner "em garantia"
+        var vendaOrigem = await ResolveVendaOrigemAsync(r, ct);
+
+        return new ReparacaoDetalhadaDto(ToDto(r, custo, fields), timeline, vendaOrigem);
+    }
+
+    private async Task<ReparacaoVendaOrigemDto?> ResolveVendaOrigemAsync(Reparacao r, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(r.Imei)) return null;
+        var vendaRow = await _vendas.FindVendaByImeiAsync(r.Imei, ct);
+        if (vendaRow is null || vendaRow.Data >= r.CreatedAt) return null;
+
+        var garantia = await _garantias.FindByVendaAsync(vendaRow.VendaId, ct);
+        var agora = DateTime.UtcNow;
+        var activa = garantia is not null
+            && !garantia.Anulada
+            && agora >= garantia.DataInicio
+            && agora <= garantia.DataFim;
+        var diasRestantes = garantia is null
+            ? 0
+            : (int)Math.Max(0, (garantia.DataFim - agora).TotalDays);
+        var diasEntre = (int)Math.Round((r.CreatedAt - vendaRow.Data).TotalDays);
+
+        return new ReparacaoVendaOrigemDto(
+            vendaRow.VendaId,
+            vendaRow.Numero,
+            vendaRow.Data,
+            garantia?.Slug,
+            activa,
+            diasRestantes,
+            diasEntre);
     }
 
     public async Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default)
@@ -313,6 +460,7 @@ public class ReparacaoService : IReparacaoService
         var g = new Garantia
         {
             ReparacaoId = rep.Id,
+            SourceType = GarantiaSourceType.Reparacao,
             Slug = PublicSlugGenerator.New(),
             DataInicio = agora,
             DataFim = agora.AddDays(dias),
@@ -663,6 +811,13 @@ public class ReparacaoService : IReparacaoService
         return string.IsNullOrEmpty(clean) ? null : clean;
     }
 
+    private static InvoiceXpressClientDraft ToInvoiceXpressClientDraft(Cliente? cliente)
+        => new(
+            string.IsNullOrWhiteSpace(cliente?.Nome) ? "Consumidor Final" : cliente.Nome,
+            cliente?.Email,
+            cliente?.Nif,
+            cliente?.Telefone);
+
     private static bool IsValidTransition(RepairStatus from, RepairStatus to)
     {
         // Workflow granular (Sprint 17):
@@ -695,6 +850,61 @@ public class ReparacaoService : IReparacaoService
         };
     }
 
+    private async Task<TenantBillingSettings> RequireMoloniSettingsAsync(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new RepairDesk.Core.Exceptions.ValidationException("no_tenant_context", "Sem contexto de tenant.");
+        var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
+        if (settings is null || settings.Provider != BillingProvider.Moloni)
+            throw new RepairDesk.Core.Exceptions.ValidationException("billing_provider_not_moloni", "Configura Moloni em Definicoes > Faturacao.");
+        return settings;
+    }
+
+    private async Task<Tenant> RequireTenantAsync(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new RepairDesk.Core.Exceptions.ValidationException("no_tenant_context", "Sem contexto de tenant.");
+        return await _tenants.FindByIdAsync(tenantId, ct)
+            ?? throw new NotFoundException("Tenant", tenantId);
+    }
+
+    private async Task<int> ResolveCustomerIdAsync(TenantBillingSettings settings, Cliente? cliente, CancellationToken ct)
+    {
+        // 1. Se tem NIF, tenta encontrar na Moloni.
+        if (!string.IsNullOrWhiteSpace(cliente?.Nif))
+        {
+            var id = await _moloni.FindCustomerIdByVatAsync(settings, cliente.Nif, ct);
+            if (id is > 0) return id.Value;
+
+            // 2. Não encontrado mas tem nome + NIF: cria automaticamente na Moloni.
+            //    Sprint 65 fix: orçamento/fatura para cliente novo não falha mais por falta de ficha.
+            if (!string.IsNullOrWhiteSpace(cliente.Nome))
+            {
+                var nome = cliente.Nome.Trim();
+                if (nome.Length > 0)
+                {
+                    var created = await _moloni.InsertCustomerAsync(settings, nome, cliente.Nif.Trim(), ct);
+                    if (created.Id > 0) return created.Id;
+                }
+            }
+        }
+
+        // 3. Sem NIF (ou criação falhou): fallback (típicamente "Consumidor Final" 999999990).
+        if (settings.FallbackCustomerId is > 0)
+            return settings.FallbackCustomerId.Value;
+
+        throw new RepairDesk.Core.Exceptions.ValidationException(
+            "moloni_customer_missing",
+            "Cliente sem NIF e sem FallbackCustomerId configurado. Liga Moloni nas Definições (auto-discovery cria 'Consumidor Final').");
+    }
+
+    private static int RequireAmount(int? amountCents)
+    {
+        if (amountCents is null or <= 0)
+            throw new RepairDesk.Core.Exceptions.ValidationException("estimate_amount_missing", "Define um valor de orçamento antes de emitir.");
+        return amountCents.Value;
+    }
+
     private static ReparacaoDto ToDto(Reparacao r, int custoDespesasCents, IReadOnlyList<EquipmentFieldValueDto>? fields = null)
     {
         var receita = r.PrecoFinalCents ?? 0;
@@ -716,6 +926,10 @@ public class ReparacaoService : IReparacaoService
             r.InvoicePdfUrl,
             r.InvoiceNumber,
             r.InvoiceEmittedAt,
+            r.EstimateExternalId,
+            r.EstimateNumber,
+            r.EstimatePdfUrl,
+            r.EstimateEmittedAt,
             r.EquipmentFieldTemplateId,
             r.EquipmentFieldTemplate?.Nome,
             fields ?? Array.Empty<EquipmentFieldValueDto>());

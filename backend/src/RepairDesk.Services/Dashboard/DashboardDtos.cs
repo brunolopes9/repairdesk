@@ -97,6 +97,43 @@ public sealed record MesFinanceiro(
 public sealed record TopReparacoesResponse(
     IReadOnlyList<ReparacaoTop> Items);
 
+public sealed record GarantiasResumoResponse(
+    int Activas,
+    int ExpiramEm30Dias,
+    int ExpiraramHoje,
+    int Anuladas,
+    IReadOnlyList<GarantiaProximaExpirarDto> ProximasAExpirar);
+
+public sealed record ReparacoesEmGarantiaResponse(
+    int TotalReparacoes,
+    int TotalEntregues,
+    int TotalPorcento,  // % do total de reparações no período
+    int ValorOrcamentoCents,  // soma orçamentos das reparações em garantia interna
+    IReadOnlyList<ReparacaoEmGarantiaDto> Itens);
+
+public sealed record ReparacaoEmGarantiaDto(
+    Guid ReparacaoId,
+    int ReparacaoNumero,
+    DateTime RecebidoEm,
+    string Equipamento,
+    string Imei,
+    Guid VendaId,
+    int VendaNumero,
+    DateTime VendaData,
+    string? ClienteNome,
+    int? OrcamentoCents);
+
+public sealed record GarantiaProximaExpirarDto(
+    Guid Id,
+    string Slug,
+    DateTime DataFim,
+    int DiasRestantes,
+    string Origem,
+    string? DocumentoReferencia,
+    string? EquipamentoOuArtigo,
+    string? ClienteNome,
+    string? ClienteTelefone);
+
 public sealed record ReparacaoTop(
     Guid Id,
     int Numero,

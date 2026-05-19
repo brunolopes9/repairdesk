@@ -40,6 +40,11 @@ public class Reparacao : BaseEntity, ITenantEntity
     public string? InvoiceNumber { get; set; }
     public DateTime? InvoiceEmittedAt { get; set; }
 
+    public string? EstimateExternalId { get; set; }
+    public string? EstimateNumber { get; set; }
+    public string? EstimatePdfUrl { get; set; }
+    public DateTime? EstimateEmittedAt { get; set; }
+
     /// <summary>
     /// Slug curto, único, alfanumérico (~8 chars) para portal cliente público.
     /// Gerado no Create. Usado em URLs /r/{slug} sem autenticação.

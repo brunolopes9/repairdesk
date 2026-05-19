@@ -7,6 +7,7 @@ public interface IPartRepository
 {
     Task<Part?> FindByIdAsync(Guid id, CancellationToken ct = default);
     Task<Part?> FindByIdWithMovimentosAsync(Guid id, CancellationToken ct = default);
+    Task<Part?> FindBySkuAsync(string sku, CancellationToken ct = default);
     Task<bool> SkuExistsAsync(string sku, Guid? exceptId = null, CancellationToken ct = default);
     Task<(IReadOnlyList<Part> Items, int Total)> SearchAsync(
         string? query,

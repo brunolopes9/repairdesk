@@ -19,6 +19,9 @@ public class PartRepository : IPartRepository
             .Include(p => p.Movimentos.OrderByDescending(m => m.CreatedAt))
             .FirstOrDefaultAsync(p => p.Id == id, ct);
 
+    public Task<Part?> FindBySkuAsync(string sku, CancellationToken ct = default)
+        => _db.Parts.FirstOrDefaultAsync(p => p.Sku == sku, ct);
+
     public Task<bool> SkuExistsAsync(string sku, Guid? exceptId = null, CancellationToken ct = default)
         => _db.Parts.AnyAsync(p => p.Sku == sku && (exceptId == null || p.Id != exceptId), ct);
 

@@ -60,6 +60,40 @@ public class ClientesApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task LookupOrCreate_NifExists_ReturnsExistingClient()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var nif = "504000004";  // NIF com check-digit válido
+        var first = await client.PostAsJsonAsync("/api/clientes",
+            new CreateClienteRequest("Original", "912100001", null, nif, null));
+        first.EnsureSuccessStatusCode();
+        var originalId = (await first.Content.ReadFromJsonAsync<ClienteDto>())!.Id;
+
+        var resp = await client.PostAsJsonAsync("/api/clientes/lookup-or-create",
+            new CreateClienteRequest("Outro Nome", "912999999", null, nif, null));
+        resp.EnsureSuccessStatusCode();
+        var body = await resp.Content.ReadFromJsonAsync<LookupOrCreateClienteResponse>();
+        body!.Created.Should().BeFalse();
+        body.Cliente.Id.Should().Be(originalId);
+        body.Cliente.Nome.Should().Be("Original");  // não deve sobrescrever
+    }
+
+    [Fact]
+    public async Task LookupOrCreate_NewNif_CreatesAndFlagsCreatedTrue()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var nif = "506000001";  // NIF com check-digit válido
+
+        var resp = await client.PostAsJsonAsync("/api/clientes/lookup-or-create",
+            new CreateClienteRequest("Novo", "912100002", null, nif, null));
+        resp.EnsureSuccessStatusCode();
+        var body = await resp.Content.ReadFromJsonAsync<LookupOrCreateClienteResponse>();
+        body!.Created.Should().BeTrue();
+        body.Cliente.Nome.Should().Be("Novo");
+        body.Cliente.Nif.Should().Be(nif);
+    }
+
+    [Fact]
     public async Task Update_ChangesFields()
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);

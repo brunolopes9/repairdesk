@@ -45,7 +45,7 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
             .ToListAsync(ct);
 
         var garantias = await _db.Garantias.AsNoTracking()
-            .Where(g => reparacaoIds.Contains(g.ReparacaoId))
+            .Where(g => (g.ReparacaoId != null && reparacaoIds.Contains(g.ReparacaoId.Value)))
             .OrderBy(g => g.DataInicio)
             .ToListAsync(ct);
 
@@ -54,9 +54,19 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
             .OrderBy(a => a.CreatedAt)
             .ToListAsync(ct);
 
+        var vendas = await _db.Vendas.AsNoTracking()
+            .Include(v => v.Items)
+                .ThenInclude(i => i.Part)
+            .Where(v => v.ClienteId == clienteId)
+            .OrderBy(v => v.Numero)
+            .ToListAsync(ct);
+        var vendaIds = vendas.Select(v => v.Id).ToArray();
+
         var partMovimentos = await _db.PartMovimentos.AsNoTracking()
             .Include(m => m.Part)
-            .Where(m => m.ReparacaoId != null && reparacaoIds.Contains(m.ReparacaoId.Value))
+            .Where(m =>
+                (m.ReparacaoId != null && reparacaoIds.Contains(m.ReparacaoId.Value)) ||
+                (m.VendaId != null && vendaIds.Contains(m.VendaId.Value)))
             .OrderBy(m => m.CreatedAt)
             .ToListAsync(ct);
 
@@ -69,14 +79,16 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
                 .Concat(fotos.Select(f => f.Id))
                 .Concat(garantias.Select(g => g.Id))
                 .Concat(avaliacoes.Select(a => a.Id))
-                .Concat(partMovimentos.Select(m => m.Id)));
+                .Concat(partMovimentos.Select(m => m.Id))
+                .Concat(vendaIds)
+                .Concat(vendas.SelectMany(v => v.Items).Select(i => i.Id)));
 
         var audit = await _db.AuditEntries.AsNoTracking()
             .Where(a => a.EntityId != null && relatedIds.Contains(a.EntityId.Value))
             .OrderBy(a => a.CreatedAt)
             .ToListAsync(ct);
 
-        return new ClienteRgpdData(cliente, reparacoes, timeline, trabalhos, despesas, fotos, garantias, avaliacoes, partMovimentos, audit);
+        return new ClienteRgpdData(cliente, reparacoes, timeline, trabalhos, despesas, fotos, garantias, avaliacoes, partMovimentos, vendas, audit);
     }
 
     public async Task HardDeleteAsync(ClienteRgpdData data, CancellationToken ct = default)
@@ -86,12 +98,21 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
         var reparacaoIds = data.Reparacoes.Select(r => r.Id).ToArray();
         var trabalhoIds = data.Trabalhos.Select(t => t.Id).ToArray();
 
+        var vendas = await _db.Vendas.Include(v => v.Items)
+            .Where(v => v.ClienteId == data.Cliente.Id).ToListAsync(ct);
+        var vendaIds = vendas.Select(v => v.Id).ToArray();
+        var vendaItems = vendas.SelectMany(v => v.Items).ToList();
+
         var fotos = await _db.ReparacaoFotos.Where(f => reparacaoIds.Contains(f.ReparacaoId)).ToListAsync(ct);
-        var partMovimentos = await _db.PartMovimentos.Where(m => m.ReparacaoId != null && reparacaoIds.Contains(m.ReparacaoId.Value)).ToListAsync(ct);
+        var partMovimentos = await _db.PartMovimentos.Where(m =>
+            (m.ReparacaoId != null && reparacaoIds.Contains(m.ReparacaoId.Value)) ||
+            (m.VendaId != null && vendaIds.Contains(m.VendaId.Value))).ToListAsync(ct);
         var despesas = await _db.Despesas.Where(d =>
             (d.ReparacaoId != null && reparacaoIds.Contains(d.ReparacaoId.Value)) ||
             (d.TrabalhoId != null && trabalhoIds.Contains(d.TrabalhoId.Value))).ToListAsync(ct);
-        var garantias = await _db.Garantias.Where(g => reparacaoIds.Contains(g.ReparacaoId)).ToListAsync(ct);
+        var garantias = await _db.Garantias.Where(g =>
+            (g.ReparacaoId != null && reparacaoIds.Contains(g.ReparacaoId.Value)) ||
+            (g.VendaId != null && vendaIds.Contains(g.VendaId.Value))).ToListAsync(ct);
         var avaliacoes = await _db.Avaliacoes.Where(a => reparacaoIds.Contains(a.ReparacaoId)).ToListAsync(ct);
         var timeline = await _db.ReparacaoEstadoLogs.Where(t => reparacaoIds.Contains(t.ReparacaoId)).ToListAsync(ct);
         var reparacoes = await _db.Reparacoes.Where(r => r.ClienteId == data.Cliente.Id).ToListAsync(ct);
@@ -107,7 +128,9 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
                 .Concat(fotos.Select(f => f.Id))
                 .Concat(garantias.Select(g => g.Id))
                 .Concat(avaliacoes.Select(a => a.Id))
-                .Concat(partMovimentos.Select(m => m.Id)));
+                .Concat(partMovimentos.Select(m => m.Id))
+                .Concat(vendaIds)
+                .Concat(vendaItems.Select(i => i.Id)));
         var auditEntries = await _db.AuditEntries
             .Where(a => a.EntityId != null && relatedIds.Contains(a.EntityId.Value))
             .ToListAsync(ct);
@@ -119,6 +142,8 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
         _db.Garantias.RemoveRange(garantias);
         _db.Avaliacoes.RemoveRange(avaliacoes);
         _db.ReparacaoEstadoLogs.RemoveRange(timeline);
+        _db.VendaItems.RemoveRange(vendaItems);
+        _db.Vendas.RemoveRange(vendas);
         _db.Reparacoes.RemoveRange(reparacoes);
         _db.Trabalhos.RemoveRange(trabalhos);
         _db.Clientes.Remove(cliente);

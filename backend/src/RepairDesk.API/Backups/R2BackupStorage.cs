@@ -8,6 +8,7 @@ public interface IBackupRemoteStorage
 {
     bool IsConfigured { get; }
     Task<string> UploadAsync(string localPath, string fileName, BackupR2Options options, CancellationToken ct = default);
+    Task DownloadAsync(string r2Key, string destinationPath, BackupR2Options options, CancellationToken ct = default);
     Task<IReadOnlyList<BackupFileDto>> ListAsync(BackupR2Options options, CancellationToken ct = default);
 }
 
@@ -45,6 +46,22 @@ public sealed class R2BackupStorage : IBackupRemoteStorage, IDisposable
         return key;
     }
 
+    public async Task DownloadAsync(string r2Key, string destinationPath, BackupR2Options options, CancellationToken ct = default)
+    {
+        if (!options.IsConfigured)
+            throw new InvalidOperationException("R2 backup storage is not configured.");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        var response = await GetClient(options).GetObjectAsync(new GetObjectRequest
+        {
+            BucketName = options.Bucket,
+            Key = r2Key,
+        }, ct);
+
+        await using var output = File.Create(destinationPath);
+        await response.ResponseStream.CopyToAsync(output, ct);
+    }
+
     public async Task<IReadOnlyList<BackupFileDto>> ListAsync(BackupR2Options options, CancellationToken ct = default)
     {
         if (!options.IsConfigured)
@@ -66,14 +83,22 @@ public sealed class R2BackupStorage : IBackupRemoteStorage, IDisposable
 
             results.AddRange(response.S3Objects
                 .Where(o => o.Key.EndsWith(".bak", StringComparison.OrdinalIgnoreCase))
-                .Select(o => new BackupFileDto(
-                    Path.GetFileName(o.Key),
-                    BackupLocation.R2,
-                    o.LastModified.GetValueOrDefault(DateTime.UtcNow),
-                    o.Size.GetValueOrDefault(),
-                    "available",
-                    null,
-                    o.Key)));
+                .Select(o =>
+                {
+                    var fileName = Path.GetFileName(o.Key);
+                    var timestamp = GetBackupTimestamp(fileName, o.LastModified.GetValueOrDefault(DateTime.UtcNow));
+                    return new BackupFileDto(
+                        BackupId.For(BackupLocation.R2, o.Key),
+                        fileName,
+                        BackupLocation.R2,
+                        timestamp,
+                        o.Size.GetValueOrDefault(),
+                        "OK",
+                        GetAgeHours(timestamp),
+                        null,
+                        null,
+                        o.Key);
+                }));
 
             token = response.IsTruncated == true ? response.NextContinuationToken : null;
         }
@@ -107,4 +132,26 @@ public sealed class R2BackupStorage : IBackupRemoteStorage, IDisposable
         _clientFingerprint = fingerprint;
         return _client.Value;
     }
+
+    private static DateTimeOffset GetBackupTimestamp(string fileName, DateTime fallback)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        const string prefix = "repairdesk-";
+        if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var stamp = name[prefix.Length..];
+            if (DateTimeOffset.TryParseExact(
+                    stamp,
+                    "yyyyMMdd-HHmm",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal,
+                    out var parsed))
+                return parsed.ToUniversalTime();
+        }
+
+        return new DateTimeOffset(DateTime.SpecifyKind(fallback, DateTimeKind.Utc));
+    }
+
+    private static double GetAgeHours(DateTimeOffset timestamp) =>
+        Math.Max(0, (DateTimeOffset.UtcNow - timestamp.ToUniversalTime()).TotalHours);
 }

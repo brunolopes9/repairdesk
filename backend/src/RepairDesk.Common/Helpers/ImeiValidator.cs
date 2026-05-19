@@ -32,6 +32,17 @@ public static class ImeiValidator
         return true;
     }
 
+    /// <summary>
+    /// Mascarado para audit logs e UI quando IMEI não deve ser exposto inteiro.
+    /// Mantém os primeiros 3 dígitos (TAC manufacturer) e os últimos 4, mascara o meio.
+    /// </summary>
+    public static string Mask(string? imei)
+    {
+        var clean = Normalize(imei);
+        if (clean.Length < 8) return "***";
+        return clean[..3] + new string('X', clean.Length - 7) + clean[^4..];
+    }
+
     /// <summary>Aplica algoritmo Luhn a uma string de dígitos.</summary>
     public static bool LuhnCheck(string digits)
     {

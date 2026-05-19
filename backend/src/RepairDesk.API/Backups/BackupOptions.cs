@@ -9,6 +9,7 @@ public sealed class BackupOptions
     public bool Enabled { get; init; }
     public string CronSchedule { get; init; } = "0 3 * * *";
     public int RetentionDays { get; init; } = 30;
+    public int R2RetentionDays { get; init; } = 90;
     public string LocalPath { get; init; } = "/backups";
     public string DatabaseName { get; init; } = "RepairDesk";
     public BackupR2Options R2 { get; init; } = new();
@@ -23,6 +24,7 @@ public sealed class BackupOptions
             Enabled = section.GetValue("Enabled", false),
             CronSchedule = section["CronSchedule"] ?? "0 3 * * *",
             RetentionDays = section.GetValue("RetentionDays", 30),
+            R2RetentionDays = section.GetValue("R2RetentionDays", 90),
             LocalPath = section["LocalPath"] ?? "/backups",
             DatabaseName = section["DatabaseName"] ?? TryGetDatabaseName(connectionString) ?? "RepairDesk",
             R2 = BackupR2Options.FromConfiguration(configuration),
@@ -35,6 +37,9 @@ public sealed class BackupOptions
 
         if (RetentionDays < 1)
             errors.Add("Backup:RetentionDays must be >= 1.");
+
+        if (R2RetentionDays < 1)
+            errors.Add("Backup:R2RetentionDays must be >= 1.");
 
         if (string.IsNullOrWhiteSpace(LocalPath))
             errors.Add("Backup:LocalPath is required.");

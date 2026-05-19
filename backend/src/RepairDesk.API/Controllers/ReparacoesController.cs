@@ -72,6 +72,14 @@ public class ReparacoesController : ControllerBase
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
         => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);
 
+    [HttpPost("{id:guid}/emitir-orcamento-moloni")]
+    public Task<ReparacaoDto> EmitirOrcamentoMoloni(Guid id, CancellationToken ct)
+        => _service.EmitirOrcamentoMoloniAsync(id, ct);
+
+    [HttpPost("{id:guid}/converter-orcamento-fatura")]
+    public Task<ReparacaoDto> ConverterOrcamentoEmFatura(Guid id, CancellationToken ct)
+        => _service.ConverterOrcamentoEmFaturaAsync(id, ct);
+
     /// <summary>Emite Nota de Credito no Moloni para anular a fatura desta reparacao + limpa referencias locais.</summary>
     [HttpPost("{id:guid}/anular-fatura")]
     public Task<ReparacaoDto> AnularFatura(Guid id, CancellationToken ct)

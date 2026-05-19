@@ -1,4 +1,5 @@
 using System.Globalization;
+using QRCoder;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -9,7 +10,7 @@ namespace RepairDesk.Services.Documents;
 
 public interface IVendaPdfService
 {
-    Task<(byte[] Pdf, string Filename)> ForVendaAsync(Guid vendaId, CancellationToken ct = default);
+    Task<(byte[] Pdf, string Filename)> ForVendaAsync(Guid vendaId, string? portalBaseUrl = null, CancellationToken ct = default);
 }
 
 public class VendaPdfService : IVendaPdfService
@@ -18,19 +19,32 @@ public class VendaPdfService : IVendaPdfService
     private readonly IVendaRepository _vendas;
     private readonly ITenantRepository _tenants;
     private readonly ITenantContext _tenantContext;
+    private readonly IGarantiaRepository _garantias;
 
-    public VendaPdfService(IVendaRepository vendas, ITenantRepository tenants, ITenantContext tenantContext)
+    public VendaPdfService(
+        IVendaRepository vendas,
+        ITenantRepository tenants,
+        ITenantContext tenantContext,
+        IGarantiaRepository garantias)
     {
         _vendas = vendas;
         _tenants = tenants;
         _tenantContext = tenantContext;
+        _garantias = garantias;
     }
 
-    public async Task<(byte[] Pdf, string Filename)> ForVendaAsync(Guid vendaId, CancellationToken ct = default)
+    public async Task<(byte[] Pdf, string Filename)> ForVendaAsync(Guid vendaId, string? portalBaseUrl = null, CancellationToken ct = default)
     {
         var venda = await _vendas.FindByIdWithItemsAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
         var tenant = _tenantContext.TenantId is { } tenantId
             ? await _tenants.FindByIdAsync(tenantId, ct)
+            : null;
+
+        // Sprint 81: se a venda tem garantia digital, gera QR + URL para o portal.
+        var baseUrl = string.IsNullOrWhiteSpace(portalBaseUrl) ? "https://app.lopestech.pt" : portalBaseUrl.TrimEnd('/');
+        var garantia = await _garantias.FindByVendaAsync(vendaId, ct);
+        var garantiaQrPng = garantia is not null && !garantia.Anulada
+            ? GenerateQrPng($"{baseUrl}/g/{garantia.Slug}")
             : null;
 
         var pdf = Document.Create(container =>
@@ -87,7 +101,22 @@ public class VendaPdfService : IVendaPdfService
 
                         foreach (var item in venda.Items)
                         {
-                            table.Cell().Padding(5).Text(item.Descricao);
+                            // Sprint 68: descrição mostra IMEI por baixo quando presente
+                            // (não-mascarado no recibo do cliente — é o documento dele).
+                            table.Cell().Padding(5).Column(desc =>
+                            {
+                                desc.Item().Text(item.Descricao);
+                                if (!string.IsNullOrEmpty(item.Imei))
+                                {
+                                    desc.Item().Text($"IMEI: {item.Imei}")
+                                        .FontSize(8).FontFamily("Courier").FontColor("#525252");
+                                }
+                                if (!string.IsNullOrEmpty(item.Imei2))
+                                {
+                                    desc.Item().Text($"IMEI 2: {item.Imei2}")
+                                        .FontSize(8).FontFamily("Courier").FontColor("#525252");
+                                }
+                            });
                             table.Cell().Padding(5).AlignRight().Text(item.Quantidade.ToString(PtPt));
                             table.Cell().Padding(5).AlignRight().Text($"{item.IvaRate:0.##}%");
                             table.Cell().Padding(5).AlignRight().Text(Money(item.PrecoUnitarioCents));
@@ -112,6 +141,28 @@ public class VendaPdfService : IVendaPdfService
                         col.Item().PaddingTop(10).Text($"Fatura: {venda.InvoiceNumber ?? venda.InvoiceExternalId}")
                             .FontSize(10).FontColor(Colors.Grey.Darken2);
                     }
+
+                    // Sprint 81: bloco garantia digital com QR code
+                    if (garantia is not null && garantiaQrPng is not null)
+                    {
+                        col.Item().PaddingTop(16).Border(1).BorderColor("#10b981").Background("#ecfdf5").Padding(12)
+                            .Row(grantia =>
+                            {
+                                grantia.RelativeItem().Column(info =>
+                                {
+                                    info.Item().Text("GARANTIA DIGITAL").FontSize(11).Bold().FontColor("#065f46");
+                                    info.Item().PaddingTop(2).Text($"Vigente até {garantia.DataFim.ToString("dd/MM/yyyy", PtPt)}")
+                                        .FontSize(10).FontColor("#065f46");
+                                    info.Item().PaddingTop(2).Text($"Período: {garantia.DiasGarantia} dias (DL 84/2021)")
+                                        .FontSize(8).FontColor(Colors.Grey.Darken2);
+                                    info.Item().PaddingTop(6).Text("Verifica a garantia em qualquer altura:")
+                                        .FontSize(8).FontColor(Colors.Grey.Darken1);
+                                    info.Item().Text($"{baseUrl}/g/{garantia.Slug}")
+                                        .FontSize(8).FontFamily("Courier").FontColor("#065f46");
+                                });
+                                grantia.ConstantItem(90).Image(garantiaQrPng).FitArea();
+                            });
+                    }
                 });
 
                 page.Footer().AlignCenter().Text($"{tenant?.Name ?? "RepairDesk"} - Gerado pelo RepairDesk").FontSize(7).FontColor(Colors.Grey.Lighten1);
@@ -125,4 +176,12 @@ public class VendaPdfService : IVendaPdfService
         => cell.BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text(text).FontSize(9).Bold();
 
     private static string Money(int cents) => (cents / 100m).ToString("C", PtPt);
+
+    private static byte[] GenerateQrPng(string text)
+    {
+        using var qrGenerator = new QRCodeGenerator();
+        var qrCodeData = qrGenerator.CreateQrCode(text, QRCodeGenerator.ECCLevel.M);
+        var qrCode = new PngByteQRCode(qrCodeData);
+        return qrCode.GetGraphic(8);
+    }
 }

@@ -3,6 +3,8 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.Billing;
+using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
 
 namespace RepairDesk.Services.Trabalhos;
@@ -16,6 +18,8 @@ public interface ITrabalhoService
     Task<TrabalhoDto> UpdateAsync(Guid id, UpdateTrabalhoRequest req, CancellationToken ct = default);
     Task<TrabalhoDto> ReabrirAsync(Guid id, CancellationToken ct = default);
     Task<TrabalhoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
+    Task<TrabalhoDto> EmitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default);
+    Task<TrabalhoDto> ConverterOrcamentoEmFaturaAsync(Guid id, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
@@ -26,7 +30,9 @@ public class TrabalhoService : ITrabalhoService
     private readonly IDespesaRepository _despesas;
     private readonly ITenantContext _tenant;
     private readonly ITenantBillingSettingsRepository _billingSettings;
-    private readonly RepairDesk.Services.Billing.IMoloniClient _moloni;
+    private readonly IMoloniClient _moloni;
+    private readonly IInvoiceXpressClient _invoiceXpress;
+    private readonly IAuditLogger _audit;
     private readonly IValidator<CreateTrabalhoRequest> _createV;
     private readonly IValidator<UpdateTrabalhoRequest> _updateV;
 
@@ -36,7 +42,9 @@ public class TrabalhoService : ITrabalhoService
         IDespesaRepository despesas,
         ITenantContext tenant,
         ITenantBillingSettingsRepository billingSettings,
-        RepairDesk.Services.Billing.IMoloniClient moloni,
+        IMoloniClient moloni,
+        IInvoiceXpressClient invoiceXpress,
+        IAuditLogger audit,
         IValidator<CreateTrabalhoRequest> createV,
         IValidator<UpdateTrabalhoRequest> updateV)
     {
@@ -46,6 +54,8 @@ public class TrabalhoService : ITrabalhoService
         _tenant = tenant;
         _billingSettings = billingSettings;
         _moloni = moloni;
+        _invoiceXpress = invoiceXpress;
+        _audit = audit;
         _createV = createV;
         _updateV = updateV;
     }
@@ -87,6 +97,29 @@ public class TrabalhoService : ITrabalhoService
                     ), ct);
                 }
             }
+            else if (settings?.Provider == BillingProvider.InvoiceXpress && t.InvoiceProvider == BillingProvider.InvoiceXpress)
+            {
+                if (t.ClienteId is not null) t.Cliente ??= await _clientes.FindByIdAsync(t.ClienteId.Value, ct);
+                var reason = $"Anulado via RepairDesk - trabalho #{t.Numero}";
+                var cancelled = await _invoiceXpress.CancelDocumentAsync(settings, t.InvoiceExternalId, reason, ct);
+
+                if (!cancelled)
+                {
+                    var valor = t.PrecoFinalCents ?? t.OrcamentoCents ?? 0;
+                    var items = new List<InvoiceXpressInvoiceDraftItem>
+                    {
+                        new(t.Titulo, t.Descricao, 1, valor, 0, 23m),
+                    };
+
+                    await _invoiceXpress.InsertCreditNoteAsync(settings, new InvoiceXpressCreditNoteDraft(
+                        t.InvoiceExternalId,
+                        ToInvoiceXpressClientDraft(t.Cliente),
+                        $"Trabalho #{t.Numero}",
+                        items,
+                        $"Anulacao da Fatura {t.InvoiceNumber} via RepairDesk"
+                    ), ct);
+                }
+            }
         }
 
         t.InvoiceProvider = BillingProvider.None;
@@ -96,6 +129,80 @@ public class TrabalhoService : ITrabalhoService
         t.InvoiceEmittedAt = null;
 
         await _repo.SaveAsync(ct);
+        var custo = await _despesas.SumByTrabalhoAsync(t.Id, ct);
+        return ToDto(t, custo);
+    }
+
+    public async Task<TrabalhoDto> EmitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default)
+    {
+        var t = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Trabalho", id);
+        if (!string.IsNullOrWhiteSpace(t.EstimateExternalId))
+        {
+            var custoExistente = await _despesas.SumByTrabalhoAsync(t.Id, ct);
+            return ToDto(t, custoExistente);
+        }
+
+        var settings = await RequireMoloniSettingsAsync(ct);
+        if (t.ClienteId is not null) t.Cliente ??= await _clientes.FindByIdAsync(t.ClienteId.Value, ct);
+        var customerId = await ResolveCustomerIdAsync(settings, t.Cliente, ct);
+        var amount = RequireAmount(t.OrcamentoCents ?? t.PrecoFinalCents);
+
+        var estimate = await _moloni.InsertEstimateAsync(settings, new MoloniInvoiceDraft(
+            customerId,
+            $"Trabalho #{t.Numero}",
+            t.Titulo,
+            t.Descricao,
+            amount,
+            23m,
+            null),
+            ct);
+
+        t.EstimateExternalId = estimate.ExternalId;
+        t.EstimateNumber = estimate.Number;
+        t.EstimatePdfUrl = estimate.PdfUrl;
+        t.EstimateEmittedAt = estimate.EmittedAt;
+        await _repo.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Trabalho), t.Id, new
+        {
+            operation = "emit_moloni_estimate",
+            estimate.ExternalId,
+            estimate.Number,
+        }, ct: ct);
+
+        var custo = await _despesas.SumByTrabalhoAsync(t.Id, ct);
+        return ToDto(t, custo);
+    }
+
+    public async Task<TrabalhoDto> ConverterOrcamentoEmFaturaAsync(Guid id, CancellationToken ct = default)
+    {
+        var t = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Trabalho", id);
+        if (string.IsNullOrWhiteSpace(t.EstimateExternalId))
+            throw new ConflictException("trabalho_sem_orcamento_moloni", "Este trabalho nao tem orçamento Moloni emitido.");
+        if (!string.IsNullOrWhiteSpace(t.InvoiceExternalId))
+        {
+            var custoExistente = await _despesas.SumByTrabalhoAsync(t.Id, ct);
+            return ToDto(t, custoExistente);
+        }
+        if (!int.TryParse(t.EstimateExternalId, out var estimateId))
+            throw new RepairDesk.Core.Exceptions.ValidationException("moloni_estimate_id_invalid", "ID do orçamento Moloni inválido.");
+
+        var settings = await RequireMoloniSettingsAsync(ct);
+        var invoice = await _moloni.ConvertEstimateToInvoiceAsync(settings, estimateId, ct: ct);
+
+        t.InvoiceProvider = BillingProvider.Moloni;
+        t.InvoiceExternalId = invoice.ExternalId;
+        t.InvoiceNumber = invoice.Number;
+        t.InvoicePdfUrl = invoice.PdfUrl;
+        t.InvoiceEmittedAt = invoice.EmittedAt;
+        await _repo.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Trabalho), t.Id, new
+        {
+            operation = "convert_moloni_estimate_to_invoice",
+            estimateId = t.EstimateExternalId,
+            invoice.ExternalId,
+            invoice.Number,
+        }, ct: ct);
+
         var custo = await _despesas.SumByTrabalhoAsync(t.Id, ct);
         return ToDto(t, custo);
     }
@@ -257,6 +364,57 @@ public class TrabalhoService : ITrabalhoService
             t.InvoiceExternalId,
             t.InvoicePdfUrl,
             t.InvoiceNumber,
-            t.InvoiceEmittedAt);
+            t.InvoiceEmittedAt,
+            t.EstimateExternalId,
+            t.EstimateNumber,
+            t.EstimatePdfUrl,
+            t.EstimateEmittedAt);
+    }
+
+    private static InvoiceXpressClientDraft ToInvoiceXpressClientDraft(Cliente? cliente)
+        => new(
+            string.IsNullOrWhiteSpace(cliente?.Nome) ? "Consumidor Final" : cliente.Nome,
+            cliente?.Email,
+            cliente?.Nif,
+            cliente?.Telefone);
+
+    private async Task<TenantBillingSettings> RequireMoloniSettingsAsync(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new RepairDesk.Core.Exceptions.ValidationException("no_tenant_context", "Sem contexto de tenant.");
+        var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
+        if (settings is null || settings.Provider != BillingProvider.Moloni)
+            throw new RepairDesk.Core.Exceptions.ValidationException("billing_provider_not_moloni", "Configura Moloni em Definicoes > Faturacao.");
+        return settings;
+    }
+
+    private async Task<int> ResolveCustomerIdAsync(TenantBillingSettings settings, Cliente? cliente, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(cliente?.Nif))
+        {
+            var id = await _moloni.FindCustomerIdByVatAsync(settings, cliente.Nif, ct);
+            if (id is > 0) return id.Value;
+
+            // Sprint 66: cliente novo (nunca facturado) — cria na Moloni automaticamente.
+            if (!string.IsNullOrWhiteSpace(cliente.Nome))
+            {
+                var created = await _moloni.InsertCustomerAsync(settings, cliente.Nome.Trim(), cliente.Nif.Trim(), ct);
+                if (created.Id > 0) return created.Id;
+            }
+        }
+
+        if (settings.FallbackCustomerId is > 0)
+            return settings.FallbackCustomerId.Value;
+
+        throw new RepairDesk.Core.Exceptions.ValidationException(
+            "moloni_customer_missing",
+            "Cliente sem NIF e sem FallbackCustomerId configurado. Liga Moloni nas Definições (auto-discovery cria 'Consumidor Final').");
+    }
+
+    private static int RequireAmount(int? amountCents)
+    {
+        if (amountCents is null or <= 0)
+            throw new RepairDesk.Core.Exceptions.ValidationException("estimate_amount_missing", "Define um valor de orçamento antes de emitir.");
+        return amountCents.Value;
     }
 }

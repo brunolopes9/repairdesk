@@ -1,3 +1,4 @@
+using RepairDesk.Common.Helpers;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
@@ -23,6 +24,7 @@ public class PublicPortalService : IPublicPortalService
     private readonly IAvaliacaoRepository _avaliacoes;
     private readonly IReparacaoFotoRepository _fotos;
     private readonly IEquipmentFieldService _equipmentFields;
+    private readonly IVendaRepository _vendas;
 
     public PublicPortalService(
         IReparacaoRepository repo,
@@ -31,7 +33,8 @@ public class PublicPortalService : IPublicPortalService
         IGarantiaRepository garantias,
         IAvaliacaoRepository avaliacoes,
         IReparacaoFotoRepository fotos,
-        IEquipmentFieldService equipmentFields)
+        IEquipmentFieldService equipmentFields,
+        IVendaRepository vendas)
     {
         _repo = repo;
         _tenants = tenants;
@@ -40,6 +43,7 @@ public class PublicPortalService : IPublicPortalService
         _avaliacoes = avaliacoes;
         _fotos = fotos;
         _equipmentFields = equipmentFields;
+        _vendas = vendas;
     }
 
     public async Task<PublicGarantiaDto> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default)
@@ -55,9 +59,40 @@ public class PublicPortalService : IPublicPortalService
         var diasRestantes = (int)Math.Max(0, (g.DataFim - agora).TotalDays);
         var activa = !g.Anulada && agora >= g.DataInicio && agora <= g.DataFim;
 
+        string equipamentoPublico;
+        string origem;
+        string? documentoRef;
+        string? numeroFatura;
+        IReadOnlyList<PublicGarantiaItemDto>? items;
+
+        if (g.SourceType == GarantiaSourceType.Venda && g.Venda is not null)
+        {
+            var primeiro = g.Venda.Items.FirstOrDefault();
+            equipamentoPublico = primeiro?.Descricao ?? "Artigos vendidos";
+            origem = "Venda";
+            documentoRef = $"Venda #{g.Venda.Numero:D5}";
+            numeroFatura = g.Venda.InvoiceNumber;
+            items = g.Venda.Items
+                .Select(i => new PublicGarantiaItemDto(
+                    i.Descricao,
+                    i.Quantidade,
+                    i.PrecoUnitarioCents,
+                    i.TotalCents,
+                    string.IsNullOrEmpty(i.Imei) ? null : ImeiValidator.Mask(i.Imei)))
+                .ToList();
+        }
+        else
+        {
+            equipamentoPublico = g.Reparacao?.Equipamento ?? "Equipamento";
+            origem = "Reparacao";
+            documentoRef = g.Reparacao is not null ? $"Reparação #{g.Reparacao.Numero:D5}" : null;
+            numeroFatura = null;
+            items = null;
+        }
+
         return new PublicGarantiaDto(
             Slug: g.Slug,
-            EquipamentoPublico: g.Reparacao?.Equipamento ?? "Equipamento",
+            EquipamentoPublico: equipamentoPublico,
             Loja: tenant?.LegalName ?? tenant?.Name ?? "Oficina",
             LogoUrl: tenant?.LogoUrl,
             DataInicio: g.DataInicio,
@@ -67,7 +102,13 @@ public class PublicPortalService : IPublicPortalService
             Anulada: g.Anulada,
             DiasRestantes: diasRestantes,
             Cobertura: g.Cobertura,
-            Exclusoes: g.Exclusoes);
+            Exclusoes: g.Exclusoes,
+            Origem: origem,
+            DocumentoReferencia: documentoRef,
+            NumeroFatura: numeroFatura,
+            Items: items,
+            LojaEmail: tenant?.Email,
+            LojaTelefone: tenant?.Phone);
     }
 
     public async Task<AvaliacaoSubmittedDto> SubmeterAvaliacaoAsync(string repairSlug, int score, string? comentario, bool publicarTestemunho, CancellationToken ct = default)
@@ -123,7 +164,32 @@ public class PublicPortalService : IPublicPortalService
         var avaliacao = await _avaliacoes.FindByReparacaoAsync(rep.Id, ct);
         var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
         var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos);
+        var cobertura = await ResolveCoberturaGarantiaAsync(rep, ct);
+        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura);
+    }
+
+    /// <summary>
+    /// Sprint 88: indica ao cliente se esta reparação está coberta pela garantia da venda
+    /// anterior do mesmo equipamento. Só expõe quando a garantia está activa.
+    /// </summary>
+    private async Task<PublicCoberturaGarantia?> ResolveCoberturaGarantiaAsync(Reparacao rep, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(rep.Imei)) return null;
+        var vendaRow = await _vendas.FindVendaByImeiAsync(rep.Imei, ct);
+        if (vendaRow is null || vendaRow.Data >= rep.CreatedAt) return null;
+
+        var garantiaVenda = await _garantias.FindByVendaAsync(vendaRow.VendaId, ct);
+        var agora = DateTime.UtcNow;
+        var activa = garantiaVenda is not null
+            && !garantiaVenda.Anulada
+            && agora >= garantiaVenda.DataInicio
+            && agora <= garantiaVenda.DataFim;
+        if (!activa || garantiaVenda is null) return null;
+
+        return new PublicCoberturaGarantia(
+            garantiaVenda.Slug,
+            garantiaVenda.DataFim,
+            (int)Math.Max(0, (garantiaVenda.DataFim - agora).TotalDays));
     }
 
     public async Task<PublicRepairDto> AprovarOrcamentoAsync(string slug, bool aceitar, CancellationToken ct = default)
@@ -150,7 +216,8 @@ public class PublicPortalService : IPublicPortalService
         var avaliacao = await _avaliacoes.FindByReparacaoAsync(rep.Id, ct);
         var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
         var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos);
+        var cobertura = await ResolveCoberturaGarantiaAsync(rep, ct);
+        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura);
     }
 
     private static PublicRepairDto ToDto(
@@ -160,7 +227,8 @@ public class PublicPortalService : IPublicPortalService
         Garantia? garantia,
         bool jaAvaliado,
         IReadOnlyList<ReparacaoFoto> fotos,
-        IReadOnlyList<EquipmentFieldValueDto> campos)
+        IReadOnlyList<EquipmentFieldValueDto> campos,
+        PublicCoberturaGarantia? cobertura)
     {
         var primeiroNome = rep.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente";
         var loja = new PublicLoja(
@@ -213,7 +281,8 @@ public class PublicPortalService : IPublicPortalService
             CamposEquipamento: campos
                 .Where(c => !string.IsNullOrWhiteSpace(c.Value))
                 .Select(c => new PublicEquipmentFieldDto(c.Label, c.Value, c.Ordem))
-                .ToList());
+                .ToList(),
+            CoberturaGarantia: cobertura);
     }
 }
 

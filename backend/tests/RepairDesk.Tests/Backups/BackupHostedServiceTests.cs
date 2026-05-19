@@ -1,7 +1,11 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using RepairDesk.Core.Abstractions;
 using RepairDesk.API.Backups;
+using RepairDesk.DAL.Persistence;
 
 namespace RepairDesk.Tests.Backups;
 
@@ -69,6 +73,10 @@ public class BackupHostedServiceTests
 
             var executor = new FakeSqlServerBackupExecutor();
             var remote = new FakeRemoteStorage();
+            var services = new ServiceCollection();
+            services.AddSingleton<ITenantContext>(new TestTenantContext());
+            services.AddDbContext<AppDbContext>(opt => opt.UseInMemoryDatabase($"backup-test-{Guid.NewGuid():N}"));
+            var serviceProvider = services.BuildServiceProvider();
             var service = new BackupService(
                 BuildConfig(new Dictionary<string, string?>
                 {
@@ -81,6 +89,7 @@ public class BackupHostedServiceTests
                 remote,
                 new BackupFileSystem(),
                 new FrozenTimeProvider(new DateTimeOffset(2026, 5, 18, 3, 0, 0, TimeSpan.Zero)),
+                serviceProvider.GetRequiredService<IServiceScopeFactory>(),
                 NullLogger<BackupService>.Instance);
 
             var result = await service.RunBackupAsync(BackupTrigger.Manual);
@@ -118,6 +127,9 @@ public class BackupHostedServiceTests
             File.WriteAllText(request.LocalBackupPath, "fake backup");
             return Task.CompletedTask;
         }
+
+        public Task RestoreBackupAsync(BackupRestoreExecutionRequest request, CancellationToken ct = default)
+            => Task.CompletedTask;
     }
 
     private sealed class FakeRemoteStorage : IBackupRemoteStorage
@@ -131,8 +143,17 @@ public class BackupHostedServiceTests
             return Task.FromResult(options.BuildKey(fileName));
         }
 
+        public Task DownloadAsync(string r2Key, string destinationPath, BackupR2Options options, CancellationToken ct = default)
+            => Task.CompletedTask;
+
         public Task<IReadOnlyList<BackupFileDto>> ListAsync(BackupR2Options options, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<BackupFileDto>>([]);
+    }
+
+    private sealed class TestTenantContext : ITenantContext
+    {
+        public Guid? TenantId => null;
+        public bool HasTenant => false;
     }
 
     private sealed class FrozenTimeProvider : TimeProvider

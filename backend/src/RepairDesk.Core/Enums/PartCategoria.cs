@@ -11,5 +11,8 @@ public enum PartCategoria
     Tampa = 6,
     Adesivo = 7,
     Consumivel = 8,
+    Smartphone = 9,
+    Tablet = 10,
+    Acessorio = 11,
     Outro = 99,
 }

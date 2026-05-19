@@ -31,4 +31,9 @@ public class Trabalho : BaseEntity, ITenantEntity
     public string? InvoicePdfUrl { get; set; }
     public string? InvoiceNumber { get; set; }
     public DateTime? InvoiceEmittedAt { get; set; }
+
+    public string? EstimateExternalId { get; set; }
+    public string? EstimateNumber { get; set; }
+    public string? EstimatePdfUrl { get; set; }
+    public DateTime? EstimateEmittedAt { get; set; }
 }

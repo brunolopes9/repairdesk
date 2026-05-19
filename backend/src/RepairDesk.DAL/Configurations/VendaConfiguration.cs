@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RepairDesk.Core.Entities;
+using RepairDesk.Core.Enums;
 
 namespace RepairDesk.DAL.Configurations;
 
@@ -15,6 +16,7 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
         builder.Property(x => x.Numero).IsRequired();
         builder.Property(x => x.PaymentMethod).HasConversion<int>();
         builder.Property(x => x.Status).HasConversion<int>();
+        builder.Property(x => x.Origem).HasConversion<int>().HasDefaultValue(VendaOrigem.Balcao);
         builder.Property(x => x.InvoiceProvider).HasConversion<int>();
         builder.Property(x => x.InvoiceExternalId).HasMaxLength(120);
         builder.Property(x => x.InvoicePdfUrl).HasMaxLength(1000);
@@ -48,6 +50,8 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
         builder.Property(x => x.TenantId).IsRequired();
         builder.Property(x => x.Descricao).HasMaxLength(300).IsRequired();
         builder.Property(x => x.IvaRate).HasPrecision(5, 2);
+        builder.Property(x => x.Imei).HasMaxLength(16);
+        builder.Property(x => x.Imei2).HasMaxLength(16);
         builder.Ignore(x => x.TotalCents);
 
         builder.HasOne(x => x.Part)
@@ -57,5 +61,7 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
 
         builder.HasIndex(x => new { x.TenantId, x.VendaId });
         builder.HasIndex(x => new { x.TenantId, x.PartId }).HasFilter("[PartId] IS NOT NULL");
+        // Index para lookup rapido de IMEI vendido antes (anti-duplicacao + procura)
+        builder.HasIndex(x => new { x.TenantId, x.Imei }).HasFilter("[Imei] IS NOT NULL");
     }
 }

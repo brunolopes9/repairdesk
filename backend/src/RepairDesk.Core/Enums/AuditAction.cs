@@ -8,4 +8,5 @@ public enum AuditAction
     HardDelete = 3,
     Login = 4,
     Export = 5,
+    Restore = 6,
 }

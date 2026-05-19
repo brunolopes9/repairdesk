@@ -17,5 +17,10 @@ public class VendaItem : BaseEntity, ITenantEntity
     public int DescontoCents { get; set; }
     public decimal IvaRate { get; set; }
 
+    /// <summary>IMEI principal (15 dígitos) quando o artigo é um telemóvel. Validado com Luhn.</summary>
+    public string? Imei { get; set; }
+    /// <summary>IMEI secundário para equipamentos dual-SIM.</summary>
+    public string? Imei2 { get; set; }
+
     public int TotalCents => Math.Max(0, Quantidade * PrecoUnitarioCents - DescontoCents);
 }

@@ -84,3 +84,9 @@ public sealed record MoloniInvoiceResult(
     string Number,
     string? PdfUrl,
     DateTime EmittedAt);
+
+public sealed record MoloniEstimateResult(
+    string ExternalId,
+    string Number,
+    string? PdfUrl,
+    DateTime EmittedAt);

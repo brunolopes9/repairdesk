@@ -33,7 +33,18 @@ public sealed record PublicRepairDto(
     bool JaAvaliado,
     /// <summary>Fotos públicas (Antes/Durante/Depois marcadas como visíveis).</summary>
     IReadOnlyList<PublicFotoDto> Fotos,
-    IReadOnlyList<PublicEquipmentFieldDto> CamposEquipamento);
+    IReadOnlyList<PublicEquipmentFieldDto> CamposEquipamento,
+    /// <summary>Sprint 88: cobertura por garantia de venda anterior, quando IMEI bate.</summary>
+    PublicCoberturaGarantia? CoberturaGarantia);
+
+/// <summary>
+/// Indicação ao cliente de que esta reparação está coberta pela garantia da venda original.
+/// Só exposto se a garantia da venda está activa. Slug permite ao cliente verificar.
+/// </summary>
+public sealed record PublicCoberturaGarantia(
+    string GarantiaSlug,
+    DateTime DataFimGarantia,
+    int DiasRestantes);
 
 public sealed record PublicEquipmentFieldDto(
     string Label,
@@ -103,7 +114,26 @@ public sealed record PublicGarantiaDto(
     bool Anulada,
     int DiasRestantes,
     string? Cobertura,
-    string? Exclusoes);
+    string? Exclusoes,
+    /// <summary>"Reparacao" ou "Venda" — permite ao frontend mostrar UI diferente.</summary>
+    string Origem,
+    /// <summary>Numero ou referencia do documento de origem (Reparacao #123 ou Venda #45).</summary>
+    string? DocumentoReferencia,
+    /// <summary>Numero da fatura (quando origem é Venda e fatura foi emitida).</summary>
+    string? NumeroFatura,
+    /// <summary>Linhas da venda quando origem=Venda.</summary>
+    IReadOnlyList<PublicGarantiaItemDto>? Items,
+    /// <summary>Sprint 94: email da loja — para botão "Reclamar garantia" via mailto:</summary>
+    string? LojaEmail,
+    string? LojaTelefone);
+
+public sealed record PublicGarantiaItemDto(
+    string Descricao,
+    int Quantidade,
+    int PrecoUnitarioCents,
+    int TotalCents,
+    /// <summary>IMEI mascarado (357XXXXXXX0001) — anti-fraude no portal público.</summary>
+    string? ImeiMascarado);
 
 public sealed record SubmitAvaliacaoRequest(int Score, string? Comentario, bool PublicarTestemunho);
 

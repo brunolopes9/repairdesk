@@ -25,6 +25,9 @@ public sealed record TenantSettingsDto(
     int GarantiaDiasDefault,
     string? GarantiaCoberturaDefault,
     string? GarantiaExclusoesDefault,
+    int GarantiaVendaDiasDefault,
+    string? GarantiaVendaCoberturaDefault,
+    string? GarantiaVendaExclusoesDefault,
     string? GoogleReviewUrl);
 
 public sealed record UpdateTenantSettingsRequest(
@@ -48,6 +51,9 @@ public sealed record UpdateTenantSettingsRequest(
     int GarantiaDiasDefault,
     string? GarantiaCoberturaDefault,
     string? GarantiaExclusoesDefault,
+    int GarantiaVendaDiasDefault,
+    string? GarantiaVendaCoberturaDefault,
+    string? GarantiaVendaExclusoesDefault,
     string? GoogleReviewUrl);
 
 public sealed record OnboardingStatusDto(

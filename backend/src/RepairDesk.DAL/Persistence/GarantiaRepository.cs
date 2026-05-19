@@ -12,17 +12,84 @@ public class GarantiaRepository : IGarantiaRepository
     public Task<Garantia?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.Garantias.FirstOrDefaultAsync(g => g.Id == id, ct);
 
-    /// <summary>Lookup público — sem filtro de tenant.</summary>
+    public Task<Garantia?> FindByIdWithSourceAsync(Guid id, CancellationToken ct = default)
+        => _db.Garantias
+            .Include(g => g.Reparacao)
+                .ThenInclude(r => r!.Cliente)
+            .Include(g => g.Venda)
+                .ThenInclude(v => v!.Cliente)
+            .Include(g => g.Venda)
+                .ThenInclude(v => v!.Items)
+            .FirstOrDefaultAsync(g => g.Id == id, ct);
+
+    /// <summary>Lookup público — sem filtro de tenant. Carrega Reparação OU Venda conforme origem.</summary>
     public Task<Garantia?> FindBySlugAsync(string slug, CancellationToken ct = default)
         => _db.Garantias
             .IgnoreQueryFilters()
             .Include(g => g.Reparacao)
-            .ThenInclude(r => r!.Cliente)
+                .ThenInclude(r => r!.Cliente)
+            .Include(g => g.Venda)
+                .ThenInclude(v => v!.Cliente)
+            .Include(g => g.Venda)
+                .ThenInclude(v => v!.Items)
             .Where(g => !g.IsDeleted)
             .FirstOrDefaultAsync(g => g.Slug == slug, ct);
 
     public Task<Garantia?> FindByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
         => _db.Garantias.FirstOrDefaultAsync(g => g.ReparacaoId == reparacaoId, ct);
+
+    public Task<Garantia?> FindByVendaAsync(Guid vendaId, CancellationToken ct = default)
+        => _db.Garantias.FirstOrDefaultAsync(g => g.VendaId == vendaId, ct);
+
+    public async Task<GarantiasResumoRow> GetResumoAsync(DateTime agora, int diasJanela, int topLimit, CancellationToken ct = default)
+    {
+        var fimJanela = agora.AddDays(diasJanela);
+        var hojeFim = agora.Date.AddDays(1);
+
+        // Counters base (todas as garantias do tenant — filter automático via query filter)
+        var todas = _db.Garantias.AsNoTracking().Where(g => !g.Anulada);
+        var activas = await todas.CountAsync(g => g.DataInicio <= agora && g.DataFim >= agora, ct);
+        var expiramEmJanela = await todas.CountAsync(g => g.DataFim >= agora && g.DataFim <= fimJanela, ct);
+        var expiraramHoje = await todas.CountAsync(g => g.DataFim >= agora.Date && g.DataFim < hojeFim, ct);
+        var anuladas = await _db.Garantias.AsNoTracking().CountAsync(g => g.Anulada, ct);
+
+        // Top próximas a expirar — inclui dados de origem (Reparacao ou Venda) e cliente
+        var proximas = await _db.Garantias.AsNoTracking()
+            .Include(g => g.Reparacao)
+                .ThenInclude(r => r!.Cliente)
+            .Include(g => g.Venda)
+                .ThenInclude(v => v!.Cliente)
+            .Include(g => g.Venda)
+                .ThenInclude(v => v!.Items)
+            .Where(g => !g.Anulada && g.DataFim >= agora && g.DataFim <= fimJanela)
+            .OrderBy(g => g.DataFim)
+            .Take(topLimit)
+            .ToListAsync(ct);
+
+        var rows = proximas.Select(g =>
+        {
+            var dias = (int)Math.Max(0, (g.DataFim - agora).TotalDays);
+            if (g.VendaId is not null && g.Venda is not null)
+            {
+                var primeiro = g.Venda.Items.FirstOrDefault()?.Descricao;
+                return new GarantiaProximaExpirarRow(
+                    g.Id, g.Slug, g.DataFim, dias,
+                    "Venda", $"Venda #{g.Venda.Numero:D5}",
+                    primeiro ?? "Artigos vendidos",
+                    g.Venda.Cliente?.Nome,
+                    g.Venda.Cliente?.Telefone);
+            }
+            return new GarantiaProximaExpirarRow(
+                g.Id, g.Slug, g.DataFim, dias,
+                "Reparacao",
+                g.Reparacao is not null ? $"Reparação #{g.Reparacao.Numero:D5}" : null,
+                g.Reparacao?.Equipamento,
+                g.Reparacao?.Cliente?.Nome,
+                g.Reparacao?.Cliente?.Telefone);
+        }).ToList();
+
+        return new GarantiasResumoRow(activas, expiramEmJanela, expiraramHoje, anuladas, rows);
+    }
 
     public Task AddAsync(Garantia g, CancellationToken ct = default)
         => _db.Garantias.AddAsync(g, ct).AsTask();

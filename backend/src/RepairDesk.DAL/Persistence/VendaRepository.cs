@@ -54,6 +54,7 @@ public class VendaRepository : IVendaRepository
     public async Task<(IReadOnlyList<Venda> Items, int Total)> SearchAsync(
         DateTime? fromUtc,
         DateTime? toUtc,
+        Guid? clienteId,
         int page,
         int pageSize,
         CancellationToken ct = default)
@@ -66,6 +67,7 @@ public class VendaRepository : IVendaRepository
 
         if (fromUtc is not null) q = q.Where(v => v.Data >= fromUtc.Value);
         if (toUtc is not null) q = q.Where(v => v.Data < toUtc.Value);
+        if (clienteId is { } cid) q = q.Where(v => v.ClienteId == cid);
 
         var total = await q.CountAsync(ct);
         var items = await q
@@ -99,6 +101,29 @@ public class VendaRepository : IVendaRepository
             .OrderByDescending(i => i.TotalCents)
             .Take(limit)
             .ToListAsync(ct);
+
+    public async Task<VendaImeiLookupRow?> FindVendaByImeiAsync(string imei, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(imei)) return null;
+
+        // Apenas vendas Paga ou Cancelada (Pendente nao deve aparecer no warning de duplicado).
+        var hit = await _db.VendaItems
+            .AsNoTracking()
+            .Include(i => i.Venda)
+                .ThenInclude(v => v!.Cliente)
+            .Where(i => (i.Imei == imei || i.Imei2 == imei)
+                        && i.Venda != null
+                        && i.Venda.Status != VendaStatus.Pendente)
+            .OrderByDescending(i => i.Venda!.Data)
+            .Select(i => new VendaImeiLookupRow(
+                i.Venda!.Id,
+                i.Venda.Numero,
+                i.Venda.Data,
+                i.Descricao,
+                i.Venda.Cliente != null ? i.Venda.Cliente.Nome : null))
+            .FirstOrDefaultAsync(ct);
+        return hit;
+    }
 
     public Task SaveAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

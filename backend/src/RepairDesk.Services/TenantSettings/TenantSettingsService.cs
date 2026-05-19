@@ -69,6 +69,11 @@ public class TenantSettingsService : ITenantSettingsService
         tenant.GarantiaDiasDefault = Math.Clamp(req.GarantiaDiasDefault <= 0 ? 90 : req.GarantiaDiasDefault, 1, 3650);
         tenant.GarantiaCoberturaDefault = Clean(req.GarantiaCoberturaDefault);
         tenant.GarantiaExclusoesDefault = Clean(req.GarantiaExclusoesDefault);
+        // DL 84/2021: 3 anos (1095 dias) minimo legal para consumo; 18 meses (540) o minimo
+        // permitido em refurbished se contratualizado expressamente.
+        tenant.GarantiaVendaDiasDefault = Math.Clamp(req.GarantiaVendaDiasDefault <= 0 ? 1095 : req.GarantiaVendaDiasDefault, 540, 3650);
+        tenant.GarantiaVendaCoberturaDefault = Clean(req.GarantiaVendaCoberturaDefault);
+        tenant.GarantiaVendaExclusoesDefault = Clean(req.GarantiaVendaExclusoesDefault);
         tenant.GoogleReviewUrl = Clean(req.GoogleReviewUrl);
 
         await _repo.SaveAsync(ct);
@@ -152,5 +157,8 @@ public class TenantSettingsService : ITenantSettingsService
         t.GarantiaDiasDefault,
         t.GarantiaCoberturaDefault,
         t.GarantiaExclusoesDefault,
+        t.GarantiaVendaDiasDefault,
+        t.GarantiaVendaCoberturaDefault,
+        t.GarantiaVendaExclusoesDefault,
         t.GoogleReviewUrl);
 }

@@ -29,6 +29,12 @@ public class Tenant : BaseEntity
     public string? GarantiaCoberturaDefault { get; set; }
     public string? GarantiaExclusoesDefault { get; set; }
 
+    // Garantia em Vendas — DL 84/2021 obriga 3 anos para consumo (1095 dias).
+    // Refurbished pode ser reduzido até 18 meses (540 dias) só com acordo expresso.
+    public int GarantiaVendaDiasDefault { get; set; } = 1095;
+    public string? GarantiaVendaCoberturaDefault { get; set; }
+    public string? GarantiaVendaExclusoesDefault { get; set; }
+
     // Google Reviews funil (mostrado ao cliente quando avalia 4-5 estrelas)
     public string? GoogleReviewUrl { get; set; }
 

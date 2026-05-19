@@ -9,6 +9,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.Billing.InvoiceXpress;
 
 namespace RepairDesk.Services.Billing;
 
@@ -37,6 +38,7 @@ public class TenantBillingSettingsService : ITenantBillingSettingsService
     private readonly ITenantRepository _tenants;
     private readonly ISecretProtector _secrets;
     private readonly IMoloniClient _moloni;
+    private readonly IInvoiceXpressClient _invoiceXpress;
     private readonly IDistributedCache _cache;
     private readonly IConfiguration _configuration;
     private readonly ILogger<TenantBillingSettingsService> _logger;
@@ -46,6 +48,7 @@ public class TenantBillingSettingsService : ITenantBillingSettingsService
         ITenantContext tenant,
         ISecretProtector secrets,
         IMoloniClient moloni,
+        IInvoiceXpressClient invoiceXpress,
         IDistributedCache cache,
         IConfiguration configuration,
         ITenantRepository tenants,
@@ -56,6 +59,7 @@ public class TenantBillingSettingsService : ITenantBillingSettingsService
         _tenants = tenants;
         _secrets = secrets;
         _moloni = moloni;
+        _invoiceXpress = invoiceXpress;
         _cache = cache;
         _configuration = configuration;
         _logger = logger;
@@ -95,14 +99,28 @@ public class TenantBillingSettingsService : ITenantBillingSettingsService
     public async Task<BillingConnectionTestDto> TestConnectionAsync(CancellationToken ct = default)
     {
         var settings = await FindOrCreateAsync(ct);
-        await _moloni.TestConnectionAsync(settings, ct);
-        return new BillingConnectionTestDto(true, "Ligacao Moloni validada.");
+        switch (settings.Provider)
+        {
+            case BillingProvider.Moloni:
+                await _moloni.TestConnectionAsync(settings, ct);
+                return new BillingConnectionTestDto(true, "Ligacao Moloni validada.");
+            case BillingProvider.InvoiceXpress:
+                await _invoiceXpress.TestConnectionAsync(settings, ct);
+                return new BillingConnectionTestDto(true, "Ligacao InvoiceXpress validada.");
+            default:
+                throw new ValidationException("billing_not_configured", "Escolhe um provider de faturacao.");
+        }
     }
 
     public async Task<IReadOnlyList<BillingSerieDto>> SyncSeriesAsync(CancellationToken ct = default)
     {
         var settings = await FindOrCreateAsync(ct);
-        var series = await _moloni.GetSeriesAsync(settings, ct);
+        var series = settings.Provider switch
+        {
+            BillingProvider.Moloni => await _moloni.GetSeriesAsync(settings, ct),
+            BillingProvider.InvoiceXpress => await _invoiceXpress.GetSeriesAsync(settings, ct),
+            _ => throw new ValidationException("billing_not_configured", "Escolhe um provider de faturacao.")
+        };
         if (settings.DefaultSerieId is null or <= 0)
         {
             var preferred = series.FirstOrDefault(s => s.IsActive) ?? series.FirstOrDefault();
@@ -437,8 +455,8 @@ public class TenantBillingSettingsService : ITenantBillingSettingsService
         !string.IsNullOrWhiteSpace(s.ApiKeyCipherText),
         !string.IsNullOrWhiteSpace(s.ApiKeyCipherText) ? Mask : null,
         s.ClientId,
-        !string.IsNullOrWhiteSpace(s.ClientSecretCipherText),
-        !string.IsNullOrWhiteSpace(s.RefreshTokenCipherText),
+        s.Provider == BillingProvider.Moloni && !string.IsNullOrWhiteSpace(s.ClientSecretCipherText),
+        s.Provider == BillingProvider.Moloni && !string.IsNullOrWhiteSpace(s.RefreshTokenCipherText),
         s.CompanyId,
         s.DefaultDocumentType,
         s.DefaultSerieId,

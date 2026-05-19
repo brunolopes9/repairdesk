@@ -9,12 +9,15 @@ public sealed record CreateVendaItemRequest(
     int Quantidade,
     int PrecoUnitarioCents,
     int DescontoCents,
-    decimal IvaRate);
+    decimal IvaRate,
+    string? Imei = null,
+    string? Imei2 = null);
 
 public sealed record CreateVendaRequest(
     Guid? ClienteId,
     IReadOnlyList<CreateVendaItemRequest> Items,
-    string? Notas);
+    string? Notas,
+    VendaOrigem? Origem = null);
 
 public sealed record MarcarVendaPagaRequest(
     PaymentMethod PaymentMethod,
@@ -32,7 +35,9 @@ public sealed record VendaItemDto(
     int DescontoCents,
     decimal IvaRate,
     int TotalCents,
-    int IvaCents);
+    int IvaCents,
+    string? Imei,
+    string? Imei2);
 
 public sealed record VendaDto(
     Guid Id,
@@ -49,6 +54,24 @@ public sealed record VendaDto(
     string? InvoiceNumber,
     DateTime? InvoiceEmittedAt,
     string? Notas,
-    IReadOnlyList<VendaItemDto> Items);
+    IReadOnlyList<VendaItemDto> Items,
+    VendaOrigem Origem);
 
 public sealed record EmitVendaFaturaResponse(VendaDto Venda, InvoiceDto? Invoice);
+
+public sealed record VendaImeiLookupDto(
+    Guid VendaId,
+    int Numero,
+    DateTime Data,
+    string Descricao,
+    string? ClienteNome);
+
+public sealed record VendaReparacaoRelacionadaDto(
+    Guid ReparacaoId,
+    int ReparacaoNumero,
+    DateTime RecebidoEm,
+    string Equipamento,
+    string Imei,
+    int Estado,
+    int DiasDesdeAVenda,
+    int? OrcamentoCents);

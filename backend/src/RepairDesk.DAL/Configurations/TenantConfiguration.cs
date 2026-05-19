@@ -31,6 +31,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(x => x.OnboardingCompletado).HasDefaultValue(false);
         builder.Property(x => x.GarantiaCoberturaDefault).HasMaxLength(2000);
         builder.Property(x => x.GarantiaExclusoesDefault).HasMaxLength(2000);
+        builder.Property(x => x.GarantiaVendaCoberturaDefault).HasMaxLength(2000);
+        builder.Property(x => x.GarantiaVendaExclusoesDefault).HasMaxLength(2000);
         builder.Property(x => x.GoogleReviewUrl).HasMaxLength(500);
 
         builder.HasIndex(x => x.Nif).IsUnique().HasFilter("[Nif] IS NOT NULL");

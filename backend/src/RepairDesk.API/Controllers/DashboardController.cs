@@ -49,4 +49,33 @@ public class DashboardController : ControllerBase
             return _service.GetTopReparacoesCurrentMonthAsync(limit, ct);
         return _service.GetTopReparacoesAsync(from.Value, to.Value, limit, ct);
     }
+
+    [HttpGet("garantias-resumo")]
+    public Task<GarantiasResumoResponse> GetGarantiasResumo(
+        [FromQuery] int dias = 30,
+        [FromQuery] int limit = 8,
+        CancellationToken ct = default)
+        => _service.GetGarantiasResumoAsync(dias, limit, ct);
+
+    /// <summary>
+    /// Reparações cujo IMEI bate uma venda anterior do mesmo tenant — indicador de
+    /// qualidade pós-venda. Útil para Direito de Regresso art. 21º DL 84/2021.
+    /// </summary>
+    [HttpGet("reparacoes-em-garantia")]
+    public Task<ReparacoesEmGarantiaResponse> GetReparacoesEmGarantia(
+        [FromQuery] int dias = 90,
+        [FromQuery] int limit = 30,
+        CancellationToken ct = default)
+        => _service.GetReparacoesEmGarantiaAsync(dias, limit, ct);
+
+    /// <summary>Export CSV das reparações em garantia interna — para enviar ao fornecedor (Molano).</summary>
+    [HttpGet("reparacoes-em-garantia/export.csv")]
+    public async Task<IActionResult> ExportReparacoesEmGarantia(
+        [FromQuery] int dias = 90,
+        CancellationToken ct = default)
+    {
+        var bytes = await _service.ExportReparacoesEmGarantiaCsvAsync(dias, ct);
+        var stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+        return File(bytes, "text/csv; charset=utf-8", $"reparacoes_em_garantia_{stamp}.csv");
+    }
 }

@@ -151,7 +151,123 @@ public class MoloniClient : IMoloniClient
             new { company_id = settings.CompanyId!.Value, document_id = documentId, signed = 1 },
             ct);
 
-        var number = BuildInvoiceNumber(document, documentId);
+        var number = BuildDocumentNumber(document, documentId);
+        return new MoloniInvoiceResult(
+            documentId.ToString(CultureInfo.InvariantCulture),
+            number,
+            GetString(pdf, "url"),
+            DateTime.UtcNow);
+    }
+
+    public async Task<MoloniEstimateResult> InsertEstimateAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default)
+    {
+        var draftItems = draft.Items is { Count: > 0 }
+            ? draft.Items
+            : new[]
+            {
+                new MoloniInvoiceDraftItem(
+                    draft.ItemName,
+                    draft.Summary,
+                    1,
+                    draft.AmountCents,
+                    0,
+                    draft.VatPercent),
+            };
+
+        EnsureReadyToInvoice(settings, draftItems.Max(i => i.VatPercent));
+
+        var today = DateTime.UtcNow.Date;
+        var expiration = today.AddDays(30);
+        var payload = new Dictionary<string, object?>
+        {
+            ["company_id"] = settings.CompanyId!.Value,
+            ["date"] = today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["expiration_date"] = expiration.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["document_set_id"] = settings.DefaultSerieId!.Value,
+            ["customer_id"] = draft.CustomerId,
+            ["our_reference"] = draft.Reference,
+            ["your_reference"] = draft.Reference,
+            ["status"] = 1,
+            ["products"] = draftItems.Select((item, index) => BuildProduct(settings, item, index + 1)).ToArray(),
+        };
+
+        if (settings.DefaultMaturityDateId is { } maturityDateId)
+            payload["maturity_date_id"] = maturityDateId;
+
+        var insert = await PostAsync<JsonElement>(settings, "estimates/insert", payload, ct);
+        var documentId = GetInt(insert, "document_id");
+        if (documentId <= 0)
+            throw new BillingProviderException("moloni_missing_estimate_id", "A Moloni respondeu sem document_id ao emitir orçamento.");
+
+        var document = await PostAsync<JsonElement>(
+            settings,
+            "documents/getOne",
+            new { company_id = settings.CompanyId!.Value, document_id = documentId },
+            ct);
+
+        var pdf = await PostAsync<JsonElement>(
+            settings,
+            "documents/getPDFLink",
+            new { company_id = settings.CompanyId!.Value, document_id = documentId, signed = 1 },
+            ct);
+
+        var number = BuildDocumentNumber(document, documentId);
+        return new MoloniEstimateResult(
+            documentId.ToString(CultureInfo.InvariantCulture),
+            number,
+            GetString(pdf, "url"),
+            DateTime.UtcNow);
+    }
+
+    public Task<int?> GetEstimateStatusAsync(TenantBillingSettings settings, int estimateId, CancellationToken ct = default)
+        => GetDocumentStatusAsync(settings, estimateId, ct);
+
+    public async Task<MoloniInvoiceResult> ConvertEstimateToInvoiceAsync(
+        TenantBillingSettings settings,
+        int estimateId,
+        BillingDocumentType? documentTypeOverride = null,
+        CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        if (estimateId <= 0)
+            throw new ValidationException("moloni_estimate_id_invalid", "ID do orçamento Moloni inválido.");
+        if (settings.DefaultSerieId is null or <= 0)
+            throw new ValidationException("moloni_serie_missing", "Configura a série Moloni por defeito.");
+
+        var today = DateTime.UtcNow.Date;
+        var documentType = documentTypeOverride ?? settings.DefaultDocumentType;
+        var payload = new Dictionary<string, object?>
+        {
+            ["company_id"] = settings.CompanyId!.Value,
+            ["document_id"] = estimateId,
+            ["document_set_id"] = settings.DefaultSerieId!.Value,
+            ["date"] = today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["expiration_date"] = today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["status"] = 1,
+            ["document_type"] = documentType == BillingDocumentType.FaturaSimplificada ? "simplified_invoice" : "invoice",
+        };
+
+        if (settings.DefaultMaturityDateId is { } maturityDateId)
+            payload["maturity_date_id"] = maturityDateId;
+
+        var converted = await PostAsync<JsonElement>(settings, "documentsToInvoice", payload, ct);
+        var documentId = GetIntAny(converted, "document_id", "invoice_id", "new_document_id");
+        if (documentId <= 0)
+            throw new BillingProviderException("moloni_convert_missing_document_id", "A Moloni converteu o orçamento sem devolver document_id da fatura.");
+
+        var document = await PostAsync<JsonElement>(
+            settings,
+            "documents/getOne",
+            new { company_id = settings.CompanyId!.Value, document_id = documentId },
+            ct);
+
+        var pdf = await PostAsync<JsonElement>(
+            settings,
+            "documents/getPDFLink",
+            new { company_id = settings.CompanyId!.Value, document_id = documentId, signed = 1 },
+            ct);
+
+        var number = BuildDocumentNumber(document, documentId);
         return new MoloniInvoiceResult(
             documentId.ToString(CultureInfo.InvariantCulture),
             number,
@@ -313,7 +429,7 @@ public class MoloniClient : IMoloniClient
             new { company_id = settings.CompanyId!.Value, document_id = documentId, signed = 1 },
             ct);
 
-        var number = BuildInvoiceNumber(document, documentId);
+        var number = BuildDocumentNumber(document, documentId);
         _logger.LogInformation("Moloni Credit Note {Number} (id={Id}) emitida para tenant {TenantId}", number, documentId, settings.TenantId);
         return new MoloniInvoiceResult(documentId.ToString(CultureInfo.InvariantCulture), number, GetString(pdf, "url"), DateTime.UtcNow);
     }
@@ -843,7 +959,7 @@ public class MoloniClient : IMoloniClient
             throw new ValidationException("moloni_exemption_missing", "Configura o motivo de isencao Moloni.");
     }
 
-    private static string BuildInvoiceNumber(JsonElement document, int fallbackId)
+    private static string BuildDocumentNumber(JsonElement document, int fallbackId)
     {
         var saftCode = document.TryGetProperty("document_type", out var docType)
             ? GetString(docType, "saft_code")

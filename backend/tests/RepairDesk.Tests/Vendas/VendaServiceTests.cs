@@ -5,6 +5,7 @@ using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Billing;
+using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Vendas;
 using DomainValidationException = RepairDesk.Core.Exceptions.ValidationException;
 
@@ -56,6 +57,137 @@ public class VendaServiceTests
     }
 
     [Fact]
+    public async Task MarcarPagaAsync_AutoEmiteGarantiaComDefaultDoTenant()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        db.Tenants.Add(new Tenant
+        {
+            Id = tenantId,
+            Name = "LopesTech",
+            GarantiaVendaDiasDefault = 1095,
+            GarantiaVendaCoberturaDefault = "Cobertura customizada",
+        });
+        var part = new Part { TenantId = tenantId, Nome = "Telemovel", QtdStock = 1, CustoUnitarioCents = 12000 };
+        db.Parts.Add(part);
+        await db.SaveChangesAsync();
+
+        var service = NewService(db, tenantId);
+        var venda = await service.CreateAsync(new CreateVendaRequest(null, [
+            new CreateVendaItemRequest(part.Id, null, 1, 30000, 0, 23)
+        ], null));
+
+        await service.MarcarPagaAsync(venda.Id, new MarcarVendaPagaRequest(PaymentMethod.MBWay));
+
+        var garantia = await db.Garantias.SingleAsync(g => g.VendaId == venda.Id);
+        garantia.SourceType.Should().Be(GarantiaSourceType.Venda);
+        garantia.DiasGarantia.Should().Be(1095);
+        garantia.ReparacaoId.Should().BeNull();
+        garantia.Cobertura.Should().Be("Cobertura customizada");
+        (garantia.DataFim - garantia.DataInicio).Days.Should().Be(1095);
+    }
+
+    [Fact]
+    public async Task MarcarPagaAsync_Idempotente_NaoDuplicaGarantia()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        db.Tenants.Add(new Tenant { Id = tenantId, Name = "LopesTech" });
+        var part = new Part { TenantId = tenantId, Nome = "Telemovel", QtdStock = 1, CustoUnitarioCents = 12000 };
+        db.Parts.Add(part);
+        await db.SaveChangesAsync();
+
+        var service = NewService(db, tenantId);
+        var venda = await service.CreateAsync(new CreateVendaRequest(null, [
+            new CreateVendaItemRequest(part.Id, null, 1, 30000, 0, 23)
+        ], null));
+
+        await service.MarcarPagaAsync(venda.Id, new MarcarVendaPagaRequest(PaymentMethod.MBWay));
+        await service.MarcarPagaAsync(venda.Id, new MarcarVendaPagaRequest(PaymentMethod.MBWay));
+
+        (await db.Garantias.CountAsync(g => g.VendaId == venda.Id)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SmartphoneSemImei_LancaValidacao()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        db.Tenants.Add(new Tenant { Id = tenantId, Name = "LopesTech" });
+        var telemovel = new Part
+        {
+            TenantId = tenantId,
+            Nome = "iPhone 13 Grade A",
+            Categoria = PartCategoria.Smartphone,
+            QtdStock = 1,
+            CustoUnitarioCents = 30000,
+        };
+        db.Parts.Add(telemovel);
+        await db.SaveChangesAsync();
+
+        var service = NewService(db, tenantId);
+        var act = () => service.CreateAsync(new CreateVendaRequest(null, [
+            new CreateVendaItemRequest(telemovel.Id, null, 1, 45000, 0, 23, Imei: null)
+        ], null));
+
+        await act.Should().ThrowAsync<DomainValidationException>()
+            .Where(e => e.Code == "imei_obrigatorio");
+    }
+
+    [Fact]
+    public async Task CreateAsync_SmartphoneImeiInvalido_LancaValidacao()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        db.Tenants.Add(new Tenant { Id = tenantId, Name = "LopesTech" });
+        var telemovel = new Part
+        {
+            TenantId = tenantId,
+            Nome = "iPhone 13",
+            Categoria = PartCategoria.Smartphone,
+            QtdStock = 1,
+            CustoUnitarioCents = 30000,
+        };
+        db.Parts.Add(telemovel);
+        await db.SaveChangesAsync();
+
+        var service = NewService(db, tenantId);
+        var act = () => service.CreateAsync(new CreateVendaRequest(null, [
+            new CreateVendaItemRequest(telemovel.Id, null, 1, 45000, 0, 23, Imei: "123456789012345")
+        ], null));
+
+        await act.Should().ThrowAsync<DomainValidationException>()
+            .Where(e => e.Code == "imei_invalido");
+    }
+
+    [Fact]
+    public async Task CreateAsync_SmartphoneImeiValido_PersistsNormalizado()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        db.Tenants.Add(new Tenant { Id = tenantId, Name = "LopesTech" });
+        var telemovel = new Part
+        {
+            TenantId = tenantId,
+            Nome = "iPhone 13",
+            Categoria = PartCategoria.Smartphone,
+            QtdStock = 1,
+            CustoUnitarioCents = 30000,
+        };
+        db.Parts.Add(telemovel);
+        await db.SaveChangesAsync();
+
+        var service = NewService(db, tenantId);
+        // IMEI com espaços — deve ser normalizado para apenas dígitos
+        var venda = await service.CreateAsync(new CreateVendaRequest(null, [
+            new CreateVendaItemRequest(telemovel.Id, null, 1, 45000, 0, 23, Imei: "490 154 203 237 518")
+        ], null));
+
+        var item = await db.VendaItems.SingleAsync(i => i.VendaId == venda.Id);
+        item.Imei.Should().Be("490154203237518");
+    }
+
+    [Fact]
     public async Task EmitirFaturaAsync_ExistingInvoice_IsIdempotent()
     {
         var tenantId = Guid.NewGuid();
@@ -100,7 +232,11 @@ public class VendaServiceTests
             new TestTenantContext(tenantId),
             new FakeBillingSettingsRepository(),
             billing ?? new FakeBillingProvider(),
-            new FakeMoloniNoOp());
+            new FakeMoloniNoOp(),
+            new FakeInvoiceXpressNoOp(),
+            new GarantiaRepository(db),
+            new TenantRepository(db),
+            new ReparacaoRepository(db));
 
     private sealed class TestTenantContext(Guid tenantId) : ITenantContext
     {
@@ -141,6 +277,12 @@ public class VendaServiceTests
             => Task.FromResult<int?>(null);
         public Task<MoloniInvoiceResult> InsertInvoiceAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default)
             => Task.FromResult(new MoloniInvoiceResult("1", "FA 2026/1", null, DateTime.UtcNow));
+        public Task<MoloniEstimateResult> InsertEstimateAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default)
+            => Task.FromResult(new MoloniEstimateResult("E1", "OR 2026/1", null, DateTime.UtcNow));
+        public Task<int?> GetEstimateStatusAsync(TenantBillingSettings settings, int estimateId, CancellationToken ct = default)
+            => Task.FromResult<int?>(1);
+        public Task<MoloniInvoiceResult> ConvertEstimateToInvoiceAsync(TenantBillingSettings settings, int estimateId, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
+            => Task.FromResult(new MoloniInvoiceResult("1", "FA 2026/1", null, DateTime.UtcNow));
         public Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string documentId, CancellationToken ct = default)
             => Task.FromResult<Stream>(new MemoryStream());
         public Task<MoloniInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, MoloniCreditNoteDraft draft, CancellationToken ct = default)
@@ -167,5 +309,26 @@ public class VendaServiceTests
             => Task.FromResult(new MoloniProductDto(1, name, true));
         public Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, CancellationToken ct = default)
             => Task.FromResult(new MoloniCustomerDto(1, name, vat, true));
+    }
+
+    private sealed class FakeInvoiceXpressNoOp : IInvoiceXpressClient
+    {
+        public Task TestConnectionAsync(TenantBillingSettings settings, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<IReadOnlyList<BillingSerieDto>> GetSeriesAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<BillingSerieDto>)Array.Empty<BillingSerieDto>());
+        public Task<IReadOnlyList<InvoiceXpressClientDto>> GetClientsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<InvoiceXpressClientDto>)Array.Empty<InvoiceXpressClientDto>());
+        public Task<IReadOnlyList<InvoiceXpressItemDto>> GetItemsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<InvoiceXpressItemDto>)Array.Empty<InvoiceXpressItemDto>());
+        public Task<IReadOnlyList<InvoiceXpressDocumentDto>> ListInvoicesAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<InvoiceXpressDocumentDto>)Array.Empty<InvoiceXpressDocumentDto>());
+        public Task<InvoiceXpressInvoiceResult> InsertInvoiceAsync(TenantBillingSettings settings, InvoiceXpressInvoiceDraft draft, CancellationToken ct = default)
+            => Task.FromResult(new InvoiceXpressInvoiceResult("1", "FT 2026/1", null, DateTime.UtcNow));
+        public Task<InvoiceXpressInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, InvoiceXpressCreditNoteDraft draft, CancellationToken ct = default)
+            => Task.FromResult(new InvoiceXpressInvoiceResult("2", "NC 2026/1", null, DateTime.UtcNow));
+        public Task<bool> CancelDocumentAsync(TenantBillingSettings settings, string externalId, string reason, CancellationToken ct = default)
+            => Task.FromResult(true);
+        public Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string externalId, CancellationToken ct = default)
+            => Task.FromResult<Stream>(new MemoryStream());
     }
 }

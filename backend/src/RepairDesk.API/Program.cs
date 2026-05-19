@@ -15,6 +15,7 @@ using RepairDesk.Infrastructure.Storage;
 using RepairDesk.Services.Auth;
 using RepairDesk.Services.Audit;
 using RepairDesk.Services.Billing;
+using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Dashboard;
 using RepairDesk.Services.Despesas;
@@ -112,9 +113,22 @@ try
     builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
     builder.Services.AddSingleton<Microsoft.Extensions.Options.IConfigureOptions<JwtBearerOptions>, ConfigureJwtBearerOptions>();
 
+    // Sprint 71: PolicyScheme "Multi" decide entre JWT (utilizadores) e ApiKey (integrações servidor-a-servidor).
     builder.Services
-        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer();
+        .AddAuthentication("Multi")
+        .AddJwtBearer()
+        .AddScheme<RepairDesk.API.Infrastructure.ApiKeyAuthSchemeOptions, RepairDesk.API.Infrastructure.ApiKeyAuthHandler>(
+            RepairDesk.API.Infrastructure.ApiKeyAuthHandler.SchemeName, _ => { })
+        .AddPolicyScheme("Multi", "Multi (JWT + ApiKey)", options =>
+        {
+            options.ForwardDefaultSelector = ctx =>
+            {
+                var auth = ctx.Request.Headers["Authorization"].ToString();
+                if (auth.StartsWith("ApiKey ", StringComparison.OrdinalIgnoreCase)) return RepairDesk.API.Infrastructure.ApiKeyAuthHandler.SchemeName;
+                if (ctx.Request.Headers.ContainsKey("X-Api-Key")) return RepairDesk.API.Infrastructure.ApiKeyAuthHandler.SchemeName;
+                return JwtBearerDefaults.AuthenticationScheme;
+            };
+        });
 
     builder.Services.AddAuthorization();
 
@@ -179,8 +193,15 @@ try
     builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();
     builder.Services.AddScoped<ITenantBillingSettingsRepository, TenantBillingSettingsRepository>();
     builder.Services.AddScoped<ITenantBillingSettingsService, TenantBillingSettingsService>();
-    builder.Services.AddScoped<IBillingProvider, MoloniBillingProvider>();
-    builder.Services.AddHttpClient<IMoloniClient, MoloniClient>();
+    builder.Services.AddScoped<MoloniBillingProvider>();
+    builder.Services.AddScoped<InvoiceXpressBillingProvider>();
+    builder.Services.AddScoped<BillingProviderFactory>();
+    builder.Services.AddScoped<IBillingProvider, TenantBillingProvider>();
+    if (builder.Configuration.GetValue("E2E:UseMoloniStub", false))
+        builder.Services.AddSingleton<IMoloniClient, E2eMoloniClient>();
+    else
+        builder.Services.AddHttpClient<IMoloniClient, MoloniClient>();
+    builder.Services.AddHttpClient<IInvoiceXpressClient, InvoiceXpressClient>();
 
     // Public portal (anonymous, rate-limited)
     builder.Services.AddScoped<IPublicPortalService, PublicPortalService>();
@@ -202,7 +223,15 @@ try
 
     // Garantia + Avaliações
     builder.Services.AddScoped<IGarantiaRepository, RepairDesk.DAL.Persistence.GarantiaRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Garantias.IGarantiaService, RepairDesk.Services.Garantias.GarantiaService>();
     builder.Services.AddScoped<IAvaliacaoRepository, RepairDesk.DAL.Persistence.AvaliacaoRepository>();
+
+    // Service API keys (Sprint 71)
+    builder.Services.AddScoped<IServiceApiKeyRepository, RepairDesk.DAL.Persistence.ServiceApiKeyRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.ServiceApiKeys.IServiceApiKeyService, RepairDesk.Services.ServiceApiKeys.ServiceApiKeyService>();
+
+    // External checkout (Sprint 73) — atómico para loja online / integrações
+    builder.Services.AddScoped<RepairDesk.Services.External.IExternalCheckoutService, RepairDesk.Services.External.ExternalCheckoutService>();
 
     // Tabela de preços
     builder.Services.AddScoped<IPriceTableRepository, RepairDesk.DAL.Persistence.PriceTableRepository>();
@@ -246,14 +275,15 @@ try
         .AddCheck<PhotoStorageHealthCheck>("storage", tags: ["ready", "storage"])
         .AddCheck<BackupHealthCheck>("backup", tags: ["backup"]);
 
-    // Rate limiting (login: 5 per 15 min per IP). Disabled in Testing env.
+    // Rate limiting (login: 5 per 15 min per IP). Disabled in Testing/E2E envs.
     var isTesting = builder.Environment.IsEnvironment("Testing");
+    var disableRateLimits = isTesting || builder.Configuration.GetValue("E2E:Enabled", false);
     builder.Services.AddRateLimiter(opt =>
     {
         opt.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
         opt.AddPolicy("login", ctx =>
         {
-            if (isTesting)
+            if (disableRateLimits)
                 return RateLimitPartition.GetNoLimiter("login");
             var key = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
@@ -266,7 +296,7 @@ try
         });
         opt.AddPolicy("public-portal", ctx =>
         {
-            if (isTesting)
+            if (disableRateLimits)
                 return RateLimitPartition.GetNoLimiter("public-portal");
             var key = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
@@ -275,6 +305,26 @@ try
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
+            });
+        });
+        // Sprint 80: rate limit por API key (não por IP — lojas Vercel partilham egress).
+        // 120 req/min por chave: generoso para webhook bursts + paginação catálogo,
+        // suficiente para impedir runaway loop de uma integração com bug.
+        opt.AddPolicy("external-apikey", ctx =>
+        {
+            if (disableRateLimits)
+                return RateLimitPartition.GetNoLimiter("external-apikey");
+            // Particiona pelo claim service_api_key_id (preenchido pelo ApiKeyAuthHandler).
+            // Sem chave válida, particiona por IP (defensa em profundidade — request rejeitado
+            // depois pelo auth, mas evita brute-force scanning).
+            var keyId = ctx.User.FindFirst("service_api_key_id")?.Value;
+            var partition = keyId ?? $"ip:{ctx.Connection.RemoteIpAddress}";
+            return RateLimitPartition.GetFixedWindowLimiter(partition, _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
             });
         });
     });

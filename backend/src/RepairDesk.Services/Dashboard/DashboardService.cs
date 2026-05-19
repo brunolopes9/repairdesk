@@ -13,17 +13,91 @@ public interface IDashboardService
     Task<TopReparacoesResponse> GetTopReparacoesAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default);
     Task<TopReparacoesResponse> GetTopReparacoesCurrentMonthAsync(int limit, CancellationToken ct = default);
     Task<AvaliacoesDashboardResponse> GetAvaliacoesAsync(CancellationToken ct = default);
+    Task<GarantiasResumoResponse> GetGarantiasResumoAsync(int diasJanela, int topLimit, CancellationToken ct = default);
+    Task<ReparacoesEmGarantiaResponse> GetReparacoesEmGarantiaAsync(int diasJanela, int topLimit, CancellationToken ct = default);
+    Task<byte[]> ExportReparacoesEmGarantiaCsvAsync(int diasJanela, CancellationToken ct = default);
 }
 
 public class DashboardService : IDashboardService
 {
     private readonly IDashboardRepository _repo;
     private readonly IAvaliacaoRepository _avaliacoes;
+    private readonly IGarantiaRepository _garantias;
 
-    public DashboardService(IDashboardRepository repo, IAvaliacaoRepository avaliacoes)
+    public DashboardService(IDashboardRepository repo, IAvaliacaoRepository avaliacoes, IGarantiaRepository garantias)
     {
         _repo = repo;
         _avaliacoes = avaliacoes;
+        _garantias = garantias;
+    }
+
+    public async Task<GarantiasResumoResponse> GetGarantiasResumoAsync(int diasJanela, int topLimit, CancellationToken ct = default)
+    {
+        diasJanela = Math.Clamp(diasJanela, 1, 365);
+        topLimit = Math.Clamp(topLimit, 1, 50);
+        var resumo = await _garantias.GetResumoAsync(DateTime.UtcNow, diasJanela, topLimit, ct);
+        return new GarantiasResumoResponse(
+            resumo.Activas,
+            resumo.ExpiramEmJanela,
+            resumo.ExpiraramHoje,
+            resumo.Anuladas,
+            resumo.ProximasAExpirar.Select(p => new GarantiaProximaExpirarDto(
+                p.Id, p.Slug, p.DataFim, p.DiasRestantes, p.Origem,
+                p.DocumentoReferencia, p.EquipamentoOuArtigo, p.ClienteNome, p.ClienteTelefone)).ToList());
+    }
+
+    public async Task<ReparacoesEmGarantiaResponse> GetReparacoesEmGarantiaAsync(int diasJanela, int topLimit, CancellationToken ct = default)
+    {
+        diasJanela = Math.Clamp(diasJanela, 1, 365);
+        topLimit = Math.Clamp(topLimit, 1, 100);
+        var fromUtc = DateTime.UtcNow.AddDays(-diasJanela);
+        var rows = await _repo.GetReparacoesEmGarantiaAsync(fromUtc, DateTime.UtcNow, topLimit, ct);
+
+        var totalReparacoesNoPeriodo = await _repo.GetReparacoesCountAsync(fromUtc, DateTime.UtcNow, ct);
+        var totalEntregues = rows.Items.Count(i => i.Entregue);
+        var totalPct = totalReparacoesNoPeriodo == 0 ? 0
+            : (int)Math.Round(rows.Total * 100.0 / totalReparacoesNoPeriodo);
+
+        return new ReparacoesEmGarantiaResponse(
+            rows.Total,
+            totalEntregues,
+            totalPct,
+            rows.ValorOrcamentoCents,
+            rows.Items.Select(i => new ReparacaoEmGarantiaDto(
+                i.ReparacaoId, i.ReparacaoNumero, i.RecebidoEm, i.Equipamento, i.Imei,
+                i.VendaId, i.VendaNumero, i.VendaData, i.ClienteNome, i.OrcamentoCents)).ToList());
+    }
+
+    public async Task<byte[]> ExportReparacoesEmGarantiaCsvAsync(int diasJanela, CancellationToken ct = default)
+    {
+        diasJanela = Math.Clamp(diasJanela, 1, 730);
+        var fromUtc = DateTime.UtcNow.AddDays(-diasJanela);
+        var rows = await _repo.GetReparacoesEmGarantiaAsync(fromUtc, DateTime.UtcNow, limit: 1000, ct);
+
+        var csv = new Common.Helpers.CsvBuilder();
+        csv.Row(
+            "data_reparacao", "reparacao_numero", "equipamento", "imei",
+            "venda_numero", "venda_data", "dias_entre_venda_e_reparacao",
+            "cliente_nome", "orcamento_eur", "entregue");
+
+        foreach (var r in rows.Items)
+        {
+            var dias = (int)Math.Round((r.RecebidoEm - r.VendaData).TotalDays);
+            csv.Row(
+                r.RecebidoEm.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                r.ReparacaoNumero,
+                r.Equipamento,
+                r.Imei,
+                r.VendaNumero,
+                r.VendaData.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                dias,
+                r.ClienteNome ?? "",
+                r.OrcamentoCents is { } c
+                    ? (c / 100m).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
+                    : "",
+                r.Entregue ? "sim" : "nao");
+        }
+        return csv.ToUtf8WithBom();
     }
 
     public async Task<AvaliacoesDashboardResponse> GetAvaliacoesAsync(CancellationToken ct = default)

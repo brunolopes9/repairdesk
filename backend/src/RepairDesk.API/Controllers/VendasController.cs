@@ -25,14 +25,31 @@ public class VendasController : ControllerBase
     public Task<PagedResult<VendaDto>> Search(
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
+        [FromQuery] Guid? clienteId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
-        => _service.SearchAsync(from, to, page, pageSize, ct);
+        => _service.SearchAsync(from, to, clienteId, page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<VendaDto> Get(Guid id, CancellationToken ct)
         => _service.GetAsync(id, ct);
+
+    /// <summary>Retorna a primeira venda que ja vendeu este IMEI (warning anti-duplicação). 404 se nunca vendido.</summary>
+    [HttpGet("imei-lookup/{imei}")]
+    public async Task<ActionResult<VendaImeiLookupDto>> ImeiLookup(string imei, CancellationToken ct)
+    {
+        var hit = await _service.ImeiLookupAsync(imei, ct);
+        return hit is null ? NotFound() : Ok(hit);
+    }
+
+    /// <summary>
+    /// Reparações cujo IMEI bate items desta venda (e foram criadas depois). Para ver se um
+    /// equipamento vendido voltou para reparação.
+    /// </summary>
+    [HttpGet("{id:guid}/reparacoes-relacionadas")]
+    public Task<IReadOnlyList<VendaReparacaoRelacionadaDto>> ReparacoesRelacionadas(Guid id, CancellationToken ct)
+        => _service.GetReparacoesRelacionadasAsync(id, ct);
 
     [HttpPost]
     public async Task<ActionResult<VendaDto>> Create([FromBody] CreateVendaRequest req, CancellationToken ct)
@@ -66,7 +83,8 @@ public class VendasController : ControllerBase
     [HttpGet("{id:guid}/recibo.pdf")]
     public async Task<IActionResult> ReciboPdf(Guid id, CancellationToken ct)
     {
-        var (pdf, filename) = await _pdf.ForVendaAsync(id, ct);
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var (pdf, filename) = await _pdf.ForVendaAsync(id, baseUrl, ct);
         return File(pdf, "application/pdf", filename);
     }
 

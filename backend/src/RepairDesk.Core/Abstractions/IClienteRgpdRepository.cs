@@ -12,6 +12,7 @@ public sealed record ClienteRgpdData(
     IReadOnlyList<Garantia> Garantias,
     IReadOnlyList<Avaliacao> Avaliacoes,
     IReadOnlyList<PartMovimento> PartMovimentos,
+    IReadOnlyList<Venda> Vendas,
     IReadOnlyList<AuditEntry> AuditEntries);
 
 public interface IClienteRgpdRepository

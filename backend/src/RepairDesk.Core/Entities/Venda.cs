@@ -16,6 +16,8 @@ public class Venda : BaseEntity, ITenantEntity
     public int IvaCents { get; set; }
     public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.Outro;
     public VendaStatus Status { get; set; } = VendaStatus.Pendente;
+    /// <summary>Sprint 70: canal de origem da venda (default Balcao).</summary>
+    public VendaOrigem Origem { get; set; } = VendaOrigem.Balcao;
 
     public BillingProvider InvoiceProvider { get; set; } = BillingProvider.None;
     public string? InvoiceExternalId { get; set; }

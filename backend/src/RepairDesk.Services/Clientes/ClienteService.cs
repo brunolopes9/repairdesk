@@ -15,7 +15,10 @@ public interface IClienteService
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<ImportClientesResponse> ImportCsvAsync(string csv, CancellationToken ct = default);
     Task<byte[]> ExportCsvAsync(CancellationToken ct = default);
+    Task<LookupOrCreateClienteResponse> LookupOrCreateAsync(CreateClienteRequest req, CancellationToken ct = default);
 }
+
+public sealed record LookupOrCreateClienteResponse(ClienteDto Cliente, bool Created);
 
 public class ClienteService : IClienteService
 {
@@ -87,6 +90,25 @@ public class ClienteService : IClienteService
         var cliente = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Cliente", id);
         _repo.Remove(cliente);
         await _repo.SaveAsync(ct);
+    }
+
+    /// <summary>
+    /// Find-by-NIF-or-create atómico. Pensado para integração externa (loja online,
+    /// importadores) que recebem dados de cliente e precisam de garantir que existe
+    /// no RepairDesk sem causar duplicados. Sprint 69.
+    /// </summary>
+    public async Task<LookupOrCreateClienteResponse> LookupOrCreateAsync(CreateClienteRequest req, CancellationToken ct = default)
+    {
+        // Se tem NIF, tenta primeiro lookup. Sem NIF, vamos sempre criar (não há
+        // ID estável para deduplicar).
+        if (!string.IsNullOrWhiteSpace(req.Nif))
+        {
+            var existing = await _repo.FindByNifAsync(req.Nif.Trim(), ct);
+            if (existing is not null) return new LookupOrCreateClienteResponse(ToDto(existing), Created: false);
+        }
+
+        var created = await CreateAsync(req, ct);
+        return new LookupOrCreateClienteResponse(created, Created: true);
     }
 
     public async Task<ImportClientesResponse> ImportCsvAsync(string csv, CancellationToken ct = default)

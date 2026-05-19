@@ -5,13 +5,16 @@ using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Billing;
+using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
 
 namespace RepairDesk.Services.Vendas;
 
 public interface IVendaService
 {
-    Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default);
+    Task<VendaImeiLookupDto?> ImeiLookupAsync(string imei, CancellationToken ct = default);
+    Task<IReadOnlyList<VendaReparacaoRelacionadaDto>> GetReparacoesRelacionadasAsync(Guid vendaId, CancellationToken ct = default);
     Task<VendaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<VendaDto> CreateAsync(CreateVendaRequest req, CancellationToken ct = default);
     Task<EmitVendaFaturaResponse> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default);
@@ -31,6 +34,10 @@ public class VendaService : IVendaService
     private readonly ITenantBillingSettingsRepository _billingSettings;
     private readonly IBillingProvider _billing;
     private readonly IMoloniClient _moloni;
+    private readonly IInvoiceXpressClient _invoiceXpress;
+    private readonly IGarantiaRepository _garantias;
+    private readonly ITenantRepository _tenants;
+    private readonly IReparacaoRepository _reparacoes;
 
     public VendaService(
         IVendaRepository vendas,
@@ -39,7 +46,11 @@ public class VendaService : IVendaService
         ITenantContext tenant,
         ITenantBillingSettingsRepository billingSettings,
         IBillingProvider billing,
-        IMoloniClient moloni)
+        IMoloniClient moloni,
+        IInvoiceXpressClient invoiceXpress,
+        IGarantiaRepository garantias,
+        ITenantRepository tenants,
+        IReparacaoRepository reparacoes)
     {
         _vendas = vendas;
         _parts = parts;
@@ -48,14 +59,55 @@ public class VendaService : IVendaService
         _billingSettings = billingSettings;
         _billing = billing;
         _moloni = moloni;
+        _invoiceXpress = invoiceXpress;
+        _garantias = garantias;
+        _tenants = tenants;
+        _reparacoes = reparacoes;
     }
 
-    public async Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, int page, int pageSize, CancellationToken ct = default)
+    public async Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var (items, total) = await _vendas.SearchAsync(fromUtc, toUtc, page, pageSize, ct);
+        var (items, total) = await _vendas.SearchAsync(fromUtc, toUtc, clienteId, page, pageSize, ct);
         return new PagedResult<VendaDto>(items.Select(ToDto).ToList(), page, pageSize, total);
+    }
+
+    public async Task<VendaImeiLookupDto?> ImeiLookupAsync(string imei, CancellationToken ct = default)
+    {
+        var clean = ImeiValidator.Normalize(imei);
+        if (string.IsNullOrEmpty(clean) || !ImeiValidator.IsValid(clean)) return null;
+        var row = await _vendas.FindVendaByImeiAsync(clean, ct);
+        if (row is null) return null;
+        return new VendaImeiLookupDto(row.VendaId, row.Numero, row.Data, row.Descricao, row.ClienteNome);
+    }
+
+    public async Task<IReadOnlyList<VendaReparacaoRelacionadaDto>> GetReparacoesRelacionadasAsync(Guid vendaId, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
+        var imeis = venda.Items
+            .SelectMany(i => new[] { i.Imei, i.Imei2 })
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s!)
+            .Distinct()
+            .ToList();
+        if (imeis.Count == 0) return Array.Empty<VendaReparacaoRelacionadaDto>();
+
+        // Para cada IMEI da venda, lookup reparações pós-data da venda.
+        var resultado = new List<VendaReparacaoRelacionadaDto>();
+        foreach (var imei in imeis)
+        {
+            var reparacoes = await _reparacoes.SearchByImeiAsync(imei, excludeId: null, ct);
+            foreach (var r in reparacoes.Where(r => r.CreatedAt > venda.Data))
+            {
+                resultado.Add(new VendaReparacaoRelacionadaDto(
+                    r.Id, r.Numero, r.CreatedAt, r.Equipamento, r.Imei ?? imei,
+                    (int)r.Estado,
+                    (int)Math.Round((r.CreatedAt - venda.Data).TotalDays),
+                    r.OrcamentoCents));
+            }
+        }
+        return resultado.OrderByDescending(r => r.RecebidoEm).ToList();
     }
 
     public async Task<VendaDto> GetAsync(Guid id, CancellationToken ct = default)
@@ -83,6 +135,7 @@ public class VendaService : IVendaService
             Data = DateTime.UtcNow,
             Status = VendaStatus.Pendente,
             Notas = Clean(req.Notas),
+            Origem = req.Origem ?? VendaOrigem.Balcao,
         };
 
         foreach (var itemReq in req.Items)
@@ -97,6 +150,20 @@ public class VendaService : IVendaService
                 EnsurePartSellable(part, itemReq.Quantidade);
             }
 
+            // IMEI obrigatorio para Smartphone/Tablet (Molano dropshipping refurbished).
+            var requiresImei = part?.Categoria is PartCategoria.Smartphone or PartCategoria.Tablet;
+            var imei = Clean(itemReq.Imei);
+            var imei2 = Clean(itemReq.Imei2);
+            if (requiresImei && string.IsNullOrEmpty(imei))
+                throw new ValidationException("imei_obrigatorio",
+                    $"IMEI obrigatorio para {part?.Nome ?? "Smartphone/Tablet"}.");
+            if (!string.IsNullOrEmpty(imei) && !ImeiValidator.IsValid(imei))
+                throw new ValidationException("imei_invalido",
+                    "IMEI invalido — verifica os digitos (Luhn check falhou).");
+            if (!string.IsNullOrEmpty(imei2) && !ImeiValidator.IsValid(imei2))
+                throw new ValidationException("imei2_invalido",
+                    "IMEI secundario invalido — verifica os digitos.");
+
             venda.Items.Add(new VendaItem
             {
                 PartId = part?.Id,
@@ -106,6 +173,8 @@ public class VendaService : IVendaService
                 PrecoUnitarioCents = itemReq.PrecoUnitarioCents,
                 DescontoCents = itemReq.DescontoCents,
                 IvaRate = itemReq.IvaRate,
+                Imei = imei is null ? null : ImeiValidator.Normalize(imei),
+                Imei2 = imei2 is null ? null : ImeiValidator.Normalize(imei2),
             });
         }
 
@@ -148,6 +217,9 @@ public class VendaService : IVendaService
             venda.Data = DateTime.UtcNow;
             RecalculateTotals(venda);
             await _vendas.SaveAsync(ct);
+
+            // DL 84/2021: emite garantia digital automática (3 anos default para consumo).
+            await EmitirGarantiaVendaSeNecessarioAsync(venda, venda.Data, ct);
         }
 
         InvoiceDto? invoice = null;
@@ -156,6 +228,38 @@ public class VendaService : IVendaService
 
         venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? venda;
         return new EmitVendaFaturaResponse(ToDto(venda), invoice);
+    }
+
+    /// <summary>
+    /// Emite garantia automática para a Venda ao marcar paga.
+    /// Default 3 anos (DL 84/2021 — bens móveis consumo). Configurável por tenant.
+    /// Idempotente: se já existe, não faz nada.
+    /// </summary>
+    private async Task EmitirGarantiaVendaSeNecessarioAsync(Venda venda, DateTime agora, CancellationToken ct)
+    {
+        var existente = await _garantias.FindByVendaAsync(venda.Id, ct);
+        if (existente is not null) return;
+
+        var tenant = _tenant.TenantId is { } tid ? await _tenants.FindByIdAsync(tid, ct) : null;
+        var dias = tenant?.GarantiaVendaDiasDefault ?? 1095;
+        var cobertura = tenant?.GarantiaVendaCoberturaDefault
+            ?? "Conformidade do bem com o descrito na fatura (DL 84/2021). O comprador tem direito à reposição da conformidade (reparação ou substituição), redução do preço ou resolução do contrato.";
+        var exclusoes = tenant?.GarantiaVendaExclusoesDefault
+            ?? "Danos por uso indevido, líquidos, quedas, abertura/desmontagem do equipamento, desgaste normal de baterias e acessórios.";
+
+        var g = new Garantia
+        {
+            VendaId = venda.Id,
+            SourceType = GarantiaSourceType.Venda,
+            Slug = PublicSlugGenerator.New(),
+            DataInicio = agora,
+            DataFim = agora.AddDays(dias),
+            DiasGarantia = dias,
+            Cobertura = cobertura,
+            Exclusoes = exclusoes,
+        };
+        await _garantias.AddAsync(g, ct);
+        await _garantias.SaveAsync(ct);
     }
 
     public async Task<InvoiceDto> EmitirFaturaAsync(Guid id, CancellationToken ct = default)
@@ -174,7 +278,7 @@ public class VendaService : IVendaService
     public async Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default)
     {
         // SearchAsync com pageSize generoso. 1000 vendas chega para vários meses.
-        var (rows, _) = await _vendas.SearchAsync(fromUtc, toUtc, 1, 1000, ct);
+        var (rows, _) = await _vendas.SearchAsync(fromUtc, toUtc, null, 1, 1000, ct);
 
         var csv = new CsvBuilder();
         csv.Row(
@@ -220,7 +324,12 @@ public class VendaService : IVendaService
                 (ivaCents / 100m).ToString("0.00", CultureInfo.InvariantCulture),
                 paymentLabel,
                 statusLabel,
-                v.InvoiceProvider == BillingProvider.Moloni ? "Moloni" : "",
+                v.InvoiceProvider switch
+                {
+                    BillingProvider.Moloni => "Moloni",
+                    BillingProvider.InvoiceXpress => "InvoiceXpress",
+                    _ => "",
+                },
                 v.InvoiceNumber ?? "",
                 v.InvoiceEmittedAt?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "",
                 v.Notas ?? "");
@@ -287,6 +396,34 @@ public class VendaService : IVendaService
                     ), ct);
                 }
             }
+            else if (settings?.Provider == BillingProvider.InvoiceXpress && venda.InvoiceProvider == BillingProvider.InvoiceXpress)
+            {
+                var reason = $"Anulado via RepairDesk - venda #{venda.Numero}";
+                var cancelled = await _invoiceXpress.CancelDocumentAsync(settings, venda.InvoiceExternalId, reason, ct);
+
+                if (!cancelled)
+                {
+                    var items = venda.Items.Select(i => new InvoiceXpressInvoiceDraftItem(
+                        i.Descricao,
+                        null,
+                        i.Quantidade,
+                        i.PrecoUnitarioCents,
+                        i.DescontoCents,
+                        i.IvaRate)).ToList();
+
+                    await _invoiceXpress.InsertCreditNoteAsync(settings, new InvoiceXpressCreditNoteDraft(
+                        venda.InvoiceExternalId,
+                        new InvoiceXpressClientDraft(
+                            string.IsNullOrWhiteSpace(venda.Cliente?.Nome) ? "Consumidor Final" : venda.Cliente.Nome,
+                            venda.Cliente?.Email,
+                            venda.Cliente?.Nif,
+                            venda.Cliente?.Telefone),
+                        $"Venda #{venda.Numero}",
+                        items,
+                        $"Anulacao da Fatura {venda.InvoiceNumber} via RepairDesk"
+                    ), ct);
+                }
+            }
         }
 
         // Limpa referencias locais para a venda sair do Relatorio IVA do RepairDesk
@@ -332,6 +469,34 @@ public class VendaService : IVendaService
                     }
                 }
             }
+            else if (settings?.Provider == BillingProvider.InvoiceXpress && venda.InvoiceProvider == BillingProvider.InvoiceXpress)
+            {
+                var reason = $"Cancelado via RepairDesk - venda #{venda.Numero}";
+                var cancelled = await _invoiceXpress.CancelDocumentAsync(settings, venda.InvoiceExternalId, reason, ct);
+
+                if (!cancelled)
+                {
+                    var items = venda.Items.Select(i => new InvoiceXpressInvoiceDraftItem(
+                        i.Descricao,
+                        null,
+                        i.Quantidade,
+                        i.PrecoUnitarioCents,
+                        i.DescontoCents,
+                        i.IvaRate)).ToList();
+
+                    await _invoiceXpress.InsertCreditNoteAsync(settings, new InvoiceXpressCreditNoteDraft(
+                        venda.InvoiceExternalId,
+                        new InvoiceXpressClientDraft(
+                            string.IsNullOrWhiteSpace(venda.Cliente?.Nome) ? "Consumidor Final" : venda.Cliente.Nome,
+                            venda.Cliente?.Email,
+                            venda.Cliente?.Nif,
+                            venda.Cliente?.Telefone),
+                        $"Venda #{venda.Numero}",
+                        items,
+                        $"Cancelamento da Fatura {venda.InvoiceNumber} via RepairDesk"
+                    ), ct);
+                }
+            }
 
             // Limpa Invoice* locais (ja anulada/NC emitida no Moloni)
             venda.InvoiceProvider = BillingProvider.None;
@@ -372,7 +537,7 @@ public class VendaService : IVendaService
     {
         if (_tenant.TenantId is not { } tenantId) return false;
         var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
-        return settings?.Provider == BillingProvider.Moloni;
+        return settings?.Provider is BillingProvider.Moloni or BillingProvider.InvoiceXpress;
     }
 
     private static void ValidateItemRequest(CreateVendaItemRequest item)
@@ -446,8 +611,18 @@ public class VendaService : IVendaService
                 i.DescontoCents,
                 i.IvaRate,
                 i.TotalCents,
-                CalculateIvaCents(i))).ToList());
+                CalculateIvaCents(i),
+                i.Imei,
+                i.Imei2)).ToList(),
+            venda.Origem);
     }
+
+    private static InvoiceXpressClientDraft ToInvoiceXpressClientDraft(Cliente? cliente)
+        => new(
+            string.IsNullOrWhiteSpace(cliente?.Nome) ? "Consumidor Final" : cliente.Nome,
+            cliente?.Email,
+            cliente?.Nif,
+            cliente?.Telefone);
 
     private static string? Clean(string? s)
         => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

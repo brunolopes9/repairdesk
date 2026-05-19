@@ -882,13 +882,16 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<Guid>("ReparacaoId")
+                    b.Property<Guid?>("ReparacaoId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -899,17 +902,27 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("VendaId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ReparacaoId")
                         .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
+                        .HasFilter("[IsDeleted] = 0 AND [ReparacaoId] IS NOT NULL");
 
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
 
-                    b.ToTable("Garantias", (string)null);
+                    b.HasIndex("VendaId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [VendaId] IS NOT NULL");
+
+                    b.ToTable("Garantias", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Garantias_OneSource", "([ReparacaoId] IS NOT NULL AND [VendaId] IS NULL) OR ([ReparacaoId] IS NULL AND [VendaId] IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.Part", b =>
@@ -1309,6 +1322,21 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<DateTime>("EstadoSince")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("EstimateEmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EstimateExternalId")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EstimateNumber")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EstimatePdfUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<decimal>("HorasGastas")
                         .HasPrecision(8, 2)
                         .HasColumnType("decimal(8,2)");
@@ -1383,6 +1411,9 @@ namespace RepairDesk.DAL.Migrations
                         .HasFilter("[EquipmentFieldTemplateId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "Estado");
+
+                    b.HasIndex("TenantId", "EstimateExternalId")
+                        .HasFilter("[EstimateExternalId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "InvoiceExternalId")
                         .HasFilter("[InvoiceExternalId] IS NOT NULL");
@@ -1515,6 +1546,66 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("ReparacaoFotos", (string)null);
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.ServiceApiKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("KeyPrefix")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RevokedReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KeyHash")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "CreatedAt");
+
+                    b.ToTable("ServiceApiKeys", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.SystemSetting", b =>
                 {
                     b.Property<string>("Key")
@@ -1577,6 +1668,17 @@ namespace RepairDesk.DAL.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("GarantiaExclusoesDefault")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("GarantiaVendaCoberturaDefault")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("GarantiaVendaDiasDefault")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GarantiaVendaExclusoesDefault")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
@@ -1771,6 +1873,21 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("EstadoPagamento")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("EstimateEmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EstimateExternalId")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EstimateNumber")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EstimatePdfUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<decimal>("HorasGastas")
                         .HasPrecision(8, 2)
                         .HasColumnType("decimal(8,2)");
@@ -1831,6 +1948,9 @@ namespace RepairDesk.DAL.Migrations
                     b.HasIndex("ClienteId");
 
                     b.HasIndex("TenantId", "Categoria");
+
+                    b.HasIndex("TenantId", "EstimateExternalId")
+                        .HasFilter("[EstimateExternalId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "InvoiceExternalId")
                         .HasFilter("[InvoiceExternalId] IS NOT NULL");
@@ -1893,6 +2013,11 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("Numero")
                         .HasColumnType("int");
 
+                    b.Property<int>("Origem")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("int");
 
@@ -1949,6 +2074,14 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("Imei")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Imei2")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -1982,6 +2115,9 @@ namespace RepairDesk.DAL.Migrations
                     b.HasIndex("PartId");
 
                     b.HasIndex("VendaId");
+
+                    b.HasIndex("TenantId", "Imei")
+                        .HasFilter("[Imei] IS NOT NULL");
 
                     b.HasIndex("TenantId", "PartId")
                         .HasFilter("[PartId] IS NOT NULL");
@@ -2155,10 +2291,16 @@ namespace RepairDesk.DAL.Migrations
                     b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
                         .WithMany()
                         .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
+                        .WithMany()
+                        .HasForeignKey("VendaId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Reparacao");
+
+                    b.Navigation("Venda");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.Part", b =>

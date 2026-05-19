@@ -36,6 +36,15 @@ public class ClientesController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
     }
 
+    /// <summary>
+    /// Find-by-NIF-or-create atómico. Para integrações externas (loja online, importadores) que
+    /// querem garantir cliente sem causar duplicados. Devolve cliente + flag <c>created</c>.
+    /// Sem NIF, cria sempre.
+    /// </summary>
+    [HttpPost("lookup-or-create")]
+    public Task<LookupOrCreateClienteResponse> LookupOrCreate([FromBody] CreateClienteRequest req, CancellationToken ct)
+        => _service.LookupOrCreateAsync(req, ct);
+
     [HttpPut("{id:guid}")]
     public Task<ClienteDto> Update(Guid id, [FromBody] UpdateClienteRequest req, CancellationToken ct)
         => _service.UpdateAsync(id, req, ct);

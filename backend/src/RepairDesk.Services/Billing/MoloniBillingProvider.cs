@@ -192,6 +192,13 @@ public class MoloniBillingProvider : IBillingProvider
         {
             var id = await _moloni.FindCustomerIdByVatAsync(settings, cliente.Nif, ct);
             if (id is > 0) return id.Value;
+
+            // Sprint 66: cliente novo — cria na Moloni se tem NIF + nome.
+            if (!string.IsNullOrWhiteSpace(cliente.Nome))
+            {
+                var created = await _moloni.InsertCustomerAsync(settings, cliente.Nome.Trim(), cliente.Nif.Trim(), ct);
+                if (created.Id > 0) return created.Id;
+            }
         }
 
         if (settings.FallbackCustomerId is > 0)
@@ -199,7 +206,7 @@ public class MoloniBillingProvider : IBillingProvider
 
         throw new ValidationException(
             "moloni_customer_missing",
-            "Cliente sem ficha Moloni encontrada. Configura FallbackCustomerId ou cria o cliente/NIF na Moloni.");
+            "Cliente sem NIF e sem FallbackCustomerId configurado. Liga Moloni nas Definições (auto-discovery cria 'Consumidor Final').");
     }
 
     private static decimal ResolveVatPercent(Tenant tenant, decimal? explicitVat)

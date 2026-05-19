@@ -49,4 +49,8 @@ public sealed record TrabalhoDto(
     string? InvoiceExternalId,
     string? InvoicePdfUrl,
     string? InvoiceNumber,
-    DateTime? InvoiceEmittedAt);
+    DateTime? InvoiceEmittedAt,
+    string? EstimateExternalId,
+    string? EstimateNumber,
+    string? EstimatePdfUrl,
+    DateTime? EstimateEmittedAt);

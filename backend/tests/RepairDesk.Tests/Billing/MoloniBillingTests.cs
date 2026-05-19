@@ -12,6 +12,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Billing;
+using RepairDesk.Services.Billing.InvoiceXpress;
 
 namespace RepairDesk.Tests.Billing;
 
@@ -33,6 +34,47 @@ public class MoloniBillingTests
         result.Number.Should().Be("FA 2026/123");
         result.PdfUrl.Should().Be("https://moloni.test/fa-123.pdf");
         handler.Requests.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task MoloniClient_EstimateFlow_InsertsAndConvertsToInvoice()
+    {
+        var handler = new QueueHttpHandler(
+            Json(HttpStatusCode.OK, """{"document_id":456}"""),
+            Json(HttpStatusCode.OK, """{"document_type":{"saft_code":"OR"},"year":2026,"number":456}"""),
+            Json(HttpStatusCode.OK, """{"url":"https://moloni.test/or-456.pdf"}"""),
+            Json(HttpStatusCode.OK, """{"document_id":789}"""),
+            Json(HttpStatusCode.OK, """{"document_type":{"saft_code":"FA"},"year":2026,"number":789}"""),
+            Json(HttpStatusCode.OK, """{"url":"https://moloni.test/fa-789.pdf"}"""));
+
+        var client = NewMoloniClient(handler);
+        var estimate = await client.InsertEstimateAsync(Settings(), new MoloniInvoiceDraft(
+            77, "Reparacao #1", "Reparacao iPhone", "Ecra", 3990, 23m, null));
+
+        estimate.ExternalId.Should().Be("456");
+        estimate.Number.Should().Be("OR 2026/456");
+        estimate.PdfUrl.Should().Be("https://moloni.test/or-456.pdf");
+
+        var invoice = await client.ConvertEstimateToInvoiceAsync(Settings(), 456);
+
+        invoice.ExternalId.Should().Be("789");
+        invoice.Number.Should().Be("FA 2026/789");
+        invoice.PdfUrl.Should().Be("https://moloni.test/fa-789.pdf");
+        handler.Requests.Should().HaveCount(6);
+        handler.Requests[0].RequestUri!.AbsoluteUri.Should().Contain("estimates/insert");
+        handler.Requests[3].RequestUri!.AbsoluteUri.Should().Contain("documentsToInvoice");
+    }
+
+    [Fact]
+    public async Task MoloniClient_GetEstimateStatus_UsesDocumentStatus()
+    {
+        var handler = new QueueHttpHandler(Json(HttpStatusCode.OK, """{"status":2}"""));
+        var client = NewMoloniClient(handler);
+
+        var status = await client.GetEstimateStatusAsync(Settings(), 456);
+
+        status.Should().Be(2);
+        handler.Requests[0].RequestUri!.AbsoluteUri.Should().Contain("documents/getOne");
     }
 
     [Theory]
@@ -141,6 +183,7 @@ public class MoloniBillingTests
             new FakeTenantContext(tenantId),
             protector,
             new FakeMoloniClient(),
+            new FakeInvoiceXpressClient(),
             NewMemoryCache(),
             NewConfig(),
             new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
@@ -302,11 +345,12 @@ public class MoloniBillingTests
         public Task<Venda?> FindByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Venda?>(null);
         public Task<Venda?> FindByIdWithItemsAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Venda?>(null);
         public Task CreateWithNextNumeroAsync(Venda venda, Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task<(IReadOnlyList<Venda> Items, int Total)> SearchAsync(DateTime? fromUtc, DateTime? toUtc, int page, int pageSize, CancellationToken ct = default)
+        public Task<(IReadOnlyList<Venda> Items, int Total)> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
             => Task.FromResult(((IReadOnlyList<Venda>)Array.Empty<Venda>(), 0));
         public Task<int> SumPaidBetweenAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => Task.FromResult(0);
         public Task<IReadOnlyList<TopVendaItemRow>> TopItemsByRevenueAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default)
             => Task.FromResult((IReadOnlyList<TopVendaItemRow>)Array.Empty<TopVendaItemRow>());
+        public Task<VendaImeiLookupRow?> FindVendaByImeiAsync(string imei, CancellationToken ct = default) => Task.FromResult<VendaImeiLookupRow?>(null);
         public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
@@ -329,6 +373,12 @@ public class MoloniBillingTests
             InsertCalls++;
             return Task.FromResult(new MoloniInvoiceResult("123", "FA 2026/123", "https://moloni.test/fa-123.pdf", DateTime.UtcNow));
         }
+        public Task<MoloniEstimateResult> InsertEstimateAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default)
+            => Task.FromResult(new MoloniEstimateResult("456", "OR 2026/456", "https://moloni.test/or-456.pdf", DateTime.UtcNow));
+        public Task<int?> GetEstimateStatusAsync(TenantBillingSettings settings, int estimateId, CancellationToken ct = default)
+            => Task.FromResult<int?>(1);
+        public Task<MoloniInvoiceResult> ConvertEstimateToInvoiceAsync(TenantBillingSettings settings, int estimateId, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
+            => Task.FromResult(new MoloniInvoiceResult("789", "FA 2026/789", "https://moloni.test/fa-789.pdf", DateTime.UtcNow));
         public Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string documentId, CancellationToken ct = default)
             => Task.FromResult<Stream>(new MemoryStream());
         public Task<MoloniInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, MoloniCreditNoteDraft draft, CancellationToken ct = default)
@@ -355,5 +405,26 @@ public class MoloniBillingTests
             => Task.FromResult(new MoloniProductDto(1, name, true));
         public Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, CancellationToken ct = default)
             => Task.FromResult(new MoloniCustomerDto(1, name, vat, true));
+    }
+
+    private sealed class FakeInvoiceXpressClient : IInvoiceXpressClient
+    {
+        public Task TestConnectionAsync(TenantBillingSettings settings, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<IReadOnlyList<BillingSerieDto>> GetSeriesAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<BillingSerieDto>)Array.Empty<BillingSerieDto>());
+        public Task<IReadOnlyList<InvoiceXpressClientDto>> GetClientsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<InvoiceXpressClientDto>)Array.Empty<InvoiceXpressClientDto>());
+        public Task<IReadOnlyList<InvoiceXpressItemDto>> GetItemsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<InvoiceXpressItemDto>)Array.Empty<InvoiceXpressItemDto>());
+        public Task<IReadOnlyList<InvoiceXpressDocumentDto>> ListInvoicesAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<InvoiceXpressDocumentDto>)Array.Empty<InvoiceXpressDocumentDto>());
+        public Task<InvoiceXpressInvoiceResult> InsertInvoiceAsync(TenantBillingSettings settings, InvoiceXpressInvoiceDraft draft, CancellationToken ct = default)
+            => Task.FromResult(new InvoiceXpressInvoiceResult("1", "FT 2026/1", null, DateTime.UtcNow));
+        public Task<InvoiceXpressInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, InvoiceXpressCreditNoteDraft draft, CancellationToken ct = default)
+            => Task.FromResult(new InvoiceXpressInvoiceResult("2", "NC 2026/1", null, DateTime.UtcNow));
+        public Task<bool> CancelDocumentAsync(TenantBillingSettings settings, string externalId, string reason, CancellationToken ct = default)
+            => Task.FromResult(true);
+        public Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string externalId, CancellationToken ct = default)
+            => Task.FromResult<Stream>(new MemoryStream());
     }
 }

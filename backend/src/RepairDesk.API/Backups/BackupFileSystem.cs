@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace RepairDesk.API.Backups;
 
 public interface IBackupFileSystem
@@ -6,6 +8,10 @@ public interface IBackupFileSystem
     bool Exists(string path);
     long GetSize(string path);
     IReadOnlyList<BackupFileDto> ListLocalBackups(string localPath);
+    void WriteMetadata(string backupPath, BackupMetadata metadata);
+    BackupMetadata? TryReadMetadata(string backupPath);
+    string GetMetadataPath(string backupPath);
+    string GetRestoreWorkspacePath(string localPath);
     BackupRetentionResult ApplyRetention(string localPath, int retentionDays, DateTimeOffset now);
 }
 
@@ -28,6 +34,35 @@ public sealed class BackupFileSystem : IBackupFileSystem
             .ToList();
     }
 
+    public void WriteMetadata(string backupPath, BackupMetadata metadata)
+    {
+        var json = JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(GetMetadataPath(backupPath), json);
+    }
+
+    public BackupMetadata? TryReadMetadata(string backupPath)
+    {
+        var path = GetMetadataPath(backupPath);
+        if (!File.Exists(path))
+            return null;
+
+        try
+        {
+            return TryReadMetadataCore(path);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public string GetRestoreWorkspacePath(string localPath)
+    {
+        var path = Path.Combine(localPath, "_restore");
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
     public BackupRetentionResult ApplyRetention(string localPath, int retentionDays, DateTimeOffset now)
     {
         if (!Directory.Exists(localPath))
@@ -43,6 +78,9 @@ public sealed class BackupFileSystem : IBackupFileSystem
                 continue;
 
             File.Delete(file);
+            var metadataPath = BuildMetadataPath(file);
+            if (File.Exists(metadataPath))
+                File.Delete(metadataPath);
             deleted++;
         }
 
@@ -52,12 +90,17 @@ public sealed class BackupFileSystem : IBackupFileSystem
     private static BackupFileDto ToDto(string path)
     {
         var info = new FileInfo(path);
+        var metadata = TryReadMetadataCore(BuildMetadataPath(path));
+        var timestamp = GetBackupTimestamp(path);
         return new BackupFileDto(
+            BackupId.For(BackupLocation.Local, info.Name),
             info.Name,
             BackupLocation.Local,
-            GetBackupTimestamp(path),
+            timestamp,
             info.Length,
-            "available",
+            "OK",
+            GetAgeHours(timestamp),
+            metadata?.Snapshot,
             path,
             null);
     }
@@ -79,5 +122,24 @@ public sealed class BackupFileSystem : IBackupFileSystem
         }
 
         return new FileInfo(path).LastWriteTimeUtc;
+    }
+
+    public string GetMetadataPath(string backupPath) => BuildMetadataPath(backupPath);
+
+    private static string BuildMetadataPath(string backupPath) => $"{backupPath}.json";
+
+    private static double GetAgeHours(DateTimeOffset timestamp) =>
+        Math.Max(0, (DateTimeOffset.UtcNow - timestamp.ToUniversalTime()).TotalHours);
+
+    private static BackupMetadata? TryReadMetadataCore(string path)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<BackupMetadata>(File.ReadAllText(path));
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
