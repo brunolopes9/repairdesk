@@ -3468,6 +3468,336 @@ Branch: codex/sprint-47-relatorio-iva
 
 ---
 
+## Codex Coding #C17 — Mobile-first responsive audit completo + skeleton consistency
+
+```
+[CONTEXTO]
+RepairDesk pre-beta. Bruno e tenants futuros vao usar tablet/phone no balcao.
+Sprint 50 ja fez polish em Vendas POS mas as outras paginas nao foram auditadas.
+
+Paginas a auditar:
+- /clientes (lista + detalhe)
+- /reparacoes (lista, kanban, detalhe)
+- /trabalhos (lista, detalhe)
+- /despesas
+- /stock
+- /precos
+- /auditoria
+- /relatorios/iva
+- /definicoes (todas as 7 secções)
+- /vendas (ja parcialmente feito mas conferir)
+
+[OBJECTIVO]
+Mobile-first em todas as paginas. Touch targets >= 44px, scroll horizontal
+em tabelas grandes, layout stacks correcto, skeleton loading em todas as
+queries.
+
+[REQUISITOS FUNCIONAIS]
+1. Touch targets:
+   - Botoes icon-only: minimo h-10 w-10 (40x40px)
+   - Botoes texto: minimo min-h-11 (44px)
+   - Inputs: h-11 minimo
+   - Checkbox/radio: scale-125 em mobile
+2. Tabelas:
+   - Wrap em <div className="overflow-x-auto">
+   - min-w-[480px] ou [640px] dependendo da densidade
+   - Considera versao mobile (cards) vs desktop (table)
+3. Layouts:
+   - Grids: sempre `grid-cols-1 sm:grid-cols-X lg:grid-cols-Y`
+   - Side panels: stack em mobile, side em lg+
+   - Modals: max-w-X w-full, max-h-[90vh] overflow-y-auto
+4. Skeleton states (componentes ja existem em components/ui/Skeleton.tsx):
+   - SkeletonCard, SkeletonRow, SkeletonTable
+   - Toda query useQuery em isLoading: mostrar skeleton consistente
+   - Nao mostrar texto "A carregar..." sozinho
+
+[CONSTRAINTS]
+- NAO mudar logica de negocio, so layout/responsive
+- NAO usar window-based detection, so CSS breakpoints
+- Manter dark mode em tudo (`dark:` variants)
+- Tailwind only (sem CSS custom)
+
+[OUTPUT ESPERADO]
+- Audit document Contexto/46-Mobile-Audit-Results.md com mapa
+  pagina-by-pagina do que mudou e antes/depois
+- Commits per-pagina (1 commit = 1 page polish)
+- Screenshot ASCII em ./Contexto/46-Mobile-Audit-Results.md ou similar
+
+[VERIFICAÇÃO]
+- Chrome DevTools mobile mode em todas as paginas
+- Funcionalidade preservada
+- Tests passam (sem mudanças backend)
+
+Branch: codex/sprint-55-mobile-audit
+```
+
+---
+
+## Codex Coding #C18 — InvoiceXpress provider alternativo (multi-provider real)
+
+```
+[CONTEXTO]
+Sprint #C9 implementou MoloniBillingProvider. Sprint 47/48 padronizou
+fluxos cancel/anular fatura via IMoloniClient. Falta agora a 2a
+implementação para validar a abstração: InvoiceXpress.
+
+Por que InvoiceXpress:
+- Tambem certificado AT
+- Modelo de planos diferente (por nº docs/mês, alguns mais baratos)
+- Mesma empresa Visma que Moloni mas API diferente
+- Util para tenants com volume baixo ou que ja usam IX
+
+[ESTADO ACTUAL]
+- IBillingProvider abstracção existe (Reparacao/Trabalho/Venda emit + cancel)
+- BillingProvider enum tem None=0, Moloni=1, InvoiceXpress=2 (disabled)
+- TenantBillingSettings ja tem campos generics (ApiKey, ClientId, etc)
+
+[OBJECTIVO]
+InvoiceXpressBillingProvider completo, equivalente ao Moloni.
+
+[REQUISITOS FUNCIONAIS]
+1. IInvoiceXpressClient + InvoiceXpressClient
+   - Auth: API token via headers (mais simples que OAuth2)
+   - https://invoicexpress.com/api/{account_name}.invoicexpress.com/
+   - Endpoints: invoices.json (insert/cancel/list), clients.json, items.json
+2. InvoiceXpressBillingProvider : IBillingProvider
+   - EmitReparacaoInvoiceAsync, EmitTrabalhoInvoiceAsync, EmitVendaInvoiceAsync
+   - Mesma lógica de auto-NC / cancel quando aplicavel
+3. Definições > Faturação UI:
+   - Provider dropdown ja existe — desbloqueia opção InvoiceXpress (val=2)
+   - Quando provider=InvoiceXpress mostra: API key, Account Name, default series, NIF
+   - Esconde campos Moloni-specific (Developer ID, etc)
+4. Service registration condicional:
+   - Singleton IBillingProvider escolhido em runtime baseado em settings
+   - Use factory pattern: BillingProviderFactory.GetProvider(settings)
+
+[CONSTRAINTS]
+- NAO mudar API publica de IBillingProvider
+- NAO quebrar testes existentes Moloni
+- Adicionar testes IX equivalentes
+- Tenant deve poder mudar entre Moloni e InvoiceXpress sem perder dados
+  (Invoice* fields ficam vinculados ao provider que os emitiu)
+
+[OUTPUT ESPERADO]
+- backend/src/RepairDesk.Services/Billing/InvoiceXpress/* (novo namespace)
+- IInvoiceXpressClient + InvoiceXpressClient + provider
+- BillingProviderFactory
+- backend/tests/RepairDesk.Tests/Billing/InvoiceXpress/* testes
+- frontend/src/lib/tenantSettings: UI condicional por provider
+- Contexto/47-InvoiceXpress-Setup.md (gémeo do 41-Moloni-Setup.md)
+
+[VERIFICAÇÃO]
+- dotnet test passa todos os existentes + novos IX
+- Tenant pode emitir fatura via IX (test manual com conta sandbox IX)
+- Switch provider em runtime funciona
+
+Branch: codex/sprint-56-invoicexpress
+```
+
+---
+
+## Codex Coding #C19 — E2E tests Playwright dos flows core
+
+```
+[CONTEXTO]
+RepairDesk tem 129 unit tests (.NET) mas zero E2E. Antes de beta com
+tenants reais, validar flows críticos via Playwright para garantir
+que mudanças futuras não partem o produto.
+
+[OBJECTIVO]
+Playwright E2E test suite que cobre 6 flows críticos.
+
+[REQUISITOS FUNCIONAIS]
+1. Setup Playwright em e2e/ folder:
+   - Config para PT-PT locale
+   - Setup local: docker compose deve estar UP
+   - Reset DB antes de cada test (via API endpoint admin)
+
+2. Test 1: Onboarding flow
+   - Login com admin seed
+   - Wizard onboarding (preencher empresa, criar 1º cliente)
+   - Skip resto
+
+3. Test 2: Reparação lifecycle
+   - Criar reparação para cliente existente
+   - Mudar estado: Recebido → Diagnostico → AguardaPeca → EmReparacao → Pronto → Entregue
+   - Marcar como Pago
+   - Emit fatura Moloni (mock se sandbox down)
+   - Verifica fatura aparece no detalhe
+
+4. Test 3: Vendas POS
+   - Adicionar 2 artigos ao carrinho
+   - Seleccionar cliente
+   - Cobrar com MBWay
+   - Verifica venda aparece no histórico
+   - Verifica stock decrementou
+
+5. Test 4: Cancel venda com fatura (Sprint 54)
+   - Emite fatura na venda
+   - Clica "Cancelar venda"
+   - Verifica: invoice cleared, stock revertido, status Cancelada
+
+6. Test 5: Bulk emit faturas (Sprint 49)
+   - 3 reparações pagas sem fatura
+   - Chip "3 pendentes fatura" no header
+   - Modal → seleccionar todas → emitir
+   - Verifica chip desaparece
+
+7. Test 6: Portal cliente (publico)
+   - Operador copia link público da reparação
+   - Browser anónimo abre link
+   - Verifica vê estado, fotos, garantia
+
+8. CI: GitHub Actions workflow que corre estes E2E em PR
+   - Sobe docker compose
+   - Corre playwright
+   - Upload screenshots em falha
+
+[CONSTRAINTS]
+- NAO mock backend — usa o real (docker compose up)
+- NAO depender de Moloni real — usa stub HTTP (MockHttp ou similar) para testes de fatura
+- Reset DB rápido (truncate, não drop+recreate)
+- Tests devem correr <5 min total
+
+[OUTPUT ESPERADO]
+- e2e/ folder com config + 6 tests
+- .github/workflows/e2e.yml
+- README e2e/README.md com como correr local
+- Contexto/48-E2E-Tests.md doc
+
+[VERIFICAÇÃO]
+- npx playwright test passa local
+- CI verde em PR de teste
+
+Branch: codex/sprint-57-e2e-playwright
+```
+
+---
+
+## Codex Coding #C21 — Audit log UI rica + filtros + export
+
+```
+[CONTEXTO]
+Sprint #C7 implementou audit log backend (entity + service + endpoint).
+Página /auditoria mostra lista básica. Para uso operacional real falta UX.
+
+[OBJECTIVO]
+Página Auditoria production-ready com filtros, search e export.
+
+[REQUISITOS FUNCIONAIS]
+1. Filtros (sidebar/header em mobile):
+   - Date range com presets (Hoje, Ontem, 7 dias, 30 dias, Custom)
+   - Entity type (Reparacao, Cliente, Venda, Trabalho, Despesa, Stock, TenantSetting, etc) — multi-select
+   - User (dropdown de utilizadores do tenant) — multi-select
+   - Action type (Created, Updated, Deleted, StatusChanged, InvoiceEmitted, etc) — multi-select
+   - Full-text search em payload (cliente nome, descrição, etc)
+
+2. Tabela:
+   - Colunas: Quando, Quem, O quê, Detalhe (truncated com expand)
+   - Click linha → modal expande payload JSON inteiro com syntax highlighting
+   - Sort por timestamp desc (default)
+   - Paginação ou infinite scroll
+
+3. Badges visuais por action type:
+   - Verde: Created
+   - Azul: Updated
+   - Vermelho: Deleted
+   - Amarelo: StatusChanged
+   - Roxo: InvoiceEmitted/Cancelled
+
+4. Export:
+   - CSV: filtrado para período/filtros activos
+   - PDF: relatório formal com tenant header
+
+5. Quick filter "Acções do utilizador X" — click no nome do user numa linha
+   faz filtro instantaneo por esse user
+
+[CONSTRAINTS]
+- Auditoria é read-only (nao editar)
+- Performance: filtros indexados em DB
+- Pagination padrão 50/página
+
+[OUTPUT ESPERADO]
+- backend/src/RepairDesk.API/Controllers/AuditoriaController: novo endpoints
+  /export.csv, /export.pdf, /search com filtros multi-axis
+- backend/src/RepairDesk.Services/Audit: serviço de filtros
+- frontend/src/pages/auditoria/Auditoria.tsx refactor completo
+- frontend/src/components/JsonViewer (para payload expand)
+- Tests para filtros backend
+
+[VERIFICAÇÃO]
+- Auditoria com 1000+ entries: filtros respondem <500ms
+- CSV/PDF export OK
+
+Branch: codex/sprint-58-audit-log-ui
+```
+
+---
+
+## Codex Coding #C22 — Backups UI restore + retention dashboard
+
+```
+[CONTEXTO]
+Sprint #C6 implementou backup automático SQL Server + R2. Hoje só há
+script CLI. Antes do beta, precisamos de UI segura para tenant ver e
+restaurar backups sem ter de pedir SSH.
+
+[OBJECTIVO]
+Página Definições > Backups com listagem, restore 1-click e dashboard
+de retention.
+
+[REQUISITOS FUNCIONAIS]
+1. Listagem de backups:
+   - Tabela: Data, Tamanho, Localização (Local/R2), Status (OK/Falhado), Idade
+   - Filtro: só Local | só R2 | Ambos
+   - Sort por data desc
+
+2. Restore 1-click:
+   - Botao "Restore" em cada backup
+   - Triple-confirm modal:
+     - Cliente actual: 234 reparacoes, 89 clientes, ...
+     - Backup do dia X: 220 reparacoes, 85 clientes, ...
+     - "Vais SUBSTITUIR os dados actuais. Esta accao NAO PODE ser desfeita."
+     - Tem de digitar "RESTORE" para confirmar
+   - Endpoint POST /api/admin/backups/{id}/restore
+   - Backend: cria 1 backup antes de restaurar (auto-rollback safety), depois restaura
+
+3. Retention dashboard:
+   - Card: "X backups locais, Y backups R2"
+   - Card: "Idade backup mais recente: Z horas"
+   - Card: "Espaço usado local: 234 MB"
+   - Card: "Retention policy: 30 dias local, 90 dias R2"
+
+4. Manual backup trigger:
+   - Botao "Forçar backup agora" (útil antes de operações grandes)
+
+5. Health check:
+   - Verde: ultimo backup há <26h e sucesso
+   - Amarelo: 24-48h
+   - Vermelho: >48h ou ultimo falhado
+
+[CONSTRAINTS]
+- Restore requer permission especial (admin do tenant + RepairDesk SaaS owner)
+- Backup files nunca exposed via API directo
+- Audit log toda operação de restore (quem, quando, qual backup)
+
+[OUTPUT ESPERADO]
+- backend/src/RepairDesk.API/Controllers/BackupsController: list/restore/trigger
+- backend/src/RepairDesk.Services/Backups: service operations
+- frontend/src/pages/definicoes/Definicoes.tsx: nova secção "Backups" expandida
+- Confirm modal componente RestoreConfirmation
+- Doc Contexto/49-Backup-Restore-Operations.md
+
+[VERIFICAÇÃO]
+- Restore de backup há 2 dias devolve dados desse momento
+- Audit log regista operação
+- Manual backup sucede com timestamp visível
+
+Branch: codex/sprint-59-backups-ui
+```
+
+---
+
 ## Anti-padrões a evitar nos prompts (aprendi na conversa)
 
 ### ❌ Mau: "podes melhorar isto?"
