@@ -35,7 +35,21 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
                 t.PrecoFinalCents ?? t.OrcamentoCents ?? 0))
             .ToListAsync(ct);
 
-        return reparacoes.Concat(trabalhos)
+        // Sprint 45: incluir Vendas/POS no relatorio fiscal.
+        // Vendas tem Items[] cada com totalCents; o total da venda eh a soma.
+        var vendas = await _db.Vendas
+            .Where(v => v.InvoiceEmittedAt != null && v.InvoiceEmittedAt >= fromUtc && v.InvoiceEmittedAt < toUtc)
+            .Select(v => new RelatorioFiscalDocumentoRow(
+                v.Id,
+                "Venda",
+                v.Numero,
+                v.InvoiceNumber,
+                v.InvoiceEmittedAt!.Value,
+                v.Cliente != null ? v.Cliente.Nome : null,
+                v.Items.Sum(i => i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents)))
+            .ToListAsync(ct);
+
+        return reparacoes.Concat(trabalhos).Concat(vendas)
             .OrderBy(x => x.InvoiceEmittedAt)
             .ThenBy(x => x.Tipo)
             .ThenBy(x => x.NumeroInterno)
