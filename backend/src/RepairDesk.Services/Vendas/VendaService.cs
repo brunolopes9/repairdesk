@@ -184,6 +184,17 @@ public class VendaService : IVendaService
 
         RecalculateTotals(venda);
         await _vendas.CreateWithNextNumeroAsync(venda, tenantId, ct);
+
+        await _webhooks.PublishAsync(tenantId, WebhookEvents.VendaCriada, new
+        {
+            vendaId = venda.Id,
+            vendaNumero = venda.Numero,
+            clienteId = venda.ClienteId,
+            origem = venda.Origem.ToString(),
+            totalCents = venda.TotalCents,
+            status = venda.Status.ToString(),
+        }, ct);
+
         return ToDto(venda);
     }
 
@@ -221,6 +232,19 @@ public class VendaService : IVendaService
             venda.Data = DateTime.UtcNow;
             RecalculateTotals(venda);
             await _vendas.SaveAsync(ct);
+
+            if (_tenant.TenantId is { } publishTenantId)
+            {
+                await _webhooks.PublishAsync(publishTenantId, WebhookEvents.VendaPaga, new
+                {
+                    vendaId = venda.Id,
+                    vendaNumero = venda.Numero,
+                    clienteId = venda.ClienteId,
+                    totalCents = venda.TotalCents,
+                    paymentMethod = venda.PaymentMethod.ToString(),
+                    data = venda.Data,
+                }, ct);
+            }
 
             // DL 84/2021: emite garantia digital automática (3 anos default para consumo).
             await EmitirGarantiaVendaSeNecessarioAsync(venda, venda.Data, ct);

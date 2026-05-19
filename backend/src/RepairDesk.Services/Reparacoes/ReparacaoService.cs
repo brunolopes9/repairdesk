@@ -9,6 +9,7 @@ using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.EquipmentFields;
 using RepairDesk.Services.Push;
+using RepairDesk.Services.Webhooks;
 // ImeiValidator do Common.Helpers
 
 namespace RepairDesk.Services.Reparacoes;
@@ -48,6 +49,7 @@ public class ReparacaoService : IReparacaoService
     private readonly IMoloniClient _moloni;
     private readonly IInvoiceXpressClient _invoiceXpress;
     private readonly IAuditLogger _audit;
+    private readonly IWebhookPublisher _webhooks;
     private readonly IValidator<CreateReparacaoRequest> _createV;
     private readonly IValidator<UpdateReparacaoRequest> _updateV;
     private readonly IValidator<ChangeEstadoRequest> _estadoV;
@@ -67,6 +69,7 @@ public class ReparacaoService : IReparacaoService
         IMoloniClient moloni,
         IInvoiceXpressClient invoiceXpress,
         IAuditLogger audit,
+        IWebhookPublisher webhooks,
         IValidator<CreateReparacaoRequest> createV,
         IValidator<UpdateReparacaoRequest> updateV,
         IValidator<ChangeEstadoRequest> estadoV)
@@ -85,6 +88,7 @@ public class ReparacaoService : IReparacaoService
         _moloni = moloni;
         _invoiceXpress = invoiceXpress;
         _audit = audit;
+        _webhooks = webhooks;
         _createV = createV;
         _updateV = updateV;
         _estadoV = estadoV;
@@ -440,6 +444,20 @@ public class ReparacaoService : IReparacaoService
         if (req.Estado == RepairStatus.Entregue)
         {
             await EmitirGarantiaSeNecessarioAsync(rep, now, ct);
+
+            if (_tenant.TenantId is { } publishTenantId)
+            {
+                await _webhooks.PublishAsync(publishTenantId, WebhookEvents.ReparacaoConcluida, new
+                {
+                    reparacaoId = rep.Id,
+                    reparacaoNumero = rep.Numero,
+                    clienteId = rep.ClienteId,
+                    equipamento = rep.Equipamento,
+                    imei = rep.Imei,
+                    precoFinalCents = rep.PrecoFinalCents,
+                    entregueEm = rep.EntregueEm,
+                }, ct);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(rep.PublicSlug))
