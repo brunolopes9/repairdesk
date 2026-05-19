@@ -13,6 +13,7 @@ import {
   Lightbulb,
   ChevronRight,
   PackageSearch,
+  ShoppingBag,
   X,
 } from 'lucide-react';
 import { stockApi } from '../lib/stock/api';
@@ -336,6 +337,46 @@ export default function Dashboard() {
               loading={isLoading}
             />
           </div>
+
+          {/* Top produtos vendidos (Sprint 45 — Vendas/POS) */}
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <ShoppingBag size={15} strokeWidth={2} className="text-zinc-500" />
+                Top produtos vendidos (90 dias)
+              </h3>
+              <span className="text-xs text-zinc-500">por receita</span>
+            </div>
+            {isLoading ? (
+              <div className="mt-3 space-y-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <SkeletonRow key={index} widths={['w-5', 'w-1/3', 'w-20', 'w-24']} />
+                ))}
+              </div>
+            ) : !data || data.topProdutosVendidos.length === 0 ? (
+              <div className="mt-3">
+                <EmptyState
+                  compact
+                  icon={ShoppingBag}
+                  title="Sem vendas registadas"
+                  description="Quando houver vendas POS nos últimos 90 dias, os produtos mais vendidos aparecem aqui."
+                />
+              </div>
+            ) : (
+              <ol className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
+                {data.topProdutosVendidos.map((p, i) => (
+                  <li key={`${p.partId ?? p.descricao}-${i}`} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-5 text-right font-mono text-xs text-zinc-400">{i + 1}.</span>
+                      <span className="truncate font-medium">{p.descricao}</span>
+                      <span className="shrink-0 text-xs text-zinc-500">×{p.quantidade}</span>
+                    </div>
+                    <span className="font-semibold">{formatCents(p.totalCents)}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
 
           <AvaliacoesSection />
         </div>
