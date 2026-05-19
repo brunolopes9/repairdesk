@@ -127,7 +127,7 @@ export default function Vendas() {
       qc.invalidateQueries({ queryKey: ['vendas-parts'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       setVendaDetalhe(null);
-      toast.success('Venda cancelada', 'O stock foi reposto.');
+      toast.success('Venda cancelada', { description: 'O stock foi reposto.' });
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel cancelar.'),
   });
