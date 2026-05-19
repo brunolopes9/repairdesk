@@ -202,6 +202,60 @@ public class MoloniClient : IMoloniClient
         return product;
     }
 
+    public async Task<MoloniInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, MoloniCreditNoteDraft draft, CancellationToken ct = default)
+    {
+        EnsureReadyToInvoice(settings, draft.Items.FirstOrDefault()?.VatPercent ?? 23m);
+        if (draft.OriginalDocumentId <= 0)
+            throw new ValidationException("nc_sem_original", "Nota de Credito precisa de referencia a fatura original.");
+
+        var today = DateTime.UtcNow.Date;
+        var products = draft.Items.Select((item, index) => BuildProduct(settings, item, index + 1)).ToArray();
+
+        // creditNotes/insert exige relacao com documento original via 'related_documents'
+        var payload = new Dictionary<string, object?>
+        {
+            ["company_id"] = settings.CompanyId!.Value,
+            ["date"] = today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["expiration_date"] = today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["document_set_id"] = settings.DefaultSerieId!.Value,
+            ["customer_id"] = draft.CustomerId,
+            ["our_reference"] = draft.Reference,
+            ["your_reference"] = draft.Reference,
+            ["status"] = 1,
+            ["notes"] = draft.Motivo,
+            ["products"] = products,
+            ["related_documents"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["associated_id"] = draft.OriginalDocumentId,
+                    ["value"] = draft.Items.Sum(i => Math.Max(0, i.Quantity * i.UnitPriceCents - i.DiscountCents)) / 100m,
+                },
+            },
+        };
+
+        var insert = await PostAsync<JsonElement>(settings, "creditNotes/insert", payload, ct);
+        var documentId = GetInt(insert, "document_id");
+        if (documentId <= 0)
+            throw new BillingProviderException("moloni_missing_document_id", "A Moloni respondeu sem document_id ao emitir Nota de Credito.");
+
+        var document = await PostAsync<JsonElement>(
+            settings,
+            "documents/getOne",
+            new { company_id = settings.CompanyId!.Value, document_id = documentId },
+            ct);
+
+        var pdf = await PostAsync<JsonElement>(
+            settings,
+            "documents/getPDFLink",
+            new { company_id = settings.CompanyId!.Value, document_id = documentId, signed = 1 },
+            ct);
+
+        var number = BuildInvoiceNumber(document, documentId);
+        _logger.LogInformation("Moloni Credit Note {Number} (id={Id}) emitida para tenant {TenantId}", number, documentId, settings.TenantId);
+        return new MoloniInvoiceResult(documentId.ToString(CultureInfo.InvariantCulture), number, GetString(pdf, "url"), DateTime.UtcNow);
+    }
+
     public async Task ConnectViaPasswordGrantAsync(TenantBillingSettings settings, string username, string password, CancellationToken ct = default)
     {
         if (settings.Provider != BillingProvider.Moloni)

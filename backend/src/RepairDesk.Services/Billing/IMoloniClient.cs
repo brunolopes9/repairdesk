@@ -11,6 +11,10 @@ public interface IMoloniClient
     Task<MoloniInvoiceResult> InsertInvoiceAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default);
     Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string documentId, CancellationToken ct = default);
 
+    // Emite Nota de Credito Moloni que anula a fatura original (saldo IVA = 0).
+    // O reference parameter aponta à fatura original via related_documents.
+    Task<MoloniInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, MoloniCreditNoteDraft draft, CancellationToken ct = default);
+
     // OAuth2 password grant: troca username+password (uma vez) por tokens. Tokens guardados cifrados em settings; password nunca persistida.
     Task ConnectViaPasswordGrantAsync(TenantBillingSettings settings, string username, string password, CancellationToken ct = default);
     Task ExchangeAuthorizationCodeAsync(TenantBillingSettings settings, string code, string redirectUri, CancellationToken ct = default);
@@ -36,6 +40,13 @@ public sealed record MoloniInvoiceDraft(
     string? PaymentMethod,
     BillingDocumentType? DocumentTypeOverride = null,
     IReadOnlyList<MoloniInvoiceDraftItem>? Items = null);
+
+public sealed record MoloniCreditNoteDraft(
+    int OriginalDocumentId,
+    int CustomerId,
+    string Reference,
+    IReadOnlyList<MoloniInvoiceDraftItem> Items,
+    string Motivo);
 
 public sealed record MoloniInvoiceDraftItem(
     string Name,

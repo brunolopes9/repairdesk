@@ -26,6 +26,7 @@ public class VendaService : IVendaService
     private readonly ITenantContext _tenant;
     private readonly ITenantBillingSettingsRepository _billingSettings;
     private readonly IBillingProvider _billing;
+    private readonly IMoloniClient _moloni;
 
     public VendaService(
         IVendaRepository vendas,
@@ -33,7 +34,8 @@ public class VendaService : IVendaService
         IClienteRepository clientes,
         ITenantContext tenant,
         ITenantBillingSettingsRepository billingSettings,
-        IBillingProvider billing)
+        IBillingProvider billing,
+        IMoloniClient moloni)
     {
         _vendas = vendas;
         _parts = parts;
@@ -41,6 +43,7 @@ public class VendaService : IVendaService
         _tenant = tenant;
         _billingSettings = billingSettings;
         _billing = billing;
+        _moloni = moloni;
     }
 
     public async Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, int page, int pageSize, CancellationToken ct = default)
@@ -168,8 +171,43 @@ public class VendaService : IVendaService
         if (string.IsNullOrEmpty(venda.InvoiceExternalId))
             throw new ConflictException("venda_sem_fatura", "Esta venda nao tem fatura emitida para anular.");
 
-        // Espelha cancelamento manual no Moloni (operador anulou la via NC).
-        // Limpa InvoiceExternalId/Number/Url/EmittedAt para a venda sair do Relatorio IVA.
+        // RepairDesk eh o ponto central: anular fatura no RepairDesk -> emite Nota de Credito na Moloni
+        // automaticamente. O utilizador nao precisa de saltar entre apps.
+        if (_tenant.TenantId is { } tenantId)
+        {
+            var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
+            if (settings?.Provider == BillingProvider.Moloni && int.TryParse(venda.InvoiceExternalId, out var originalDocId))
+            {
+                try
+                {
+                    var items = venda.Items.Select(i => new MoloniInvoiceDraftItem(
+                        i.Descricao,
+                        null,
+                        i.Quantidade,
+                        i.PrecoUnitarioCents,
+                        i.DescontoCents,
+                        i.IvaRate)).ToList();
+
+                    var customerId = settings.FallbackCustomerId ?? 0;
+                    if (customerId <= 0) throw new ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
+
+                    await _moloni.InsertCreditNoteAsync(settings, new MoloniCreditNoteDraft(
+                        originalDocId,
+                        customerId,
+                        $"Venda #{venda.Numero}",
+                        items,
+                        $"Anulacao da Fatura {venda.InvoiceNumber} via RepairDesk"
+                    ), ct);
+                }
+                catch (BillingProviderException)
+                {
+                    // Re-throw — operador precisa de saber que a NC falhou e tem de tratar manualmente
+                    throw;
+                }
+            }
+        }
+
+        // Limpa referencias locais para a venda sair do Relatorio IVA do RepairDesk
         venda.InvoiceProvider = BillingProvider.None;
         venda.InvoiceExternalId = null;
         venda.InvoiceNumber = null;
