@@ -12,6 +12,7 @@ import {
   Clock,
   Lightbulb,
   ChevronRight,
+  FileText,
   PackageSearch,
   ShoppingBag,
   X,
@@ -29,6 +30,7 @@ import {
   type ReparacaoTop,
 } from '../lib/dashboard/api';
 import { reparacoesApi } from '../lib/reparacoes/api';
+import { trabalhosApi } from '../lib/trabalhos/api';
 import {
   STATES_EM_CURSO,
   STATUS_COLOR,
@@ -139,14 +141,39 @@ export default function Dashboard() {
     staleTime: 60_000,
   });
 
+  const reparacoesPendentesFatura = useQuery({
+    queryKey: ['reparacoes-pagas-sem-fatura'],
+    queryFn: () => reparacoesApi.listPagasSemFatura(100),
+    staleTime: 60_000,
+  });
+
+  const trabalhosPendentesFatura = useQuery({
+    queryKey: ['trabalhos-pagas-sem-fatura'],
+    queryFn: () => trabalhosApi.listPagasSemFatura(100),
+    staleTime: 60_000,
+  });
+
   const totalEmCurso = emCursoItems.length;
   const lowStockCount = lowStock.data?.length ?? 0;
+  const repsPendentesCount = reparacoesPendentesFatura.data?.length ?? 0;
+  const trabsPendentesCount = trabalhosPendentesFatura.data?.length ?? 0;
+  const totalFaturasPendentesCount = repsPendentesCount + trabsPendentesCount;
+  const totalFaturasPendentesCents =
+    (reparacoesPendentesFatura.data ?? []).reduce(
+      (sum, r) => sum + (r.precoFinalCents ?? r.orcamentoCents ?? 0),
+      0,
+    ) +
+    (trabalhosPendentesFatura.data ?? []).reduce(
+      (sum, t) => sum + (t.precoFinalCents ?? t.orcamentoCents ?? 0),
+      0,
+    );
+
   const totalAlertas =
     (alertas.data
       ? alertas.data.reparacoesNaoPagas.length +
         alertas.data.trabalhosNaoPagos.length +
         alertas.data.despesasOrfas.length
-      : 0) + lowStockCount;
+      : 0) + lowStockCount + totalFaturasPendentesCount;
 
   return (
     <div className="space-y-8">
@@ -187,6 +214,41 @@ export default function Dashboard() {
                 </div>
                 <ChevronRight size={16} strokeWidth={2} className="flex-none text-zinc-400" aria-hidden />
               </Link>
+            )}
+            {totalFaturasPendentesCount > 0 && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30">
+                <div className="flex items-start gap-3">
+                  <FileText size={20} strokeWidth={2} className="flex-none text-amber-700 dark:text-amber-300" aria-hidden />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold">
+                      {totalFaturasPendentesCount} {totalFaturasPendentesCount === 1 ? 'fatura pendente' : 'faturas pendentes'} — {formatCents(totalFaturasPendentesCents)}
+                    </div>
+                    <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                      Pagas mas ainda não comunicadas à AT. Emite em batch para fechar o dia.
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {repsPendentesCount > 0 && (
+                    <Link
+                      to="/reparacoes"
+                      className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-200"
+                    >
+                      {repsPendentesCount} reparação{repsPendentesCount === 1 ? '' : 'ões'}
+                      <ChevronRight size={13} />
+                    </Link>
+                  )}
+                  {trabsPendentesCount > 0 && (
+                    <Link
+                      to="/trabalhos"
+                      className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-200"
+                    >
+                      {trabsPendentesCount} trabalho{trabsPendentesCount === 1 ? '' : 's'}
+                      <ChevronRight size={13} />
+                    </Link>
+                  )}
+                </div>
+              </div>
             )}
             <AlertasSection data={alertas.data} loading={alertas.isLoading} />
           </div>
