@@ -45,6 +45,9 @@ const emptySettings: UpdateTenantSettings = {
   garantiaDiasDefault: 90,
   garantiaCoberturaDefault: null,
   garantiaExclusoesDefault: null,
+  garantiaVendaDiasDefault: 1095,
+  garantiaVendaCoberturaDefault: null,
+  garantiaVendaExclusoesDefault: null,
   googleReviewUrl: null,
 };
 

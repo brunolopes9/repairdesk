@@ -132,6 +132,9 @@ export interface PublicGarantiaDto {
   documentoReferencia: string | null;
   numeroFatura: string | null;
   items: PublicGarantiaItemDto[] | null;
+  /** Sprint 94: contactos da loja para o botão "Reclamar garantia". */
+  lojaEmail: string | null;
+  lojaTelefone: string | null;
 }
 
 export interface AvaliacaoSubmittedDto {

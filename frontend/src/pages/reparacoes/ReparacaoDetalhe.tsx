@@ -1157,7 +1157,7 @@ function VendaOrigemBanner({
         // Sprint 95 fix: reparação em garantia tem cobrança 0€ = imediatamente "paga".
         estadoPagamento: PAYMENT_STATUS.Pago,
         equipmentFieldTemplateId: current.reparacao.equipmentFieldTemplateId ?? null,
-        equipmentFieldValues: [],
+        fields: null,
       });
     },
     onSuccess: () => {

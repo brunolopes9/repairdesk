@@ -18,7 +18,6 @@ import {
   type EquipmentFieldTemplate,
   type UpsertEquipmentFieldTemplate,
 } from '../../lib/equipmentFields/types';
-import { toast } from '../../lib/toast';
 import {
   REGIME_FISCAL_LABELS,
   type MoloniAutoDiscoverStep,
