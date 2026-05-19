@@ -392,7 +392,7 @@ export default function Vendas() {
                 `vendas_${historicoFrom}_${historicoTo}.csv`,
               )}
               className="ml-1 inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-              title="Exportar CSV do período seleccionado (Excel-friendly, UTF-8 com BOM)"
+              title="Exportar CSV para análise interna (Excel). NÃO substitui o SAFT-PT mensal do Moloni — esse é o documento oficial para o contabilista."
             >
               <Download size={13} /> CSV
             </button>
