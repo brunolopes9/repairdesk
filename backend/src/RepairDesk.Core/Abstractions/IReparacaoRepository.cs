@@ -20,6 +20,8 @@ public interface IReparacaoRepository
         CancellationToken ct = default);
     /// <summary>Procura reparações com IMEI normalizado igual (excluindo opcionalmente uma reparação específica).</summary>
     Task<IReadOnlyList<Reparacao>> SearchByImeiAsync(string imeiNormalizado, Guid? excludeId, CancellationToken ct = default);
+    /// <summary>Lista reparações pagas (EstadoPagamento.Pago) que ainda não têm fatura emitida.</summary>
+    Task<IReadOnlyList<Reparacao>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default);
     /// <summary>Lista todas as reparações do tenant para export (sem paginação).</summary>
     Task<bool> AnyAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Reparacao>> ExportAllAsync(CancellationToken ct = default);

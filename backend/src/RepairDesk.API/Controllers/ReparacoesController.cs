@@ -35,6 +35,10 @@ public class ReparacoesController : ControllerBase
         CancellationToken ct = default)
         => _service.SearchAsync(q, estado, clienteId, page, pageSize, ct);
 
+    [HttpGet("pagas-sem-fatura")]
+    public Task<IReadOnlyList<ReparacaoDto>> PagasSemFatura([FromQuery] int limit = 100, CancellationToken ct = default)
+        => _service.ListPagasSemFaturaAsync(limit, ct);
+
     [HttpGet("{id:guid}")]
     public Task<ReparacaoDetalhadaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
 

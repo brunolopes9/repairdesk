@@ -14,6 +14,7 @@ namespace RepairDesk.Services.Reparacoes;
 public interface IReparacaoService
 {
     Task<PagedResult<ReparacaoDto>> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default);
+    Task<IReadOnlyList<ReparacaoDto>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default);
     Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default);
     Task<ReparacaoDto> UpdateAsync(Guid id, UpdateReparacaoRequest req, CancellationToken ct = default);
@@ -82,6 +83,18 @@ public class ReparacaoService : IReparacaoService
             dtos.Add(ToDto(r, custo));
         }
         return new PagedResult<ReparacaoDto>(dtos, page, pageSize, total);
+    }
+
+    public async Task<IReadOnlyList<ReparacaoDto>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default)
+    {
+        var items = await _repo.ListPagasSemFaturaAsync(limit, ct);
+        var dtos = new List<ReparacaoDto>(items.Count);
+        foreach (var r in items)
+        {
+            var custo = await _despesas.SumByReparacaoAsync(r.Id, ct);
+            dtos.Add(ToDto(r, custo));
+        }
+        return dtos;
     }
 
     public async Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default)

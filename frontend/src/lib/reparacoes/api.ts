@@ -23,6 +23,9 @@ export const reparacoesApi = {
       })
       .then((r) => r.data);
   },
+  listPagasSemFatura(limit: number = 100) {
+    return api.get<Reparacao[]>('/reparacoes/pagas-sem-fatura', { params: { limit } }).then((r) => r.data);
+  },
   get(id: string) {
     return api.get<ReparacaoDetalhada>(`/reparacoes/${id}`).then((r) => r.data);
   },

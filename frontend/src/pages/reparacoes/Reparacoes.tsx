@@ -78,6 +78,13 @@ export default function Reparacoes() {
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Reparacao | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(false);
+
+  const pagasSemFatura = useQuery({
+    queryKey: ['reparacoes-pagas-sem-fatura'],
+    queryFn: () => reparacoesApi.listPagasSemFatura(100),
+    staleTime: 30_000,
+  });
 
   function setViewMode(v: ViewMode) {
     setView(v);
@@ -158,6 +165,17 @@ export default function Reparacoes() {
                 <LayoutGrid size={14} /> Kanban
               </button>
             </div>
+            {(pagasSemFatura.data?.length ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setPagasSemFaturaOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                title="Reparações pagas sem fatura Moloni emitida"
+              >
+                <AlertTriangle size={13} />
+                {pagasSemFatura.data!.length} {pagasSemFatura.data!.length === 1 ? 'pendente fatura' : 'pendentes fatura'}
+              </button>
+            )}
             <Button
               type="button"
               variant="secondary"
@@ -306,6 +324,52 @@ export default function Reparacoes() {
       >
         {confirmDelete && (
           <p className="text-sm">Apagar <strong>#{confirmDelete.numero} {confirmDelete.equipamento}</strong>? Vai ser ocultada (soft delete) mas pode ser recuperada.</p>
+        )}
+      </Modal>
+
+      <Modal
+        open={pagasSemFaturaOpen}
+        title="Reparações pagas sem fatura"
+        onClose={() => setPagasSemFaturaOpen(false)}
+      >
+        <p className="mb-3 text-xs text-zinc-500">
+          Estas reparações estão marcadas como pagas mas ainda não têm fatura Moloni emitida.
+          Clica numa linha para abrir o detalhe e emitir a fatura.
+        </p>
+        {(pagasSemFatura.data?.length ?? 0) === 0 ? (
+          <p className="text-sm text-zinc-500">Nenhuma reparação pendente de fatura — tudo em dia ✓</p>
+        ) : (
+          <div className="max-h-[60vh] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-800">
+                <tr>
+                  <th className="px-2 py-2 text-left font-medium">Nº</th>
+                  <th className="px-2 py-2 text-left font-medium">Equipamento</th>
+                  <th className="px-2 py-2 text-left font-medium">Cliente</th>
+                  <th className="px-2 py-2 text-right font-medium">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagasSemFatura.data!.map((r) => (
+                  <tr
+                    key={r.id}
+                    onClick={() => {
+                      setPagasSemFaturaOpen(false);
+                      navigate(`/reparacoes/${r.id}`);
+                    }}
+                    className="cursor-pointer border-b border-zinc-100 hover:bg-amber-50/50 dark:border-zinc-900 dark:hover:bg-amber-950/30"
+                  >
+                    <td className="px-2 py-2 font-mono text-xs">#{r.numero}</td>
+                    <td className="px-2 py-2">{r.equipamento}</td>
+                    <td className="px-2 py-2 text-zinc-600 dark:text-zinc-400">{r.cliente.nome}</td>
+                    <td className="px-2 py-2 text-right font-medium tabular-nums">
+                      {formatCents(r.precoFinalCents ?? r.orcamentoCents)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Modal>
     </div>

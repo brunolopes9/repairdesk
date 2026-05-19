@@ -115,6 +115,18 @@ public class ReparacaoRepository : IReparacaoRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<Reparacao>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default)
+    {
+        var capped = Math.Clamp(limit, 1, 200);
+        return await _db.Reparacoes
+            .AsNoTracking()
+            .Include(r => r.Cliente)
+            .Where(r => r.EstadoPagamento == PaymentStatus.Pago && r.InvoiceExternalId == null)
+            .OrderByDescending(r => r.EntregueEm ?? r.UpdatedAt ?? r.CreatedAt)
+            .Take(capped)
+            .ToListAsync(ct);
+    }
+
     public void Remove(Reparacao reparacao) => _db.Reparacoes.Remove(reparacao);
     public void AddEstadoLog(ReparacaoEstadoLog log) => _db.ReparacaoEstadoLogs.Add(log);
     public Task SaveAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
