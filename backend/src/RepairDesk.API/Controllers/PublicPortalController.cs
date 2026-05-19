@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using RepairDesk.Services.Garantias;
 using RepairDesk.Services.Push;
 using RepairDesk.Services.PublicPortal;
 
@@ -43,11 +44,28 @@ public class PublicPortalController : ControllerBase
 public class PublicWarrantyController : ControllerBase
 {
     private readonly IPublicPortalService _service;
-    public PublicWarrantyController(IPublicPortalService service) => _service = service;
+    private readonly IGarantiaService _garantias;
+    public PublicWarrantyController(IPublicPortalService service, IGarantiaService garantias)
+    {
+        _service = service;
+        _garantias = garantias;
+    }
 
     [HttpGet("{slug}")]
     public Task<PublicGarantiaDto> Get(string slug, CancellationToken ct)
         => _service.GetGarantiaBySlugAsync(slug, ct);
+
+    /// <summary>
+    /// PDF da garantia, descarregável sem login a partir do portal /g/{slug}.
+    /// Slug não-adivinhável funciona como token de acesso. 404 se slug não existe.
+    /// </summary>
+    [HttpGet("{slug}/pdf")]
+    public async Task<IActionResult> Pdf(string slug, CancellationToken ct)
+    {
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var result = await _garantias.RenderPdfBySlugAsync(slug, baseUrl, ct);
+        return result is null ? NotFound() : File(result.Value.Pdf, "application/pdf", result.Value.Filename);
+    }
 }
 
 /// <summary>

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { AlertTriangle, Check, CheckCircle2, FileText, Mail, ShieldCheck, ShieldOff, ShieldX, ShoppingBag, Wrench } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Download, FileText, Mail, ShieldCheck, ShieldOff, ShieldX, ShoppingBag, Wrench } from 'lucide-react';
 import { publicPortalApi } from '../lib/publicPortal/api';
 import { SkeletonCard } from '../components/ui';
 import { formatCents } from '../lib/money';
@@ -111,6 +111,14 @@ export default function PortalGarantia() {
               <div className="font-mono text-xs">{data.slug}</div>
             </div>
           </div>
+          <a
+            href={`/api/public/warranty/${encodeURIComponent(data.slug)}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
+          >
+            <Download size={14} strokeWidth={2} /> Descarregar PDF
+          </a>
         </section>
 
         {data.origem === 'Venda' && data.items && data.items.length > 0 && (

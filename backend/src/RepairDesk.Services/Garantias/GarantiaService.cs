@@ -14,6 +14,12 @@ public interface IGarantiaService
     Task<GarantiaAdminDto?> GetByVendaAsync(Guid vendaId, CancellationToken ct = default);
     Task<GarantiaAdminDto> AnularAsync(Guid id, string motivo, CancellationToken ct = default);
     Task<(byte[] Pdf, string Filename)> RenderPdfAsync(Guid id, string portalBaseUrl, CancellationToken ct = default);
+    /// <summary>
+    /// Versão pública por slug — para o cliente descarregar o PDF a partir do portal /g/{slug}
+    /// sem login. O slug é o segredo (não-adivinhável). Resolve tenant pela própria garantia,
+    /// ignorando o tenant claim (que pode não existir em AllowAnonymous).
+    /// </summary>
+    Task<(byte[] Pdf, string Filename)?> RenderPdfBySlugAsync(string slug, string portalBaseUrl, CancellationToken ct = default);
 }
 
 public sealed record GarantiaAdminDto(
@@ -53,6 +59,17 @@ public class GarantiaService : IGarantiaService
     {
         var g = await _repo.FindByIdWithSourceAsync(id, ct) ?? throw new NotFoundException("Garantia", id);
         var tenant = _tenant.TenantId is { } tid ? await _tenants.FindByIdAsync(tid, ct) : null;
+        var data = BuildPdfData(g, tenant, portalBaseUrl);
+        var pdf = GarantiaPdfRenderer.Render(data);
+        return (pdf, $"garantia-{g.Slug}.pdf");
+    }
+
+    public async Task<(byte[] Pdf, string Filename)?> RenderPdfBySlugAsync(string slug, string portalBaseUrl, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(slug) || slug.Length > 32) return null;
+        var g = await _repo.FindBySlugAsync(slug, ct);
+        if (g is null) return null;
+        var tenant = await _tenants.FindByIdAsync(g.TenantId, ct);
         var data = BuildPdfData(g, tenant, portalBaseUrl);
         var pdf = GarantiaPdfRenderer.Render(data);
         return (pdf, $"garantia-{g.Slug}.pdf");
