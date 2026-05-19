@@ -230,6 +230,10 @@ try
     builder.Services.AddScoped<IServiceApiKeyRepository, RepairDesk.DAL.Persistence.ServiceApiKeyRepository>();
     builder.Services.AddScoped<RepairDesk.Services.ServiceApiKeys.IServiceApiKeyService, RepairDesk.Services.ServiceApiKeys.ServiceApiKeyService>();
 
+    // Webhook subscriptions (Sprint 101)
+    builder.Services.AddScoped<IWebhookSubscriptionRepository, RepairDesk.DAL.Persistence.WebhookSubscriptionRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Webhooks.IWebhookSubscriptionService, RepairDesk.Services.Webhooks.WebhookSubscriptionService>();
+
     // External checkout (Sprint 73) — atómico para loja online / integrações
     builder.Services.AddScoped<RepairDesk.Services.External.IExternalCheckoutService, RepairDesk.Services.External.ExternalCheckoutService>();
 

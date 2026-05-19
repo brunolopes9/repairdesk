@@ -50,6 +50,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<ServiceApiKey> ServiceApiKeys => Set<ServiceApiKey>();
+    public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

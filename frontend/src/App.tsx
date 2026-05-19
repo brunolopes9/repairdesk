@@ -27,6 +27,7 @@ const Stock = lazy(() => import('./pages/stock/Stock'));
 const Vendas = lazy(() => import('./pages/vendas/Vendas'));
 const Auditoria = lazy(() => import('./pages/auditoria/Auditoria'));
 const Definicoes = lazy(() => import('./pages/definicoes/Definicoes'));
+const Webhooks = lazy(() => import('./pages/definicoes/Webhooks'));
 const Precos = lazy(() => import('./pages/precos/Precos'));
 const RelatorioIva = lazy(() => import('./pages/relatorios/Iva'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
@@ -115,6 +116,7 @@ export default function App() {
               <Route path="/relatorios/iva" element={<RelatorioIva />} />
               <Route path="/auditoria" element={<Auditoria />} />
               <Route path="/definicoes" element={<Definicoes />} />
+              <Route path="/definicoes/webhooks" element={<Webhooks />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

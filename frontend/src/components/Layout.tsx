@@ -13,6 +13,7 @@ import {
   FileText,
   ClipboardList,
   Settings,
+  Webhook,
   LogOut,
   Pin,
   PinOff,
@@ -39,6 +40,7 @@ const nav: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean
   { to: '/precos', label: 'Preços', icon: Tags },
   { to: '/relatorios/iva', label: 'Relatorios', icon: FileText },
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
+  { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true },
   { to: '/definicoes', label: 'Definições', icon: Settings },
 ];
 
