@@ -793,13 +793,24 @@ function KanbanBoard({
                       <div className="mt-1 truncate font-medium">{r.equipamento}</div>
                       <div className="truncate text-[11px] text-zinc-500">{r.cliente.nome}</div>
                       {(r.precoFinalCents ?? r.orcamentoCents) != null && (
-                        <div className="mt-1 flex items-center justify-between">
+                        <div className="mt-1 flex flex-wrap items-center justify-between gap-1">
                           <span className="text-[11px] font-medium tabular-nums">{formatCents(r.precoFinalCents ?? r.orcamentoCents)}</span>
-                          {r.estadoPagamento === 2 ? (
-                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">✓ Pago</span>
-                          ) : r.estado === 5 ? (
-                            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-medium text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">Por cobrar</span>
-                          ) : null}
+                          <div className="flex items-center gap-1">
+                            {r.estadoPagamento === 2 ? (
+                              <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">✓ Pago</span>
+                            ) : r.estado === 5 ? (
+                              <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-medium text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">Por cobrar</span>
+                            ) : null}
+                            {r.invoiceNumber ? (
+                              <span title={`Fatura ${r.invoiceNumber}`} className="rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+                                📄 Faturada
+                              </span>
+                            ) : r.estadoPagamento === 2 ? (
+                              <span title="Pago sem fatura — emite via Moloni" className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                                Sem fatura
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       )}
                     </li>
