@@ -89,7 +89,7 @@ public class AuditRepository : IAuditRepository
     private IQueryable<AuditEntry> BaseQuery(bool includeAllTenants)
     {
         return includeAllTenants
-            ? _db.AuditEntries.IgnoreQueryFilters().AsNoTracking().Include(a => a.AppUser)
-            : _db.AuditEntries.AsNoTracking().Include(a => a.AppUser);
+            ? _db.AuditEntries.IgnoreQueryFilters().AsNoTracking().Include(a => a.AppUser).Include(a => a.ServiceApiKey)
+            : _db.AuditEntries.AsNoTracking().Include(a => a.AppUser).Include(a => a.ServiceApiKey);
     }
 }

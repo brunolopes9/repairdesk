@@ -23,10 +23,16 @@ public class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEntry>
             .HasForeignKey(x => x.AppUserId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne(x => x.ServiceApiKey)
+            .WithMany()
+            .HasForeignKey(x => x.ServiceApiKeyId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(x => new { x.TenantId, x.CreatedAt })
             .IsDescending(false, true);
         builder.HasIndex(x => new { x.TenantId, x.EntityType, x.EntityId, x.CreatedAt })
             .IsDescending(false, false, false, true);
         builder.HasIndex(x => x.AppUserId).HasFilter("[AppUserId] IS NOT NULL");
+        builder.HasIndex(x => x.ServiceApiKeyId).HasFilter("[ServiceApiKeyId] IS NOT NULL");
     }
 }

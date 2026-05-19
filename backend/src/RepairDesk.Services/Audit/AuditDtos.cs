@@ -15,7 +15,11 @@ public sealed record AuditEntryDto(
     string? ChangesJson,
     string? IpAddress,
     string? UserAgent,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    /// <summary>Quando a acção foi feita por integração externa, identifica a chave.</summary>
+    Guid? ServiceApiKeyId,
+    string? ServiceApiKeyName,
+    string? ServiceApiKeyPrefix);
 
 public sealed record AuditSearchRequest(
     IReadOnlyList<string> EntityTypes,

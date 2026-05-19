@@ -126,9 +126,11 @@ export default function Auditoria() {
                       <button type="button" onClick={(e) => { e.stopPropagation(); if (entry.appUserId) { setUserIds([entry.appUserId]); setPage(1); } }} className="rounded-sm text-left font-medium hover:text-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
                         {entry.appUserDisplayName ?? entry.appUserEmail ?? (
                           <span className="inline-flex items-center gap-1">
-                            Integração externa
+                            {entry.serviceApiKeyName ?? 'Integração externa'}
                             <span
-                              title="Operação realizada via API key (loja online, importador ou outra integração servidor-a-servidor)"
+                              title={entry.serviceApiKeyPrefix
+                                ? `API key: ${entry.serviceApiKeyPrefix}`
+                                : 'Operação realizada via API key (loja online, importador ou outra integração servidor-a-servidor)'}
                               className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
                             >
                               API
@@ -139,7 +141,7 @@ export default function Auditoria() {
                       <div className="text-[11px] text-zinc-500">
                         {entry.appUserEmail ?? (entry.appUserId
                           ? entry.appUserId
-                          : 'sem utilizador (chave de API)')}
+                          : entry.serviceApiKeyPrefix ?? 'sem utilizador (chave de API)')}
                       </div>
                     </td>
                     <td className="px-3 py-3">
@@ -177,7 +179,9 @@ export default function Auditoria() {
                   ?? selected.appUserEmail
                   ?? (selected.appUserId
                     ? selected.appUserId
-                    : 'Integração externa (API key)')}
+                    : selected.serviceApiKeyName
+                      ? `${selected.serviceApiKeyName}${selected.serviceApiKeyPrefix ? ` (${selected.serviceApiKeyPrefix})` : ''}`
+                      : 'Integração externa (API key)')}
               />
               <Info label="Acao" value={AUDIT_ACTION_LABEL[selected.action] ?? String(selected.action)} />
               <Info label="Entidade" value={`${selected.entityType}${selected.entityId ? ` #${selected.entityId}` : ''}`} />

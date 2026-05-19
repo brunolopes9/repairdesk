@@ -60,4 +60,13 @@ public class HttpCurrentUser : ICurrentUser
 
     public string? UserAgent => _accessor.HttpContext?.Request.Headers.UserAgent.ToString();
     public bool IsInRole(string role) => _accessor.HttpContext?.User?.IsInRole(role) ?? false;
+
+    public Guid? ServiceApiKeyId
+    {
+        get
+        {
+            var raw = _accessor.HttpContext?.User?.FindFirstValue("service_api_key_id");
+            return Guid.TryParse(raw, out var id) ? id : null;
+        }
+    }
 }

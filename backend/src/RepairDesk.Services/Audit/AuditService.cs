@@ -99,5 +99,7 @@ public class AuditService : IAuditService
     }
 
     private static AuditEntryDto ToDto(AuditEntry a) =>
-        new(a.Id, a.TenantId, a.AppUserId, a.AppUser?.DisplayName, a.AppUser?.Email, a.Action, a.EntityType, a.EntityId, a.ChangesJson, a.IpAddress, a.UserAgent, a.CreatedAt);
+        new(a.Id, a.TenantId, a.AppUserId, a.AppUser?.DisplayName, a.AppUser?.Email,
+            a.Action, a.EntityType, a.EntityId, a.ChangesJson, a.IpAddress, a.UserAgent, a.CreatedAt,
+            a.ServiceApiKeyId, a.ServiceApiKey?.Name, a.ServiceApiKey?.KeyPrefix);
 }

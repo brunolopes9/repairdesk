@@ -35,10 +35,14 @@ public class EfAuditLogger : IAuditLogger
             var tid = tenantId ?? _tenant.TenantId;
             if (tid is null) return;
 
+            var resolvedAppUserId = appUserId ?? _user.UserId;
             _db.AuditEntries.Add(new AuditEntry
             {
                 TenantId = tid.Value,
-                AppUserId = appUserId ?? _user.UserId,
+                AppUserId = resolvedAppUserId,
+                // Quando explicitamente injectado um appUserId (operações batch),
+                // assume-se contexto de utilizador real e não se carrega ServiceApiKeyId.
+                ServiceApiKeyId = appUserId is null ? _user.ServiceApiKeyId : null,
                 Action = action,
                 EntityType = entityType,
                 EntityId = entityId,

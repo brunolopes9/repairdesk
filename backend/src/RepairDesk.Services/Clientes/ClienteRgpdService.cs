@@ -131,5 +131,6 @@ public class ClienteRgpdService : IClienteRgpdService
                 i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents, i.IvaRate, i.TotalCents)).ToList());
 
     private static AuditEntryDto ToAudit(AuditEntry a) =>
-        new(a.Id, a.TenantId, a.AppUserId, null, null, a.Action, a.EntityType, a.EntityId, a.ChangesJson, a.IpAddress, a.UserAgent, a.CreatedAt);
+        new(a.Id, a.TenantId, a.AppUserId, null, null, a.Action, a.EntityType, a.EntityId, a.ChangesJson, a.IpAddress, a.UserAgent, a.CreatedAt,
+            a.ServiceApiKeyId, a.ServiceApiKey?.Name, a.ServiceApiKey?.KeyPrefix);
 }

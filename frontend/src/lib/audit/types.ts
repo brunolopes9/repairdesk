@@ -22,6 +22,10 @@ export interface AuditEntry {
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: string;
+  /** Sprint 99: integração externa — identifica a API key autora. */
+  serviceApiKeyId: string | null;
+  serviceApiKeyName: string | null;
+  serviceApiKeyPrefix: string | null;
 }
 
 export type AuditPage = PagedResult<AuditEntry>;
