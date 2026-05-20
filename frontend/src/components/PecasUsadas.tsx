@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { PackagePlus, RotateCcw } from 'lucide-react';
+import { PackagePlus, Trash2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { SkeletonRow } from './ui/Skeleton';
 import { StatusBadge } from './ui/StatusBadge';
@@ -62,23 +62,50 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
     onError: (err) => toast.fromError(err, 'Não foi possível adicionar a peça.'),
   });
 
-  const devolucao = useMutation({
+  // Sprint 135: o botão chama-se "Eliminar" porque a intenção é remover a peça da reparação,
+  // mas no DB criamos uma Devolução para manter audit trail (stock volta para a prateleira).
+  const remover = useMutation({
     mutationFn: (mov: PartMovimento) => stockApi.addMovimento(mov.partId, {
       quantidade: Math.abs(mov.quantidade),
       motivo: PART_MOVIMENTO_MOTIVO.Devolucao,
       reparacaoId,
-      notas: `Devolução do movimento ${mov.id}`,
+      notas: `Removida da reparação (era movimento ${mov.id})`,
     }),
     onSuccess: () => {
-      toast.success('Peça devolvida ao stock');
+      toast.success('Peça removida da reparação', 'O stock foi reposto.');
       invalidate();
     },
-    onError: (err) => toast.fromError(err, 'Não foi possível devolver a peça.'),
+    onError: (err) => toast.fromError(err, 'Não foi possível remover a peça.'),
   });
 
   const lookupItems = (parts.data?.items ?? []).filter((p) => p.activo);
   const rows = useMemo(() => movimentos.data ?? [], [movimentos.data]);
+  // Saldo conta TODOS os movimentos (incluindo pares anulados) — é o stock real consumido.
   const saldo = useMemo(() => rows.reduce((sum, m) => sum + m.quantidade, 0), [rows]);
+
+  // Sprint 135: esconder pares (Uso + Devolução do mesmo Part que se cancelam mutuamente).
+  // Mantém os 2 no DB para audit mas remove o ruído visual. Se houver uso sem devolução ou
+  // devolução órfã, mostra na lista.
+  const visibleRows = useMemo(() => {
+    const annulled = new Set<string>();
+    const usos = rows
+      .filter((m) => m.quantidade < 0 && m.motivo === PART_MOVIMENTO_MOTIVO.UsoEmReparacao)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    for (const uso of usos) {
+      const par = rows.find((m) =>
+        !annulled.has(m.id) &&
+        m.partId === uso.partId &&
+        m.motivo === PART_MOVIMENTO_MOTIVO.Devolucao &&
+        m.quantidade === -uso.quantidade &&
+        m.createdAt > uso.createdAt,
+      );
+      if (par) {
+        annulled.add(uso.id);
+        annulled.add(par.id);
+      }
+    }
+    return rows.filter((m) => !annulled.has(m.id));
+  }, [rows]);
 
   return (
     <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -86,10 +113,13 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
         <div>
           <h2 className="text-sm font-semibold">Peças do stock</h2>
           <p className="text-xs text-zinc-500">
-            {rows.length} movimento(s) · saldo {saldo}
+            {visibleRows.length} {visibleRows.length === 1 ? 'peça' : 'peças'} · saldo {saldo}
+            {rows.length !== visibleRows.length && (
+              <span className="ml-1 text-zinc-400">· {rows.length - visibleRows.length} mov. anulados (audit)</span>
+            )}
           </p>
         </div>
-        {rows.some((m) => m.quantidade < 0) && <StatusBadge tone="blue">Custo recalculado</StatusBadge>}
+        {visibleRows.some((m) => m.quantidade < 0) && <StatusBadge tone="blue">Custo recalculado</StatusBadge>}
       </div>
 
       {!readOnly && (
@@ -149,13 +179,13 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
           <SkeletonRow columns={3} />
           <SkeletonRow columns={3} />
         </div>
-      ) : rows.length === 0 ? (
+      ) : visibleRows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 dark:border-zinc-700">
           Ainda não há peças ligadas a esta reparação.
         </p>
       ) : (
         <ul className="space-y-2">
-          {rows.map((m) => (
+          {visibleRows.map((m) => (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800">
               <div>
                 <div className="font-medium">
@@ -166,16 +196,17 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
                   {PART_MOVIMENTO_LABEL[m.motivo]} · {m.quantidade > 0 ? '+' : ''}{m.quantidade} · {formatDate(m.createdAt)}
                 </div>
               </div>
-              {!readOnly && m.quantidade < 0 && (
+              {!readOnly && m.quantidade < 0 && m.motivo === PART_MOVIMENTO_MOTIVO.UsoEmReparacao && (
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
-                  loading={devolucao.isPending}
-                  onClick={() => devolucao.mutate(m)}
-                  leftIcon={<RotateCcw size={14} />}
+                  loading={remover.isPending}
+                  onClick={() => remover.mutate(m)}
+                  leftIcon={<Trash2 size={14} />}
+                  title="Remove a peça da reparação e repõe o stock"
                 >
-                  Devolver
+                  Eliminar
                 </Button>
               )}
             </li>
