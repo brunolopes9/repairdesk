@@ -17,6 +17,10 @@
  * do Next.js — usa apenas em route handlers / API routes / server actions.
  *
  * Espelha os endpoints `/api/external/*` do RepairDesk backend.
+ *
+ * Helpers relacionados (importar separadamente):
+ *   import { isValidPortugueseNIF, normalizePortugueseNIF } from './pt-nif';
+ *   import { verifyWebhookSignature } from './webhook-verify';
  */
 
 // =================================================================
