@@ -1009,9 +1009,11 @@ public class MoloniClient : IMoloniClient
 
     private static decimal GetDecimalAny(JsonElement element, params string[] names)
     {
+        var target = UnwrapArrayIfNeeded(element);
+        if (target.ValueKind != JsonValueKind.Object) return 0m;
         foreach (var name in names)
         {
-            if (!element.TryGetProperty(name, out var prop)) continue;
+            if (!target.TryGetProperty(name, out var prop)) continue;
             var value = ReadDecimal(prop);
             if (value != 0m) return value;
         }
@@ -1043,8 +1045,23 @@ public class MoloniClient : IMoloniClient
 
     private static int GetInt(JsonElement element, string name)
     {
-        if (!element.TryGetProperty(name, out var prop)) return 0;
+        // Moloni às vezes retorna a resposta encapsulada em array — desempacotar.
+        var target = UnwrapArrayIfNeeded(element);
+        if (target.ValueKind != JsonValueKind.Object) return 0;
+        if (!target.TryGetProperty(name, out var prop)) return 0;
         return ReadInt(prop);
+    }
+
+    /// <summary>
+    /// Sprint 144: alguns endpoints Moloni (simplifiedInvoices/insert, etc) devolvem a resposta
+    /// dentro de um array de 1 elemento em vez de um objecto plano. Desempacotar para que
+    /// GetInt/GetString/GetIntAny continuem a funcionar uniformemente.
+    /// </summary>
+    private static JsonElement UnwrapArrayIfNeeded(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Array && element.GetArrayLength() > 0)
+            return element[0];
+        return element;
     }
 
     private static int ReadInt(JsonElement prop)
@@ -1078,7 +1095,12 @@ public class MoloniClient : IMoloniClient
     }
 
     private static string? GetString(JsonElement element, string name)
-        => element.TryGetProperty(name, out var prop) && prop.ValueKind != JsonValueKind.Null
+    {
+        // Sprint 144: array-aware como GetInt.
+        var target = UnwrapArrayIfNeeded(element);
+        if (target.ValueKind != JsonValueKind.Object) return null;
+        return target.TryGetProperty(name, out var prop) && prop.ValueKind != JsonValueKind.Null
             ? prop.ValueKind == JsonValueKind.String ? prop.GetString() : prop.ToString()
             : null;
+    }
 }
