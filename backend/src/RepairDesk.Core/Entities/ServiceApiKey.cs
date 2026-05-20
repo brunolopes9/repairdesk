@@ -33,8 +33,10 @@ public static class ServiceApiKeyScopes
     public const string Read = "read";
     /// <summary>Cria e modifica (checkout, cancel order). Endpoints POST do External.</summary>
     public const string Write = "write";
+    /// <summary>Sprint 147: submete faturas de fornecedor (n8n IMAP → ingest). Não dá acesso a leituras.</summary>
+    public const string Ingest = "ingest";
 
-    public static readonly IReadOnlyList<string> All = new[] { Read, Write };
+    public static readonly IReadOnlyList<string> All = new[] { Read, Write, Ingest };
 
     /// <summary>Parsing tolerante: split, trim, lowercase, distinct. Devolve null se input null/vazio.</summary>
     public static string[]? Parse(string? csv)

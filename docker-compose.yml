@@ -81,6 +81,9 @@ services:
       AtNifLookup__KeyPath: ${AT_KEY_PATH:-}
       AtNifLookup__KeyPassword: ${AT_KEY_PASSWORD:-}
       AtNifLookup__MaxDailyCallsPerTenant: ${AT_NIF_MAX_DAILY_CALLS:-100}
+      # Sprint 147: storage de PDFs de fornecedor (n8n IMAP ingest). Layout:
+      # {root}/{tenantId}/{ano}/{mes}/{fornecedor-slug}/{filename}.pdf
+      Storage__SupplierInvoicesRoot: ${Storage__SupplierInvoicesRoot:-/data/supplier-invoices}
     ports:
       - "5080:8080"
     volumes:
@@ -90,6 +93,9 @@ services:
       # CRITICO: sem isto, rebuilds perdem as keys e os secrets em DB tornam-se ilegiveis.
       - ./data/dp-keys:/data/dp-keys
       - ${AT_SECRETS_HOST_PATH:-./secrets/at}:/run/secrets/at:ro
+      # Sprint 147: faturas de fornecedor (n8n IMAP). Bind mount no host para o tenant
+      # poder sincronizar com Dropbox/Drive directamente (override SUPPLIER_INVOICES_HOST_PATH).
+      - ${SUPPLIER_INVOICES_HOST_PATH:-./data/supplier-invoices}:/data/supplier-invoices
       # Backups em bind mount: ficheiros .bak ficam em ./backups/ no host
       # (fora do Docker) — sobrevivem mesmo a 'docker compose down -v'.
       - ./backups:/backups

@@ -261,6 +261,11 @@ try
     // External checkout (Sprint 73) — atómico para loja online / integrações
     builder.Services.AddScoped<RepairDesk.Services.External.IExternalCheckoutService, RepairDesk.Services.External.ExternalCheckoutService>();
 
+    // Sprint 147: ingest de faturas de fornecedor via n8n IMAP
+    builder.Services.AddScoped<ISupplierInvoiceImportRepository, RepairDesk.DAL.Persistence.SupplierInvoiceImportRepository>();
+    builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
+    builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
+
     // Tabela de preços
     builder.Services.AddScoped<IPriceTableRepository, RepairDesk.DAL.Persistence.PriceTableRepository>();
     builder.Services.AddScoped<RepairDesk.Services.PriceTable.IPriceTableService, RepairDesk.Services.PriceTable.PriceTableService>();
