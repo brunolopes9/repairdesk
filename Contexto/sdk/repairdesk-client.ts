@@ -288,6 +288,17 @@ export interface ExternalProduct {
   color: string | null;
   /** "Novo" | "GradeA" | "GradeB" | "GradeC" | "OpenBox" | "Premium" */
   grading: string;
+  /**
+   * Sprint 146: canonical estável para sync com a loja headless.
+   * Valores: "Novo" | "A+" | "A" | "B" | "C" | "OpenBox".
+   * Use isto em vez de `grading` quando construir filtros/ordenação na loja.
+   */
+  gradingCanonical: string;
+  /**
+   * Sprint 146: label PT user-friendly pronto para mostrar.
+   * Valores: "Novo" | "Como novo" | "Excelente" | "Bom" | "Aceitável" | "Open Box".
+   */
+  gradingLabel: string;
   /** "Stock" | "Dropship" */
   supplyType: string;
   priceCents: number;

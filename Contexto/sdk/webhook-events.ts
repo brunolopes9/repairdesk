@@ -145,6 +145,11 @@ export type ProductGradingName = 'Novo' | 'GradeA' | 'GradeB' | 'GradeC' | 'Open
 /** Tipo de fornecimento. Espelha enum `ProductSupplyType` (ToString). */
 export type ProductSupplyTypeName = 'Stock' | 'Dropship';
 
+/** Sprint 146: canonical estável (loja-side). RepairDesk não expõe B+/C+ ainda. */
+export type ProductGradingCanonical = 'Novo' | 'A+' | 'A' | 'B' | 'C' | 'OpenBox';
+/** Sprint 146: label PT pronto para display. */
+export type ProductGradingLabel = 'Novo' | 'Como novo' | 'Excelente' | 'Bom' | 'Aceitável' | 'Open Box';
+
 export interface ProductCatalogPayload {
   productId: string;
   sku: string;
@@ -154,6 +159,10 @@ export interface ProductCatalogPayload {
   storage?: string | null;
   color?: string | null;
   grading: ProductGradingName;
+  /** Sprint 146: canonical estável para sync com a loja. */
+  gradingCanonical: ProductGradingCanonical;
+  /** Sprint 146: label PT user-friendly pronto para mostrar. */
+  gradingLabel: ProductGradingLabel;
   supplyType: ProductSupplyTypeName;
   priceCents: number;
   stockQuantity: number;

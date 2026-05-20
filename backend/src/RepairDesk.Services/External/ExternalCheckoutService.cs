@@ -37,7 +37,12 @@ public sealed record ExternalProductDto(
     string Model,
     string? Storage,
     string? Color,
+    /// <summary>Sprint 122: nome do enum interno (ToString) — ex: "GradeA", "Premium".</summary>
     string Grading,
+    /// <summary>Sprint 146: canonical estável para sync com a loja (A+/A/B+/B/C/OpenBox).</summary>
+    string GradingCanonical,
+    /// <summary>Sprint 146: label PT user-friendly ("Como novo", "Excelente", etc).</summary>
+    string GradingLabel,
     string SupplyType,
     int PriceCents,
     int StockQuantity,
@@ -273,13 +278,16 @@ public class ExternalCheckoutService : IExternalCheckoutService
 
     private static ExternalProductDto ToExternalProductDto(RepairDesk.Core.Entities.Product p) => new(
         p.Id, p.Sku, p.Slug, p.Brand, p.Model, p.Storage, p.Color,
-        p.Grading.ToString(), p.SupplyType.ToString(),
-        p.PriceCents, p.StockQuantity,
-        p.DescriptionMarkdown, p.AttributesJson,
-        p.SeoTitle, p.SeoDescription,
-        p.Fornecedor?.Name,
-        p.Images.OrderBy(i => i.Ordem).Select(i => i.Url).ToList(),
-        p.UpdatedAt ?? p.CreatedAt);
+        Grading: p.Grading.ToString(),
+        GradingCanonical: RepairDesk.Services.Products.ProductGradingMapper.ToCanonical(p.Grading),
+        GradingLabel: RepairDesk.Services.Products.ProductGradingMapper.ToLabelPt(p.Grading),
+        SupplyType: p.SupplyType.ToString(),
+        PriceCents: p.PriceCents, StockQuantity: p.StockQuantity,
+        DescriptionMarkdown: p.DescriptionMarkdown, AttributesJson: p.AttributesJson,
+        SeoTitle: p.SeoTitle, SeoDescription: p.SeoDescription,
+        SupplierName: p.Fornecedor?.Name,
+        ImageUrls: p.Images.OrderBy(i => i.Ordem).Select(i => i.Url).ToList(),
+        UpdatedAt: p.UpdatedAt ?? p.CreatedAt);
 
     public async Task<ExternalClienteHistoricoResponse?> GetHistoricoByNifAsync(string nif, CancellationToken ct = default)
     {

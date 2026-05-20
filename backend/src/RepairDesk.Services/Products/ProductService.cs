@@ -240,6 +240,9 @@ public class ProductService : IProductService
             storage = product.Storage,
             color = product.Color,
             grading = product.Grading.ToString(),
+            // Sprint 146: campos canónicos para alinhar com a loja headless.
+            gradingCanonical = ProductGradingMapper.ToCanonical(product.Grading),
+            gradingLabel = ProductGradingMapper.ToLabelPt(product.Grading),
             supplyType = product.SupplyType.ToString(),
             priceCents = product.PriceCents,
             stockQuantity = product.StockQuantity,
