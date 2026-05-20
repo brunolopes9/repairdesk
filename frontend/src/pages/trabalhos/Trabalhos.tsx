@@ -7,6 +7,7 @@ import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import { clientesApi } from '../../lib/clientes/api';
+import NovoClienteModal from '../../components/NovoClienteModal';
 import { displayPhone } from '../../lib/phone/formatter';
 import { trabalhosApi } from '../../lib/trabalhos/api';
 import {
@@ -177,9 +178,12 @@ export default function Trabalhos() {
       <CreateTrabalhoModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={() => {
+        onCreated={(createdId) => {
           qc.invalidateQueries({ queryKey: ['trabalhos'] });
           setCreateOpen(false);
+          // Sprint 118: redireccionar directamente para o detalhe para Bruno preencher
+          // o resto (peças, despesas, fotos, etc) sem ter de ir clicar no card.
+          navigate(`/trabalhos/${createdId}`);
         }}
       />
 
@@ -336,9 +340,11 @@ function Card({ t, onClick, onDelete }: { t: Trabalho; onClick: () => void; onDe
   );
 }
 
-function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (createdId: string) => void }) {
   const [clienteSearch, setClienteSearch] = useState('');
   const [clienteId, setClienteId] = useState<string | null>(null);
+  const [clienteNomePicked, setClienteNomePicked] = useState<string | null>(null);
+  const [novoClienteOpen, setNovoClienteOpen] = useState(false);
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState<JobCategory>(JOB_CATEGORY.Outro);
@@ -361,7 +367,7 @@ function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onCl
       orcamentoCents: parseEuros(orcamento),
       notas: null,
     }),
-    onSuccess: () => { reset(); onCreated(); },
+    onSuccess: (created) => { reset(); onCreated(created.id); },
     onError: (err) => {
       if (isAxiosError(err)) {
         const data = err.response?.data as { detail?: string } | undefined;
@@ -371,7 +377,8 @@ function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onCl
   });
 
   function reset() {
-    setClienteSearch(''); setClienteId(null); setTitulo(''); setDescricao('');
+    setClienteSearch(''); setClienteId(null); setClienteNomePicked(null);
+    setTitulo(''); setDescricao('');
     setCategoria(JOB_CATEGORY.Outro); setOrcamento(''); setError(null);
   }
 
@@ -403,17 +410,27 @@ function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onCl
         <Field label="Cliente *">
           {clienteId ? (
             <div className="flex min-h-11 items-center justify-between rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-              {clientes.data?.items.find(c => c.id === clienteId)?.nome ?? 'Selecionado'}
-              <button type="button" onClick={() => setClienteId(null)} className="min-h-10 rounded-md px-2 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">trocar</button>
+              {clienteNomePicked ?? clientes.data?.items.find(c => c.id === clienteId)?.nome ?? 'Selecionado'}
+              <button type="button" onClick={() => { setClienteId(null); setClienteNomePicked(null); }} className="min-h-10 rounded-md px-2 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">trocar</button>
             </div>
           ) : (
             <>
-              <input placeholder="Pesquisar…" value={clienteSearch} onChange={e => setClienteSearch(e.target.value)} className={inputCls} />
+              <div className="flex gap-2">
+                <input placeholder="Pesquisar…" value={clienteSearch} onChange={e => setClienteSearch(e.target.value)} className={`${inputCls} flex-1`} />
+                <button
+                  type="button"
+                  onClick={() => setNovoClienteOpen(true)}
+                  className="min-h-11 whitespace-nowrap rounded-lg border border-brand-300 bg-brand-50 px-3 text-xs font-medium text-brand-700 hover:bg-brand-100 dark:border-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
+                  title="Cria um cliente novo agora — útil para consumidor final"
+                >
+                  + Novo cliente
+                </button>
+              </div>
               {clientes.data && clientes.data.items.length > 0 && (
                 <ul className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
                   {clientes.data.items.map(c => (
                     <li key={c.id}>
-                      <button type="button" onClick={() => setClienteId(c.id)} className="block min-h-11 w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                      <button type="button" onClick={() => { setClienteId(c.id); setClienteNomePicked(c.nome); }} className="block min-h-11 w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
                         {c.nome} <span className="text-xs text-zinc-500">· {displayPhone(c.telefone)}</span>
                       </button>
                     </li>
@@ -423,6 +440,11 @@ function CreateTrabalhoModal({ open, onClose, onCreated }: { open: boolean; onCl
             </>
           )}
         </Field>
+        <NovoClienteModal
+          open={novoClienteOpen}
+          onClose={() => setNovoClienteOpen(false)}
+          onCreated={(c) => { setClienteId(c.id); setClienteNomePicked(c.nome); setNovoClienteOpen(false); }}
+        />
         <Field label="Descrição">
           <textarea rows={3} value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls + ' resize-none'} />
         </Field>

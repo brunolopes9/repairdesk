@@ -30,6 +30,7 @@ import EquipmentFieldsForm, {
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
+import NovoClienteModal from '../../components/NovoClienteModal';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { vendasApi } from '../../lib/vendas/api';
@@ -857,53 +858,6 @@ function CreateReparacaoModal({
           setOrcamento((picked.pvpCents / 100).toFixed(2));
         }}
       />
-    </Modal>
-  );
-}
-
-function NovoClienteModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (c: { id: string; nome: string }) => void }) {
-  const [nome, setNome] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  const create = useMutation({
-    mutationFn: () => clientesApi.create({
-      nome: nome.trim(),
-      telefone: telefone.trim() || null,
-      email: null,
-      nif: null,
-      notas: null,
-    }),
-    onSuccess: (c) => { setNome(''); setTelefone(''); setError(null); onCreated(c); },
-    onError: (err) => {
-      if (isAxiosError(err)) {
-        const data = err.response?.data as { detail?: string; errors?: Record<string, string[]> } | undefined;
-        if (data?.errors) setError(Object.values(data.errors).flat().join(' '));
-        else setError(data?.detail ?? 'Erro');
-      }
-    },
-  });
-
-  return (
-    <Modal open={open} title="Novo cliente" onClose={onClose}
-      footer={<>
-        <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
-        <button type="button" disabled={!nome || create.isPending}
-          onClick={() => create.mutate()}
-          className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
-          {create.isPending ? 'A criar…' : 'Criar e selecionar'}
-        </button>
-      </>}
-    >
-      <div className="space-y-3">
-        {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{error}</div>}
-        <Field label="Nome" required>
-          <input value={nome} onChange={e => setNome(e.target.value)} className={inputCls} autoFocus />
-        </Field>
-        <Field label="Telefone (opcional)">
-          <input value={telefone} onChange={e => setTelefone(e.target.value)} className={inputCls} placeholder="ou vazio se for via Messenger" />
-        </Field>
-      </div>
     </Modal>
   );
 }
