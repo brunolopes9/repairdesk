@@ -59,7 +59,14 @@ export interface GarantiaEmitidaPayload {
   reparacaoId?: string | null;
   clienteId?: string | null;
   dataInicio: string;
+  dataFim?: string;
   diasGarantia?: number;
+  /**
+   * Sprint 128: condição do item que ditou o período (Max das condições da venda).
+   * Apenas presente em garantias de origem `Venda`. Útil para a loja mostrar contexto
+   * tipo "3 anos · refurbished" ou "18 meses · usado".
+   */
+  condicaoUsada?: 'NaoAplicavel' | 'Novo' | 'OpenBox' | 'Recondicionado' | 'Usado';
 }
 
 export interface GarantiaAnuladaPayload {

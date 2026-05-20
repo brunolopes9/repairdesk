@@ -65,6 +65,30 @@ public class GarantiaPorCondicaoTests
     }
 
     [Fact]
+    public void ResolveCondicaoDominante_PicksCondicaoQueGeraMaiorPeriodo()
+    {
+        // Mixed Novo + Recondicionado → dominante é Novo (3 anos > 18m).
+        var venda = MakeVenda(CondicaoArtigo.Recondicionado, CondicaoArtigo.Novo);
+        var tenant = MakeTenant();
+        VendaService.ResolveCondicaoDominante(venda, tenant).Should().Be(CondicaoArtigo.Novo);
+    }
+
+    [Fact]
+    public void ResolveCondicaoDominante_AllRefurbished_ReturnsRecondicionado()
+    {
+        var venda = MakeVenda(CondicaoArtigo.Recondicionado, CondicaoArtigo.Recondicionado);
+        var tenant = MakeTenant();
+        VendaService.ResolveCondicaoDominante(venda, tenant).Should().Be(CondicaoArtigo.Recondicionado);
+    }
+
+    [Fact]
+    public void ResolveCondicaoDominante_EmptyItems_NaoAplicavel()
+    {
+        var venda = new Venda { TenantId = Guid.NewGuid(), Numero = 1, ClienteId = null };
+        VendaService.ResolveCondicaoDominante(venda, tenant: null).Should().Be(CondicaoArtigo.NaoAplicavel);
+    }
+
+    [Fact]
     public void Resolve_TenantWithCustomRecondicionado_HonoursOverride()
     {
         // Política comercial LopesTech: 3 anos para tudo (refurbished incluído).

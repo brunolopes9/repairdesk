@@ -300,6 +300,9 @@ public class VendaService : IVendaService
 
         if (_tenant.TenantId is { } publishTenantId)
         {
+            // Sprint 128: incluir condicao dominante (a que ditou o período) para a loja
+            // mostrar contexto correcto na garantia (ex: "3 anos · refurbished").
+            var condicaoDominante = ResolveCondicaoDominante(venda, tenant);
             await _webhooks.PublishAsync(publishTenantId, WebhookEvents.GarantiaEmitida, new
             {
                 garantiaId = g.Id,
@@ -311,8 +314,27 @@ public class VendaService : IVendaService
                 dataInicio = g.DataInicio,
                 dataFim = g.DataFim,
                 diasGarantia = g.DiasGarantia,
+                condicaoUsada = condicaoDominante.ToString(),
             }, ct);
         }
+    }
+
+    /// <summary>
+    /// Sprint 128: identifica a CondicaoArtigo que ditou o período da garantia (a do item
+    /// com o Max das dias). Útil para mostrar contexto na garantia digital ("3 anos · refurbished").
+    /// Vendas sem items devolvem <see cref="CondicaoArtigo.NaoAplicavel"/>.
+    /// </summary>
+    public static CondicaoArtigo ResolveCondicaoDominante(Venda venda, Tenant? tenant)
+    {
+        if (venda.Items is null || venda.Items.Count == 0) return CondicaoArtigo.NaoAplicavel;
+        var novo = tenant?.GarantiaVendaDiasDefault ?? 1095;
+        var openBox = tenant?.GarantiaVendaOpenBoxDias ?? 730;
+        var recond = tenant?.GarantiaVendaRecondicionadoDias ?? 540;
+        var usado = tenant?.GarantiaVendaUsadoDias ?? 540;
+        return venda.Items
+            .Select(it => (cond: it.Condicao, dias: DiasParaCondicao(it.Condicao, novo, openBox, recond, usado)))
+            .OrderByDescending(t => t.dias)
+            .First().cond;
     }
 
     /// <summary>

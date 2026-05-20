@@ -1278,8 +1278,8 @@ function PosVendaSection({
       </div>
 
       <Field
-        label="Dias de garantia em Vendas (default)"
-        hint="Mínimo legal: 540 (refurbished com acordo expresso) · Padrão consumo: 1095 (3 anos)."
+        label="Dias de garantia · Bens Novos"
+        hint="Padrão legal DL 84/2021: 1095 (3 anos). Aplica-se também a items sem condição definida."
       >
         <input
           type="number"
@@ -1287,6 +1287,48 @@ function PosVendaSection({
           max={3650}
           value={form.garantiaVendaDiasDefault ?? 1095}
           onChange={(e) => update('garantiaVendaDiasDefault', Math.max(540, Number(e.target.value) || 1095))}
+          className={inputCls}
+        />
+      </Field>
+
+      <Field
+        label="Dias de garantia · Open Box"
+        hint="Sem uso mas embalagem aberta. Default 730 (2 anos)."
+      >
+        <input
+          type="number"
+          min={540}
+          max={3650}
+          value={form.garantiaVendaOpenBoxDias ?? 730}
+          onChange={(e) => update('garantiaVendaOpenBoxDias', Math.max(540, Number(e.target.value) || 730))}
+          className={inputCls}
+        />
+      </Field>
+
+      <Field
+        label="Dias de garantia · Recondicionado"
+        hint="Mínimo legal DL 84/2021 art. 12.º n.º 4: 540 (18m) com acordo expresso. Política comercial LopesTech: 1095."
+      >
+        <input
+          type="number"
+          min={540}
+          max={3650}
+          value={form.garantiaVendaRecondicionadoDias ?? 540}
+          onChange={(e) => update('garantiaVendaRecondicionadoDias', Math.max(540, Number(e.target.value) || 540))}
+          className={inputCls}
+        />
+      </Field>
+
+      <Field
+        label="Dias de garantia · Usado"
+        hint="Bens em segunda mão. Default 540 (18m mínimo legal)."
+      >
+        <input
+          type="number"
+          min={540}
+          max={3650}
+          value={form.garantiaVendaUsadoDias ?? 540}
+          onChange={(e) => update('garantiaVendaUsadoDias', Math.max(540, Number(e.target.value) || 540))}
           className={inputCls}
         />
       </Field>
