@@ -435,7 +435,10 @@ public class PartService : IPartService
             p.LocalArmazenamento,
             p.Notas,
             p.Activo,
-            p.QtdStock <= p.QtdMinima,
+            // Sprint 139: alinhado com Sprint 130 — qtdMinima=0 desliga o alerta.
+            // Peças "one-shot" (Bruno encomendou para 1 reparação, não quer alerta recorrente)
+            // ficam com 0/0 e NÃO devem aparecer como Stock baixo.
+            p.QtdMinima > 0 && p.QtdStock <= p.QtdMinima,
             p.CreatedAt,
             p.UpdatedAt,
             p.MostrarLojaOnline);

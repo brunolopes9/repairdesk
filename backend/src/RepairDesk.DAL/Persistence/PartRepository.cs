@@ -38,7 +38,8 @@ public class PartRepository : IPartRepository
 
         if (categoria is not null) q = q.Where(p => p.Categoria == categoria.Value);
         if (!string.IsNullOrWhiteSpace(marca)) q = q.Where(p => p.Marca == marca);
-        if (lowStockOnly) q = q.Where(p => p.QtdStock <= p.QtdMinima);
+        // Sprint 139: qtdMinima=0 = "não me incomodes com esta peça" — fica fora do filtro.
+        if (lowStockOnly) q = q.Where(p => p.QtdMinima > 0 && p.QtdStock <= p.QtdMinima);
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -62,9 +63,10 @@ public class PartRepository : IPartRepository
     }
 
     public async Task<IReadOnlyList<Part>> LowStockAsync(CancellationToken ct = default)
+        // Sprint 139: qtdMinima=0 desliga alerta — usado em peças one-shot.
         => await _db.Parts
             .AsNoTracking()
-            .Where(p => p.Activo && p.QtdStock <= p.QtdMinima)
+            .Where(p => p.Activo && p.QtdMinima > 0 && p.QtdStock <= p.QtdMinima)
             .OrderBy(p => p.QtdStock - p.QtdMinima)
             .ThenBy(p => p.Nome)
             .ToListAsync(ct);
