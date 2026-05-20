@@ -970,14 +970,9 @@ function FaturacaoSection() {
 
       {connected && (
         <div className="flex flex-wrap gap-2 border-t border-zinc-200 pt-5 dark:border-zinc-800">
-          <button
-            type="button"
-            onClick={() => save.mutate(form)}
-            disabled={save.isPending}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-          >
-            {save.isPending ? 'A guardar…' : 'Guardar configuração'}
-          </button>
+          {/* Sprint 145b: "Guardar configuração" removido — auto-save via debounce 1200ms
+              (Sprint 117) já trata de tudo. Bruno reportou que botão de save manual era inútil.
+              "Testar emissão" mantém-se porque é acção diferente (dry-run validation Moloni). */}
           <button
             type="button"
             onClick={() => test.mutate()}
