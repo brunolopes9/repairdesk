@@ -92,5 +92,10 @@ export interface PdfParseSuggestions {
 export interface PdfParseItem {
   description: string;
   quantity: number;
+  /** Sprint 134: custo unitário em cêntimos com IVA + portes distribuídos proporcionalmente. */
   lineTotalCents: number;
+  /** Sprint 134: marca extraída da descrição (Samsung, Apple, etc). */
+  brand: string | null;
+  /** Sprint 134: modelo extraído (Galaxy A15, iPhone 12, etc). */
+  model: string | null;
 }

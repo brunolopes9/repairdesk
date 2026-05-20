@@ -354,15 +354,27 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText, pdfS
       setMinStr(String(editing.qtdMinima));
       setCustoStr((editing.custoUnitarioCents / 100).toFixed(2).replace('.', ','));
     } else if (open) {
-      // Sprint 124: pré-preencher com sugestões do PDF se disponíveis.
+      // Sprint 124/134: pré-preencher com sugestões do PDF se disponíveis.
+      // Sprint 134: brand/model agora vêm do parser; categoria adivinhada por keywords.
       const s = pdfSuggestions;
       const firstItem = s?.items?.[0];
+      const desc = firstItem?.description ?? '';
+      const lowerDesc = desc.toLowerCase();
+      const categoria: PartCategoria =
+        lowerDesc.includes('touch') || lowerDesc.includes('display') || lowerDesc.includes('ecrã') || lowerDesc.includes('ecra') || lowerDesc.includes('lcd') ? PART_CATEGORIA.Ecra
+        : lowerDesc.includes('bater') || lowerDesc.includes('battery') ? PART_CATEGORIA.Bateria
+        : lowerDesc.includes('cam') ? PART_CATEGORIA.Camara
+        : lowerDesc.includes('conector') || lowerDesc.includes('charge') || lowerDesc.includes('carga') ? PART_CATEGORIA.Conector
+        : lowerDesc.includes('flex') || lowerDesc.includes('cabo') ? PART_CATEGORIA.CaboFlex
+        : lowerDesc.includes('vidro') ? PART_CATEGORIA.VidroTraseiro
+        : lowerDesc.includes('capa') || lowerDesc.includes('case') ? PART_CATEGORIA.Acessorio
+        : PART_CATEGORIA.Outro;
       setForm({
         sku: null,
-        nome: firstItem?.description ?? '',
-        categoria: PART_CATEGORIA.Outro,
-        marca: null,
-        modelo: null,
+        nome: desc,
+        categoria,
+        marca: firstItem?.brand ?? null,
+        modelo: firstItem?.model ?? null,
         priceTableEntryId: null,
         qtdStock: firstItem?.quantity ?? 0,
         qtdMinima: 0,
