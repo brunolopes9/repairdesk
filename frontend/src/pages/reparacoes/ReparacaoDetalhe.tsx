@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, Lock, Phone, Search, Snowflake } from 'lucide-react';
-import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import GarantiaCard from '../../components/GarantiaCard';
 import { isAxiosError } from 'axios';
@@ -86,6 +85,10 @@ export default function ReparacaoDetalhe() {
   const [emitLookup, setEmitLookup] = useState<import('../../lib/clientes/types').AtNifLookup | null>(null);
   const [emitLookupErr, setEmitLookupErr] = useState<string | null>(null);
   const [emitLookupPending, setEmitLookupPending] = useState(false);
+  // Sprint 141: modal rápido para adicionar telefone ao cliente quando ainda não tem.
+  const [telefoneOpen, setTelefoneOpen] = useState(false);
+  const [telefoneInput, setTelefoneInput] = useState('');
+  const [telefonePending, setTelefonePending] = useState(false);
   const [fieldTemplateId, setFieldTemplateId] = useState<string | null>(null);
   const [fieldValues, setFieldValues] = useState<EquipmentFieldValuesMap>({});
   const hydratedRef = useRef(false);
@@ -520,7 +523,8 @@ export default function ReparacaoDetalhe() {
             </Link>
           )}
         </div>
-        {cleanPhone && (
+        {/* Sprint 141: se cliente tem telefone, mostra Ligar+WhatsApp; senão mostra botão para adicionar. */}
+        {cleanPhone ? (
           <div className="flex gap-2">
             <a
               href={`tel:${cleanPhone}`}
@@ -531,17 +535,22 @@ export default function ReparacaoDetalhe() {
             <WhatsAppMenu phone={cleanPhone} vars={waVars} estado={r.estado} staleDays={staleDays} />
             <span className="self-center text-xs text-zinc-500">{displayPhone(r.cliente.telefone)}</span>
           </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setTelefoneInput(''); setTelefoneOpen(true); }}
+            className="inline-flex items-center gap-1 rounded-lg border border-dashed border-emerald-400 bg-emerald-50/50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-300"
+            title="Adicionar telefone — desbloqueia botões Ligar e WhatsApp"
+          >
+            <Phone size={12} strokeWidth={2} /> + Telefone
+          </button>
         )}
         <p className="text-xs text-zinc-500">recebido {formatDate(r.recebidoEm)}</p>
         <div className="flex flex-wrap gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => openPdfInNewTab(`/reparacoes/${r.id}/orcamento.pdf`)}
-            className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            title="Abrir PDF do orçamento (não é factura)"
-          >
-            📄 PDF Orçamento
-          </button>
+          {/* Sprint 141: o orçamento informativo do RepairDesk foi descontinuado.
+              Usa-se Moloni como fonte de orçamento oficial (botão "Emitir Orçamento Moloni" /
+              "Orcamento OR ..." abaixo). O endpoint /orcamento.pdf permanece para retro-compat
+              mas não está exposto na UI. */}
           {r.estimateExternalId ? (
             <>
               <a
@@ -991,6 +1000,59 @@ export default function ReparacaoDetalhe() {
         </>}
       >
         <p className="text-sm">Apagar a reparação <strong>#{r.numero} {r.equipamento}</strong>? Vai ser ocultada (soft delete) mas pode ser recuperada por mim.</p>
+      </Modal>
+
+      {/* Sprint 141: modal rápido para adicionar telefone ao cliente. Desbloqueia Ligar+WhatsApp. */}
+      <Modal
+        open={telefoneOpen}
+        title={`Telefone de ${r.cliente.nome}`}
+        onClose={() => setTelefoneOpen(false)}
+        footer={<>
+          <button type="button" onClick={() => setTelefoneOpen(false)} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
+          <button
+            type="button"
+            disabled={telefonePending || telefoneInput.replace(/\D/g, '').length < 9}
+            onClick={async () => {
+              setTelefonePending(true);
+              try {
+                const full = await clientesApi.get(r.cliente.id);
+                await clientesApi.update(r.cliente.id, {
+                  nome: full.nome,
+                  telefone: telefoneInput.trim(),
+                  email: full.email,
+                  nif: full.nif,
+                  notas: full.notas,
+                });
+                qc.invalidateQueries({ queryKey: ['reparacao', id] });
+                qc.invalidateQueries({ queryKey: ['cliente', r.cliente.id] });
+                toast.success('Telefone guardado', 'Botões Ligar e WhatsApp já disponíveis.');
+                setTelefoneOpen(false);
+              } catch (err) {
+                toast.fromError(err, 'Não foi possível guardar o telefone.');
+              } finally {
+                setTelefonePending(false);
+              }
+            }}
+            className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {telefonePending ? 'A guardar…' : 'Guardar'}
+          </button>
+        </>}
+      >
+        <div className="space-y-3 text-sm">
+          <p className="text-xs text-zinc-500">
+            Sem telefone, não consegues ligar nem enviar mensagens WhatsApp ao cliente.
+            Adiciona aqui para desbloquear esses botões.
+          </p>
+          <input
+            inputMode="tel"
+            value={telefoneInput}
+            onChange={(e) => setTelefoneInput(e.target.value)}
+            placeholder="912 345 678"
+            autoFocus
+            className={inputCls}
+          />
+        </div>
       </Modal>
 
       {/* Sprint 140: modal "Emitir fatura" — Simplificada vs Com NIF + AT lookup */}
