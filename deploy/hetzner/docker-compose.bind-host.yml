@@ -1,0 +1,22 @@
+# NOT NEEDED in the default architecture.
+#
+# The frontend/nginx.conf (line 22) already proxies /api/* internally to
+# api:8080 over the private Docker network. Caddy points to the web
+# container only, and /api/* gets routed inside Docker.
+#
+# This override exists only as documentation of how to expose the api
+# directly to the host (127.0.0.1:8080) IF you ever change Caddy to
+# split routing between web and api containers. To use:
+#
+#   docker compose -f docker-compose.prod.yml \
+#                  -f deploy/hetzner/docker-compose.bind-host.yml \
+#                  --env-file .env.production \
+#                  up -d
+#
+# Bind is to loopback only — never to 0.0.0.0. Caddy is the only thing
+# that should reach 8080.
+
+services:
+  api:
+    ports:
+      - "127.0.0.1:8080:8080"
