@@ -47,6 +47,10 @@ export const reparacoesApi = {
   emitirOrcamentoMoloni(id: string) {
     return api.post<Reparacao>(`/reparacoes/${id}/emitir-orcamento-moloni`).then((r) => r.data);
   },
+  // Sprint 143: re-emite orçamento Moloni quando preço/items mudaram (best-effort cancel velho).
+  reemitirOrcamentoMoloni(id: string) {
+    return api.post<Reparacao>(`/reparacoes/${id}/reemitir-orcamento-moloni`).then((r) => r.data);
+  },
   converterOrcamentoEmFatura(id: string) {
     return api.post<Reparacao>(`/reparacoes/${id}/converter-orcamento-fatura`).then((r) => r.data);
   },

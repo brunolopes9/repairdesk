@@ -361,14 +361,15 @@ export default function ReparacaoDetalhe() {
     onError: (err) => toast.fromError(err, 'Nao foi possivel emitir o orcamento Moloni.'),
   });
 
-  const converterOrcamentoMoloni = useMutation({
-    mutationFn: () => reparacoesApi.converterOrcamentoEmFatura(id!),
+  // Sprint 143: re-emitir orçamento Moloni quando preço mudou (best-effort cancel velho).
+  const reemitirOrcamentoMoloni = useMutation({
+    mutationFn: () => reparacoesApi.reemitirOrcamentoMoloni(id!),
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['reparacao', id] });
       qc.invalidateQueries({ queryKey: ['reparacoes'] });
-      toast.success(`Fatura ${updated.invoiceNumber ?? updated.invoiceExternalId} emitida`, updated.invoicePdfUrl ? 'PDF disponivel na ficha.' : undefined);
+      toast.success(`Orçamento ${updated.estimateNumber} re-emitido`, 'O velho foi anulado no Moloni.');
     },
-    onError: (err) => toast.fromError(err, 'Nao foi possivel converter o orcamento em fatura.'),
+    onError: (err) => toast.fromError(err, 'Não foi possível re-emitir o orçamento.'),
   });
 
   // Reabrir: volta para estado Pronto + desmarca Pago via endpoint dedicado.
@@ -561,22 +562,30 @@ export default function ReparacaoDetalhe() {
               >
                 Orcamento {r.estimateNumber ?? r.estimateExternalId}
               </a>
+              {/* Sprint 143: botão "Re-emitir orçamento" — quando o preço mudou desde a primeira emissão.
+                  Anula o velho no Moloni (best-effort) + emite um novo com o preço actual. */}
               {!r.invoiceExternalId && (
                 <button
                   type="button"
-                  disabled={converterOrcamentoMoloni.isPending}
+                  disabled={reemitirOrcamentoMoloni.isPending}
                   onClick={() => {
                     const ok = confirm(
-                      'Converter este orcamento Moloni em fatura?\n\n' +
-                      `${r.estimateNumber ?? r.estimateExternalId} vai originar uma fatura real no Moloni.`
+                      'Re-emitir orçamento Moloni com o preço actual?\n\n' +
+                      `O orçamento ${r.estimateNumber ?? r.estimateExternalId} vai ser anulado no Moloni ` +
+                      `e um novo é emitido com o valor de ${formatCents(r.precoFinalCents ?? r.orcamentoCents ?? 0)}.\n\n` +
+                      'Continuar?'
                     );
-                    if (ok) converterOrcamentoMoloni.mutate();
+                    if (ok) reemitirOrcamentoMoloni.mutate();
                   }}
-                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60 dark:border-blue-800/60 dark:bg-zinc-900 dark:text-blue-200"
+                  title="Anula o orçamento Moloni actual e emite um novo com o preço actualizado. Útil quando mudaste o preço final ou adicionaste peças depois do orçamento."
                 >
-                  {converterOrcamentoMoloni.isPending ? 'A converter...' : 'Converter em Fatura'}
+                  {reemitirOrcamentoMoloni.isPending ? 'A re-emitir...' : 'Re-emitir orçamento'}
                 </button>
               )}
+              {/* Sprint 143: "Converter em Fatura" removido — Moloni não tem endpoint API para
+                  esta operação (retornava 404). Em vez disso, o botão "Emitir fatura via Moloni"
+                  (no header de pagamento) cria uma fatura nova directamente com os items do Sprint 136. */}
             </>
           ) : canEmitMoloniEstimate && (
             <button
@@ -644,17 +653,7 @@ export default function ReparacaoDetalhe() {
               {emitirFatura.isPending ? 'A emitir…' : 'Emitir fatura via Moloni'}
             </button>
           )}
-          {(r.estado === 4 || r.estado === 5) && (
-            <a
-              href="https://irs.portaldasfinancas.gov.pt/recibos/portal/emitir"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              title="Abre o Portal das Finanças numa nova aba para emitires a factura"
-            >
-              🧾 Emitir factura no Portal AT
-            </a>
-          )}
+          {/* Sprint 143: removido botão "Emitir factura no Portal AT" — Bruno pediu (usa Moloni). */}
         </div>
       </header>
 

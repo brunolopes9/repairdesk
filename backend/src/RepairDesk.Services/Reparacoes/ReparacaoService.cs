@@ -20,6 +20,7 @@ public interface IReparacaoService
     Task<IReadOnlyList<ReparacaoDto>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default);
     Task<ReparacaoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> EmitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default);
+    Task<ReparacaoDto> ReemitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> ConverterOrcamentoEmFaturaAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default);
@@ -248,6 +249,55 @@ public class ReparacaoService : IReparacaoService
 
         var custo = await _despesas.SumByReparacaoAsync(rep.Id, ct);
         return ToDto(rep, custo);
+    }
+
+    /// <summary>
+    /// Sprint 143: re-emite o orçamento Moloni quando o preço/items mudaram desde a primeira
+    /// emissão. Best-effort cancel do velho no Moloni; depois limpa as referências locais e chama
+    /// EmitirOrcamentoMoloniAsync que cria um novo com o preço actual.
+    /// </summary>
+    public async Task<ReparacaoDto> ReemitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default)
+    {
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+        if (string.IsNullOrWhiteSpace(rep.EstimateExternalId))
+            throw new ConflictException("reparacao_sem_orcamento_moloni", "Ainda não há orçamento Moloni para re-emitir.");
+        if (!string.IsNullOrWhiteSpace(rep.InvoiceExternalId))
+            throw new ConflictException("reparacao_ja_facturada", "Esta reparação já tem fatura emitida. Anula a fatura primeiro.");
+
+        var oldEstimateId = rep.EstimateExternalId;
+        var oldEstimateNumber = rep.EstimateNumber;
+
+        // Best-effort: tenta cancelar no Moloni. Se falhar, fica órfão mas seguimos.
+        var cancelOk = false;
+        if (int.TryParse(rep.EstimateExternalId, out var estimateIdInt))
+        {
+            try
+            {
+                var settings = await RequireMoloniSettingsAsync(ct);
+                cancelOk = await _moloni.CancelDocumentAsync(settings, estimateIdInt, "Re-emitido com preço actualizado", ct);
+            }
+            catch
+            {
+                // Swallow — seguimos com a re-emissão mesmo se o cancel falhou.
+            }
+        }
+
+        // Limpa referências locais para permitir a re-emissão.
+        rep.EstimateExternalId = null;
+        rep.EstimateNumber = null;
+        rep.EstimatePdfUrl = null;
+        rep.EstimateEmittedAt = null;
+        await _repo.SaveAsync(ct);
+
+        await _audit.LogAsync(AuditAction.Update, nameof(Reparacao), rep.Id, new
+        {
+            operation = "reemit_moloni_estimate",
+            oldEstimateId,
+            oldEstimateNumber,
+            cancelledOnMoloni = cancelOk,
+        }, ct: ct);
+
+        return await EmitirOrcamentoMoloniAsync(id, ct);
     }
 
     public async Task<ReparacaoDto> ConverterOrcamentoEmFaturaAsync(Guid id, CancellationToken ct = default)

@@ -76,6 +76,15 @@ public class ReparacoesController : ControllerBase
     public Task<ReparacaoDto> EmitirOrcamentoMoloni(Guid id, CancellationToken ct)
         => _service.EmitirOrcamentoMoloniAsync(id, ct);
 
+    /// <summary>
+    /// Sprint 143: re-emite orçamento Moloni quando preço/items mudaram desde a primeira emissão.
+    /// Best-effort cancel do velho no Moloni + limpa fields locais + emite novo via EmitirOrcamentoMoloniAsync.
+    /// Se o cancel falhar, o velho fica órfão no Moloni mas o novo é emitido na mesma.
+    /// </summary>
+    [HttpPost("{id:guid}/reemitir-orcamento-moloni")]
+    public Task<ReparacaoDto> ReemitirOrcamentoMoloni(Guid id, CancellationToken ct)
+        => _service.ReemitirOrcamentoMoloniAsync(id, ct);
+
     [HttpPost("{id:guid}/converter-orcamento-fatura")]
     public Task<ReparacaoDto> ConverterOrcamentoEmFatura(Guid id, CancellationToken ct)
         => _service.ConverterOrcamentoEmFaturaAsync(id, ct);
