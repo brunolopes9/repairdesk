@@ -79,6 +79,13 @@ export default function ReparacaoDetalhe() {
   const [changeClienteOpen, setChangeClienteOpen] = useState(false);
   const [pagamentoPrompt, setPagamentoPrompt] = useState<RepairStatus | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  // Sprint 140: modal para escolher Simplificada vs Com NIF antes de emitir fatura.
+  const [emitFaturaOpen, setEmitFaturaOpen] = useState(false);
+  const [emitTipo, setEmitTipo] = useState<'simplificada' | 'com-nif'>('simplificada');
+  const [emitNif, setEmitNif] = useState('');
+  const [emitLookup, setEmitLookup] = useState<import('../../lib/clientes/types').AtNifLookup | null>(null);
+  const [emitLookupErr, setEmitLookupErr] = useState<string | null>(null);
+  const [emitLookupPending, setEmitLookupPending] = useState(false);
   const [fieldTemplateId, setFieldTemplateId] = useState<string | null>(null);
   const [fieldValues, setFieldValues] = useState<EquipmentFieldValuesMap>({});
   const hydratedRef = useRef(false);
@@ -616,23 +623,12 @@ export default function ReparacaoDetalhe() {
               type="button"
               disabled={emitirFatura.isPending}
               onClick={() => {
-                const valor = r.precoFinalCents ?? r.orcamentoCents ?? 0;
-                const isSandbox = billing.data?.sandboxMode === true;
-                const ok = confirm(
-                  isSandbox
-                    ? 'MODO SANDBOX — fatura de teste\n\n' +
-                      'O documento vai ser criado na sandbox Moloni. NÃO é comunicado à AT real.\n' +
-                      'Útil para validar o fluxo sem impacto fiscal.\n\n' +
-                      `Reparação #${r.numero} · ${r.equipamento}\n` +
-                      `Total: ${formatCents(valor)}\n\nContinuar?`
-                    : 'ATENÇÃO: MODO PRODUÇÃO — fatura real\n\n' +
-                      'Vai ser comunicada à Autoridade Tributária em tempo real.\n' +
-                      'Entra na tua declaração IVA trimestral.\n\n' +
-                      `Reparação #${r.numero} · ${r.equipamento}\n` +
-                      `Cliente: ${r.cliente.nome}\n` +
-                      `Total: ${formatCents(valor)}\n\nTem a certeza?`
-                );
-                if (ok) emitirFatura.mutate();
+                // Sprint 140: abre modal de escolha Simplificada vs Com NIF.
+                setEmitTipo(r.cliente.nif ? 'com-nif' : 'simplificada');
+                setEmitNif(r.cliente.nif ?? '');
+                setEmitLookup(null);
+                setEmitLookupErr(null);
+                setEmitFaturaOpen(true);
               }}
               className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
@@ -995,6 +991,152 @@ export default function ReparacaoDetalhe() {
         </>}
       >
         <p className="text-sm">Apagar a reparação <strong>#{r.numero} {r.equipamento}</strong>? Vai ser ocultada (soft delete) mas pode ser recuperada por mim.</p>
+      </Modal>
+
+      {/* Sprint 140: modal "Emitir fatura" — Simplificada vs Com NIF + AT lookup */}
+      <Modal
+        open={emitFaturaOpen}
+        title="Emitir fatura Moloni"
+        onClose={() => setEmitFaturaOpen(false)}
+        footer={<>
+          <button type="button" onClick={() => setEmitFaturaOpen(false)} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
+          <button
+            type="button"
+            disabled={emitirFatura.isPending || (emitTipo === 'com-nif' && emitNif.length !== 9)}
+            onClick={async () => {
+              try {
+                // ClienteResumo na reparação só tem id/nome/telefone/nif — para fazer update
+                // preciso de fetch completo (inclui email + notas) antes de PUT.
+                const wantsNif = emitTipo === 'com-nif' && emitNif !== (r.cliente.nif ?? '');
+                const wantsClear = emitTipo === 'simplificada' && !!r.cliente.nif;
+                if (wantsNif || wantsClear) {
+                  const full = await clientesApi.get(r.cliente.id);
+                  await clientesApi.update(r.cliente.id, {
+                    nome: wantsNif && emitLookup?.nome ? emitLookup.nome : full.nome,
+                    telefone: full.telefone,
+                    email: full.email,
+                    nif: wantsClear ? null : emitNif,
+                    notas: full.notas,
+                  });
+                }
+                qc.invalidateQueries({ queryKey: ['reparacao', id] });
+                qc.invalidateQueries({ queryKey: ['cliente', r.cliente.id] });
+                setEmitFaturaOpen(false);
+                emitirFatura.mutate();
+              } catch (err) {
+                toast.fromError(err, 'Não foi possível actualizar o cliente.');
+              }
+            }}
+            className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {emitirFatura.isPending ? 'A emitir…' : 'Emitir'}
+          </button>
+        </>}
+      >
+        <div className="space-y-4 text-sm">
+          <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="font-medium">{r.cliente.nome}</div>
+            <div className="text-xs text-zinc-500">
+              Reparação #{r.numero} · {r.equipamento} · {formatCents(r.precoFinalCents ?? r.orcamentoCents ?? 0)}
+            </div>
+            {billing.data?.sandboxMode && <div className="mt-1 text-xs text-amber-600">⚠️ MODO SANDBOX — fatura de teste</div>}
+          </div>
+
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold uppercase text-zinc-500">Tipo de documento</legend>
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-zinc-200 p-3 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 dark:border-zinc-800 dark:has-[:checked]:bg-emerald-950/30">
+              <input
+                type="radio"
+                name="emit-tipo"
+                checked={emitTipo === 'simplificada'}
+                onChange={() => setEmitTipo('simplificada')}
+                className="mt-0.5"
+              />
+              <div>
+                <div className="font-medium">Fatura Simplificada (Consumidor Final)</div>
+                <div className="text-xs text-zinc-500">Sem NIF. Válida até €1000. O cliente NÃO precisa de identificar-se.</div>
+              </div>
+            </label>
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-zinc-200 p-3 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 dark:border-zinc-800 dark:has-[:checked]:bg-emerald-950/30">
+              <input
+                type="radio"
+                name="emit-tipo"
+                checked={emitTipo === 'com-nif'}
+                onChange={() => setEmitTipo('com-nif')}
+                className="mt-0.5"
+              />
+              <div className="flex-1">
+                <div className="font-medium">Fatura com NIF</div>
+                <div className="text-xs text-zinc-500">Cliente quer NIF na fatura (dedução IRS/IVA).</div>
+              </div>
+            </label>
+          </fieldset>
+
+          {emitTipo === 'com-nif' && (
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-zinc-500">NIF (9 dígitos)</label>
+              <div className="flex gap-2">
+                <input
+                  inputMode="numeric"
+                  maxLength={9}
+                  value={emitNif}
+                  onChange={(e) => {
+                    setEmitNif(e.target.value.replace(/\D/g, '').slice(0, 9));
+                    setEmitLookup(null);
+                    setEmitLookupErr(null);
+                  }}
+                  placeholder="123456789"
+                  className={inputCls}
+                />
+                <button
+                  type="button"
+                  disabled={emitNif.length !== 9 || emitLookupPending}
+                  onClick={async () => {
+                    setEmitLookupPending(true);
+                    setEmitLookupErr(null);
+                    try {
+                      const res = await clientesApi.lookupAtNif(emitNif);
+                      setEmitLookup(res);
+                    } catch (err) {
+                      const code = isAxiosError(err) ? (err.response?.data as { code?: string } | undefined)?.code : undefined;
+                      if (code === 'at_nif_not_found') setEmitLookupErr('NIF não encontrado na AT.');
+                      else if (code === 'nif_invalid') setEmitLookupErr('NIF inválido (check-digit).');
+                      else if (code === 'at_rate_limit_exceeded') setEmitLookupErr('Limite diário de consultas AT atingido.');
+                      else if (code === 'at_unavailable') setEmitLookupErr('AT indisponível. Continua manual.');
+                      else setEmitLookupErr('Falha na consulta AT.');
+                    } finally {
+                      setEmitLookupPending(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                >
+                  {emitLookupPending ? 'A consultar…' : 'Procurar AT'}
+                </button>
+              </div>
+              {emitLookup && (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                  <div className="font-medium text-emerald-900 dark:text-emerald-200">✓ AT: {emitLookup.nome}</div>
+                  {emitLookup.morada && <div className="text-emerald-800 dark:text-emerald-300">{emitLookup.morada}</div>}
+                  <div className="text-[10px] text-emerald-700 dark:text-emerald-400">Status: {emitLookup.status}</div>
+                </div>
+              )}
+              {emitLookupErr && (
+                <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+                  {emitLookupErr}
+                </div>
+              )}
+              {r.cliente.nif && r.cliente.nif === emitNif && (
+                <div className="text-xs text-zinc-500">NIF actual do cliente — não vai ser alterado.</div>
+              )}
+            </div>
+          )}
+
+          <p className="text-xs text-zinc-500">
+            {billing.data?.sandboxMode
+              ? 'Documento criado na sandbox Moloni. Não comunicado à AT real.'
+              : 'Ao confirmar, a fatura é comunicada à Autoridade Tributária em tempo real.'}
+          </p>
+        </div>
       </Modal>
     </div>
   );
