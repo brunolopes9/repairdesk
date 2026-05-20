@@ -14,6 +14,7 @@ import {
   ClipboardList,
   Settings,
   Webhook,
+  Building2,
   LogOut,
   Pin,
   PinOff,
@@ -41,6 +42,7 @@ const nav: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean
   { to: '/relatorios/iva', label: 'Relatorios', icon: FileText },
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
   { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true },
+  { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2, adminOnly: true },
   { to: '/definicoes', label: 'Definições', icon: Settings },
 ];
 
