@@ -50,14 +50,22 @@ const order = await repairdesk().checkout({
     email: session.customer_details!.email!,
     nif: session.metadata?.nif ?? null,
   },
-  items: session.line_items!.data.map(li => ({
-    descricao: li.description,
-    quantidade: li.quantity!,
-    precoUnitarioCents: li.amount_subtotal,
-    descontoCents: 0,
-    ivaRate: 23,
-    imei: (li.price?.product as any)?.metadata?.imei ?? null,
-  })),
+  items: session.line_items!.data.map(li => {
+    const metadata = (li.price?.product as any)?.metadata ?? {};
+    return {
+      descricao: li.description,
+      quantidade: li.quantity!,
+      precoUnitarioCents: li.amount_subtotal,
+      descontoCents: 0,
+      ivaRate: 23,
+      imei: metadata.imei ?? null,
+      // Sprint 109: snapshot de fornecedor B2B — RepairDesk usa isto
+      // mais tarde se o cliente voltar com defeito (banner cobertura).
+      fornecedorNome: metadata.fornecedor ?? null,          // ex: "Molano"
+      condicao: Number(metadata.condicao ?? 0) || null,     // 0=N/A, 1=Novo, 2=OpenBox, 3=Recond, 4=Usado
+      garantiaFornecedorAteAo: metadata.garantiaUpstream ?? null,  // ISO date
+    };
+  }),
   paymentMethod: 4,
   emitirFatura: true,
 });
@@ -176,6 +184,22 @@ try {
 | GET | `/api/external/garantias/{slug}` | Detalhe da garantia (não mascarado, integração trusted) |
 
 Header: `X-Api-Key: rd_live_xxx` ou `Authorization: ApiKey rd_live_xxx`.
+
+## Sprint 109 — Garantia upstream do fornecedor
+
+Cada `CheckoutItem` aceita 3 campos opcionais novos:
+
+| Campo | Tipo | Valor exemplo |
+|---|---|---|
+| `fornecedorNome` | `string?` | `"Molano"`, `"Tudo4Mobile"` |
+| `condicao` | `0\|1\|2\|3\|4` | `2` (OpenBox) |
+| `garantiaFornecedorAteAo` | `string?` (ISO date) | `"2026-07-19"` |
+
+**Caso de uso:** quando vendes um iPhone refurbished Molano com garantia B2B de 60 dias, passa `garantiaFornecedorAteAo: today+60d`. Se o cliente voltar com defeito 30 dias depois, o RepairDesk mostra automaticamente "🟢 Coberta por Molano até DD/MM" no `ReparacaoDetalhe` — Bruno faz RMA ao Molano sem ter que ir verificar manualmente.
+
+**Origem dos dados:** mete em `stripe.product.metadata` quando criares os produtos na loja, depois extrai no checkout (ver exemplo Fluxo 1 acima).
+
+**Nota:** estes campos são **snapshot** — mudar o produto na loja não corrompe vendas antigas. Cada VendaItem congela o que era válido no momento da venda.
 
 ## Não disponível ainda
 

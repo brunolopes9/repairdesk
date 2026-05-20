@@ -60,6 +60,13 @@ export interface CheckoutCliente {
   notas?: string | null;
 }
 
+export type CondicaoArtigo =
+  | 0  // NaoAplicavel
+  | 1  // Novo
+  | 2  // OpenBox
+  | 3  // Recondicionado
+  | 4; // Usado
+
 export interface CheckoutItem {
   /** PartId do RepairDesk para acessórios em stock. Null para descrição livre (Molano dropship). */
   partId?: string | null;
@@ -73,6 +80,15 @@ export interface CheckoutItem {
   /** IMEI obrigatório para Smartphone/Tablet — validação Luhn server-side. */
   imei?: string | null;
   imei2?: string | null;
+  /**
+   * Sprint 109: garantia upstream (B2B fornecedor → RepairDesk). Snapshot na venda.
+   * Quando preenchido, o ReparacaoDetalhe do RepairDesk mostra automaticamente se a
+   * cobertura do fornecedor ainda está activa numa reparação futura deste IMEI.
+   */
+  fornecedorNome?: string | null;
+  condicao?: CondicaoArtigo | null;
+  /** ISO date (YYYY-MM-DD ou ISO 8601 completo) — até quando o fornecedor cobre. */
+  garantiaFornecedorAteAo?: string | null;
 }
 
 export interface CheckoutRequest {
