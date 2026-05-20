@@ -71,7 +71,15 @@ public class OrcamentoPdfService : IOrcamentoPdfService
             var maoDeObra = Math.Max(0, precoTotal - totalDespesas);
             if (maoDeObra > 0) linhas.Add(new OrcamentoLinha("Mão-de-obra", maoDeObra));
         }
-        // Senão, só uma linha global
+        else if (precoTotal > 0)
+        {
+            // Sprint 112: garante 1 linha descritiva mesmo sem peças imputadas
+            // (em vez de "orçamento global sem detalhe").
+            var desc = string.IsNullOrWhiteSpace(rep.Avaria)
+                ? $"Reparação {rep.Equipamento}".Trim()
+                : $"Reparação {rep.Equipamento} — {rep.Avaria}".Trim();
+            linhas.Add(new OrcamentoLinha(desc, precoTotal));
+        }
 
         var data = new OrcamentoData(
             Numero: $"R-{rep.Numero:D5}",
