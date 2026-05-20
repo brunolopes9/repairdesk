@@ -316,7 +316,10 @@ public class ReparacaoService : IReparacaoService
             garantia?.Slug,
             activa,
             diasRestantes,
-            diasEntre);
+            diasEntre,
+            vendaRow.FornecedorNome,
+            vendaRow.Condicao,
+            vendaRow.GarantiaFornecedorAteAo);
     }
 
     public async Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default)

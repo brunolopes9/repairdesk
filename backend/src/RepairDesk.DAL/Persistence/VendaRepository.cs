@@ -129,7 +129,10 @@ public class VendaRepository : IVendaRepository
                 i.Venda.Numero,
                 i.Venda.Data,
                 i.Descricao,
-                i.Venda.Cliente != null ? i.Venda.Cliente.Nome : null))
+                i.Venda.Cliente != null ? i.Venda.Cliente.Nome : null,
+                i.FornecedorNome,
+                (int)i.Condicao,
+                i.GarantiaFornecedorAteAo))
             .FirstOrDefaultAsync(ct);
         return hit;
     }

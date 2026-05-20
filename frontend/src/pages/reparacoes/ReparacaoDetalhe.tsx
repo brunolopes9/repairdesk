@@ -1228,6 +1228,60 @@ function VendaOrigemBanner({
           </a>
         )}
       </div>
+      <FornecedorCoberturaBanner venda={venda} />
+    </div>
+  );
+}
+
+/**
+ * Sprint 108: banner que mostra estado da garantia B2B do fornecedor.
+ * Verde = ainda coberto pelo fornecedor (RMA possível, 0€ a teu cargo).
+ * Amarelo = expirou no fornecedor (custo a teu cargo, mas legal mantém-se).
+ * Não renderiza nada se não há info de fornecedor.
+ */
+function FornecedorCoberturaBanner({ venda }: { venda: ReparacaoVendaOrigem }) {
+  if (!venda.fornecedorNome && !venda.garantiaFornecedorAteAo) return null;
+
+  const ateAo = venda.garantiaFornecedorAteAo ? new Date(venda.garantiaFornecedorAteAo) : null;
+  const hoje = new Date();
+  const ainda = ateAo ? ateAo >= hoje : false;
+  const diasResta = ateAo ? Math.ceil((ateAo.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)) : null;
+  const diasPassou = ateAo && !ainda ? Math.ceil((hoje.getTime() - ateAo.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+  return (
+    <div className={`mt-3 rounded-md border p-2.5 text-xs ${
+      ainda
+        ? 'border-emerald-300 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/30'
+        : ateAo
+          ? 'border-amber-300 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/30'
+          : 'border-zinc-300 bg-zinc-50/60 dark:border-zinc-700 dark:bg-zinc-900/60'
+    }`}>
+      {ainda && (
+        <>
+          <div className="font-medium text-emerald-800 dark:text-emerald-200">
+            🟢 Coberta por {venda.fornecedorNome ?? 'fornecedor'} até{' '}
+            {ateAo!.toLocaleDateString('pt-PT')} (faltam {diasResta}d)
+          </div>
+          <div className="mt-1 text-emerald-700 dark:text-emerald-300">
+            Contactar fornecedor para RMA · custo €0 a teu cargo · cliente paga 0€ (DL 84/2021 art. 17.º n.º 4)
+          </div>
+        </>
+      )}
+      {!ainda && ateAo && (
+        <>
+          <div className="font-medium text-amber-800 dark:text-amber-200">
+            🟡 Garantia {venda.fornecedorNome ?? 'fornecedor'} expirou há {diasPassou}d
+          </div>
+          <div className="mt-1 text-amber-700 dark:text-amber-300">
+            Custo a teu cargo (peça + mão-de-obra) · cliente paga 0€ (garantia legal mantém-se)
+          </div>
+        </>
+      )}
+      {!ateAo && venda.fornecedorNome && (
+        <div className="text-zinc-600 dark:text-zinc-400">
+          Fornecedor: {venda.fornecedorNome} · sem data de garantia B2B registada
+        </div>
+      )}
     </div>
   );
 }

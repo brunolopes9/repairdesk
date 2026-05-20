@@ -33,4 +33,7 @@ public sealed record VendaImeiLookupRow(
     int Numero,
     DateTime Data,
     string Descricao,
-    string? ClienteNome);
+    string? ClienteNome,
+    string? FornecedorNome = null,
+    int Condicao = 0,
+    DateTime? GarantiaFornecedorAteAo = null);

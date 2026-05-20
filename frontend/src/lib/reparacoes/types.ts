@@ -141,6 +141,11 @@ export interface ReparacaoVendaOrigem {
   garantiaActiva: boolean;
   diasRestantesGarantia: number;
   diasEntreVendaEReparacao: number;
+  /** Sprint 108: info do fornecedor B2B do item — para banner cobertura. */
+  fornecedorNome: string | null;
+  condicao: number;
+  /** ISO date — até quando o fornecedor cobre garantia B2B. */
+  garantiaFornecedorAteAo: string | null;
 }
 
 export interface CreateReparacaoForm {

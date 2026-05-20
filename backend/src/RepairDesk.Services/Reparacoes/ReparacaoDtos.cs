@@ -90,7 +90,10 @@ public sealed record ReparacaoVendaOrigemDto(
     string? GarantiaSlug,
     bool GarantiaActiva,
     int DiasRestantesGarantia,
-    int DiasEntreVendaEReparacao);
+    int DiasEntreVendaEReparacao,
+    string? FornecedorNome,
+    int Condicao,
+    DateTime? GarantiaFornecedorAteAo);
 
 public sealed record ReparacaoHistoricoItem(
     Guid Id,

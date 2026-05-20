@@ -13,7 +13,7 @@ import { isValidImei, normalizeImei } from '../../lib/imei';
 import { Link } from 'react-router-dom';
 import { vendasApi, type VendaImeiLookup, type VendaReparacaoRelacionada } from '../../lib/vendas/api';
 import { STATUS_LABEL, STATUS_COLOR } from '../../lib/reparacoes/types';
-import { PAYMENT_METHOD, VENDA_ORIGEM, VENDA_ORIGEM_LABEL, VENDA_STATUS, type PaymentMethod, type Venda } from '../../lib/vendas/types';
+import { CONDICAO_ARTIGO, CONDICAO_ARTIGO_LABEL, PAYMENT_METHOD, VENDA_ORIGEM, VENDA_ORIGEM_LABEL, VENDA_STATUS, type CondicaoArtigo, type PaymentMethod, type Venda } from '../../lib/vendas/types';
 import GarantiaCard from '../../components/GarantiaCard';
 import { SkeletonTable } from '../../components/ui';
 
@@ -25,6 +25,9 @@ type CartLine = {
   ivaRate: number;
   imei?: string;
   imei2?: string;
+  fornecedorNome?: string;
+  condicao?: CondicaoArtigo;
+  garantiaFornecedorAteAo?: string;
 };
 
 const paymentOptions: Array<{ value: PaymentMethod; label: string }> = [
@@ -61,6 +64,12 @@ export default function Vendas() {
     queryFn: () => clientesApi.list(clienteQ, 1, 8),
     enabled: clienteQ.trim().length >= 2,
     staleTime: 10_000,
+  });
+
+  const fornecedoresQuery = useQuery({
+    queryKey: ['vendas-fornecedores'],
+    queryFn: () => vendasApi.fornecedores(),
+    staleTime: 5 * 60_000,
   });
 
   const totalCents = useMemo(
@@ -105,6 +114,9 @@ export default function Vendas() {
           ivaRate: line.ivaRate,
           imei: line.imei ? normalizeImei(line.imei) : null,
           imei2: line.imei2 ? normalizeImei(line.imei2) : null,
+          fornecedorNome: line.fornecedorNome?.trim() || null,
+          condicao: line.condicao ?? null,
+          garantiaFornecedorAteAo: line.garantiaFornecedorAteAo || null,
         })),
       });
       return vendasApi.marcarPaga(venda.id, paymentMethod, false);
@@ -415,11 +427,44 @@ export default function Vendas() {
                       onChange={(e) => updateImei(line.part.id, e.target.value, 'imei2')}
                       className="h-10 w-full rounded border border-zinc-200 bg-white px-2 font-mono text-sm dark:border-zinc-800 dark:bg-zinc-950"
                     />
+                    <div className="mt-2 grid grid-cols-1 gap-2 border-t border-amber-200/60 pt-2 dark:border-amber-800/60 sm:grid-cols-3">
+                      <input
+                        type="text"
+                        list="fornecedores-list"
+                        placeholder="Fornecedor (ex: Molano)"
+                        value={line.fornecedorNome ?? ''}
+                        onChange={(e) => setCart((cur) => cur.map((l) => l.part.id === line.part.id ? { ...l, fornecedorNome: e.target.value } : l))}
+                        className="h-10 w-full rounded border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-800 dark:bg-zinc-950"
+                      />
+                      <select
+                        value={line.condicao ?? CONDICAO_ARTIGO.NaoAplicavel}
+                        onChange={(e) => setCart((cur) => cur.map((l) => l.part.id === line.part.id ? { ...l, condicao: Number(e.target.value) as CondicaoArtigo } : l))}
+                        className="h-10 w-full rounded border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-800 dark:bg-zinc-950"
+                      >
+                        {Object.entries(CONDICAO_ARTIGO_LABEL).map(([v, label]) => (
+                          <option key={v} value={v}>{label === '—' ? 'Condição: —' : label}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        title="Até quando o fornecedor cobre garantia B2B (ex: Molano open-box +60d)"
+                        value={line.garantiaFornecedorAteAo ?? ''}
+                        onChange={(e) => setCart((cur) => cur.map((l) => l.part.id === line.part.id ? { ...l, garantiaFornecedorAteAo: e.target.value } : l))}
+                        className="h-10 w-full rounded border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-800 dark:bg-zinc-950"
+                      />
+                    </div>
+                    <div className="text-[10px] text-zinc-500">
+                      Garantia upstream — opcional. Para saber rapidamente se uma reparação futura pode ir ao fornecedor.
+                    </div>
                   </div>
                 )}
               </div>
             ))}
           </div>
+          {/* Datalist partilhada para autocomplete de fornecedores */}
+          <datalist id="fornecedores-list">
+            {(fornecedoresQuery.data ?? []).map((f) => <option key={f} value={f} />)}
+          </datalist>
 
           <div className="border-t border-zinc-200 pt-3 text-sm dark:border-zinc-800">
             <label className="mb-2 flex items-center gap-2 text-xs font-medium text-zinc-500"><UserRound size={14} /> Cliente</label>

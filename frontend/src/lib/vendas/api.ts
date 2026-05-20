@@ -43,6 +43,10 @@ export const vendasApi = {
       .get<VendaReparacaoRelacionada[]>(`/vendas/${vendaId}/reparacoes-relacionadas`)
       .then((r) => r.data);
   },
+  /** Para autocomplete de fornecedor no formulário de criar venda. */
+  fornecedores() {
+    return api.get<string[]>('/vendas/fornecedores').then((r) => r.data);
+  },
 };
 
 export interface VendaImeiLookup {

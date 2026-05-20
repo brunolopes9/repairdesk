@@ -38,6 +38,24 @@ export interface VendaClienteResumo {
   telefone: string;
 }
 
+export const CONDICAO_ARTIGO = {
+  NaoAplicavel: 0,
+  Novo: 1,
+  OpenBox: 2,
+  Recondicionado: 3,
+  Usado: 4,
+} as const;
+
+export type CondicaoArtigo = (typeof CONDICAO_ARTIGO)[keyof typeof CONDICAO_ARTIGO];
+
+export const CONDICAO_ARTIGO_LABEL: Record<CondicaoArtigo, string> = {
+  0: '—',
+  1: 'Novo',
+  2: 'Open-box',
+  3: 'Recondicionado',
+  4: 'Usado',
+};
+
 export interface VendaItem {
   id: string;
   partId: string | null;
@@ -51,6 +69,10 @@ export interface VendaItem {
   ivaCents: number;
   imei: string | null;
   imei2: string | null;
+  fornecedorNome: string | null;
+  condicao: CondicaoArtigo;
+  /** ISO date — até quando o fornecedor cobre garantia B2B (snapshot na venda). */
+  garantiaFornecedorAteAo: string | null;
 }
 
 export interface Venda {
@@ -81,6 +103,10 @@ export interface CreateVendaItemRequest {
   ivaRate: number;
   imei?: string | null;
   imei2?: string | null;
+  fornecedorNome?: string | null;
+  condicao?: CondicaoArtigo | null;
+  /** ISO date (YYYY-MM-DD ou ISO completo) — opcional. */
+  garantiaFornecedorAteAo?: string | null;
 }
 
 export interface CreateVendaRequest {
