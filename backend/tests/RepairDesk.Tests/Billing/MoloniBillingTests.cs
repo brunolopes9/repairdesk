@@ -163,7 +163,8 @@ public class MoloniBillingTests
             new FakeSettingsRepository(Settings(tenantId)),
             new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
             new FakeTenantContext(tenantId),
-            moloni);
+            moloni,
+            new FakePartRepository());
 
         var first = await provider.EmitReparacaoInvoiceAsync(reparacao.Id, null, null);
         var second = await provider.EmitReparacaoInvoiceAsync(reparacao.Id, null, null);
@@ -359,6 +360,26 @@ public class MoloniBillingTests
     private sealed class FakeTenantRepository(Tenant tenant) : ITenantRepository
     {
         public Task<Tenant?> FindByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Tenant?>(tenant);
+        public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
+    }
+
+    /// <summary>Sprint 136: stub minimal — testes não exercitam peças, MovimentosAsync devolve vazio.</summary>
+    private sealed class FakePartRepository : IPartRepository
+    {
+        public Task<Part?> FindByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Part?>(null);
+        public Task<Part?> FindByIdWithMovimentosAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Part?>(null);
+        public Task<Part?> FindBySkuAsync(string sku, CancellationToken ct = default) => Task.FromResult<Part?>(null);
+        public Task<bool> SkuExistsAsync(string sku, Guid? exceptId = null, CancellationToken ct = default) => Task.FromResult(false);
+        public Task<(IReadOnlyList<Part> Items, int Total)> SearchAsync(string? query, PartCategoria? categoria, string? marca, bool lowStockOnly, int page, int pageSize, CancellationToken ct = default)
+            => Task.FromResult(((IReadOnlyList<Part>)Array.Empty<Part>(), 0));
+        public Task<IReadOnlyList<Part>> LowStockAsync(CancellationToken ct = default) => Task.FromResult((IReadOnlyList<Part>)Array.Empty<Part>());
+        public Task<IReadOnlyList<string>> MarcasAsync(CancellationToken ct = default) => Task.FromResult((IReadOnlyList<string>)Array.Empty<string>());
+        public Task AddAsync(Part part, CancellationToken ct = default) => Task.CompletedTask;
+        public void Remove(Part part) { }
+        public void AddMovimento(PartMovimento movimento) { }
+        public Task<IReadOnlyList<PartMovimento>> MovimentosAsync(Guid? partId, Guid? reparacaoId, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<PartMovimento>)Array.Empty<PartMovimento>());
+        public Task<int> SumCustoByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default) => Task.FromResult(0);
         public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 

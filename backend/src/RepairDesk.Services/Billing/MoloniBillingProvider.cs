@@ -22,6 +22,7 @@ public class MoloniBillingProvider : IBillingProvider
     private readonly ITenantRepository _tenants;
     private readonly ITenantContext _tenant;
     private readonly IMoloniClient _moloni;
+    private readonly IPartRepository _parts;
 
     public MoloniBillingProvider(
         IReparacaoRepository reparacoes,
@@ -30,7 +31,8 @@ public class MoloniBillingProvider : IBillingProvider
         ITenantBillingSettingsRepository settingsRepo,
         ITenantRepository tenants,
         ITenantContext tenant,
-        IMoloniClient moloni)
+        IMoloniClient moloni,
+        IPartRepository parts)
     {
         _reparacoes = reparacoes;
         _trabalhos = trabalhos;
@@ -39,6 +41,7 @@ public class MoloniBillingProvider : IBillingProvider
         _tenants = tenants;
         _tenant = tenant;
         _moloni = moloni;
+        _parts = parts;
     }
 
     public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
@@ -56,6 +59,9 @@ public class MoloniBillingProvider : IBillingProvider
         var customerId = await ResolveCustomerIdAsync(settings, reparacao.Cliente, ct);
         var effectiveVat = ResolveVatPercent(tenant, vatPercent);
 
+        // Sprint 136: discrimina peças do stock + mão-de-obra na fatura. Fallback null se não há peças.
+        var lines = await BuildBillingItemsAsync(reparacao, amount, effectiveVat, ct);
+
         var result = await _moloni.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
             customerId,
             $"Reparacao #{reparacao.Numero}",
@@ -63,7 +69,8 @@ public class MoloniBillingProvider : IBillingProvider
             reparacao.Avaria,
             amount,
             effectiveVat,
-            paymentMethod),
+            paymentMethod,
+            Items: lines),
             ct);
 
         reparacao.InvoiceProvider = BillingProvider.Moloni;
@@ -221,6 +228,28 @@ public class MoloniBillingProvider : IBillingProvider
     {
         if (explicitVat is not null) return explicitVat.Value;
         return tenant.RegimeFiscal == RegimeFiscal.IsentoArt53 ? 0m : 23m;
+    }
+
+    /// <summary>Sprint 136: helper partilhado com ReparacaoService (estimate). Devolve null = fallback.</summary>
+    private async Task<IReadOnlyList<MoloniInvoiceDraftItem>?> BuildBillingItemsAsync(
+        Reparacao rep, int totalCents, decimal vatPercent, CancellationToken ct)
+    {
+        var movimentos = await _parts.MovimentosAsync(partId: null, reparacaoId: rep.Id, ct);
+        if (movimentos.Count == 0) return null;
+        var usedParts = movimentos
+            .GroupBy(m => m.PartId)
+            .Select(g =>
+            {
+                var first = g.First();
+                var netQty = -g.Sum(m => m.Quantidade);
+                var name = first.Part?.Nome ?? "Peça";
+                var unitCost = first.Part?.CustoUnitarioCents ?? 0;
+                return new ReparacaoBillingItemsBuilder.UsedPart(name, netQty, unitCost);
+            })
+            .Where(p => p.Quantity > 0)
+            .ToList();
+        if (usedParts.Count == 0) return null;
+        return ReparacaoBillingItemsBuilder.Build(rep.Equipamento, usedParts, totalCents, vatPercent);
     }
 
     private static void EnsurePaid(PaymentStatus paymentStatus)

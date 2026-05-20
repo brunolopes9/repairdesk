@@ -50,6 +50,7 @@ public class ReparacaoService : IReparacaoService
     private readonly IInvoiceXpressClient _invoiceXpress;
     private readonly IAuditLogger _audit;
     private readonly IWebhookPublisher _webhooks;
+    private readonly IPartRepository _parts;
     private readonly IValidator<CreateReparacaoRequest> _createV;
     private readonly IValidator<UpdateReparacaoRequest> _updateV;
     private readonly IValidator<ChangeEstadoRequest> _estadoV;
@@ -70,6 +71,7 @@ public class ReparacaoService : IReparacaoService
         IInvoiceXpressClient invoiceXpress,
         IAuditLogger audit,
         IWebhookPublisher webhooks,
+        IPartRepository parts,
         IValidator<CreateReparacaoRequest> createV,
         IValidator<UpdateReparacaoRequest> updateV,
         IValidator<ChangeEstadoRequest> estadoV)
@@ -89,6 +91,7 @@ public class ReparacaoService : IReparacaoService
         _invoiceXpress = invoiceXpress;
         _audit = audit;
         _webhooks = webhooks;
+        _parts = parts;
         _createV = createV;
         _updateV = updateV;
         _estadoV = estadoV;
@@ -216,6 +219,10 @@ public class ReparacaoService : IReparacaoService
         var amount = RequireAmount(rep.OrcamentoCents ?? rep.PrecoFinalCents);
         var vat = tenant.RegimeFiscal == RegimeFiscal.IsentoArt53 ? 0m : 23m;
 
+        // Sprint 136: discrimina peças do stock + mão-de-obra (Bruno opção A: peça ao custo).
+        // Se não há peças válidas ou se custaram mais que o orçamento, fallback à linha sintética.
+        var moloniLines = await BuildBillingItemsAsync(rep, amount, vat, ct);
+
         var estimate = await _moloni.InsertEstimateAsync(settings, new MoloniInvoiceDraft(
             customerId,
             $"Reparacao #{rep.Numero}",
@@ -223,7 +230,8 @@ public class ReparacaoService : IReparacaoService
             rep.Avaria,
             amount,
             vat,
-            null),
+            null,
+            Items: moloniLines),
             ct);
 
         rep.EstimateExternalId = estimate.ExternalId;
@@ -924,6 +932,35 @@ public class ReparacaoService : IReparacaoService
             "moloni_customer_missing",
             "Cliente sem NIF e não foi possível encontrar Consumidor Final no Moloni. "
             + "Liga Moloni nas Definições (auto-discovery cria 'Consumidor Final') ou adiciona NIF ao cliente.");
+    }
+
+    /// <summary>
+    /// Sprint 136: carrega peças usadas (líquido das devoluções) e constrói as linhas Moloni
+    /// discriminadas (1 linha por peça + 1 linha de mão-de-obra). Devolve null se não há peças
+    /// ou se não consegue calcular (peças > orçamento) — caller usa fallback à linha sintética.
+    /// </summary>
+    private async Task<IReadOnlyList<MoloniInvoiceDraftItem>?> BuildBillingItemsAsync(
+        Reparacao rep, int totalCents, decimal vatPercent, CancellationToken ct)
+    {
+        var movimentos = await _parts.MovimentosAsync(partId: null, reparacaoId: rep.Id, ct);
+        if (movimentos.Count == 0) return null;
+
+        // Líquido por Part: Uso=quantidade negativa, Devolução=positiva. -Sum > 0 = consumido.
+        var usedParts = movimentos
+            .GroupBy(m => m.PartId)
+            .Select(g =>
+            {
+                var first = g.First();
+                var netQty = -g.Sum(m => m.Quantidade);
+                var name = first.Part?.Nome ?? "Peça";
+                var unitCost = first.Part?.CustoUnitarioCents ?? 0;
+                return new Billing.ReparacaoBillingItemsBuilder.UsedPart(name, netQty, unitCost);
+            })
+            .Where(p => p.Quantity > 0)
+            .ToList();
+
+        if (usedParts.Count == 0) return null;
+        return Billing.ReparacaoBillingItemsBuilder.Build(rep.Equipamento, usedParts, totalCents, vatPercent);
     }
 
     private static int RequireAmount(int? amountCents)
