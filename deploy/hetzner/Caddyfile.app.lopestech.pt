@@ -1,0 +1,52 @@
+# Caddy config for app.lopestech.pt
+#
+# Architecture:
+#   internet (TLS via Cloudflare) → Cloudflare proxy → Caddy (TLS via Let's Encrypt)
+#     → web container (nginx on 127.0.0.1:8088)
+#       → /api/* internally proxied to api container (api:8080)
+#       → /     serves React SPA
+#
+# Caddy does NOT need to know about the api container directly — the existing
+# frontend/nginx.conf already proxies /api/ to api:8080. We only forward
+# everything to the web container.
+#
+# Install:
+#   sudo cp deploy/hetzner/Caddyfile.app.lopestech.pt /etc/caddy/Caddyfile
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Cloudflare SSL/TLS mode: Full (strict). Caddy serves a real Let's Encrypt cert.
+
+app.lopestech.pt {
+    encode zstd gzip
+
+    header {
+        # 1-year HSTS once you're confident the cert renewals are stable.
+        # Start commented for the first week; uncomment after Bruno verifies
+        # cert renewal works (Let's Encrypt renews ~60d in advance).
+        # Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        -Server
+    }
+
+    reverse_proxy 127.0.0.1:8088 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        # Cloudflare passes the real client IP in CF-Connecting-IP. Forward
+        # it so RepairDesk logs the actual user IP, not Cloudflare's edge.
+        header_up X-Original-IP {>CF-Connecting-IP}
+    }
+
+    log {
+        output file /var/log/caddy/app.lopestech.pt.log {
+            roll_size 100mb
+            roll_keep 7
+            roll_keep_for 30d
+        }
+        format json
+        level INFO
+    }
+}
