@@ -137,7 +137,16 @@ public class MoloniClient : IMoloniClient
         var insert = await PostAsync<JsonElement>(settings, endpoint, payload, ct);
         var documentId = GetInt(insert, "document_id");
         if (documentId <= 0)
-            throw new BillingProviderException("moloni_missing_document_id", "A Moloni respondeu sem document_id.");
+        {
+            // Sprint 144b: alguns endpoints retornam {valid:1, document_id:N} ou
+            // [{document_id:N}] (array wrap) — UnwrapArrayIfNeeded já trata. Mas pode também
+            // vir {valid:0, errors:[...]} ou outro shape. Logamos o JSON cru para diagnose.
+            var rawJson = insert.GetRawText();
+            _logger.LogError("Moloni {Endpoint} respondeu sem document_id. JSON cru: {Json}", endpoint, rawJson);
+            throw new BillingProviderException(
+                "moloni_missing_document_id",
+                $"A Moloni respondeu sem document_id. Resposta: {(rawJson.Length > 300 ? rawJson[..300] + "…" : rawJson)}");
+        }
 
         var document = await PostAsync<JsonElement>(
             settings,
