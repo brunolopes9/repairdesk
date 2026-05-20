@@ -5,7 +5,7 @@ import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import GarantiaCard from '../../components/GarantiaCard';
 import { isAxiosError } from 'axios';
-import DespesasImputadas from '../../components/DespesasImputadas';
+import PecasReparacao from '../../components/PecasReparacao';
 import DiagnosticoGuiado from '../../components/DiagnosticoGuiado';
 import EquipmentFieldsForm, {
   buildEquipmentFieldValues,
@@ -15,7 +15,6 @@ import EquipmentFieldsForm, {
 } from '../../components/EquipmentFieldsForm';
 import FotosReparacao from '../../components/FotosReparacao';
 import Modal from '../../components/Modal';
-import PecasUsadas from '../../components/PecasUsadas';
 import WhatsAppMenu from '../../components/WhatsAppMenu';
 import { Breadcrumb, SkeletonCard } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
@@ -814,9 +813,8 @@ export default function ReparacaoDetalhe() {
 
       <FotosReparacao reparacaoId={r.id} readOnly={isFrozen} />
 
-      <PecasUsadas reparacaoId={r.id} readOnly={isFrozen} />
+      <PecasReparacao reparacaoId={r.id} readOnly={isFrozen} />
 
-      <DespesasImputadas reparacaoId={r.id} invalidateKeys={[['reparacao', id]]} readOnly={isFrozen} />
 
       <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-sm font-semibold">Preço & lucro</h2>
