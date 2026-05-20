@@ -342,6 +342,9 @@ function FaturacaoSection() {
   const [showConnect, setShowConnect] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [autoDiscoverSteps, setAutoDiscoverSteps] = useState<MoloniAutoDiscoverStep[]>([]);
+  // Sprint 117: auto-save Faturação. Pattern igual à secção principal de Definições.
+  const [billingSaveState, setBillingSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle');
+  const billingDebounceRef = useRef<number | null>(null);
   const oauthPollRef = useRef<number | null>(null);
   const [redirectUri, setRedirectUri] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
@@ -401,13 +404,26 @@ function FaturacaoSection() {
 
   const save = useMutation({
     mutationFn: (payload: UpdateTenantBillingSettings) => tenantSettingsApi.updateBilling(payload),
+    onMutate: () => setBillingSaveState('saving'),
     onSuccess: (saved) => {
       qc.setQueryData(['tenant-billing-settings'], saved);
       setForm(toBillingForm(saved));
-      toast.success('Guardado', 'Definições Moloni atualizadas.');
+      setBillingSaveState('saved');
+      window.setTimeout(() => setBillingSaveState((s) => (s === 'saved' ? 'idle' : s)), 1500);
     },
-    onError: (err) => toast.fromError(err, 'Não foi possível guardar.'),
+    onError: (err) => {
+      setBillingSaveState('error');
+      toast.fromError(err, 'Não foi possível guardar.');
+    },
   });
+
+  // Sprint 117: substitui botão "Guardar credenciais" — debounce 1200ms ao mudar form.
+  function updateBilling(next: UpdateTenantBillingSettings) {
+    setForm(next);
+    setBillingSaveState('dirty');
+    if (billingDebounceRef.current) window.clearTimeout(billingDebounceRef.current);
+    billingDebounceRef.current = window.setTimeout(() => save.mutate(next), 1200);
+  }
 
   const test = useMutation({
     mutationFn: () => tenantSettingsApi.testBillingConnection(),
@@ -542,7 +558,7 @@ function FaturacaoSection() {
 
   function update<K extends keyof UpdateTenantBillingSettings>(key: K, value: UpdateTenantBillingSettings[K]) {
     if (!form) return;
-    setForm({ ...form, [key]: value });
+    updateBilling({ ...form, [key]: value });
   }
 
   const isMoloni = form.provider === 1;
@@ -670,15 +686,12 @@ function FaturacaoSection() {
             </>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => save.mutate(form)}
-            disabled={save.isPending}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-          >
-            {save.isPending ? 'A guardar…' : 'Guardar credenciais'}
-          </button>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {billingSaveState === 'saving' && <span className="text-zinc-500">A guardar…</span>}
+          {billingSaveState === 'saved' && <span className="text-emerald-600 dark:text-emerald-400">Guardado ✓</span>}
+          {billingSaveState === 'dirty' && <span className="text-zinc-500">Alterações por guardar…</span>}
+          {billingSaveState === 'error' && <span className="text-rose-600">Erro ao guardar — verifica acima.</span>}
+          {billingSaveState === 'idle' && <span className="text-zinc-400">Alterações guardam-se automaticamente.</span>}
         </div>
       </section>
 
@@ -750,7 +763,7 @@ function FaturacaoSection() {
             </details>
             {!canConnect && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                Preenche Developer ID e Client Secret no passo 1 e clica em <strong>Guardar credenciais</strong> primeiro.
+                Preenche Developer ID e Client Secret no passo 1 (guardam-se automaticamente).
               </p>
             )}
           </div>
