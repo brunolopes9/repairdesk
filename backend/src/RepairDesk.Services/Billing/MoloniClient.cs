@@ -134,13 +134,11 @@ public class MoloniClient : IMoloniClient
             ? "simplifiedInvoices/insert"
             : "invoices/insert";
 
-        var insert = await PostAsync<JsonElement>(settings, endpoint, payload, ct);
+        var insert = await PostInvoiceWithRetryAsync(settings, endpoint, payload, ct);
         var documentId = GetInt(insert, "document_id");
         if (documentId <= 0)
         {
-            // Sprint 144b: alguns endpoints retornam {valid:1, document_id:N} ou
-            // [{document_id:N}] (array wrap) — UnwrapArrayIfNeeded já trata. Mas pode também
-            // vir {valid:0, errors:[...]} ou outro shape. Logamos o JSON cru para diagnose.
+            // Sprint 144b: log + propaga ao frontend com snippet da resposta para diagnose.
             var rawJson = insert.GetRawText();
             _logger.LogError("Moloni {Endpoint} respondeu sem document_id. JSON cru: {Json}", endpoint, rawJson);
             throw new BillingProviderException(
@@ -1003,6 +1001,62 @@ public class MoloniClient : IMoloniClient
                 yield break;
             }
         }
+    }
+
+    /// <summary>
+    /// Sprint 144c: emissão de documento com retry quando Moloni devolve "Database error".
+    /// Esse erro vem como HTTP 200 + JSON [{"code":"Database error - try again later", ...}]
+    /// e é tipicamente transiente do lado deles. Retry 3× com backoff 1s/2s/4s.
+    /// Se persistir, throw com mensagem clara que indica Moloni-side.
+    /// </summary>
+    private async Task<JsonElement> PostInvoiceWithRetryAsync(
+        TenantBillingSettings settings, string endpoint, object payload, CancellationToken ct)
+    {
+        var delays = new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4) };
+        JsonElement last = default;
+        for (var attempt = 0; attempt <= delays.Length; attempt++)
+        {
+            if (attempt > 0)
+            {
+                _logger.LogWarning("Moloni {Endpoint} retry {Attempt}/{Max} após Database error transiente", endpoint, attempt, delays.Length);
+                await Task.Delay(delays[attempt - 1], ct);
+            }
+            last = await PostAsync<JsonElement>(settings, endpoint, payload, ct);
+            if (!IsMoloniTransientError(last)) return last;
+        }
+        // Esgotou retries — propaga erro friendly.
+        var errMsg = ExtractMoloniErrorMessage(last) ?? "erro desconhecido";
+        throw new BillingProviderException(
+            "moloni_transient_unavailable",
+            $"Moloni está temporariamente indisponível: \"{errMsg}\". Tenta dentro de alguns minutos.");
+    }
+
+    private static bool IsMoloniTransientError(JsonElement response)
+    {
+        // Moloni soft-fail: HTTP 200 + corpo [{code:..., description:...}] sem document_id.
+        if (response.ValueKind != JsonValueKind.Array || response.GetArrayLength() == 0) return false;
+        var first = response[0];
+        if (first.ValueKind != JsonValueKind.Object) return false;
+        if (first.TryGetProperty("document_id", out _)) return false;  // tem documento → não é erro
+        if (first.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String)
+        {
+            var s = code.GetString() ?? "";
+            return s.Contains("Database error", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("try again", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("timeout", StringComparison.OrdinalIgnoreCase);
+        }
+        return false;
+    }
+
+    private static string? ExtractMoloniErrorMessage(JsonElement response)
+    {
+        var target = UnwrapArrayIfNeeded(response);
+        if (target.ValueKind != JsonValueKind.Object) return null;
+        if (target.TryGetProperty("description", out var d) && d.ValueKind == JsonValueKind.String)
+            return d.GetString();
+        if (target.TryGetProperty("code", out var c) && c.ValueKind == JsonValueKind.String)
+            return c.GetString();
+        return null;
     }
 
     private static int GetIntAny(JsonElement element, params string[] names)
