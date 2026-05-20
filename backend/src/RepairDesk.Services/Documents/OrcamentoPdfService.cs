@@ -22,6 +22,7 @@ public class OrcamentoPdfService : IOrcamentoPdfService
     private readonly ITenantContext _tenantContext;
     private readonly IEquipmentFieldService _equipmentFields;
     private readonly IConfiguration _config;
+    private readonly IPartRepository _parts;
 
     public OrcamentoPdfService(
         IReparacaoRepository reparacoes,
@@ -31,7 +32,8 @@ public class OrcamentoPdfService : IOrcamentoPdfService
         ITenantRepository tenants,
         ITenantContext tenantContext,
         IEquipmentFieldService equipmentFields,
-        IConfiguration config)
+        IConfiguration config,
+        IPartRepository parts)
     {
         _reparacoes = reparacoes;
         _trabalhos = trabalhos;
@@ -41,6 +43,7 @@ public class OrcamentoPdfService : IOrcamentoPdfService
         _tenantContext = tenantContext;
         _equipmentFields = equipmentFields;
         _config = config;
+        _parts = parts;
     }
 
     private string? BuildPortalUrl(string? slug)
@@ -60,21 +63,54 @@ public class OrcamentoPdfService : IOrcamentoPdfService
         var emissor = await BuildEmissorAsync(ct);
         var camposEquipamento = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
 
-        // Linhas a partir das despesas linked (peças) — se houver
+        // Sprint 137: linhas a partir de PartMovimentos (peças do stock) + Despesas (compras
+        // específicas ao fornecedor) + mão-de-obra residual. Bruno tipicamente usa Stock
+        // (Sprint 134/135 flow) e ignora Despesas — antes, o PDF mostrava 1 linha sintética.
         var totalDespesas = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+        var movimentos = await _parts.MovimentosAsync(partId: null, reparacaoId: rep.Id, ct);
+
         var linhas = new List<OrcamentoLinha>();
-        // Mão-de-obra calculada como (preço − peças)
+        var pecasSubtotal = 0;
         var precoTotal = rep.PrecoFinalCents ?? rep.OrcamentoCents ?? 0;
+
+        // 1) Peças do stock: 1 linha por Part (líquido das devoluções)
+        var pecasPorPart = movimentos
+            .GroupBy(m => m.PartId)
+            .Select(g => new
+            {
+                Nome = g.First().Part?.Nome ?? "Peça",
+                NetQty = -g.Sum(m => m.Quantidade),
+                UnitCost = g.First().Part?.CustoUnitarioCents ?? 0,
+            })
+            .Where(p => p.NetQty > 0 && p.UnitCost > 0)
+            .ToList();
+        foreach (var p in pecasPorPart)
+        {
+            var lineTotal = p.NetQty * p.UnitCost;
+            pecasSubtotal += lineTotal;
+            var label = p.NetQty > 1 ? $"{p.Nome} (×{p.NetQty})" : p.Nome;
+            linhas.Add(new OrcamentoLinha(label, lineTotal));
+        }
+
+        // 2) Despesas (compras específicas) — agregadas; granularidade fina pode vir num sprint futuro
         if (totalDespesas > 0)
         {
-            linhas.Add(new OrcamentoLinha("Peças e material", totalDespesas));
-            var maoDeObra = Math.Max(0, precoTotal - totalDespesas);
-            if (maoDeObra > 0) linhas.Add(new OrcamentoLinha("Mão-de-obra", maoDeObra));
+            linhas.Add(new OrcamentoLinha(linhas.Count == 0 ? "Peças e material" : "Material adicional", totalDespesas));
+            pecasSubtotal += totalDespesas;
+        }
+
+        // 3) Mão-de-obra residual (positiva apenas)
+        if (linhas.Count > 0)
+        {
+            var maoDeObra = precoTotal - pecasSubtotal;
+            if (maoDeObra > 0)
+                linhas.Add(new OrcamentoLinha($"Mão-de-obra · {rep.Equipamento}".Trim(), maoDeObra));
+            // Se mão-de-obra negativa (peças > preço), não mostra linha negativa — apenas as peças
+            // ficam visíveis e o total no rodapé. Bruno deve rever o preço final.
         }
         else if (precoTotal > 0)
         {
-            // Sprint 112: garante 1 linha descritiva mesmo sem peças imputadas
-            // (em vez de "orçamento global sem detalhe").
+            // Sem peças nem despesas: fallback à linha sintética antiga (Sprint 112).
             var desc = string.IsNullOrWhiteSpace(rep.Avaria)
                 ? $"Reparação {rep.Equipamento}".Trim()
                 : $"Reparação {rep.Equipamento} — {rep.Avaria}".Trim();
