@@ -1,4 +1,5 @@
 using RepairDesk.Core.Abstractions;
+using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Clientes;
@@ -178,7 +179,26 @@ public sealed record ExternalCheckoutResponse(
     string? FaturaNumero,
     string? FaturaPdfUrl,
     /// <summary>Slug da garantia digital (URL pública: /g/{slug}).</summary>
-    string? GarantiaSlug);
+    string? GarantiaSlug,
+    /// <summary>
+    /// Sprint 127: garantia efectiva emitida (em dias) — Max das condições dos items.
+    /// Igual a <c>Items.Max(i =&gt; i.GarantiaDias)</c>; exposto para conveniência.
+    /// </summary>
+    int? GarantiaDiasEfectivo,
+    /// <summary>
+    /// Sprint 127: items com prazo de garantia individual calculado a partir da
+    /// condicao + defaults do tenant. A loja usa estes para mostrar prazo correcto
+    /// por produto em /conta/garantias.
+    /// </summary>
+    IReadOnlyList<ExternalCheckoutItemSummary> Items);
+
+public sealed record ExternalCheckoutItemSummary(
+    string Descricao,
+    int Quantidade,
+    /// <summary>"Novo" | "OpenBox" | "Recondicionado" | "Usado" | "NaoAplicavel".</summary>
+    string Condicao,
+    /// <summary>Período de garantia em dias para este item (calculado pelo tenant settings).</summary>
+    int GarantiaDias);
 
 public class ExternalCheckoutService : IExternalCheckoutService
 {
@@ -192,6 +212,7 @@ public class ExternalCheckoutService : IExternalCheckoutService
     private readonly IVendaRepository _vendaRepo;
     private readonly IReparacaoRepository _reparacaoRepo;
     private readonly IProductRepository _products;
+    private readonly ITenantRepository _tenants;
 
     public ExternalCheckoutService(
         IClienteService clientes,
@@ -203,7 +224,8 @@ public class ExternalCheckoutService : IExternalCheckoutService
         IClienteRepository clienteRepo,
         IVendaRepository vendaRepo,
         IReparacaoRepository reparacaoRepo,
-        IProductRepository products)
+        IProductRepository products,
+        ITenantRepository tenants)
     {
         _clientes = clientes;
         _vendas = vendas;
@@ -215,6 +237,7 @@ public class ExternalCheckoutService : IExternalCheckoutService
         _vendaRepo = vendaRepo;
         _reparacaoRepo = reparacaoRepo;
         _products = products;
+        _tenants = tenants;
     }
 
     public async Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(string? search, string? brand, int page, int pageSize, CancellationToken ct = default)
@@ -389,6 +412,11 @@ public class ExternalCheckoutService : IExternalCheckoutService
             _tenant.TenantId,
             ct: ct);
 
+        // Sprint 127: per-item garantia em dias (loja precisa para /conta/garantias).
+        var tenantEntity = _tenant.TenantId is { } tid ? await _tenants.FindByIdAsync(tid, ct) : null;
+        var itemsSummary = BuildItemsGarantiaSummary(paga.Venda.Items, tenantEntity);
+        var garantiaEfectivo = itemsSummary.Count > 0 ? itemsSummary.Max(i => i.GarantiaDias) : (int?)null;
+
         return new ExternalCheckoutResponse(
             VendaId: paga.Venda.Id,
             VendaNumero: paga.Venda.Numero,
@@ -398,7 +426,25 @@ public class ExternalCheckoutService : IExternalCheckoutService
             IvaCents: paga.Venda.IvaCents,
             FaturaNumero: paga.Invoice?.Number,
             FaturaPdfUrl: paga.Invoice?.PdfUrl,
-            GarantiaSlug: garantia?.Slug);
+            GarantiaSlug: garantia?.Slug,
+            GarantiaDiasEfectivo: garantiaEfectivo,
+            Items: itemsSummary);
+    }
+
+    private static IReadOnlyList<ExternalCheckoutItemSummary> BuildItemsGarantiaSummary(
+        IEnumerable<VendaItemDto> items, Tenant? tenant)
+    {
+        var novoDias = tenant?.GarantiaVendaDiasDefault ?? 1095;
+        var openBox = tenant?.GarantiaVendaOpenBoxDias ?? 730;
+        var recond = tenant?.GarantiaVendaRecondicionadoDias ?? 540;
+        var usado = tenant?.GarantiaVendaUsadoDias ?? 540;
+        return items
+            .Select(it => new ExternalCheckoutItemSummary(
+                Descricao: it.Descricao,
+                Quantidade: it.Quantidade,
+                Condicao: it.Condicao.ToString(),
+                GarantiaDias: Vendas.VendaService.DiasParaCondicao(it.Condicao, novoDias, openBox, recond, usado)))
+            .ToList();
     }
 
     public async Task<ExternalOrderStatusResponse> GetOrderAsync(Guid vendaId, CancellationToken ct = default)

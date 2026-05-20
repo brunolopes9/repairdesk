@@ -26,6 +26,9 @@ public sealed record TenantSettingsDto(
     string? GarantiaCoberturaDefault,
     string? GarantiaExclusoesDefault,
     int GarantiaVendaDiasDefault,
+    int GarantiaVendaOpenBoxDias,
+    int GarantiaVendaRecondicionadoDias,
+    int GarantiaVendaUsadoDias,
     string? GarantiaVendaCoberturaDefault,
     string? GarantiaVendaExclusoesDefault,
     string? GoogleReviewUrl);
@@ -52,6 +55,9 @@ public sealed record UpdateTenantSettingsRequest(
     string? GarantiaCoberturaDefault,
     string? GarantiaExclusoesDefault,
     int GarantiaVendaDiasDefault,
+    int GarantiaVendaOpenBoxDias,
+    int GarantiaVendaRecondicionadoDias,
+    int GarantiaVendaUsadoDias,
     string? GarantiaVendaCoberturaDefault,
     string? GarantiaVendaExclusoesDefault,
     string? GoogleReviewUrl);

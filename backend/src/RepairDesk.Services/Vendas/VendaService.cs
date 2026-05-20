@@ -268,7 +268,8 @@ public class VendaService : IVendaService
 
     /// <summary>
     /// Emite garantia automática para a Venda ao marcar paga.
-    /// Default 3 anos (DL 84/2021 — bens móveis consumo). Configurável por tenant.
+    /// Sprint 127: período é resolvido a partir do <see cref="CondicaoArtigo"/> mais favorável
+    /// entre os items (DL 84/2021 — bens móveis consumo). Configurável por tenant.
     /// Idempotente: se já existe, não faz nada.
     /// </summary>
     private async Task EmitirGarantiaVendaSeNecessarioAsync(Venda venda, DateTime agora, CancellationToken ct)
@@ -277,7 +278,7 @@ public class VendaService : IVendaService
         if (existente is not null) return;
 
         var tenant = _tenant.TenantId is { } tid ? await _tenants.FindByIdAsync(tid, ct) : null;
-        var dias = tenant?.GarantiaVendaDiasDefault ?? 1095;
+        var dias = ResolveGarantiaDiasFromItems(venda, tenant);
         var cobertura = tenant?.GarantiaVendaCoberturaDefault
             ?? "Conformidade do bem com o descrito na fatura (DL 84/2021). O comprador tem direito à reposição da conformidade (reparação ou substituição), redução do preço ou resolução do contrato.";
         var exclusoes = tenant?.GarantiaVendaExclusoesDefault
@@ -313,6 +314,37 @@ public class VendaService : IVendaService
             }, ct);
         }
     }
+
+    /// <summary>
+    /// Sprint 127: resolve o período de garantia para uma Venda em função das condições dos items.
+    /// Aplica o MAIOR período entre as condições presentes — favorável ao consumidor e sempre
+    /// conforme com DL 84/2021 (excede o mínimo legal). Items sem condição (NaoAplicavel) ou
+    /// vendas sem items usam o default do tenant (campo Novo).
+    /// </summary>
+    public static int ResolveGarantiaDiasFromItems(Venda venda, Tenant? tenant)
+    {
+        var defaultDias = tenant?.GarantiaVendaDiasDefault ?? 1095;
+        var openBox = tenant?.GarantiaVendaOpenBoxDias ?? 730;
+        var recondicionado = tenant?.GarantiaVendaRecondicionadoDias ?? 540;
+        var usado = tenant?.GarantiaVendaUsadoDias ?? 540;
+
+        var items = venda.Items;
+        if (items is null || items.Count == 0) return defaultDias;
+
+        var diasPorItem = items
+            .Select(it => DiasParaCondicao(it.Condicao, defaultDias, openBox, recondicionado, usado))
+            .ToList();
+        return diasPorItem.Count == 0 ? defaultDias : diasPorItem.Max();
+    }
+
+    public static int DiasParaCondicao(CondicaoArtigo condicao, int novoDias, int openBoxDias, int recondicionadoDias, int usadoDias) => condicao switch
+    {
+        CondicaoArtigo.Novo => novoDias,
+        CondicaoArtigo.OpenBox => openBoxDias,
+        CondicaoArtigo.Recondicionado => recondicionadoDias,
+        CondicaoArtigo.Usado => usadoDias,
+        _ => novoDias, // NaoAplicavel — assume novo, é o caso mais comum (acessórios, peças)
+    };
 
     public async Task<InvoiceDto> EmitirFaturaAsync(Guid id, CancellationToken ct = default)
     {

@@ -32,6 +32,10 @@ export interface TenantSettings {
   garantiaCoberturaDefault: string | null;
   garantiaExclusoesDefault: string | null;
   garantiaVendaDiasDefault: number;
+  // Sprint 127: granularidade DL 84/2021 por condição. Novo herda do default flat acima.
+  garantiaVendaOpenBoxDias: number;
+  garantiaVendaRecondicionadoDias: number;
+  garantiaVendaUsadoDias: number;
   garantiaVendaCoberturaDefault: string | null;
   garantiaVendaExclusoesDefault: string | null;
   googleReviewUrl: string | null;

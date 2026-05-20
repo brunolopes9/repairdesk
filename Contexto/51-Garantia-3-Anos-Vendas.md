@@ -127,6 +127,27 @@ Dashboard widget:
 - **Reduzir abaixo de 3 anos**: requer **acordo expresso** ao consumidor, escrito na fatura. Pôr campo `GarantiaMesesAcordados` na Venda + render no PDF da fatura/recibo.
 - **IMEI tracking**: idealmente o IMEI fica registado no `VendaItem` quando peça é Telemóvel — facilita registo na garantia. Cruza com [[project-imei-autoridades]].
 
+## Sprint 127 — Granularidade por condição
+
+Implementado 2026-05-20. Mudanças vs. estado anterior (flat `GarantiaVendaDiasDefault=1095`):
+
+**Backend (`Tenant` entity):**
+- `GarantiaVendaDiasDefault` agora aplica-se ao caso `Novo` e fallback (`NaoAplicavel`)
+- `GarantiaVendaOpenBoxDias` (default 730 = 2 anos)
+- `GarantiaVendaRecondicionadoDias` (default 540 = 18m mínimo legal)
+- `GarantiaVendaUsadoDias` (default 540 = 18m)
+- Tenants existentes herdam estes defaults via migration `Sprint127GarantiaPorCondicao`. Quem quiser uniforme (LopesTech: 3 anos para tudo) edita em Definições.
+
+**Resolução do período:** `VendaService.ResolveGarantiaDiasFromItems` percorre todos os `VendaItem.Condicao`, mapeia para dias via tenant settings, e devolve o **Max** — sempre favorável ao consumidor (cumpre legal mínimo).
+
+**External API:** `POST /api/external/checkout` response inclui:
+- `items: { descricao, quantidade, condicao, garantiaDias }[]` — prazo por item para a loja mostrar
+- `garantiaDiasEfectivo: number` — Max() dos itens; igual ao período da garantia digital emitida
+
+**SDK:** `CheckoutResponse.items[].garantiaDias` + `CondicaoArtigoName` em `repairdesk-client.ts`.
+
+**Decisão LopesTech (loja online):** política comercial é 3 anos para refurbished também (estilo iServices), com bateria 1 ano e dano físico não coberto. Documentado em `/termos §8` da loja. Para aplicar isto no RepairDesk: subir `GarantiaVendaRecondicionadoDias=1095` em Definições → Garantias.
+
 ## Referências
 
 - [DL 84/2021 — Diário da República](https://diariodarepublica.pt/dr/detalhe/decreto-lei/84-2021-172938301)

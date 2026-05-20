@@ -70,8 +70,12 @@ public class TenantSettingsService : ITenantSettingsService
         tenant.GarantiaCoberturaDefault = Clean(req.GarantiaCoberturaDefault);
         tenant.GarantiaExclusoesDefault = Clean(req.GarantiaExclusoesDefault);
         // DL 84/2021: 3 anos (1095 dias) minimo legal para consumo; 18 meses (540) o minimo
-        // permitido em refurbished se contratualizado expressamente.
+        // permitido em refurbished se contratualizado expressamente. Sprint 127: granularidade
+        // por condicao (Novo via Default, OpenBox/Recondicionado/Usado separados).
         tenant.GarantiaVendaDiasDefault = Math.Clamp(req.GarantiaVendaDiasDefault <= 0 ? 1095 : req.GarantiaVendaDiasDefault, 540, 3650);
+        tenant.GarantiaVendaOpenBoxDias = Math.Clamp(req.GarantiaVendaOpenBoxDias <= 0 ? 730 : req.GarantiaVendaOpenBoxDias, 540, 3650);
+        tenant.GarantiaVendaRecondicionadoDias = Math.Clamp(req.GarantiaVendaRecondicionadoDias <= 0 ? 540 : req.GarantiaVendaRecondicionadoDias, 540, 3650);
+        tenant.GarantiaVendaUsadoDias = Math.Clamp(req.GarantiaVendaUsadoDias <= 0 ? 540 : req.GarantiaVendaUsadoDias, 540, 3650);
         tenant.GarantiaVendaCoberturaDefault = Clean(req.GarantiaVendaCoberturaDefault);
         tenant.GarantiaVendaExclusoesDefault = Clean(req.GarantiaVendaExclusoesDefault);
         tenant.GoogleReviewUrl = Clean(req.GoogleReviewUrl);
@@ -158,6 +162,9 @@ public class TenantSettingsService : ITenantSettingsService
         t.GarantiaCoberturaDefault,
         t.GarantiaExclusoesDefault,
         t.GarantiaVendaDiasDefault,
+        t.GarantiaVendaOpenBoxDias,
+        t.GarantiaVendaRecondicionadoDias,
+        t.GarantiaVendaUsadoDias,
         t.GarantiaVendaCoberturaDefault,
         t.GarantiaVendaExclusoesDefault,
         t.GoogleReviewUrl);

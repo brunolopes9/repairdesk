@@ -31,7 +31,13 @@ public class Tenant : BaseEntity
 
     // Garantia em Vendas — DL 84/2021 obriga 3 anos para consumo (1095 dias).
     // Refurbished pode ser reduzido até 18 meses (540 dias) só com acordo expresso.
+    // Sprint 127: granularidade por CondicaoArtigo. Default flat (Novo) + 3 condições
+    // adicionais. Tenant pode subir todas para 1095 se quiser política comercial uniforme
+    // (ex: LopesTech dá 3 anos a refurbished como estilo iServices, acordo em /termos).
     public int GarantiaVendaDiasDefault { get; set; } = 1095;
+    public int GarantiaVendaOpenBoxDias { get; set; } = 730;          // 2 anos — entre novo e refurbished
+    public int GarantiaVendaRecondicionadoDias { get; set; } = 540;   // 18m mínimo legal DL 84/2021
+    public int GarantiaVendaUsadoDias { get; set; } = 540;            // 18m mínimo legal
     public string? GarantiaVendaCoberturaDefault { get; set; }
     public string? GarantiaVendaExclusoesDefault { get; set; }
 

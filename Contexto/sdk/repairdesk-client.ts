@@ -106,6 +106,23 @@ export interface CheckoutRequest {
   origem?: VendaOrigem;
 }
 
+/** Condição do artigo vendido (snapshot). Sprint 127. */
+export type CondicaoArtigoName =
+  | 'NaoAplicavel' | 'Novo' | 'OpenBox' | 'Recondicionado' | 'Usado';
+
+/**
+ * Sprint 127: cada item da venda com período de garantia individual calculado
+ * a partir da `condicao` + defaults do tenant. A loja usa estes para mostrar
+ * prazos correctos em `/conta/garantias` por produto.
+ */
+export interface CheckoutItemSummary {
+  descricao: string;
+  quantidade: number;
+  condicao: CondicaoArtigoName;
+  /** Dias de garantia legal para este item (DL 84/2021). */
+  garantiaDias: number;
+}
+
 export interface CheckoutResponse {
   vendaId: string;
   vendaNumero: number;
@@ -118,6 +135,13 @@ export interface CheckoutResponse {
   faturaPdfUrl: string | null;
   /** Slug público da garantia: shop.lopestech.pt/garantia/{slug} OU api.repairdesk/g/{slug} */
   garantiaSlug: string | null;
+  /**
+   * Sprint 127: garantia efectiva emitida (em dias) = `Max(items[].garantiaDias)`.
+   * `null` apenas se a venda não tem items.
+   */
+  garantiaDiasEfectivo: number | null;
+  /** Sprint 127: items com prazo individual (DL 84/2021 por condição). */
+  items: CheckoutItemSummary[];
 }
 
 export interface OrderStatusResponse {
