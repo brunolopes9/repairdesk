@@ -242,6 +242,10 @@ try
     // Webhook subscriptions (Sprint 101) + delivery infra (Sprint 102)
     builder.Services.AddScoped<IWebhookSubscriptionRepository, RepairDesk.DAL.Persistence.WebhookSubscriptionRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Webhooks.IWebhookSubscriptionService, RepairDesk.Services.Webhooks.WebhookSubscriptionService>();
+
+    // Fornecedores (Sprint 120)
+    builder.Services.AddScoped<IFornecedorRepository, RepairDesk.DAL.Persistence.FornecedorRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Fornecedores.IFornecedorService, RepairDesk.Services.Fornecedores.FornecedorService>();
     builder.Services.AddScoped<IWebhookDeliveryRepository, RepairDesk.DAL.Persistence.WebhookDeliveryRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Webhooks.IWebhookPublisher, RepairDesk.Services.Webhooks.WebhookPublisher>();
     builder.Services.AddHttpClient("webhook")
