@@ -10,7 +10,7 @@ namespace RepairDesk.Services.ServiceApiKeys;
 public interface IServiceApiKeyService
 {
     Task<IReadOnlyList<ServiceApiKeyDto>> ListAsync(CancellationToken ct = default);
-    Task<CreateServiceApiKeyResponse> CreateAsync(string name, CancellationToken ct = default);
+    Task<CreateServiceApiKeyResponse> CreateAsync(string name, IReadOnlyList<string>? scopes, CancellationToken ct = default);
     Task RevokeAsync(Guid id, string? reason, CancellationToken ct = default);
 }
 
@@ -21,12 +21,14 @@ public sealed record ServiceApiKeyDto(
     DateTime CreatedAt,
     DateTime? LastUsedAt,
     DateTime? RevokedAt,
-    string? RevokedReason);
+    string? RevokedReason,
+    /// <summary>Lista de scopes. Vazia = wildcard (acesso total — backwards-compat).</summary>
+    IReadOnlyList<string> Scopes);
 
 /// <summary>Devolve o plain key UMA VEZ ao criar — depois só existe o hash.</summary>
 public sealed record CreateServiceApiKeyResponse(ServiceApiKeyDto Key, string PlainKey);
 
-public sealed record CreateServiceApiKeyRequest(string Name);
+public sealed record CreateServiceApiKeyRequest(string Name, IReadOnlyList<string>? Scopes = null);
 public sealed record RevokeServiceApiKeyRequest(string? Reason);
 
 public class ServiceApiKeyService : IServiceApiKeyService
@@ -48,7 +50,7 @@ public class ServiceApiKeyService : IServiceApiKeyService
         return items.Select(ToDto).ToList();
     }
 
-    public async Task<CreateServiceApiKeyResponse> CreateAsync(string name, CancellationToken ct = default)
+    public async Task<CreateServiceApiKeyResponse> CreateAsync(string name, IReadOnlyList<string>? scopes, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ValidationException("name_required", "Nome da chave obrigatório (ex: 'Loja online').");
@@ -59,6 +61,19 @@ public class ServiceApiKeyService : IServiceApiKeyService
         if (_tenant.TenantId is not { } tenantId)
             throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
 
+        string? scopesCsv = null;
+        if (scopes is not null && scopes.Count > 0)
+        {
+            var normalized = scopes.Select(s => s.Trim().ToLowerInvariant())
+                .Where(s => s.Length > 0)
+                .Distinct()
+                .ToList();
+            var unknown = normalized.Except(ServiceApiKeyScopes.All).ToList();
+            if (unknown.Count > 0)
+                throw new ValidationException("scope_unknown", $"Scope desconhecido: {string.Join(", ", unknown)}.");
+            scopesCsv = string.Join(',', normalized);
+        }
+
         var (plainKey, hash, displayPrefix) = ApiKeyGenerator.Generate();
 
         var entity = new ServiceApiKey
@@ -67,6 +82,7 @@ public class ServiceApiKeyService : IServiceApiKeyService
             Name = name,
             KeyPrefix = displayPrefix,
             KeyHash = hash,
+            Scopes = scopesCsv,
         };
         await _repo.AddAsync(entity, ct);
         await _repo.SaveAsync(ct);
@@ -75,7 +91,7 @@ public class ServiceApiKeyService : IServiceApiKeyService
             AuditAction.Create,
             "ServiceApiKey",
             entity.Id,
-            new { entity.Name, entity.KeyPrefix },
+            new { entity.Name, entity.KeyPrefix, entity.Scopes },
             tenantId,
             ct: ct);
 
@@ -102,5 +118,6 @@ public class ServiceApiKeyService : IServiceApiKeyService
     }
 
     private static ServiceApiKeyDto ToDto(ServiceApiKey k) =>
-        new(k.Id, k.Name, k.KeyPrefix, k.CreatedAt, k.LastUsedAt, k.RevokedAt, k.RevokedReason);
+        new(k.Id, k.Name, k.KeyPrefix, k.CreatedAt, k.LastUsedAt, k.RevokedAt, k.RevokedReason,
+            ServiceApiKeyScopes.Parse(k.Scopes) ?? Array.Empty<string>());
 }

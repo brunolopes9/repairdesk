@@ -44,11 +44,13 @@ public class ExternalController : ControllerBase
     /// ter sido confirmado via Stripe/EuPago) em vez de fazer 3 chamadas separadas.
     /// </summary>
     [HttpPost("checkout")]
+    [ApiScope("write")]
     public Task<ExternalCheckoutResponse> Checkout([FromBody] ExternalCheckoutRequest req, CancellationToken ct)
         => _checkout.CheckoutAsync(req, ct);
 
     /// <summary>Consulta estado da venda — para polling no painel do cliente da loja online.</summary>
     [HttpGet("orders/{vendaId:guid}")]
+    [ApiScope("read")]
     public Task<ExternalOrderStatusResponse> GetOrder(Guid vendaId, CancellationToken ct)
         => _checkout.GetOrderAsync(vendaId, ct);
 
@@ -58,6 +60,7 @@ public class ExternalController : ControllerBase
     /// Idempotente — chamar 2x devolve sempre o estado actual.
     /// </summary>
     [HttpPost("orders/{vendaId:guid}/cancel")]
+    [ApiScope("write")]
     public Task<ExternalOrderStatusResponse> CancelOrder(Guid vendaId, [FromBody] CancelOrderRequest req, CancellationToken ct)
         => _checkout.CancelOrderAsync(vendaId, req.Motivo, ct);
 
@@ -66,6 +69,7 @@ public class ExternalController : ControllerBase
     /// custo, fornecedor, local armazenamento e notas internas NÃO são expostos.
     /// </summary>
     [HttpGet("parts")]
+    [ApiScope("read")]
     public Task<PagedResult<ExternalPartDto>> ListParts(
         [FromQuery] string? search,
         [FromQuery] PartCategoria? categoria,
@@ -79,6 +83,7 @@ public class ExternalController : ControllerBase
     /// Para loja online mostrar "Os meus pedidos" sem replicar BD. 404 se NIF não corresponde.
     /// </summary>
     [HttpGet("clientes/{nif}/historico")]
+    [ApiScope("read")]
     public async Task<ActionResult<ExternalClienteHistoricoResponse>> GetHistoricoByNif(string nif, CancellationToken ct)
     {
         var historico = await _checkout.GetHistoricoByNifAsync(nif, ct);
@@ -90,6 +95,7 @@ public class ExternalController : ControllerBase
     /// 404 se slug não existe no tenant da API key.
     /// </summary>
     [HttpGet("garantias/{slug}")]
+    [ApiScope("read")]
     public async Task<ActionResult<ExternalGarantiaDetalhe>> GetGarantia(string slug, CancellationToken ct)
     {
         var g = await _checkout.GetGarantiaBySlugAsync(slug, ct);

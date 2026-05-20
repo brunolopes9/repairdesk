@@ -130,7 +130,16 @@ try
             };
         });
 
-    builder.Services.AddAuthorization();
+    builder.Services.AddAuthorization(options =>
+    {
+        // Sprint 111: policies para scopes de API key. JWT (admin) passa sempre.
+        foreach (var scope in RepairDesk.Core.Entities.ServiceApiKeyScopes.All)
+        {
+            options.AddPolicy($"api_scope:{scope}", policy =>
+                policy.Requirements.Add(new RepairDesk.API.Infrastructure.ApiScopeRequirement(scope)));
+        }
+    });
+    builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, RepairDesk.API.Infrastructure.ApiScopeHandler>();
 
     builder.Services.AddScoped<ITokenService, JwtTokenService>();
     builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();

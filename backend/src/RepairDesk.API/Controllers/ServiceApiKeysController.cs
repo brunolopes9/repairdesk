@@ -25,7 +25,7 @@ public class ServiceApiKeysController : ControllerBase
     /// <summary>Cria nova chave. Plain key devolvido apenas neste response — guarda em local seguro.</summary>
     [HttpPost]
     public Task<CreateServiceApiKeyResponse> Create([FromBody] CreateServiceApiKeyRequest req, CancellationToken ct)
-        => _service.CreateAsync(req.Name, ct);
+        => _service.CreateAsync(req.Name, req.Scopes, ct);
 
     [HttpPost("{id:guid}/revoke")]
     public async Task<IActionResult> Revoke(Guid id, [FromBody] RevokeServiceApiKeyRequest req, CancellationToken ct)

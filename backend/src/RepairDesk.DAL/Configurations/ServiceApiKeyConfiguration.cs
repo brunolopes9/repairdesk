@@ -16,6 +16,7 @@ public class ServiceApiKeyConfiguration : IEntityTypeConfiguration<ServiceApiKey
         builder.Property(x => x.KeyPrefix).HasMaxLength(32).IsRequired();
         builder.Property(x => x.KeyHash).HasMaxLength(64).IsRequired();
         builder.Property(x => x.RevokedReason).HasMaxLength(500);
+        builder.Property(x => x.Scopes).HasMaxLength(200);
 
         // Lookup principal — hash deve ser único.
         builder.HasIndex(x => x.KeyHash).IsUnique().HasFilter("[IsDeleted] = 0");

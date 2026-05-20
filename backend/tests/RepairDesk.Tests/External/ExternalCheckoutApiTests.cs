@@ -217,6 +217,28 @@ public class ExternalCheckoutApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Checkout_KeyWithoutWriteScope_Returns403()
+    {
+        // Cria chave com scope apenas "read" — não pode fazer POST /checkout (que requer "write").
+        var jwtClient = await NewJwtClient();
+        var create = await jwtClient.PostAsJsonAsync("/api/service-keys",
+            new CreateServiceApiKeyRequest($"read-only-{Guid.NewGuid():N}", new[] { "read" }));
+        create.EnsureSuccessStatusCode();
+        var key = (await create.Content.ReadFromJsonAsync<CreateServiceApiKeyResponse>())!;
+
+        var apiClient = _factory.CreateClient();
+        apiClient.DefaultRequestHeaders.Add("X-Api-Key", key.PlainKey);
+
+        // GET deve funcionar (scope read presente)
+        var partsResp = await apiClient.GetAsync("/api/external/parts?page=1&pageSize=5");
+        partsResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // POST checkout deve dar 403 (falta scope write)
+        var checkoutResp = await apiClient.PostAsJsonAsync("/api/external/checkout", SampleRequest("513000005"));
+        checkoutResp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Health_WithApiKey_ReturnsStatusAndTenantId()
     {
         var (_, apiClient) = await NewKeyAsync();

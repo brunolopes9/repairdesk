@@ -60,6 +60,18 @@ public sealed class ApiKeyAuthHandler : AuthenticationHandler<ApiKeyAuthSchemeOp
         identity.AddClaim(new Claim(ClaimTypes.Name, $"service:{apiKey.Name}"));
         identity.AddClaim(new Claim("auth_type", "api_key"));
 
+        // Sprint 111: scopes da key como claims `api_scope:xxx`. Null = wildcard (sem restrição,
+        // backwards-compat com keys criadas antes do Sprint 111).
+        var scopes = RepairDesk.Core.Entities.ServiceApiKeyScopes.Parse(apiKey.Scopes);
+        if (scopes is null)
+        {
+            identity.AddClaim(new Claim("api_scope", "*"));
+        }
+        else
+        {
+            foreach (var s in scopes) identity.AddClaim(new Claim("api_scope", s));
+        }
+
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, SchemeName);
         return AuthenticateResult.Success(ticket);

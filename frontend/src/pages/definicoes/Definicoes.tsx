@@ -1600,17 +1600,22 @@ function ApiKeysSection() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyScopes, setNewKeyScopes] = useState<Set<'read' | 'write'>>(new Set(['read', 'write']));
   const [revokedFor, setRevokedFor] = useState<ServiceApiKey | null>(null);
   const [revokeReason, setRevokeReason] = useState('');
   const [plainKey, setPlainKey] = useState<{ value: string; name: string } | null>(null);
 
   const create = useMutation({
-    mutationFn: () => serviceKeysApi.create(newKeyName.trim()),
+    mutationFn: () => serviceKeysApi.create(
+      newKeyName.trim(),
+      newKeyScopes.size === 2 ? null : (Array.from(newKeyScopes) as ('read' | 'write')[]),
+    ),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['service-keys'] });
       setPlainKey({ value: res.plainKey, name: res.key.name });
       setCreateOpen(false);
       setNewKeyName('');
+      setNewKeyScopes(new Set(['read', 'write']));
     },
     onError: (err) => toast.fromError(err, 'Não foi possível criar a chave.'),
   });
@@ -1714,7 +1719,7 @@ function ApiKeysSection() {
         footer={<>
           <button type="button" disabled={create.isPending} onClick={() => { setCreateOpen(false); setNewKeyName(''); }}
             className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-300">Cancelar</button>
-          <button type="button" disabled={!newKeyName.trim() || create.isPending} onClick={() => create.mutate()}
+          <button type="button" disabled={!newKeyName.trim() || newKeyScopes.size === 0 || create.isPending} onClick={() => create.mutate()}
             className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
             {create.isPending ? 'A criar…' : 'Gerar chave'}
           </button>
@@ -1731,6 +1736,41 @@ function ApiKeysSection() {
             className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950"
           />
         </label>
+        <div className="mt-3">
+          <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Permissões</div>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Princípio menor privilégio. Se a chave só lê dados (ex: dashboard externa), desactiva <strong>write</strong> — atacante que apanhe a chave não consegue criar/cancelar vendas.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {(['read', 'write'] as const).map((s) => (
+              <label key={s} className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 text-xs ${
+                newKeyScopes.has(s)
+                  ? 'border-brand-300 bg-brand-50/50 dark:border-brand-700 dark:bg-brand-950/30'
+                  : 'border-zinc-200 dark:border-zinc-700'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={newKeyScopes.has(s)}
+                  onChange={(e) => {
+                    const next = new Set(newKeyScopes);
+                    if (e.target.checked) next.add(s); else next.delete(s);
+                    setNewKeyScopes(next);
+                  }}
+                  className="mt-0.5"
+                />
+                <div>
+                  <div className="font-mono font-medium">{s}</div>
+                  <div className="text-[10px] text-zinc-500">
+                    {s === 'read' ? 'GETs (orders, parts, clientes, garantias)' : 'POSTs (checkout, cancel)'}
+                  </div>
+                </div>
+              </label>
+            ))}
+          </div>
+          {newKeyScopes.size === 0 && (
+            <div className="mt-2 text-[11px] text-rose-600">Selecciona pelo menos uma permissão.</div>
+          )}
+        </div>
       </Modal>
 
       <Modal
