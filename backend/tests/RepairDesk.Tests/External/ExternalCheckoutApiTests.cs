@@ -176,7 +176,15 @@ public class ExternalCheckoutApiTests : IClassFixture<RepairDeskApiFactory>
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadFromJsonAsync<ExternalClienteHistoricoResponse>();
         body!.Vendas.Should().NotBeEmpty();
-        body.Vendas.First().Status.Should().Be("Paga");
+        var primeira = body.Vendas.First();
+        primeira.Status.Should().Be("Paga");
+
+        // Sprint 133: cada venda paga deve trazer garantiaSlug + garantiaActiva
+        primeira.GarantiaSlug.Should().NotBeNullOrEmpty("checkout auto-emite garantia DL 84/2021");
+        primeira.GarantiaActiva.Should().BeTrue("garantia recém-emitida ainda está activa");
+
+        // E a garantia activa também aparece na lista agregada (mesmo slug)
+        body.GarantiasActivas.Should().Contain(g => g.Slug == primeira.GarantiaSlug);
     }
 
     [Fact]

@@ -95,7 +95,11 @@ public sealed record ExternalVendaResumo(
     string Status,
     string Origem,
     string? FaturaNumero,
-    string? FaturaPdfUrl);
+    string? FaturaPdfUrl,
+    /// <summary>Sprint 133: slug da garantia digital desta venda (`/g/{slug}`). Null se anulada ou ainda não emitida.</summary>
+    string? GarantiaSlug = null,
+    /// <summary>Sprint 133: garantia activa (não expirada nem anulada). Permite à loja decidir se mostra "Ver garantia" ou "Garantia expirada".</summary>
+    bool GarantiaActiva = false);
 
 public sealed record ExternalReparacaoResumo(
     Guid Id,
@@ -104,7 +108,10 @@ public sealed record ExternalReparacaoResumo(
     string Equipamento,
     int Estado,
     /// <summary>Slug público /p/{slug} para acompanhamento.</summary>
-    string? PublicSlug);
+    string? PublicSlug,
+    /// <summary>Sprint 133: garantia da reparação (60d/90d/etc).</summary>
+    string? GarantiaSlug = null,
+    bool GarantiaActiva = false);
 
 public sealed record ExternalGarantiaResumo(
     string Slug,
@@ -283,35 +290,41 @@ public class ExternalCheckoutService : IExternalCheckoutService
         var (vendas, _) = await _vendaRepo.SearchAsync(null, null, cliente.Id, 1, 100, ct);
         var (reparacoes, _) = await _reparacaoRepo.SearchAsync(null, null, cliente.Id, 1, 100, ct);
 
-        var vendaResumos = vendas.Select(v => new ExternalVendaResumo(
-            v.Id, v.Numero, v.Data, v.TotalCents,
-            v.Status.ToString(), v.Origem.ToString(),
-            v.InvoiceNumber, v.InvoicePdfUrl)).ToList();
-
-        var reparacaoResumos = reparacoes.Select(r => new ExternalReparacaoResumo(
-            r.Id, r.Numero, r.CreatedAt, r.Equipamento, (int)r.Estado, r.PublicSlug)).ToList();
-
-        // Garantias activas — uma por venda/reparação, agregadas
         var agora = DateTime.UtcNow;
         var garantiasActivas = new List<ExternalGarantiaResumo>();
+
+        // Sprint 133: 1 pass por venda — busca garantia uma vez, popula resumo + lista activas.
+        var vendaResumos = new List<ExternalVendaResumo>(vendas.Count);
         foreach (var v in vendas)
         {
             var g = await _garantias.FindByVendaAsync(v.Id, ct);
-            if (g is not null && !g.Anulada && agora >= g.DataInicio && agora <= g.DataFim)
+            var activa = g is not null && !g.Anulada && agora >= g.DataInicio && agora <= g.DataFim;
+            vendaResumos.Add(new ExternalVendaResumo(
+                v.Id, v.Numero, v.Data, v.TotalCents,
+                v.Status.ToString(), v.Origem.ToString(),
+                v.InvoiceNumber, v.InvoicePdfUrl,
+                g?.Slug, activa));
+            if (activa)
             {
                 garantiasActivas.Add(new ExternalGarantiaResumo(
-                    g.Slug, "Venda", g.DataFim,
+                    g!.Slug, "Venda", g.DataFim,
                     (int)Math.Max(0, (g.DataFim - agora).TotalDays),
                     v.Items.FirstOrDefault()?.Descricao));
             }
         }
+
+        var reparacaoResumos = new List<ExternalReparacaoResumo>(reparacoes.Count);
         foreach (var r in reparacoes)
         {
             var g = await _garantias.FindByReparacaoAsync(r.Id, ct);
-            if (g is not null && !g.Anulada && agora >= g.DataInicio && agora <= g.DataFim)
+            var activa = g is not null && !g.Anulada && agora >= g.DataInicio && agora <= g.DataFim;
+            reparacaoResumos.Add(new ExternalReparacaoResumo(
+                r.Id, r.Numero, r.CreatedAt, r.Equipamento, (int)r.Estado, r.PublicSlug,
+                g?.Slug, activa));
+            if (activa)
             {
                 garantiasActivas.Add(new ExternalGarantiaResumo(
-                    g.Slug, "Reparacao", g.DataFim,
+                    g!.Slug, "Reparacao", g.DataFim,
                     (int)Math.Max(0, (g.DataFim - agora).TotalDays),
                     r.Equipamento));
             }

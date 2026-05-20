@@ -186,6 +186,10 @@ export interface ExternalVendaResumo {
   origem: 'Balcao' | 'Online' | 'Importacao';
   faturaNumero: string | null;
   faturaPdfUrl: string | null;
+  /** Sprint 133: slug `/g/{slug}` da garantia desta venda. `null` se anulada ou ainda não emitida. */
+  garantiaSlug?: string | null;
+  /** Sprint 133: garantia activa (não expirada nem anulada). Loja mostra CTA "Ver garantia" só quando true. */
+  garantiaActiva?: boolean;
 }
 
 export interface ExternalReparacaoResumo {
@@ -197,6 +201,9 @@ export interface ExternalReparacaoResumo {
   estado: number;
   /** Slug do portal público de acompanhamento: /p/{slug}. */
   publicSlug: string | null;
+  /** Sprint 133: slug `/g/{slug}` da garantia da reparação (60/90d). */
+  garantiaSlug?: string | null;
+  garantiaActiva?: boolean;
 }
 
 export interface ExternalGarantiaResumo {
