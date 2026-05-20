@@ -241,6 +241,37 @@ export interface ListPartsQuery {
   lojaOnline?: boolean;
 }
 
+/** Sprint 122: catálogo de produtos vendáveis (telemóveis revendidos). */
+export interface ExternalProduct {
+  id: string;
+  sku: string;
+  slug: string;
+  brand: string;
+  model: string;
+  storage: string | null;
+  color: string | null;
+  /** "Novo" | "GradeA" | "GradeB" | "GradeC" | "OpenBox" | "Premium" */
+  grading: string;
+  /** "Stock" | "Dropship" */
+  supplyType: string;
+  priceCents: number;
+  stockQuantity: number;
+  descriptionMarkdown: string | null;
+  attributesJson: string | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  supplierName: string | null;
+  imageUrls: string[];
+  updatedAt: string;
+}
+
+export interface ListProductsQuery {
+  search?: string;
+  brand?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 // =================================================================
 // ERROR — wrapping de respostas não-2xx
 // =================================================================
@@ -333,6 +364,30 @@ export class RepairDeskClient {
     if (query.pageSize) params.set('pageSize', String(query.pageSize));
     const qs = params.toString();
     return this.request('GET', `/api/external/parts${qs ? `?${qs}` : ''}`);
+  }
+
+  /**
+   * Sprint 122: lista catálogo de Products (telemóveis revendidos). Filtra automaticamente
+   * por Active + MostrarLojaOnline no backend — não precisas de passar nada.
+   */
+  listProducts(query: ListProductsQuery = {}): Promise<PagedResult<ExternalProduct>> {
+    const params = new URLSearchParams();
+    if (query.search) params.set('search', query.search);
+    if (query.brand) params.set('brand', query.brand);
+    if (query.page) params.set('page', String(query.page));
+    if (query.pageSize) params.set('pageSize', String(query.pageSize));
+    const qs = params.toString();
+    return this.request('GET', `/api/external/products${qs ? `?${qs}` : ''}`);
+  }
+
+  /** Detalhe de um Product por slug. Devolve null em 404. */
+  async getProduct(slug: string): Promise<ExternalProduct | null> {
+    try {
+      return await this.request<ExternalProduct>('GET', `/api/external/products/${encodeURIComponent(slug)}`);
+    } catch (e) {
+      if (e instanceof RepairDeskError && e.status === 404) return null;
+      throw e;
+    }
   }
 
   /**

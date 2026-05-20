@@ -246,6 +246,11 @@ try
     // Fornecedores (Sprint 120)
     builder.Services.AddScoped<IFornecedorRepository, RepairDesk.DAL.Persistence.FornecedorRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Fornecedores.IFornecedorService, RepairDesk.Services.Fornecedores.FornecedorService>();
+
+    // Products (Sprint 122)
+    builder.Services.AddScoped<IProductRepository, RepairDesk.DAL.Persistence.ProductRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Products.IProductService, RepairDesk.Services.Products.ProductService>();
+
     builder.Services.AddScoped<IWebhookDeliveryRepository, RepairDesk.DAL.Persistence.WebhookDeliveryRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Webhooks.IWebhookPublisher, RepairDesk.Services.Webhooks.WebhookPublisher>();
     builder.Services.AddHttpClient("webhook")

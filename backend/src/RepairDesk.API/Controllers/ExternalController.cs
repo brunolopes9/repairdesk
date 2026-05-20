@@ -102,4 +102,27 @@ public class ExternalController : ControllerBase
         var g = await _checkout.GetGarantiaBySlugAsync(slug, ct);
         return g is null ? NotFound() : Ok(g);
     }
+
+    /// <summary>
+    /// Sprint 122: catálogo de Products (telemóveis revendidos). Filtra automaticamente
+    /// por <c>Active=true</c> + <c>MostrarLojaOnline=true</c>. Loja faz cron sync.
+    /// </summary>
+    [HttpGet("products")]
+    [ApiScope("read")]
+    public Task<PagedResult<ExternalProductDto>> ListProducts(
+        [FromQuery] string? search,
+        [FromQuery] string? brand,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+        => _checkout.ListProductsAsync(search, brand, page, pageSize, ct);
+
+    /// <summary>Detalhe de um Product por slug — para PDP da loja revalidar pontualmente.</summary>
+    [HttpGet("products/{slug}")]
+    [ApiScope("read")]
+    public async Task<ActionResult<ExternalProductDto>> GetProduct(string slug, CancellationToken ct)
+    {
+        var p = await _checkout.GetProductBySlugAsync(slug, ct);
+        return p is null ? NotFound() : Ok(p);
+    }
 }

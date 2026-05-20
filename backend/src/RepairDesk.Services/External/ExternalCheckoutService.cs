@@ -19,7 +19,34 @@ public interface IExternalCheckoutService
     Task<Clientes.PagedResult<ExternalPartDto>> ListPartsAsync(string? search, PartCategoria? categoria, int page, int pageSize, bool? lojaOnline = null, CancellationToken ct = default);
     Task<ExternalClienteHistoricoResponse?> GetHistoricoByNifAsync(string nif, CancellationToken ct = default);
     Task<ExternalGarantiaDetalhe?> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default);
+    /// <summary>Sprint 122: catálogo de Products (telemóveis revendidos) para a loja online.</summary>
+    Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(string? search, string? brand, int page, int pageSize, CancellationToken ct = default);
+    Task<ExternalProductDto?> GetProductBySlugAsync(string slug, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Sprint 122: produto da loja online — telemóvel revendido, com SEO/images/attributes.
+/// Distinto de ExternalPart (peça técnica). Loja faz cron sync via /api/external/products.
+/// </summary>
+public sealed record ExternalProductDto(
+    Guid Id,
+    string Sku,
+    string Slug,
+    string Brand,
+    string Model,
+    string? Storage,
+    string? Color,
+    string Grading,
+    string SupplyType,
+    int PriceCents,
+    int StockQuantity,
+    string? DescriptionMarkdown,
+    string? AttributesJson,
+    string? SeoTitle,
+    string? SeoDescription,
+    string? SupplierName,
+    IReadOnlyList<string> ImageUrls,
+    DateTime UpdatedAt);
 
 /// <summary>Resposta do health check — usada por integradores para clock skew e confirmação do tenant.</summary>
 public sealed record ExternalHealthResponse(
@@ -164,6 +191,7 @@ public class ExternalCheckoutService : IExternalCheckoutService
     private readonly IClienteRepository _clienteRepo;
     private readonly IVendaRepository _vendaRepo;
     private readonly IReparacaoRepository _reparacaoRepo;
+    private readonly IProductRepository _products;
 
     public ExternalCheckoutService(
         IClienteService clientes,
@@ -174,7 +202,8 @@ public class ExternalCheckoutService : IExternalCheckoutService
         IPartRepository parts,
         IClienteRepository clienteRepo,
         IVendaRepository vendaRepo,
-        IReparacaoRepository reparacaoRepo)
+        IReparacaoRepository reparacaoRepo,
+        IProductRepository products)
     {
         _clientes = clientes;
         _vendas = vendas;
@@ -185,7 +214,36 @@ public class ExternalCheckoutService : IExternalCheckoutService
         _clienteRepo = clienteRepo;
         _vendaRepo = vendaRepo;
         _reparacaoRepo = reparacaoRepo;
+        _products = products;
     }
+
+    public async Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(string? search, string? brand, int page, int pageSize, CancellationToken ct = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        // Externo: sempre MostrarLojaOnline=true + Active. Não revela CustoUnitarioCents nem FornecedorId.
+        var (items, total) = await _products.SearchAsync(search, brand, lojaOnline: true, includeInactive: false, page, pageSize, ct);
+        var dtos = items.Select(ToExternalProductDto).ToList();
+        return new Clientes.PagedResult<ExternalProductDto>(dtos, page, pageSize, total);
+    }
+
+    public async Task<ExternalProductDto?> GetProductBySlugAsync(string slug, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(slug) || slug.Length > 200) return null;
+        var p = await _products.FindBySlugAsync(slug, ct);
+        if (p is null || !p.Active || !p.MostrarLojaOnline) return null;
+        return ToExternalProductDto(p);
+    }
+
+    private static ExternalProductDto ToExternalProductDto(RepairDesk.Core.Entities.Product p) => new(
+        p.Id, p.Sku, p.Slug, p.Brand, p.Model, p.Storage, p.Color,
+        p.Grading.ToString(), p.SupplyType.ToString(),
+        p.PriceCents, p.StockQuantity,
+        p.DescriptionMarkdown, p.AttributesJson,
+        p.SeoTitle, p.SeoDescription,
+        p.Fornecedor?.Name,
+        p.Images.OrderBy(i => i.Ordem).Select(i => i.Url).ToList(),
+        p.UpdatedAt ?? p.CreatedAt);
 
     public async Task<ExternalClienteHistoricoResponse?> GetHistoricoByNifAsync(string nif, CancellationToken ct = default)
     {
