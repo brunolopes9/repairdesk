@@ -51,9 +51,12 @@ export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateK
   const total = items.reduce((s, d) => s + d.valorCents, 0);
 
   const isRep = !!reparacaoId;
-  const titulo = isRep ? 'Peças usadas' : 'Despesas imputadas';
+  // Sprint 115: clarificar diferença para o utilizador. PecasUsadas (stock interno) vs
+  // DespesasImputadas (compras específicas ao fornecedor) tinham o mesmo título "Peças usadas"
+  // em reparações, parecia duplicado.
+  const titulo = isRep ? 'Compras ao fornecedor' : 'Despesas imputadas';
   const emptyMsg = isRep
-    ? 'Adiciona aqui as peças que vais usar (ecrã, bateria, etc.) com o custo, fornecedor e nº encomenda.'
+    ? 'Encomendas específicas para esta reparação (ex: Touch+Frame Samsung A15 da Tudo4Mobile). Diferente de "Peças do stock" — aqui são compras ao fornecedor com nº de encomenda e custo de transporte.'
     : 'Adiciona despesas diretamente ligadas a este trabalho.';
 
   return (
