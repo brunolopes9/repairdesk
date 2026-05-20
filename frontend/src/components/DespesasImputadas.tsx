@@ -267,7 +267,13 @@ export function DespesaFormModal({
   return (
     <Modal
       open={open}
-      title={editing ? 'Editar despesa' : 'Imputar despesa'}
+      title={(() => {
+        // Sprint 142: contextualiza o título — no contexto de reparação chama-se "compra ao
+        // fornecedor" (Bruno reportou que "despesa" era confuso). Trabalhos e geral mantêm-se.
+        const isRep = !!reparacaoId;
+        if (editing) return isRep ? 'Editar compra ao fornecedor' : 'Editar despesa';
+        return isRep ? 'Adicionar compra ao fornecedor' : 'Imputar despesa';
+      })()}
       onClose={onClose}
       footer={<>
         <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>

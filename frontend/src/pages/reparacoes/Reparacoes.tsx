@@ -795,26 +795,32 @@ function CreateReparacaoModal({
             </div>
           )}
         </Field>
-        <Field label="Categoria equipamento">
-          <select
-            value={templateId ?? ''}
-            onChange={(e) => handleTemplateChange(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">Sem template personalizado</option>
-            {templates.data?.map((template) => (
-              <option key={template.id} value={template.id}>{template.nome}</option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-zinc-500">
-            Usa templates para portateis/desktops com CPU, RAM, storage e outros dados tecnicos.
-          </p>
-        </Field>
-        <EquipmentFieldsForm
-          template={selectedTemplate}
-          values={fieldValues}
-          onChange={(fieldId, value) => setFieldValues((current) => ({ ...current, [fieldId]: value }))}
-        />
+        {/* Sprint 142: campos técnicos extra ficam escondidos por defeito (Bruno reportou
+            redundância — o campo Equipamento já diz o tipo). Só abre se precisar de template
+            laptop/desktop com CPU/RAM/etc. Para telemóveis (95% dos casos) fica fora do caminho. */}
+        <details className="rounded-lg border border-dashed border-zinc-200 p-2 dark:border-zinc-800">
+          <summary className="cursor-pointer text-xs text-zinc-500">+ Campos técnicos extra (laptops, desktops, IT)</summary>
+          <Field label="Template">
+            <select
+              value={templateId ?? ''}
+              onChange={(e) => handleTemplateChange(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">Sem template personalizado</option>
+              {templates.data?.map((template) => (
+                <option key={template.id} value={template.id}>{template.nome}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-zinc-500">
+              Adiciona CPU, RAM, storage e outros dados técnicos. Só faz sentido para portáteis/desktops.
+            </p>
+          </Field>
+          <EquipmentFieldsForm
+            template={selectedTemplate}
+            values={fieldValues}
+            onChange={(fieldId, value) => setFieldValues((current) => ({ ...current, [fieldId]: value }))}
+          />
+        </details>
         <Field label="Orçamento (€)">
           <input
             inputMode="decimal"

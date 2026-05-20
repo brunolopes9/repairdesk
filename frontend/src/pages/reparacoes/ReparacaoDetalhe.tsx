@@ -784,21 +784,25 @@ export default function ReparacaoDetalhe() {
         </Field>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold">Campos personalizados</h2>
-            <p className="text-xs text-zinc-500">Dados estruturados do equipamento para laptops, desktops e IT repair.</p>
+      {/* Sprint 142: collapse por defeito — campos personalizados são raros (só laptops/desktops/IT).
+          Para telemóveis (95% do trabalho da LopesTech) é só ruído. Abre se já tem template aplicado. */}
+      <details className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900" open={!!fieldTemplateId}>
+        <summary className="cursor-pointer list-none">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">Campos personalizados {fieldTemplateId && <span className="ml-1 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">activo</span>}</h2>
+              <p className="text-xs text-zinc-500">Para laptops, desktops, IT repair. Clica para abrir/fechar.</p>
+            </div>
+            <button
+              type="button"
+              disabled={isFrozen || requiredMissing || saveEquipmentFields.isPending}
+              onClick={(e) => { e.preventDefault(); saveEquipmentFields.mutate(); }}
+              className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
+            >
+              {saveEquipmentFields.isPending ? 'A guardar...' : 'Guardar campos'}
+            </button>
           </div>
-          <button
-            type="button"
-            disabled={isFrozen || requiredMissing || saveEquipmentFields.isPending}
-            onClick={() => saveEquipmentFields.mutate()}
-            className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
-          >
-            {saveEquipmentFields.isPending ? 'A guardar...' : 'Guardar campos'}
-          </button>
-        </div>
+        </summary>
         <Field label="Template">
           <select
             disabled={isFrozen}
@@ -824,7 +828,7 @@ export default function ReparacaoDetalhe() {
         {requiredMissing && (
           <p className="text-xs text-red-600 dark:text-red-400">Preenche os campos obrigatorios antes de guardar.</p>
         )}
-      </section>
+      </details>
 
       <DiagnosticoGuiado reparacaoId={r.id} readOnly={isFrozen} />
 

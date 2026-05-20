@@ -75,8 +75,14 @@ export default function DiagnosticoGuiado({ reparacaoId, readOnly = false }: Pro
           Diagnóstico Guiado
         </h2>
         <p className="mt-2 text-xs text-zinc-500">
-          Faz um checklist visual do equipamento antes/depois de reparar. Gera Health Score 0-100 e relatório
-          profissional para o cliente.
+          Snapshot do estado <strong>actual</strong> do equipamento (quando o cliente o entregou ou quando
+          terminaste a reparação). Gera Health Score 0–100 e relatório profissional para o cliente.
+        </p>
+        {/* Sprint 142: clarificar antes vs depois. Bruno reportou ambiguidade — alguns campos
+            só fazem sentido ANTES (ecrã sem fissuras, selante intacto), outros só DEPOIS. */}
+        <p className="mt-1 text-[11px] text-zinc-400">
+          Tipicamente: 1.º diagnóstico quando recebes o equipamento; 2.º depois de reparar para mostrar
+          ao cliente o estado de saída. O Health Score guarda ambos para comparação.
         </p>
         {error && (
           <div className="mt-2 rounded-md bg-rose-50 px-2 py-1 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
@@ -343,11 +349,13 @@ function DiagnosticoActivo({
 }
 
 function ResultButtons({ value, onChange }: { value: Resultado; onChange: (r: Resultado) => void }) {
-  const opts: Array<{ value: Resultado; label: string; cls: string }> = [
-    { value: RESULTADO.Ok, label: '✓ OK', cls: 'bg-emerald-100 text-emerald-800 ring-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200' },
-    { value: RESULTADO.Marginal, label: '◐ Mar.', cls: 'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-200' },
-    { value: RESULTADO.Avaria, label: '✕ Av.', cls: 'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-900/40 dark:text-rose-200' },
-    { value: RESULTADO.NaoTestado, label: 'N/T', cls: 'bg-zinc-100 text-zinc-700 ring-zinc-300 dark:bg-zinc-800 dark:text-zinc-300' },
+  // Sprint 142: labels expandidas (Bruno reportou: "OK / Mar. / Av. / N/T" não claras).
+  // Mantém os símbolos como atalho visual + texto completo. Tooltip explicativo no hover.
+  const opts: Array<{ value: Resultado; label: string; title: string; cls: string }> = [
+    { value: RESULTADO.Ok, label: '✓ OK', title: 'OK — funciona como esperado', cls: 'bg-emerald-100 text-emerald-800 ring-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200' },
+    { value: RESULTADO.Marginal, label: '◐ Marginal', title: 'Marginal — funciona com defeito ligeiro (ex: 1 pixel morto, vibração fraca)', cls: 'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-200' },
+    { value: RESULTADO.Avaria, label: '✕ Avariado', title: 'Avariado — não funciona, precisa de reparação', cls: 'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-900/40 dark:text-rose-200' },
+    { value: RESULTADO.NaoTestado, label: 'Não testado', title: 'Não foi possível testar (ex: SIM não disponível, líquidos não verificáveis)', cls: 'bg-zinc-100 text-zinc-700 ring-zinc-300 dark:bg-zinc-800 dark:text-zinc-300' },
   ];
   return (
     <div className="flex flex-wrap gap-1">
@@ -356,6 +364,7 @@ function ResultButtons({ value, onChange }: { value: Resultado; onChange: (r: Re
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
+          title={o.title}
           className={`min-h-10 rounded-md px-3 py-1 text-[11px] font-medium ring-1 transition ${
             value === o.value ? o.cls + ' ring-2 shadow-sm' : 'bg-white text-zinc-500 ring-zinc-200 hover:bg-zinc-50 dark:bg-zinc-900 dark:ring-zinc-700'
           }`}
