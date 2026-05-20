@@ -396,7 +396,19 @@ export default function ReparacaoDetalhe() {
   const r = detail.data.reparacao;
   const possibleNext = VALID_TRANSITIONS[r.estado];
   const receitaCents = parseEuros(precoFinal) ?? 0;
-  const lucroLive = receitaCents - r.custoPecasCents - r.custoDespesasCents;
+  const lucroBrutoLive = receitaCents - r.custoPecasCents - r.custoDespesasCents;
+  // Sprint 138: IVA líquido a entregar à AT (só em Regime Normal IVA).
+  // O custo das peças/despesas já inclui IVA pago a fornecedores (dedutível);
+  // a receita já inclui IVA cobrado ao cliente. Líquido = cobrado − dedutível.
+  // RegimeFiscal: 0=IsentoArt53 (sem IVA), 1=Normal (23%), 2=Simplificado.
+  const ivaRate = tenant.data?.regimeFiscal === 1 ? 23 : 0;
+  const ivaDivisor = 1 + ivaRate / 100;
+  const ivaCobradoCents = ivaRate > 0 ? Math.round(receitaCents - receitaCents / ivaDivisor) : 0;
+  const ivaDeducivelCents = ivaRate > 0
+    ? Math.round((r.custoPecasCents + r.custoDespesasCents) - (r.custoPecasCents + r.custoDespesasCents) / ivaDivisor)
+    : 0;
+  const ivaAEntregarCents = Math.max(0, ivaCobradoCents - ivaDeducivelCents);
+  const lucroLiquidoLive = lucroBrutoLive - ivaAEntregarCents;
   const cleanPhone = r.cliente.telefone?.replace(/\s/g, '') ?? '';
   const showPagamento = r.estado === 4 || r.estado === 5; // Pronto ou Entregue
   // 3 tiers de bloqueio:
@@ -841,12 +853,40 @@ export default function ReparacaoDetalhe() {
             <span className="text-zinc-500">Outras despesas:</span>
             <span>−{formatCents(r.custoDespesasCents)}</span>
           </div>
-          <div className="flex justify-between border-t border-zinc-200 pt-1 font-semibold dark:border-zinc-800">
-            <span>Lucro:</span>
-            <span className={lucroLive >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}>
-              {formatCents(lucroLive)}
+          <div className={`flex justify-between ${ivaRate > 0 ? '' : 'border-t border-zinc-200 pt-1 font-semibold dark:border-zinc-800'}`}>
+            <span className={ivaRate > 0 ? 'text-zinc-500' : ''}>{ivaRate > 0 ? 'Lucro bruto:' : 'Lucro:'}</span>
+            <span className={ivaRate > 0
+              ? ''
+              : (lucroBrutoLive >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400')}>
+              {formatCents(lucroBrutoLive)}
             </span>
           </div>
+          {/* Sprint 138: discriminação IVA só em Regime Normal. Em Isento Art. 53 o "Lucro" acima já é o líquido. */}
+          {ivaRate > 0 && (
+            <>
+              <div className="mt-2 flex justify-between border-t border-zinc-200 pt-2 text-xs text-zinc-500 dark:border-zinc-800">
+                <span>IVA cobrado ao cliente ({ivaRate}%):</span>
+                <span>+{formatCents(ivaCobradoCents)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-zinc-500">
+                <span>IVA dedutível (peças + despesas):</span>
+                <span>−{formatCents(ivaDeducivelCents)}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-500">IVA a entregar à AT:</span>
+                <span className="text-amber-700 dark:text-amber-400">−{formatCents(ivaAEntregarCents)}</span>
+              </div>
+              <div className="flex justify-between border-t border-zinc-200 pt-1 font-semibold dark:border-zinc-800">
+                <span>Lucro líquido:</span>
+                <span className={lucroLiquidoLive >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}>
+                  {formatCents(lucroLiquidoLive)}
+                </span>
+              </div>
+              <p className="pt-1 text-[10px] text-zinc-400">
+                IVA líquido entregue trimestralmente (cobrado − dedutível). Lucro real após IVA.
+              </p>
+            </>
+          )}
         </div>
         {showPagamento ? (
           <label className={`flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950 ${isLocked ? '' : 'cursor-pointer'}`}>
