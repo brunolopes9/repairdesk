@@ -4,6 +4,7 @@ using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.Webhooks;
 
 namespace RepairDesk.Services.Products;
 
@@ -73,12 +74,14 @@ public class ProductService : IProductService
     private readonly IProductRepository _repo;
     private readonly ITenantContext _tenant;
     private readonly IAuditLogger _audit;
+    private readonly IWebhookPublisher _webhooks;
 
-    public ProductService(IProductRepository repo, ITenantContext tenant, IAuditLogger audit)
+    public ProductService(IProductRepository repo, ITenantContext tenant, IAuditLogger audit, IWebhookPublisher webhooks)
     {
         _repo = repo;
         _tenant = tenant;
         _audit = audit;
+        _webhooks = webhooks;
     }
 
     public async Task<PagedResult<ProductDto>> SearchAsync(string? search, string? brand, bool? lojaOnline, bool includeInactive, int page, int pageSize, CancellationToken ct = default)
@@ -142,6 +145,8 @@ public class ProductService : IProductService
         await _repo.AddAsync(entity, ct);
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Create, nameof(Product), entity.Id, new { entity.Sku, entity.Brand, entity.Model, entity.PriceCents }, ct: ct);
+        // Sprint 125: loja online só vê produtos com MostrarLojaOnline=true.
+        if (entity.MostrarLojaOnline) await PublishCatalogEventAsync(WebhookEvents.PhonesAdicionado, entity, ct);
         return ToDto(entity);
     }
 
@@ -149,6 +154,7 @@ public class ProductService : IProductService
     {
         var entity = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Product", id);
         Validate(req);
+        var previousMostrar = entity.MostrarLojaOnline;
         entity.Sku = await EnsureUniqueSkuAsync(req.Sku ?? entity.Sku, entity.Id, req.Brand, req.Model, ct);
         entity.Slug = await EnsureUniqueSlugAsync(req.Slug ?? entity.Slug, entity.Id, req.Brand, req.Model, req.Storage, req.Color, req.Grading, ct);
         entity.Brand = req.Brand.Trim();
@@ -187,15 +193,46 @@ public class ProductService : IProductService
 
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(Product), entity.Id, new { entity.Sku, entity.PriceCents, entity.StockQuantity, entity.Active }, ct: ct);
+
+        // Sprint 125: 3 transições da flag MostrarLojaOnline.
+        if (!previousMostrar && entity.MostrarLojaOnline)
+            await PublishCatalogEventAsync(WebhookEvents.PhonesAdicionado, entity, ct);
+        else if (previousMostrar && !entity.MostrarLojaOnline)
+            await PublishCatalogEventAsync(WebhookEvents.PhonesRemovido, entity, ct);
+        else if (entity.MostrarLojaOnline)
+            await PublishCatalogEventAsync(WebhookEvents.PhonesAtualizado, entity, ct);
+
         return ToDto(entity);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var entity = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Product", id);
+        var wasInCatalog = entity.MostrarLojaOnline;
         _repo.Remove(entity);
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Delete, nameof(Product), id, new { entity.Sku }, ct: ct);
+        if (wasInCatalog) await PublishCatalogEventAsync(WebhookEvents.PhonesRemovido, entity, ct);
+    }
+
+    private async Task PublishCatalogEventAsync(string eventType, Product product, CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId) return;
+        await _webhooks.PublishAsync(tenantId, eventType, new
+        {
+            productId = product.Id,
+            sku = product.Sku,
+            slug = product.Slug,
+            brand = product.Brand,
+            model = product.Model,
+            storage = product.Storage,
+            color = product.Color,
+            grading = product.Grading.ToString(),
+            supplyType = product.SupplyType.ToString(),
+            priceCents = product.PriceCents,
+            stockQuantity = product.StockQuantity,
+            mostrarLojaOnline = product.MostrarLojaOnline,
+        }, ct);
     }
 
     private static void Validate(ProductWriteRequest req)

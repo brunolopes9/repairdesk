@@ -5,6 +5,7 @@ using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.Webhooks;
 
 namespace RepairDesk.Services.Parts;
 
@@ -29,18 +30,24 @@ public class PartService : IPartService
     private readonly IValidator<CreatePartRequest> _createValidator;
     private readonly IValidator<UpdatePartRequest> _updateValidator;
     private readonly IValidator<CreatePartMovimentoRequest> _movimentoValidator;
+    private readonly IWebhookPublisher _webhooks;
+    private readonly ITenantContext _tenant;
 
     public PartService(
         IPartRepository repo,
         IReparacaoRepository reparacoes,
         IValidator<CreatePartRequest> createValidator,
         IValidator<UpdatePartRequest> updateValidator,
-        IValidator<CreatePartMovimentoRequest> movimentoValidator)
+        IValidator<CreatePartMovimentoRequest> movimentoValidator,
+        IWebhookPublisher webhooks,
+        ITenantContext tenant)
     {
         _repo = repo;
         _reparacoes = reparacoes;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _webhooks = webhooks;
+        _tenant = tenant;
         _movimentoValidator = movimentoValidator;
     }
 
@@ -98,6 +105,8 @@ public class PartService : IPartService
         };
         await _repo.AddAsync(part, ct);
         await _repo.SaveAsync(ct);
+        // Sprint 125: notifica loja online se este Part vai aparecer no catálogo público.
+        if (part.MostrarLojaOnline) await PublishCatalogEventAsync(WebhookEvents.PartsAdicionado, part, ct);
         return ToDto(part);
     }
 
@@ -108,6 +117,8 @@ public class PartService : IPartService
         var sku = NormalizeSku(req.Sku);
         if (sku is not null && await _repo.SkuExistsAsync(sku, id, ct))
             throw new ConflictException("sku_in_use", "Ja existe uma peça com esse SKU.");
+
+        var previousMostrar = part.MostrarLojaOnline;
 
         part.Sku = sku;
         part.Nome = req.Nome.Trim();
@@ -124,14 +135,41 @@ public class PartService : IPartService
         part.Activo = req.Activo;
         part.MostrarLojaOnline = req.MostrarLojaOnline;
         await _repo.SaveAsync(ct);
+
+        // Sprint 125: 3 cenários de webhook conforme transição da flag.
+        if (!previousMostrar && part.MostrarLojaOnline)
+            await PublishCatalogEventAsync(WebhookEvents.PartsAdicionado, part, ct);
+        else if (previousMostrar && !part.MostrarLojaOnline)
+            await PublishCatalogEventAsync(WebhookEvents.PartsRemovido, part, ct);
+        else if (part.MostrarLojaOnline)
+            await PublishCatalogEventAsync(WebhookEvents.PartsAtualizado, part, ct);
+
         return ToDto(part);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var part = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Part", id);
+        var wasInCatalog = part.MostrarLojaOnline;
         _repo.Remove(part);
         await _repo.SaveAsync(ct);
+        if (wasInCatalog) await PublishCatalogEventAsync(WebhookEvents.PartsRemovido, part, ct);
+    }
+
+    private async Task PublishCatalogEventAsync(string eventType, Part part, CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId) return;
+        await _webhooks.PublishAsync(tenantId, eventType, new
+        {
+            partId = part.Id,
+            sku = part.Sku,
+            nome = part.Nome,
+            categoria = part.Categoria.ToString(),
+            marca = part.Marca,
+            modelo = part.Modelo,
+            qtdStock = part.QtdStock,
+            mostrarLojaOnline = part.MostrarLojaOnline,
+        }, ct);
     }
 
     public async Task<PartMovimentoDto> AddMovimentoAsync(Guid partId, CreatePartMovimentoRequest req, CancellationToken ct = default)

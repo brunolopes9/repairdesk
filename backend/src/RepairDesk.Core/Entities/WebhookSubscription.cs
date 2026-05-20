@@ -35,10 +35,20 @@ public static class WebhookEvents
     public const string VendaCancelada = "venda.cancelada";
     public const string ReparacaoConcluida = "reparacao.concluida";
 
+    // Sprint 125: catálogo — loja online usa estes para invalidar cache (read replica local).
+    public const string PartsAdicionado = "parts.adicionado";
+    public const string PartsAtualizado = "parts.atualizado";
+    public const string PartsRemovido = "parts.removido";
+    public const string PhonesAdicionado = "phones.adicionado";
+    public const string PhonesAtualizado = "phones.atualizado";
+    public const string PhonesRemovido = "phones.removido";
+
     public static readonly IReadOnlyList<string> All = new[]
     {
         GarantiaEmitida, GarantiaAnulada, GarantiaExpirada,
         VendaCriada, VendaPaga, VendaCancelada,
         ReparacaoConcluida,
+        PartsAdicionado, PartsAtualizado, PartsRemovido,
+        PhonesAdicionado, PhonesAtualizado, PhonesRemovido,
     };
 }
