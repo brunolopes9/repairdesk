@@ -125,7 +125,10 @@ public class MoloniBillingProvider : IBillingProvider
 
         var settings = await RequireSettingsAsync(ct);
         var customerId = await ResolveCustomerIdAsync(settings, venda.Cliente, ct);
-        var documentType = venda.ClienteId is null
+        // Sprint 113: Fatura Simplificada quando não há NIF (cliente anónimo OU criado com nome
+        // interno como "Sérgio de Guimarães" sem NIF). Limite €1000 — abaixo desse valor o cliente
+        // não precisa de NIF para a fatura ter validade fiscal.
+        var documentType = string.IsNullOrWhiteSpace(venda.Cliente?.Nif)
             ? BillingDocumentType.FaturaSimplificada
             : BillingDocumentType.Fatura;
 
@@ -204,9 +207,14 @@ public class MoloniBillingProvider : IBillingProvider
         if (settings.FallbackCustomerId is > 0)
             return settings.FallbackCustomerId.Value;
 
+        // Sprint 113: fallback hardcoded — Consumidor Final PT (NIF 999999990).
+        var consumidorFinalId = await _moloni.FindCustomerIdByVatAsync(settings, "999999990", ct);
+        if (consumidorFinalId is > 0) return consumidorFinalId.Value;
+
         throw new ValidationException(
             "moloni_customer_missing",
-            "Cliente sem NIF e sem FallbackCustomerId configurado. Liga Moloni nas Definições (auto-discovery cria 'Consumidor Final').");
+            "Cliente sem NIF e não foi possível encontrar Consumidor Final no Moloni. "
+            + "Liga Moloni nas Definições (auto-discovery cria 'Consumidor Final') ou adiciona NIF ao cliente.");
     }
 
     private static decimal ResolveVatPercent(Tenant tenant, decimal? explicitVat)

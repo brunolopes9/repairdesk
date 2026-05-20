@@ -406,9 +406,14 @@ public class TrabalhoService : ITrabalhoService
         if (settings.FallbackCustomerId is > 0)
             return settings.FallbackCustomerId.Value;
 
+        // Sprint 113: fallback hardcoded — Consumidor Final PT (NIF 999999990).
+        var consumidorFinalId = await _moloni.FindCustomerIdByVatAsync(settings, "999999990", ct);
+        if (consumidorFinalId is > 0) return consumidorFinalId.Value;
+
         throw new RepairDesk.Core.Exceptions.ValidationException(
             "moloni_customer_missing",
-            "Cliente sem NIF e sem FallbackCustomerId configurado. Liga Moloni nas Definições (auto-discovery cria 'Consumidor Final').");
+            "Cliente sem NIF e não foi possível encontrar Consumidor Final no Moloni. "
+            + "Liga Moloni nas Definições (auto-discovery cria 'Consumidor Final') ou adiciona NIF ao cliente.");
     }
 
     private static int RequireAmount(int? amountCents)

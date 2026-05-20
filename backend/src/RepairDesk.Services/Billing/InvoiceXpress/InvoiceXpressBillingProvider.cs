@@ -114,7 +114,8 @@ public sealed class InvoiceXpressBillingProvider : IBillingProvider
             throw new ValidationException("invoice_items_missing", "A venda nao tem linhas para faturar.");
 
         var settings = await RequireSettingsAsync(ct);
-        var documentType = venda.ClienteId is null
+        // Sprint 113: ver MoloniBillingProvider — Fatura Simplificada quando cliente sem NIF.
+        var documentType = string.IsNullOrWhiteSpace(venda.Cliente?.Nif)
             ? BillingDocumentType.FaturaSimplificada
             : BillingDocumentType.Fatura;
 
