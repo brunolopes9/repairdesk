@@ -295,6 +295,7 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText }: { 
     fornecedor: null,
     localArmazenamento: null,
     notas: null,
+    mostrarLojaOnline: false,
   });
   const [activo, setActivo] = useState(true);
   const [stockStr, setStockStr] = useState('0');
@@ -316,13 +317,14 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText }: { 
         fornecedor: editing.fornecedor,
         localArmazenamento: editing.localArmazenamento,
         notas: editing.notas,
+        mostrarLojaOnline: editing.mostrarLojaOnline,
       });
       setActivo(editing.activo);
       setStockStr(String(editing.qtdStock));
       setMinStr(String(editing.qtdMinima));
       setCustoStr((editing.custoUnitarioCents / 100).toFixed(2).replace('.', ','));
     } else if (open) {
-      setForm({ sku: null, nome: '', categoria: PART_CATEGORIA.Outro, marca: null, modelo: null, priceTableEntryId: null, qtdStock: 0, qtdMinima: 0, custoUnitarioCents: 0, fornecedor: null, localArmazenamento: null, notas: null });
+      setForm({ sku: null, nome: '', categoria: PART_CATEGORIA.Outro, marca: null, modelo: null, priceTableEntryId: null, qtdStock: 0, qtdMinima: 0, custoUnitarioCents: 0, fornecedor: null, localArmazenamento: null, notas: null, mostrarLojaOnline: false });
       setActivo(true);
       setStockStr('0');
       setMinStr('0');
@@ -404,6 +406,22 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText }: { 
           <Field label="Local"><input value={form.localArmazenamento ?? ''} onChange={(e) => setForm({ ...form, localArmazenamento: e.target.value || null })} placeholder="Prateleira A3" className={inputCls} /></Field>
         </div>
         <Field label="Notas"><textarea rows={2} value={form.notas ?? ''} onChange={(e) => setForm({ ...form, notas: e.target.value || null })} className={inputCls + ' resize-none'} /></Field>
+        <div className="space-y-2 rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+          <label className="flex cursor-pointer items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={form.mostrarLojaOnline}
+              onChange={(e) => setForm({ ...form, mostrarLojaOnline: e.target.checked })}
+              className="mt-0.5 scale-125 sm:scale-100"
+            />
+            <div>
+              <div className="font-medium">Mostrar na loja online</div>
+              <div className="text-[10px] text-zinc-500">
+                Esta peça vai aparecer no catálogo público da loja em shop.lopestech.pt. Desliga para peças internas (charge boards, ferramentas, etc).
+              </div>
+            </div>
+          </label>
+        </div>
         {editing && (
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="scale-125 sm:scale-100" />
