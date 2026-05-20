@@ -279,6 +279,7 @@ public class VendaService : IVendaService
 
         var tenant = _tenant.TenantId is { } tid ? await _tenants.FindByIdAsync(tid, ct) : null;
         var dias = ResolveGarantiaDiasFromItems(venda, tenant);
+        var condicaoDominante = ResolveCondicaoDominante(venda, tenant);
         var cobertura = tenant?.GarantiaVendaCoberturaDefault
             ?? "Conformidade do bem com o descrito na fatura (DL 84/2021). O comprador tem direito à reposição da conformidade (reparação ou substituição), redução do preço ou resolução do contrato.";
         var exclusoes = tenant?.GarantiaVendaExclusoesDefault
@@ -294,15 +295,15 @@ public class VendaService : IVendaService
             DiasGarantia = dias,
             Cobertura = cobertura,
             Exclusoes = exclusoes,
+            CondicaoUsada = condicaoDominante,
         };
         await _garantias.AddAsync(g, ct);
         await _garantias.SaveAsync(ct);
 
         if (_tenant.TenantId is { } publishTenantId)
         {
-            // Sprint 128: incluir condicao dominante (a que ditou o período) para a loja
-            // mostrar contexto correcto na garantia (ex: "3 anos · refurbished").
-            var condicaoDominante = ResolveCondicaoDominante(venda, tenant);
+            // Sprint 128/129: condicao dominante (a que ditou o período) — agora persistida
+            // no entity (g.CondicaoUsada) e reflectida no webhook para a loja.
             await _webhooks.PublishAsync(publishTenantId, WebhookEvents.GarantiaEmitida, new
             {
                 garantiaId = g.Id,
@@ -314,7 +315,7 @@ public class VendaService : IVendaService
                 dataInicio = g.DataInicio,
                 dataFim = g.DataFim,
                 diasGarantia = g.DiasGarantia,
-                condicaoUsada = condicaoDominante.ToString(),
+                condicaoUsada = g.CondicaoUsada.ToString(),
             }, ct);
         }
     }

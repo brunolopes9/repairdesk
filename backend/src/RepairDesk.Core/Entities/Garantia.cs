@@ -32,6 +32,13 @@ public class Garantia : BaseEntity, ITenantEntity
     public string? Cobertura { get; set; }
     public string? Exclusoes { get; set; }
 
+    /// <summary>
+    /// Sprint 129: condição do artigo que ditou o período (snapshot ao emitir). Útil para
+    /// mostrar contexto no PDF/portal — "3 anos · Recondicionado" em vez de só "1095 dias".
+    /// Só faz sentido em garantias de origem Venda; em Reparações fica <c>NaoAplicavel</c>.
+    /// </summary>
+    public CondicaoArtigo CondicaoUsada { get; set; } = CondicaoArtigo.NaoAplicavel;
+
     /// <summary>Anulada manualmente (ex: cliente abriu equipamento).</summary>
     public bool Anulada { get; set; }
     public string? MotivoAnulacao { get; set; }

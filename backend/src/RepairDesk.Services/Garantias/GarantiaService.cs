@@ -124,14 +124,28 @@ public class GarantiaService : IGarantiaService
 
         var portalUrl = $"{portalBaseUrl.TrimEnd('/')}/g/{g.Slug}";
 
+        // Sprint 129: mostra condicao no PDF apenas em vendas com condicao definida.
+        var condicaoLabel = g.SourceType == GarantiaSourceType.Venda
+            ? FormatCondicaoLabel(g.CondicaoUsada)
+            : null;
+
         return new GarantiaPdfData(
             emissor, g.Slug, portalUrl, origemLabel, docRef,
             g.DataInicio, g.DataFim, g.DiasGarantia,
             equipamento, clienteNome, clienteNif, artigos,
             g.Cobertura ?? "Conformidade do bem com o descrito na fatura.",
             g.Exclusoes ?? "Danos por uso indevido, líquidos, quedas, abertura/desmontagem do equipamento.",
-            g.Anulada, g.MotivoAnulacao);
+            g.Anulada, g.MotivoAnulacao, condicaoLabel);
     }
+
+    private static string? FormatCondicaoLabel(CondicaoArtigo c) => c switch
+    {
+        CondicaoArtigo.Novo => "Novo",
+        CondicaoArtigo.OpenBox => "Open Box",
+        CondicaoArtigo.Recondicionado => "Recondicionado",
+        CondicaoArtigo.Usado => "Usado",
+        _ => null, // NaoAplicavel — não mostra (caso default ou Reparação)
+    };
 
     public async Task<GarantiaAdminDto?> GetByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
     {

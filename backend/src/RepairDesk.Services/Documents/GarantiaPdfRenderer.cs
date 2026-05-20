@@ -22,7 +22,12 @@ public sealed record GarantiaPdfData(
     string Cobertura,
     string Exclusoes,
     bool Anulada,
-    string? MotivoAnulacao);
+    string? MotivoAnulacao,
+    /// <summary>
+    /// Sprint 129: condição do artigo (Novo/OpenBox/Recondicionado/Usado) que ditou o período.
+    /// <c>null</c> para garantias de Reparação ou sem condição definida — não é renderizado.
+    /// </summary>
+    string? CondicaoLabel = null);
 
 public sealed record GarantiaPdfEmissor(
     string Nome,
@@ -144,7 +149,9 @@ public static class GarantiaPdfRenderer
                         r.RelativeItem().Column(c =>
                         {
                             c.Item().Text("Período").FontSize(8).FontColor(Colors.Grey.Darken1);
-                            c.Item().Text($"{d.DiasGarantia} dias").FontSize(11).Bold();
+                            c.Item().Text(FormatPeriodo(d.DiasGarantia)).FontSize(11).Bold();
+                            if (!string.IsNullOrWhiteSpace(d.CondicaoLabel))
+                                c.Item().Text(d.CondicaoLabel).FontSize(9).FontColor(Colors.Grey.Darken2);
                         });
                     });
 
@@ -243,4 +250,18 @@ public static class GarantiaPdfRenderer
         var s = c.Trim();
         return s.StartsWith('#') ? s : $"#{s}";
     }
+
+    /// <summary>
+    /// Sprint 129: formata o período de garantia em linguagem humana.
+    /// Casos canónicos (DL 84/2021) ganham label direta; resto fica em meses ou dias.
+    /// </summary>
+    public static string FormatPeriodo(int dias) => dias switch
+    {
+        1095 => "3 anos",
+        730 => "2 anos",
+        540 => "18 meses",
+        var d when d % 365 == 0 => $"{d / 365} anos",
+        var d when d % 30 == 0 && d >= 60 => $"{d / 30} meses",
+        var d => $"{d} dias",
+    };
 }
