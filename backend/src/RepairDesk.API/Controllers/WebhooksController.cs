@@ -20,6 +20,11 @@ public class WebhooksController : ControllerBase
     [HttpGet("events")]
     public IReadOnlyList<string> Events() => _service.ListEventTypes();
 
+    /// <summary>Sprint 145: estatísticas para o widget Webhooks no Dashboard (último N horas).</summary>
+    [HttpGet("stats")]
+    public Task<WebhookStatsDto> Stats([FromQuery] int hours = 24, CancellationToken ct = default)
+        => _service.GetStatsAsync(hours, ct);
+
     [HttpPost]
     public Task<CreateWebhookSubscriptionResponse> Create([FromBody] CreateWebhookSubscriptionRequest req, CancellationToken ct)
         => _service.CreateAsync(req, ct);

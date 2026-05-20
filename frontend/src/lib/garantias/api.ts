@@ -46,6 +46,8 @@ export const garantiasApi = {
     return api.post<GarantiaAdminDto>(`/garantias/${id}/anular`, { motivo }).then((r) => r.data);
   },
   pdfUrl(id: string) {
-    return `${api.defaults.baseURL ?? ''}/garantias/${id}/pdf`;
+    // Sprint 145: devolve path relativo (sem baseURL) — openPdfInNewTab chama api.get(path)
+    // que já adiciona o baseURL='/api'. Prefixar aqui causava /api/api/... → 404.
+    return `/garantias/${id}/pdf`;
   },
 };
