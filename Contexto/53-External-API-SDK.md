@@ -179,7 +179,9 @@ try {
 | POST | `/api/external/checkout` | Fechar venda atómica |
 | GET | `/api/external/orders/{id}` | Estado venda |
 | POST | `/api/external/orders/{id}/cancel` | Devolução 14d |
-| GET | `/api/external/parts` | Catálogo acessórios |
+| GET | `/api/external/parts` | Catálogo acessórios. Suporta `lowStockOnly=true` (Sprint 132). |
+| GET | `/api/external/products` | Catálogo refurbished. Suporta `lowStockOnly=true` (Sprint 132). |
+| GET | `/api/external/products/{slug}` | Detalhe Product (PDP refresh) |
 | GET | `/api/external/clientes/{nif}/historico` | Histórico cliente (Os meus pedidos) |
 | GET | `/api/external/garantias/{slug}` | Detalhe da garantia (não mascarado, integração trusted) |
 

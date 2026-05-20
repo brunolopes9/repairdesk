@@ -17,11 +17,11 @@ public interface IExternalCheckoutService
     Task<ExternalCheckoutResponse> CheckoutAsync(ExternalCheckoutRequest req, CancellationToken ct = default);
     Task<ExternalOrderStatusResponse> GetOrderAsync(Guid vendaId, CancellationToken ct = default);
     Task<ExternalOrderStatusResponse> CancelOrderAsync(Guid vendaId, string? motivo, CancellationToken ct = default);
-    Task<Clientes.PagedResult<ExternalPartDto>> ListPartsAsync(string? search, PartCategoria? categoria, int page, int pageSize, bool? lojaOnline = null, CancellationToken ct = default);
+    Task<Clientes.PagedResult<ExternalPartDto>> ListPartsAsync(string? search, PartCategoria? categoria, int page, int pageSize, bool? lojaOnline = null, bool lowStockOnly = false, CancellationToken ct = default);
     Task<ExternalClienteHistoricoResponse?> GetHistoricoByNifAsync(string nif, CancellationToken ct = default);
     Task<ExternalGarantiaDetalhe?> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default);
     /// <summary>Sprint 122: catálogo de Products (telemóveis revendidos) para a loja online.</summary>
-    Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(string? search, string? brand, int page, int pageSize, CancellationToken ct = default);
+    Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(string? search, string? brand, int page, int pageSize, bool lowStockOnly = false, CancellationToken ct = default);
     Task<ExternalProductDto?> GetProductBySlugAsync(string slug, CancellationToken ct = default);
 }
 
@@ -240,13 +240,19 @@ public class ExternalCheckoutService : IExternalCheckoutService
         _tenants = tenants;
     }
 
-    public async Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(string? search, string? brand, int page, int pageSize, CancellationToken ct = default)
+    public async Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(string? search, string? brand, int page, int pageSize, bool lowStockOnly = false, CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
         // Externo: sempre MostrarLojaOnline=true + Active. Não revela CustoUnitarioCents nem FornecedorId.
         var (items, total) = await _products.SearchAsync(search, brand, lojaOnline: true, includeInactive: false, page, pageSize, ct);
-        var dtos = items.Select(ToExternalProductDto).ToList();
+        // Sprint 132: filter in-memory porque o repo Product não tem lowStock no SQL ainda.
+        // Catálogo refurbished tipicamente <500 items, custo é aceitável. Promover ao SQL
+        // se Bruno chegar a vários milhares de produtos.
+        var query = lowStockOnly
+            ? items.Where(p => p.StockMinima > 0 && p.StockQuantity <= p.StockMinima)
+            : items.AsEnumerable();
+        var dtos = query.Select(ToExternalProductDto).ToList();
         return new Clientes.PagedResult<ExternalProductDto>(dtos, page, pageSize, total);
     }
 
@@ -352,11 +358,12 @@ public class ExternalCheckoutService : IExternalCheckoutService
     }
 
     public async Task<Clientes.PagedResult<ExternalPartDto>> ListPartsAsync(
-        string? search, PartCategoria? categoria, int page, int pageSize, bool? lojaOnline = null, CancellationToken ct = default)
+        string? search, PartCategoria? categoria, int page, int pageSize, bool? lojaOnline = null, bool lowStockOnly = false, CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var (items, total) = await _parts.SearchAsync(search, categoria, marca: null, lowStockOnly: false, page, pageSize, ct);
+        // Sprint 132: lowStockOnly delegado ao repo — filter eficiente no SQL.
+        var (items, total) = await _parts.SearchAsync(search, categoria, marca: null, lowStockOnly, page, pageSize, ct);
         var query = items.Where(p => p.Activo);
         if (lojaOnline.HasValue)
             query = query.Where(p => p.MostrarLojaOnline == lojaOnline.Value);

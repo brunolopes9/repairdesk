@@ -263,6 +263,11 @@ export interface ListPartsQuery {
    * `{ lojaOnline: true }` para obter o catálogo vendável. Omitir = devolve todos (default).
    */
   lojaOnline?: boolean;
+  /**
+   * Sprint 132: peças com `qtdStock <= qtdMinima` (qtdMinima > 0). Usar em boot fresh ou
+   * sanity check — o webhook `parts.stock-baixo` só entrega a transição original.
+   */
+  lowStockOnly?: boolean;
 }
 
 /** Sprint 122: catálogo de produtos vendáveis (telemóveis revendidos). */
@@ -294,6 +299,12 @@ export interface ListProductsQuery {
   brand?: string;
   page?: number;
   pageSize?: number;
+  /**
+   * Sprint 132: produtos com `stockQuantity <= stockMinima` (stockMinima > 0). Mesma semântica
+   * do equivalente em `parts`. Para a loja saber que phones precisa de hide automático após
+   * boot fresh ou recovery de outage.
+   */
+  lowStockOnly?: boolean;
 }
 
 // =================================================================
@@ -384,6 +395,7 @@ export class RepairDeskClient {
     if (query.search) params.set('search', query.search);
     if (query.categoria !== undefined) params.set('categoria', String(query.categoria));
     if (query.lojaOnline !== undefined) params.set('lojaOnline', String(query.lojaOnline));
+    if (query.lowStockOnly) params.set('lowStockOnly', 'true');
     if (query.page) params.set('page', String(query.page));
     if (query.pageSize) params.set('pageSize', String(query.pageSize));
     const qs = params.toString();
@@ -398,6 +410,7 @@ export class RepairDeskClient {
     const params = new URLSearchParams();
     if (query.search) params.set('search', query.search);
     if (query.brand) params.set('brand', query.brand);
+    if (query.lowStockOnly) params.set('lowStockOnly', 'true');
     if (query.page) params.set('page', String(query.page));
     if (query.pageSize) params.set('pageSize', String(query.pageSize));
     const qs = params.toString();

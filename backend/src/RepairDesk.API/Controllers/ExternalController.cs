@@ -76,8 +76,11 @@ public class ExternalController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         [FromQuery] bool? lojaOnline = null,
+        // Sprint 132: loja faz boot fresh ou sanity check. Webhook parts.stock-baixo só
+        // entrega o evento da transição; este endpoint devolve o estado actual completo.
+        [FromQuery] bool lowStockOnly = false,
         CancellationToken ct = default)
-        => _checkout.ListPartsAsync(search, categoria, page, pageSize, lojaOnline, ct);
+        => _checkout.ListPartsAsync(search, categoria, page, pageSize, lojaOnline, lowStockOnly, ct);
 
     /// <summary>
     /// Histórico do cliente por NIF (vendas + reparações + garantias activas).
@@ -114,8 +117,10 @@ public class ExternalController : ControllerBase
         [FromQuery] string? brand,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
+        // Sprint 132: filter para a loja saber que produtos precisam de hide automático.
+        [FromQuery] bool lowStockOnly = false,
         CancellationToken ct = default)
-        => _checkout.ListProductsAsync(search, brand, page, pageSize, ct);
+        => _checkout.ListProductsAsync(search, brand, page, pageSize, lowStockOnly, ct);
 
     /// <summary>Detalhe de um Product por slug — para PDP da loja revalidar pontualmente.</summary>
     [HttpGet("products/{slug}")]

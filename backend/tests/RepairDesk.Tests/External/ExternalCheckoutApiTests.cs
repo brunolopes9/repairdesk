@@ -209,6 +209,44 @@ public class ExternalCheckoutApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task ListParts_LowStockOnly_FiltraPecasAbaixoDoMinimo()
+    {
+        // Sprint 132: cria 2 peças, uma baixa e uma OK. Filter devolve só a baixa.
+        var (jwt, apiClient) = await NewKeyAsync();
+        var marker = Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
+        await CreatePartViaJwt(jwt, $"SB-{marker}-LOW", qtdStock: 1, qtdMinima: 5);
+        await CreatePartViaJwt(jwt, $"SB-{marker}-OK", qtdStock: 10, qtdMinima: 2);
+
+        var resp = await apiClient.GetAsync($"/api/external/parts?lowStockOnly=true&page=1&pageSize=50");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = (await resp.Content.ReadFromJsonAsync<PagedResult<ExternalPartDto>>())!;
+        var skus = body.Items.Select(p => p.Sku).ToList();
+        skus.Should().Contain($"SB-{marker}-LOW", "peça baixa devia aparecer");
+        skus.Should().NotContain($"SB-{marker}-OK", "peça OK não devia aparecer");
+    }
+
+    private static async Task CreatePartViaJwt(HttpClient jwt, string sku, int qtdStock, int qtdMinima)
+    {
+        var resp = await jwt.PostAsJsonAsync("/api/parts", new
+        {
+            sku,
+            nome = $"Peça {sku}",
+            categoria = 1, // Bateria
+            marca = (string?)null,
+            modelo = (string?)null,
+            priceTableEntryId = (Guid?)null,
+            qtdStock,
+            qtdMinima,
+            custoUnitarioCents = 1000,
+            fornecedor = (string?)null,
+            localArmazenamento = (string?)null,
+            notas = (string?)null,
+            mostrarLojaOnline = false,
+        });
+        resp.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task Health_WithoutAuth_Returns401()
     {
         var client = _factory.CreateClient();
