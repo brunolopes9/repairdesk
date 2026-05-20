@@ -225,21 +225,41 @@ export default function Dashboard() {
         >
           <div className="space-y-3">
             {lowStockCount > 0 && (
-              <Link
-                to="/stock?lowStock=1"
-                className="flex items-start gap-3 rounded-xl border border-rose-300 bg-rose-50 p-4 text-left transition hover:bg-rose-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-rose-800/60 dark:bg-rose-950/30 dark:hover:bg-rose-950/50"
-              >
-                <PackageSearch size={20} strokeWidth={2} className="flex-none text-rose-700 dark:text-rose-300" aria-hidden />
-                <div className="flex-1">
-                  <div className="text-sm font-semibold">
-                    {lowStockCount} {lowStockCount === 1 ? 'peça' : 'peças'} com stock baixo
-                  </div>
-                  <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                    Encomendar antes que pare uma reparação — clica para ver a lista
+              <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 dark:border-rose-800/60 dark:bg-rose-950/30">
+                <div className="flex items-start gap-3">
+                  <PackageSearch size={20} strokeWidth={2} className="flex-none text-rose-700 dark:text-rose-300" aria-hidden />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold">
+                      {lowStockCount} {lowStockCount === 1 ? 'peça' : 'peças'} com stock baixo
+                    </div>
+                    <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                      Encomendar antes que pare uma reparação
+                    </div>
                   </div>
                 </div>
-                <ChevronRight size={16} strokeWidth={2} className="flex-none text-zinc-400" aria-hidden />
-              </Link>
+                {/* Sprint 131: top 5 peças visíveis directamente — Bruno vê o que falta sem clicar. */}
+                <ul className="mt-3 space-y-1.5">
+                  {(lowStock.data ?? []).slice(0, 5).map((p) => (
+                    <li key={p.id} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="truncate">
+                        {p.sku ? <span className="font-mono text-rose-700 dark:text-rose-300">{p.sku}</span> : null}
+                        {p.sku ? ' · ' : null}
+                        <span className="text-zinc-700 dark:text-zinc-300">{p.nome}</span>
+                      </span>
+                      <span className="flex-none font-mono tabular-nums text-rose-700 dark:text-rose-300">
+                        {p.qtdStock}/{p.qtdMinima}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to="/stock?lowStock=1"
+                  className="mt-3 inline-flex items-center gap-1 rounded-md border border-rose-400 bg-white px-3 py-1.5 text-xs font-medium text-rose-800 hover:bg-rose-100 dark:border-rose-700 dark:bg-zinc-900 dark:text-rose-200"
+                >
+                  {lowStockCount > 5 ? `Ver as ${lowStockCount}` : 'Abrir Stock'}
+                  <ChevronRight size={13} />
+                </Link>
+              </div>
             )}
             {totalFaturasPendentesCount > 0 && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30">
