@@ -45,4 +45,6 @@ public sealed record PdfExtractionResult(
     string Text,
     int PageCount,
     int PagesRead,
-    bool Truncated);
+    bool Truncated,
+    /// <summary>Sprint 124: dados sugeridos parseados (Tudo4Mobile/Molano regex).</summary>
+    SupplierPdfParseResult? Suggestions = null);

@@ -75,4 +75,22 @@ export interface PdfExtractionResult {
   pageCount: number;
   pagesRead: number;
   truncated: boolean;
+  /** Sprint 124: sugestões parseadas. Null se PDF não corresponde a nenhum parser. */
+  suggestions: PdfParseSuggestions | null;
+}
+
+export interface PdfParseSuggestions {
+  supplierName: string | null;
+  orderId: string | null;
+  totalCents: number | null;
+  dateAdded: string | null;
+  /** 0=None, 1=Low, 2=High — confidence do parser. */
+  confidence: 0 | 1 | 2;
+  items: PdfParseItem[];
+}
+
+export interface PdfParseItem {
+  description: string;
+  quantity: number;
+  lineTotalCents: number;
 }

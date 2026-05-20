@@ -6,6 +6,7 @@ import { Button, EmptyState, PageHeader, SkeletonCard, SkeletonTable, StatusBadg
 import { formatCents, formatDate, parseEuros } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { stockApi } from '../../lib/stock/api';
+import { fornecedoresApi } from '../../lib/fornecedores/api';
 import {
   PART_CATEGORIA,
   PART_CATEGORIA_LABEL,
@@ -29,6 +30,7 @@ export default function Stock() {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [pdfTextSnippet, setPdfTextSnippet] = useState<string | null>(null);
+  const [pdfSuggestions, setPdfSuggestions] = useState<import('../../lib/stock/api').PdfParseSuggestions | null>(null);
   const [editing, setEditing] = useState<Part | null>(null);
   const [adjusting, setAdjusting] = useState<Part | null>(null);
   const [historyPart, setHistoryPart] = useState<Part | null>(null);
@@ -92,8 +94,14 @@ export default function Stock() {
                   try {
                     const result = await stockApi.extractPdf(f);
                     setPdfTextSnippet(result.text);
+                    setPdfSuggestions(result.suggestions);
                     setCreateOpen(true);
-                    toast.success('PDF lido', `${result.pagesRead} página(s) extraídas. Copia/cola para os campos.`);
+                    const supplier = result.suggestions?.supplierName;
+                    if (supplier && result.suggestions?.confidence === 2) {
+                      toast.success(`PDF lido: ${supplier}`, `Order ${result.suggestions.orderId ?? '?'} · campos pré-preenchidos.`);
+                    } else {
+                      toast.success('PDF lido', `${result.pagesRead} página(s) extraídas.`);
+                    }
                   } catch (err) {
                     toast.fromError(err, 'Não foi possível ler o PDF.');
                   } finally {
@@ -255,9 +263,10 @@ export default function Stock() {
 
       <PartFormModal
         open={createOpen}
-        onClose={() => { setCreateOpen(false); setPdfTextSnippet(null); }}
-        onSaved={() => { invalidate(); setCreateOpen(false); setPdfTextSnippet(null); }}
+        onClose={() => { setCreateOpen(false); setPdfTextSnippet(null); setPdfSuggestions(null); }}
+        onSaved={() => { invalidate(); setCreateOpen(false); setPdfTextSnippet(null); setPdfSuggestions(null); }}
         pdfReferenceText={pdfTextSnippet}
+        pdfSuggestions={pdfSuggestions}
       />
       <PartFormModal open={!!editing} editing={editing} onClose={() => setEditing(null)} onSaved={() => { invalidate(); setEditing(null); }} />
       <AdjustStockModal part={adjusting} onClose={() => setAdjusting(null)} onSaved={() => { invalidate(); setAdjusting(null); }} />
@@ -281,7 +290,28 @@ export default function Stock() {
   );
 }
 
-function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText }: { open: boolean; editing?: Part | null; onClose: () => void; onSaved: () => void; pdfReferenceText?: string | null }) {
+function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText, pdfSuggestions }: { open: boolean; editing?: Part | null; onClose: () => void; onSaved: () => void; pdfReferenceText?: string | null; pdfSuggestions?: import('../../lib/stock/api').PdfParseSuggestions | null }) {
+  const qc = useQueryClient();
+  // Sprint 124: lookup de fornecedores existentes para detectar se a sugestão precisa de ser criada.
+  const fornecedoresQuery = useQuery({
+    queryKey: ['fornecedores', false],
+    queryFn: () => fornecedoresApi.list(false),
+    enabled: !!pdfSuggestions?.supplierName,
+    staleTime: 60_000,
+  });
+  const createFornecedor = useMutation({
+    mutationFn: (name: string) => fornecedoresApi.create({
+      name, email: null, rmaEmail: null, phone: null, website: null,
+      garantiaB2BDiasDefault: null, notas: null, active: true,
+    }),
+    onSuccess: (f) => {
+      qc.invalidateQueries({ queryKey: ['fornecedores'] });
+      toast.success(`Fornecedor "${f.name}" criado.`);
+    },
+    onError: (e) => toast.fromError(e, 'Não foi possível criar fornecedor.'),
+  });
+  const suggestedSupplierExists = pdfSuggestions?.supplierName
+    && (fornecedoresQuery.data ?? []).some((f) => f.name.toLowerCase() === pdfSuggestions.supplierName!.toLowerCase());
   const [form, setForm] = useState<PartForm>({
     sku: null,
     nome: '',
@@ -324,13 +354,30 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText }: { 
       setMinStr(String(editing.qtdMinima));
       setCustoStr((editing.custoUnitarioCents / 100).toFixed(2).replace('.', ','));
     } else if (open) {
-      setForm({ sku: null, nome: '', categoria: PART_CATEGORIA.Outro, marca: null, modelo: null, priceTableEntryId: null, qtdStock: 0, qtdMinima: 0, custoUnitarioCents: 0, fornecedor: null, localArmazenamento: null, notas: null, mostrarLojaOnline: false });
+      // Sprint 124: pré-preencher com sugestões do PDF se disponíveis.
+      const s = pdfSuggestions;
+      const firstItem = s?.items?.[0];
+      setForm({
+        sku: null,
+        nome: firstItem?.description ?? '',
+        categoria: PART_CATEGORIA.Outro,
+        marca: null,
+        modelo: null,
+        priceTableEntryId: null,
+        qtdStock: firstItem?.quantity ?? 0,
+        qtdMinima: 0,
+        custoUnitarioCents: firstItem?.lineTotalCents ?? 0,
+        fornecedor: s?.supplierName ?? null,
+        localArmazenamento: null,
+        notas: s?.orderId ? `Encomenda ${s.orderId}${s.dateAdded ? ` · ${new Date(s.dateAdded).toLocaleDateString('pt-PT')}` : ''}` : null,
+        mostrarLojaOnline: false,
+      });
       setActivo(true);
-      setStockStr('0');
+      setStockStr(String(firstItem?.quantity ?? 0));
       setMinStr('0');
-      setCustoStr('0,00');
+      setCustoStr(firstItem ? (firstItem.lineTotalCents / 100).toFixed(2).replace('.', ',') : '0,00');
     }
-  }, [editing, open]);
+  }, [editing, open, pdfSuggestions]);
 
   const save = useMutation({
     mutationFn: () => {
@@ -370,6 +417,33 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText }: { 
       </>}
     >
       <div className="space-y-3">
+        {pdfSuggestions && pdfSuggestions.confidence > 0 && (
+          <div className="rounded-lg border border-emerald-300 bg-emerald-50/50 p-3 dark:border-emerald-800/60 dark:bg-emerald-950/30">
+            <div className="text-xs font-medium text-emerald-800 dark:text-emerald-300">
+              ✓ Detectei {pdfSuggestions.supplierName ?? 'fornecedor desconhecido'}
+              {pdfSuggestions.orderId && ` · Order ${pdfSuggestions.orderId}`}
+              {pdfSuggestions.totalCents !== null && ` · ${formatCents(pdfSuggestions.totalCents)}`}
+            </div>
+            <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-400">
+              Campos pré-preenchidos automaticamente. Confirma antes de guardar.
+            </p>
+            {pdfSuggestions.supplierName && !suggestedSupplierExists && !fornecedoresQuery.isLoading && (
+              <button
+                type="button"
+                onClick={() => createFornecedor.mutate(pdfSuggestions.supplierName!)}
+                disabled={createFornecedor.isPending}
+                className="mt-2 inline-flex items-center gap-1 rounded-md border border-emerald-400 bg-white px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:bg-zinc-900 dark:text-emerald-400"
+              >
+                {createFornecedor.isPending ? 'A criar…' : `+ Criar fornecedor "${pdfSuggestions.supplierName}"`}
+              </button>
+            )}
+            {suggestedSupplierExists && (
+              <div className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-400">
+                ✓ Fornecedor "{pdfSuggestions.supplierName}" já existe.
+              </div>
+            )}
+          </div>
+        )}
         {pdfReferenceText && (
           <details className="rounded-lg border border-brand-200 bg-brand-50/50 p-3 dark:border-brand-800/60 dark:bg-brand-950/30" open>
             <summary className="cursor-pointer text-xs font-medium text-brand-700 dark:text-brand-300">

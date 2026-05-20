@@ -96,7 +96,9 @@ public class PartsController : ControllerBase
         try
         {
             var result = RepairDesk.Services.Documents.PdfTextExtractor.Extract(stream, file.FileName);
-            return Ok(result);
+            // Sprint 124: anexa sugestões parseadas para o frontend popular o form.
+            var suggestions = RepairDesk.Services.Documents.SupplierPdfParser.Parse(result.Text);
+            return Ok(result with { Suggestions = suggestions });
         }
         catch (Exception ex)
         {
