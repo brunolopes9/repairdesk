@@ -38,6 +38,17 @@ public class GarantiaRepository : IGarantiaRepository
     public Task<Garantia?> FindByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
         => _db.Garantias.FirstOrDefaultAsync(g => g.ReparacaoId == reparacaoId, ct);
 
+    public async Task<IReadOnlyList<Garantia>> ListExpiredPendingNotificationAsync(DateTime agora, int max, CancellationToken ct = default)
+        => await _db.Garantias
+            .IgnoreQueryFilters()
+            .Where(g => !g.IsDeleted
+                        && !g.Anulada
+                        && g.DataFim < agora
+                        && g.ExpirationNotifiedAt == null)
+            .OrderBy(g => g.DataFim)
+            .Take(max)
+            .ToListAsync(ct);
+
     public Task<Garantia?> FindByVendaAsync(Guid vendaId, CancellationToken ct = default)
         => _db.Garantias.FirstOrDefaultAsync(g => g.VendaId == vendaId, ct);
 

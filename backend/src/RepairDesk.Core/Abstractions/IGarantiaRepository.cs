@@ -10,6 +10,11 @@ public interface IGarantiaRepository
     Task<Garantia?> FindByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
     Task<Garantia?> FindByVendaAsync(Guid vendaId, CancellationToken ct = default);
     Task<GarantiasResumoRow> GetResumoAsync(DateTime agora, int diasJanela, int topLimit, CancellationToken ct = default);
+    /// <summary>
+    /// Garantias que já expiraram (DataFim &lt; agora), não estão anuladas, e ainda não foram
+    /// notificadas via webhook. Cross-tenant — o cron corre sem contexto de tenant.
+    /// </summary>
+    Task<IReadOnlyList<Garantia>> ListExpiredPendingNotificationAsync(DateTime agora, int max, CancellationToken ct = default);
     Task AddAsync(Garantia g, CancellationToken ct = default);
     void Remove(Garantia g);
     Task SaveAsync(CancellationToken ct = default);

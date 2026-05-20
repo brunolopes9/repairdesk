@@ -35,4 +35,11 @@ public class Garantia : BaseEntity, ITenantEntity
     /// <summary>Anulada manualmente (ex: cliente abriu equipamento).</summary>
     public bool Anulada { get; set; }
     public string? MotivoAnulacao { get; set; }
+
+    /// <summary>
+    /// Marca quando o evento webhook <c>garantia.expirada</c> foi publicado pelo cron diário.
+    /// Idempotência: o background service só notifica garantias com este campo NULL.
+    /// Se ficar null em garantias já passadas, o próximo tick republica (ex: depois de restore de backup).
+    /// </summary>
+    public DateTime? ExpirationNotifiedAt { get; set; }
 }
