@@ -16,7 +16,7 @@ public interface IExternalCheckoutService
     Task<ExternalCheckoutResponse> CheckoutAsync(ExternalCheckoutRequest req, CancellationToken ct = default);
     Task<ExternalOrderStatusResponse> GetOrderAsync(Guid vendaId, CancellationToken ct = default);
     Task<ExternalOrderStatusResponse> CancelOrderAsync(Guid vendaId, string? motivo, CancellationToken ct = default);
-    Task<Clientes.PagedResult<ExternalPartDto>> ListPartsAsync(string? search, PartCategoria? categoria, int page, int pageSize, CancellationToken ct = default);
+    Task<Clientes.PagedResult<ExternalPartDto>> ListPartsAsync(string? search, PartCategoria? categoria, int page, int pageSize, bool? lojaOnline = null, CancellationToken ct = default);
     Task<ExternalClienteHistoricoResponse?> GetHistoricoByNifAsync(string nif, CancellationToken ct = default);
     Task<ExternalGarantiaDetalhe?> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default);
 }
@@ -96,6 +96,8 @@ public sealed record ExternalPartDto(
     PartCategoria Categoria,
     string? Marca,
     string? Modelo,
+    /// <summary>Sprint 121: true se Bruno marcou esta peça para aparecer na loja online.</summary>
+    bool MostrarLojaOnline,
     /// <summary>Stock disponível atualmente.</summary>
     int QtdStock,
     bool Activo);
@@ -269,15 +271,17 @@ public class ExternalCheckoutService : IExternalCheckoutService
     }
 
     public async Task<Clientes.PagedResult<ExternalPartDto>> ListPartsAsync(
-        string? search, PartCategoria? categoria, int page, int pageSize, CancellationToken ct = default)
+        string? search, PartCategoria? categoria, int page, int pageSize, bool? lojaOnline = null, CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
         var (items, total) = await _parts.SearchAsync(search, categoria, marca: null, lowStockOnly: false, page, pageSize, ct);
-        var dtos = items
-            .Where(p => p.Activo)  // só artigos ativos expostos externamente
+        var query = items.Where(p => p.Activo);
+        if (lojaOnline.HasValue)
+            query = query.Where(p => p.MostrarLojaOnline == lojaOnline.Value);
+        var dtos = query
             .Select(p => new ExternalPartDto(
-                p.Id, p.Sku, p.Nome, p.Categoria, p.Marca, p.Modelo, p.QtdStock, p.Activo))
+                p.Id, p.Sku, p.Nome, p.Categoria, p.Marca, p.Modelo, p.MostrarLojaOnline, p.QtdStock, p.Activo))
             .ToList();
         return new Clientes.PagedResult<ExternalPartDto>(dtos, page, pageSize, total);
     }

@@ -20,5 +20,11 @@ public class Part : BaseEntity, ITenantEntity
     public string? LocalArmazenamento { get; set; }
     public string? Notas { get; set; }
     public bool Activo { get; set; } = true;
+    /// <summary>
+    /// Sprint 121: quando true, expõe esta peça no endpoint /api/external/parts?lojaOnline=true
+    /// para a loja online consumir e mostrar no catálogo público. Default false — peças
+    /// internas (ex: charge boards, peças técnicas) não devem aparecer na loja.
+    /// </summary>
+    public bool MostrarLojaOnline { get; set; }
     public List<PartMovimento> Movimentos { get; set; } = new();
 }

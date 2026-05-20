@@ -15,7 +15,8 @@ public sealed record CreatePartRequest(
     int CustoUnitarioCents,
     string? Fornecedor,
     string? LocalArmazenamento,
-    string? Notas);
+    string? Notas,
+    bool MostrarLojaOnline = false);
 
 public sealed record UpdatePartRequest(
     string? Sku,
@@ -30,7 +31,8 @@ public sealed record UpdatePartRequest(
     string? Fornecedor,
     string? LocalArmazenamento,
     string? Notas,
-    bool Activo);
+    bool Activo,
+    bool MostrarLojaOnline = false);
 
 public sealed record CreatePartMovimentoRequest(
     int Quantidade,
@@ -56,7 +58,8 @@ public sealed record PartDto(
     bool Activo,
     bool StockBaixo,
     DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    bool MostrarLojaOnline = false);
 
 public sealed record PartMovimentoDto(
     Guid Id,

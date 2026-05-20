@@ -75,8 +75,9 @@ public class ExternalController : ControllerBase
         [FromQuery] PartCategoria? categoria,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
+        [FromQuery] bool? lojaOnline = null,
         CancellationToken ct = default)
-        => _checkout.ListPartsAsync(search, categoria, page, pageSize, ct);
+        => _checkout.ListPartsAsync(search, categoria, page, pageSize, lojaOnline, ct);
 
     /// <summary>
     /// Histórico do cliente por NIF (vendas + reparações + garantias activas).

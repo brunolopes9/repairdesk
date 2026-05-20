@@ -212,6 +212,8 @@ export interface ExternalPart {
   categoria: PartCategoria;
   marca: string | null;
   modelo: string | null;
+  /** Sprint 121: true se Bruno marcou esta peça para aparecer na loja online. */
+  mostrarLojaOnline: boolean;
   qtdStock: number;
   activo: boolean;
 }
@@ -228,6 +230,11 @@ export interface ListPartsQuery {
   categoria?: PartCategoria;
   page?: number;
   pageSize?: number;
+  /**
+   * Sprint 121: filtra por flag `mostrarLojaOnline` em `Part`. Loja online faz cron sync com
+   * `{ lojaOnline: true }` para obter o catálogo vendável. Omitir = devolve todos (default).
+   */
+  lojaOnline?: boolean;
 }
 
 // =================================================================
@@ -317,6 +324,7 @@ export class RepairDeskClient {
     const params = new URLSearchParams();
     if (query.search) params.set('search', query.search);
     if (query.categoria !== undefined) params.set('categoria', String(query.categoria));
+    if (query.lojaOnline !== undefined) params.set('lojaOnline', String(query.lojaOnline));
     if (query.page) params.set('page', String(query.page));
     if (query.pageSize) params.set('pageSize', String(query.pageSize));
     const qs = params.toString();

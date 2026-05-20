@@ -94,6 +94,7 @@ public class PartService : IPartService
             LocalArmazenamento = TrimOrNull(req.LocalArmazenamento),
             Notas = TrimOrNull(req.Notas),
             Activo = true,
+            MostrarLojaOnline = req.MostrarLojaOnline,
         };
         await _repo.AddAsync(part, ct);
         await _repo.SaveAsync(ct);
@@ -121,6 +122,7 @@ public class PartService : IPartService
         part.LocalArmazenamento = TrimOrNull(req.LocalArmazenamento);
         part.Notas = TrimOrNull(req.Notas);
         part.Activo = req.Activo;
+        part.MostrarLojaOnline = req.MostrarLojaOnline;
         await _repo.SaveAsync(ct);
         return ToDto(part);
     }
@@ -377,7 +379,8 @@ public class PartService : IPartService
             p.Activo,
             p.QtdStock <= p.QtdMinima,
             p.CreatedAt,
-            p.UpdatedAt);
+            p.UpdatedAt,
+            p.MostrarLojaOnline);
 
     private static PartMovimentoDto ToMovimentoDto(PartMovimento m) =>
         new(
