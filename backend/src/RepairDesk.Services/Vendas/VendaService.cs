@@ -16,6 +16,8 @@ public interface IVendaService
     Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default);
     Task<VendaImeiLookupDto?> ImeiLookupAsync(string imei, CancellationToken ct = default);
     Task<IReadOnlyList<VendaReparacaoRelacionadaDto>> GetReparacoesRelacionadasAsync(Guid vendaId, CancellationToken ct = default);
+    /// <summary>Para autocomplete UI Vendas — lista de fornecedores que já apareceram em vendas anteriores.</summary>
+    Task<IReadOnlyList<string>> ListFornecedoresAsync(CancellationToken ct = default);
     Task<VendaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<VendaDto> CreateAsync(CreateVendaRequest req, CancellationToken ct = default);
     Task<EmitVendaFaturaResponse> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default);
@@ -76,6 +78,9 @@ public class VendaService : IVendaService
         var (items, total) = await _vendas.SearchAsync(fromUtc, toUtc, clienteId, page, pageSize, ct);
         return new PagedResult<VendaDto>(items.Select(ToDto).ToList(), page, pageSize, total);
     }
+
+    public Task<IReadOnlyList<string>> ListFornecedoresAsync(CancellationToken ct = default)
+        => _vendas.ListDistinctFornecedoresAsync(ct);
 
     public async Task<VendaImeiLookupDto?> ImeiLookupAsync(string imei, CancellationToken ct = default)
     {
@@ -179,6 +184,9 @@ public class VendaService : IVendaService
                 IvaRate = itemReq.IvaRate,
                 Imei = imei is null ? null : ImeiValidator.Normalize(imei),
                 Imei2 = imei2 is null ? null : ImeiValidator.Normalize(imei2),
+                FornecedorNome = Clean(itemReq.FornecedorNome),
+                Condicao = itemReq.Condicao ?? CondicaoArtigo.NaoAplicavel,
+                GarantiaFornecedorAteAo = itemReq.GarantiaFornecedorAteAo,
             });
         }
 
@@ -670,7 +678,10 @@ public class VendaService : IVendaService
                 i.TotalCents,
                 CalculateIvaCents(i),
                 i.Imei,
-                i.Imei2)).ToList(),
+                i.Imei2,
+                i.FornecedorNome,
+                i.Condicao,
+                i.GarantiaFornecedorAteAo)).ToList(),
             venda.Origem);
     }
 

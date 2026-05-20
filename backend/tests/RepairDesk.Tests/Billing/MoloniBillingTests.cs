@@ -351,6 +351,8 @@ public class MoloniBillingTests
         public Task<IReadOnlyList<TopVendaItemRow>> TopItemsByRevenueAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default)
             => Task.FromResult((IReadOnlyList<TopVendaItemRow>)Array.Empty<TopVendaItemRow>());
         public Task<VendaImeiLookupRow?> FindVendaByImeiAsync(string imei, CancellationToken ct = default) => Task.FromResult<VendaImeiLookupRow?>(null);
+        public Task<IReadOnlyList<string>> ListDistinctFornecedoresAsync(CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<string>)Array.Empty<string>());
         public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 

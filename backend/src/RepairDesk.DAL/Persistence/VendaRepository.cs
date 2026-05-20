@@ -85,6 +85,15 @@ public class VendaRepository : IVendaRepository
             .Where(v => v.Status == VendaStatus.Paga && v.Data >= fromUtc && v.Data < toUtc)
             .SumAsync(v => v.TotalCents, ct);
 
+    public async Task<IReadOnlyList<string>> ListDistinctFornecedoresAsync(CancellationToken ct = default)
+        => await _db.VendaItems
+            .AsNoTracking()
+            .Where(i => i.FornecedorNome != null && i.FornecedorNome != "")
+            .Select(i => i.FornecedorNome!)
+            .Distinct()
+            .OrderBy(s => s)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<TopVendaItemRow>> TopItemsByRevenueAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default)
         => await _db.VendaItems
             .AsNoTracking()

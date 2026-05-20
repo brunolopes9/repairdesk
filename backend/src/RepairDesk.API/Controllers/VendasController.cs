@@ -43,6 +43,10 @@ public class VendasController : ControllerBase
         return hit is null ? NotFound() : Ok(hit);
     }
 
+    /// <summary>Lista de fornecedores já usados pelo tenant — para autocomplete na UI ao criar venda.</summary>
+    [HttpGet("fornecedores")]
+    public Task<IReadOnlyList<string>> Fornecedores(CancellationToken ct) => _service.ListFornecedoresAsync(ct);
+
     /// <summary>
     /// Reparações cujo IMEI bate items desta venda (e foram criadas depois). Para ver se um
     /// equipamento vendido voltou para reparação.

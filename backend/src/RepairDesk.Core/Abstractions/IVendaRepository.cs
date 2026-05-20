@@ -17,6 +17,8 @@ public interface IVendaRepository
     Task<VendaImeiLookupRow?> FindVendaByImeiAsync(string imei, CancellationToken ct = default);
     Task<int> SumPaidBetweenAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     Task<IReadOnlyList<TopVendaItemRow>> TopItemsByRevenueAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default);
+    /// <summary>Distinct FornecedorNome usados pelo tenant — para autocomplete UI Vendas.</summary>
+    Task<IReadOnlyList<string>> ListDistinctFornecedoresAsync(CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }
 

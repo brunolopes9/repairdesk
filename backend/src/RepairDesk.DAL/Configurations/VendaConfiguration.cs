@@ -52,6 +52,8 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
         builder.Property(x => x.IvaRate).HasPrecision(5, 2);
         builder.Property(x => x.Imei).HasMaxLength(16);
         builder.Property(x => x.Imei2).HasMaxLength(16);
+        builder.Property(x => x.FornecedorNome).HasMaxLength(200);
+        builder.Property(x => x.Condicao).HasConversion<int>().HasDefaultValue(CondicaoArtigo.NaoAplicavel);
         builder.Ignore(x => x.TotalCents);
 
         builder.HasOne(x => x.Part)

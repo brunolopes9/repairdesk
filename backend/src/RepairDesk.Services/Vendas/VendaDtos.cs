@@ -11,7 +11,10 @@ public sealed record CreateVendaItemRequest(
     int DescontoCents,
     decimal IvaRate,
     string? Imei = null,
-    string? Imei2 = null);
+    string? Imei2 = null,
+    string? FornecedorNome = null,
+    CondicaoArtigo? Condicao = null,
+    DateTime? GarantiaFornecedorAteAo = null);
 
 public sealed record CreateVendaRequest(
     Guid? ClienteId,
@@ -37,7 +40,10 @@ public sealed record VendaItemDto(
     int TotalCents,
     int IvaCents,
     string? Imei,
-    string? Imei2);
+    string? Imei2,
+    string? FornecedorNome,
+    CondicaoArtigo Condicao,
+    DateTime? GarantiaFornecedorAteAo);
 
 public sealed record VendaDto(
     Guid Id,
