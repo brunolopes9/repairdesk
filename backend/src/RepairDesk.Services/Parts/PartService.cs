@@ -107,6 +107,9 @@ public class PartService : IPartService
         await _repo.SaveAsync(ct);
         // Sprint 125: notifica loja online se este Part vai aparecer no catálogo público.
         if (part.MostrarLojaOnline) await PublishCatalogEventAsync(WebhookEvents.PartsAdicionado, part, ct);
+        // Sprint 130: peça nova já abaixo do threshold (ex: importação CSV com stock 0) — alerta.
+        if (part.Activo && IsStockBaixo(part.QtdStock, part.QtdMinima))
+            await PublishCatalogEventAsync(WebhookEvents.PartsStockBaixo, part, ct);
         return ToDto(part);
     }
 
@@ -119,6 +122,7 @@ public class PartService : IPartService
             throw new ConflictException("sku_in_use", "Ja existe uma peça com esse SKU.");
 
         var previousMostrar = part.MostrarLojaOnline;
+        var previousStockOk = !IsStockBaixo(part.QtdStock, part.QtdMinima);
 
         part.Sku = sku;
         part.Nome = req.Nome.Trim();
@@ -143,6 +147,10 @@ public class PartService : IPartService
             await PublishCatalogEventAsync(WebhookEvents.PartsRemovido, part, ct);
         else if (part.MostrarLojaOnline)
             await PublishCatalogEventAsync(WebhookEvents.PartsAtualizado, part, ct);
+
+        // Sprint 130: stock baixo só dispara na transição above→below (evita spam).
+        if (part.Activo && previousStockOk && IsStockBaixo(part.QtdStock, part.QtdMinima))
+            await PublishCatalogEventAsync(WebhookEvents.PartsStockBaixo, part, ct);
 
         return ToDto(part);
     }
@@ -191,6 +199,7 @@ public class PartService : IPartService
         if (stockDepois < 0)
             throw new ConflictException("stock_negativo", "Stock nao pode ficar negativo.");
 
+        var previousStockOk = !IsStockBaixo(stockAntes, part.QtdMinima);
         part.QtdStock = stockDepois;
         var movimento = new PartMovimento
         {
@@ -212,8 +221,19 @@ public class PartService : IPartService
         }
 
         movimento.Part = part;
+
+        // Sprint 130: alerta stock baixo se este movimento empurrou a peça abaixo do mínimo.
+        if (part.Activo && previousStockOk && IsStockBaixo(part.QtdStock, part.QtdMinima))
+            await PublishCatalogEventAsync(WebhookEvents.PartsStockBaixo, part, ct);
+
         return ToMovimentoDto(movimento);
     }
+
+    /// <summary>
+    /// Sprint 130: peça está abaixo do mínimo. QtdMinima=0 desliga o alerta (nunca low stock).
+    /// </summary>
+    private static bool IsStockBaixo(int qtdStock, int qtdMinima)
+        => qtdMinima > 0 && qtdStock <= qtdMinima;
 
     public async Task<IReadOnlyList<PartMovimentoDto>> MovimentosAsync(Guid? partId, Guid? reparacaoId, CancellationToken ct = default)
         => (await _repo.MovimentosAsync(partId, reparacaoId, ct)).Select(ToMovimentoDto).ToList();

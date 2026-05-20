@@ -188,17 +188,19 @@ export type RepairDeskWebhookEvent =
   | BaseEnvelope<'parts.adicionado', PartCatalogPayload>
   | BaseEnvelope<'parts.atualizado', PartCatalogPayload>
   | BaseEnvelope<'parts.removido', PartCatalogPayload>
+  | BaseEnvelope<'parts.stock-baixo', PartCatalogPayload>
   | BaseEnvelope<'phones.adicionado', ProductCatalogPayload>
   | BaseEnvelope<'phones.atualizado', ProductCatalogPayload>
-  | BaseEnvelope<'phones.removido', ProductCatalogPayload>;
+  | BaseEnvelope<'phones.removido', ProductCatalogPayload>
+  | BaseEnvelope<'phones.stock-baixo', ProductCatalogPayload>;
 
 /** Lista exaustiva — útil para subscrever a todos os eventos numa só chamada. */
 export const ALL_WEBHOOK_EVENT_TYPES = [
   'garantia.emitida', 'garantia.anulada', 'garantia.expirada',
   'venda.criada', 'venda.paga', 'venda.cancelada',
   'reparacao.concluida',
-  'parts.adicionado', 'parts.atualizado', 'parts.removido',
-  'phones.adicionado', 'phones.atualizado', 'phones.removido',
+  'parts.adicionado', 'parts.atualizado', 'parts.removido', 'parts.stock-baixo',
+  'phones.adicionado', 'phones.atualizado', 'phones.removido', 'phones.stock-baixo',
 ] as const;
 
 export type RepairDeskWebhookEventType = RepairDeskWebhookEvent['event'];

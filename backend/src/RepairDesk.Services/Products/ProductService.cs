@@ -147,6 +147,9 @@ public class ProductService : IProductService
         await _audit.LogAsync(AuditAction.Create, nameof(Product), entity.Id, new { entity.Sku, entity.Brand, entity.Model, entity.PriceCents }, ct: ct);
         // Sprint 125: loja online só vê produtos com MostrarLojaOnline=true.
         if (entity.MostrarLojaOnline) await PublishCatalogEventAsync(WebhookEvents.PhonesAdicionado, entity, ct);
+        // Sprint 130: produto novo já abaixo do threshold (raro mas possível — ex: backorder).
+        if (entity.Active && IsStockBaixo(entity.StockQuantity, entity.StockMinima))
+            await PublishCatalogEventAsync(WebhookEvents.PhonesStockBaixo, entity, ct);
         return ToDto(entity);
     }
 
@@ -155,6 +158,7 @@ public class ProductService : IProductService
         var entity = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Product", id);
         Validate(req);
         var previousMostrar = entity.MostrarLojaOnline;
+        var previousStockOk = !IsStockBaixo(entity.StockQuantity, entity.StockMinima);
         entity.Sku = await EnsureUniqueSkuAsync(req.Sku ?? entity.Sku, entity.Id, req.Brand, req.Model, ct);
         entity.Slug = await EnsureUniqueSlugAsync(req.Slug ?? entity.Slug, entity.Id, req.Brand, req.Model, req.Storage, req.Color, req.Grading, ct);
         entity.Brand = req.Brand.Trim();
@@ -202,8 +206,16 @@ public class ProductService : IProductService
         else if (entity.MostrarLojaOnline)
             await PublishCatalogEventAsync(WebhookEvents.PhonesAtualizado, entity, ct);
 
+        // Sprint 130: stock baixo só na transição above→below.
+        if (entity.Active && previousStockOk && IsStockBaixo(entity.StockQuantity, entity.StockMinima))
+            await PublishCatalogEventAsync(WebhookEvents.PhonesStockBaixo, entity, ct);
+
         return ToDto(entity);
     }
+
+    /// <summary>Sprint 130: produto está abaixo do mínimo. StockMinima=0 desliga o alerta.</summary>
+    private static bool IsStockBaixo(int stockQuantity, int stockMinima)
+        => stockMinima > 0 && stockQuantity <= stockMinima;
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {

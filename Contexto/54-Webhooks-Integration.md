@@ -6,7 +6,7 @@ Documento de referência para o projeto Next.js da loja em `~/Desktop/LopesTech/
 
 O RepairDesk faz POST para um endpoint teu sempre que algo relevante acontece (garantia emitida, venda cancelada, reparação concluída, peças/produtos na loja online, etc). Tu verificas o HMAC, processas, e respondes 2xx.
 
-- **13 eventos** ligados (Sprint 103/105/106/125): 7 operacionais + 6 catálogo.
+- **15 eventos** ligados (Sprint 103/105/106/125/130): 7 operacionais + 6 catálogo + 2 stock-baixo.
 - **Assinatura:** `X-RepairDesk-Signature: sha256=<hex>` calculado em `HMAC-SHA256(secret, body)`.
 - **Retry:** 5 tentativas com backoff `1m → 5m → 30m → 2h → 12h`. Depois marca `Failed`. Após 10 failures consecutivos, a subscription é auto-desactivada.
 - **Idempotência:** `X-RepairDesk-Delivery: <guid>` único por tentativa. Persiste para evitar processar 2x.
@@ -192,6 +192,35 @@ Sprint 125. Só dispara quando `MostrarLojaOnline=true`. Loja headless usa para 
   "marca": "Apple",
   "modelo": "iPhone 12",
   "qtdStock": 5,
+  "mostrarLojaOnline": true
+}
+```
+
+### `parts.stock-baixo` · `phones.stock-baixo`
+Sprint 130. Dispara só na **transição** above→below do threshold `QtdMinima`/`StockMinima`. Não republica em movimentos subsequentes que mantenham abaixo (evita spam).
+
+Casos que disparam:
+- Movimento de saída que cruza o threshold (5→2 com mínimo 3)
+- `UpdateAsync` que baixa o stock ou sobe o threshold para acima do stock actual
+- `CreateAsync` com `qtdStock ≤ qtdMinima` (ex: importação CSV com peças a 0)
+
+Casos que **não** disparam:
+- Movimentos que mantêm abaixo (já em alerta, segunda descida não republica)
+- `QtdMinima = 0` (desliga alerta para esta peça)
+- Peças inactivas (`Activo = false`)
+
+Diferença vs catálogo: dispara para **todas** as peças activas, mesmo as não publicadas na loja online — Bruno pode querer alerta operacional em parafusos internos. O payload inclui `mostrarLojaOnline` para o subscriber filtrar localmente.
+
+Payload idêntico ao `parts.atualizado`:
+```json
+{
+  "partId": "uuid",
+  "sku": "BAT-IP12-A1B2C3",
+  "nome": "Bateria iPhone 12",
+  "categoria": "Bateria",
+  "marca": "Apple",
+  "modelo": "iPhone 12",
+  "qtdStock": 1,
   "mostrarLojaOnline": true
 }
 ```

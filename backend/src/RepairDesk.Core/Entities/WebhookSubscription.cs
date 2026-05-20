@@ -43,6 +43,12 @@ public static class WebhookEvents
     public const string PhonesAtualizado = "phones.atualizado";
     public const string PhonesRemovido = "phones.removido";
 
+    // Sprint 130: alertas operacionais quando stock desce abaixo do mínimo. Dispara só na
+    // transição (above→below) para evitar spam. Loja online pode esconder produtos esgotados;
+    // Bruno recebe lembrete para reencomendar.
+    public const string PartsStockBaixo = "parts.stock-baixo";
+    public const string PhonesStockBaixo = "phones.stock-baixo";
+
     public static readonly IReadOnlyList<string> All = new[]
     {
         GarantiaEmitida, GarantiaAnulada, GarantiaExpirada,
@@ -50,5 +56,6 @@ public static class WebhookEvents
         ReparacaoConcluida,
         PartsAdicionado, PartsAtualizado, PartsRemovido,
         PhonesAdicionado, PhonesAtualizado, PhonesRemovido,
+        PartsStockBaixo, PhonesStockBaixo,
     };
 }
