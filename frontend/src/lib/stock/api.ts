@@ -59,4 +59,20 @@ export const stockApi = {
   importCsv(csv: string) {
     return api.post<ImportPartsResponse>('/parts/import', { csv }).then((r) => r.data);
   },
+  /** Sprint 119: extrai texto bruto de um PDF (encomenda/fatura fornecedor). */
+  extractPdf(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<PdfExtractionResult>('/parts/extract-pdf', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data);
+  },
 };
+
+export interface PdfExtractionResult {
+  filename: string;
+  text: string;
+  pageCount: number;
+  pagesRead: number;
+  truncated: boolean;
+}

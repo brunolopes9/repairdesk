@@ -74,4 +74,33 @@ public class PartsController : ControllerBase
     [HttpPost("import")]
     public Task<ImportPartsResponse> Import([FromBody] ImportPartsRequest req, CancellationToken ct)
         => _service.ImportCsvAsync(req.Csv, ct);
+
+    /// <summary>
+    /// Sprint 119: extrai texto de um PDF de encomenda/fatura recebida do fornecedor
+    /// (Tudo4Mobile, Molano, etc). Devolve texto bruto para preencher manualmente um
+    /// form de criação de peça. Sem parsing AI — apenas extracção. Limite 10 MB / 30 páginas.
+    /// </summary>
+    [HttpPost("extract-pdf")]
+    [RequestSizeLimit(RepairDesk.Services.Documents.PdfTextExtractor.MaxBytes)]
+    public async Task<ActionResult<RepairDesk.Services.Documents.PdfExtractionResult>> ExtractPdf(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { detail = "Ficheiro não fornecido." });
+        if (file.Length > RepairDesk.Services.Documents.PdfTextExtractor.MaxBytes)
+            return BadRequest(new { detail = $"Ficheiro demasiado grande (máx {RepairDesk.Services.Documents.PdfTextExtractor.MaxBytes / 1024 / 1024} MB)." });
+        if (!file.ContentType.Contains("pdf", StringComparison.OrdinalIgnoreCase)
+            && !file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { detail = "Apenas PDFs são aceites." });
+
+        await using var stream = file.OpenReadStream();
+        try
+        {
+            var result = RepairDesk.Services.Documents.PdfTextExtractor.Extract(stream, file.FileName);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { detail = $"PDF inválido ou corrompido: {ex.Message}" });
+        }
+    }
 }

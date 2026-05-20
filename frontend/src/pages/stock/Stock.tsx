@@ -28,6 +28,7 @@ export default function Stock() {
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
+  const [pdfTextSnippet, setPdfTextSnippet] = useState<string | null>(null);
   const [editing, setEditing] = useState<Part | null>(null);
   const [adjusting, setAdjusting] = useState<Part | null>(null);
   const [historyPart, setHistoryPart] = useState<Part | null>(null);
@@ -79,6 +80,28 @@ export default function Stock() {
             <Button type="button" variant="secondary" onClick={() => setImportOpen(true)} leftIcon={<Upload size={15} />}>
               Importar CSV
             </Button>
+            <label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+              <Upload size={15} /> Importar PDF
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  try {
+                    const result = await stockApi.extractPdf(f);
+                    setPdfTextSnippet(result.text);
+                    setCreateOpen(true);
+                    toast.success('PDF lido', `${result.pagesRead} página(s) extraídas. Copia/cola para os campos.`);
+                  } catch (err) {
+                    toast.fromError(err, 'Não foi possível ler o PDF.');
+                  } finally {
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </label>
             <Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<PackagePlus size={15} />}>
               Nova peça
             </Button>
@@ -230,7 +253,12 @@ export default function Stock() {
         </div>
       )}
 
-      <PartFormModal open={createOpen} onClose={() => setCreateOpen(false)} onSaved={() => { invalidate(); setCreateOpen(false); }} />
+      <PartFormModal
+        open={createOpen}
+        onClose={() => { setCreateOpen(false); setPdfTextSnippet(null); }}
+        onSaved={() => { invalidate(); setCreateOpen(false); setPdfTextSnippet(null); }}
+        pdfReferenceText={pdfTextSnippet}
+      />
       <PartFormModal open={!!editing} editing={editing} onClose={() => setEditing(null)} onSaved={() => { invalidate(); setEditing(null); }} />
       <AdjustStockModal part={adjusting} onClose={() => setAdjusting(null)} onSaved={() => { invalidate(); setAdjusting(null); }} />
       <HistoryModal part={historyPart} onClose={() => setHistoryPart(null)} />
@@ -253,7 +281,7 @@ export default function Stock() {
   );
 }
 
-function PartFormModal({ open, editing, onClose, onSaved }: { open: boolean; editing?: Part | null; onClose: () => void; onSaved: () => void }) {
+function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText }: { open: boolean; editing?: Part | null; onClose: () => void; onSaved: () => void; pdfReferenceText?: string | null }) {
   const [form, setForm] = useState<PartForm>({
     sku: null,
     nome: '',
@@ -340,6 +368,17 @@ function PartFormModal({ open, editing, onClose, onSaved }: { open: boolean; edi
       </>}
     >
       <div className="space-y-3">
+        {pdfReferenceText && (
+          <details className="rounded-lg border border-brand-200 bg-brand-50/50 p-3 dark:border-brand-800/60 dark:bg-brand-950/30" open>
+            <summary className="cursor-pointer text-xs font-medium text-brand-700 dark:text-brand-300">
+              Texto extraído do PDF (clica para copiar/colar nos campos abaixo)
+            </summary>
+            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded border border-zinc-200 bg-white p-2 font-mono text-[11px] leading-snug dark:border-zinc-700 dark:bg-zinc-950">
+              {pdfReferenceText.slice(0, 4000)}
+              {pdfReferenceText.length > 4000 && '…'}
+            </pre>
+          </details>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="SKU" hint="Deixa vazio para gerar automaticamente (ex: ECRA-0001).">
             <input value={form.sku ?? ''} onChange={(e) => setForm({ ...form, sku: e.target.value || null })} placeholder="Auto · ou define o teu (LCD-IP12-A)" className={inputCls} />
