@@ -16,6 +16,8 @@ public interface IWebhookSubscriptionService
     Task<IReadOnlyList<WebhookDeliveryDto>> ListDeliveriesAsync(Guid subscriptionId, int take, CancellationToken ct = default);
     /// <summary>Reagenda uma delivery Failed para retry imediato — reset Attempts e Status.</summary>
     Task<WebhookDeliveryDto> RetryDeliveryAsync(Guid deliveryId, CancellationToken ct = default);
+    /// <summary>Stats agregadas para o Dashboard widget (janela de N horas).</summary>
+    Task<WebhookStatsDto> GetStatsAsync(int hoursWindow, CancellationToken ct = default);
 }
 
 public sealed record WebhookSubscriptionDto(
@@ -56,6 +58,18 @@ public sealed record WebhookDeliveryDto(
     DateTime? FailedAt,
     DateTime CreatedAt,
     string PayloadJson);
+
+public sealed record WebhookStatsDto(
+    int ActiveSubscriptions,
+    int DisabledSubscriptions,
+    int DeliveriesInWindow,
+    int DeliveredInWindow,
+    int FailedInWindow,
+    int PendingNow,
+    /// <summary>0-100. -1 quando não há entregas na janela (UI mostra "—").</summary>
+    int SuccessRatePercent,
+    DateTime? LastDeliveryAt,
+    int HoursWindow);
 
 public class WebhookSubscriptionService : IWebhookSubscriptionService
 {
@@ -102,6 +116,20 @@ public class WebhookSubscriptionService : IWebhookSubscriptionService
         await _deliveries.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, "WebhookDelivery", d.Id, new { action = "manual_retry" }, ct: ct);
         return ToDeliveryDto(d);
+    }
+
+    public async Task<WebhookStatsDto> GetStatsAsync(int hoursWindow, CancellationToken ct = default)
+    {
+        var hours = Math.Clamp(hoursWindow, 1, 24 * 30);
+        var since = DateTime.UtcNow.AddHours(-hours);
+        var s = await _deliveries.GetStatsAsync(since, ct);
+        var rate = s.DeliveriesSinceWindow == 0
+            ? -1
+            : (int)Math.Round(100.0 * s.DeliveredSinceWindow / s.DeliveriesSinceWindow);
+        return new WebhookStatsDto(
+            s.ActiveSubscriptions, s.DisabledSubscriptions,
+            s.DeliveriesSinceWindow, s.DeliveredSinceWindow, s.FailedSinceWindow, s.PendingNow,
+            rate, s.LastDeliveryAt, hours);
     }
 
     private static WebhookDeliveryDto ToDeliveryDto(WebhookDelivery d) =>

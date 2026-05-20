@@ -35,5 +35,26 @@ public class WebhookDeliveryRepository : IWebhookDeliveryRepository
     public Task<WebhookDelivery?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.WebhookDeliveries.FirstOrDefaultAsync(d => d.Id == id, ct);
 
+    public async Task<WebhookStatsRow> GetStatsAsync(DateTime since, CancellationToken ct = default)
+    {
+        // Tenant scoped pelo query filter — operador admin a olhar para o seu dashboard.
+        var activeSubs = await _db.WebhookSubscriptions.CountAsync(s => s.Active && s.DisabledAt == null, ct);
+        var disabledSubs = await _db.WebhookSubscriptions.CountAsync(s => s.DisabledAt != null, ct);
+
+        var sinceWindow = _db.WebhookDeliveries.Where(d => d.CreatedAt >= since);
+        var total = await sinceWindow.CountAsync(ct);
+        var delivered = await sinceWindow.CountAsync(d => d.Status == WebhookDeliveryStatus.Delivered, ct);
+        var failed = await sinceWindow.CountAsync(d => d.Status == WebhookDeliveryStatus.Failed, ct);
+
+        var pendingNow = await _db.WebhookDeliveries.CountAsync(d => d.Status == WebhookDeliveryStatus.Pending, ct);
+        var lastAt = await _db.WebhookDeliveries
+            .Where(d => d.DeliveredAt != null)
+            .OrderByDescending(d => d.DeliveredAt)
+            .Select(d => (DateTime?)d.DeliveredAt)
+            .FirstOrDefaultAsync(ct);
+
+        return new WebhookStatsRow(activeSubs, disabledSubs, total, delivered, failed, pendingNow, lastAt);
+    }
+
     public Task SaveAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

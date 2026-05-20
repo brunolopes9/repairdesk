@@ -43,9 +43,25 @@ export interface WebhookDelivery {
   payloadJson: string;
 }
 
+export interface WebhookStats {
+  activeSubscriptions: number;
+  disabledSubscriptions: number;
+  deliveriesInWindow: number;
+  deliveredInWindow: number;
+  failedInWindow: number;
+  pendingNow: number;
+  /** -1 quando não há entregas — UI mostra "—". 0-100 caso contrário. */
+  successRatePercent: number;
+  lastDeliveryAt: string | null;
+  hoursWindow: number;
+}
+
 export const webhooksApi = {
   list() {
     return api.get<WebhookSubscription[]>('/webhooks').then((r) => r.data);
+  },
+  stats(hours = 24) {
+    return api.get<WebhookStats>(`/webhooks/stats?hours=${hours}`).then((r) => r.data);
   },
   events() {
     return api.get<string[]>('/webhooks/events').then((r) => r.data);

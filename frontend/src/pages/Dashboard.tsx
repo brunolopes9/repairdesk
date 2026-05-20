@@ -17,6 +17,7 @@ import {
   Phone,
   ShieldCheck,
   ShoppingBag,
+  Webhook,
   X,
 } from 'lucide-react';
 import { stockApi } from '../lib/stock/api';
@@ -44,6 +45,7 @@ import {
   type RepairStatus,
 } from '../lib/reparacoes/types';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
+import { webhooksApi, type WebhookStats } from '../lib/webhooks/api';
 import { formatCents, formatDateOnly } from '../lib/money';
 import { EmptyState, PageHeader, Skeleton, SkeletonCard, SkeletonRow } from '../components/ui';
 
@@ -122,6 +124,12 @@ export default function Dashboard() {
     queryKey: ['dashboard-reparacoes-em-garantia'],
     queryFn: () => dashboardApi.reparacoesEmGarantia(90, 30),
     staleTime: 5 * 60_000,
+  });
+
+  const webhookStats = useQuery({
+    queryKey: ['dashboard-webhook-stats'],
+    queryFn: () => webhooksApi.stats(24),
+    staleTime: 60_000,
   });
 
   // Em curso: agrega Recebido + Diagnóstico + Aguarda Peça + Em Reparação + Reparado (5 queries paralelas).
@@ -271,6 +279,7 @@ export default function Dashboard() {
             <AlertasSection data={alertas.data} loading={alertas.isLoading} />
             <GarantiasSection data={garantias.data} loading={garantias.isLoading} />
             <ReparacoesGarantiaSection data={reparacoesGarantia.data} loading={reparacoesGarantia.isLoading} />
+            <WebhooksSection data={webhookStats.data} loading={webhookStats.isLoading} />
           </div>
         </Zone>
       )}
@@ -1366,6 +1375,67 @@ function ReparacoesGarantiaPanel({ items, onClose }: { items: ReparacaoEmGaranti
         </ul>
       </div>
     </div>
+  );
+}
+
+/**
+ * Sprint 110: Widget operacional do estado das integrações webhook.
+ * Só aparece quando há subscriptions activas — tenants sem integração não veem ruído.
+ */
+function WebhooksSection({ data, loading }: { data: WebhookStats | undefined; loading: boolean }) {
+  if (loading || !data) return null;
+  if (data.activeSubscriptions === 0 && data.disabledSubscriptions === 0) return null;
+
+  const hasIssues = data.failedInWindow > 0 || data.disabledSubscriptions > 0;
+  const successLabel = data.successRatePercent < 0 ? '—' : `${data.successRatePercent}%`;
+  const tone = data.disabledSubscriptions > 0
+    ? 'border-rose-300 bg-rose-50/50 dark:border-rose-900/60 dark:bg-rose-950/30'
+    : data.failedInWindow > 0
+      ? 'border-amber-300 bg-amber-50/50 dark:border-amber-900/60 dark:bg-amber-950/30'
+      : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900';
+
+  return (
+    <Link
+      to="/definicoes/webhooks"
+      className={`block rounded-xl border p-4 transition hover:shadow-md ${tone}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-zinc-500">
+            <Webhook size={13} strokeWidth={2} /> Webhooks
+          </div>
+          <div className="mt-1 text-2xl font-semibold">
+            {data.deliveredInWindow}
+            <span className="ml-1 text-sm font-normal text-zinc-500">/ {data.deliveriesInWindow}</span>
+          </div>
+          <div className="text-xs text-zinc-500">
+            Entregas últimas {data.hoursWindow}h · sucesso {successLabel}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+            <span>{data.activeSubscriptions} {data.activeSubscriptions === 1 ? 'subscription activa' : 'subscriptions activas'}</span>
+            {data.disabledSubscriptions > 0 && (
+              <span className="text-rose-600 dark:text-rose-400">
+                ⚠ {data.disabledSubscriptions} desactivada{data.disabledSubscriptions === 1 ? '' : 's'} (auto-disabled)
+              </span>
+            )}
+            {data.failedInWindow > 0 && (
+              <span className="text-amber-700 dark:text-amber-300">
+                {data.failedInWindow} falha{data.failedInWindow === 1 ? '' : 's'}
+              </span>
+            )}
+            {data.pendingNow > 0 && <span>{data.pendingNow} em fila</span>}
+          </div>
+        </div>
+        <ChevronRight size={16} strokeWidth={2} className="text-zinc-400" />
+      </div>
+      {hasIssues && (
+        <div className="mt-2 text-[11px] text-zinc-500">
+          {data.disabledSubscriptions > 0
+            ? 'Subscription auto-desactivada após 10 falhas. Verifica endpoint.'
+            : 'Algumas entregas falharam. Vê histórico para retry manual.'}
+        </div>
+      )}
+    </Link>
   );
 }
 
