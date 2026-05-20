@@ -33,7 +33,7 @@ public sealed record UpdateReparacaoRequest(
 
 public sealed record ChangeEstadoRequest(RepairStatus Estado, string? Notas);
 
-public sealed record ClienteResumo(Guid Id, string Nome, string Telefone);
+public sealed record ClienteResumo(Guid Id, string Nome, string Telefone, string? Nif = null);
 
 public sealed record EstadoLogDto(
     Guid Id,

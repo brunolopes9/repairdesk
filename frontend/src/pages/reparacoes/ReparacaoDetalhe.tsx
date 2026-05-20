@@ -475,7 +475,7 @@ export default function ReparacaoDetalhe() {
           </span>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">{r.equipamento}</h1>
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <Link to={`/clientes/${r.cliente.id}`} className="text-zinc-700 hover:underline dark:text-zinc-300">
             {r.cliente.nome}
           </Link>
@@ -487,6 +487,19 @@ export default function ReparacaoDetalhe() {
             >
               (trocar)
             </button>
+          )}
+          {r.cliente.nif ? (
+            <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[11px] font-mono text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              NIF {r.cliente.nif}
+            </span>
+          ) : (
+            <Link
+              to={`/clientes/${r.cliente.id}`}
+              className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-200 dark:bg-amber-950/40 dark:text-amber-300"
+              title="Cliente sem NIF — fatura sairá como Simplificada (válida até €1000). Clica para adicionar NIF."
+            >
+              Sem NIF · Simplificada
+            </Link>
           )}
         </div>
         {cleanPhone && (
