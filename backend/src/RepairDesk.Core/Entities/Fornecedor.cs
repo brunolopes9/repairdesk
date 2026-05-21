@@ -15,6 +15,12 @@ public class Fornecedor : BaseEntity, ITenantEntity
     public Guid TenantId { get; set; }
     /// <summary>Nome legível e único por tenant (ex: "Molano", "Tudo4Mobile", "LCPhones").</summary>
     public required string Name { get; set; }
+    /// <summary>
+    /// Sprint 151: slug estável usado em integrações (webhook payload, CSV importer dropship).
+    /// Ex: "molano", "tudo4mobile", "lcphones". Único por tenant. Auto-gerado de Name se não
+    /// definido. Não muda quando Name muda — clientes externos podem referenciá-lo.
+    /// </summary>
+    public string? Code { get; set; }
     /// <summary>Email comercial para encomendas (info@tudo4mobile.pt).</summary>
     public string? Email { get; set; }
     /// <summary>Email/contacto específico para RMA (devolver peças defeituosas).</summary>

@@ -31,9 +31,26 @@ public class Product : BaseEntity, ITenantEntity
     public string? Color { get; set; }
     public ProductGrading Grading { get; set; } = ProductGrading.Novo;
     public ProductSupplyType SupplyType { get; set; } = ProductSupplyType.Stock;
+    /// <summary>
+    /// Sprint 151: categoria de produto na loja online. Distingue telemóveis (Phone) de
+    /// acessórios (Accessory) — capas, vidros, cabos. Permite à loja filtrar/listar com
+    /// semântica clara sem misturar smartphones 600€ com capas 5€.
+    /// </summary>
+    public ProductCategory Category { get; set; } = ProductCategory.Phone;
+    /// <summary>
+    /// Sprint 151: SKU do fornecedor (para reconciliação CSV Molano e similares). Nullable —
+    /// produtos próprios não têm. Indexar (FornecedorId, DropshipSupplierSku) único para
+    /// dedupe no importer.
+    /// </summary>
+    public string? DropshipSupplierSku { get; set; }
 
     /// <summary>Preço de venda final ao cliente (sem IVA na loja online — IVA aplica-se em checkout).</summary>
     public int PriceCents { get; set; }
+    /// <summary>
+    /// Sprint 151: preço antes de promoção, para strike-through na PDP loja
+    /// (mostra "39,90€ ~~49,90€~~"). Nullable se não há promoção.
+    /// </summary>
+    public int? CompareAtPriceCents { get; set; }
     /// <summary>Stock disponível. Para Dropship é tipicamente um valor alto (ou 0=sem cap) — depende da política.</summary>
     public int StockQuantity { get; set; }
     public int StockMinima { get; set; }
@@ -54,6 +71,13 @@ public class Product : BaseEntity, ITenantEntity
     /// <summary>Default true (Product foi criado para ir à loja). Bruno desliga para esconder temporariamente.</summary>
     public bool MostrarLojaOnline { get; set; } = true;
 
+    /// <summary>
+    /// Sprint 151: razão pela qual o produto é Open Box ("Devolução cliente, embalagem aberta",
+    /// "Demonstração loja", etc). Aparece na PDP loja para transparência. Só relevante quando
+    /// <see cref="Grading"/> == OpenBox; ignorado para outros.
+    /// </summary>
+    public string? OpenBoxReason { get; set; }
+
     public Guid? FornecedorId { get; set; }
     public Fornecedor? Fornecedor { get; set; }
 
@@ -72,4 +96,10 @@ public class ProductImage : BaseEntity, ITenantEntity
     public required string Url { get; set; }
     public string? Alt { get; set; }
     public int Ordem { get; set; }
+    /// <summary>
+    /// Sprint 151: true = Bruno verificou/editou esta imagem para a loja (recortou, ajustou).
+    /// false = imagem raw vinda do importer CSV Molano. Webhook expõe só curadas se existirem;
+    /// fallback às raw quando não há nenhuma curada. Default true (uploads manuais).
+    /// </summary>
+    public bool IsCurated { get; set; } = true;
 }

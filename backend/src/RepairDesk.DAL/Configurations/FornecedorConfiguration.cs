@@ -13,6 +13,7 @@ public class FornecedorConfiguration : IEntityTypeConfiguration<Fornecedor>
 
         builder.Property(x => x.TenantId).IsRequired();
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.Code).HasMaxLength(50);
         builder.Property(x => x.Email).HasMaxLength(200);
         builder.Property(x => x.RmaEmail).HasMaxLength(200);
         builder.Property(x => x.Phone).HasMaxLength(50);
@@ -23,5 +24,9 @@ public class FornecedorConfiguration : IEntityTypeConfiguration<Fornecedor>
         builder.HasIndex(x => new { x.TenantId, x.Name })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0");
+        // Sprint 151: Code (slug) único por tenant quando presente — para lookup estável.
+        builder.HasIndex(x => new { x.TenantId, x.Code })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0 AND [Code] IS NOT NULL");
     }
 }

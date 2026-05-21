@@ -20,6 +20,9 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>, IEntityTy
         builder.Property(x => x.Color).HasMaxLength(50);
         builder.Property(x => x.Grading).HasConversion<int>();
         builder.Property(x => x.SupplyType).HasConversion<int>();
+        builder.Property(x => x.Category).HasConversion<int>();
+        builder.Property(x => x.DropshipSupplierSku).HasMaxLength(100);
+        builder.Property(x => x.OpenBoxReason).HasMaxLength(500);
         builder.Property(x => x.DescriptionMarkdown).HasColumnType("nvarchar(max)");
         builder.Property(x => x.AttributesJson).HasColumnType("nvarchar(max)");
         builder.Property(x => x.SeoTitle).HasMaxLength(200);
@@ -27,9 +30,17 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>, IEntityTy
 
         builder.HasIndex(x => new { x.TenantId, x.Sku }).IsUnique().HasFilter("[IsDeleted] = 0");
         builder.HasIndex(x => new { x.TenantId, x.Slug }).IsUnique().HasFilter("[IsDeleted] = 0");
+        // Sprint 151: dedupe por SKU do fornecedor — importer CSV Molano usa para upsert
+        // idempotente (re-importar mesmo CSV não duplica). Unique filtrado para não exigir
+        // todos os produtos próprios terem DropshipSupplierSku (nullable).
+        builder.HasIndex(x => new { x.TenantId, x.FornecedorId, x.DropshipSupplierSku })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0 AND [DropshipSupplierSku] IS NOT NULL");
         // Lookup principal — listagem de catálogo na loja: active + mostrarLojaOnline.
         builder.HasIndex(x => new { x.TenantId, x.Active, x.MostrarLojaOnline });
         builder.HasIndex(x => new { x.TenantId, x.Brand, x.Model });
+        // Sprint 151: filtros loja por categoria (Phone vs Accessory).
+        builder.HasIndex(x => new { x.TenantId, x.Category, x.MostrarLojaOnline });
 
         builder.HasOne(x => x.Fornecedor)
             .WithMany()

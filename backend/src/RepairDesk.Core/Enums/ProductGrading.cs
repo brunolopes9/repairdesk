@@ -28,3 +28,16 @@ public enum ProductSupplyType
     /// <summary>Sem stock — encomenda-se ao fornecedor após venda (Molano).</summary>
     Dropship = 1,
 }
+
+/// <summary>
+/// Sprint 151: categoria de produto na loja online. Bruno tem 2 tipos distintos:
+/// telemóveis (refurbished/novos) e acessórios (capas, películas, cabos). Loja precisa
+/// separar para filtros/listings com semântica diferente. <see cref="Other"/> é placeholder
+/// para futuras categorias (tablets, smartwatches) sem nova migration.
+/// </summary>
+public enum ProductCategory
+{
+    Phone = 0,
+    Accessory = 1,
+    Other = 2,
+}
