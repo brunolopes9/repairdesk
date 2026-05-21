@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Inbox, FileText, CheckCircle2, XCircle, AlertTriangle, Download } from 'lucide-react';
 import { api } from '../../lib/api';
-import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest } from '../../lib/supplierInvoices/api';
+import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest, type ApproveAsStockItem } from '../../lib/supplierInvoices/api';
 import { formatCents } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
@@ -19,6 +19,7 @@ export default function Importacoes() {
   });
 
   const [approveTarget, setApproveTarget] = useState<SupplierInvoiceImport | null>(null);
+  const [stockTarget, setStockTarget] = useState<SupplierInvoiceImport | null>(null);
   const [rejectTarget, setRejectTarget] = useState<SupplierInvoiceImport | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [exportFrom, setExportFrom] = useState(() => {
@@ -37,6 +38,19 @@ export default function Importacoes() {
       setRejectReason('');
     },
     onError: (err) => toast.fromError(err, 'Não foi possível rejeitar.'),
+  });
+
+  // Sprint 160b: aprovar como stock — cria Parts + PartMovimentos + SkuMapping.
+  const approveStock = useMutation({
+    mutationFn: (req: { id: string; items: ApproveAsStockItem[] }) =>
+      supplierInvoicesApi.approveAsStock(req.id, { items: req.items }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
+      qc.invalidateQueries({ queryKey: ['parts'] });
+      toast.success('Aprovada — items adicionados ao stock.');
+      setStockTarget(null);
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível aprovar como stock.'),
   });
 
   async function openPdf(id: string) {
@@ -122,7 +136,7 @@ export default function Importacoes() {
           <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
             Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
           </p>
-          <ImportsTable data={failed} onPdf={openPdf} onApprove={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+          <ImportsTable data={failed} onPdf={openPdf} onApprove={setApproveTarget} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
         </section>
       )}
 
@@ -135,7 +149,7 @@ export default function Importacoes() {
             Sem importações pendentes. Quando o n8n entregar facturas novas, aparecem aqui.
           </div>
         ) : ready.length > 0 ? (
-          <ImportsTable data={ready} onPdf={openPdf} onApprove={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+          <ImportsTable data={ready} onPdf={openPdf} onApprove={setApproveTarget} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
         ) : null}
       </section>
 
@@ -148,6 +162,15 @@ export default function Importacoes() {
             qc.invalidateQueries({ queryKey: ['despesas'] });
             setApproveTarget(null);
           }}
+        />
+      )}
+
+      {stockTarget && (
+        <ApproveStockModal
+          target={stockTarget}
+          onClose={() => setStockTarget(null)}
+          onSubmit={(items) => approveStock.mutate({ id: stockTarget.id, items })}
+          submitting={approveStock.isPending}
         />
       )}
 
@@ -185,11 +208,12 @@ export default function Importacoes() {
 }
 
 function ImportsTable({
-  data, onPdf, onApprove, onReject,
+  data, onPdf, onApprove, onApproveStock, onReject,
 }: {
   data: SupplierInvoiceImport[];
   onPdf: (id: string) => void;
   onApprove: (x: SupplierInvoiceImport) => void;
+  onApproveStock: (x: SupplierInvoiceImport) => void;
   onReject: (x: SupplierInvoiceImport) => void;
 }) {
   return (
@@ -207,7 +231,7 @@ function ImportsTable({
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {data.map((x) => (
-            <ImportRow key={x.id} x={x} onPdf={onPdf} onApprove={onApprove} onReject={onReject} />
+            <ImportRow key={x.id} x={x} onPdf={onPdf} onApprove={onApprove} onApproveStock={onApproveStock} onReject={onReject} />
           ))}
         </tbody>
       </table>
@@ -216,11 +240,12 @@ function ImportsTable({
 }
 
 function ImportRow({
-  x, onPdf, onApprove, onReject,
+  x, onPdf, onApprove, onApproveStock, onReject,
 }: {
   x: SupplierInvoiceImport;
   onPdf: (id: string) => void;
   onApprove: (x: SupplierInvoiceImport) => void;
+  onApproveStock: (x: SupplierInvoiceImport) => void;
   onReject: (x: SupplierInvoiceImport) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -241,7 +266,16 @@ function ImportRow({
             <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
               <FileText size={14} />
             </button>
-            <button type="button" onClick={() => onApprove(x)} className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700" title="Aprovar e criar Despesa">
+            <button
+              type="button"
+              onClick={() => onApproveStock(x)}
+              className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+              title="Aprovar e adicionar items ao stock (Parts)"
+              disabled={!x.items || x.items.length === 0}
+            >
+              📦 Stock
+            </button>
+            <button type="button" onClick={() => onApprove(x)} className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700" title="Aprovar e criar Despesa overhead">
               <CheckCircle2 size={14} />
             </button>
             <button type="button" onClick={() => onReject(x)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800/40 dark:bg-zinc-900 dark:text-rose-300" title="Rejeitar">
@@ -415,6 +449,177 @@ function ApproveModal({
             <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={2} className={inputCls} />
           </label>
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Sprint 160b: modal para aprovar items como stock (Parts).
+// Cada linha: dropdown action (existing partId / new sku+name / skip).
+// Para "existing", mostra fuzzy match top 1 como sugestão default (do Sprint 158).
+function ApproveStockModal({
+  target, onClose, onSubmit, submitting,
+}: {
+  target: SupplierInvoiceImport;
+  onClose: () => void;
+  onSubmit: (items: ApproveAsStockItem[]) => void;
+  submitting: boolean;
+}) {
+  // Estado inicial: 1 linha por item parseado, default action = best fuzzy match se houver.
+  const initial: ApproveAsStockItem[] = (target.items ?? []).map((it) => {
+    const top = it.suggestions[0];
+    const lineUnit = it.quantity > 0 ? Math.round(it.lineTotalCents / it.quantity) : it.lineTotalCents;
+    return {
+      description: it.description,
+      quantity: it.quantity,
+      unitCostCents: lineUnit,
+      action: top && top.score >= 0.7 ? 'existing' : 'new',
+      existingPartId: top && top.score >= 0.7 ? top.partId : null,
+      newSku: '',
+      newName: it.description.slice(0, 100),
+      newMarca: it.brand ?? null,
+      newModelo: it.model ?? null,
+      supplierSku: null,
+    };
+  });
+  const [items, setItems] = useState<ApproveAsStockItem[]>(initial);
+
+  function patch(i: number, p: Partial<ApproveAsStockItem>) {
+    setItems((arr) => arr.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  }
+
+  const validItems = items.filter((x) => x.action !== 'skip');
+  const canSubmit = validItems.length > 0
+    && validItems.every((x) =>
+      (x.action === 'existing' && x.existingPartId)
+      || (x.action === 'new' && (x.newSku ?? '').trim().length > 0 && (x.newName ?? '').trim().length > 0));
+
+  return (
+    <Modal
+      open
+      title={`Aprovar como Stock — ${target.fornecedorName ?? 'fornecedor'}`}
+      onClose={onClose}
+      footer={<>
+        <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">Cancelar</button>
+        <button
+          type="button"
+          disabled={!canSubmit || submitting}
+          onClick={() => onSubmit(items)}
+          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {submitting ? 'A criar…' : `Aprovar ${validItems.length} item(s) como stock`}
+        </button>
+      </>}
+    >
+      <div className="space-y-3 text-sm">
+        <p className="text-xs text-zinc-500">
+          Para cada item, escolhe se criar uma Part nova ou ligar a uma existente.
+          O custo unitário é calculado do lineTotal/qty da fatura — actualiza Part.CustoUnitario
+          (última compra prevalece) e cria PartMovimento Entrada.
+        </p>
+        <ul className="space-y-3">
+          {items.map((it, i) => {
+            const original = target.items![i];
+            return (
+              <li key={i} className="rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{it.description}</div>
+                    <div className="text-xs text-zinc-500">
+                      {it.quantity}× a {formatCents(it.unitCostCents)} = {formatCents(it.quantity * it.unitCostCents)}
+                    </div>
+                  </div>
+                  <select
+                    value={it.action}
+                    onChange={(e) => patch(i, { action: e.target.value as 'existing' | 'new' | 'skip' })}
+                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                  >
+                    <option value="existing">Ligar a Part existente</option>
+                    <option value="new">Criar Part nova</option>
+                    <option value="skip">Skip</option>
+                  </select>
+                </div>
+
+                {it.action === 'existing' && (
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-medium text-zinc-500">Sugestões fuzzy:</label>
+                    {original.suggestions.length === 0 ? (
+                      <div className="text-xs italic text-rose-600">Sem matches — usa "Criar Part nova" ou cola PartId manualmente.</div>
+                    ) : (
+                      <div className="space-y-1">
+                        {original.suggestions.map((s) => (
+                          <label key={s.partId} className="flex cursor-pointer items-center gap-2 rounded bg-zinc-50 px-2 py-1 text-xs dark:bg-zinc-800/50">
+                            <input
+                              type="radio"
+                              name={`part-${i}`}
+                              checked={it.existingPartId === s.partId}
+                              onChange={() => patch(i, { existingPartId: s.partId })}
+                            />
+                            <span className="font-mono text-zinc-600 dark:text-zinc-300">{s.partSku}</span>
+                            <span className="flex-1 truncate">{s.partName}</span>
+                            <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium dark:bg-zinc-700">
+                              {Math.round(s.score * 100)}%
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {it.action === 'new' && (
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <label className="block">
+                      <span className="text-zinc-500">SKU *</span>
+                      <input
+                        value={it.newSku ?? ''}
+                        onChange={(e) => patch(i, { newSku: e.target.value })}
+                        placeholder="ex: LCD-HUA-P20L"
+                        className={inputCls}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-zinc-500">Nome *</span>
+                      <input
+                        value={it.newName ?? ''}
+                        onChange={(e) => patch(i, { newName: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-zinc-500">Marca</span>
+                      <input
+                        value={it.newMarca ?? ''}
+                        onChange={(e) => patch(i, { newMarca: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-zinc-500">Modelo</span>
+                      <input
+                        value={it.newModelo ?? ''}
+                        onChange={(e) => patch(i, { newModelo: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {it.action !== 'skip' && (
+                  <label className="mt-2 block text-[11px]">
+                    <span className="text-zinc-500">SKU do fornecedor (opcional — para o sistema aprender mapping):</span>
+                    <input
+                      value={it.supplierSku ?? ''}
+                      onChange={(e) => patch(i, { supplierSku: e.target.value })}
+                      placeholder="ex: 137491 (T4M), MLN-ABC123 (Molano)"
+                      className={inputCls}
+                    />
+                  </label>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </Modal>
   );

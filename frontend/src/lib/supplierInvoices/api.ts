@@ -45,6 +45,26 @@ export interface ApproveSupplierInvoiceRequest {
   notas: string | null;
 }
 
+// Sprint 160b: aprovar items como Stock (cria Parts + PartMovimento).
+export type ApproveAsStockAction = 'existing' | 'new' | 'skip';
+
+export interface ApproveAsStockItem {
+  description: string;
+  quantity: number;
+  unitCostCents: number;
+  action: ApproveAsStockAction;
+  existingPartId?: string | null;
+  newSku?: string | null;
+  newName?: string | null;
+  newMarca?: string | null;
+  newModelo?: string | null;
+  supplierSku?: string | null;
+}
+
+export interface ApproveAsStockRequest {
+  items: ApproveAsStockItem[];
+}
+
 export const supplierInvoicesApi = {
   pending(take = 100) {
     return api.get<SupplierInvoiceImport[]>(`/supplier-invoices/pending?take=${take}`).then((r) => r.data);
@@ -55,6 +75,10 @@ export const supplierInvoicesApi = {
   },
   approve(id: string, req: ApproveSupplierInvoiceRequest) {
     return api.post<SupplierInvoiceImport>(`/supplier-invoices/${id}/approve`, req).then((r) => r.data);
+  },
+  // Sprint 160b: aprovar como stock — cria/incrementa Parts + PartMovimentos + SkuMapping.
+  approveAsStock(id: string, req: ApproveAsStockRequest) {
+    return api.post<SupplierInvoiceImport>(`/supplier-invoices/${id}/approve-stock`, req).then((r) => r.data);
   },
   reject(id: string, reason: string | null) {
     return api.post<SupplierInvoiceImport>(`/supplier-invoices/${id}/reject`, { reason }).then((r) => r.data);
