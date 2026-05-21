@@ -618,15 +618,20 @@ function ApproveStockModal({
   onSubmit: (items: ApproveAsStockItem[]) => void;
   submitting: boolean;
 }) {
+  // Sprint 163c: detecta items de transporte/portes — default action=skip.
+  // Bruno não cria stock para shipping costs, é overhead.
+  const SHIPPING_RX = /\b(shipping|portes?|envio|transport|chronopost|dpd|ups|fedex|dhl|frete)\b/i;
+
   // Estado inicial: 1 linha por item parseado, default action = best fuzzy match se houver.
   const initial: ApproveAsStockItem[] = (target.items ?? []).map((it) => {
     const top = it.suggestions[0];
     const lineUnit = it.quantity > 0 ? Math.round(it.lineTotalCents / it.quantity) : it.lineTotalCents;
+    const isShipping = SHIPPING_RX.test(it.description);
     return {
       description: it.description,
       quantity: it.quantity,
       unitCostCents: lineUnit,
-      action: top && top.score >= 0.7 ? 'existing' : 'new',
+      action: isShipping ? 'skip' : (top && top.score >= 0.7 ? 'existing' : 'new'),
       existingPartId: top && top.score >= 0.7 ? top.partId : null,
       newSku: '',
       newName: it.description.slice(0, 100),
@@ -674,12 +679,31 @@ function ApproveStockModal({
           {items.map((it, i) => {
             const original = target.items![i];
             return (
-              <li key={i} className="rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
+              <li key={i} className={`rounded-md border p-3 ${it.action === 'skip' ? 'border-zinc-200 bg-zinc-50/50 dark:border-zinc-800 dark:bg-zinc-900/50' : 'border-zinc-200 dark:border-zinc-700'}`}>
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <div className="flex-1">
-                    <div className="text-sm font-medium">{it.description}</div>
-                    <div className="text-xs text-zinc-500">
-                      {it.quantity}× a {formatCents(it.unitCostCents)} = {formatCents(it.quantity * it.unitCostCents)}
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      {it.description}
+                      {SHIPPING_RX.test(it.description) && (
+                        <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">
+                          🚚 transporte
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+                      <span>{it.quantity}× a</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={(it.unitCostCents / 100).toFixed(2)}
+                        onChange={(e) => {
+                          const euros = Number.parseFloat(e.target.value);
+                          if (Number.isFinite(euros) && euros >= 0) patch(i, { unitCostCents: Math.round(euros * 100) });
+                        }}
+                        className="w-20 rounded border border-zinc-300 px-1 py-0.5 text-right text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                        title="Edita o custo unitário (com IVA do fornecedor). Para fornecedores intra-EU, usa o valor SEM IVA estrangeiro — Bruno aplica IVA PT depois."
+                      />
+                      <span>€ = {formatCents(it.quantity * it.unitCostCents)}</span>
                     </div>
                   </div>
                   <select
@@ -689,7 +713,7 @@ function ApproveStockModal({
                   >
                     <option value="existing">Ligar a Part existente</option>
                     <option value="new">Criar Part nova</option>
-                    <option value="skip">Skip</option>
+                    <option value="skip">Skip (não importar)</option>
                   </select>
                 </div>
 
