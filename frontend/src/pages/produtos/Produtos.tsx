@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, EyeOff, Plus, Search, Smartphone, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, EyeOff, Plus, Search, Smartphone, Trash2, Upload, XCircle } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
 import { toast } from '../../lib/toast';
@@ -12,6 +12,7 @@ import {
   PRODUCT_SUPPLY_TYPE,
   PRODUCT_SUPPLY_TYPE_LABEL,
   productsApi,
+  type ImportProductsResponse,
   type ProductCategory,
   type ProductGrading,
   type ProductImageWriteRequest,
@@ -70,6 +71,11 @@ export default function Produtos() {
   const [priceStr, setPriceStr] = useState('0,00');
   const [custoStr, setCustoStr] = useState('0,00');
   const [newImageUrl, setNewImageUrl] = useState('');
+  // Sprint 153b: importer CSV Molano UI.
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFornecedorId, setImportFornecedorId] = useState('');
+  const [importResult, setImportResult] = useState<ImportProductsResponse | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const editingQuery = useQuery({
     queryKey: ['product', editingId],
@@ -151,6 +157,23 @@ export default function Produtos() {
     onError: (e) => toast.fromError(e, 'Erro ao remover.'),
   });
 
+  // Sprint 153b: import CSV Molano. Lê o ficheiro como texto + envia ao backend.
+  const importMolano = useMutation({
+    mutationFn: async (vars: { fornecedorId: string; file: File }) => {
+      const csv = await vars.file.text();
+      return productsApi.importMolano(vars.fornecedorId, csv);
+    },
+    onSuccess: (result) => {
+      setImportResult(result);
+      qc.invalidateQueries({ queryKey: ['products'] });
+      toast.success(
+        `Importação concluída`,
+        `${result.created} criados, ${result.updated} actualizados, ${result.skipped} ignorados, ${result.errors.length} erro(s).`,
+      );
+    },
+    onError: (e) => toast.fromError(e, 'Erro ao importar CSV.'),
+  });
+
   const items = list.data?.items ?? [];
   const canSubmit = useMemo(() => form.brand.trim().length > 0 && form.model.trim().length > 0, [form]);
 
@@ -160,7 +183,12 @@ export default function Produtos() {
         title="Produtos"
         description="Telemóveis revendidos (Molano, Tudo4Mobile, etc) para a loja online. Distintos de Peças (peças técnicas em Stock)."
         meta={<span className="text-sm text-zinc-500">{list.data?.total ?? 0} produto(s)</span>}
-        actions={<Button leftIcon={<Plus size={15} />} onClick={openCreate}>Novo produto</Button>}
+        actions={<>
+          <Button leftIcon={<Upload size={15} />} variant="secondary" onClick={() => { setImportResult(null); setImportFornecedorId(''); setImportOpen(true); }}>
+            Importar CSV Molano
+          </Button>
+          <Button leftIcon={<Plus size={15} />} onClick={openCreate}>Novo produto</Button>
+        </>}
       />
 
       <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -466,6 +494,96 @@ export default function Produtos() {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* Sprint 153b: modal upload CSV Molano. Idempotente — re-importar mesmo CSV não duplica. */}
+      <Modal open={importOpen} title="Importar CSV de fornecedor (Molano, dropship)" onClose={() => setImportOpen(false)}>
+        <div className="space-y-4">
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+            <p><strong>Como funciona:</strong></p>
+            <ul className="mt-1 list-inside list-disc space-y-0.5">
+              <li>Upsert idempotente por <code>(Fornecedor, SKU)</code>. Re-importar não duplica.</li>
+              <li>Default: <code>SupplyType=Dropship</code>, <code>MostrarLojaOnline=false</code>. Tu decides depois quais publicar na loja.</li>
+              <li>Imagens vindas do CSV ficam <strong>raw</strong> — substitui por curadas na ficha do produto.</li>
+            </ul>
+            <p className="mt-2"><strong>Header CSV aceite:</strong> <code>sku, brand, model, price</code> (obrigatórios) + <code>storage, color, grading, stock, images, cost</code> (opcionais).</p>
+          </div>
+
+          <Field label="Fornecedor *">
+            <select
+              value={importFornecedorId}
+              onChange={(e) => setImportFornecedorId(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">— escolhe um fornecedor —</option>
+              {(fornecedores.data ?? []).map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </Field>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file || !importFornecedorId) return;
+              importMolano.mutate({ fornecedorId: importFornecedorId, file });
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}
+          />
+          <Button
+            type="button"
+            leftIcon={<Upload size={15} />}
+            disabled={!importFornecedorId || importMolano.isPending}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {importMolano.isPending ? 'A importar…' : 'Escolher CSV…'}
+          </Button>
+
+          {importResult && (
+            <div className="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                <div className="rounded bg-emerald-50 p-2 dark:bg-emerald-950/40">
+                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{importResult.created}</div>
+                  <div className="text-emerald-600 dark:text-emerald-400">Criados</div>
+                </div>
+                <div className="rounded bg-blue-50 p-2 dark:bg-blue-950/40">
+                  <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{importResult.updated}</div>
+                  <div className="text-blue-600 dark:text-blue-400">Actualizados</div>
+                </div>
+                <div className="rounded bg-zinc-100 p-2 dark:bg-zinc-800">
+                  <div className="text-lg font-bold text-zinc-700 dark:text-zinc-300">{importResult.skipped}</div>
+                  <div className="text-zinc-500">Ignorados</div>
+                </div>
+                <div className="rounded bg-rose-50 p-2 dark:bg-rose-950/40">
+                  <div className="text-lg font-bold text-rose-700 dark:text-rose-300">{importResult.errors.length}</div>
+                  <div className="text-rose-600 dark:text-rose-400">Erros</div>
+                </div>
+              </div>
+              {importResult.errors.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer font-medium text-rose-700 dark:text-rose-400">Ver erros</summary>
+                  <ul className="mt-2 space-y-1 font-mono">
+                    {importResult.errors.slice(0, 20).map((err, i) => (
+                      <li key={i} className="rounded bg-rose-50 px-2 py-1 dark:bg-rose-950/40">
+                        Linha {err.line} · <strong>{err.field}</strong> · {err.message}
+                        {err.sku && <span className="text-zinc-500"> · SKU {err.sku}</span>}
+                      </li>
+                    ))}
+                    {importResult.errors.length > 20 && (
+                      <li className="text-zinc-500">… e mais {importResult.errors.length - 20} erros.</li>
+                    )}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <Button type="button" variant="ghost" onClick={() => setImportOpen(false)}>Fechar</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
