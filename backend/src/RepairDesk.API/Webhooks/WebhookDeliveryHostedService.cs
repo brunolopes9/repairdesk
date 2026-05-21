@@ -109,7 +109,12 @@ public class WebhookDeliveryHostedService : BackgroundService
             req.Headers.UserAgent.Add(new ProductInfoHeaderValue("RepairDesk-Webhook", "1.0"));
             req.Headers.Add("X-RepairDesk-Event", delivery.EventType);
             req.Headers.Add("X-RepairDesk-Delivery", delivery.Id.ToString());
-            req.Headers.Add("X-RepairDesk-Signature", SignHmac(sub.Secret, delivery.PayloadJson));
+            // Sprint 161a: timestamp + assinatura inclui timestamp para prevenir replay attacks.
+            // Stripe-style: signature = HMAC(secret, "{timestamp}.{body}").
+            // Consumer rejeita se |now - timestamp| > 5 min (toleranceWindow).
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            req.Headers.Add("X-RepairDesk-Timestamp", timestamp.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            req.Headers.Add("X-RepairDesk-Signature", SignHmac(sub.Secret, $"{timestamp}.{delivery.PayloadJson}"));
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(15));

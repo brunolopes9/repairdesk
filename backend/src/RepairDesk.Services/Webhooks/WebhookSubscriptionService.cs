@@ -212,6 +212,15 @@ public class WebhookSubscriptionService : IWebhookSubscriptionService
         url = url.Trim();
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             throw new ValidationException("url_invalid", "URL inválido — tem de ser http(s)://...");
+        // Sprint 161b: enforce HTTPS em produção. HTTP só permitido para localhost (dev).
+        // Sem TLS, signature HMAC é válida mas payload viaja em claro — atacante MitM pode ler.
+        if (uri.Scheme == Uri.UriSchemeHttp
+            && uri.Host is not ("localhost" or "127.0.0.1" or "::1" or "host.docker.internal"))
+        {
+            throw new ValidationException(
+                "url_not_https",
+                "URL tem de ser HTTPS (excepto localhost para dev). Sem TLS o payload viaja em claro.");
+        }
         if (url.Length > 500)
             throw new ValidationException("url_too_long", "URL até 500 caracteres.");
 
