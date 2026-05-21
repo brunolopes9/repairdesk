@@ -119,6 +119,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
     private readonly ISkuMappingRepository _skuMappings;
     private readonly IPartRepository _parts;
     private readonly ISupplierFingerprintingService _fingerprinting;
+    private readonly IAnthropicSupplierParser _llmParser;
     private readonly IAuditLogger _audit;
     private readonly ILogger<SupplierInvoiceImportService> _logger;
 
@@ -131,6 +132,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         ISkuMappingRepository skuMappings,
         IPartRepository parts,
         ISupplierFingerprintingService fingerprinting,
+        IAnthropicSupplierParser llmParser,
         IAuditLogger audit,
         ILogger<SupplierInvoiceImportService> logger)
     {
@@ -142,6 +144,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         _skuMappings = skuMappings;
         _parts = parts;
         _fingerprinting = fingerprinting;
+        _llmParser = llmParser;
         _audit = audit;
         _logger = logger;
     }
@@ -208,6 +211,36 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         {
             var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
             fornecedorId = existingForn?.Id;
+        }
+
+        // Sprint 163: LLM fallback se ainda não temos items parseados E temos texto + key.
+        // Custos: ~0.5¢ por chamada. Só corre quando Sprint 124+162 não chegaram a items.
+        if ((parsed?.Items is null || parsed.Items.Count == 0) && !string.IsNullOrWhiteSpace(rawText) && _llmParser.IsConfigured)
+        {
+            var llm = await _llmParser.ParseAsync(rawText, ct);
+            if (llm is not null && llm.Items.Count > 0)
+            {
+                _logger.LogInformation("LLM parser extraiu {Count} items confidence={Conf:F2}",
+                    llm.Items.Count, llm.Confidence);
+                // Promove resultado LLM para parsed se ainda vazio.
+                parsed = new SupplierPdfParseResult(
+                    SupplierName: parsed?.SupplierName ?? llm.SupplierName ?? fornecedorNameRaw,
+                    OrderId: parsed?.OrderId ?? llm.OrderId,
+                    TotalCents: parsed?.TotalCents ?? llm.TotalCents,
+                    DateAdded: parsed?.DateAdded ?? llm.DocumentDate,
+                    Confidence: llm.Confidence >= 0.7 ? ParseConfidence.High : ParseConfidence.Low,
+                    Items: llm.Items.Select(i => new SupplierPdfItem(
+                        Description: i.Description,
+                        Quantity: i.Quantity,
+                        LineTotalCents: i.LineTotalCents)).ToList());
+                if (string.IsNullOrWhiteSpace(fornecedorNameRaw))
+                    fornecedorNameRaw = llm.SupplierName;
+                if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
+                {
+                    var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
+                    fornecedorId = existingForn?.Id;
+                }
+            }
         }
 
         // 4. Save to filesystem with organized layout.

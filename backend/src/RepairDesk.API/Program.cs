@@ -267,6 +267,8 @@ try
     builder.Services.AddScoped<ISkuMappingRepository, RepairDesk.DAL.Persistence.SkuMappingRepository>();
     // Sprint 162: supplier fingerprinting (detect fornecedor antes do parser).
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierFingerprintingService, RepairDesk.Services.Documents.SupplierFingerprintingService>();
+    // Sprint 163: LLM fallback parser (Claude Haiku) com PII redaction. Configured via ANTHROPIC_API_KEY env.
+    builder.Services.AddHttpClient<RepairDesk.Services.Documents.IAnthropicSupplierParser, RepairDesk.Services.Documents.AnthropicSupplierParser>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 

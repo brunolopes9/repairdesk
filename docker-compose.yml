@@ -75,6 +75,10 @@ services:
       Backup__R2__Prefix: ${Backup__R2__Prefix:-backups}
       E2E__Enabled: ${E2E_ENABLED:-false}
       E2E__ApiKey: ${E2E_API_KEY:-}
+      # Sprint 163: LLM fallback parser para faturas de fornecedor não-conhecidos.
+      # Sem esta key, o sistema usa só parsers determinísticos (Sprint 124+162).
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
       E2E__UseMoloniStub: ${E2E_USE_MOLONI_STUB:-false}
       AtNifLookup__Production: ${AT_PRODUCTION:-false}
       AtNifLookup__CertPath: ${AT_CERT_PATH:-}
