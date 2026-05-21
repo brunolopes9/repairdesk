@@ -126,6 +126,30 @@ services:
     networks:
       - repairdesk-net
 
+  # Sprint 150: n8n para IMAP automation (importar faturas fornecedor automaticamente).
+  # Profile "automation" → não arranca por defeito, opt-in via `docker compose --profile automation up -d`.
+  # UI em http://localhost:5678 — basic auth obrigatório (N8N_BASIC_AUTH_USER/PASSWORD).
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: repairdesk-n8n
+    profiles: ["automation"]
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-bruno}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
+      # Encryption key para credenciais (IMAP password, API key). MUDA isto antes de produção.
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-dev-only-change-me-32-chars-please}
+      GENERIC_TIMEZONE: Europe/Lisbon
+      # Permite chamadas para o RepairDesk API por nome de container interno.
+      N8N_DEFAULT_BINARY_DATA_MODE: filesystem
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    networks:
+      - repairdesk-net
+
 volumes:
   db_data:
   cache_data:
