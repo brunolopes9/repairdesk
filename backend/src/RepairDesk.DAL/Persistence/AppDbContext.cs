@@ -57,6 +57,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
     // Sprint 147: faturas de fornecedor recebidas via endpoint ingest (n8n IMAP).
     public DbSet<SupplierInvoiceImport> SupplierInvoiceImports => Set<SupplierInvoiceImport>();
+    // Sprint 157: mapping aprendido entre SKUs de fornecedor e Parts/Products internos.
+    public DbSet<SkuMapping> SkuMappings => Set<SkuMapping>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

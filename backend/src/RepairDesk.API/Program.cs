@@ -263,6 +263,8 @@ try
 
     // Sprint 147: ingest de faturas de fornecedor via n8n IMAP
     builder.Services.AddScoped<ISupplierInvoiceImportRepository, RepairDesk.DAL.Persistence.SupplierInvoiceImportRepository>();
+    // Sprint 157: SKU mapping tabela aprendida — fornecedor → Part/Product interno.
+    builder.Services.AddScoped<ISkuMappingRepository, RepairDesk.DAL.Persistence.SkuMappingRepository>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 
