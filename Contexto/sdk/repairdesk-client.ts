@@ -326,6 +326,38 @@ export interface ListProductsQuery {
 }
 
 // =================================================================
+// SUPPLIER INVOICES (Sprint 147+149) — ingest via n8n IMAP
+// =================================================================
+
+/**
+ * Metadata do email original. Passada do n8n IMAP node ao endpoint ingest
+ * para auditoria + correlação. Opcional — ingest funciona sem isto.
+ */
+export interface SupplierInvoiceEmailMeta {
+  /** RFC 5322 Message-ID — único globalmente, util para dedupe ao nível n8n. */
+  messageId?: string | null;
+  subject?: string | null;
+  from?: string | null;
+  receivedAt?: string | null;
+}
+
+/** Status do registo após ingest. */
+export type SupplierInvoiceImportStatusValue = 'Pending' | 'Approved' | 'Rejected' | 'Failed';
+
+export interface SupplierInvoiceIngestResult {
+  importId: string;
+  /** 0=Pending, 1=Approved, 2=Rejected, 3=Failed — numeric enum do backend. */
+  status: number;
+  fornecedorNameRaw: string | null;
+  fornecedorId: string | null;
+  totalCents: number | null;
+  documentNumber: string | null;
+  pdfRelativePath: string;
+  /** true quando o SHA256 do PDF já existia → seguro fazer retry idempotente. */
+  wasDuplicate: boolean;
+}
+
+// =================================================================
 // ERROR — wrapping de respostas não-2xx
 // =================================================================
 
@@ -474,6 +506,38 @@ export class RepairDeskClient {
       if (e instanceof RepairDeskError && e.status === 404) return null;
       throw e;
     }
+  }
+
+  /**
+   * Sprint 149: submete um PDF de fatura de fornecedor (recebido via IMAP/email).
+   * Tipicamente chamado por workflow n8n após `IMAP Trigger` apanhar email novo.
+   *
+   * Requer API key com scope `ingest`.
+   *
+   * @param pdfBytes  Bytes do PDF (vai ser encoded base64 antes de enviar).
+   * @param emailMeta Metadata do email original — usado para auditoria + dedupe por messageId.
+   *
+   * Resultado:
+   * - `wasDuplicate: true` quando o SHA256 do PDF já existe → seguro re-enviar idempotente.
+   * - `status: "Pending"` quando o parser confirmou fornecedor + total → Bruno revê e aprova.
+   * - `status: "Failed"` quando o parser não conseguiu extrair dados → ainda assim o PDF é
+   *   guardado, mas Bruno terá de meter valores manuais antes de aprovar.
+   */
+  async ingestSupplierInvoice(
+    pdfBytes: Uint8Array | ArrayBuffer,
+    emailMeta?: SupplierInvoiceEmailMeta,
+  ): Promise<SupplierInvoiceIngestResult> {
+    const bytes = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes);
+    let binary = '';
+    const chunk = 8192;
+    for (let i = 0; i < bytes.byteLength; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunk, bytes.byteLength)));
+    }
+    const pdfBase64 = btoa(binary);
+    return this.request<SupplierInvoiceIngestResult>('POST', '/api/external/supplier-invoices/ingest', {
+      pdfBase64,
+      emailMeta: emailMeta ?? null,
+    });
   }
 
   // ---------------- internals ----------------
