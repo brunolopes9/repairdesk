@@ -98,6 +98,36 @@ public class MoloniClient : IMoloniClient
             .ToArray();
         var documentType = draft.DocumentTypeOverride ?? settings.DefaultDocumentType;
 
+        // Sprint 156b: calcular total recalculando à mesma precisão Moloni (2 casas) — evita
+        // mismatch payments.value ↔ sum(products × IVA) que Moloni rejeita com "Database error".
+        decimal totalWithVat = 0m;
+        foreach (var p in products)
+        {
+            var netUnit = Convert.ToDecimal(p["price"]);
+            var qty = Convert.ToDecimal(p["qty"]);
+            var discount = Convert.ToDecimal(p["discount"]);
+            decimal lineNetTotal = qty * netUnit * (1 - discount / 100m);
+            // Para cada tax aplicada, adicionar valor.
+            if (p["taxes"] is System.Collections.IEnumerable taxesEnum)
+            {
+                decimal taxAccum = 0m;
+                foreach (var tax in taxesEnum)
+                {
+                    if (tax is IDictionary<string, object?> t && t.TryGetValue("value", out var v) && v is not null)
+                    {
+                        var vatPct = Convert.ToDecimal(v);
+                        taxAccum += Math.Round(lineNetTotal * vatPct / 100m, 2);
+                    }
+                }
+                totalWithVat += Math.Round(lineNetTotal, 2) + taxAccum;
+            }
+            else
+            {
+                totalWithVat += Math.Round(lineNetTotal, 2);
+            }
+        }
+        totalWithVat = Math.Round(totalWithVat, 2);
+
         var payload = new Dictionary<string, object?>
         {
             ["company_id"] = settings.CompanyId!.Value,
@@ -117,15 +147,17 @@ public class MoloniClient : IMoloniClient
         if (documentType == BillingDocumentType.FaturaSimplificada
             && settings.DefaultPaymentMethodId is { } paymentMethodId)
         {
-            var totalGross = draftItems.Sum(i => Math.Max(0, i.Quantity * i.UnitPriceCents - i.DiscountCents)) / 100m;
+            // Sprint 156b: payments.value = total recalculado da soma dos products × IVA
+            // (não do Sum(UnitPriceCents)). Garante consistência total↔payments — Moloni
+            // rejeita mismatch com "Database error - try again later".
             payload["payments"] = new[]
             {
                 new Dictionary<string, object?>
                 {
                     ["payment_method_id"] = paymentMethodId,
                     ["date"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                    ["value"] = Math.Round(totalGross, 2),
-                    ["notes"] = draft.PaymentMethod,
+                    ["value"] = totalWithVat,
+                    ["notes"] = draft.PaymentMethod ?? "",
                 },
             };
         }
@@ -298,7 +330,9 @@ public class MoloniClient : IMoloniClient
             ["name"] = item.Name,
             ["summary"] = item.Summary,
             ["qty"] = item.Quantity,
-            ["price"] = Math.Round(netUnit, 4),
+            // Sprint 156b: arredondar a 2 casas (mesma precisão que Moloni internamente).
+            // 4 casas causam mismatch entre subtotal calculado pela API e payments.value.
+            ["price"] = Math.Round(netUnit, 2),
             ["discount"] = discountPercent,
             ["order"] = order,
         };
