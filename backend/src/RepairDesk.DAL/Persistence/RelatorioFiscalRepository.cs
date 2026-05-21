@@ -51,6 +51,57 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
         await _db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Sprint 159: soma o custo com IVA das peças do stock consumidas em reparações pagas
+    /// no período. O IVA dedutível desta soma calcula-se externamente (cents × 23/123).
+    /// </summary>
+    public async Task<int> SumPecasCustoComIvaAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        // Reparações pagas entregues no período.
+        var reparacoesPagasIds = await _db.Reparacoes
+            .Where(r => r.EntregueEm != null && r.EntregueEm >= fromUtc && r.EntregueEm < toUtc
+                && (r.EstadoPagamento == PaymentStatus.Pago || r.EstadoPagamento == PaymentStatus.PagoParcial))
+            .Select(r => r.Id)
+            .ToListAsync(ct);
+        if (reparacoesPagasIds.Count == 0) return 0;
+
+        // PartMovimentos.Quantidade é negativa para UsoEmReparacao, positiva para Devolucao.
+        // -Sum(qty) dá o consumo líquido. CustoUnitarioCents inclui IVA da compra.
+        var custo = await _db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.ReparacaoId != null && reparacoesPagasIds.Contains(m.ReparacaoId.Value))
+            .GroupBy(m => 1)
+            .Select(g => g.Sum(m => -m.Quantidade * (m.Part != null ? m.Part.CustoUnitarioCents : 0)))
+            .FirstOrDefaultAsync(ct);
+        return custo;
+    }
+
+    /// <summary>
+    /// Sprint 159: soma o valor com IVA das Despesas imputadas a reparações/trabalhos pagos
+    /// no período + despesas overhead (sem trabalho/reparação associados — renda, internet, etc).
+    /// </summary>
+    public async Task<int> SumDespesasComIvaAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        var reparacoesPagasIds = await _db.Reparacoes
+            .Where(r => r.EntregueEm != null && r.EntregueEm >= fromUtc && r.EntregueEm < toUtc
+                && (r.EstadoPagamento == PaymentStatus.Pago || r.EstadoPagamento == PaymentStatus.PagoParcial))
+            .Select(r => r.Id)
+            .ToListAsync(ct);
+        var trabalhosPagosIds = await _db.Trabalhos
+            .Where(t => t.Status == TrabalhoStatus.Concluido
+                && t.DataConclusao != null && t.DataConclusao >= fromUtc && t.DataConclusao < toUtc
+                && (t.EstadoPagamento == PaymentStatus.Pago || t.EstadoPagamento == PaymentStatus.PagoParcial))
+            .Select(t => t.Id)
+            .ToListAsync(ct);
+
+        return await _db.Despesas
+            .Where(d => d.Data >= fromUtc && d.Data < toUtc
+                && ((d.ReparacaoId != null && reparacoesPagasIds.Contains(d.ReparacaoId.Value))
+                 || (d.TrabalhoId != null && trabalhosPagosIds.Contains(d.TrabalhoId.Value))
+                 || (d.ReparacaoId == null && d.TrabalhoId == null)))  // overhead
+            .SumAsync(d => d.ValorCents, ct);
+    }
+
     public async Task<IReadOnlyList<RelatorioFiscalDocumentoRow>> ListDocumentosAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
     {
         var reparacoes = await _db.Reparacoes

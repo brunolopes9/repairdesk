@@ -104,10 +104,55 @@ export default function RelatorioIva() {
         <EmptyState icon={ReceiptText} title="Nao foi possivel carregar o relatorio" description="Confirma a ligacao ao servidor e tenta novamente." />
       ) : report.data ? (
         <>
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Kpi title="Total sem IVA" value={report.data.totalSemIvaCents} />
-            <Kpi title="IVA liquidado" value={report.data.ivaLiquidadoCents} />
-            <Kpi title="IVA a entregar" value={report.data.ivaAEntregarCents} tone="brand" />
+          {/* Sprint 159: 3 camadas claras. Antes só tinha 3 KPIs com IVA compras manual; agora
+              o sistema auto-calcula IVA dedutível das peças stock consumidas em reparações pagas
+              + Despesas do período. Bruno só precisa de inserir "Compras manuais" para fornecedores
+              que NÃO estão registados em RepairDesk (ex: pagamentos por fora a transportadoras). */}
+          <section className="space-y-4">
+            {/* Bloco Vendas */}
+            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                🟦 Vendas — IVA liquidado (cobrado aos clientes)
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Kpi title="Total facturado sem IVA" value={report.data.totalSemIvaCents} />
+                <Kpi title="IVA liquidado" value={report.data.ivaLiquidadoCents} tone="brand" />
+              </div>
+            </div>
+
+            {/* Bloco Compras dedutíveis */}
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                🟩 Compras — IVA dedutível (auto + manual)
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <KpiSmall title="Peças do stock (auto)" value={report.data.ivaDedutivelPecasCents}
+                  hint="IVA das peças usadas em reparações pagas" />
+                <KpiSmall title="Despesas (auto)" value={report.data.ivaDedutivelDespesasCents}
+                  hint="Despesas imputadas + overhead" />
+                <KpiSmall title="Compras manuais (input)" value={report.data.ivaComprasCents}
+                  hint="Campo acima — fornecedores fora do RD" />
+              </div>
+              <div className="mt-3 rounded bg-emerald-100/60 px-3 py-2 text-sm dark:bg-emerald-900/30">
+                <strong>Total dedutível:</strong> {formatCents(report.data.ivaDedutivelTotalCents)}
+              </div>
+            </div>
+
+            {/* Bloco a entregar */}
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 dark:border-amber-700/60 dark:bg-amber-950/30">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                🟥 A entregar à AT — trimestre {report.data.trimestre} {report.data.ano}
+              </div>
+              <div className="text-3xl font-bold text-amber-900 dark:text-amber-100">
+                {formatCents(report.data.ivaAEntregarCents)}
+              </div>
+              <div className="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">
+                {formatCents(report.data.ivaLiquidadoCents)} liquidado − {formatCents(report.data.ivaDedutivelTotalCents)} dedutível
+              </div>
+              <div className="mt-2 text-[11px] italic text-amber-700 dark:text-amber-300">
+                ⚠️ Este valor é uma <strong>estimativa de controlo interno</strong>. O valor oficial é o do SAF-T Moloni que o contabilista entrega à AT.
+              </div>
+            </div>
           </section>
 
           <ComparisonChart
@@ -137,6 +182,16 @@ export default function RelatorioIva() {
           )}
         </>
       ) : null}
+    </div>
+  );
+}
+
+function KpiSmall({ title, value, hint }: { title: string; value: number; hint?: string }) {
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="text-[11px] uppercase tracking-wide text-zinc-500">{title}</div>
+      <div className="mt-0.5 text-lg font-semibold tabular-nums">{formatCents(value)}</div>
+      {hint && <div className="mt-0.5 text-[10px] text-zinc-500">{hint}</div>}
     </div>
   );
 }

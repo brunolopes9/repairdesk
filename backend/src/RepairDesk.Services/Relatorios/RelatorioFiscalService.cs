@@ -56,6 +56,20 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
         var ivaCompras = Math.Max(0, ivaComprasCents);
         var ivaLiquidado = docs.Sum(d => d.IvaCents);
 
+        // Sprint 159: auto-calcular IVA dedutível das peças stock + Despesas.
+        // Assume taxa 23% para o cálculo IVA = cents × 23 / 123 (extracção do IVA embutido no preço com IVA).
+        // Regime IsentoArt53 não deduz nada (Bruno fica sem IVA cobrado nem dedutível).
+        var ivaDedutivelPecas = 0;
+        var ivaDedutivelDespesas = 0;
+        if (tenant.RegimeFiscal != RegimeFiscal.IsentoArt53)
+        {
+            var pecasCustoComIva = await _repo.SumPecasCustoComIvaAsync(from, to, ct);
+            var despesasComIva = await _repo.SumDespesasComIvaAsync(from, to, ct);
+            ivaDedutivelPecas = (int)Math.Round(pecasCustoComIva * 23.0 / 123.0);
+            ivaDedutivelDespesas = (int)Math.Round(despesasComIva * 23.0 / 123.0);
+        }
+        var ivaDedutivelTotal = ivaCompras + ivaDedutivelPecas + ivaDedutivelDespesas;
+
         return new RelatorioIvaResponse(
             ano,
             trimestre,
@@ -64,7 +78,10 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
             docs.Sum(d => d.BaseCents),
             ivaLiquidado,
             ivaCompras,
-            Math.Max(0, ivaLiquidado - ivaCompras),
+            ivaDedutivelPecas,
+            ivaDedutivelDespesas,
+            ivaDedutivelTotal,
+            Math.Max(0, ivaLiquidado - ivaDedutivelTotal),
             prevDocs.Sum(d => d.BaseCents),
             prevDocs.Sum(d => d.IvaCents),
             docs);
