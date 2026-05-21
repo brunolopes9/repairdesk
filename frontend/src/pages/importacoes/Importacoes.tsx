@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Inbox, FileText, CheckCircle2, XCircle, AlertTriangle, Download } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -38,6 +38,18 @@ export default function Importacoes() {
       setRejectReason('');
     },
     onError: (err) => toast.fromError(err, 'Não foi possível rejeitar.'),
+  });
+
+  // Sprint 160c: upload manual de PDF (sem n8n IMAP).
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const upload = useMutation({
+    mutationFn: (file: File) => supplierInvoicesApi.uploadPdf(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
+      toast.success('PDF processado — vê a importação na lista abaixo.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    },
+    onError: (err) => toast.fromError(err, 'Falhou upload do PDF.'),
   });
 
   // Sprint 160b: aprovar como stock — cria Parts + PartMovimentos + SkuMapping.
@@ -88,13 +100,37 @@ export default function Importacoes() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 py-6">
       <header className="space-y-2">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold">
-          <Inbox size={24} strokeWidth={2} />
-          Importações de Fornecedor
-        </h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            <Inbox size={24} strokeWidth={2} />
+            Importações de Fornecedor
+          </h1>
+          {/* Sprint 160c: upload manual de PDF (sem n8n IMAP configurado). */}
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) upload.mutate(file);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={upload.isPending}
+              className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              title="Upload manual de PDF (sem precisar de n8n IMAP)"
+            >
+              {upload.isPending ? 'A processar…' : '📎 Upload PDF manual'}
+            </button>
+          </div>
+        </div>
         <p className="text-sm text-zinc-500">
-          Facturas que chegaram via n8n IMAP automation. Revê os valores extraídos pelo parser e aprova
-          (cria Despesa real) ou rejeita. Os PDFs ficam guardados em <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">/data/supplier-invoices/{`{tenant}`}/{`{ano}`}/{`{mês}`}/{`{fornecedor}`}/</code>.
+          Facturas que chegaram via n8n IMAP automation ou upload manual. Revê os valores extraídos pelo parser e aprova
+          (cria Despesa ou adiciona ao stock) ou rejeita. Os PDFs ficam guardados em <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">/data/supplier-invoices/{`{tenant}`}/{`{ano}`}/{`{mês}`}/{`{fornecedor}`}/</code>.
         </p>
       </header>
 

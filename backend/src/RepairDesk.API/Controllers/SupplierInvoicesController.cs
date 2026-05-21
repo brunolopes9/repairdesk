@@ -47,6 +47,38 @@ public class SupplierInvoicesController : ControllerBase
         => _service.ApproveAsStockAsync(id, req, ct);
 
     /// <summary>
+    /// Sprint 160c: upload manual PDF para testar flow sem n8n IMAP configurado.
+    /// Faz o mesmo que o endpoint /api/external/supplier-invoices/ingest mas via JWT
+    /// admin auth em vez de service API key — Bruno usa do browser, sem secret leak.
+    /// </summary>
+    [HttpPost("upload")]
+    [RequestSizeLimit(20 * 1024 * 1024)] // 20 MB max
+    public async Task<IActionResult> Upload(
+        [FromForm] IFormFile file,
+        [FromForm] string? fornecedorHint,
+        CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { code = "no_file", detail = "Anexa um PDF." });
+        if (!string.Equals(file.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase)
+            && !file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { code = "not_pdf", detail = "Só PDFs são aceites." });
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, ct);
+        var bytes = ms.ToArray();
+
+        var emailMeta = new SupplierInvoiceEmailMeta(
+            MessageId: null,
+            Subject: $"Manual upload: {file.FileName}",
+            From: string.IsNullOrWhiteSpace(fornecedorHint) ? "manual-upload@repairdesk" : fornecedorHint,
+            ReceivedAt: DateTime.UtcNow);
+
+        var result = await _service.IngestAsync(bytes, emailMeta, apiKeyId: null, ct: ct);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Sprint 148: export ZIP de todas as facturas APROVADAS no período. Útil para entregar
     /// ao contabilista no fim do trimestre. Estrutura interna: yyyy/MM/supplier/filename.pdf.
     /// </summary>

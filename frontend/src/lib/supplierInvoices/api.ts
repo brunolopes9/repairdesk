@@ -73,6 +73,15 @@ export const supplierInvoicesApi = {
   pdfPath(id: string) {
     return `/supplier-invoices/${id}/pdf`;
   },
+  // Sprint 160c: upload manual PDF (sem n8n IMAP). Aceita File do browser.
+  uploadPdf(file: File, fornecedorHint?: string) {
+    const form = new FormData();
+    form.append('file', file);
+    if (fornecedorHint) form.append('fornecedorHint', fornecedorHint);
+    return api.post('/supplier-invoices/upload', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data);
+  },
   approve(id: string, req: ApproveSupplierInvoiceRequest) {
     return api.post<SupplierInvoiceImport>(`/supplier-invoices/${id}/approve`, req).then((r) => r.data);
   },
