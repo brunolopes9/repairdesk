@@ -66,4 +66,22 @@ export const tenantSettingsApi = {
       .post<MoloniAutoDiscoverResult>('/tenant-settings/me/billing/moloni/auto-discover')
       .then((r) => r.data);
   },
+  // Sprint 156: diagnose Moloni — valida cada ID configurado contra a API deles.
+  diagnoseMoloni() {
+    return api
+      .post<MoloniDiagnoseResult>('/tenant-settings/me/billing/moloni/diagnose')
+      .then((r) => r.data);
+  },
 };
+
+export interface MoloniDiagnoseCheck {
+  step: string;
+  idLabel: string;
+  idValue: number | null;
+  ok: boolean;
+  message: string;
+}
+export interface MoloniDiagnoseResult {
+  allOk: boolean;
+  checks: MoloniDiagnoseCheck[];
+}

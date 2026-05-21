@@ -1004,10 +1004,12 @@ public class MoloniClient : IMoloniClient
     }
 
     /// <summary>
-    /// Sprint 144c: emissão de documento com retry quando Moloni devolve "Database error".
-    /// Esse erro vem como HTTP 200 + JSON [{"code":"Database error - try again later", ...}]
-    /// e é tipicamente transiente do lado deles. Retry 3× com backoff 1s/2s/4s.
-    /// Se persistir, throw com mensagem clara que indica Moloni-side.
+    /// Sprint 144c: emissão de documento com retry.
+    /// Sprint 156 REVISÃO: descobrimos que "Database error" do Moloni NÃO é outage —
+    /// é o shape padrão de erro de validação ([{"code":"...","description":"..."}]).
+    /// Provavelmente algum *_id da config está inválido (product, tax, customer, document_set).
+    /// Mantemos o retry (cobre outage real raro) mas logamos o payload COMPLETO para diagnose,
+    /// e expomos mensagem accionável ao Bruno apontando para o diagnose endpoint.
     /// </summary>
     private async Task<JsonElement> PostInvoiceWithRetryAsync(
         TenantBillingSettings settings, string endpoint, object payload, CancellationToken ct)
@@ -1018,17 +1020,24 @@ public class MoloniClient : IMoloniClient
         {
             if (attempt > 0)
             {
-                _logger.LogWarning("Moloni {Endpoint} retry {Attempt}/{Max} após Database error transiente", endpoint, attempt, delays.Length);
+                _logger.LogWarning("Moloni {Endpoint} retry {Attempt}/{Max} após erro", endpoint, attempt, delays.Length);
                 await Task.Delay(delays[attempt - 1], ct);
             }
             last = await PostAsync<JsonElement>(settings, endpoint, payload, ct);
             if (!IsMoloniTransientError(last)) return last;
         }
-        // Esgotou retries — propaga erro friendly.
+
+        // Sprint 156: log do PAYLOAD COMPLETO para diagnose. Sem isto, ficamos cegos.
+        var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
+        var responseJson = last.GetRawText();
+        _logger.LogError(
+            "Moloni {Endpoint} falhou após {Retries} retries. PAYLOAD: {Payload} | RESPONSE: {Response}",
+            endpoint, delays.Length, payloadJson, responseJson);
+
         var errMsg = ExtractMoloniErrorMessage(last) ?? "erro desconhecido";
         throw new BillingProviderException(
-            "moloni_transient_unavailable",
-            $"Moloni está temporariamente indisponível: \"{errMsg}\". Tenta dentro de alguns minutos.");
+            "moloni_validation_error",
+            $"Moloni rejeitou o documento: \"{errMsg}\". Vai a Definições → Faturação → \"Diagnosticar Moloni\" para identificar qual ID da config está inválido.");
     }
 
     private static bool IsMoloniTransientError(JsonElement response)

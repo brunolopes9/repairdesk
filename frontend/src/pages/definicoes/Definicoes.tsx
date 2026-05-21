@@ -431,6 +431,18 @@ function FaturacaoSection() {
     onError: (err) => toast.fromError(err, 'A Moloni rejeitou a ligação.'),
   });
 
+  // Sprint 156: diagnose Moloni — valida cada ID configurado.
+  const [diagnoseResult, setDiagnoseResult] = useState<import('../../lib/tenantSettings/api').MoloniDiagnoseResult | null>(null);
+  const diagnose = useMutation({
+    mutationFn: () => tenantSettingsApi.diagnoseMoloni(),
+    onSuccess: (r) => {
+      setDiagnoseResult(r);
+      if (r.allOk) toast.success('Diagnóstico OK', 'Toda a configuração Moloni está válida.');
+      else toast.fromError(new Error('Diagnóstico encontrou problemas'), 'Vê o painel abaixo.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível fazer diagnóstico.'),
+  });
+
   const sync = useMutation({
     mutationFn: () => tenantSettingsApi.syncBillingSeries(),
     onSuccess: async (items) => {
@@ -969,18 +981,61 @@ function FaturacaoSection() {
       )}
 
       {connected && (
-        <div className="flex flex-wrap gap-2 border-t border-zinc-200 pt-5 dark:border-zinc-800">
-          {/* Sprint 145b: "Guardar configuração" removido — auto-save via debounce 1200ms
-              (Sprint 117) já trata de tudo. Bruno reportou que botão de save manual era inútil.
-              "Testar emissão" mantém-se porque é acção diferente (dry-run validation Moloni). */}
-          <button
-            type="button"
-            onClick={() => test.mutate()}
-            disabled={test.isPending}
-            className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            {test.isPending ? 'A testar…' : 'Testar emissão'}
-          </button>
+        <div className="space-y-3 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => test.mutate()}
+              disabled={test.isPending}
+              className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {test.isPending ? 'A testar…' : 'Testar emissão'}
+            </button>
+            {/* Sprint 156: diagnóstico Moloni — valida cada ID configurado para Bruno saber qual está mal. */}
+            <button
+              type="button"
+              onClick={() => diagnose.mutate()}
+              disabled={diagnose.isPending}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-200"
+              title="Quando emissão falha com 'Database error', clica aqui para identificar qual ID Moloni está inválido."
+            >
+              {diagnose.isPending ? 'A diagnosticar…' : '🔍 Diagnosticar Moloni'}
+            </button>
+          </div>
+
+          {diagnoseResult && (
+            <div className={`rounded-lg border p-3 text-xs ${diagnoseResult.allOk ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800/40 dark:bg-emerald-950/30' : 'border-rose-300 bg-rose-50 dark:border-rose-800/40 dark:bg-rose-950/30'}`}>
+              <div className="mb-2 font-semibold">
+                {diagnoseResult.allOk
+                  ? '✅ Configuração Moloni OK'
+                  : `⚠️ Encontrámos ${diagnoseResult.checks.filter(c => !c.ok).length} problema(s)`}
+              </div>
+              <ul className="space-y-1">
+                {diagnoseResult.checks.map((check, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className={check.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}>
+                      {check.ok ? '✓' : '✗'}
+                    </span>
+                    <div className="flex-1">
+                      <div>
+                        <strong>{check.step}</strong>
+                        {check.idValue && <span className="ml-1 font-mono text-[10px] text-zinc-500">({check.idLabel}={check.idValue})</span>}
+                      </div>
+                      <div className={check.ok ? 'text-zinc-600 dark:text-zinc-400' : 'text-rose-700 dark:text-rose-300'}>
+                        {check.message}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {!diagnoseResult.allOk && (
+                <div className="mt-3 rounded bg-zinc-50 p-2 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                  <strong>Fix:</strong> clica "Auto-configurar tudo" acima para corrigir IDs em falta, ou
+                  arranja manualmente os IDs no painel Moloni e cola aqui.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

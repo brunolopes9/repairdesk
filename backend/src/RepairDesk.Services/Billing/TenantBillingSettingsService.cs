@@ -25,7 +25,25 @@ public interface ITenantBillingSettingsService
     Task<TenantBillingSettingsDto> DisconnectMoloniAsync(CancellationToken ct = default);
     Task<IReadOnlyList<MoloniCompanyDto>> ListCompaniesAsync(CancellationToken ct = default);
     Task<MoloniAutoDiscoverResultDto> AutoDiscoverAsync(CancellationToken ct = default);
+    /// <summary>
+    /// Sprint 156: valida cada ID configurado contra a API Moloni (companies/getOne,
+    /// documentSets/getOne, products/getOne, taxes/getAll, customers/getOne).
+    /// Devolve lista de checks com status — Bruno vê qual ID está inválido sem
+    /// precisar de ler logs.
+    /// </summary>
+    Task<MoloniDiagnoseResultDto> DiagnoseMoloniAsync(CancellationToken ct = default);
 }
+
+public sealed record MoloniDiagnoseResultDto(
+    bool AllOk,
+    IReadOnlyList<MoloniDiagnoseCheck> Checks);
+
+public sealed record MoloniDiagnoseCheck(
+    string Step,
+    string IdLabel,
+    int? IdValue,
+    bool Ok,
+    string Message);
 
 public class TenantBillingSettingsService : ITenantBillingSettingsService
 {
@@ -361,6 +379,144 @@ public class TenantBillingSettingsService : ITenantBillingSettingsService
             customers.Count,
             steps,
             ToDto(settings));
+    }
+
+    /// <summary>
+    /// Sprint 156: valida todos os IDs Moloni da config para identificar qual está mal quando
+    /// "Database error" ocorre. Bruno vê uma checklist clara em vez de mensagem genérica.
+    /// </summary>
+    public async Task<MoloniDiagnoseResultDto> DiagnoseMoloniAsync(CancellationToken ct = default)
+    {
+        var settings = await FindOrCreateAsync(ct);
+        var checks = new List<MoloniDiagnoseCheck>();
+
+        // 1. Token Moloni válido?
+        try
+        {
+            await _moloni.TestConnectionAsync(settings, ct);
+            checks.Add(new("Conexão", "Access token", null, true, "Token válido, Moloni responde."));
+        }
+        catch (Exception ex)
+        {
+            checks.Add(new("Conexão", "Access token", null, false, $"Falhou: {ex.Message}"));
+            return new MoloniDiagnoseResultDto(false, checks);
+        }
+
+        // 2. Company válida?
+        if (settings.CompanyId is null or 0)
+        {
+            checks.Add(new("Empresa", "CompanyId", null, false, "Não configurada — clica 'Detectar' em Definições."));
+        }
+        else
+        {
+            try
+            {
+                var companies = await _moloni.GetCompaniesAsync(settings, ct);
+                var company = companies.FirstOrDefault(c => c.Id == settings.CompanyId.Value);
+                if (company is null)
+                    checks.Add(new("Empresa", "CompanyId", settings.CompanyId, false, $"ID {settings.CompanyId} não existe na tua conta Moloni."));
+                else
+                    checks.Add(new("Empresa", "CompanyId", settings.CompanyId, true, $"OK — {company.Name}"));
+            }
+            catch (Exception ex)
+            {
+                checks.Add(new("Empresa", "CompanyId", settings.CompanyId, false, $"Erro a verificar: {ex.Message}"));
+            }
+        }
+
+        // 3. Série Moloni válida?
+        if (settings.DefaultSerieId is null or 0)
+        {
+            checks.Add(new("Série", "DefaultSerieId", null, false, "Não configurada — clica 'Sincronizar' em Definições."));
+        }
+        else
+        {
+            try
+            {
+                var series = await _moloni.GetSeriesAsync(settings, ct);
+                var serie = series.FirstOrDefault(s => s.Id == settings.DefaultSerieId.Value);
+                if (serie is null)
+                    checks.Add(new("Série", "DefaultSerieId", settings.DefaultSerieId, false, $"Série {settings.DefaultSerieId} NÃO existe na tua conta Moloni. Pode ter sido apagada — sincroniza."));
+                else
+                    checks.Add(new("Série", "DefaultSerieId", settings.DefaultSerieId, true, $"OK — {serie.Name}"));
+            }
+            catch (Exception ex)
+            {
+                checks.Add(new("Série", "DefaultSerieId", settings.DefaultSerieId, false, $"Erro a verificar: {ex.Message}"));
+            }
+        }
+
+        // 4. Produto/serviço fallback?
+        if (settings.DefaultProductId is null or 0)
+        {
+            checks.Add(new("Produto fallback", "DefaultProductId", null, false, "Não configurado — clica 'Auto-configurar' em Definições."));
+        }
+        else
+        {
+            try
+            {
+                var products = await _moloni.GetProductsAsync(settings, ct);
+                var product = products.FirstOrDefault(p => p.Id == settings.DefaultProductId.Value);
+                if (product is null)
+                    checks.Add(new("Produto fallback", "DefaultProductId", settings.DefaultProductId, false, $"Produto {settings.DefaultProductId} NÃO existe. Provavelmente apagado no painel Moloni."));
+                else
+                    checks.Add(new("Produto fallback", "DefaultProductId", settings.DefaultProductId, true, $"OK — {product.Name}"));
+            }
+            catch (Exception ex)
+            {
+                checks.Add(new("Produto fallback", "DefaultProductId", settings.DefaultProductId, false, $"Erro a verificar: {ex.Message}"));
+            }
+        }
+
+        // 5. Imposto IVA?
+        if (settings.DefaultTaxId is null or 0)
+        {
+            checks.Add(new("Imposto IVA", "DefaultTaxId", null, false, "Não configurado — auto-configurar."));
+        }
+        else
+        {
+            try
+            {
+                var taxes = await _moloni.GetTaxesAsync(settings, ct);
+                var tax = taxes.FirstOrDefault(t => t.Id == settings.DefaultTaxId.Value);
+                if (tax is null)
+                    checks.Add(new("Imposto IVA", "DefaultTaxId", settings.DefaultTaxId, false, $"Imposto {settings.DefaultTaxId} NÃO existe."));
+                else
+                    checks.Add(new("Imposto IVA", "DefaultTaxId", settings.DefaultTaxId, true, $"OK — {tax.Name} ({tax.Value}%)"));
+            }
+            catch (Exception ex)
+            {
+                checks.Add(new("Imposto IVA", "DefaultTaxId", settings.DefaultTaxId, false, $"Erro a verificar: {ex.Message}"));
+            }
+        }
+
+        // 6. Cliente fallback (Consumidor Final)?
+        if (settings.FallbackCustomerId is null or 0)
+        {
+            checks.Add(new("Cliente fallback", "FallbackCustomerId", null, false, "Não configurado — necessário para faturas simplificadas sem NIF."));
+        }
+        else
+        {
+            try
+            {
+                var customers = await _moloni.GetCustomersAsync(settings, ct);
+                var customer = customers.FirstOrDefault(c => c.Id == settings.FallbackCustomerId.Value);
+                if (customer is null)
+                    checks.Add(new("Cliente fallback", "FallbackCustomerId", settings.FallbackCustomerId, false, $"Cliente {settings.FallbackCustomerId} NÃO existe."));
+                else
+                    checks.Add(new("Cliente fallback", "FallbackCustomerId", settings.FallbackCustomerId, true, $"OK — {customer.Name}"));
+            }
+            catch (Exception ex)
+            {
+                checks.Add(new("Cliente fallback", "FallbackCustomerId", settings.FallbackCustomerId, false, $"Erro a verificar: {ex.Message}"));
+            }
+        }
+
+        var allOk = checks.All(c => c.Ok);
+        _logger.LogInformation("Moloni diagnose: allOk={AllOk}, failures=[{Failures}]",
+            allOk,
+            string.Join(", ", checks.Where(c => !c.Ok).Select(c => $"{c.IdLabel}={c.IdValue}")));
+        return new MoloniDiagnoseResultDto(allOk, checks);
     }
 
     private async Task<TenantBillingSettings> FindOrCreateAsync(CancellationToken ct)

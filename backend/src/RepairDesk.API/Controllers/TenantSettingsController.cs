@@ -65,4 +65,12 @@ public class TenantSettingsController : ControllerBase
     [HttpPost("me/billing/moloni/auto-discover")]
     public Task<MoloniAutoDiscoverResultDto> AutoDiscoverMoloni(CancellationToken ct)
         => _billing.AutoDiscoverAsync(ct);
+
+    /// <summary>
+    /// Sprint 156: diagnóstico Moloni — valida cada ID configurado contra a API deles.
+    /// Diz ao Bruno qual ID específico está inválido quando emissões falham com "Database error".
+    /// </summary>
+    [HttpPost("me/billing/moloni/diagnose")]
+    public Task<MoloniDiagnoseResultDto> DiagnoseMoloni(CancellationToken ct)
+        => _billing.DiagnoseMoloniAsync(ct);
 }
