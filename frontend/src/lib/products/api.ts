@@ -151,4 +151,30 @@ export const productsApi = {
   importMolano(fornecedorId: string, csv: string) {
     return api.post<ImportProductsResponse>('/products/import-molano', { fornecedorId, csv }).then((r) => r.data);
   },
+  // Sprint 155b: migração one-off de produtos shop-only (vinham só da loja antes do
+  // single-source-of-truth). Aceita o JSON exportado pelo outro Claude via npm run db:export-shop-only.
+  migrateShop(products: MigrateShopProductRequest[]) {
+    return api.post<ImportProductsResponse>('/products/migrate-shop', { products }).then((r) => r.data);
+  },
 };
+
+export interface MigrateShopProductRequest {
+  sku: string;
+  brand: string;
+  model: string;
+  title: string;
+  category: string;
+  priceCents: number;
+  compareAtPriceCents: number | null;
+  stockQuantity: number;
+  storage: string | null;
+  color: string | null;
+  grading: string | null;
+  description: string | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  images: string[] | null;
+  isOpenBox: boolean;
+  openBoxReason: string | null;
+  isActive: boolean;
+}

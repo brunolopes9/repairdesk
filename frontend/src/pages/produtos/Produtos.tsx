@@ -76,6 +76,10 @@ export default function Produtos() {
   const [importFornecedorId, setImportFornecedorId] = useState('');
   const [importResult, setImportResult] = useState<ImportProductsResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Sprint 155b: migrate shop UI.
+  const [migrateOpen, setMigrateOpen] = useState(false);
+  const [migrateResult, setMigrateResult] = useState<ImportProductsResponse | null>(null);
+  const migrateFileRef = useRef<HTMLInputElement | null>(null);
 
   const editingQuery = useQuery({
     queryKey: ['product', editingId],
@@ -157,6 +161,29 @@ export default function Produtos() {
     onError: (e) => toast.fromError(e, 'Erro ao remover.'),
   });
 
+  // Sprint 155b: migrate shop-only. Aceita ficheiro JSON exportado pelo outro Claude.
+  const migrateShop = useMutation({
+    mutationFn: async (file: File) => {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      // Aceita { products: [...] } OU { count, products: [...] } OU array directo.
+      const products = Array.isArray(parsed) ? parsed : parsed.products;
+      if (!Array.isArray(products)) {
+        throw new Error('JSON deve ter "products: [...]" no top level ou ser um array.');
+      }
+      return productsApi.migrateShop(products);
+    },
+    onSuccess: (result) => {
+      setMigrateResult(result);
+      qc.invalidateQueries({ queryKey: ['products'] });
+      toast.success(
+        'Migração concluída',
+        `${result.created} criados, ${result.skipped} já existiam, ${result.errors.length} erro(s).`,
+      );
+    },
+    onError: (e) => toast.fromError(e, 'Erro a migrar do shop.'),
+  });
+
   // Sprint 153b: import CSV Molano. Lê o ficheiro como texto + envia ao backend.
   const importMolano = useMutation({
     mutationFn: async (vars: { fornecedorId: string; file: File }) => {
@@ -184,6 +211,9 @@ export default function Produtos() {
         description="Telemóveis revendidos (Molano, Tudo4Mobile, etc) para a loja online. Distintos de Peças (peças técnicas em Stock)."
         meta={<span className="text-sm text-zinc-500">{list.data?.total ?? 0} produto(s)</span>}
         actions={<>
+          <Button leftIcon={<Upload size={15} />} variant="ghost" onClick={() => { setMigrateResult(null); setMigrateOpen(true); }}>
+            Migrar shop (one-off)
+          </Button>
           <Button leftIcon={<Upload size={15} />} variant="secondary" onClick={() => { setImportResult(null); setImportFornecedorId(''); setImportOpen(true); }}>
             Importar CSV Molano
           </Button>
@@ -494,6 +524,81 @@ export default function Produtos() {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* Sprint 155b: migração one-off de produtos shop-only do export do outro Claude. */}
+      <Modal open={migrateOpen} title="Migrar produtos shop (one-off)" onClose={() => setMigrateOpen(false)}>
+        <div className="space-y-4">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+            <p><strong>Migração única:</strong> traz produtos que existiam só na loja online (antes do single-source-of-truth, Sprints 151-154) para o RepairDesk.</p>
+            <ul className="mt-1 list-inside list-disc space-y-0.5">
+              <li>Outro Claude exportou via <code>npm run db:export-shop-only</code> em <code>ecommerce/shop-only-products.json</code></li>
+              <li>Upsert por SKU — re-correr não duplica (skip existentes)</li>
+              <li>Todos ficam <code>SupplyType=Stock</code>, <code>MostrarLojaOnline=true</code>, <code>IsCurated=true</code> nas imagens</li>
+            </ul>
+          </div>
+
+          <input
+            ref={migrateFileRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              migrateShop.mutate(file);
+              if (migrateFileRef.current) migrateFileRef.current.value = '';
+            }}
+          />
+          <Button
+            type="button"
+            leftIcon={<Upload size={15} />}
+            disabled={migrateShop.isPending}
+            onClick={() => migrateFileRef.current?.click()}
+          >
+            {migrateShop.isPending ? 'A migrar…' : 'Escolher shop-only-products.json…'}
+          </Button>
+
+          {migrateResult && (
+            <div className="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                <div className="rounded bg-emerald-50 p-2 dark:bg-emerald-950/40">
+                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{migrateResult.created}</div>
+                  <div className="text-emerald-600 dark:text-emerald-400">Criados</div>
+                </div>
+                <div className="rounded bg-blue-50 p-2 dark:bg-blue-950/40">
+                  <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{migrateResult.updated}</div>
+                  <div className="text-blue-600 dark:text-blue-400">Actualizados</div>
+                </div>
+                <div className="rounded bg-zinc-100 p-2 dark:bg-zinc-800">
+                  <div className="text-lg font-bold text-zinc-700 dark:text-zinc-300">{migrateResult.skipped}</div>
+                  <div className="text-zinc-500">Já existiam</div>
+                </div>
+                <div className="rounded bg-rose-50 p-2 dark:bg-rose-950/40">
+                  <div className="text-lg font-bold text-rose-700 dark:text-rose-300">{migrateResult.errors.length}</div>
+                  <div className="text-rose-600 dark:text-rose-400">Erros</div>
+                </div>
+              </div>
+              {migrateResult.errors.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer font-medium text-rose-700 dark:text-rose-400">Ver erros</summary>
+                  <ul className="mt-2 space-y-1 font-mono">
+                    {migrateResult.errors.slice(0, 20).map((err, i) => (
+                      <li key={i} className="rounded bg-rose-50 px-2 py-1 dark:bg-rose-950/40">
+                        Linha {err.line} · <strong>{err.field}</strong> · {err.message}
+                        {err.sku && <span className="text-zinc-500"> · SKU {err.sku}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <Button type="button" variant="ghost" onClick={() => setMigrateOpen(false)}>Fechar</Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Sprint 153b: modal upload CSV Molano. Idempotente — re-importar mesmo CSV não duplica. */}
