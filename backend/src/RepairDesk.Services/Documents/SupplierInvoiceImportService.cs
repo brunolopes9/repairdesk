@@ -18,7 +18,22 @@ public interface ISupplierInvoiceImportService
         CancellationToken ct = default);
 
     Task<IReadOnlyList<SupplierInvoiceImportDto>> ListPendingAsync(int take, CancellationToken ct = default);
+
+    // Sprint 148: admin operations (JWT-auth).
+    Task<byte[]> GetPdfAsync(Guid importId, CancellationToken ct = default);
+    Task<SupplierInvoiceImportDto> ApproveAsync(Guid importId, ApproveSupplierInvoiceRequest req, CancellationToken ct = default);
+    Task<SupplierInvoiceImportDto> RejectAsync(Guid importId, string? reason, CancellationToken ct = default);
+    Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, CancellationToken ct = default);
 }
+
+public sealed record ApproveSupplierInvoiceRequest(
+    int ValorCents,
+    string Descricao,
+    Core.Enums.DespesaCategoria Categoria,
+    DateTime? Data,
+    string? Fornecedor,
+    string? NumeroEncomenda,
+    string? Notas);
 
 public sealed record SupplierInvoiceEmailMeta(
     string? MessageId,
@@ -54,6 +69,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
     private readonly ITenantContext _tenant;
     private readonly IFornecedorRepository _fornecedores;
     private readonly ISupplierInvoiceStorage _storage;
+    private readonly Despesas.IDespesaService _despesas;
     private readonly IAuditLogger _audit;
     private readonly ILogger<SupplierInvoiceImportService> _logger;
 
@@ -62,6 +78,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         ITenantContext tenant,
         IFornecedorRepository fornecedores,
         ISupplierInvoiceStorage storage,
+        Despesas.IDespesaService despesas,
         IAuditLogger audit,
         ILogger<SupplierInvoiceImportService> logger)
     {
@@ -69,6 +86,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         _tenant = tenant;
         _fornecedores = fornecedores;
         _storage = storage;
+        _despesas = despesas;
         _audit = audit;
         _logger = logger;
     }
@@ -195,6 +213,98 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             x.CreatedAt,
             x.PdfRelativePath)).ToList();
     }
+
+    public async Task<byte[]> GetPdfAsync(Guid importId, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        var entity = await _repo.FindByIdAsync(importId, ct) ?? throw new NotFoundException("SupplierInvoiceImport", importId);
+        if (entity.TenantId != tenantId) throw new ForbiddenException("cross_tenant", "Não autorizado.");
+        return await _storage.ReadAsync(entity.PdfRelativePath, ct);
+    }
+
+    public async Task<SupplierInvoiceImportDto> ApproveAsync(Guid importId, ApproveSupplierInvoiceRequest req, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        var entity = await _repo.FindByIdAsync(importId, ct) ?? throw new NotFoundException("SupplierInvoiceImport", importId);
+        if (entity.TenantId != tenantId) throw new ForbiddenException("cross_tenant", "Não autorizado.");
+        if (entity.Status == SupplierInvoiceImportStatus.Approved)
+            throw new ConflictException("already_approved", "Esta importação já foi aprovada.");
+
+        // Cria despesa real. Bruno pode ter editado o total/categoria no UI antes de aprovar.
+        var despesa = await _despesas.CreateAsync(new Despesas.CreateDespesaRequest(
+            Descricao: req.Descricao,
+            Categoria: req.Categoria,
+            ValorCents: req.ValorCents,
+            Data: req.Data ?? entity.ParsedDocumentDate ?? entity.CreatedAt,
+            Fornecedor: req.Fornecedor ?? entity.FornecedorNameRaw,
+            NumeroEncomenda: req.NumeroEncomenda ?? entity.ParsedDocumentNumber,
+            Notas: req.Notas,
+            TrabalhoId: null,
+            ReparacaoId: null), ct);
+
+        entity.Status = SupplierInvoiceImportStatus.Approved;
+        entity.DespesaId = despesa.Id;
+        entity.ProcessedAt = DateTime.UtcNow;
+        await _repo.SaveAsync(ct);
+
+        await _audit.LogAsync(AuditAction.Update, nameof(SupplierInvoiceImport), entity.Id, new
+        {
+            operation = "supplier_invoice_approve",
+            despesaId = despesa.Id,
+            valorCents = req.ValorCents,
+        }, ct: ct);
+
+        return ToDto(entity);
+    }
+
+    public async Task<SupplierInvoiceImportDto> RejectAsync(Guid importId, string? reason, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        var entity = await _repo.FindByIdAsync(importId, ct) ?? throw new NotFoundException("SupplierInvoiceImport", importId);
+        if (entity.TenantId != tenantId) throw new ForbiddenException("cross_tenant", "Não autorizado.");
+        if (entity.Status == SupplierInvoiceImportStatus.Approved)
+            throw new ConflictException("already_approved", "Não podes rejeitar uma importação já aprovada — anula a Despesa primeiro.");
+
+        entity.Status = SupplierInvoiceImportStatus.Rejected;
+        entity.RejectionReason = string.IsNullOrWhiteSpace(reason) ? "(sem motivo)" : reason.Trim();
+        entity.ProcessedAt = DateTime.UtcNow;
+        await _repo.SaveAsync(ct);
+
+        await _audit.LogAsync(AuditAction.Update, nameof(SupplierInvoiceImport), entity.Id, new
+        {
+            operation = "supplier_invoice_reject",
+            reason = entity.RejectionReason,
+        }, ct: ct);
+
+        return ToDto(entity);
+    }
+
+    public async Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        // Para o contabilista: queremos só as aprovadas (rejeitadas/pending não interessam fiscalmente).
+        var entities = await _repo.ListByDateRangeAsync(tenantId, from, to, SupplierInvoiceImportStatus.Approved, ct);
+        var paths = entities.Select(e => e.PdfRelativePath).ToList();
+        var zip = await _storage.CreateZipAsync(tenantId, paths, ct);
+        var filename = $"Faturas-fornecedor_{from:yyyy-MM-dd}_a_{to:yyyy-MM-dd}.zip";
+        return (zip, filename);
+    }
+
+    private static SupplierInvoiceImportDto ToDto(SupplierInvoiceImport x) => new(
+        x.Id,
+        x.FornecedorId,
+        x.Fornecedor != null ? x.Fornecedor.Name : x.FornecedorNameRaw,
+        x.ParsedDocumentNumber,
+        x.ParsedDocumentDate,
+        x.ParsedTotalCents,
+        x.Status.ToString(),
+        x.ParseConfidence,
+        x.CreatedAt,
+        x.PdfRelativePath);
 
     private static string ComputeSha256(byte[] bytes)
     {

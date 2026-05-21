@@ -1,0 +1,347 @@
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Inbox, FileText, CheckCircle2, XCircle, AlertTriangle, Download } from 'lucide-react';
+import { api } from '../../lib/api';
+import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest } from '../../lib/supplierInvoices/api';
+import { formatCents } from '../../lib/money';
+import { toast } from '../../lib/toast';
+import { DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
+import Modal from '../../components/Modal';
+
+const inputCls = 'mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950';
+
+export default function Importacoes() {
+  const qc = useQueryClient();
+  const pending = useQuery({
+    queryKey: ['supplier-invoices-pending'],
+    queryFn: () => supplierInvoicesApi.pending(100),
+    refetchInterval: 30_000,
+  });
+
+  const [approveTarget, setApproveTarget] = useState<SupplierInvoiceImport | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<SupplierInvoiceImport | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [exportFrom, setExportFrom] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return d.toISOString().slice(0, 10);
+  });
+  const [exportTo, setExportTo] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const reject = useMutation({
+    mutationFn: (req: { id: string; reason: string }) => supplierInvoicesApi.reject(req.id, req.reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
+      toast.success('Importação rejeitada');
+      setRejectTarget(null);
+      setRejectReason('');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível rejeitar.'),
+  });
+
+  async function openPdf(id: string) {
+    try {
+      const res = await api.get<Blob>(supplierInvoicesApi.pdfPath(id), { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      toast.fromError(err, 'Não foi possível abrir o PDF.');
+    }
+  }
+
+  async function downloadZip() {
+    try {
+      const res = await api.get<Blob>(supplierInvoicesApi.exportZipPath(exportFrom, exportTo), { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Faturas-fornecedor_${exportFrom}_a_${exportTo}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      toast.success('ZIP descarregado', 'Pronto para entregar ao contabilista.');
+    } catch (err) {
+      toast.fromError(err, 'Não foi possível gerar o ZIP.');
+    }
+  }
+
+  const data = pending.data ?? [];
+  const failed = data.filter((d) => d.status === 'Failed');
+  const ready = data.filter((d) => d.status === 'Pending');
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-6">
+      <header className="space-y-2">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold">
+          <Inbox size={24} strokeWidth={2} />
+          Importações de Fornecedor
+        </h1>
+        <p className="text-sm text-zinc-500">
+          Facturas que chegaram via n8n IMAP automation. Revê os valores extraídos pelo parser e aprova
+          (cria Despesa real) ou rejeita. Os PDFs ficam guardados em <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">/data/supplier-invoices/{`{tenant}`}/{`{ano}`}/{`{mês}`}/{`{fornecedor}`}/</code>.
+        </p>
+      </header>
+
+      {/* Export ZIP para contabilista */}
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <Download size={16} strokeWidth={2} />
+          Export trimestral para contabilista
+        </h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          ZIP com todas as facturas aprovadas no período. Estrutura: <code>ano/mês/fornecedor/fatura.pdf</code>.
+        </p>
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <label className="text-xs">
+            <span className="block text-zinc-500">De</span>
+            <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-xs">
+            <span className="block text-zinc-500">Até</span>
+            <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className={inputCls} />
+          </label>
+          <button
+            type="button"
+            onClick={downloadZip}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          >
+            Descarregar ZIP
+          </button>
+        </div>
+      </section>
+
+      {/* Falhadas — destaque vermelho */}
+      {failed.length > 0 && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+            <AlertTriangle size={16} strokeWidth={2} />
+            {failed.length} fatura(s) onde o parser falhou
+          </h2>
+          <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+            Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
+          </p>
+          <ImportsTable data={failed} onPdf={openPdf} onApprove={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+        </section>
+      )}
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="text-sm font-semibold">{ready.length} pendente(s) de revisão</h2>
+        {pending.isLoading ? (
+          <div className="py-8 text-center text-sm text-zinc-500">A carregar…</div>
+        ) : ready.length === 0 && failed.length === 0 ? (
+          <div className="py-8 text-center text-sm text-zinc-500">
+            Sem importações pendentes. Quando o n8n entregar facturas novas, aparecem aqui.
+          </div>
+        ) : ready.length > 0 ? (
+          <ImportsTable data={ready} onPdf={openPdf} onApprove={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+        ) : null}
+      </section>
+
+      {approveTarget && (
+        <ApproveModal
+          target={approveTarget}
+          onClose={() => setApproveTarget(null)}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
+            qc.invalidateQueries({ queryKey: ['despesas'] });
+            setApproveTarget(null);
+          }}
+        />
+      )}
+
+      <Modal
+        open={!!rejectTarget}
+        title="Rejeitar importação"
+        onClose={() => setRejectTarget(null)}
+        footer={<>
+          <button type="button" onClick={() => setRejectTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">Cancelar</button>
+          <button
+            type="button"
+            disabled={reject.isPending}
+            onClick={() => rejectTarget && reject.mutate({ id: rejectTarget.id, reason: rejectReason })}
+            className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {reject.isPending ? 'A rejeitar…' : 'Rejeitar'}
+          </button>
+        </>}
+      >
+        <div className="space-y-3 text-sm">
+          <p>Vais rejeitar a importação de <strong>{rejectTarget?.fornecedorName ?? 'fornecedor desconhecido'}</strong>{rejectTarget?.documentNumber ? ` (${rejectTarget.documentNumber})` : ''}.</p>
+          <p className="text-xs text-zinc-500">O PDF mantém-se no filesystem; só o registo é marcado Rejected.</p>
+          <label className="block text-xs font-medium text-zinc-500">Motivo (opcional)</label>
+          <textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="ex: duplicado mal-detectado, fatura para outro tenant…"
+            rows={3}
+            className={inputCls}
+          />
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+function ImportsTable({
+  data, onPdf, onApprove, onReject,
+}: {
+  data: SupplierInvoiceImport[];
+  onPdf: (id: string) => void;
+  onApprove: (x: SupplierInvoiceImport) => void;
+  onReject: (x: SupplierInvoiceImport) => void;
+}) {
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="text-xs uppercase text-zinc-500">
+          <tr>
+            <th className="px-2 py-2 text-left">Fornecedor</th>
+            <th className="px-2 py-2 text-left">Documento</th>
+            <th className="px-2 py-2 text-left">Data</th>
+            <th className="px-2 py-2 text-right">Total</th>
+            <th className="px-2 py-2 text-left">Confidence</th>
+            <th className="px-2 py-2 text-right">Acções</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {data.map((x) => (
+            <tr key={x.id}>
+              <td className="px-2 py-2 font-medium">{x.fornecedorName ?? <span className="text-zinc-400">(não detectado)</span>}</td>
+              <td className="px-2 py-2">{x.documentNumber ?? <span className="text-zinc-400">—</span>}</td>
+              <td className="px-2 py-2">{x.documentDate ? new Date(x.documentDate).toLocaleDateString('pt-PT') : <span className="text-zinc-400">—</span>}</td>
+              <td className="px-2 py-2 text-right">{x.totalCents != null ? formatCents(x.totalCents) : <span className="text-zinc-400">—</span>}</td>
+              <td className="px-2 py-2"><ConfidenceBadge value={x.parseConfidence} /></td>
+              <td className="px-2 py-2">
+                <div className="flex justify-end gap-1">
+                  <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
+                    <FileText size={14} />
+                  </button>
+                  <button type="button" onClick={() => onApprove(x)} className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700" title="Aprovar e criar Despesa">
+                    <CheckCircle2 size={14} />
+                  </button>
+                  <button type="button" onClick={() => onReject(x)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800/40 dark:bg-zinc-900 dark:text-rose-300" title="Rejeitar">
+                    <XCircle size={14} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ConfidenceBadge({ value }: { value: string | null }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    High: { label: 'Alta', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' },
+    Medium: { label: 'Média', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' },
+    Low: { label: 'Baixa', cls: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200' },
+    None: { label: 'Falhou', cls: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  };
+  const { label, cls } = map[value ?? 'None'] ?? map.None;
+  return <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>{label}</span>;
+}
+
+function ApproveModal({
+  target, onClose, onSuccess,
+}: {
+  target: SupplierInvoiceImport;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [descricao, setDescricao] = useState(target.fornecedorName
+    ? `${target.fornecedorName}${target.documentNumber ? ` · ${target.documentNumber}` : ''}`
+    : 'Compra a fornecedor');
+  const [categoria, setCategoria] = useState<DespesaCategoria>(DESPESA_CATEGORIA.Pecas);
+  const [valor, setValor] = useState((target.totalCents ?? 0) / 100);
+  const [data, setData] = useState(target.documentDate ? target.documentDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
+  const [fornecedor, setFornecedor] = useState(target.fornecedorName ?? '');
+  const [numeroEncomenda, setNumeroEncomenda] = useState(target.documentNumber ?? '');
+  const [notas, setNotas] = useState('');
+
+  const approve = useMutation({
+    mutationFn: (req: ApproveSupplierInvoiceRequest) => supplierInvoicesApi.approve(target.id, req),
+    onSuccess: () => {
+      toast.success('Importação aprovada', 'Despesa criada e disponível em Despesas.');
+      onSuccess();
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível aprovar.'),
+  });
+
+  return (
+    <Modal
+      open
+      title="Aprovar importação → criar Despesa"
+      onClose={onClose}
+      footer={<>
+        <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">Cancelar</button>
+        <button
+          type="button"
+          disabled={approve.isPending || valor <= 0}
+          onClick={() => approve.mutate({
+            descricao,
+            categoria,
+            valorCents: Math.round(valor * 100),
+            data,
+            fornecedor: fornecedor || null,
+            numeroEncomenda: numeroEncomenda || null,
+            notas: notas || null,
+          })}
+          className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {approve.isPending ? 'A criar…' : 'Aprovar + criar Despesa'}
+        </button>
+      </>}
+    >
+      <div className="space-y-3 text-sm">
+        <p className="text-xs text-zinc-500">
+          Confirma os dados antes de criar a Despesa. Valores extraídos pelo parser estão preenchidos —
+          edita o que estiver mal.
+        </p>
+        <label className="block text-xs">
+          <span className="text-zinc-500">Descrição</span>
+          <input value={descricao} onChange={(e) => setDescricao(e.target.value)} className={inputCls} />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block text-xs">
+            <span className="text-zinc-500">Categoria</span>
+            <select value={categoria} onChange={(e) => setCategoria(Number(e.target.value) as DespesaCategoria)} className={inputCls}>
+              {Object.entries(DESPESA_CATEGORIA).map(([key, value]) => (
+                <option key={key} value={value}>{DESPESA_LABEL[value as DespesaCategoria]}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs">
+            <span className="text-zinc-500">Valor (€)</span>
+            <input
+              type="number"
+              step="0.01"
+              value={valor}
+              onChange={(e) => setValor(Number(e.target.value))}
+              className={inputCls}
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="text-zinc-500">Data</span>
+            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputCls} />
+          </label>
+          <label className="block text-xs">
+            <span className="text-zinc-500">Fornecedor</span>
+            <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} className={inputCls} />
+          </label>
+          <label className="block text-xs col-span-2">
+            <span className="text-zinc-500">Nº encomenda / fatura</span>
+            <input value={numeroEncomenda} onChange={(e) => setNumeroEncomenda(e.target.value)} className={inputCls} />
+          </label>
+          <label className="block text-xs col-span-2">
+            <span className="text-zinc-500">Notas (opcional)</span>
+            <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={2} className={inputCls} />
+          </label>
+        </div>
+      </div>
+    </Modal>
+  );
+}

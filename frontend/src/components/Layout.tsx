@@ -16,6 +16,7 @@ import {
   Webhook,
   Building2,
   Smartphone,
+  Inbox,
   LogOut,
   Pin,
   PinOff,
@@ -37,6 +38,8 @@ const nav: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean
   { to: '/reparacoes', label: 'Reparações', icon: Wrench },
   { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
   { to: '/despesas', label: 'Despesas', icon: Receipt },
+  // Sprint 148: inbox de faturas de fornecedor importadas via n8n IMAP.
+  { to: '/importacoes', label: 'Importações', icon: Inbox, adminOnly: true },
   { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
   { to: '/stock', label: 'Stock', icon: PackageSearch },
   { to: '/produtos', label: 'Produtos', icon: Smartphone, adminOnly: true },
