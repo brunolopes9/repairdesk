@@ -235,18 +235,41 @@ public class ProductService : IProductService
 
         if (req.Images is not null)
         {
-            entity.Images.Clear();
+            // Sprint 156c: diff por URL em vez de Clear()+Add(). O padrão antigo gerava
+            // DbUpdateConcurrencyException — o Clear() marca entities como Deleted →
+            // StampAuditFields converte para Modified + IsDeleted=true, mas EF perdia track
+            // dos Added (provavelmente conflito de identity dentro do mesmo SaveChanges).
+            // Diff in-place é mais robusto e gera menos commands SQL.
             var tenantId = _tenant.TenantId ?? entity.TenantId;
+            var existing = entity.Images.ToList();
+            var incomingUrls = req.Images.Select(i => i.Url.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // 1. Remover imagens que já não estão na lista nova.
+            foreach (var img in existing.Where(e => !incomingUrls.Contains(e.Url)).ToList())
+                entity.Images.Remove(img);
+
+            // 2. Update in-place ou Add novo por URL.
+            var existingByUrl = entity.Images.ToDictionary(e => e.Url, e => e, StringComparer.OrdinalIgnoreCase);
             foreach (var (img, idx) in req.Images.Select((i, idx) => (i, idx)))
             {
-                entity.Images.Add(new ProductImage
+                var url = img.Url.Trim();
+                if (existingByUrl.TryGetValue(url, out var match))
                 {
-                    TenantId = tenantId,
-                    Url = img.Url.Trim(),
-                    Alt = Clean(img.Alt),
-                    Ordem = img.Ordem != 0 ? img.Ordem : idx,
-                    IsCurated = img.IsCurated,
-                });
+                    match.Alt = Clean(img.Alt);
+                    match.Ordem = img.Ordem != 0 ? img.Ordem : idx;
+                    match.IsCurated = img.IsCurated;
+                }
+                else
+                {
+                    entity.Images.Add(new ProductImage
+                    {
+                        TenantId = tenantId,
+                        Url = url,
+                        Alt = Clean(img.Alt),
+                        Ordem = img.Ordem != 0 ? img.Ordem : idx,
+                        IsCurated = img.IsCurated,
+                    });
+                }
             }
         }
 
