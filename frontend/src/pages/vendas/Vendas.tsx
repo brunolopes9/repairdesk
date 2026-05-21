@@ -15,6 +15,7 @@ import { vendasApi, type VendaImeiLookup, type VendaReparacaoRelacionada } from 
 import { STATUS_LABEL, STATUS_COLOR } from '../../lib/reparacoes/types';
 import { CONDICAO_ARTIGO, CONDICAO_ARTIGO_LABEL, PAYMENT_METHOD, VENDA_ORIGEM, VENDA_ORIGEM_LABEL, VENDA_STATUS, type CondicaoArtigo, type PaymentMethod, type Venda } from '../../lib/vendas/types';
 import GarantiaCard from '../../components/GarantiaCard';
+import NovoClienteModal from '../../components/NovoClienteModal';
 import { SkeletonTable } from '../../components/ui';
 
 type CartLine = {
@@ -43,6 +44,7 @@ export default function Vendas() {
   const [q, setQ] = useState('');
   const [clienteQ, setClienteQ] = useState('');
   const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [novoClienteOpen, setNovoClienteOpen] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PAYMENT_METHOD.MBWay);
   const [lastVenda, setLastVenda] = useState<Venda | null>(null);
@@ -468,12 +470,23 @@ export default function Vendas() {
 
           <div className="border-t border-zinc-200 pt-3 text-sm dark:border-zinc-800">
             <label className="mb-2 flex items-center gap-2 text-xs font-medium text-zinc-500"><UserRound size={14} /> Cliente</label>
-            <input
-              value={clienteQ}
-              onChange={(e) => setClienteQ(e.target.value)}
-              placeholder={cliente ? cliente.nome : 'Anonimo ou pesquisar cliente'}
-              className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
-            />
+            <div className="flex gap-2">
+              <input
+                value={clienteQ}
+                onChange={(e) => setClienteQ(e.target.value)}
+                placeholder={cliente ? cliente.nome : 'Anonimo ou pesquisar cliente'}
+                className="h-10 flex-1 rounded-md border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+              />
+              {/* Sprint 150b: criar cliente inline a partir da POS — sem ter de sair para /clientes. */}
+              <button
+                type="button"
+                onClick={() => setNovoClienteOpen(true)}
+                className="h-10 whitespace-nowrap rounded-md border border-brand-300 bg-brand-50 px-3 text-xs font-medium text-brand-700 hover:bg-brand-100 dark:border-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
+                title="Criar cliente novo agora — útil quando começa cliente na loja"
+              >
+                + Novo
+              </button>
+            </div>
             {cliente && <button type="button" onClick={() => setCliente(null)} className="mt-1 text-xs text-zinc-500">Usar cliente anonimo</button>}
             {!cliente && (clientes.data?.items?.length ?? 0) > 0 && (
               <div className="mt-2 max-h-32 overflow-auto rounded-md border border-zinc-200 dark:border-zinc-800">
@@ -797,6 +810,24 @@ export default function Vendas() {
           </div>
         </div>
       )}
+
+      {/* Sprint 150b: criar cliente inline a partir da POS — auto-seleciona após criar. */}
+      <NovoClienteModal
+        open={novoClienteOpen}
+        onClose={() => setNovoClienteOpen(false)}
+        onCreated={async (c) => {
+          setNovoClienteOpen(false);
+          // Fetch full cliente — NovoClienteModal só devolve {id, nome}, precisamos do shape completo.
+          try {
+            const full = await clientesApi.get(c.id);
+            setCliente(full);
+          } catch {
+            // Fallback minimal — se o fetch falhou pelo menos o utilizador vê o nome no input.
+            setClienteQ(c.nome);
+          }
+          setClienteQ('');
+        }}
+      />
     </div>
   );
 }
