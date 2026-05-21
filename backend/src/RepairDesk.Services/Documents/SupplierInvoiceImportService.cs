@@ -118,6 +118,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
     private readonly Despesas.IDespesaService _despesas;
     private readonly ISkuMappingRepository _skuMappings;
     private readonly IPartRepository _parts;
+    private readonly ISupplierFingerprintingService _fingerprinting;
     private readonly IAuditLogger _audit;
     private readonly ILogger<SupplierInvoiceImportService> _logger;
 
@@ -129,6 +130,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         Despesas.IDespesaService despesas,
         ISkuMappingRepository skuMappings,
         IPartRepository parts,
+        ISupplierFingerprintingService fingerprinting,
         IAuditLogger audit,
         ILogger<SupplierInvoiceImportService> logger)
     {
@@ -139,6 +141,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         _despesas = despesas;
         _skuMappings = skuMappings;
         _parts = parts;
+        _fingerprinting = fingerprinting;
         _audit = audit;
         _logger = logger;
     }
@@ -168,10 +171,12 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 
         // 2. Extract text + parse.
         SupplierPdfParseResult? parsed = null;
+        string? rawText = null;
         try
         {
             using var pdfStream = new MemoryStream(pdfBytes);
             var extracted = PdfTextExtractor.Extract(pdfStream, "supplier-invoice.pdf");
+            rawText = extracted.Text;
             parsed = SupplierPdfParser.Parse(extracted.Text);
         }
         catch (Exception ex)
@@ -179,10 +184,27 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             _logger.LogWarning(ex, "Parser failed on PDF (will store as Failed)");
         }
 
-        // 3. Reconcile fornecedor (raw name → existing entity).
+        // 3. Reconcile fornecedor — pipeline em ordem (mais específico → mais geral):
+        //   a) Parser específico (Sprint 124+134 Tudo4Mobile etc) já detectou pelo formato do PDF.
+        //   b) Sprint 162: supplier fingerprinting determinístico via emailMeta + first chars do PDF
+        //      (cobre fornecedores conhecidos sem parser específico — Utopya, Molano, Mr.Phones, etc).
+        //   c) Sprint 163 (futuro): LLM fallback se ainda nada detectado.
         Guid? fornecedorId = null;
         var fornecedorNameRaw = parsed?.SupplierName;
-        if (!string.IsNullOrWhiteSpace(fornecedorNameRaw))
+        if (string.IsNullOrWhiteSpace(fornecedorNameRaw))
+        {
+            // Fingerprinting (b): só tenta se o parser específico falhou.
+            var pdfFirstChars = rawText is { Length: > 500 } ? rawText[..500] : rawText;
+            var fp = await _fingerprinting.DetectAsync(emailMeta, pdfFirstChars, filename: null, ct);
+            if (fp.Code is not null)
+            {
+                fornecedorNameRaw = fp.Name;
+                fornecedorId = fp.FornecedorId;
+                _logger.LogInformation("Fingerprinting detectou {Code} ({Source}) — fornecedorId={FId}",
+                    fp.Code, fp.Source, fp.FornecedorId);
+            }
+        }
+        if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
         {
             var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
             fornecedorId = existingForn?.Id;

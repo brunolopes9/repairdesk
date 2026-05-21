@@ -35,4 +35,11 @@ public class Fornecedor : BaseEntity, ITenantEntity
     /// <summary>Notas internas — formas de pagamento, contactos, ToS observados, etc.</summary>
     public string? Notas { get; set; }
     public bool Active { get; set; } = true;
+    /// <summary>
+    /// Sprint 162: JSON array de regex patterns para SupplierFingerprintingService
+    /// detectar este fornecedor em emails/PDFs automaticamente.
+    /// Ex: ["@meufornecedor\\.com", "noreply@meufornecedor", "fatura-meufornecedor"].
+    /// NULL → só usa known list hardcoded.
+    /// </summary>
+    public string? MatchPatternsJson { get; set; }
 }
