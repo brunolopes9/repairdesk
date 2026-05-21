@@ -31,6 +31,17 @@ public class SupplierInvoiceImportRepository : ISupplierInvoiceImportRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<SupplierInvoiceImport>> ListHistoryAsync(Guid tenantId, int take, CancellationToken ct = default)
+    {
+        return await _db.SupplierInvoiceImports
+            .Include(x => x.Fornecedor)
+            .Where(x => x.TenantId == tenantId
+                && (x.Status == SupplierInvoiceImportStatus.Approved || x.Status == SupplierInvoiceImportStatus.Rejected))
+            .OrderByDescending(x => x.ProcessedAt ?? x.CreatedAt)
+            .Take(Math.Clamp(take, 1, 200))
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<SupplierInvoiceImport>> ListByDateRangeAsync(
         Guid tenantId, DateTime from, DateTime to, SupplierInvoiceImportStatus? status, CancellationToken ct = default)
     {

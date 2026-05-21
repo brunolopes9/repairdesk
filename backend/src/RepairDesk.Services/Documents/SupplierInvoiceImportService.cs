@@ -34,6 +34,12 @@ public interface ISupplierInvoiceImportService
     /// Marca import.Status = Approved.
     /// </summary>
     Task<SupplierInvoiceImportDto> ApproveAsStockAsync(Guid importId, ApproveAsStockRequest req, CancellationToken ct = default);
+
+    /// <summary>Sprint 163b: re-corre pipeline parser → fingerprint → LLM (Bruno auth required).</summary>
+    Task<SupplierInvoiceImportDto> ReprocessAsync(Guid importId, CancellationToken ct = default);
+
+    /// <summary>Sprint 163b: lista importações histórico (Approved/Rejected/Failed).</summary>
+    Task<IReadOnlyList<SupplierInvoiceImportDto>> ListHistoryAsync(int take, CancellationToken ct = default);
 }
 
 public sealed record ApproveAsStockRequest(IReadOnlyList<ApproveAsStockItem> Items);
@@ -213,9 +219,14 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             fornecedorId = existingForn?.Id;
         }
 
-        // Sprint 163: LLM fallback se ainda não temos items parseados E temos texto + key.
-        // Custos: ~0.5¢ por chamada. Só corre quando Sprint 124+162 não chegaram a items.
-        if ((parsed?.Items is null || parsed.Items.Count == 0) && !string.IsNullOrWhiteSpace(rawText) && _llmParser.IsConfigured)
+        // Sprint 163b: LLM fallback se temos texto + key E:
+        //   - Items vazios OU
+        //   - Confidence < High (parser genérico apanha lixo como items — Utopya, etc).
+        // Tudo4Mobile específico retorna High confidence → skip LLM (fast-path).
+        var llmShouldFire = !string.IsNullOrWhiteSpace(rawText)
+            && _llmParser.IsConfigured
+            && (parsed?.Items is null || parsed.Items.Count == 0 || parsed.Confidence != ParseConfidence.High);
+        if (llmShouldFire)
         {
             var llm = await _llmParser.ParseAsync(rawText, ct);
             if (llm is not null && llm.Items.Count > 0)
@@ -427,6 +438,117 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         }, ct: ct);
 
         return ToDto(entity);
+    }
+
+    /// <summary>
+    /// Sprint 163b: re-corre o pipeline parser → fingerprint → LLM numa importação existente.
+    /// Útil quando LLM agora está configurado mas o ingest original tinha items lixo (parser
+    /// genérico), ou quando Bruno actualizou Fornecedor.MatchPatternsJson.
+    ///
+    /// NÃO duplica row — actualiza in-place: fornecedor + items + totals + confidence.
+    /// Reseta Status para Pending para Bruno rever de novo. Audit log da operação.
+    /// </summary>
+    public async Task<SupplierInvoiceImportDto> ReprocessAsync(Guid importId, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        var entity = await _repo.FindByIdAsync(importId, ct) ?? throw new NotFoundException("SupplierInvoiceImport", importId);
+        if (entity.TenantId != tenantId) throw new ForbiddenException("cross_tenant", "Não autorizado.");
+
+        var pdfBytes = await _storage.ReadAsync(entity.PdfRelativePath, ct);
+
+        // Re-run parser + fingerprint + LLM (mesma lógica do IngestAsync sem o storage save).
+        SupplierPdfParseResult? parsed = null;
+        string? rawText = null;
+        try
+        {
+            using var pdfStream = new MemoryStream(pdfBytes);
+            var extracted = PdfTextExtractor.Extract(pdfStream, "supplier-invoice.pdf");
+            rawText = extracted.Text;
+            parsed = SupplierPdfParser.Parse(extracted.Text);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Reprocess: parser failed");
+        }
+
+        Guid? fornecedorId = null;
+        var fornecedorNameRaw = parsed?.SupplierName;
+        if (string.IsNullOrWhiteSpace(fornecedorNameRaw))
+        {
+            var pdfFirstChars = rawText is { Length: > 500 } ? rawText[..500] : rawText;
+            var fp = await _fingerprinting.DetectAsync(emailMeta: null, pdfFirstChars, filename: null, ct);
+            if (fp.Code is not null)
+            {
+                fornecedorNameRaw = fp.Name;
+                fornecedorId = fp.FornecedorId;
+            }
+        }
+        if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
+        {
+            var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
+            fornecedorId = existingForn?.Id;
+        }
+
+        var llmShouldFire = !string.IsNullOrWhiteSpace(rawText)
+            && _llmParser.IsConfigured
+            && (parsed?.Items is null || parsed.Items.Count == 0 || parsed.Confidence != ParseConfidence.High);
+        if (llmShouldFire)
+        {
+            var llm = await _llmParser.ParseAsync(rawText!, ct);
+            if (llm is not null && llm.Items.Count > 0)
+            {
+                parsed = new SupplierPdfParseResult(
+                    SupplierName: parsed?.SupplierName ?? llm.SupplierName ?? fornecedorNameRaw,
+                    OrderId: parsed?.OrderId ?? llm.OrderId,
+                    TotalCents: parsed?.TotalCents ?? llm.TotalCents,
+                    DateAdded: parsed?.DateAdded ?? llm.DocumentDate,
+                    Confidence: llm.Confidence >= 0.7 ? ParseConfidence.High : ParseConfidence.Low,
+                    Items: llm.Items.Select(i => new SupplierPdfItem(
+                        Description: i.Description,
+                        Quantity: i.Quantity,
+                        LineTotalCents: i.LineTotalCents)).ToList());
+                if (string.IsNullOrWhiteSpace(fornecedorNameRaw)) fornecedorNameRaw = llm.SupplierName;
+            }
+        }
+
+        // Update in-place.
+        entity.FornecedorNameRaw = fornecedorNameRaw;
+        entity.FornecedorId = fornecedorId;
+        entity.ParsedTotalCents = parsed?.TotalCents;
+        entity.ParsedDocumentNumber = parsed?.OrderId;
+        entity.ParsedDocumentDate = parsed?.DateAdded;
+        entity.ParsedItemsJson = parsed?.Items is { Count: > 0 } items
+            ? System.Text.Json.JsonSerializer.Serialize(items)
+            : null;
+        entity.ParseConfidence = parsed?.Confidence.ToString();
+        entity.Status = SupplierInvoiceImportStatus.Pending;
+        entity.ProcessedAt = null;
+        await _repo.SaveAsync(ct);
+
+        await _audit.LogAsync(AuditAction.Update, nameof(SupplierInvoiceImport), entity.Id, new
+        {
+            operation = "supplier_invoice_reprocess",
+            fornecedor = fornecedorNameRaw,
+            items = parsed?.Items.Count ?? 0,
+            confidence = parsed?.Confidence.ToString(),
+        }, ct: ct);
+
+        _logger.LogInformation("Reprocess: id={Id} fornecedor={F} items={C} confidence={Conf}",
+            entity.Id, fornecedorNameRaw, parsed?.Items.Count ?? 0, parsed?.Confidence);
+        return ToDto(entity);
+    }
+
+    /// <summary>
+    /// Sprint 163b: lista importações HISTÓRICAS (Approved + Rejected + Failed) para tab
+    /// "Histórico" na UI. Bruno vê o que já processou + pode chamar Reprocess.
+    /// </summary>
+    public async Task<IReadOnlyList<SupplierInvoiceImportDto>> ListHistoryAsync(int take, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        var entities = await _repo.ListHistoryAsync(tenantId, take, ct);
+        return entities.Select(ToDto).ToList();
     }
 
     /// <summary>

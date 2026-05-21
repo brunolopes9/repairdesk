@@ -78,9 +78,18 @@ export const supplierInvoicesApi = {
     const form = new FormData();
     form.append('file', file);
     if (fornecedorHint) form.append('fornecedorHint', fornecedorHint);
-    return api.post('/supplier-invoices/upload', form, {
+    return api.post<{ id: string; wasDuplicate: boolean; status: string }>('/supplier-invoices/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data);
+  },
+  // Sprint 163b: histórico (Approved/Rejected).
+  history(take = 100) {
+    return api.get<SupplierInvoiceImport[]>(`/supplier-invoices/history?take=${take}`).then((r) => r.data);
+  },
+  // Sprint 163b: re-corre pipeline parser+fingerprint+LLM. Útil quando key Anthropic foi
+  // adicionada DEPOIS do ingest original.
+  reprocess(id: string) {
+    return api.post<SupplierInvoiceImport>(`/supplier-invoices/${id}/reprocess`).then((r) => r.data);
   },
   approve(id: string, req: ApproveSupplierInvoiceRequest) {
     return api.post<SupplierInvoiceImport>(`/supplier-invoices/${id}/approve`, req).then((r) => r.data);

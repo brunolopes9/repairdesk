@@ -44,12 +44,37 @@ export default function Importacoes() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const upload = useMutation({
     mutationFn: (file: File) => supplierInvoicesApi.uploadPdf(file),
-    onSuccess: () => {
+    onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
-      toast.success('PDF processado — vê a importação na lista abaixo.');
+      qc.invalidateQueries({ queryKey: ['supplier-invoices-history'] });
+      // Sprint 163b: distingue duplicate de novo.
+      if (result.wasDuplicate) {
+        toast.warning('PDF já tinha sido processado', 'Verifica o separador "Histórico" abaixo.');
+      } else {
+        toast.success('PDF processado — vê a importação na lista pendente.');
+      }
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
     onError: (err) => toast.fromError(err, 'Falhou upload do PDF.'),
+  });
+
+  // Sprint 163b: re-corre pipeline parser+fingerprint+LLM numa importação.
+  const reprocess = useMutation({
+    mutationFn: (id: string) => supplierInvoicesApi.reprocess(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
+      qc.invalidateQueries({ queryKey: ['supplier-invoices-history'] });
+      toast.success('Reprocessado — verifica items na lista pendente.');
+    },
+    onError: (err) => toast.fromError(err, 'Falhou reprocesso.'),
+  });
+
+  // Sprint 163b: histórico (Approved/Rejected).
+  const [tab, setTab] = useState<'pending' | 'history'>('pending');
+  const history = useQuery({
+    queryKey: ['supplier-invoices-history'],
+    queryFn: () => supplierInvoicesApi.history(100),
+    enabled: tab === 'history',
   });
 
   // Sprint 160b: aprovar como stock — cria Parts + PartMovimentos + SkuMapping.
@@ -176,17 +201,51 @@ export default function Importacoes() {
         </section>
       )}
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="text-sm font-semibold">{ready.length} pendente(s) de revisão</h2>
-        {pending.isLoading ? (
-          <div className="py-8 text-center text-sm text-zinc-500">A carregar…</div>
-        ) : ready.length === 0 && failed.length === 0 ? (
-          <div className="py-8 text-center text-sm text-zinc-500">
-            Sem importações pendentes. Quando o n8n entregar facturas novas, aparecem aqui.
-          </div>
-        ) : ready.length > 0 ? (
-          <ImportsTable data={ready} onPdf={openPdf} onApprove={setApproveTarget} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
-        ) : null}
+      {/* Sprint 163b: tabs Pendentes vs Histórico (Approved/Rejected). */}
+      <section className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-center gap-1 border-b border-zinc-200 p-2 dark:border-zinc-800">
+          <button
+            type="button"
+            onClick={() => setTab('pending')}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === 'pending' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+          >
+            Pendentes ({ready.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('history')}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === 'history' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+          >
+            Histórico {history.data ? `(${history.data.length})` : ''}
+          </button>
+        </div>
+
+        <div className="p-4">
+          {tab === 'pending' ? (
+            pending.isLoading ? (
+              <div className="py-8 text-center text-sm text-zinc-500">A carregar…</div>
+            ) : ready.length === 0 && failed.length === 0 ? (
+              <div className="py-8 text-center text-sm text-zinc-500">
+                Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
+              </div>
+            ) : ready.length > 0 ? (
+              <ImportsTable data={ready} onPdf={openPdf} onApprove={setApproveTarget} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+            ) : null
+          ) : (
+            history.isLoading ? (
+              <div className="py-8 text-center text-sm text-zinc-500">A carregar histórico…</div>
+            ) : (history.data?.length ?? 0) === 0 ? (
+              <div className="py-8 text-center text-sm text-zinc-500">Sem histórico ainda.</div>
+            ) : (
+              <HistoryTable
+                data={history.data!}
+                onPdf={openPdf}
+                onReprocess={(id) => reprocess.mutate(id)}
+                reprocessing={reprocess.isPending}
+              />
+            )
+          )}
+        </div>
       </section>
 
       {approveTarget && (
@@ -360,6 +419,64 @@ function ImportRow({
         </tr>
       )}
     </>
+  );
+}
+
+// Sprint 163b: tabela histórico — Approved/Rejected com botão Reprocess.
+function HistoryTable({
+  data, onPdf, onReprocess, reprocessing,
+}: {
+  data: SupplierInvoiceImport[];
+  onPdf: (id: string) => void;
+  onReprocess: (id: string) => void;
+  reprocessing: boolean;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="text-xs uppercase text-zinc-500">
+          <tr>
+            <th className="px-2 py-2 text-left">Fornecedor</th>
+            <th className="px-2 py-2 text-left">Documento</th>
+            <th className="px-2 py-2 text-left">Estado</th>
+            <th className="px-2 py-2 text-right">Total</th>
+            <th className="px-2 py-2 text-right">Acções</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {data.map((x) => (
+            <tr key={x.id}>
+              <td className="px-2 py-2 font-medium">{x.fornecedorName ?? <span className="text-zinc-400">—</span>}</td>
+              <td className="px-2 py-2">{x.documentNumber ?? <span className="text-zinc-400">—</span>}</td>
+              <td className="px-2 py-2">
+                <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${x.status === 'Approved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'}`}>
+                  {x.status}
+                </span>
+              </td>
+              <td className="px-2 py-2 text-right">{x.totalCents != null ? formatCents(x.totalCents) : <span className="text-zinc-400">—</span>}</td>
+              <td className="px-2 py-2">
+                <div className="flex justify-end gap-1">
+                  <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
+                    <FileText size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Re-correr pipeline de parsing? A importação vai voltar para pendente.')) onReprocess(x.id);
+                    }}
+                    disabled={reprocessing}
+                    className="rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-300"
+                    title="Re-correr parser+LLM (útil se Anthropic key foi adicionada depois)"
+                  >
+                    🔄 Reprocessar
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

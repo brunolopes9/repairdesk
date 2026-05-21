@@ -46,6 +46,16 @@ public class SupplierInvoicesController : ControllerBase
     public Task<SupplierInvoiceImportDto> ApproveStock(Guid id, [FromBody] ApproveAsStockRequest req, CancellationToken ct)
         => _service.ApproveAsStockAsync(id, req, ct);
 
+    /// <summary>Sprint 163b: re-corre pipeline parser→fingerprint→LLM. Reset Status=Pending.</summary>
+    [HttpPost("{id:guid}/reprocess")]
+    public Task<SupplierInvoiceImportDto> Reprocess(Guid id, CancellationToken ct)
+        => _service.ReprocessAsync(id, ct);
+
+    /// <summary>Sprint 163b: lista importações já processadas (Approved/Rejected) para tab Histórico.</summary>
+    [HttpGet("history")]
+    public Task<IReadOnlyList<SupplierInvoiceImportDto>> History([FromQuery] int take = 100, CancellationToken ct = default)
+        => _service.ListHistoryAsync(take, ct);
+
     /// <summary>
     /// Sprint 160c: upload manual PDF para testar flow sem n8n IMAP configurado.
     /// Faz o mesmo que o endpoint /api/external/supplier-invoices/ingest mas via JWT
