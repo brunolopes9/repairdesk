@@ -47,6 +47,16 @@ public class ProductsController : ControllerBase
     [HttpPost("import-molano")]
     public Task<ImportProductsResponse> ImportMolano([FromBody] ImportMolanoRequest req, CancellationToken ct)
         => _service.ImportMolanoCsvAsync(req.Csv, req.FornecedorId, ct);
+
+    /// <summary>
+    /// Sprint 155: migração one-off de produtos shop-only (existiam só na loja antes do
+    /// single-source-of-truth). Outro Claude gera o JSON via npm run db:export-shop-only.
+    /// Upsert por SKU — re-correr é seguro (skip existentes).
+    /// </summary>
+    [HttpPost("migrate-shop")]
+    public Task<ImportProductsResponse> MigrateShop([FromBody] MigrateShopRequest req, CancellationToken ct)
+        => _service.MigrateShopProductsAsync(req.Products, ct);
 }
 
 public sealed record ImportMolanoRequest(Guid FornecedorId, string Csv);
+public sealed record MigrateShopRequest(IReadOnlyList<MigrateShopProductRequest> Products);

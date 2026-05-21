@@ -17,7 +17,32 @@ public interface IProductService
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     /// <summary>Sprint 153: importer CSV Molano. Upsert idempotente por (FornecedorId, DropshipSupplierSku).</summary>
     Task<ImportProductsResponse> ImportMolanoCsvAsync(string csv, Guid fornecedorId, CancellationToken ct = default);
+    /// <summary>
+    /// Sprint 155: migra produtos shop-only (existiam só na loja antes do single-source-of-truth)
+    /// para o RepairDesk. Upsert por SKU. Todos ficam MostrarLojaOnline=true.
+    /// </summary>
+    Task<ImportProductsResponse> MigrateShopProductsAsync(IReadOnlyList<MigrateShopProductRequest> products, CancellationToken ct = default);
 }
+
+public sealed record MigrateShopProductRequest(
+    string Sku,
+    string Brand,
+    string Model,
+    string Title,
+    string Category,
+    int PriceCents,
+    int? CompareAtPriceCents,
+    int StockQuantity,
+    string? Storage,
+    string? Color,
+    string? Grading,
+    string? Description,
+    string? SeoTitle,
+    string? SeoDescription,
+    IReadOnlyList<string>? Images,
+    bool IsOpenBox,
+    string? OpenBoxReason,
+    bool IsActive);
 
 public sealed record ImportProductsResponse(
     int Created,
@@ -539,6 +564,135 @@ public class ProductService : IProductService
         }, ct: ct);
 
         return new ImportProductsResponse(created, updated, skipped, errors);
+    }
+
+    /// <summary>
+    /// Sprint 155: migra produtos shop-only do dump JSON da loja online. Upsert por SKU.
+    /// Mapeia category string → ProductCategory enum + grading "A+"/"A"/"B+"/"B"/"C" → ProductGrading.
+    /// Todos ficam MostrarLojaOnline=true, Active=isActive do dump.
+    /// </summary>
+    public async Task<ImportProductsResponse> MigrateShopProductsAsync(IReadOnlyList<MigrateShopProductRequest> products, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
+        if (products is null || products.Count == 0)
+            return new ImportProductsResponse(0, 0, 0, Array.Empty<ImportProductError>());
+
+        var errors = new List<ImportProductError>();
+        var created = 0;
+        var updated = 0;
+        var skipped = 0;
+
+        for (var i = 0; i < products.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var p = products[i];
+            var lineNo = i + 1;
+
+            if (string.IsNullOrWhiteSpace(p.Sku) || string.IsNullOrWhiteSpace(p.Brand) || string.IsNullOrWhiteSpace(p.Model))
+            {
+                errors.Add(new ImportProductError(lineNo, "sku/brand/model", "Campos obrigatórios em falta.", p.Sku));
+                continue;
+            }
+
+            try
+            {
+                var category = MapShopCategory(p.Category);
+                var grading = MapShopGrading(p.Grading, p.IsOpenBox);
+                var existing = await _repo.SkuExistsAsync(p.Sku.Trim().ToUpperInvariant(), null, ct);
+
+                if (existing)
+                {
+                    // SKU já existe — ignora (Bruno pode escolher manualmente actualizar via UI).
+                    skipped++;
+                    continue;
+                }
+
+                // Auto-gera slug se conflito.
+                var slug = await EnsureUniqueSlugAsync(null, null, p.Brand, p.Model, p.Storage, p.Color, grading, ct);
+
+                var entity = new Product
+                {
+                    TenantId = tenantId,
+                    Sku = p.Sku.Trim().ToUpperInvariant(),
+                    Slug = slug,
+                    Brand = p.Brand.Trim(),
+                    Model = p.Model.Trim(),
+                    Storage = Clean(p.Storage),
+                    Color = Clean(p.Color),
+                    Grading = grading,
+                    SupplyType = ProductSupplyType.Stock,
+                    Category = category,
+                    PriceCents = p.PriceCents,
+                    CompareAtPriceCents = p.CompareAtPriceCents,
+                    StockQuantity = p.StockQuantity,
+                    CustoUnitarioCents = 0,
+                    DescriptionMarkdown = Clean(p.Description),
+                    SeoTitle = Clean(p.SeoTitle),
+                    SeoDescription = Clean(p.SeoDescription),
+                    OpenBoxReason = Clean(p.OpenBoxReason),
+                    Active = p.IsActive,
+                    MostrarLojaOnline = true,
+                };
+                if (p.Images is { Count: > 0 })
+                {
+                    foreach (var (url, idx) in p.Images.Where(u => !string.IsNullOrWhiteSpace(u)).Select((u, idx) => (u, idx)))
+                    {
+                        entity.Images.Add(new ProductImage
+                        {
+                            TenantId = tenantId,
+                            Url = url.Trim(),
+                            Ordem = idx,
+                            // Imagens vêm da loja (já curadas — não são raw de supplier CSV).
+                            IsCurated = true,
+                        });
+                    }
+                }
+
+                await _repo.AddAsync(entity, ct);
+                created++;
+            }
+            catch (Exception ex)
+            {
+                errors.Add(new ImportProductError(lineNo, "general", ex.Message, p.Sku));
+                skipped++;
+            }
+        }
+
+        await _repo.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Create, nameof(Product), null, new
+        {
+            operation = "migrate_shop_only",
+            total = products.Count,
+            created,
+            updated,
+            skipped,
+            errors = errors.Count,
+        }, ct: ct);
+
+        return new ImportProductsResponse(created, updated, skipped, errors);
+    }
+
+    private static ProductCategory MapShopCategory(string category) => category?.ToLowerInvariant() switch
+    {
+        "phone" => ProductCategory.Phone,
+        "accessory_case" or "accessory_charger" or "accessory_screen_protector" or "accessory_cable"
+            or "accessory" => ProductCategory.Accessory,
+        _ => ProductCategory.Other,
+    };
+
+    private static ProductGrading MapShopGrading(string? grading, bool isOpenBox)
+    {
+        if (isOpenBox) return ProductGrading.OpenBox;
+        return grading?.Trim().ToUpperInvariant() switch
+        {
+            "A+" or "PREMIUM" => ProductGrading.Premium,
+            "A" => ProductGrading.GradeA,
+            "B+" or "B" => ProductGrading.GradeB,
+            "C+" or "C" => ProductGrading.GradeC,
+            "NOVO" or "NEW" => ProductGrading.Novo,
+            _ => ProductGrading.GradeA,
+        };
     }
 
     private static bool TryParseCents(string? text, out int cents)
