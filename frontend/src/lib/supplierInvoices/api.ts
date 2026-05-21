@@ -1,6 +1,25 @@
 import { api } from '../api';
 import type { DespesaCategoria } from '../despesas/types';
 
+export interface SkuMatchSuggestion {
+  partId: string;
+  partName: string;
+  partSku: string;
+  /** 0..1 — quanto maior, melhor match. */
+  score: number;
+  /** "auto" (já mapeado), "fuzzy" (similaridade nome). */
+  matchType: 'auto' | 'fuzzy';
+}
+
+export interface SupplierInvoiceItem {
+  description: string;
+  quantity: number;
+  lineTotalCents: number;
+  brand: string | null;
+  model: string | null;
+  suggestions: SkuMatchSuggestion[];
+}
+
 export interface SupplierInvoiceImport {
   id: string;
   fornecedorId: string | null;
@@ -12,6 +31,8 @@ export interface SupplierInvoiceImport {
   parseConfidence: 'None' | 'Low' | 'Medium' | 'High' | null;
   createdAt: string;
   pdfRelativePath: string;
+  // Sprint 158: items parseados + sugestões fuzzy.
+  items: SupplierInvoiceItem[] | null;
 }
 
 export interface ApproveSupplierInvoiceRequest {

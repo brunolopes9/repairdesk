@@ -207,30 +207,104 @@ function ImportsTable({
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {data.map((x) => (
-            <tr key={x.id}>
-              <td className="px-2 py-2 font-medium">{x.fornecedorName ?? <span className="text-zinc-400">(não detectado)</span>}</td>
-              <td className="px-2 py-2">{x.documentNumber ?? <span className="text-zinc-400">—</span>}</td>
-              <td className="px-2 py-2">{x.documentDate ? new Date(x.documentDate).toLocaleDateString('pt-PT') : <span className="text-zinc-400">—</span>}</td>
-              <td className="px-2 py-2 text-right">{x.totalCents != null ? formatCents(x.totalCents) : <span className="text-zinc-400">—</span>}</td>
-              <td className="px-2 py-2"><ConfidenceBadge value={x.parseConfidence} /></td>
-              <td className="px-2 py-2">
-                <div className="flex justify-end gap-1">
-                  <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
-                    <FileText size={14} />
-                  </button>
-                  <button type="button" onClick={() => onApprove(x)} className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700" title="Aprovar e criar Despesa">
-                    <CheckCircle2 size={14} />
-                  </button>
-                  <button type="button" onClick={() => onReject(x)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800/40 dark:bg-zinc-900 dark:text-rose-300" title="Rejeitar">
-                    <XCircle size={14} />
-                  </button>
-                </div>
-              </td>
-            </tr>
+            <ImportRow key={x.id} x={x} onPdf={onPdf} onApprove={onApprove} onReject={onReject} />
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function ImportRow({
+  x, onPdf, onApprove, onReject,
+}: {
+  x: SupplierInvoiceImport;
+  onPdf: (id: string) => void;
+  onApprove: (x: SupplierInvoiceImport) => void;
+  onReject: (x: SupplierInvoiceImport) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasItems = x.items && x.items.length > 0;
+  return (
+    <>
+      <tr className={hasItems ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900' : ''} onClick={() => hasItems && setExpanded(!expanded)}>
+        <td className="px-2 py-2 font-medium">
+          {hasItems && <span className="mr-1 text-zinc-400">{expanded ? '▾' : '▸'}</span>}
+          {x.fornecedorName ?? <span className="text-zinc-400">(não detectado)</span>}
+        </td>
+        <td className="px-2 py-2">{x.documentNumber ?? <span className="text-zinc-400">—</span>}</td>
+        <td className="px-2 py-2">{x.documentDate ? new Date(x.documentDate).toLocaleDateString('pt-PT') : <span className="text-zinc-400">—</span>}</td>
+        <td className="px-2 py-2 text-right">{x.totalCents != null ? formatCents(x.totalCents) : <span className="text-zinc-400">—</span>}</td>
+        <td className="px-2 py-2"><ConfidenceBadge value={x.parseConfidence} /></td>
+        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-end gap-1">
+            <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
+              <FileText size={14} />
+            </button>
+            <button type="button" onClick={() => onApprove(x)} className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700" title="Aprovar e criar Despesa">
+              <CheckCircle2 size={14} />
+            </button>
+            <button type="button" onClick={() => onReject(x)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800/40 dark:bg-zinc-900 dark:text-rose-300" title="Rejeitar">
+              <XCircle size={14} />
+            </button>
+          </div>
+        </td>
+      </tr>
+      {expanded && hasItems && (
+        <tr className="bg-zinc-50/50 dark:bg-zinc-900/50">
+          <td colSpan={6} className="px-4 py-3">
+            <div className="text-xs font-semibold uppercase text-zinc-500 mb-2">Items detectados ({x.items!.length})</div>
+            <ul className="space-y-2">
+              {x.items!.map((item, i) => (
+                <li key={i} className="rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{item.description}</div>
+                      <div className="text-xs text-zinc-500">
+                        {item.quantity}× · {formatCents(item.lineTotalCents)}
+                        {item.brand && <> · {item.brand}{item.model && ` ${item.model}`}</>}
+                      </div>
+                    </div>
+                  </div>
+                  {item.suggestions.length > 0 ? (
+                    <div className="mt-2 space-y-1 border-t border-zinc-100 pt-2 dark:border-zinc-800">
+                      <div className="text-[10px] uppercase text-zinc-500">Sugestões de match (Sprint 157 fuzzy)</div>
+                      {item.suggestions.map((s, si) => (
+                        <div key={si} className="flex items-center justify-between rounded bg-zinc-50 px-2 py-1 text-xs dark:bg-zinc-800/50">
+                          <span className="font-mono text-zinc-600 dark:text-zinc-300">{s.partSku}</span>
+                          <span className="flex-1 truncate px-2">{s.partName}</span>
+                          <ScoreBadge score={s.score} matchType={s.matchType} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-[11px] italic text-zinc-400">Sem matches no stock — Bruno criará Part nova ao aprovar.</div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-2 text-[11px] text-zinc-500">
+              ℹ️ Sprint 159 vai permitir aprovar com escolha de destino (Stock / Produto / Reparação X / Despesa). Por ora cria sempre Despesa overhead.
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function ScoreBadge({ score, matchType }: { score: number; matchType: string }) {
+  const pct = Math.round(score * 100);
+  const tone = pct >= 70 ? 'emerald' : pct >= 50 ? 'amber' : 'zinc';
+  const colors: Record<string, string> = {
+    emerald: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+    amber: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+    zinc: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  };
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${colors[tone]}`} title={`${matchType} match`}>
+      {pct}%
+    </span>
   );
 }
 
