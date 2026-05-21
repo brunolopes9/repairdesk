@@ -235,6 +235,25 @@ public class DashboardRepository : IDashboardRepository
             }
         }
 
+        // Sprint 155: além de Despesas, somar peças do stock consumidas (PartMovimento líquido)
+        // imputadas a reparações pagas. Custo = -Sum(quantidade) * Part.CustoUnitarioCents.
+        // (Quantidade é negativa para UsoEmReparacao, positiva para Devolucao — net dá o consumo.)
+        var custoPecasPorReparacao = await _db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.ReparacaoId != null && reparacoesPagasIds.Contains(m.ReparacaoId.Value))
+            .GroupBy(m => m.ReparacaoId!.Value)
+            .Select(g => new
+            {
+                ReparacaoId = g.Key,
+                CustoCents = g.Sum(m => -m.Quantidade * (m.Part != null ? m.Part.CustoUnitarioCents : 0)),
+            })
+            .ToListAsync(ct);
+        foreach (var row in custoPecasPorReparacao)
+        {
+            custoImputadoTotal += row.CustoCents;
+            custoPorReparacao[row.ReparacaoId] = custoPorReparacao.GetValueOrDefault(row.ReparacaoId) + row.CustoCents;
+        }
+
         var receitaReparacoes = reparacoesPagas.Sum(r => r.PrecoFinalCents ?? r.OrcamentoCents ?? 0);
         var custoReparacoes = custoPorReparacao.Values.Sum();
         var receitaTrabalhos = trabalhosPagos.Sum(t => t.PrecoFinalCents ?? t.OrcamentoCents ?? 0);
@@ -316,6 +335,19 @@ public class DashboardRepository : IDashboardRepository
             .Select(d => new { Data = d.Data, Cents = d.ValorCents })
             .ToListAsync(ct);
 
+        // Sprint 155: incluir custo das peças do stock (PartMovimento) nas reparações pagas.
+        // Bucketing por mês usa a data EntregueEm da reparação (não a data do movimento).
+        var entregueEmPorRep = reparacoesPagas.ToDictionary(r => r.Id, r => r.Data);
+        var custoPecasReparacoes = await _db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.ReparacaoId != null && reparacoesPagasIds.Contains(m.ReparacaoId.Value))
+            .GroupBy(m => m.ReparacaoId!.Value)
+            .Select(g => new { ReparacaoId = g.Key, Custo = g.Sum(m => -m.Quantidade * (m.Part != null ? m.Part.CustoUnitarioCents : 0)) })
+            .ToListAsync(ct);
+        var custoPecasPorBucket = custoPecasReparacoes
+            .Select(c => new { Data = entregueEmPorRep[c.ReparacaoId], c.Custo })
+            .ToList();
+
         // Vendas pagas com COGS (custo da peça × quantidade) por mês
         var vendaItensPagos = await _db.VendaItems
             .AsNoTracking()
@@ -338,6 +370,7 @@ public class DashboardRepository : IDashboardRepository
                         + trabalhosPagos.Where(t => t.Data >= bucketStart && t.Data < bucketEnd).Sum(t => t.Cents)
                         + vendaItensPagos.Where(v => v.Data >= bucketStart && v.Data < bucketEnd).Sum(v => v.Receita);
             var custo = despesas.Where(d => d.Data >= bucketStart && d.Data < bucketEnd).Sum(d => d.Cents)
+                      + custoPecasPorBucket.Where(c => c.Data >= bucketStart && c.Data < bucketEnd).Sum(c => c.Custo)
                       + vendaItensPagos.Where(v => v.Data >= bucketStart && v.Data < bucketEnd).Sum(v => v.Custo);
             result.Add(new MesFinanceiroRow(bucketStart.Year, bucketStart.Month, receita, custo, receita - custo));
         }
@@ -363,12 +396,21 @@ public class DashboardRepository : IDashboardRepository
             .ToListAsync(ct);
 
         var ids = reparacoesPagas.Select(r => r.Id).ToHashSet();
-        var custos = await _db.Despesas
+        var custoDespesas = await _db.Despesas
             .Where(d => d.ReparacaoId != null && ids.Contains(d.ReparacaoId.Value))
             .GroupBy(d => d.ReparacaoId!.Value)
             .Select(g => new { Id = g.Key, Custo = g.Sum(x => x.ValorCents) })
             .ToListAsync(ct);
-        var custoMap = custos.ToDictionary(c => c.Id, c => c.Custo);
+        // Sprint 155: incluir custo das peças do stock (PartMovimento líquido), como no GetFinanceiroAsync.
+        var custoPecas = await _db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.ReparacaoId != null && ids.Contains(m.ReparacaoId.Value))
+            .GroupBy(m => m.ReparacaoId!.Value)
+            .Select(g => new { Id = g.Key, Custo = g.Sum(m => -m.Quantidade * (m.Part != null ? m.Part.CustoUnitarioCents : 0)) })
+            .ToListAsync(ct);
+        var custoMap = new Dictionary<Guid, int>();
+        foreach (var c in custoDespesas) custoMap[c.Id] = c.Custo;
+        foreach (var c in custoPecas) custoMap[c.Id] = custoMap.GetValueOrDefault(c.Id) + c.Custo;
 
         return reparacoesPagas
             .Select(r => new ReparacaoTopRow(
