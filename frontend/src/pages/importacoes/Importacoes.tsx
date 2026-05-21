@@ -395,9 +395,11 @@ function ImportRow({
                       </div>
                     </div>
                   </div>
-                  {item.suggestions.length > 0 ? (
+                  {/\b(shipping|portes?|envio|transport|chronopost|dpd|ups|fedex|dhl|frete)\b/i.test(item.description) ? (
+                    <div className="mt-2 text-[11px] italic text-zinc-400">🚚 Custo de transporte — não importa para stock (skip por defeito ao aprovar).</div>
+                  ) : item.suggestions.length > 0 ? (
                     <div className="mt-2 space-y-1 border-t border-zinc-100 pt-2 dark:border-zinc-800">
-                      <div className="text-[10px] uppercase text-zinc-500">Sugestões de match (Sprint 157 fuzzy)</div>
+                      <div className="text-[10px] uppercase text-zinc-500">Sugestões de match (Sprint 157 fuzzy por nome similar)</div>
                       {item.suggestions.map((s, si) => (
                         <div key={si} className="flex items-center justify-between rounded bg-zinc-50 px-2 py-1 text-xs dark:bg-zinc-800/50">
                           <span className="font-mono text-zinc-600 dark:text-zinc-300">{s.partSku}</span>
@@ -407,14 +409,11 @@ function ImportRow({
                       ))}
                     </div>
                   ) : (
-                    <div className="mt-2 text-[11px] italic text-zinc-400">Sem matches no stock — Bruno criará Part nova ao aprovar.</div>
+                    <div className="mt-2 text-[11px] italic text-zinc-400">Sem Parts no stock com nome similar — vai criar Part nova ao aprovar (SKU auto-gerado).</div>
                   )}
                 </li>
               ))}
             </ul>
-            <div className="mt-2 text-[11px] text-zinc-500">
-              ℹ️ Sprint 159 vai permitir aprovar com escolha de destino (Stock / Produto / Reparação X / Despesa). Por ora cria sempre Despesa overhead.
-            </div>
           </td>
         </tr>
       )}
@@ -647,10 +646,11 @@ function ApproveStockModal({
   }
 
   const validItems = items.filter((x) => x.action !== 'skip');
+  // Sprint 163d: SKU agora opcional — backend auto-gera se vazio (igual a /stock).
   const canSubmit = validItems.length > 0
     && validItems.every((x) =>
       (x.action === 'existing' && x.existingPartId)
-      || (x.action === 'new' && (x.newSku ?? '').trim().length > 0 && (x.newName ?? '').trim().length > 0));
+      || (x.action === 'new' && (x.newName ?? '').trim().length > 0));
 
   return (
     <Modal
@@ -747,11 +747,11 @@ function ApproveStockModal({
                 {it.action === 'new' && (
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <label className="block">
-                      <span className="text-zinc-500">SKU *</span>
+                      <span className="text-zinc-500">SKU <span className="text-[10px] text-zinc-400">(opcional · auto-gera)</span></span>
                       <input
                         value={it.newSku ?? ''}
                         onChange={(e) => patch(i, { newSku: e.target.value })}
-                        placeholder="ex: LCD-HUA-P20L"
+                        placeholder="Auto · ou ex: LCD-HUA-P20L"
                         className={inputCls}
                       />
                     </label>

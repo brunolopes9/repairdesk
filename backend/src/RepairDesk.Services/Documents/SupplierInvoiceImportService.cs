@@ -441,6 +441,98 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
     }
 
     /// <summary>
+    /// Sprint 163d: gera SKU descritivo único para Part nova criada via aprovação de fatura.
+    /// Padrão: [ItemType3]-[Brand3]-[Model]-[NNNN]. Ex:
+    /// "Battery iPhone 12/12 Pro" → "BAT-APL-12-0001"
+    /// "Touch+Display Huawei P20 Lite" → "LCD-HUA-P20L-0001"
+    /// "PELICULA DE VIDRO HUAWEI P20 LITE" → "FILM-HUA-P20L-0001"
+    /// "Capa Samsung A15" → "CASE-SAM-A15-0001"
+    /// Se não detectar nada → "PART-XXXX-NNNN" com chars da description.
+    ///
+    /// Adapta-se ao guia https://blog.skuvault.com/sku-generator/ adaptado para tech parts:
+    /// general-to-specific, < 16 chars typical, sem caracteres especiais (só hífen).
+    /// </summary>
+    private async Task<string> GenerateAutoSkuAsync(string description, CancellationToken ct)
+    {
+        var desc = description.ToUpperInvariant();
+        var itemType = DetectItemType(desc);
+        var brand = DetectBrand(desc);
+        var model = DetectModel(desc);
+
+        var parts = new List<string> { itemType };
+        if (!string.IsNullOrEmpty(brand)) parts.Add(brand);
+        if (!string.IsNullOrEmpty(model)) parts.Add(model);
+        var prefix = string.Join("-", parts);
+        if (prefix.Length < 3 || prefix == "PART")
+        {
+            // Fallback se não detectou — 4 primeiras letras da descrição.
+            var letters = new string(description.Where(char.IsLetterOrDigit).Take(4).ToArray()).ToUpperInvariant();
+            prefix = letters.Length >= 3 ? letters : "PART";
+        }
+
+        for (var i = 1; i <= 9999; i++)
+        {
+            var candidate = $"{prefix}-{i:D4}";
+            if (!await _parts.SkuExistsAsync(candidate, null, ct)) return candidate;
+        }
+        throw new InvalidOperationException($"Esgotou {prefix}-NNNN — escolhe SKU manualmente.");
+    }
+
+    private static string DetectItemType(string descUpper)
+    {
+        if (descUpper.Contains("BATTERY") || descUpper.Contains("BATERIA")) return "BAT";
+        if (descUpper.Contains("TOUCH") || descUpper.Contains("DISPLAY") || descUpper.Contains("LCD") || descUpper.Contains("ECRA") || descUpper.Contains("ECRÃ") || descUpper.Contains("ECRAN")) return "LCD";
+        if (descUpper.Contains("CAMERA") || descUpper.Contains("CÂMARA") || descUpper.Contains("CAMARA")) return "CAM";
+        if (descUpper.Contains("CABLE") || descUpper.Contains("CABO")) return "CAB";
+        if (descUpper.Contains("CASE") || descUpper.Contains("CAPA") || descUpper.Contains("COVER")) return "CASE";
+        if (descUpper.Contains("FILM") || descUpper.Contains("PELICULA") || descUpper.Contains("PELÍCULA") || descUpper.Contains("VIDRO") || descUpper.Contains("GLASS")) return "FILM";
+        if (descUpper.Contains("CHARGER") || descUpper.Contains("CARREGADOR")) return "CHRG";
+        if (descUpper.Contains("SPEAKER") || descUpper.Contains("ALTIFALANTE") || descUpper.Contains("BUZZER")) return "SPK";
+        if (descUpper.Contains("CONNECTOR") || descUpper.Contains("CONECTOR") || descUpper.Contains("PORT")) return "PORT";
+        if (descUpper.Contains("FRAME") || descUpper.Contains("HOUSING") || descUpper.Contains("CHASSI")) return "HSG";
+        if (descUpper.Contains("BUTTON") || descUpper.Contains("BOTAO") || descUpper.Contains("BOTÃO")) return "BTN";
+        if (descUpper.Contains("TOOL") || descUpper.Contains("FERRAMENTA")) return "TOOL";
+        return "PART";
+    }
+
+    private static string DetectBrand(string descUpper)
+    {
+        if (descUpper.Contains("IPHONE") || descUpper.Contains("APPLE") || descUpper.Contains("IPAD") || descUpper.Contains("MACBOOK") || descUpper.Contains("AIRPOD")) return "APL";
+        if (descUpper.Contains("SAMSUNG") || descUpper.Contains("GALAXY")) return "SAM";
+        if (descUpper.Contains("XIAOMI") || descUpper.Contains("REDMI") || descUpper.Contains("POCO")) return "XIA";
+        if (descUpper.Contains("HUAWEI") || descUpper.Contains("HONOR")) return "HUA";
+        if (descUpper.Contains("OPPO")) return "OPP";
+        if (descUpper.Contains("ONEPLUS")) return "ONE";
+        if (descUpper.Contains("MOTOROLA") || System.Text.RegularExpressions.Regex.IsMatch(descUpper, @"\bMOTO\b")) return "MOT";
+        if (descUpper.Contains("NOKIA")) return "NOK";
+        if (descUpper.Contains("REALME")) return "RLM";
+        if (descUpper.Contains("ASUS")) return "ASU";
+        if (descUpper.Contains("LG ") || descUpper.Contains(" LG") || descUpper.StartsWith("LG")) return "LG";
+        return "";
+    }
+
+    private static string DetectModel(string descUpper)
+    {
+        // 1) Modelo claro tipo "iPhone 12 Pro Max", "Galaxy S24 Ultra", "Redmi Note 12"
+        var m = System.Text.RegularExpressions.Regex.Match(
+            descUpper,
+            @"(?:IPHONE|GALAXY|REDMI|NOTE|POCO|HONOR|HUAWEI|OPPO|ONEPLUS|MOTO|MACBOOK|IPAD)\s+([A-Z]?\d{1,3}[A-Z]*(?:\s+(?:PRO|LITE|ULTRA|MAX|PLUS|MINI|FE|TE|S|SE))*)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (m.Success && m.Groups.Count > 1)
+        {
+            var raw = m.Groups[1].Value;
+            // Compress: "12 Pro Max" → "12PM", "S24 Ultra" → "S24U", "Note 12" → "N12"
+            var compressed = System.Text.RegularExpressions.Regex.Replace(raw, @"\s+(PRO|LITE|ULTRA|MAX|PLUS|MINI|FE|TE|SE)", m => m.Value.Substring(1, 1));
+            compressed = System.Text.RegularExpressions.Regex.Replace(compressed, @"\s+", "");
+            return compressed.Length > 8 ? compressed[..8] : compressed;
+        }
+        // 2) Fallback: token tipo "P20", "S24", "A15" directamente sem brand prefix
+        var m2 = System.Text.RegularExpressions.Regex.Match(descUpper, @"\b([A-Z]{1,3}\d{1,3}[A-Z]?)\b");
+        if (m2.Success) return m2.Groups[1].Value;
+        return "";
+    }
+
+    /// <summary>
     /// Sprint 163b: re-corre o pipeline parser → fingerprint → LLM numa importação existente.
     /// Útil quando LLM agora está configurado mas o ingest original tinha items lixo (parser
     /// genérico), ou quando Bruno actualizou Fornecedor.MatchPatternsJson.
@@ -588,11 +680,21 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             }
             else if (string.Equals(item.Action, "new", StringComparison.OrdinalIgnoreCase))
             {
-                if (string.IsNullOrWhiteSpace(item.NewSku) || string.IsNullOrWhiteSpace(item.NewName))
-                    throw new ValidationException("missing_new_fields", $"Item '{item.Description}': falta NewSku/NewName para criar Part.");
-                var sku = item.NewSku.Trim().ToUpperInvariant();
-                if (await _parts.SkuExistsAsync(sku, null, ct))
-                    throw new ConflictException("part_sku_exists", $"Já existe uma Part com SKU '{sku}'.");
+                if (string.IsNullOrWhiteSpace(item.NewName))
+                    throw new ValidationException("missing_new_fields", $"Item '{item.Description}': falta NewName para criar Part.");
+                // Sprint 163d: SKU opcional — auto-gera se vazio (consistente com PartService.CreateAsync).
+                // Padrão {PREFIX4}-{NNNN} a partir das primeiras 4 letras da descrição.
+                string sku;
+                if (string.IsNullOrWhiteSpace(item.NewSku))
+                {
+                    sku = await GenerateAutoSkuAsync(item.NewName, ct);
+                }
+                else
+                {
+                    sku = item.NewSku.Trim().ToUpperInvariant();
+                    if (await _parts.SkuExistsAsync(sku, null, ct))
+                        throw new ConflictException("part_sku_exists", $"Já existe uma Part com SKU '{sku}'.");
+                }
                 part = new Part
                 {
                     TenantId = tenantId,
