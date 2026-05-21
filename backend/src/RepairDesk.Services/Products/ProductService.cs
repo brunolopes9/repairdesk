@@ -260,25 +260,67 @@ public class ProductService : IProductService
     private async Task PublishCatalogEventAsync(string eventType, Product product, CancellationToken ct)
     {
         if (_tenant.TenantId is not { } tenantId) return;
+
+        // Sprint 154: payload alinhado com spec do outro Claude (ecommerce/Contexto/17).
+        // Loja consome estes campos directamente para upsert local. Inclui derivados (isDropship,
+        // shopConditionTier via mapper) e imagens curadas first com fallback raw.
+        var curatedImages = product.Images.Where(i => i.IsCurated).OrderBy(i => i.Ordem).Select(i => i.Url).ToList();
+        var imageUrls = curatedImages.Count > 0
+            ? curatedImages
+            : product.Images.OrderBy(i => i.Ordem).Select(i => i.Url).ToList();
+
         await _webhooks.PublishAsync(tenantId, eventType, new
         {
             productId = product.Id,
             sku = product.Sku,
-            slug = product.Slug,
             brand = product.Brand,
             model = product.Model,
             storage = product.Storage,
             color = product.Color,
+            // Sprint 122 internal grading.
             grading = product.Grading.ToString(),
-            // Sprint 146: campos canónicos para alinhar com a loja headless.
+            // Sprint 146: canónicos para a loja (A+/A/B/C/OpenBox + label PT).
             gradingCanonical = ProductGradingMapper.ToCanonical(product.Grading),
             gradingLabel = ProductGradingMapper.ToLabelPt(product.Grading),
-            supplyType = product.SupplyType.ToString(),
+            // Sprint 151: categoria de produto.
+            category = product.Category.ToString().ToLowerInvariant(),
+            // Sprint 154: derivados do spec.
+            isDropship = product.SupplyType == ProductSupplyType.Dropship,
+            dropshipSupplierCode = product.Fornecedor?.Code,
+            dropshipSupplierSku = product.DropshipSupplierSku,
+            publishToShop = product.MostrarLojaOnline,
+            shopSlug = product.Slug,
+            shopSeoTitle = product.SeoTitle,
+            shopSeoDescription = product.SeoDescription,
+            shopConditionTier = ShopConditionTierFromGrading(product.Grading),
+            shopIsOpenBox = product.Grading == ProductGrading.OpenBox,
+            shopOpenBoxReason = product.OpenBoxReason,
+            shopCompareAtPriceCents = product.CompareAtPriceCents,
+            shopImagesCurated = imageUrls,
+            shopMarketingDescription = product.DescriptionMarkdown,
+            // Money + stock (top-level por conveniência).
             priceCents = product.PriceCents,
             stockQuantity = product.StockQuantity,
-            mostrarLojaOnline = product.MostrarLojaOnline,
+            attributesJson = product.AttributesJson,
+            updatedAt = product.UpdatedAt ?? product.CreatedAt,
         }, ct);
     }
+
+    /// <summary>
+    /// Sprint 154: mapa interno Grading → tier de venda PT que a loja usa (new/used/refurbished).
+    /// Premium e Novo → "new"; OpenBox e Recondicionado-like (GradeA/B) → "refurbished";
+    /// GradeC (mais desgastado) → "used".
+    /// </summary>
+    private static string ShopConditionTierFromGrading(ProductGrading g) => g switch
+    {
+        ProductGrading.Novo => "new",
+        ProductGrading.Premium => "new",
+        ProductGrading.GradeA => "refurbished",
+        ProductGrading.GradeB => "refurbished",
+        ProductGrading.OpenBox => "refurbished",
+        ProductGrading.GradeC => "used",
+        _ => "used",
+    };
 
     private static void Validate(ProductWriteRequest req)
     {

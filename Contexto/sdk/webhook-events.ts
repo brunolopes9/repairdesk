@@ -150,23 +150,47 @@ export type ProductGradingCanonical = 'Novo' | 'A+' | 'A' | 'B' | 'C' | 'OpenBox
 /** Sprint 146: label PT pronto para display. */
 export type ProductGradingLabel = 'Novo' | 'Como novo' | 'Excelente' | 'Bom' | 'Aceitável' | 'Open Box';
 
+/** Sprint 151: categoria interna para a loja distinguir telemóveis de acessórios. */
+export type ProductCategory = 'phone' | 'accessory' | 'other';
+
+/** Sprint 154: tier de venda PT que a loja usa (new/used/refurbished). Derivado do Grading interno. */
+export type ShopConditionTier = 'new' | 'used' | 'refurbished';
+
 export interface ProductCatalogPayload {
   productId: string;
   sku: string;
-  slug: string;
   brand: string;
   model: string;
   storage?: string | null;
   color?: string | null;
+  /** Enum interno RepairDesk — usa gradingCanonical para sync estável. */
   grading: ProductGradingName;
-  /** Sprint 146: canonical estável para sync com a loja. */
+  /** Sprint 146: canonical estável (A+/A/B/C/OpenBox). */
   gradingCanonical: ProductGradingCanonical;
-  /** Sprint 146: label PT user-friendly pronto para mostrar. */
+  /** Sprint 146: label PT user-friendly. */
   gradingLabel: ProductGradingLabel;
-  supplyType: ProductSupplyTypeName;
+  /** Sprint 151: categoria — telemóveis vs acessórios. */
+  category: ProductCategory;
+  // Sprint 154: campos alinhados com spec ecommerce/Contexto/17 (single source of truth).
+  isDropship: boolean;
+  dropshipSupplierCode: string | null;
+  dropshipSupplierSku: string | null;
+  publishToShop: boolean;
+  shopSlug: string;
+  shopSeoTitle: string | null;
+  shopSeoDescription: string | null;
+  shopConditionTier: ShopConditionTier;
+  shopIsOpenBox: boolean;
+  shopOpenBoxReason: string | null;
+  shopCompareAtPriceCents: number | null;
+  /** URLs editadas/curadas por Bruno first; fallback raw quando não há nenhuma curada. */
+  shopImagesCurated: string[];
+  shopMarketingDescription: string | null;
+  // Money + stock
   priceCents: number;
   stockQuantity: number;
-  mostrarLojaOnline: boolean;
+  attributesJson: string | null;
+  updatedAt: string;
 }
 
 // =================================================================

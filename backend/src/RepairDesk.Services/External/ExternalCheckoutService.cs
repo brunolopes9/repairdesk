@@ -21,7 +21,12 @@ public interface IExternalCheckoutService
     Task<ExternalClienteHistoricoResponse?> GetHistoricoByNifAsync(string nif, CancellationToken ct = default);
     Task<ExternalGarantiaDetalhe?> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default);
     /// <summary>Sprint 122: catálogo de Products (telemóveis revendidos) para a loja online.</summary>
-    Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(string? search, string? brand, int page, int pageSize, bool lowStockOnly = false, CancellationToken ct = default);
+    Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(
+        string? search, string? brand, int page, int pageSize,
+        bool lowStockOnly = false,
+        // Sprint 154: filtro incremental para reconciliação cron da loja.
+        DateTime? updatedAfter = null,
+        CancellationToken ct = default);
     Task<ExternalProductDto?> GetProductBySlugAsync(string slug, CancellationToken ct = default);
 }
 
@@ -252,18 +257,21 @@ public class ExternalCheckoutService : IExternalCheckoutService
         _tenants = tenants;
     }
 
-    public async Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(string? search, string? brand, int page, int pageSize, bool lowStockOnly = false, CancellationToken ct = default)
+    public async Task<Clientes.PagedResult<ExternalProductDto>> ListProductsAsync(
+        string? search, string? brand, int page, int pageSize,
+        bool lowStockOnly = false,
+        DateTime? updatedAfter = null,
+        CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
         // Externo: sempre MostrarLojaOnline=true + Active. Não revela CustoUnitarioCents nem FornecedorId.
         var (items, total) = await _products.SearchAsync(search, brand, lojaOnline: true, includeInactive: false, page, pageSize, ct);
-        // Sprint 132: filter in-memory porque o repo Product não tem lowStock no SQL ainda.
-        // Catálogo refurbished tipicamente <500 items, custo é aceitável. Promover ao SQL
-        // se Bruno chegar a vários milhares de produtos.
-        var query = lowStockOnly
-            ? items.Where(p => p.StockMinima > 0 && p.StockQuantity <= p.StockMinima)
-            : items.AsEnumerable();
+        // Sprint 132: filter in-memory (lowStock + Sprint 154 updatedAfter). Catálogo refurbished
+        // tipicamente <500 items. Promover ao SQL se Bruno chegar a milhares.
+        var query = items.AsEnumerable();
+        if (lowStockOnly) query = query.Where(p => p.StockMinima > 0 && p.StockQuantity <= p.StockMinima);
+        if (updatedAfter is { } cutoff) query = query.Where(p => (p.UpdatedAt ?? p.CreatedAt) > cutoff);
         var dtos = query.Select(ToExternalProductDto).ToList();
         return new Clientes.PagedResult<ExternalProductDto>(dtos, page, pageSize, total);
     }

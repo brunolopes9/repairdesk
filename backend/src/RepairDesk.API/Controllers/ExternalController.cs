@@ -119,8 +119,11 @@ public class ExternalController : ControllerBase
         [FromQuery] int pageSize = 50,
         // Sprint 132: filter para a loja saber que produtos precisam de hide automático.
         [FromQuery] bool lowStockOnly = false,
+        // Sprint 154: filtro para reconciliação incremental — loja faz cron com
+        // `updatedAfter=<last-sync>`. Backend devolve apenas produtos modificados desde então.
+        [FromQuery] DateTime? updatedAfter = null,
         CancellationToken ct = default)
-        => _checkout.ListProductsAsync(search, brand, page, pageSize, lowStockOnly, ct);
+        => _checkout.ListProductsAsync(search, brand, page, pageSize, lowStockOnly, updatedAfter, ct);
 
     /// <summary>Detalhe de um Product por slug — para PDP da loja revalidar pontualmente.</summary>
     [HttpGet("products/{slug}")]
