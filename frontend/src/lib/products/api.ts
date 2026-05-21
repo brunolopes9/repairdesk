@@ -33,11 +33,29 @@ export const PRODUCT_SUPPLY_TYPE_LABEL: Record<ProductSupplyType, string> = {
   1: 'Dropshipping',
 };
 
+// Sprint 151: categoria de produto na loja online. Acessórios separados de telemóveis
+// para filtros mais limpos.
+export const PRODUCT_CATEGORY = {
+  Phone: 0,
+  Accessory: 1,
+  Other: 2,
+} as const;
+
+export type ProductCategory = (typeof PRODUCT_CATEGORY)[keyof typeof PRODUCT_CATEGORY];
+
+export const PRODUCT_CATEGORY_LABEL: Record<ProductCategory, string> = {
+  0: 'Telemóvel',
+  1: 'Acessório',
+  2: 'Outro',
+};
+
 export interface ProductImage {
   id: string;
   url: string;
   alt: string | null;
   ordem: number;
+  // Sprint 151: true = imagem editada/curada por Bruno; false = raw do importer.
+  isCurated: boolean;
 }
 
 export interface Product {
@@ -50,7 +68,10 @@ export interface Product {
   color: string | null;
   grading: ProductGrading;
   supplyType: ProductSupplyType;
+  category: ProductCategory;
+  dropshipSupplierSku: string | null;
   priceCents: number;
+  compareAtPriceCents: number | null;
   stockQuantity: number;
   stockMinima: number;
   custoUnitarioCents: number;
@@ -58,10 +79,12 @@ export interface Product {
   attributesJson: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
+  openBoxReason: string | null;
   active: boolean;
   mostrarLojaOnline: boolean;
   fornecedorId: string | null;
   fornecedorNome: string | null;
+  fornecedorCode: string | null;
   images: ProductImage[];
   createdAt: string;
   updatedAt: string | null;
@@ -71,6 +94,7 @@ export interface ProductImageWriteRequest {
   url: string;
   alt: string | null;
   ordem: number;
+  isCurated: boolean;
 }
 
 export interface ProductWriteRequest {
@@ -82,7 +106,10 @@ export interface ProductWriteRequest {
   color: string | null;
   grading: ProductGrading;
   supplyType: ProductSupplyType;
+  category: ProductCategory;
+  dropshipSupplierSku: string | null;
   priceCents: number;
+  compareAtPriceCents: number | null;
   stockQuantity: number;
   stockMinima: number;
   custoUnitarioCents: number;
@@ -90,6 +117,7 @@ export interface ProductWriteRequest {
   attributesJson: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
+  openBoxReason: string | null;
   active: boolean;
   mostrarLojaOnline: boolean;
   fornecedorId: string | null;

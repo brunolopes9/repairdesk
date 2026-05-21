@@ -17,7 +17,7 @@ public interface IProductService
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
-public sealed record ProductImageDto(Guid Id, string Url, string? Alt, int Ordem);
+public sealed record ProductImageDto(Guid Id, string Url, string? Alt, int Ordem, bool IsCurated);
 
 public sealed record ProductDto(
     Guid Id,
@@ -29,7 +29,11 @@ public sealed record ProductDto(
     string? Color,
     ProductGrading Grading,
     ProductSupplyType SupplyType,
+    // Sprint 151: novos campos shop.
+    ProductCategory Category,
+    string? DropshipSupplierSku,
     int PriceCents,
+    int? CompareAtPriceCents,
     int StockQuantity,
     int StockMinima,
     int CustoUnitarioCents,
@@ -37,15 +41,17 @@ public sealed record ProductDto(
     string? AttributesJson,
     string? SeoTitle,
     string? SeoDescription,
+    string? OpenBoxReason,
     bool Active,
     bool MostrarLojaOnline,
     Guid? FornecedorId,
     string? FornecedorNome,
+    string? FornecedorCode,
     IReadOnlyList<ProductImageDto> Images,
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 
-public sealed record ProductImageWriteRequest(string Url, string? Alt, int Ordem);
+public sealed record ProductImageWriteRequest(string Url, string? Alt, int Ordem, bool IsCurated = true);
 
 public sealed record ProductWriteRequest(
     string? Sku,
@@ -56,7 +62,10 @@ public sealed record ProductWriteRequest(
     string? Color,
     ProductGrading Grading,
     ProductSupplyType SupplyType,
+    ProductCategory Category,
+    string? DropshipSupplierSku,
     int PriceCents,
+    int? CompareAtPriceCents,
     int StockQuantity,
     int StockMinima,
     int CustoUnitarioCents,
@@ -64,6 +73,7 @@ public sealed record ProductWriteRequest(
     string? AttributesJson,
     string? SeoTitle,
     string? SeoDescription,
+    string? OpenBoxReason,
     bool Active,
     bool MostrarLojaOnline,
     Guid? FornecedorId,
@@ -116,7 +126,10 @@ public class ProductService : IProductService
             Color = Clean(req.Color),
             Grading = req.Grading,
             SupplyType = req.SupplyType,
+            Category = req.Category,
+            DropshipSupplierSku = Clean(req.DropshipSupplierSku),
             PriceCents = req.PriceCents,
+            CompareAtPriceCents = req.CompareAtPriceCents,
             StockQuantity = req.StockQuantity,
             StockMinima = req.StockMinima,
             CustoUnitarioCents = req.CustoUnitarioCents,
@@ -124,6 +137,7 @@ public class ProductService : IProductService
             AttributesJson = Clean(req.AttributesJson),
             SeoTitle = Clean(req.SeoTitle),
             SeoDescription = Clean(req.SeoDescription),
+            OpenBoxReason = Clean(req.OpenBoxReason),
             Active = req.Active,
             MostrarLojaOnline = req.MostrarLojaOnline,
             FornecedorId = req.FornecedorId,
@@ -138,6 +152,7 @@ public class ProductService : IProductService
                     Url = img.Url.Trim(),
                     Alt = Clean(img.Alt),
                     Ordem = img.Ordem != 0 ? img.Ordem : idx,
+                    IsCurated = img.IsCurated,
                 });
             }
         }
@@ -167,7 +182,10 @@ public class ProductService : IProductService
         entity.Color = Clean(req.Color);
         entity.Grading = req.Grading;
         entity.SupplyType = req.SupplyType;
+        entity.Category = req.Category;
+        entity.DropshipSupplierSku = Clean(req.DropshipSupplierSku);
         entity.PriceCents = req.PriceCents;
+        entity.CompareAtPriceCents = req.CompareAtPriceCents;
         entity.StockQuantity = req.StockQuantity;
         entity.StockMinima = req.StockMinima;
         entity.CustoUnitarioCents = req.CustoUnitarioCents;
@@ -175,6 +193,7 @@ public class ProductService : IProductService
         entity.AttributesJson = Clean(req.AttributesJson);
         entity.SeoTitle = Clean(req.SeoTitle);
         entity.SeoDescription = Clean(req.SeoDescription);
+        entity.OpenBoxReason = Clean(req.OpenBoxReason);
         entity.Active = req.Active;
         entity.MostrarLojaOnline = req.MostrarLojaOnline;
         entity.FornecedorId = req.FornecedorId;
@@ -191,6 +210,7 @@ public class ProductService : IProductService
                     Url = img.Url.Trim(),
                     Alt = Clean(img.Alt),
                     Ordem = img.Ordem != 0 ? img.Ordem : idx,
+                    IsCurated = img.IsCurated,
                 });
             }
         }
@@ -303,9 +323,12 @@ public class ProductService : IProductService
 
     private static ProductDto ToDto(Product p) =>
         new(p.Id, p.Sku, p.Slug, p.Brand, p.Model, p.Storage, p.Color, p.Grading, p.SupplyType,
-            p.PriceCents, p.StockQuantity, p.StockMinima, p.CustoUnitarioCents,
+            p.Category, p.DropshipSupplierSku,
+            p.PriceCents, p.CompareAtPriceCents,
+            p.StockQuantity, p.StockMinima, p.CustoUnitarioCents,
             p.DescriptionMarkdown, p.AttributesJson, p.SeoTitle, p.SeoDescription,
-            p.Active, p.MostrarLojaOnline, p.FornecedorId, p.Fornecedor?.Name,
-            p.Images.OrderBy(i => i.Ordem).Select(i => new ProductImageDto(i.Id, i.Url, i.Alt, i.Ordem)).ToList(),
+            p.OpenBoxReason,
+            p.Active, p.MostrarLojaOnline, p.FornecedorId, p.Fornecedor?.Name, p.Fornecedor?.Code,
+            p.Images.OrderBy(i => i.Ordem).Select(i => new ProductImageDto(i.Id, i.Url, i.Alt, i.Ordem, i.IsCurated)).ToList(),
             p.CreatedAt, p.UpdatedAt);
 }

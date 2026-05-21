@@ -5,11 +5,14 @@ import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import {
+  PRODUCT_CATEGORY,
+  PRODUCT_CATEGORY_LABEL,
   PRODUCT_GRADING,
   PRODUCT_GRADING_LABEL,
   PRODUCT_SUPPLY_TYPE,
   PRODUCT_SUPPLY_TYPE_LABEL,
   productsApi,
+  type ProductCategory,
   type ProductGrading,
   type ProductImageWriteRequest,
   type ProductSupplyType,
@@ -27,7 +30,11 @@ const emptyForm = (): ProductWriteRequest => ({
   color: null,
   grading: PRODUCT_GRADING.Novo,
   supplyType: PRODUCT_SUPPLY_TYPE.Stock,
+  // Sprint 151
+  category: PRODUCT_CATEGORY.Phone,
+  dropshipSupplierSku: null,
   priceCents: 0,
+  compareAtPriceCents: null,
   stockQuantity: 0,
   stockMinima: 0,
   custoUnitarioCents: 0,
@@ -35,6 +42,7 @@ const emptyForm = (): ProductWriteRequest => ({
   attributesJson: null,
   seoTitle: null,
   seoDescription: null,
+  openBoxReason: null,
   active: true,
   mostrarLojaOnline: true,
   fornecedorId: null,
@@ -81,7 +89,10 @@ export default function Produtos() {
         color: p.color,
         grading: p.grading,
         supplyType: p.supplyType,
+        category: p.category,
+        dropshipSupplierSku: p.dropshipSupplierSku,
         priceCents: p.priceCents,
+        compareAtPriceCents: p.compareAtPriceCents,
         stockQuantity: p.stockQuantity,
         stockMinima: p.stockMinima,
         custoUnitarioCents: p.custoUnitarioCents,
@@ -89,10 +100,11 @@ export default function Produtos() {
         attributesJson: p.attributesJson,
         seoTitle: p.seoTitle,
         seoDescription: p.seoDescription,
+        openBoxReason: p.openBoxReason,
         active: p.active,
         mostrarLojaOnline: p.mostrarLojaOnline,
         fornecedorId: p.fornecedorId,
-        images: p.images.map((i) => ({ url: i.url, alt: i.alt, ordem: i.ordem })),
+        images: p.images.map((i) => ({ url: i.url, alt: i.alt, ordem: i.ordem, isCurated: i.isCurated })),
       });
       setPriceStr((p.priceCents / 100).toFixed(2).replace('.', ','));
       setCustoStr((p.custoUnitarioCents / 100).toFixed(2).replace('.', ','));
@@ -257,8 +269,23 @@ export default function Produtos() {
 
             {/* Condição & fornecedor */}
             <details open className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-600">Condição e fornecedor</summary>
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                Condição e fornecedor
+                {/* Sprint 152: badge "Stock virtual" quando Dropship — distingue claramente do stock físico. */}
+                {form.supplyType === PRODUCT_SUPPLY_TYPE.Dropship && (
+                  <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                    Stock virtual
+                  </span>
+                )}
+              </summary>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Categoria" hint="Sprint 151: separar telemóveis de acessórios para filtros loja.">
+                  <select value={form.category} onChange={(e) => setForm({ ...form, category: Number(e.target.value) as ProductCategory })} className={inputCls}>
+                    {Object.values(PRODUCT_CATEGORY).map((v) => (
+                      <option key={v} value={v}>{PRODUCT_CATEGORY_LABEL[v]}</option>
+                    ))}
+                  </select>
+                </Field>
                 <Field label="Grading">
                   <select value={form.grading} onChange={(e) => setForm({ ...form, grading: Number(e.target.value) as ProductGrading })} className={inputCls}>
                     {Object.values(PRODUCT_GRADING).map((v) => (
@@ -279,6 +306,58 @@ export default function Produtos() {
                     {(fornecedores.data ?? []).map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </select>
                 </Field>
+                {form.supplyType === PRODUCT_SUPPLY_TYPE.Dropship && (
+                  <Field label="SKU do fornecedor" hint="Para reconciliação com CSV importer (Molano etc).">
+                    <input value={form.dropshipSupplierSku ?? ''} onChange={(e) => setForm({ ...form, dropshipSupplierSku: e.target.value || null })} className={inputCls} placeholder="MOL-IP12-128-BLK" />
+                  </Field>
+                )}
+              </div>
+            </details>
+
+            {/* Sprint 152: Loja online — todos os campos shop-specific juntos. */}
+            <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                Loja online
+                {form.mostrarLojaOnline ? (
+                  <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                    Visível
+                  </span>
+                ) : (
+                  <span className="ml-2 rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">
+                    Oculto
+                  </span>
+                )}
+              </summary>
+              <div className="mt-3 space-y-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="checkbox" checked={form.mostrarLojaOnline} onChange={(e) => setForm({ ...form, mostrarLojaOnline: e.target.checked })} />
+                  <strong>Publicar na loja online</strong>
+                </label>
+                <p className="-mt-2 text-xs text-zinc-500">Quando ON, este produto aparece em lopestech.pt. Webhook é disparado automaticamente ao mudar.</p>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Preço comparativo (€)" hint="Sprint 151: preço antes promoção (strike-through). Deixa vazio se não há promoção.">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={form.compareAtPriceCents != null ? (form.compareAtPriceCents / 100).toFixed(2) : ''}
+                      onChange={(e) => setForm({ ...form, compareAtPriceCents: e.target.value ? Math.round(Number(e.target.value) * 100) : null })}
+                      className={inputCls}
+                      placeholder="ex: 349,90"
+                    />
+                  </Field>
+                  {form.grading === PRODUCT_GRADING.OpenBox && (
+                    <Field label="Razão Open Box" hint="Texto curto que aparece na PDP loja.">
+                      <input
+                        value={form.openBoxReason ?? ''}
+                        onChange={(e) => setForm({ ...form, openBoxReason: e.target.value || null })}
+                        className={inputCls}
+                        placeholder="Devolução cliente, embalagem aberta"
+                        maxLength={500}
+                      />
+                    </Field>
+                  )}
+                </div>
               </div>
             </details>
 
@@ -342,6 +421,8 @@ export default function Produtos() {
                         url: newImageUrl.trim(),
                         alt: null,
                         ordem: form.images.length,
+                        // Sprint 151: upload manual = curada (Bruno verificou).
+                        isCurated: true,
                       };
                       setForm({ ...form, images: [...form.images, newImage] });
                       setNewImageUrl('');
@@ -371,15 +452,11 @@ export default function Produtos() {
               </div>
             </details>
 
-            {/* Toggles */}
+            {/* Toggle Activo — Sprint 152: "Mostrar na loja online" mudou para tab Loja online. */}
             <div className="flex flex-wrap gap-3 rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-900/50">
               <label className="inline-flex cursor-pointer items-center gap-2">
                 <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
                 Activo
-              </label>
-              <label className="inline-flex cursor-pointer items-center gap-2">
-                <input type="checkbox" checked={form.mostrarLojaOnline} onChange={(e) => setForm({ ...form, mostrarLojaOnline: e.target.checked })} />
-                Mostrar na loja online
               </label>
             </div>
 
