@@ -24,7 +24,33 @@ public interface ISupplierInvoiceImportService
     Task<SupplierInvoiceImportDto> ApproveAsync(Guid importId, ApproveSupplierInvoiceRequest req, CancellationToken ct = default);
     Task<SupplierInvoiceImportDto> RejectAsync(Guid importId, string? reason, CancellationToken ct = default);
     Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 160: aprovar items como Stock (Part). Para cada item, Bruno escolhe acção:
+    /// - "existing": liga a Part existente, cria PartMovimento Entrada, actualiza CustoUnitario.
+    /// - "new": cria Part nova com SKU/Nome fornecidos, cria PartMovimento Entrada.
+    /// - "skip": ignora o item.
+    /// Em qualquer caso (excepto skip), SkuMapping é registado/incrementado para aprender.
+    /// Marca import.Status = Approved.
+    /// </summary>
+    Task<SupplierInvoiceImportDto> ApproveAsStockAsync(Guid importId, ApproveAsStockRequest req, CancellationToken ct = default);
 }
+
+public sealed record ApproveAsStockRequest(IReadOnlyList<ApproveAsStockItem> Items);
+
+public sealed record ApproveAsStockItem(
+    string Description,
+    int Quantity,
+    int UnitCostCents,
+    /// <summary>"existing" | "new" | "skip".</summary>
+    string Action,
+    Guid? ExistingPartId,
+    string? NewSku,
+    string? NewName,
+    string? NewMarca,
+    string? NewModelo,
+    /// <summary>Opcional: SKU do fornecedor para aprender mapping.</summary>
+    string? SupplierSku);
 
 public sealed record ApproveSupplierInvoiceRequest(
     int ValorCents,
@@ -343,6 +369,125 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             operation = "supplier_invoice_approve",
             despesaId = despesa.Id,
             valorCents = req.ValorCents,
+        }, ct: ct);
+
+        return ToDto(entity);
+    }
+
+    /// <summary>
+    /// Sprint 160: aprovar items como Stock. Crie/incrementa Parts + PartMovimento Entrada.
+    /// SkuMapping aprende para que futuras importações do mesmo fornecedor sugiram automaticamente.
+    /// </summary>
+    public async Task<SupplierInvoiceImportDto> ApproveAsStockAsync(Guid importId, ApproveAsStockRequest req, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        if (req.Items is null || req.Items.Count == 0)
+            throw new ValidationException("no_items", "Sem items para aprovar.");
+
+        var entity = await _repo.FindByIdAsync(importId, ct) ?? throw new NotFoundException("SupplierInvoiceImport", importId);
+        if (entity.TenantId != tenantId) throw new ForbiddenException("cross_tenant", "Não autorizado.");
+        if (entity.Status == SupplierInvoiceImportStatus.Approved)
+            throw new ConflictException("already_approved", "Esta importação já foi aprovada.");
+
+        var supplierCode = (entity.Fornecedor?.Code ?? entity.FornecedorNameRaw ?? "unknown")
+            .Trim().ToLowerInvariant();
+        var partsAffected = 0;
+        var newParts = 0;
+        var notas = $"Compra fornecedor {entity.Fornecedor?.Name ?? entity.FornecedorNameRaw ?? "?"} doc {entity.ParsedDocumentNumber ?? "?"}";
+
+        foreach (var item in req.Items)
+        {
+            if (string.Equals(item.Action, "skip", StringComparison.OrdinalIgnoreCase)) continue;
+
+            Part part;
+            if (string.Equals(item.Action, "existing", StringComparison.OrdinalIgnoreCase))
+            {
+                if (item.ExistingPartId is not { } pid)
+                    throw new ValidationException("missing_part_id", $"Item '{item.Description}': falta ExistingPartId.");
+                part = await _parts.FindByIdAsync(pid, ct) ?? throw new NotFoundException("Part", pid);
+                // Última compra prevalece — sobrescreve CustoUnitarioCents.
+                part.CustoUnitarioCents = item.UnitCostCents;
+            }
+            else if (string.Equals(item.Action, "new", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(item.NewSku) || string.IsNullOrWhiteSpace(item.NewName))
+                    throw new ValidationException("missing_new_fields", $"Item '{item.Description}': falta NewSku/NewName para criar Part.");
+                var sku = item.NewSku.Trim().ToUpperInvariant();
+                if (await _parts.SkuExistsAsync(sku, null, ct))
+                    throw new ConflictException("part_sku_exists", $"Já existe uma Part com SKU '{sku}'.");
+                part = new Part
+                {
+                    TenantId = tenantId,
+                    Sku = sku,
+                    Nome = item.NewName.Trim(),
+                    Marca = item.NewMarca?.Trim(),
+                    Modelo = item.NewModelo?.Trim(),
+                    CustoUnitarioCents = item.UnitCostCents,
+                    QtdStock = 0,
+                };
+                await _parts.AddAsync(part, ct);
+                newParts++;
+            }
+            else
+            {
+                throw new ValidationException("invalid_action", $"Action '{item.Action}' inválida — usa existing/new/skip.");
+            }
+
+            // PartMovimento Entrada (compra a fornecedor).
+            var stockAntes = part.QtdStock;
+            _parts.AddMovimento(new PartMovimento
+            {
+                TenantId = tenantId,
+                PartId = part.Id,
+                Quantidade = item.Quantity,
+                StockAntes = stockAntes,
+                StockDepois = stockAntes + item.Quantity,
+                Motivo = PartMovimentoMotivo.Entrada,
+                Notas = notas,
+            });
+            part.QtdStock += item.Quantity;
+            partsAffected++;
+
+            // Aprende SkuMapping (UPSERT por (tenant, supplierCode, supplierSku)).
+            if (!string.IsNullOrWhiteSpace(item.SupplierSku))
+            {
+                var supplierSku = item.SupplierSku.Trim();
+                var existing = await _skuMappings.FindAsync(tenantId, supplierCode, supplierSku, ct);
+                if (existing is null)
+                {
+                    await _skuMappings.AddAsync(new SkuMapping
+                    {
+                        TenantId = tenantId,
+                        SupplierCode = supplierCode,
+                        SupplierSku = supplierSku,
+                        SupplierProductName = item.Description,
+                        TargetType = SkuMappingTargetType.Part,
+                        TargetId = part.Id,
+                        Confidence = SkuMappingConfidence.Manual,
+                        UseCount = 1,
+                        CreatedFromImportId = importId,
+                    }, ct);
+                }
+                else
+                {
+                    existing.TargetId = part.Id;
+                    existing.UseCount++;
+                }
+            }
+        }
+
+        entity.Status = SupplierInvoiceImportStatus.Approved;
+        entity.ProcessedAt = DateTime.UtcNow;
+        await _parts.SaveAsync(ct);
+        await _skuMappings.SaveAsync(ct);
+        await _repo.SaveAsync(ct);
+
+        await _audit.LogAsync(AuditAction.Update, nameof(SupplierInvoiceImport), entity.Id, new
+        {
+            operation = "supplier_invoice_approve_as_stock",
+            partsAffected,
+            newParts,
         }, ct: ct);
 
         return ToDto(entity);

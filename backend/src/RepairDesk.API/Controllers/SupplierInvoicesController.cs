@@ -38,6 +38,15 @@ public class SupplierInvoicesController : ControllerBase
         => _service.RejectAsync(id, req.Reason, ct);
 
     /// <summary>
+    /// Sprint 160: aprovar items como Stock. Por linha Bruno escolhe acção
+    /// (existing/new/skip). Cria/incrementa Parts + PartMovimentos.
+    /// SkuMapping aprende para próximas importações.
+    /// </summary>
+    [HttpPost("{id:guid}/approve-stock")]
+    public Task<SupplierInvoiceImportDto> ApproveStock(Guid id, [FromBody] ApproveAsStockRequest req, CancellationToken ct)
+        => _service.ApproveAsStockAsync(id, req, ct);
+
+    /// <summary>
     /// Sprint 148: export ZIP de todas as facturas APROVADAS no período. Útil para entregar
     /// ao contabilista no fim do trimestre. Estrutura interna: yyyy/MM/supplier/filename.pdf.
     /// </summary>
