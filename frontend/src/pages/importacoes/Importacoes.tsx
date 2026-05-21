@@ -701,7 +701,7 @@ function ApproveStockModal({
                           if (Number.isFinite(euros) && euros >= 0) patch(i, { unitCostCents: Math.round(euros * 100) });
                         }}
                         className="w-20 rounded border border-zinc-300 px-1 py-0.5 text-right text-xs dark:border-zinc-700 dark:bg-zinc-900"
-                        title="Edita o custo unitário (com IVA do fornecedor). Para fornecedores intra-EU, usa o valor SEM IVA estrangeiro — Bruno aplica IVA PT depois."
+                        title="Edita se o LLM extraiu o valor errado. Default é o total da linha (com IVA), que é o que pagaste."
                       />
                       <span>€ = {formatCents(it.quantity * it.unitCostCents)}</span>
                     </div>
