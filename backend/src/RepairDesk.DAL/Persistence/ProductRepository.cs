@@ -48,6 +48,12 @@ public class ProductRepository : IProductRepository
     public Task<Product?> FindBySlugAsync(string slug, CancellationToken ct = default)
         => _db.Products.Include(p => p.Images).FirstOrDefaultAsync(p => p.Slug == slug, ct);
 
+    public Task<Product?> FindByDropshipAsync(Guid fornecedorId, string supplierSku, CancellationToken ct = default)
+        => _db.Products
+            .Include(p => p.Images)
+            .Include(p => p.Fornecedor)
+            .FirstOrDefaultAsync(p => p.FornecedorId == fornecedorId && p.DropshipSupplierSku == supplierSku, ct);
+
     public Task<bool> SkuExistsAsync(string sku, Guid? excludeId, CancellationToken ct = default)
         => _db.Products.AnyAsync(p => p.Sku == sku && (excludeId == null || p.Id != excludeId), ct);
 

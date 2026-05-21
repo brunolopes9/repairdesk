@@ -39,4 +39,14 @@ public class ProductsController : ControllerBase
         await _service.DeleteAsync(id, ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// Sprint 153: importer CSV Molano (e similares dropship). Body: { fornecedorId, csv }.
+    /// Upsert idempotente — re-importar mesmo CSV não duplica produtos.
+    /// </summary>
+    [HttpPost("import-molano")]
+    public Task<ImportProductsResponse> ImportMolano([FromBody] ImportMolanoRequest req, CancellationToken ct)
+        => _service.ImportMolanoCsvAsync(req.Csv, req.FornecedorId, ct);
 }
+
+public sealed record ImportMolanoRequest(Guid FornecedorId, string Csv);

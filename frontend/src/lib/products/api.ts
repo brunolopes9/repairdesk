@@ -124,6 +124,13 @@ export interface ProductWriteRequest {
   images: ProductImageWriteRequest[];
 }
 
+export interface ImportProductsResponse {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: { line: number; field: string; message: string; sku: string | null }[];
+}
+
 export const productsApi = {
   list(params: { search?: string; brand?: string; lojaOnline?: boolean; includeInactive?: boolean; page?: number; pageSize?: number } = {}) {
     return api.get<PagedResult<Product>>('/products', { params }).then((r) => r.data);
@@ -139,5 +146,9 @@ export const productsApi = {
   },
   remove(id: string) {
     return api.delete(`/products/${id}`).then(() => undefined);
+  },
+  // Sprint 153: importer CSV Molano. Upsert idempotente — re-importar mesmo CSV não duplica.
+  importMolano(fornecedorId: string, csv: string) {
+    return api.post<ImportProductsResponse>('/products/import-molano', { fornecedorId, csv }).then((r) => r.data);
   },
 };

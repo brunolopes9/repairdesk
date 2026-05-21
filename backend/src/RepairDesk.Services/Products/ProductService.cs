@@ -15,7 +15,17 @@ public interface IProductService
     Task<ProductDto> CreateAsync(ProductWriteRequest req, CancellationToken ct = default);
     Task<ProductDto> UpdateAsync(Guid id, ProductWriteRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Sprint 153: importer CSV Molano. Upsert idempotente por (FornecedorId, DropshipSupplierSku).</summary>
+    Task<ImportProductsResponse> ImportMolanoCsvAsync(string csv, Guid fornecedorId, CancellationToken ct = default);
 }
+
+public sealed record ImportProductsResponse(
+    int Created,
+    int Updated,
+    int Skipped,
+    IReadOnlyList<ImportProductError> Errors);
+
+public sealed record ImportProductError(int Line, string Field, string Message, string? Sku);
 
 public sealed record ProductImageDto(Guid Id, string Url, string? Alt, int Ordem, bool IsCurated);
 
@@ -319,6 +329,207 @@ public class ProductService : IProductService
         if (string.IsNullOrWhiteSpace(value)) return null;
         var trimmed = value.Trim();
         return trimmed.Length == 0 ? null : trimmed;
+    }
+
+    /// <summary>
+    /// Sprint 153: importer CSV Molano (e similares dropship). Upsert idempotente por
+    /// (FornecedorId, DropshipSupplierSku). Default: SupplyType=Dropship, MostrarLojaOnline=false
+    /// (Bruno escolhe o que publicar). Imagens marcadas IsCurated=false (raw do supplier).
+    ///
+    /// Header CSV aceite (case-insensitive):
+    /// sku, brand, model, storage, color, grading, price, stock, images (comma-separated URLs)
+    /// </summary>
+    public async Task<ImportProductsResponse> ImportMolanoCsvAsync(string csv, Guid fornecedorId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(csv))
+            throw new ValidationException("csv_vazio", "CSV vazio.");
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
+
+        var rows = RepairDesk.Common.Helpers.CsvParser.Parse(csv);
+        if (rows.Count < 2)
+            throw new ValidationException("csv_sem_dados", "CSV precisa de header + pelo menos 1 linha.");
+
+        var header = rows[0].Select(h => h.Trim().ToLowerInvariant()).ToArray();
+        int Idx(params string[] names) => header
+            .Select((h, i) => new { h, i })
+            .FirstOrDefault(x => names.Contains(x.h))?.i ?? -1;
+
+        var iSku = Idx("sku", "supplier_sku", "ref", "referencia");
+        var iBrand = Idx("brand", "marca");
+        var iModel = Idx("model", "modelo");
+        var iStorage = Idx("storage", "capacidade", "armazenamento");
+        var iColor = Idx("color", "cor");
+        var iGrading = Idx("grading", "grade", "condicao", "condição");
+        var iPrice = Idx("price", "preco", "preço", "preco_venda");
+        var iStock = Idx("stock", "qtd", "quantidade", "qtdstock");
+        var iImages = Idx("images", "imagens", "image_urls");
+        var iCusto = Idx("cost", "custo", "preco_compra");
+
+        if (iSku < 0 || iBrand < 0 || iModel < 0 || iPrice < 0)
+            throw new ValidationException("csv_falta_coluna",
+                "Colunas obrigatórias: sku, brand, model, price. Aceito também storage, color, grading, stock, images, cost.");
+
+        var errors = new List<ImportProductError>();
+        var created = 0;
+        var updated = 0;
+        var skipped = 0;
+
+        for (var i = 1; i < rows.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var lineNo = i + 1;
+            var row = rows[i];
+            string? Get(int idx) => idx >= 0 && idx < row.Length ? row[idx]?.Trim() : null;
+
+            var supplierSku = Get(iSku);
+            if (string.IsNullOrWhiteSpace(supplierSku))
+            {
+                errors.Add(new ImportProductError(lineNo, "sku", "SKU em branco.", null));
+                continue;
+            }
+
+            var brand = Get(iBrand);
+            var model = Get(iModel);
+            if (string.IsNullOrWhiteSpace(brand) || string.IsNullOrWhiteSpace(model))
+            {
+                errors.Add(new ImportProductError(lineNo, "brand/model", "Marca ou modelo em branco.", supplierSku));
+                continue;
+            }
+
+            var priceText = Get(iPrice);
+            if (!TryParseCents(priceText, out var priceCents) || priceCents <= 0)
+            {
+                errors.Add(new ImportProductError(lineNo, "price", $"Preço inválido: '{priceText}'.", supplierSku));
+                continue;
+            }
+
+            var stockText = Get(iStock);
+            var stockQuantity = int.TryParse(stockText, out var sq) ? sq : 0;
+            var custoText = Get(iCusto);
+            TryParseCents(custoText, out var custoCents);
+            var grading = ParseGrading(Get(iGrading));
+            var imagesRaw = Get(iImages);
+
+            try
+            {
+                var existing = await _repo.FindByDropshipAsync(fornecedorId, supplierSku, ct);
+                if (existing is null)
+                {
+                    // Auto-gera SKU interno + slug.
+                    var internalSku = await EnsureUniqueSkuAsync(null, null, brand, model, ct);
+                    var slug = await EnsureUniqueSlugAsync(null, null, brand, model, Get(iStorage), Get(iColor), grading, ct);
+
+                    var entity = new Product
+                    {
+                        TenantId = tenantId,
+                        Sku = internalSku,
+                        Slug = slug,
+                        Brand = brand,
+                        Model = model,
+                        Storage = Clean(Get(iStorage)),
+                        Color = Clean(Get(iColor)),
+                        Grading = grading,
+                        SupplyType = ProductSupplyType.Dropship,
+                        Category = ProductCategory.Phone,
+                        DropshipSupplierSku = supplierSku,
+                        PriceCents = priceCents,
+                        StockQuantity = stockQuantity,
+                        CustoUnitarioCents = custoCents,
+                        Active = true,
+                        MostrarLojaOnline = false,
+                        FornecedorId = fornecedorId,
+                    };
+                    foreach (var (url, idx) in ParseImageUrls(imagesRaw).Select((u, idx) => (u, idx)))
+                    {
+                        entity.Images.Add(new ProductImage
+                        {
+                            TenantId = tenantId,
+                            Url = url,
+                            Ordem = idx,
+                            IsCurated = false,
+                        });
+                    }
+                    await _repo.AddAsync(entity, ct);
+                    created++;
+                }
+                else
+                {
+                    // Update: actualiza preço, stock, imagens (mantém MostrarLojaOnline + Slug + IsCurated manual).
+                    existing.PriceCents = priceCents;
+                    existing.StockQuantity = stockQuantity;
+                    if (custoCents > 0) existing.CustoUnitarioCents = custoCents;
+                    existing.Grading = grading;
+                    // Se não há imagens curadas, substitui as raw existentes pelas novas raw.
+                    if (!existing.Images.Any(img => img.IsCurated))
+                    {
+                        existing.Images.Clear();
+                        foreach (var (url, idx) in ParseImageUrls(imagesRaw).Select((u, idx) => (u, idx)))
+                        {
+                            existing.Images.Add(new ProductImage
+                            {
+                                TenantId = tenantId,
+                                Url = url,
+                                Ordem = idx,
+                                IsCurated = false,
+                            });
+                        }
+                    }
+                    updated++;
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add(new ImportProductError(lineNo, "general", ex.Message, supplierSku));
+                skipped++;
+            }
+        }
+
+        await _repo.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Create, nameof(Product), null, new
+        {
+            operation = "molano_csv_import",
+            fornecedorId,
+            created,
+            updated,
+            skipped,
+            errors = errors.Count,
+        }, ct: ct);
+
+        return new ImportProductsResponse(created, updated, skipped, errors);
+    }
+
+    private static bool TryParseCents(string? text, out int cents)
+    {
+        cents = 0;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var normalized = text.Trim().Replace(",", ".");
+        if (!decimal.TryParse(normalized, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v)) return false;
+        cents = (int)Math.Round(v * 100m);
+        return true;
+    }
+
+    private static ProductGrading ParseGrading(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return ProductGrading.Novo;
+        return text.Trim().ToLowerInvariant() switch
+        {
+            "novo" or "new" => ProductGrading.Novo,
+            "grade a" or "gradea" or "a" => ProductGrading.GradeA,
+            "grade b" or "gradeb" or "b" => ProductGrading.GradeB,
+            "grade c" or "gradec" or "c" => ProductGrading.GradeC,
+            "openbox" or "open box" or "open-box" => ProductGrading.OpenBox,
+            "premium" or "a+" => ProductGrading.Premium,
+            _ => ProductGrading.Novo,
+        };
+    }
+
+    private static IEnumerable<string> ParseImageUrls(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return Array.Empty<string>();
+        return raw.Split(new[] { ',', ';', '|', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(u => u.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            .Take(10);
     }
 
     private static ProductDto ToDto(Product p) =>
