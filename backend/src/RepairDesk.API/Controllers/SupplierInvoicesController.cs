@@ -57,6 +57,25 @@ public class SupplierInvoicesController : ControllerBase
         => _service.ListHistoryAsync(take, ct);
 
     /// <summary>
+    /// Sprint 164: upload foto papel de fatura. Aceita JPG/PNG/WebP/HEIC, Claude Vision
+    /// extrai dados estruturados. Mesmo flow do upload PDF mas processado via vision LLM.
+    /// </summary>
+    [HttpPost("upload-photo")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB max (Vision API tem limit 5MB mas multipart overhead).
+    public async Task<IActionResult> UploadPhoto(
+        [FromForm] IFormFile file,
+        [FromForm] string? fornecedorHint,
+        CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { code = "no_file", detail = "Anexa uma imagem." });
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, ct);
+        var result = await _service.IngestPhotoAsync(ms.ToArray(), file.FileName, file.ContentType, fornecedorHint, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Sprint 160c: upload manual PDF para testar flow sem n8n IMAP configurado.
     /// Faz o mesmo que o endpoint /api/external/supplier-invoices/ingest mas via JWT
     /// admin auth em vez de service API key — Bruno usa do browser, sem secret leak.

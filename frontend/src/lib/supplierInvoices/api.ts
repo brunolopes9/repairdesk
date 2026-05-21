@@ -82,6 +82,15 @@ export const supplierInvoicesApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data);
   },
+  // Sprint 164: upload foto papel (JPG/PNG/WebP) — Claude Vision OCR.
+  uploadPhoto(file: File, fornecedorHint?: string) {
+    const form = new FormData();
+    form.append('file', file);
+    if (fornecedorHint) form.append('fornecedorHint', fornecedorHint);
+    return api.post<{ id: string; wasDuplicate: boolean; status: string }>('/supplier-invoices/upload-photo', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data);
+  },
   // Sprint 163b: histórico (Approved/Rejected).
   history(take = 100) {
     return api.get<SupplierInvoiceImport[]>(`/supplier-invoices/history?take=${take}`).then((r) => r.data);

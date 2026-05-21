@@ -31,6 +31,13 @@ public interface IAnthropicSupplierParser
     /// </summary>
     Task<LlmParseResult?> ParseAsync(string pdfText, CancellationToken ct = default);
 
+    /// <summary>
+    /// Sprint 164: parseia uma imagem (foto papel de fatura) via Claude Vision.
+    /// Aceita JPG/PNG/WebP até 5MB. Devolve mesmo shape de ParseAsync.
+    /// PII redaction não aplicável a imagens — assumimos confiança no fornecedor B2B PT/EU.
+    /// </summary>
+    Task<LlmParseResult?> ParseImageAsync(byte[] imageBytes, string mimeType, CancellationToken ct = default);
+
     /// <summary>Boolean para o caller saber se LLM está disponível antes de chamar.</summary>
     bool IsConfigured { get; }
 }
@@ -147,6 +154,124 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         catch (Exception ex) when (ex is not OperationCanceledException || ex is TaskCanceledException)
         {
             _logger.LogWarning(ex, "AnthropicSupplierParser falhou — caller continua sem LLM data.");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Sprint 164: parseia foto papel via Claude Vision. Mesmo schema JSON.
+    /// </summary>
+    public async Task<LlmParseResult?> ParseImageAsync(byte[] imageBytes, string mimeType, CancellationToken ct = default)
+    {
+        if (!IsConfigured || imageBytes is null || imageBytes.Length == 0) return null;
+        // Claude Vision max 5MB por imagem; rejeita silenciosamente se maior.
+        if (imageBytes.Length > 5 * 1024 * 1024)
+        {
+            _logger.LogWarning("ParseImageAsync: imagem {Size} bytes excede 5MB limite Claude Vision.", imageBytes.Length);
+            return null;
+        }
+        // Normaliza mimeType — Claude aceita image/jpeg, image/png, image/gif, image/webp.
+        var normalizedMime = mimeType?.ToLowerInvariant() switch
+        {
+            "image/jpg" or "image/jpeg" => "image/jpeg",
+            "image/png" => "image/png",
+            "image/webp" => "image/webp",
+            "image/gif" => "image/gif",
+            _ => "image/jpeg", // assume JPG por defeito
+        };
+
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(45)); // Vision é mais lento que text
+
+            var base64 = Convert.ToBase64String(imageBytes);
+            var requestBody = new
+            {
+                model = _model,
+                max_tokens = 1500,
+                temperature = 0,
+                system = new[]
+                {
+                    new
+                    {
+                        type = "text",
+                        text = SystemPrompt,
+                        cache_control = new { type = "ephemeral" },
+                    },
+                },
+                messages = new[]
+                {
+                    new
+                    {
+                        role = "user",
+                        content = new object[]
+                        {
+                            new
+                            {
+                                type = "image",
+                                source = new
+                                {
+                                    type = "base64",
+                                    media_type = normalizedMime,
+                                    data = base64,
+                                },
+                            },
+                            new
+                            {
+                                type = "text",
+                                text = "Foto/scan de fatura de fornecedor. Extrai os dados conforme schema JSON. Se a imagem está cortada ou ilegível, devolve confidence baixa.",
+                            },
+                        },
+                    },
+                },
+            };
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages")
+            {
+                Content = JsonContent.Create(requestBody),
+            };
+            req.Headers.Add("x-api-key", _apiKey);
+            req.Headers.Add("anthropic-version", "2023-06-01");
+
+            using var resp = await _http.SendAsync(req, cts.Token);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadAsStringAsync(cts.Token);
+                _logger.LogWarning("Anthropic Vision API {Status}: {Body}", (int)resp.StatusCode, body.Length > 500 ? body[..500] : body);
+                return null;
+            }
+
+            var payload = await resp.Content.ReadFromJsonAsync<AnthropicResponse>(cts.Token);
+            var text = payload?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
+            if (string.IsNullOrWhiteSpace(text)) return null;
+
+            var jsonStart = text.IndexOf('{');
+            var jsonEnd = text.LastIndexOf('}');
+            if (jsonStart < 0 || jsonEnd <= jsonStart) return null;
+            var json = text[jsonStart..(jsonEnd + 1)];
+
+            var parsed = JsonSerializer.Deserialize<LlmRawResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
+            if (parsed is null) return null;
+
+            return new LlmParseResult(
+                SupplierName: parsed.SupplierName,
+                OrderId: parsed.OrderId,
+                DocumentDate: parsed.DocumentDate,
+                TotalCents: parsed.TotalCents,
+                Items: parsed.Items?.Select(i => new LlmParseItem(
+                    i.Description ?? "",
+                    i.Quantity,
+                    i.LineTotalCents,
+                    i.SupplierSku)).ToList() ?? new(),
+                Confidence: Math.Clamp(parsed.Confidence, 0, 1));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || ex is TaskCanceledException)
+        {
+            _logger.LogWarning(ex, "ParseImageAsync falhou — caller continua sem LLM data.");
             return null;
         }
     }

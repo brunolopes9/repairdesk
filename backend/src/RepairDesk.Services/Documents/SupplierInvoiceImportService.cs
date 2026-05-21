@@ -17,6 +17,18 @@ public interface ISupplierInvoiceImportService
         Guid? apiKeyId = null,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Sprint 164: upload de foto papel via Claude Vision OCR. Aceita JPG/PNG/WebP.
+    /// Pipeline: validate mime + size → guarda imagem em storage → chama Claude Vision →
+    /// cria SupplierInvoiceImport com items extraídos. Sem PDF text extraction.
+    /// </summary>
+    Task<SupplierInvoiceImportResult> IngestPhotoAsync(
+        byte[] imageBytes,
+        string fileName,
+        string contentType,
+        string? fornecedorHint,
+        CancellationToken ct = default);
+
     Task<IReadOnlyList<SupplierInvoiceImportDto>> ListPendingAsync(int take, CancellationToken ct = default);
 
     // Sprint 148: admin operations (JWT-auth).
@@ -311,6 +323,106 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         return new SupplierInvoiceImportResult(
             entity.Id, status, fornecedorNameRaw, fornecedorId,
             parsed?.TotalCents, parsed?.OrderId, relativePath, WasDuplicate: false);
+    }
+
+    /// <summary>
+    /// Sprint 164: upload foto papel + Claude Vision OCR. Bypassa parser tradicional
+    /// porque imagens não têm texto extraível directo. Tudo passa pelo LLM Vision.
+    /// </summary>
+    public async Task<SupplierInvoiceImportResult> IngestPhotoAsync(
+        byte[] imageBytes,
+        string fileName,
+        string contentType,
+        string? fornecedorHint,
+        CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        if (imageBytes is null || imageBytes.Length == 0)
+            throw new ValidationException("no_file", "Anexa uma imagem.");
+        if (!_llmParser.IsConfigured)
+            throw new ValidationException("vision_not_configured",
+                "Para processar fotos papel, é necessário ANTHROPIC_API_KEY configurada.");
+
+        // Valida mime type — imagens suportadas pelo Claude Vision.
+        var allowedMimes = new[] { "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif" };
+        if (!allowedMimes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
+            throw new ValidationException("invalid_mime",
+                $"Formato {contentType} não suportado. Aceita JPG/PNG/WebP/GIF.");
+
+        // SHA256 dedup tal como PDFs — sintetiza ".jpg" ou ".png" para storage path.
+        var sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(imageBytes)).ToLowerInvariant();
+        var existing = await _repo.FindBySha256Async(tenantId, sha256, ct);
+        if (existing is not null)
+        {
+            _logger.LogInformation("SupplierInvoice (photo) duplicate ignored: {Sha}", sha256);
+            return new SupplierInvoiceImportResult(
+                existing.Id, existing.Status, existing.FornecedorNameRaw, existing.FornecedorId,
+                existing.ParsedTotalCents, existing.ParsedDocumentNumber, existing.PdfRelativePath, WasDuplicate: true);
+        }
+
+        // Chama Claude Vision.
+        var llm = await _llmParser.ParseImageAsync(imageBytes, contentType, ct);
+
+        // Tenta também fingerprinting a partir de filename (provavelmente useless mas barato).
+        var fp = await _fingerprinting.DetectAsync(emailMeta: null, pdfText: llm?.SupplierName, filename: fileName, ct);
+        var fornecedorNameRaw = llm?.SupplierName ?? fp.Name ?? fornecedorHint;
+        Guid? fornecedorId = fp.FornecedorId;
+        if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
+        {
+            var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
+            fornecedorId = existingForn?.Id;
+        }
+
+        var supplierSlug = fornecedorNameRaw ?? "foto-papel";
+        var docDate = llm?.DocumentDate ?? DateTime.UtcNow;
+        var ext = contentType.Contains("png", StringComparison.OrdinalIgnoreCase) ? ".png"
+            : contentType.Contains("webp", StringComparison.OrdinalIgnoreCase) ? ".webp"
+            : contentType.Contains("gif", StringComparison.OrdinalIgnoreCase) ? ".gif"
+            : ".jpg";
+        var filename = $"foto-{docDate:yyyy-MM-dd}_{sha256[..8]}{ext}";
+        var relativePath = await _storage.SaveAsync(tenantId, supplierSlug, docDate, filename, imageBytes, ct);
+
+        var entity = new SupplierInvoiceImport
+        {
+            TenantId = tenantId,
+            FornecedorId = fornecedorId,
+            FornecedorNameRaw = fornecedorNameRaw,
+            PdfSha256 = sha256,
+            PdfRelativePath = relativePath,
+            ParsedTotalCents = llm?.TotalCents,
+            ParsedDocumentNumber = llm?.OrderId,
+            ParsedDocumentDate = llm?.DocumentDate,
+            ParsedItemsJson = llm?.Items is { Count: > 0 } ? System.Text.Json.JsonSerializer.Serialize(
+                llm.Items.Select(i => new SupplierPdfItem(i.Description, i.Quantity, i.LineTotalCents)).ToList()) : null,
+            ParseConfidence = llm is null ? "None"
+                : llm.Confidence >= 0.7 ? "High"
+                : "Low",
+            Status = llm is null || llm.Items.Count == 0
+                ? SupplierInvoiceImportStatus.Failed
+                : SupplierInvoiceImportStatus.Pending,
+            EmailSubject = $"Foto papel: {fileName}",
+            EmailFrom = "manual-upload-photo@repairdesk",
+            EmailReceivedAt = DateTime.UtcNow,
+        };
+
+        await _repo.AddAsync(entity, ct);
+        await _repo.SaveAsync(ct);
+
+        await _audit.LogAsync(AuditAction.Create, nameof(SupplierInvoiceImport), entity.Id, new
+        {
+            operation = "supplier_invoice_photo_ingest",
+            fornecedor = fornecedorNameRaw,
+            items = llm?.Items.Count ?? 0,
+            confidence = entity.ParseConfidence,
+        }, ct: ct);
+
+        _logger.LogInformation("SupplierInvoice photo ingested: id={Id} sha={Sha} fornecedor={F} items={C} confidence={Conf}",
+            entity.Id, sha256[..8], fornecedorNameRaw, llm?.Items.Count ?? 0, entity.ParseConfidence);
+
+        return new SupplierInvoiceImportResult(
+            entity.Id, entity.Status, fornecedorNameRaw, fornecedorId,
+            llm?.TotalCents, llm?.OrderId, relativePath, WasDuplicate: false);
     }
 
     public async Task<IReadOnlyList<SupplierInvoiceImportDto>> ListPendingAsync(int take, CancellationToken ct = default)

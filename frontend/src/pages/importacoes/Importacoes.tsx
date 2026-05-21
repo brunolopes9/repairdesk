@@ -42,6 +42,7 @@ export default function Importacoes() {
 
   // Sprint 160c: upload manual de PDF (sem n8n IMAP).
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const upload = useMutation({
     mutationFn: (file: File) => supplierInvoicesApi.uploadPdf(file),
     onSuccess: (result) => {
@@ -56,6 +57,22 @@ export default function Importacoes() {
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
     onError: (err) => toast.fromError(err, 'Falhou upload do PDF.'),
+  });
+
+  // Sprint 164: upload foto papel via Claude Vision.
+  const uploadPhoto = useMutation({
+    mutationFn: (file: File) => supplierInvoicesApi.uploadPhoto(file),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
+      qc.invalidateQueries({ queryKey: ['supplier-invoices-history'] });
+      if (result.wasDuplicate) {
+        toast.warning('Esta foto já tinha sido processada', 'Verifica o separador "Histórico".');
+      } else {
+        toast.success('Foto processada por Claude Vision — vê a importação na lista pendente.');
+      }
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    },
+    onError: (err) => toast.fromError(err, 'Falhou OCR da foto.'),
   });
 
   // Sprint 163b: re-corre pipeline parser+fingerprint+LLM numa importação.
@@ -130,8 +147,8 @@ export default function Importacoes() {
             <Inbox size={24} strokeWidth={2} />
             Importações de Fornecedor
           </h1>
-          {/* Sprint 160c: upload manual de PDF (sem n8n IMAP configurado). */}
-          <div>
+          {/* Sprint 160c + 164: upload manual PDF / foto papel. */}
+          <div className="flex gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -142,6 +159,17 @@ export default function Importacoes() {
                 if (file) upload.mutate(file);
               }}
             />
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadPhoto.mutate(file);
+              }}
+            />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -149,7 +177,16 @@ export default function Importacoes() {
               className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
               title="Upload manual de PDF (sem precisar de n8n IMAP)"
             >
-              {upload.isPending ? 'A processar…' : '📎 Upload PDF manual'}
+              {upload.isPending ? 'A processar…' : '📎 PDF'}
+            </button>
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={uploadPhoto.isPending}
+              className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              title="Foto papel — Claude Vision faz OCR (mobile: usa câmara directamente)"
+            >
+              {uploadPhoto.isPending ? 'OCR…' : '📷 Foto papel'}
             </button>
           </div>
         </div>
