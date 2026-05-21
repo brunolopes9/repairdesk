@@ -160,11 +160,26 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
 
     private static IReadOnlyList<RelatorioIvaDocumentoDto> BuildDocumentos(IReadOnlyList<RelatorioFiscalDocumentoRow> rows, RegimeFiscal regime)
     {
-        var vatRate = regime == RegimeFiscal.IsentoArt53 ? 0m : 0.23m;
+        // Sprint 159b: ValorCents da entidade é o TOTAL COM IVA (o que o cliente pagou).
+        // ANTES estava a tratar como base e somava IVA por cima (= 80 → IVA 18,40 → erro).
+        // Para extrair IVA embutido: base = total × 100 / 123 (com IVA 23%); IVA = total − base.
+        // Tenant IsentoArt53 → tudo isento, ValorCents é a base e IVA=0.
+        var isExempt = regime == RegimeFiscal.IsentoArt53;
         return rows.Select(r =>
         {
-            var baseCents = Math.Max(0, r.ValorCents);
-            var ivaCents = (int)Math.Round(baseCents * vatRate, MidpointRounding.AwayFromZero);
+            var totalCents = Math.Max(0, r.ValorCents);
+            int baseCents, ivaCents;
+            if (isExempt)
+            {
+                baseCents = totalCents;
+                ivaCents = 0;
+            }
+            else
+            {
+                // 23% IVA embutido: base = total × 100 / 123.
+                baseCents = (int)Math.Round(totalCents * 100.0 / 123.0, MidpointRounding.AwayFromZero);
+                ivaCents = totalCents - baseCents;
+            }
             return new RelatorioIvaDocumentoDto(
                 r.Id,
                 r.Tipo,
@@ -174,7 +189,7 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
                 string.IsNullOrWhiteSpace(r.ClienteNome) ? "Consumidor final" : r.ClienteNome!,
                 baseCents,
                 ivaCents,
-                baseCents + ivaCents);
+                totalCents);
         }).ToList();
     }
 

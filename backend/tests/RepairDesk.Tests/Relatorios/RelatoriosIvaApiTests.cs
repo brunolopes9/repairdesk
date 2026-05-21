@@ -27,11 +27,17 @@ public class RelatoriosIvaApiTests : IClassFixture<RepairDeskApiFactory>
 
         var report = await client.GetFromJsonAsync<RelatorioIvaResponse>("/api/relatorios/iva?ano=2026&trimestre=2");
 
-        report!.TotalSemIvaCents.Should().Be(30000);
-        report.IvaLiquidadoCents.Should().Be(6900);
-        report.IvaAEntregarCents.Should().Be(6900);
+        // Sprint 159b: PrecoFinalCents é COM IVA. Extracção IVA embutido (base = total × 100/123):
+        // Reparação 10000 → base 8130, IVA 1870
+        // Trabalho   20000 → base 16260, IVA 3740
+        // Soma: base 24390, IVA 5610.
+        report!.TotalSemIvaCents.Should().Be(24390);
+        report.IvaLiquidadoCents.Should().Be(5610);
+        report.IvaAEntregarCents.Should().Be(5610);
         report.Documentos.Should().HaveCount(2);
-        report.Documentos.Should().OnlyContain(d => d.IvaCents == (int)Math.Round(d.BaseCents * 0.23m, MidpointRounding.AwayFromZero));
+        // base + IVA = total (invariant matemático mais robusto que "IVA = base × 23%" porque
+        // arredondamento pode introduzir delta de 1 cent).
+        report.Documentos.Should().OnlyContain(d => d.BaseCents + d.IvaCents == d.TotalCents);
     }
 
     [Fact]
