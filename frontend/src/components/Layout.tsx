@@ -14,6 +14,7 @@ import {
   ClipboardList,
   Settings,
   Webhook,
+  Workflow,
   Building2,
   Smartphone,
   Inbox,
@@ -48,6 +49,7 @@ const nav: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
   { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true },
   { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2, adminOnly: true },
+  { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow, adminOnly: true },
   { to: '/definicoes', label: 'Definições', icon: Settings },
 ];
 
