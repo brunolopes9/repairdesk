@@ -1,20 +1,21 @@
 using System.IO.Compression;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Exceptions;
 
 namespace RepairDesk.Services.Documents;
 
 /// <summary>
 /// Sprint 147: storage organizado dos PDFs de fornecedor por tenant/ano/mês/fornecedor.
-/// Layout: <c>{root}/{tenantId}/{yyyy}/{MM}/{supplier-slug}/{filename}.pdf</c>.
+/// Sprint 169: refactor para usar IPhotoStorage abstracção (Sprint 14). Funciona em:
+///   - LocalFileSystem (volume Docker /var/lib/repairdesk/supplier-invoices)
+///   - Cloudflare R2 (S3-compat, default em produção quando Storage__Provider=r2)
 ///
-/// Root path vem de <c>Storage:SupplierInvoicesRoot</c> ou env <c>STORAGE_SUPPLIER_INVOICES_ROOT</c>.
-/// Default: <c>/var/lib/repairdesk/supplier-invoices</c> (visível no container Docker).
+/// Layout: <c>supplier-invoices/{tenantId}/{yyyy}/{MM}/{supplier-slug}/{filename}</c>.
+/// Prefix <c>supplier-invoices/</c> isola estes binários dos photos do RepairDesk.
 ///
-/// Para sync automático com Drive/Dropbox o tenant monta o volume como bind mount no host
-/// (docker-compose: <c>./data/supplier-invoices:/var/lib/repairdesk/supplier-invoices</c> ou
-/// <c>~/Dropbox/RepairDesk/faturas:/var/lib/repairdesk/supplier-invoices</c>).
+/// Multi-tenant safety: path tem que começar por tenantId — paths que escapam disto
+/// são rejeitados em CreateZipAsync para impedir exfiltração cross-tenant.
 /// </summary>
 public interface ISupplierInvoiceStorage
 {
@@ -25,8 +26,8 @@ public interface ISupplierInvoiceStorage
     Task<byte[]> ReadAsync(string relativePath, CancellationToken ct = default);
 
     /// <summary>
-    /// Cria um ZIP em memória com todos os PDFs aprovados no período. UseFul para contabilista.
-    /// Estrutura interna do zip espelha a do filesystem ({yyyy}/{MM}/{supplier}/{filename}).
+    /// Cria um ZIP em memória com todos os PDFs aprovados no período. Útil para contabilista.
+    /// Estrutura interna do zip espelha a do storage ({yyyy}/{MM}/{supplier}/{filename}).
     /// </summary>
     Task<byte[]> CreateZipAsync(
         Guid tenantId, IEnumerable<string> relativePaths, CancellationToken ct = default);
@@ -34,14 +35,13 @@ public interface ISupplierInvoiceStorage
 
 public sealed class SupplierInvoiceStorage : ISupplierInvoiceStorage
 {
-    private readonly string _rootPath;
+    private const string KeyPrefix = "supplier-invoices/";
+    private readonly IPhotoStorage _storage;
     private readonly ILogger<SupplierInvoiceStorage> _logger;
 
-    public SupplierInvoiceStorage(IConfiguration config, ILogger<SupplierInvoiceStorage> logger)
+    public SupplierInvoiceStorage(IPhotoStorage storage, ILogger<SupplierInvoiceStorage> logger)
     {
-        _rootPath = config["Storage:SupplierInvoicesRoot"]
-            ?? Environment.GetEnvironmentVariable("STORAGE_SUPPLIER_INVOICES_ROOT")
-            ?? "/var/lib/repairdesk/supplier-invoices";
+        _storage = storage;
         _logger = logger;
     }
 
@@ -54,25 +54,31 @@ public sealed class SupplierInvoiceStorage : ISupplierInvoiceStorage
         var month = referenceDate.Month.ToString("D2");
         var safeFilename = SanitizeFilename(filename);
 
-        // Path layout: {tenantId}/{yyyy}/{MM}/{supplier}/{filename}.
-        var relativePath = Path.Combine(tenantId.ToString(), year, month, safeSupplier, safeFilename)
-            .Replace('\\', '/');
-        var absolutePath = Path.Combine(_rootPath, relativePath);
+        // relativePath: {tenantId}/{yyyy}/{MM}/{supplier}/{filename} — guardado na BD como referência.
+        var relativePath = string.Join('/', tenantId.ToString(), year, month, safeSupplier, safeFilename);
+        var contentType = ResolveContentType(safeFilename);
 
-        var dir = Path.GetDirectoryName(absolutePath)!;
-        Directory.CreateDirectory(dir);
-
-        await File.WriteAllBytesAsync(absolutePath, pdfBytes, ct);
-        _logger.LogInformation("SupplierInvoice saved at {Path} ({Bytes} bytes)", relativePath, pdfBytes.Length);
+        // Storage key inclui prefix para isolar dos photos.
+        using var ms = new MemoryStream(pdfBytes);
+        await _storage.UploadAsync(KeyPrefix + relativePath, ms, contentType, ct);
+        _logger.LogInformation("SupplierInvoice saved at {Path} ({Bytes} bytes, {Type})",
+            relativePath, pdfBytes.Length, contentType);
         return relativePath;
     }
 
     public async Task<byte[]> ReadAsync(string relativePath, CancellationToken ct = default)
     {
-        var absolutePath = ResolveAbsolute(relativePath);
-        if (!File.Exists(absolutePath))
+        try
+        {
+            using var stream = await _storage.DownloadAsync(KeyPrefix + relativePath, ct);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms, ct);
+            return ms.ToArray();
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
             throw new NotFoundException("SupplierInvoicePdf", relativePath);
-        return await File.ReadAllBytesAsync(absolutePath, ct);
+        }
     }
 
     public async Task<byte[]> CreateZipAsync(
@@ -89,32 +95,36 @@ public sealed class SupplierInvoiceStorage : ISupplierInvoiceStorage
                     _logger.LogWarning("Skipping path outside tenant scope: {Path}", rel);
                     continue;
                 }
-                var absolutePath = ResolveAbsolute(rel);
-                if (!File.Exists(absolutePath))
+                try
                 {
-                    _logger.LogWarning("PDF missing on filesystem: {Path}", rel);
-                    continue;
+                    using var fileStream = await _storage.DownloadAsync(KeyPrefix + rel, ct);
+                    // Entry name dentro do zip — sem o tenantId prefix para layout limpo do contabilista.
+                    var entryName = rel.Substring(tenantId.ToString().Length + 1);
+                    var entry = archive.CreateEntry(entryName, CompressionLevel.Fastest);
+                    using var entryStream = entry.Open();
+                    await fileStream.CopyToAsync(entryStream, ct);
                 }
-
-                // Entry name dentro do zip — sem o tenantId prefix para o contabilista ver layout limpo.
-                var entryName = rel.Substring(tenantId.ToString().Length + 1);
-                var entry = archive.CreateEntry(entryName, CompressionLevel.Fastest);
-                using var entryStream = entry.Open();
-                using var fileStream = File.OpenRead(absolutePath);
-                await fileStream.CopyToAsync(entryStream, ct);
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "PDF missing/unreadable: {Path}", rel);
+                }
             }
         }
         return ms.ToArray();
     }
 
-    private string ResolveAbsolute(string relativePath)
+    private static string ResolveContentType(string filename)
     {
-        // Anti path-traversal — relativePath nunca pode escapar do root.
-        var combined = Path.GetFullPath(Path.Combine(_rootPath, relativePath));
-        var rootFull = Path.GetFullPath(_rootPath);
-        if (!combined.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
-            throw new ValidationException("invalid_path", $"Path inválido: {relativePath}");
-        return combined;
+        var lower = filename.ToLowerInvariant();
+        return lower switch
+        {
+            _ when lower.EndsWith(".pdf") => "application/pdf",
+            _ when lower.EndsWith(".jpg") || lower.EndsWith(".jpeg") => "image/jpeg",
+            _ when lower.EndsWith(".png") => "image/png",
+            _ when lower.EndsWith(".webp") => "image/webp",
+            _ when lower.EndsWith(".gif") => "image/gif",
+            _ => "application/octet-stream",
+        };
     }
 
     private static string Slugify(string input)
