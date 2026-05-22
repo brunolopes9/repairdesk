@@ -22,6 +22,9 @@ public interface IProductService
     /// para o RepairDesk. Upsert por SKU. Todos ficam MostrarLojaOnline=true.
     /// </summary>
     Task<ImportProductsResponse> MigrateShopProductsAsync(IReadOnlyList<MigrateShopProductRequest> products, CancellationToken ct = default);
+    /// <summary>Sprint 190: força re-emit do webhook phones.atualizado de um produto (backfill após
+    /// optimização imagens). Spec doc 62.</summary>
+    Task RepublishWebhookAsync(Guid productId, CancellationToken ct = default);
 }
 
 public sealed record MigrateShopProductRequest(
@@ -305,6 +308,14 @@ public class ProductService : IProductService
         if (wasInCatalog) await PublishCatalogEventAsync(WebhookEvents.PhonesRemovido, entity, ct);
     }
 
+    public async Task RepublishWebhookAsync(Guid productId, CancellationToken ct = default)
+    {
+        var product = await _repo.FindByIdAsync(productId, ct) ?? throw new NotFoundException("Product", productId);
+        // Re-publica o estado actual como phones.atualizado (mesmo que não esteja shop online —
+        // a loja decide se ignora). Útil para backfill após optimização de imagens.
+        await PublishCatalogEventAsync(WebhookEvents.PhonesAtualizado, product, ct);
+    }
+
     private async Task PublishCatalogEventAsync(string eventType, Product product, CancellationToken ct)
     {
         if (_tenant.TenantId is not { } tenantId) return;
@@ -312,10 +323,26 @@ public class ProductService : IProductService
         // Sprint 154: payload alinhado com spec do outro Claude (ecommerce/Contexto/17).
         // Loja consome estes campos directamente para upsert local. Inclui derivados (isDropship,
         // shopConditionTier via mapper) e imagens curadas first com fallback raw.
-        var curatedImages = product.Images.Where(i => i.IsCurated).OrderBy(i => i.Ordem).Select(i => i.Url).ToList();
-        var imageUrls = curatedImages.Count > 0
-            ? curatedImages
-            : product.Images.OrderBy(i => i.Ordem).Select(i => i.Url).ToList();
+        var curatedSource = product.Images.Where(i => i.IsCurated).OrderBy(i => i.Ordem).ToList();
+        if (curatedSource.Count == 0) curatedSource = product.Images.OrderBy(i => i.Ordem).ToList();
+
+        // Sprint 190: shopImagesCurated agora é mixed array. Imagens optimizadas (Sprint 189)
+        // entram como ShopImage object com sizes/blur/dims; legacy (OptimizedAt=NULL) entram
+        // como string simples. Spec em Contexto/62. Shop tolera ambos.
+        var imageUrls = curatedSource.Select((i, idx) => i.OptimizedAt is not null
+            ? (object)new
+            {
+                url = i.Url,
+                url480w = i.Url480w,
+                url1024w = i.Url1024w,
+                url2048w = i.Url2048w,
+                blurDataUrl = i.BlurDataUrl,
+                width = i.Width,
+                height = i.Height,
+                alt = i.Alt,
+                order = idx,
+            }
+            : i.Url).ToList();
 
         await _webhooks.PublishAsync(tenantId, eventType, new
         {

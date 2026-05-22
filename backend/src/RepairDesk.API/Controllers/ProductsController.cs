@@ -192,6 +192,17 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
+    /// Sprint 190: força re-emit do webhook phones.atualizado para um produto. Útil após
+    /// optimização de imagens (Sprint 189) ou para backfill. Spec doc 62.
+    /// </summary>
+    [HttpPost("{productId:guid}/republish-webhook")]
+    public async Task<IActionResult> RepublishWebhook(Guid productId, CancellationToken ct)
+    {
+        await _service.RepublishWebhookAsync(productId, ct);
+        return Ok(new { republished = true });
+    }
+
+    /// <summary>
     /// Sprint 189: upload imagem com pipeline SEO automático (Contexto/60).
     /// Recebe ficheiro arbitrário (PNG/JPG até 10MB), produz 3 WebP (480/1024/2048) +
     /// blur LQIP + dimensões, faz upload R2 e cria ProductImage com todas as URLs.
