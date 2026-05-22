@@ -1,5 +1,6 @@
 import { Workflow, ExternalLink, Mail, Server, Camera, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
+import { api } from '../../lib/api';
 
 /**
  * Sprint 165: doc page para configurar automações (n8n + ingest IMAP/SFTP).
@@ -14,14 +15,10 @@ export default function Automacoes() {
 
   async function checkN8n() {
     setN8nStatus('checking');
-    // Fetch directo a localhost:5678 dá ERR_CONNECTION_REFUSED no devtools console
-    // quando n8n não está a correr. Não é grave (try/catch apanha) mas polui console.
-    // Por isso usamos backend proxy que faz o ping server-side: zero ruído browser.
     try {
-      const res = await fetch('/api/automacoes/n8n-status', { credentials: 'include' });
-      if (!res.ok) { setN8nStatus('down'); return; }
-      const data = await res.json();
-      setN8nStatus(data.up ? 'up' : 'down');
+      // Usa api client que injeta Bearer JWT — fetch raw daria 401.
+      const res = await api.get<{ up: boolean }>('/automacoes/n8n-status');
+      setN8nStatus(res.data.up ? 'up' : 'down');
     } catch {
       setN8nStatus('down');
     }

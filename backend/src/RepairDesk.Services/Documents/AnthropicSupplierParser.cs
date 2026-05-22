@@ -61,14 +61,16 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
 {
     private readonly HttpClient _http;
     private readonly ILogger<AnthropicSupplierParser> _logger;
+    private readonly ILlmUsageTracker _tracker;
     private readonly string? _apiKey;
     private readonly string _model;
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
 
-    public AnthropicSupplierParser(HttpClient http, IConfiguration config, ILogger<AnthropicSupplierParser> logger)
+    public AnthropicSupplierParser(HttpClient http, IConfiguration config, ILlmUsageTracker tracker, ILogger<AnthropicSupplierParser> logger)
     {
         _http = http;
+        _tracker = tracker;
         _logger = logger;
         _apiKey = config["ANTHROPIC_API_KEY"];
         _model = config["ANTHROPIC_MODEL"] ?? "claude-haiku-4-5-20251001";
@@ -83,6 +85,9 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         var redacted = RedactPii(pdfText);
         if (redacted.Length > 12_000) redacted = redacted[..12_000]; // ~3K tokens — fatura típica cabe largamente
 
+        var startTs = System.Diagnostics.Stopwatch.StartNew();
+        AnthropicUsage? usageCapture = null;
+        var outcome = "ok";
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -120,24 +125,26 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
             {
                 var body = await resp.Content.ReadAsStringAsync(cts.Token);
                 _logger.LogWarning("Anthropic API {Status}: {Body}", (int)resp.StatusCode, body.Length > 500 ? body[..500] : body);
+                outcome = "error";
                 return null;
             }
 
             var payload = await resp.Content.ReadFromJsonAsync<AnthropicResponse>(cts.Token);
+            usageCapture = payload?.Usage;
             var text = payload?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
-            if (string.IsNullOrWhiteSpace(text)) return null;
+            if (string.IsNullOrWhiteSpace(text)) { outcome = "error"; return null; }
 
             // Extrai JSON puro da resposta (Claude às vezes envolve em markdown ```json).
             var jsonStart = text.IndexOf('{');
             var jsonEnd = text.LastIndexOf('}');
-            if (jsonStart < 0 || jsonEnd <= jsonStart) return null;
+            if (jsonStart < 0 || jsonEnd <= jsonStart) { outcome = "error"; return null; }
             var json = text[jsonStart..(jsonEnd + 1)];
 
             var parsed = JsonSerializer.Deserialize<LlmRawResponse>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
             });
-            if (parsed is null) return null;
+            if (parsed is null) { outcome = "error"; return null; }
 
             return new LlmParseResult(
                 SupplierName: parsed.SupplierName,
@@ -154,7 +161,21 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         catch (Exception ex) when (ex is not OperationCanceledException || ex is TaskCanceledException)
         {
             _logger.LogWarning(ex, "AnthropicSupplierParser falhou — caller continua sem LLM data.");
+            outcome = ex is TaskCanceledException ? "timeout" : "error";
             return null;
+        }
+        finally
+        {
+            startTs.Stop();
+            await _tracker.RecordAsync(_model, "parse-pdf",
+                new LlmUsageTokens(
+                    usageCapture?.InputTokens ?? 0,
+                    usageCapture?.OutputTokens ?? 0,
+                    usageCapture?.CacheReadInputTokens ?? 0,
+                    usageCapture?.CacheCreationInputTokens ?? 0),
+                (int)startTs.ElapsedMilliseconds, outcome, ct);
+            // O try/return foi acima — finally apenas faz tracking, não muda return.
+            // Mas o catch acima tem return — finally corre antes do return ser retornado? Sim em C#.
         }
     }
 
@@ -180,6 +201,9 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
             _ => "image/jpeg", // assume JPG por defeito
         };
 
+        var startTs = System.Diagnostics.Stopwatch.StartNew();
+        AnthropicUsage? usageCapture = null;
+        var outcome = "ok";
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -239,23 +263,25 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
             {
                 var body = await resp.Content.ReadAsStringAsync(cts.Token);
                 _logger.LogWarning("Anthropic Vision API {Status}: {Body}", (int)resp.StatusCode, body.Length > 500 ? body[..500] : body);
+                outcome = "error";
                 return null;
             }
 
             var payload = await resp.Content.ReadFromJsonAsync<AnthropicResponse>(cts.Token);
+            usageCapture = payload?.Usage;
             var text = payload?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
-            if (string.IsNullOrWhiteSpace(text)) return null;
+            if (string.IsNullOrWhiteSpace(text)) { outcome = "error"; return null; }
 
             var jsonStart = text.IndexOf('{');
             var jsonEnd = text.LastIndexOf('}');
-            if (jsonStart < 0 || jsonEnd <= jsonStart) return null;
+            if (jsonStart < 0 || jsonEnd <= jsonStart) { outcome = "error"; return null; }
             var json = text[jsonStart..(jsonEnd + 1)];
 
             var parsed = JsonSerializer.Deserialize<LlmRawResponse>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
             });
-            if (parsed is null) return null;
+            if (parsed is null) { outcome = "error"; return null; }
 
             return new LlmParseResult(
                 SupplierName: parsed.SupplierName,
@@ -272,7 +298,19 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         catch (Exception ex) when (ex is not OperationCanceledException || ex is TaskCanceledException)
         {
             _logger.LogWarning(ex, "ParseImageAsync falhou — caller continua sem LLM data.");
+            outcome = ex is TaskCanceledException ? "timeout" : "error";
             return null;
+        }
+        finally
+        {
+            startTs.Stop();
+            await _tracker.RecordAsync(_model, "parse-image",
+                new LlmUsageTokens(
+                    usageCapture?.InputTokens ?? 0,
+                    usageCapture?.OutputTokens ?? 0,
+                    usageCapture?.CacheReadInputTokens ?? 0,
+                    usageCapture?.CacheCreationInputTokens ?? 0),
+                (int)startTs.ElapsedMilliseconds, outcome, ct);
         }
     }
 
@@ -327,11 +365,19 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         - confidence < 0.5 se o texto é claramente lixo / não-fatura.
         """;
 
-    private sealed record AnthropicResponse([property: JsonPropertyName("content")] List<AnthropicContent>? Content);
+    private sealed record AnthropicResponse(
+        [property: JsonPropertyName("content")] List<AnthropicContent>? Content,
+        [property: JsonPropertyName("usage")] AnthropicUsage? Usage);
 
     private sealed record AnthropicContent(
         [property: JsonPropertyName("type")] string Type,
         [property: JsonPropertyName("text")] string? Text);
+
+    private sealed record AnthropicUsage(
+        [property: JsonPropertyName("input_tokens")] int InputTokens,
+        [property: JsonPropertyName("output_tokens")] int OutputTokens,
+        [property: JsonPropertyName("cache_creation_input_tokens")] int? CacheCreationInputTokens,
+        [property: JsonPropertyName("cache_read_input_tokens")] int? CacheReadInputTokens);
 
     private sealed record LlmRawResponse(
         string? SupplierName,

@@ -59,6 +59,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<SupplierInvoiceImport> SupplierInvoiceImports => Set<SupplierInvoiceImport>();
     // Sprint 157: mapping aprendido entre SKUs de fornecedor e Parts/Products internos.
     public DbSet<SkuMapping> SkuMappings => Set<SkuMapping>();
+    // Sprint 167a: tracking de uso LLM Anthropic per-tenant.
+    public DbSet<LlmUsage> LlmUsage => Set<LlmUsage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -269,6 +269,9 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierFingerprintingService, RepairDesk.Services.Documents.SupplierFingerprintingService>();
     // Sprint 163: LLM fallback parser (Claude Haiku) com PII redaction. Configured via ANTHROPIC_API_KEY env.
     builder.Services.AddHttpClient<RepairDesk.Services.Documents.IAnthropicSupplierParser, RepairDesk.Services.Documents.AnthropicSupplierParser>();
+    // Sprint 167a: tracking de uso LLM per-tenant (DB → UI /definicoes/llm-usage).
+    builder.Services.AddScoped<ILlmUsageRepository, RepairDesk.DAL.Persistence.LlmUsageRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmUsageTracker, RepairDesk.Services.Documents.LlmUsageTracker>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 
