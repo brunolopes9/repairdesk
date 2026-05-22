@@ -278,6 +278,8 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmQuotaService, RepairDesk.Services.Documents.LlmQuotaService>();
     // Sprint 166a: pacote SEO completo (title+description+alt+markdown) gerado por Claude.
     builder.Services.AddHttpClient<RepairDesk.Services.Products.IProductSeoGenerator, RepairDesk.Services.Products.AnthropicAltTextService>();
+    // Sprint 188: Shop AI Bridge — assistant NL + image search via Anthropic central.
+    builder.Services.AddHttpClient<RepairDesk.Services.Shop.IShopAiService, RepairDesk.Services.Shop.ShopAiService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 

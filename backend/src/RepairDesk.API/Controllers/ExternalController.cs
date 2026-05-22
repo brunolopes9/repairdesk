@@ -5,6 +5,7 @@ using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.External;
+using RepairDesk.Services.Shop;
 
 namespace RepairDesk.API.Controllers;
 
@@ -20,8 +21,13 @@ namespace RepairDesk.API.Controllers;
 public class ExternalController : ControllerBase
 {
     private readonly IExternalCheckoutService _checkout;
+    private readonly IShopAiService _shopAi;
 
-    public ExternalController(IExternalCheckoutService checkout) => _checkout = checkout;
+    public ExternalController(IExternalCheckoutService checkout, IShopAiService shopAi)
+    {
+        _checkout = checkout;
+        _shopAi = shopAi;
+    }
 
     /// <summary>
     /// Health check para integradores. Confirma que a API key é válida, devolve hora do
@@ -133,4 +139,38 @@ public class ExternalController : ControllerBase
         var p = await _checkout.GetProductBySlugAsync(slug, ct);
         return p is null ? NotFound() : Ok(p);
     }
+
+    /// <summary>
+    /// Sprint 188: conversão NL → filtros via Anthropic. Spec em Contexto/61-Shop-AI-Bridge-Spec.md.
+    /// Cliente do shop manda 'iPhone 14 128GB roxo abaixo de 500€', recebe filtros estruturados.
+    /// </summary>
+    [HttpPost("ai-assistant")]
+    [ApiScope("read")]
+    public async Task<IActionResult> AiAssistant([FromBody] AiAssistantRequest req, CancellationToken ct)
+    {
+        var result = await _shopAi.AskAssistantAsync(req?.Query ?? "", ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Sprint 188: identificação visual via Claude Vision. Cliente do shop manda imagem,
+    /// recebe brand/model identificados + url da página filtrada.
+    /// </summary>
+    [HttpPost("ai-image-search")]
+    [ApiScope("read")]
+    [RequestSizeLimit(6 * 1024 * 1024)]
+    public async Task<IActionResult> AiImageSearch(IFormFile image, CancellationToken ct)
+    {
+        if (image is null || image.Length == 0)
+            return BadRequest(new { ok = false, error = "Imagem obrigatória" });
+        var mime = string.IsNullOrWhiteSpace(image.ContentType) ? "image/jpeg" : image.ContentType;
+        if (mime is not "image/jpeg" and not "image/png" and not "image/webp" and not "image/gif")
+            return BadRequest(new { ok = false, error = "MIME não suportado (use jpeg/png/webp/gif)" });
+        using var ms = new MemoryStream();
+        await image.CopyToAsync(ms, ct);
+        var result = await _shopAi.SearchImageAsync(ms.ToArray(), mime, ct);
+        return Ok(result);
+    }
 }
+
+public sealed record AiAssistantRequest(string Query);
