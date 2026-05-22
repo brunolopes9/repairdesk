@@ -79,7 +79,7 @@ export default function CommandPalette() {
       { id: 'nav-clientes', label: 'Clientes', icon: Users, keywords: ['clientes', 'contactos'], action: () => navigate('/clientes') },
       { id: 'nav-reparacoes', label: 'Reparações', icon: Wrench, keywords: ['reparacoes', 'reparações', 'tickets'], action: () => navigate('/reparacoes') },
       { id: 'nav-trabalhos', label: 'Trabalhos', icon: Briefcase, keywords: ['trabalhos', 'jobs', 'projectos'], action: () => navigate('/trabalhos') },
-      { id: 'nav-despesas', label: 'Despesas', icon: Receipt, keywords: ['despesas', 'custos'], action: () => navigate('/despesas') },
+      { id: 'nav-despesas', label: 'Compras & Despesas', icon: Receipt, keywords: ['despesas', 'custos', 'compras', 'fornecedor', 'material'], action: () => navigate('/despesas') },
       { id: 'nav-stock', label: 'Stock', icon: PackageSearch, keywords: ['stock', 'inventario', 'peças'], action: () => navigate('/stock') },
       { id: 'nav-precos', label: 'Tabela de preços', icon: Tags, keywords: ['precos', 'tabela', 'pricing'], action: () => navigate('/precos') },
       { id: 'nav-auditoria', label: 'Auditoria', icon: ScrollText, keywords: ['auditoria', 'audit', 'log', 'rgpd'], action: () => navigate('/auditoria') },

@@ -73,10 +73,13 @@ export default function Despesas() {
 
   return (
     <div className="space-y-4">
+      {/* Sprint 193: clarificação UX braindump — Bruno reportou 'Despesa' confuso para
+          compras a fornecedor. Mantém entity name (legacy) mas título e subtítulo
+          deixam claro que cobre 2 conceitos: compras (peças/material) + OpEx (rent, etc). */}
       <PageHeader
-        title="Despesas"
-        description="Custos de pecas, stock, ferramentas e operacao da loja."
-        meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'despesa' : 'despesas'} - pagina: {formatCents(totalCents)}</span>}
+        title="Compras & Despesas"
+        description="Compras a fornecedor (peças, material) + custos operacionais (renda, ferramentas, software, transporte)."
+        meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'registo' : 'registos'} — página: {formatCents(totalCents)}</span>}
         actions={<Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>Nova</Button>}
       />
 
