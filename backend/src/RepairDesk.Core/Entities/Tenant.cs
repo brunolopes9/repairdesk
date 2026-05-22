@@ -45,4 +45,18 @@ public class Tenant : BaseEntity
     public string? GoogleReviewUrl { get; set; }
 
     public TenantBillingSettings? BillingSettings { get; set; }
+
+    // Sprint 167b: plano SaaS + quota LLM mensal.
+    // Free=100 chamadas/mês, Pro=1000, Enterprise=ilimitado (usa key própria).
+    // Tenant sem plano definido → Free por defeito (gracefully).
+    public TenantPlan Plan { get; set; } = TenantPlan.Free;
+    /// <summary>Quota override per-tenant. NULL → usa default do plano (100/1000/ilimitado).</summary>
+    public int? LlmQuotaMonthly { get; set; }
+}
+
+public enum TenantPlan
+{
+    Free = 0,
+    Pro = 1,
+    Enterprise = 2,
 }

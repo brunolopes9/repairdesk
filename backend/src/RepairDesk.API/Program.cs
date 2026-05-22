@@ -272,6 +272,8 @@ try
     // Sprint 167a: tracking de uso LLM per-tenant (DB → UI /definicoes/llm-usage).
     builder.Services.AddScoped<ILlmUsageRepository, RepairDesk.DAL.Persistence.LlmUsageRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmUsageTracker, RepairDesk.Services.Documents.LlmUsageTracker>();
+    // Sprint 167b: quota enforcement per-tenant (free/pro/enterprise).
+    builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmQuotaService, RepairDesk.Services.Documents.LlmQuotaService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 

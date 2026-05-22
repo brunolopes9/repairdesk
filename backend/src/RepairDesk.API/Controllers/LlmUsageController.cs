@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Core.Abstractions;
+using RepairDesk.Services.Documents;
 
 namespace RepairDesk.API.Controllers;
 
 /// <summary>
 /// Sprint 167a: endpoint para Bruno ver gasto LLM Anthropic per-tenant.
+/// Sprint 167b: também inclui quota check (plan + used/limit).
 /// </summary>
 [ApiController]
 [Route("api/llm-usage")]
@@ -14,11 +16,13 @@ public class LlmUsageController : ControllerBase
 {
     private readonly ILlmUsageRepository _repo;
     private readonly ITenantContext _tenant;
+    private readonly ILlmQuotaService _quota;
 
-    public LlmUsageController(ILlmUsageRepository repo, ITenantContext tenant)
+    public LlmUsageController(ILlmUsageRepository repo, ITenantContext tenant, ILlmQuotaService quota)
     {
         _repo = repo;
         _tenant = tenant;
+        _quota = quota;
     }
 
     /// <summary>Resumo de gastos: mês actual + mês passado + lifetime + breakdown por operação.</summary>
@@ -35,12 +39,21 @@ public class LlmUsageController : ControllerBase
         var prevMonth = await _repo.GetSummaryAsync(tenantId, prevMonthStart, monthStart, ct);
         var lifetime = await _repo.GetSummaryAsync(tenantId, lifetimeStart, now.AddDays(1), ct);
         var recent = await _repo.ListRecentAsync(tenantId, 20, ct);
+        var quota = await _quota.CheckAsync(ct);
 
         return Ok(new
         {
             thisMonth,
             prevMonth,
             lifetime,
+            quota = new
+            {
+                plan = quota.Plan.ToString(),
+                used = quota.Used,
+                limit = quota.Quota == int.MaxValue ? (int?)null : quota.Quota,
+                allowed = quota.Allowed,
+                reason = quota.Reason,
+            },
             recent = recent.Select(r => new
             {
                 createdAt = r.CreatedAt,

@@ -34,10 +34,18 @@ interface LlmUsageRecent {
   costMicrocents: number;
   outcome: string;
 }
+interface LlmQuotaInfo {
+  plan: 'Free' | 'Pro' | 'Enterprise';
+  used: number;
+  limit: number | null;
+  allowed: boolean;
+  reason: string | null;
+}
 interface LlmUsageResponse {
   thisMonth: LlmUsageSummary;
   prevMonth: LlmUsageSummary;
   lifetime: LlmUsageSummary;
+  quota: LlmQuotaInfo;
   recent: LlmUsageRecent[];
 }
 
@@ -73,7 +81,7 @@ export default function LlmUsage() {
   if (query.isLoading) return <div className="p-6 text-sm text-zinc-500">A carregar uso LLM…</div>;
   if (query.isError || !query.data) return <div className="p-6 text-sm text-rose-600">Erro a carregar.</div>;
 
-  const { thisMonth, prevMonth, lifetime, recent } = query.data;
+  const { thisMonth, prevMonth, lifetime, quota, recent } = query.data;
   const monthDelta = thisMonth.totalCostMicrocents - prevMonth.totalCostMicrocents;
 
   return (
@@ -88,6 +96,43 @@ export default function LlmUsage() {
           Útil para conferir custo + escolher plano SaaS correcto.
         </p>
       </header>
+
+      {/* Sprint 167b: card plano + quota */}
+      <section className={`rounded-xl border p-4 ${quota.allowed ? 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20' : 'border-rose-300 bg-rose-50 dark:border-rose-800/40 dark:bg-rose-950/30'}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              Plano: <span className="rounded bg-zinc-900 px-2 py-0.5 text-xs uppercase text-white dark:bg-zinc-100 dark:text-zinc-900">{quota.plan}</span>
+              {!quota.allowed && <span className="rounded bg-rose-600 px-2 py-0.5 text-xs uppercase text-white">Quota esgotada</span>}
+            </div>
+            <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+              {quota.limit === null ? (
+                <>Sem limite — Enterprise paga LLM com key própria.</>
+              ) : (
+                <>{quota.used} de {quota.limit} chamadas usadas este mês</>
+              )}
+            </div>
+          </div>
+          {quota.limit && (
+            <div className="w-full sm:w-64">
+              <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                <div
+                  className={`h-full transition-all ${quota.used / quota.limit > 0.9 ? 'bg-rose-500' : quota.used / quota.limit > 0.75 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${Math.min(100, (quota.used / quota.limit) * 100)}%` }}
+                />
+              </div>
+              <div className="mt-1 text-right text-[10px] text-zinc-500">
+                {Math.round((quota.used / quota.limit) * 100)}% usado
+              </div>
+            </div>
+          )}
+        </div>
+        {!quota.allowed && (
+          <div className="mt-2 text-xs text-rose-700 dark:text-rose-300">
+            Upload de PDF e foto papel via Claude estão bloqueados até ao próximo mês ou upgrade de plano.
+          </div>
+        )}
+      </section>
 
       {/* KPIs principais */}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -196,9 +241,9 @@ export default function LlmUsage() {
       </section>
 
       <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-        <strong>Preços snapshot (Maio 2026):</strong> Claude Haiku 4.5 = $1/M input, $5/M output ·
-        prompt cache 90% off · 1 fatura típica ~0,5 cêntimos.
-        Quota enforcement + tiers SaaS (free/pro/enterprise) virão em Sprint 167b.
+        <strong>Planos:</strong> Free = 100 chamadas/mês · Pro = 1000/mês · Enterprise = ilimitado (key própria).
+        Para mudar plano, contacta o admin LopesTech (UI de upgrade em sprint futuro).
+        <br /><strong>Preços snapshot:</strong> Claude Haiku 4.5 = $1/M input + $5/M output · prompt cache 90% off · ~0,5¢/fatura.
       </div>
     </div>
   );

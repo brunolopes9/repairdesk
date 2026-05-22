@@ -62,15 +62,17 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
     private readonly HttpClient _http;
     private readonly ILogger<AnthropicSupplierParser> _logger;
     private readonly ILlmUsageTracker _tracker;
+    private readonly ILlmQuotaService _quota;
     private readonly string? _apiKey;
     private readonly string _model;
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
 
-    public AnthropicSupplierParser(HttpClient http, IConfiguration config, ILlmUsageTracker tracker, ILogger<AnthropicSupplierParser> logger)
+    public AnthropicSupplierParser(HttpClient http, IConfiguration config, ILlmUsageTracker tracker, ILlmQuotaService quota, ILogger<AnthropicSupplierParser> logger)
     {
         _http = http;
         _tracker = tracker;
+        _quota = quota;
         _logger = logger;
         _apiKey = config["ANTHROPIC_API_KEY"];
         _model = config["ANTHROPIC_MODEL"] ?? "claude-haiku-4-5-20251001";
@@ -81,6 +83,14 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
     public async Task<LlmParseResult?> ParseAsync(string pdfText, CancellationToken ct = default)
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(pdfText)) return null;
+        // Sprint 167b: quota check antes de gastar dinheiro.
+        var quotaCheck = await _quota.CheckAsync(ct);
+        if (!quotaCheck.Allowed)
+        {
+            _logger.LogWarning("ParseAsync skipped: quota exceeded ({Used}/{Quota}, plan={Plan}).",
+                quotaCheck.Used, quotaCheck.Quota, quotaCheck.Plan);
+            return null;
+        }
 
         var redacted = RedactPii(pdfText);
         if (redacted.Length > 12_000) redacted = redacted[..12_000]; // ~3K tokens — fatura típica cabe largamente
@@ -185,6 +195,13 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
     public async Task<LlmParseResult?> ParseImageAsync(byte[] imageBytes, string mimeType, CancellationToken ct = default)
     {
         if (!IsConfigured || imageBytes is null || imageBytes.Length == 0) return null;
+        var quotaCheck = await _quota.CheckAsync(ct);
+        if (!quotaCheck.Allowed)
+        {
+            _logger.LogWarning("ParseImageAsync skipped: quota exceeded ({Used}/{Quota}, plan={Plan}).",
+                quotaCheck.Used, quotaCheck.Quota, quotaCheck.Plan);
+            return null;
+        }
         // Claude Vision max 5MB por imagem; rejeita silenciosamente se maior.
         if (imageBytes.Length > 5 * 1024 * 1024)
         {
