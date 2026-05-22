@@ -42,6 +42,11 @@ public class SupplierInvoiceImport : BaseEntity, ITenantEntity
     public DateTime? ParsedDocumentDate { get; set; }
     /// <summary>None/Low/Medium/High — Bruno usa para priorizar revisão manual.</summary>
     public string? ParseConfidence { get; set; }
+    /// <summary>
+    /// Sprint 171: warnings da validação pós-parse (totais não batem, datas estranhas, etc).
+    /// JSON array de strings. NULL se parsing limpo.
+    /// </summary>
+    public string? ParseWarningsJson { get; set; }
 
     public SupplierInvoiceImportStatus Status { get; set; } = SupplierInvoiceImportStatus.Pending;
     public string? RejectionReason { get; set; }

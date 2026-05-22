@@ -267,6 +267,12 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         }
 
         // 4. Save to filesystem with organized layout.
+        // Sprint 171: validation rules pós-parse — rebaixa confidence se totais não batem etc.
+        IReadOnlyList<string> parseWarnings;
+        (parsed, parseWarnings) = ParseValidator.Apply(parsed);
+        if (parseWarnings.Count > 0)
+            _logger.LogWarning("Parse validation warnings: {Warnings}", string.Join(" | ", parseWarnings));
+
         var docDate = parsed?.DateAdded ?? emailMeta?.ReceivedAt ?? DateTime.UtcNow;
         var supplierSlug = fornecedorNameRaw ?? "desconhecido";
         var filename = BuildFilename(docDate, parsed?.OrderId);
@@ -297,6 +303,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                 ? JsonSerializer.Serialize(items)
                 : null,
             ParseConfidence = parsed?.Confidence.ToString(),
+            ParseWarningsJson = parseWarnings.Count > 0 ? JsonSerializer.Serialize(parseWarnings) : null,
             Status = status,
             CreatedAt = DateTime.UtcNow,
             CreatedByApiKeyId = apiKeyId,
@@ -716,6 +723,10 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             }
         }
 
+        // Sprint 171: validation pós-parse.
+        IReadOnlyList<string> reprocessWarnings;
+        (parsed, reprocessWarnings) = ParseValidator.Apply(parsed);
+
         // Update in-place.
         entity.FornecedorNameRaw = fornecedorNameRaw;
         entity.FornecedorId = fornecedorId;
@@ -726,6 +737,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             ? System.Text.Json.JsonSerializer.Serialize(items)
             : null;
         entity.ParseConfidence = parsed?.Confidence.ToString();
+        entity.ParseWarningsJson = reprocessWarnings.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(reprocessWarnings) : null;
         entity.Status = SupplierInvoiceImportStatus.Pending;
         entity.ProcessedAt = null;
         await _repo.SaveAsync(ct);
