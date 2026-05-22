@@ -159,21 +159,39 @@ export default function RelatorioIva() {
               </div>
             </div>
 
-            {/* Bloco a entregar */}
-            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 dark:border-amber-700/60 dark:bg-amber-950/30">
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
-                🟥 A entregar à AT — trimestre {report.data.trimestre} {report.data.ano}
-              </div>
-              <div className="text-3xl font-bold text-amber-900 dark:text-amber-100">
-                {formatCents(report.data.ivaAEntregarCents)}
-              </div>
-              <div className="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">
-                {formatCents(report.data.ivaLiquidadoCents)} liquidado − {formatCents(report.data.ivaDedutivelTotalCents)} dedutível
-              </div>
-              <div className="mt-2 text-[11px] italic text-amber-700 dark:text-amber-300">
-                ⚠️ Este valor é uma <strong>estimativa de controlo interno</strong>. O valor oficial é o do SAF-T Moloni que o contabilista entrega à AT.
-              </div>
-            </div>
+            {/* Sprint 182: distingue 3 estados — a entregar (amber), crédito a favor (emerald), equilibrado (zinc). */}
+            {(() => {
+              const saldo = report.data.ivaAEntregarCents;
+              const isCredito = saldo < 0;
+              const isZero = saldo === 0;
+              const color = isCredito
+                ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100'
+                : isZero
+                  ? 'border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100'
+                  : 'border-amber-300 bg-amber-50 dark:border-amber-700/60 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100';
+              const header = isCredito
+                ? '🟢 Crédito IVA a favor — reporta para próximo trimestre'
+                : isZero
+                  ? '⚪ IVA equilibrado'
+                  : '🟥 A entregar à AT';
+              return (
+                <div className={`rounded-xl border-2 p-4 ${color}`}>
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+                    {header} — trimestre {report.data.trimestre} {report.data.ano}
+                  </div>
+                  <div className="text-3xl font-bold">
+                    {isCredito ? '+' : ''}{formatCents(Math.abs(saldo))}
+                  </div>
+                  <div className="mt-1 text-xs opacity-80">
+                    {formatCents(report.data.ivaLiquidadoCents)} liquidado − {formatCents(report.data.ivaDedutivelTotalCents)} dedutível
+                  </div>
+                  <div className="mt-2 text-[11px] italic opacity-75">
+                    ⚠️ Este valor é uma <strong>estimativa de controlo interno</strong>. O valor oficial é o do SAF-T Moloni que o contabilista entrega à AT.
+                    {isCredito && <span className="block mt-1">Em PT, o crédito pode ser reportado para o trimestre seguinte ou pedido reembolso (art. 22.º CIVA).</span>}
+                  </div>
+                </div>
+              );
+            })()}
           </section>
 
           <ComparisonChart

@@ -91,7 +91,11 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
             ivaDedutivelPecas,
             ivaDedutivelDespesas,
             ivaDedutivelTotal,
-            Math.Max(0, ivaLiquidado - ivaDedutivelTotal),
+            // Sprint 182: devolve valor real (pode ser negativo). UI distingue:
+            // > 0 → a entregar à AT
+            // < 0 → crédito a favor do contribuinte (reporta para próximo trimestre)
+            // = 0 → equilibrado
+            ivaLiquidado - ivaDedutivelTotal,
             prevDocs.Sum(d => d.BaseCents),
             prevDocs.Sum(d => d.IvaCents),
             docs,
