@@ -52,17 +52,15 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
     }
 
     /// <summary>
-    /// Sprint 176: soma o custo com IVA das peças COMPRADAS (entrada em stock) no período.
+    /// Sprint 176+178b: soma o custo com IVA de TODAS as compras de stock (peças/material)
+    /// no período. Inclui:
+    /// - PartMovimentos Entrada (compras que entraram em stock + foram registadas como Parts)
+    /// - Despesas Categoria=Pecas|Material (compras importadas como Despesa, sem PartMovimento)
     /// Fiscalmente correcto em PT — IVA é dedutível na compra, não no consumo.
-    /// Anterior (Sprint 159) somava consumo em reparações pagas, o que duplicava IVA
-    /// quando a mesma peça era importada como Despesa overhead + consumida via PartMovimento.
     /// </summary>
     public async Task<int> SumPecasCustoComIvaAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
     {
-        // PartMovimentos com Quantidade > 0 = entrada em stock (compra a fornecedor).
-        // CreatedAt = data do registo do movimento (= data da compra para Entradas vindas
-        // de SupplierInvoiceImport ou input manual).
-        var custo = await _db.PartMovimentos
+        var partsEntrada = await _db.PartMovimentos
             .AsNoTracking()
             .Where(m => m.Quantidade > 0
                 && m.CreatedAt >= fromUtc && m.CreatedAt < toUtc
@@ -70,7 +68,17 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .GroupBy(m => 1)
             .Select(g => g.Sum(m => m.Quantidade * (m.Part != null ? m.Part.CustoUnitarioCents : 0)))
             .FirstOrDefaultAsync(ct);
-        return custo;
+
+        // Despesas categorizadas como Peças/Material são também compras de inventário
+        // (ChatGPT validou: fiscalmente não são "despesas operacionais").
+        var despesasPecas = await _db.Despesas
+            .Where(d => d.Data >= fromUtc && d.Data < toUtc
+                && !d.IsCogs
+                && (d.Categoria == Core.Enums.DespesaCategoria.Pecas
+                 || d.Categoria == Core.Enums.DespesaCategoria.Material))
+            .SumAsync(d => (int?)d.ValorCents, ct) ?? 0;
+
+        return partsEntrada + despesasPecas;
     }
 
     /// <summary>
@@ -91,12 +99,14 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .Select(t => t.Id)
             .ToListAsync(ct);
 
-        // Sprint 176: filtra IsCogs=false — Despesas marcadas como COGS (peça consumida)
-        // não contam aqui porque já estão contadas via PartMovimento Entrada em
-        // SumPecasCustoComIvaAsync. Evita duplicação IVA dedutível.
+        // Sprint 178b: exclui categorias Peças+Material — essas vão em SumPecasCustoComIvaAsync
+        // ("Compras de stock"). Aqui ficam só despesas operacionais reais: Ferramenta, Software,
+        // Transporte, Comunicações, Marketing, Serviços, Outro.
         return await _db.Despesas
             .Where(d => d.Data >= fromUtc && d.Data < toUtc
                 && !d.IsCogs
+                && d.Categoria != Core.Enums.DespesaCategoria.Pecas
+                && d.Categoria != Core.Enums.DespesaCategoria.Material
                 && ((d.ReparacaoId != null && reparacoesPagasIds.Contains(d.ReparacaoId.Value))
                  || (d.TrabalhoId != null && trabalhosPagosIds.Contains(d.TrabalhoId.Value))
                  || (d.ReparacaoId == null && d.TrabalhoId == null)))  // overhead
