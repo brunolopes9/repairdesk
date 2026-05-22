@@ -4,6 +4,7 @@ import { CheckCircle2, EyeOff, Plus, Search, Smartphone, Trash2, Upload, XCircle
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
 import { toast } from '../../lib/toast';
+import { api } from '../../lib/api';
 import {
   PRODUCT_CATEGORY,
   PRODUCT_CATEGORY_LABEL,
@@ -442,6 +443,30 @@ export default function Produtos() {
             <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
               <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-600">Descrição e SEO</summary>
               <div className="mt-3 space-y-3">
+                {/* Sprint 166a: gerar SEO completo via Claude. */}
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const r = await api.post<{ seoTitle: string; seoDescription: string; descriptionMarkdown: string }>(
+                          `/products/${editingId}/generate-seo`,
+                        );
+                        setForm({
+                          ...form,
+                          seoTitle: r.data.seoTitle,
+                          seoDescription: r.data.seoDescription,
+                          descriptionMarkdown: form.descriptionMarkdown || r.data.descriptionMarkdown,
+                        });
+                        toast.success('SEO gerado por Claude. Revê e guarda.');
+                      } catch (e) { toast.fromError(e, 'Falhou gerar SEO'); }
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-md border border-brand-300 bg-brand-50 px-3 py-2 text-xs font-medium text-brand-700 hover:bg-brand-100 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-300"
+                    title="Gera SEO Title + Description + Markdown via Claude. Custo ~0.5¢."
+                  >
+                    ✨ Gerar SEO automático (~0.5¢)
+                  </button>
+                )}
                 <Field label="Descrição (Markdown)">
                   <textarea rows={4} value={form.descriptionMarkdown ?? ''} onChange={(e) => setForm({ ...form, descriptionMarkdown: e.target.value || null })} className={`${inputCls} resize-none`} placeholder="Estado impecável, 100% bateria, garantia 18 meses..." />
                 </Field>

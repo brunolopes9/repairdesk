@@ -276,6 +276,8 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmUsageTracker, RepairDesk.Services.Documents.LlmUsageTracker>();
     // Sprint 167b: quota enforcement per-tenant (free/pro/enterprise).
     builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmQuotaService, RepairDesk.Services.Documents.LlmQuotaService>();
+    // Sprint 166a: pacote SEO completo (title+description+alt+markdown) gerado por Claude.
+    builder.Services.AddHttpClient<RepairDesk.Services.Products.IProductSeoGenerator, RepairDesk.Services.Products.AnthropicAltTextService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 
