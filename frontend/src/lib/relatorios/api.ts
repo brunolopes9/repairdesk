@@ -23,9 +23,9 @@ export interface RelatorioIvaResponse {
   // === Compras dedutíveis (Sprint 159) ===
   /** Input manual Bruno (compras não registadas). */
   ivaComprasCents: number;
-  /** Auto: peças stock consumidas em reparações pagas. */
+  /** Sprint 178: auto — IVA pago nas peças que ENTRARAM em stock no período (compras a fornecedor). */
   ivaDedutivelPecasCents: number;
-  /** Auto: Despesas imputadas no período. */
+  /** Sprint 176: auto — IVA das Despesas OpEx (IsCogs=false) no período. */
   ivaDedutivelDespesasCents: number;
   /** Soma das 3 fontes. */
   ivaDedutivelTotalCents: number;

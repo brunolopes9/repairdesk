@@ -104,11 +104,15 @@ export default function RelatorioIva() {
         <EmptyState icon={ReceiptText} title="Nao foi possivel carregar o relatorio" description="Confirma a ligacao ao servidor e tenta novamente." />
       ) : report.data ? (
         <>
-          {/* Sprint 159: 3 camadas claras. Antes só tinha 3 KPIs com IVA compras manual; agora
-              o sistema auto-calcula IVA dedutível das peças stock consumidas em reparações pagas
-              + Despesas do período. Bruno só precisa de inserir "Compras manuais" para fornecedores
-              que NÃO estão registados em RepairDesk (ex: pagamentos por fora a transportadoras). */}
+          {/* Sprint 178: Relatório só fiscal. Lucro/margem/COGS = página de Negócio (futuro).
+              IVA dedutível nasce na COMPRA (entrada em stock ou despesa), não no consumo.
+              Foi o erro conceptual da Sprint 159 que Bruno+ChatGPT identificaram. */}
           <section className="space-y-4">
+            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+              <strong>Apenas fiscal.</strong> IVA dedutível nasce no momento da compra (entrada
+              em stock ou despesa registada), <em>não</em> no consumo. Para lucro real, margem por
+              reparação e custo de peças, consulta o Dashboard ou página de Negócio (futuro).
+            </div>
             {/* Bloco Vendas */}
             <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
@@ -126,12 +130,12 @@ export default function RelatorioIva() {
                 🟩 Compras — IVA dedutível (auto + manual)
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <KpiSmall title="Peças do stock (auto)" value={report.data.ivaDedutivelPecasCents}
-                  hint="IVA das peças usadas em reparações pagas" />
-                <KpiSmall title="Despesas (auto)" value={report.data.ivaDedutivelDespesasCents}
-                  hint="Despesas imputadas + overhead" />
+                <KpiSmall title="Compras de stock (auto)" value={report.data.ivaDedutivelPecasCents}
+                  hint="IVA pago nas peças que entraram em stock no período (PartMovimento Entrada)" />
+                <KpiSmall title="Despesas operacionais (auto)" value={report.data.ivaDedutivelDespesasCents}
+                  hint="IVA das despesas overhead (rent, ferramentas, …) imputadas a trabalhos pagos ou sem imputação" />
                 <KpiSmall title="Compras manuais (input)" value={report.data.ivaComprasCents}
-                  hint="Campo acima — fornecedores fora do RD" />
+                  hint="Campo acima — fornecedores fora do RepairDesk (ex: portes pagos por fora)" />
               </div>
               <div className="mt-3 rounded bg-emerald-100/60 px-3 py-2 text-sm dark:bg-emerald-900/30">
                 <strong>Total dedutível:</strong> {formatCents(report.data.ivaDedutivelTotalCents)}
