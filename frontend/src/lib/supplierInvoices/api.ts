@@ -33,6 +33,8 @@ export interface SupplierInvoiceImport {
   pdfRelativePath: string;
   // Sprint 158: items parseados + sugestões fuzzy.
   items: SupplierInvoiceItem[] | null;
+  /** Sprint 184: regra aprendida do fornecedor (UI usa como default action). */
+  fornecedorDefaultAction: 'auto' | 'stock' | 'despesa' | null;
 }
 
 export interface ApproveSupplierInvoiceRequest {
@@ -47,6 +49,8 @@ export interface ApproveSupplierInvoiceRequest {
 
 // Sprint 160b + 181: aprovar items — Stock (cria Parts + PartMovimento) ou Despesa avulsa.
 export type ApproveAsStockAction = 'existing' | 'new' | 'despesa' | 'skip';
+/** Sprint 184: regra aprendida por fornecedor. */
+export type FornecedorDefaultAction = 'auto' | 'stock' | 'despesa';
 
 export interface ApproveAsStockItem {
   description: string;
@@ -63,6 +67,8 @@ export interface ApproveAsStockItem {
 
 export interface ApproveAsStockRequest {
   items: ApproveAsStockItem[];
+  /** Sprint 184: se true, grava regra no Fornecedor para próximas faturas. */
+  learnDefaultAction?: boolean;
 }
 
 export const supplierInvoicesApi = {

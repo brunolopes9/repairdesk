@@ -96,8 +96,8 @@ export default function Importacoes() {
 
   // Sprint 160b: aprovar como stock — cria Parts + PartMovimentos + SkuMapping.
   const approveStock = useMutation({
-    mutationFn: (req: { id: string; items: ApproveAsStockItem[] }) =>
-      supplierInvoicesApi.approveAsStock(req.id, { items: req.items }),
+    mutationFn: (req: { id: string; items: ApproveAsStockItem[]; learnDefaultAction?: boolean }) =>
+      supplierInvoicesApi.approveAsStock(req.id, { items: req.items, learnDefaultAction: req.learnDefaultAction }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
       qc.invalidateQueries({ queryKey: ['parts'] });
@@ -301,7 +301,7 @@ export default function Importacoes() {
         <ApproveStockModal
           target={stockTarget}
           onClose={() => setStockTarget(null)}
-          onSubmit={(items) => approveStock.mutate({ id: stockTarget.id, items })}
+          onSubmit={(items, learnRule) => approveStock.mutate({ id: stockTarget.id, items, learnDefaultAction: learnRule })}
           submitting={approveStock.isPending}
         />
       )}
@@ -649,23 +649,29 @@ function ApproveStockModal({
 }: {
   target: SupplierInvoiceImport;
   onClose: () => void;
-  onSubmit: (items: ApproveAsStockItem[]) => void;
+  onSubmit: (items: ApproveAsStockItem[], learnRule: boolean) => void;
   submitting: boolean;
 }) {
   // Sprint 163c: detecta items de transporte/portes — default action=skip.
   // Bruno não cria stock para shipping costs, é overhead.
   const SHIPPING_RX = /\b(shipping|portes?|envio|transport|chronopost|dpd|ups|fedex|dhl|frete)\b/i;
 
-  // Estado inicial: 1 linha por item parseado, default action = best fuzzy match se houver.
+  // Estado inicial: default action conforme heurística + regra aprendida do fornecedor (Sprint 184).
+  const supplierRule = target.fornecedorDefaultAction ?? 'auto';
   const initial: ApproveAsStockItem[] = (target.items ?? []).map((it) => {
     const top = it.suggestions[0];
     const lineUnit = it.quantity > 0 ? Math.round(it.lineTotalCents / it.quantity) : it.lineTotalCents;
     const isShipping = SHIPPING_RX.test(it.description);
+    let action: ApproveAsStockItem['action'];
+    if (isShipping) action = 'skip';
+    else if (supplierRule === 'despesa') action = 'despesa';
+    else if (top && top.score >= 0.7) action = 'existing';
+    else action = 'new';
     return {
       description: it.description,
       quantity: it.quantity,
       unitCostCents: lineUnit,
-      action: isShipping ? 'skip' : (top && top.score >= 0.7 ? 'existing' : 'new'),
+      action,
       existingPartId: top && top.score >= 0.7 ? top.partId : null,
       newSku: '',
       newName: it.description.slice(0, 100),
@@ -675,6 +681,7 @@ function ApproveStockModal({
     };
   });
   const [items, setItems] = useState<ApproveAsStockItem[]>(initial);
+  const [learnRule, setLearnRule] = useState(false);
 
   function patch(i: number, p: Partial<ApproveAsStockItem>) {
     setItems((arr) => arr.map((x, j) => (j === i ? { ...x, ...p } : x)));
@@ -698,7 +705,7 @@ function ApproveStockModal({
         <button
           type="button"
           disabled={!canSubmit || submitting}
-          onClick={() => onSubmit(items)}
+          onClick={() => onSubmit(items, learnRule)}
           className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
         >
           {submitting ? 'A confirmar…' : `Confirmar ${validItems.length} item(s)`}
@@ -711,6 +718,23 @@ function ApproveStockModal({
           e ajusta se necessário. Stock cria PartMovimento Entrada (entra no inventário);
           Despesa cria Despesa avulsa Categoria=Peças (não vai para stock).
         </p>
+        {/* Sprint 184: regra aprendida (se existe) + checkbox para aprender nova. */}
+        {supplierRule !== 'auto' && supplierRule !== null && (
+          <div className="rounded bg-blue-50 px-3 py-2 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+            ℹ️ Regra aprendida para <strong>{target.fornecedorName}</strong>:
+            items defaultam a <strong>{supplierRule === 'stock' ? '📦 Stock' : '🧾 Despesa avulsa'}</strong>.
+            Podes editar abaixo.
+          </div>
+        )}
+        {target.fornecedorId && (
+          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-400">
+            <input type="checkbox" checked={learnRule} onChange={(e) => setLearnRule(e.target.checked)} />
+            <span>
+              Lembrar regra para próximas faturas de <strong>{target.fornecedorName}</strong>
+              {' '}(actualiza o default action baseado na maioria dos items abaixo)
+            </span>
+          </label>
+        )}
         <ul className="space-y-3">
           {items.map((it, i) => {
             const original = target.items![i];

@@ -63,7 +63,11 @@ public interface ISupplierInvoiceImportService
     Task<IReadOnlyList<SupplierInvoiceImportDto>> ListHistoryAsync(int take, CancellationToken ct = default);
 }
 
-public sealed record ApproveAsStockRequest(IReadOnlyList<ApproveAsStockItem> Items);
+public sealed record ApproveAsStockRequest(
+    IReadOnlyList<ApproveAsStockItem> Items,
+    /// <summary>Sprint 184: se true, grava Fornecedor.DefaultImportAction com base na maioria
+    /// dos items aprovados (stock vs despesa). Próximas faturas têm default correcto.</summary>
+    bool LearnDefaultAction = false);
 
 public sealed record ApproveAsStockItem(
     string Description,
@@ -117,7 +121,10 @@ public sealed record SupplierInvoiceImportDto(
     DateTime CreatedAt,
     string PdfRelativePath,
     // Sprint 158: items parseados + fuzzy match candidates.
-    IReadOnlyList<SupplierInvoiceItemDto>? Items);
+    IReadOnlyList<SupplierInvoiceItemDto>? Items,
+    // Sprint 184: regra aprendida do fornecedor — UI usa como default action.
+    // "auto" | "stock" | "despesa". NULL se Fornecedor não está registado.
+    string? FornecedorDefaultAction);
 
 public sealed record SupplierInvoiceItemDto(
     string Description,
@@ -493,7 +500,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                 x.ParseConfidence,
                 x.CreatedAt,
                 x.PdfRelativePath,
-                items));
+                items,
+                x.Fornecedor?.DefaultImportAction.ToString().ToLowerInvariant()));
         }
         return dtos;
     }
@@ -937,6 +945,21 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 
         entity.Status = SupplierInvoiceImportStatus.Approved;
         entity.ProcessedAt = DateTime.UtcNow;
+
+        // Sprint 184: aprender regra se Bruno pediu (checkbox UI).
+        if (req.LearnDefaultAction && entity.Fornecedor is not null)
+        {
+            var stockCount = req.Items.Count(i => i.Action is "existing" or "new");
+            var despesaCount = req.Items.Count(i => i.Action is "despesa");
+            DefaultImportAction newRule;
+            if (stockCount > despesaCount) newRule = DefaultImportAction.Stock;
+            else if (despesaCount > 0) newRule = DefaultImportAction.Despesa;
+            else newRule = DefaultImportAction.Auto;
+            entity.Fornecedor.DefaultImportAction = newRule;
+            _logger.LogInformation("Aprendi regra fornecedor {Name}: DefaultImportAction={Rule}",
+                entity.Fornecedor.Name, newRule);
+        }
+
         await _parts.SaveAsync(ct);
         await _skuMappings.SaveAsync(ct);
         await _repo.SaveAsync(ct);
@@ -998,7 +1021,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         x.CreatedAt,
         x.PdfRelativePath,
         // ToDto interno (Approve/Reject) — não inclui matches; UI usa pending list para isso.
-        Items: null);
+        Items: null,
+        FornecedorDefaultAction: x.Fornecedor?.DefaultImportAction.ToString().ToLowerInvariant());
 
     private static string ComputeSha256(byte[] bytes)
     {

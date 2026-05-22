@@ -42,4 +42,20 @@ public class Fornecedor : BaseEntity, ITenantEntity
     /// NULL → só usa known list hardcoded.
     /// </summary>
     public string? MatchPatternsJson { get; set; }
+
+    /// <summary>
+    /// Sprint 184: regra aprendida — default action ao aprovar facturas deste fornecedor.
+    /// NULL/Auto = sistema decide (heurística existente: shipping=skip, peça=stock).
+    /// Stock = items defaultam a 'new' (criar Part nova).
+    /// Despesa = items defaultam a 'despesa' (não entra em stock).
+    /// Permite Bruno classificar uma vez e reduzir cliques nas próximas facturas.
+    /// </summary>
+    public DefaultImportAction DefaultImportAction { get; set; } = DefaultImportAction.Auto;
+}
+
+public enum DefaultImportAction
+{
+    Auto = 0,
+    Stock = 1,
+    Despesa = 2,
 }
