@@ -243,6 +243,8 @@ export function DespesaFormModal({
           editing?.reparacaoId ??
           reparacaoId ??
           (showLinkPicker && linkType === 'reparacao' && linkId ? linkId : null),
+        // Sprint 176/177: preserva flag COGS quando edita; novas despesas manuais são OpEx.
+        isCogs: editing?.isCogs ?? false,
       };
       if (editing) {
         return despesasApi.update(editing.id, {

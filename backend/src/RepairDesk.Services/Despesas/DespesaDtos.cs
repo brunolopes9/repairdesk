@@ -11,7 +11,8 @@ public sealed record CreateDespesaRequest(
     string? NumeroEncomenda,
     string? Notas,
     Guid? TrabalhoId,
-    Guid? ReparacaoId);
+    Guid? ReparacaoId,
+    bool IsCogs = false);
 
 public sealed record UpdateDespesaRequest(
     string Descricao,
@@ -22,7 +23,8 @@ public sealed record UpdateDespesaRequest(
     string? NumeroEncomenda,
     string? Notas,
     Guid? TrabalhoId,
-    Guid? ReparacaoId);
+    Guid? ReparacaoId,
+    bool IsCogs = false);
 
 public sealed record DespesaDto(
     Guid Id,
@@ -35,4 +37,6 @@ public sealed record DespesaDto(
     string? Notas,
     Guid? TrabalhoId,
     Guid? ReparacaoId,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    // Sprint 176/177: COGS flag — peça consumida em reparação (não OpEx).
+    bool IsCogs);

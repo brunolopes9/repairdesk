@@ -63,6 +63,7 @@ public class DespesaService : IDespesaService
             Notas = req.Notas?.Trim(),
             TrabalhoId = req.TrabalhoId,
             ReparacaoId = req.ReparacaoId,
+            IsCogs = req.IsCogs,
         };
         await _repo.AddAsync(d, ct);
         await _repo.SaveAsync(ct);
@@ -83,6 +84,7 @@ public class DespesaService : IDespesaService
         d.Notas = req.Notas?.Trim();
         d.TrabalhoId = req.TrabalhoId;
         d.ReparacaoId = req.ReparacaoId;
+        d.IsCogs = req.IsCogs;
 
         await _repo.SaveAsync(ct);
         return ToDto(d);
@@ -97,5 +99,5 @@ public class DespesaService : IDespesaService
 
     private static DespesaDto ToDto(Despesa d) =>
         new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas,
-            d.TrabalhoId, d.ReparacaoId, d.CreatedAt);
+            d.TrabalhoId, d.ReparacaoId, d.CreatedAt, d.IsCogs);
 }
