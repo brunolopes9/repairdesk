@@ -17,6 +17,15 @@ public interface ISupplierInvoiceImportService
         Guid? apiKeyId = null,
         CancellationToken ct = default);
 
+    /// <summary>Sprint 173: variante para webhook anonymous (passar tenant explícito).</summary>
+    Task<SupplierInvoiceImportResult> IngestAsExternalAsync(
+        Guid tenantId,
+        byte[] pdfBytes,
+        string originalFilename,
+        SupplierInvoiceEmailMeta? emailMeta,
+        Guid? apiKeyId = null,
+        CancellationToken ct = default);
+
     /// <summary>
     /// Sprint 164: upload de foto papel via Claude Vision OCR. Aceita JPG/PNG/WebP.
     /// Pipeline: validate mime + size → guarda imagem em storage → chama Claude Vision →
@@ -167,16 +176,40 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         _logger = logger;
     }
 
-    public async Task<SupplierInvoiceImportResult> IngestAsync(
+    public Task<SupplierInvoiceImportResult> IngestAsync(
         byte[] pdfBytes,
         SupplierInvoiceEmailMeta? emailMeta,
         Guid? apiKeyId = null,
         CancellationToken ct = default)
+        => IngestInternalAsync(pdfBytes, emailMeta, apiKeyId, tenantIdOverride: null, ct);
+
+    /// <summary>
+    /// Sprint 173: variante para webhooks anonymous (Cloudflare Email Routing).
+    /// Caller já resolveu o tenant pelo TO header — passamos explícito porque não há
+    /// HttpContext.User claim.
+    /// </summary>
+    public Task<SupplierInvoiceImportResult> IngestAsExternalAsync(
+        Guid tenantId,
+        byte[] pdfBytes,
+        string originalFilename,
+        SupplierInvoiceEmailMeta? emailMeta,
+        Guid? apiKeyId = null,
+        CancellationToken ct = default)
+        => IngestInternalAsync(pdfBytes, emailMeta, apiKeyId, tenantIdOverride: tenantId, ct);
+
+    private async Task<SupplierInvoiceImportResult> IngestInternalAsync(
+        byte[] pdfBytes,
+        SupplierInvoiceEmailMeta? emailMeta,
+        Guid? apiKeyId,
+        Guid? tenantIdOverride,
+        CancellationToken ct)
     {
         if (pdfBytes is null || pdfBytes.Length == 0)
             throw new ValidationException("pdf_empty", "PDF vazio.");
-        if (_tenant.TenantId is not { } tenantId)
-            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        Guid tenantId;
+        if (tenantIdOverride is { } overrideId) tenantId = overrideId;
+        else if (_tenant.TenantId is { } ctxId) tenantId = ctxId;
+        else throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
 
         // 1. Dedupe por hash.
         var sha256 = ComputeSha256(pdfBytes);

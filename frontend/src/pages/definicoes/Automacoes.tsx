@@ -1,6 +1,7 @@
-import { Workflow, ExternalLink, Mail, Server, Camera, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useState } from 'react';
+import { Workflow, ExternalLink, Mail, Server, Camera, CheckCircle2, AlertCircle, Copy, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { toast } from '../../lib/toast';
 
 /**
  * Sprint 165: doc page para configurar automações (n8n + ingest IMAP/SFTP).
@@ -16,11 +17,37 @@ export default function Automacoes() {
   async function checkN8n() {
     setN8nStatus('checking');
     try {
-      // Usa api client que injeta Bearer JWT — fetch raw daria 401.
       const res = await api.get<{ up: boolean }>('/automacoes/n8n-status');
       setN8nStatus(res.data.up ? 'up' : 'down');
     } catch {
       setN8nStatus('down');
+    }
+  }
+
+  // Sprint 173: email forwarding ingest (load on mount).
+  const [ingestEmail, setIngestEmail] = useState<{ email: string; slug: string; domain: string } | null>(null);
+  useEffect(() => {
+    api.get<{ email: string; slug: string; domain: string }>('/automacoes/ingest-email')
+      .then((r) => setIngestEmail(r.data))
+      .catch(() => { /* silenciosamente — só admins */ });
+  }, []);
+
+  async function copyEmail() {
+    if (!ingestEmail) return;
+    try {
+      await navigator.clipboard.writeText(ingestEmail.email);
+      toast.success('Email copiado para clipboard.');
+    } catch { toast.warning('Selecciona e copia manualmente.'); }
+  }
+
+  async function regenerateEmail() {
+    if (!confirm('Regenerar o email? O actual deixará de funcionar — vais ter que actualizar os forwards.')) return;
+    try {
+      const r = await api.post<{ email: string; slug: string }>('/automacoes/ingest-email/regenerate');
+      setIngestEmail({ ...(ingestEmail ?? { domain: '' }), ...r.data });
+      toast.success('Email regenerado.');
+    } catch (e) {
+      toast.fromError(e, 'Falhou regenerar.');
     }
   }
 
@@ -36,6 +63,58 @@ export default function Automacoes() {
           de fornecedores. Configura uma vez, deixa correr em background.
         </p>
       </header>
+
+      {/* Sprint 173: email forwarding ingest per-tenant. */}
+      {ingestEmail && (
+        <section className="rounded-xl border border-brand-200 bg-brand-50/30 p-4 dark:border-brand-900/40 dark:bg-brand-950/20">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex-1">
+              <h2 className="flex items-center gap-2 text-sm font-semibold">
+                <Mail size={16} />
+                Email de import automático
+                <span className="rounded bg-emerald-600 px-2 py-0.5 text-[10px] uppercase text-white">Recomendado</span>
+              </h2>
+              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                Reencaminha emails de fornecedores para este endereço — vão para "Importações pendentes" automaticamente.
+                Mais simples que IMAP, RGPD-clean (controlas o que reencaminhas).
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <code className="rounded bg-white px-3 py-1.5 text-sm font-mono shadow-sm dark:bg-zinc-900">
+                  {ingestEmail.email}
+                </code>
+                <button
+                  type="button"
+                  onClick={copyEmail}
+                  className="flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
+                  title="Copiar"
+                >
+                  <Copy size={12} /> Copiar
+                </button>
+                <button
+                  type="button"
+                  onClick={regenerateEmail}
+                  className="flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
+                  title="Regenerar — o actual deixa de funcionar"
+                >
+                  <RefreshCw size={12} /> Regenerar
+                </button>
+              </div>
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-medium text-brand-700 dark:text-brand-300">
+                  Como configurar no Gmail (passo-a-passo)
+                </summary>
+                <ol className="mt-2 space-y-1 pl-5 text-xs text-zinc-600 dark:text-zinc-400 list-decimal">
+                  <li>Gmail → Definições → "Encaminhamento e POP/IMAP"</li>
+                  <li>"Adicionar endereço de encaminhamento" → cola <code>{ingestEmail.email}</code></li>
+                  <li>Confirma o email de verificação que Gmail manda</li>
+                  <li>Cria filtro: "From contém" <code>@tudo4mobile.pt</code> OR <code>@utopya.com</code> OR <code>@molano</code> → "Reencaminhar para" {ingestEmail.email}</li>
+                  <li>Pronto. Próximas faturas aparecem em <a href="/importacoes" className="underline">/importacoes</a></li>
+                </ol>
+              </details>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Estado n8n */}
       <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">

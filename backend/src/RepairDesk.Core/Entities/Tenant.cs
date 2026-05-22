@@ -53,11 +53,17 @@ public class Tenant : BaseEntity
     /// <summary>Quota override per-tenant. NULL → usa default do plano (100/1000/ilimitado).</summary>
     public int? LlmQuotaMonthly { get; set; }
 
-    // Sprint 168: Anthropic API key per-tenant (RGPD-clean — Bruno não vê faturas tenants).
-    // Encriptada via DataProtection (mesmo mecanismo do Moloni cipher Sprint 41).
-    // NULL = não configurada, LLM features desactivadas para este tenant.
+    // Sprint 172: Anthropic API key BYOK opcional. NULL = usa central key Bruno.
+    // Preenchido = tenant paga Anthropic directo (zero quota RepairDesk).
     public string? AnthropicApiKeyCipherText { get; set; }
     public DateTime? AnthropicValidatedAt { get; set; }
+
+    // Sprint 173: email forwarding ingest per-tenant (RGPD-clean).
+    // Slug único kebab-case → email faturas-{slug}@ingest.repairdesk.app.
+    // Tenant configura forward Gmail/Outlook (filter from:fornecedor) → este email.
+    // Cloudflare Email Routing detecta tenant pelo TO header → pipeline ingest.
+    // NULL = ainda não setup; gerado auto na 1ª chamada GET /tenants/me/ingest-email.
+    public string? IngestEmailSlug { get; set; }
 }
 
 public enum TenantPlan
