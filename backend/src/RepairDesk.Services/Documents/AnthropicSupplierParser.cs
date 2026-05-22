@@ -67,12 +67,12 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
     private readonly ITenantContext _tenant;
     private readonly ITenantRepository _tenants;
     private readonly ISecretProtector _secrets;
+    private readonly string? _centralApiKey;
     private readonly string _model;
 
     /// <summary>
-    /// Sprint 168: agora retorna sempre true (apenas é falso se SecretProtector
-    /// não estiver injectável, o que nunca acontece em prod). A verificação real
-    /// se há key per-tenant é feita on-demand antes de cada chamada.
+    /// Sprint 172: hybrid model — IA disponível sempre que houver central key OU tenant BYOK.
+    /// Resolução real é por-call.
     /// </summary>
     public bool IsConfigured => true;
 
@@ -93,35 +93,53 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         _tenants = tenants;
         _secrets = secrets;
         _logger = logger;
+        _centralApiKey = config["ANTHROPIC_API_KEY"];
         _model = config["ANTHROPIC_MODEL"] ?? "claude-haiku-4-5-20251001";
+        if (string.IsNullOrWhiteSpace(_centralApiKey))
+            _logger.LogWarning("ANTHROPIC_API_KEY (central) não configurada — só tenants BYOK terão IA.");
     }
 
-    /// <summary>Sprint 168: resolve a Anthropic API key do tenant actual. NULL se não configurada.</summary>
-    private async Task<string?> ResolveApiKeyAsync(CancellationToken ct)
+    /// <summary>
+    /// Sprint 172: modelo híbrido — tenta BYOK do tenant primeiro, fallback central key Bruno.
+    /// 90% dos tenants usa central (zero setup). Enterprise pode opt-in BYOK.
+    /// IsByok=true significa: usou key própria tenant → não conta para quota.
+    /// </summary>
+    private async Task<(string? Key, bool IsByok)> ResolveApiKeyAsync(CancellationToken ct)
     {
-        if (_tenant.TenantId is not { } tenantId) return null;
-        var tenant = await _tenants.FindByIdAsync(tenantId, ct);
-        if (tenant?.AnthropicApiKeyCipherText is not { } cipher) return null;
-        try { return _secrets.Unprotect(cipher); }
-        catch (Exception ex) { _logger.LogWarning(ex, "Falhou unprotect Anthropic key tenant={Tid}", tenantId); return null; }
+        if (_tenant.TenantId is { } tenantId)
+        {
+            var tenantEntity = await _tenants.FindByIdAsync(tenantId, ct);
+            if (tenantEntity?.AnthropicApiKeyCipherText is { } cipher)
+            {
+                try { return (_secrets.Unprotect(cipher), true); }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Falhou unprotect BYOK Anthropic key tenant={Tid} — fallback central.", tenantId);
+                }
+            }
+        }
+        return (_centralApiKey, false);
     }
 
     public async Task<LlmParseResult?> ParseAsync(string pdfText, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(pdfText)) return null;
-        var apiKey = await ResolveApiKeyAsync(ct);
+        var (apiKey, isByok) = await ResolveApiKeyAsync(ct);
         if (apiKey is null)
         {
-            _logger.LogInformation("ParseAsync skipped: tenant não configurou Anthropic API key.");
+            _logger.LogInformation("ParseAsync skipped: sem Anthropic API key disponível (nem central nem BYOK).");
             return null;
         }
-        // Sprint 167b: quota check antes de gastar dinheiro.
-        var quotaCheck = await _quota.CheckAsync(ct);
-        if (!quotaCheck.Allowed)
+        // Sprint 167b: quota check só se NÃO for BYOK (tenant paga directo).
+        if (!isByok)
         {
-            _logger.LogWarning("ParseAsync skipped: quota exceeded ({Used}/{Quota}, plan={Plan}).",
-                quotaCheck.Used, quotaCheck.Quota, quotaCheck.Plan);
-            return null;
+            var quotaCheck = await _quota.CheckAsync(ct);
+            if (!quotaCheck.Allowed)
+            {
+                _logger.LogWarning("ParseAsync skipped: quota exceeded ({Used}/{Quota}, plan={Plan}).",
+                    quotaCheck.Used, quotaCheck.Quota, quotaCheck.Plan);
+                return null;
+            }
         }
 
         var redacted = RedactPii(pdfText);
@@ -227,18 +245,21 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
     public async Task<LlmParseResult?> ParseImageAsync(byte[] imageBytes, string mimeType, CancellationToken ct = default)
     {
         if (imageBytes is null || imageBytes.Length == 0) return null;
-        var apiKey = await ResolveApiKeyAsync(ct);
+        var (apiKey, isByok) = await ResolveApiKeyAsync(ct);
         if (apiKey is null)
         {
-            _logger.LogInformation("ParseImageAsync skipped: tenant não configurou Anthropic API key.");
+            _logger.LogInformation("ParseImageAsync skipped: sem Anthropic API key disponível (nem central nem BYOK).");
             return null;
         }
-        var quotaCheck = await _quota.CheckAsync(ct);
-        if (!quotaCheck.Allowed)
+        if (!isByok)
         {
-            _logger.LogWarning("ParseImageAsync skipped: quota exceeded ({Used}/{Quota}, plan={Plan}).",
-                quotaCheck.Used, quotaCheck.Quota, quotaCheck.Plan);
-            return null;
+            var quotaCheck = await _quota.CheckAsync(ct);
+            if (!quotaCheck.Allowed)
+            {
+                _logger.LogWarning("ParseImageAsync skipped: quota exceeded ({Used}/{Quota}, plan={Plan}).",
+                    quotaCheck.Used, quotaCheck.Quota, quotaCheck.Plan);
+                return null;
+            }
         }
         // Claude Vision max 5MB por imagem; rejeita silenciosamente se maior.
         if (imageBytes.Length > 5 * 1024 * 1024)

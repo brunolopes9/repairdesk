@@ -127,26 +127,26 @@ export default function LlmUsage() {
         </p>
       </header>
 
-      {/* Sprint 168: Anthropic key per-tenant (RGPD clean — tenant tem controlo do uso). */}
-      <section className={`rounded-xl border p-4 ${keyStatus.data?.configured ? 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20' : 'border-amber-300 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-950/30'}`}>
+      {/* Sprint 172: Anthropic key BYOK opcional — central key (RepairDesk) é o default. */}
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex-1">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Key size={16} />
-              Anthropic API key
+              Anthropic API key — avançado (opcional)
               {keyStatus.data?.configured ? (
                 <span className="flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[10px] text-white">
-                  <CheckCircle2 size={11} /> Configurada
+                  <CheckCircle2 size={11} /> BYOK activo
                 </span>
               ) : (
-                <span className="rounded bg-amber-600 px-2 py-0.5 text-[10px] text-white">Em falta</span>
+                <span className="rounded bg-zinc-500 px-2 py-0.5 text-[10px] text-white">Usa RepairDesk</span>
               )}
             </h2>
             <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
               {keyStatus.data?.configured ? (
-                <>Configurada e validada em {keyStatus.data.validatedAt ? new Date(keyStatus.data.validatedAt).toLocaleString('pt-PT') : '?'}. Features de IA (parser fatura, OCR foto) activas.</>
+                <>BYOK activo desde {keyStatus.data.validatedAt ? new Date(keyStatus.data.validatedAt).toLocaleString('pt-PT') : '?'}. Pagas Anthropic directamente — RepairDesk não conta para a quota do plano. Útil para grandes volumes ou requisitos RGPD estritos.</>
               ) : (
-                <>Para usar IA (parsing automático de facturas), cria conta gratuita Anthropic, adiciona <strong>$5 de crédito</strong> (chega para 1000+ facturas) e cola aqui a tua API key. O RepairDesk nunca vê os teus dados — vão directos da tua conta Anthropic para os teus servidores.</>
+                <>Por defeito IA usa a infraestrutura RepairDesk — não precisas de fazer nada. Se preferires <strong>pagar Anthropic directamente</strong> (Bring Your Own Key) e remover quota do plano, cola aqui a tua key.</>
               )}
             </p>
             {!keyStatus.data?.configured && (
