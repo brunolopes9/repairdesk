@@ -280,6 +280,8 @@ try
     builder.Services.AddHttpClient<RepairDesk.Services.Products.IProductSeoGenerator, RepairDesk.Services.Products.AnthropicAltTextService>();
     // Sprint 188: Shop AI Bridge — assistant NL + image search via Anthropic central.
     builder.Services.AddHttpClient<RepairDesk.Services.Shop.IShopAiService, RepairDesk.Services.Shop.ShopAiService>();
+    // Sprint 189: pipeline imagens SEO (resize WebP + blur LQIP) — usa IPhotoStorage para R2.
+    builder.Services.AddScoped<RepairDesk.Services.Products.IImageOptimizationService, RepairDesk.Services.Products.ImageOptimizationService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 

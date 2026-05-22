@@ -93,6 +93,7 @@ public class ProductImage : BaseEntity, ITenantEntity
     public Guid TenantId { get; set; }
     public Guid ProductId { get; set; }
     public Product? Product { get; set; }
+    /// <summary>URL original (raw) — mantida para histórico mesmo após optimização.</summary>
     public required string Url { get; set; }
     public string? Alt { get; set; }
     public int Ordem { get; set; }
@@ -102,4 +103,25 @@ public class ProductImage : BaseEntity, ITenantEntity
     /// fallback às raw quando não há nenhuma curada. Default true (uploads manuais).
     /// </summary>
     public bool IsCurated { get; set; } = true;
+
+    // Sprint 189: pipeline SEO — versões resized + AVIF + blur LQIP (Contexto/60).
+    /// <summary>WebP 480w (mobile). Gerado por ImageOptimizationService.</summary>
+    public string? Url480w { get; set; }
+    /// <summary>WebP 1024w (tablet).</summary>
+    public string? Url1024w { get; set; }
+    /// <summary>WebP 2048w (desktop).</summary>
+    public string? Url2048w { get; set; }
+    /// <summary>AVIF 480w (-30% vs WebP).</summary>
+    public string? AvifUrl480w { get; set; }
+    /// <summary>AVIF 1024w.</summary>
+    public string? AvifUrl1024w { get; set; }
+    /// <summary>AVIF 2048w.</summary>
+    public string? AvifUrl2048w { get; set; }
+    /// <summary>LQIP base64 (~2KB) — placeholder blur enquanto carrega.</summary>
+    public string? BlurDataUrl { get; set; }
+    /// <summary>Width × Height da original — útil para aspect ratio CSS.</summary>
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    /// <summary>Quando o pipeline correu — NULL se ainda não foi optimizada (legacy ou upload novo).</summary>
+    public DateTime? OptimizedAt { get; set; }
 }

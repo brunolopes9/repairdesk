@@ -15,6 +15,7 @@ public class ProductsController : ControllerBase
     private readonly IProductService _service;
     private readonly AppDbContext _db;
     private readonly IProductSeoGenerator _seoGen;
+    private readonly IImageOptimizationService _imageOpt;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<ProductsController> _logger;
 
@@ -22,12 +23,14 @@ public class ProductsController : ControllerBase
         IProductService service,
         AppDbContext db,
         IProductSeoGenerator seoGen,
+        IImageOptimizationService imageOpt,
         IHttpClientFactory httpFactory,
         ILogger<ProductsController> logger)
     {
         _service = service;
         _db = db;
         _seoGen = seoGen;
+        _imageOpt = imageOpt;
         _httpFactory = httpFactory;
         _logger = logger;
     }
@@ -186,6 +189,63 @@ public class ProductsController : ControllerBase
         image.Alt = alt;
         await _db.SaveChangesAsync(ct);
         return Ok(new { alt });
+    }
+
+    /// <summary>
+    /// Sprint 189: upload imagem com pipeline SEO automático (Contexto/60).
+    /// Recebe ficheiro arbitrário (PNG/JPG até 10MB), produz 3 WebP (480/1024/2048) +
+    /// blur LQIP + dimensões, faz upload R2 e cria ProductImage com todas as URLs.
+    /// </summary>
+    [HttpPost("{productId:guid}/images/upload")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    public async Task<IActionResult> UploadImage(Guid productId, IFormFile image, CancellationToken ct)
+    {
+        if (image is null || image.Length == 0) return BadRequest(new { code = "no_image" });
+        var mime = string.IsNullOrWhiteSpace(image.ContentType) ? "image/jpeg" : image.ContentType.ToLowerInvariant();
+        if (mime is not "image/jpeg" and not "image/png" and not "image/webp" and not "image/gif")
+            return BadRequest(new { code = "unsupported_mime" });
+
+        var product = await _db.Products
+            .Include(p => p.Images)
+            .FirstOrDefaultAsync(p => p.Id == productId, ct);
+        if (product is null) return NotFound();
+
+        using var ms = new MemoryStream();
+        await image.CopyToAsync(ms, ct);
+        var bytes = ms.ToArray();
+
+        var keyPrefix = $"products/{product.TenantId}/{productId}/{Guid.NewGuid():N}";
+        var optimized = await _imageOpt.OptimizeAsync(bytes, mime, keyPrefix, ct);
+
+        var newImage = new RepairDesk.Core.Entities.ProductImage
+        {
+            TenantId = product.TenantId,
+            ProductId = productId,
+            Url = optimized.OriginalUrl,
+            Ordem = (product.Images.Count == 0 ? 0 : product.Images.Max(i => i.Ordem) + 1),
+            IsCurated = true,
+            Url480w = optimized.Url480w,
+            Url1024w = optimized.Url1024w,
+            Url2048w = optimized.Url2048w,
+            BlurDataUrl = optimized.BlurDataUrl,
+            Width = optimized.Width,
+            Height = optimized.Height,
+            OptimizedAt = DateTime.UtcNow,
+        };
+        product.Images.Add(newImage);
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new
+        {
+            imageId = newImage.Id,
+            url = newImage.Url,
+            url480w = newImage.Url480w,
+            url1024w = newImage.Url1024w,
+            url2048w = newImage.Url2048w,
+            blurDataUrl = newImage.BlurDataUrl,
+            width = newImage.Width,
+            height = newImage.Height,
+        });
     }
 }
 
