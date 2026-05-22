@@ -74,6 +74,8 @@ export default function Produtos() {
   const [newImageUrl, setNewImageUrl] = useState('');
   // Sprint 191: estado de loading do upload com pipeline SEO.
   const [uploadingImage, setUploadingImage] = useState(false);
+  // Sprint 192: batch re-optimize de imagens legacy (Molano CSV / uploads antigos).
+  const [optimizingLegacy, setOptimizingLegacy] = useState(false);
   // Sprint 153b: importer CSV Molano UI.
   const [importOpen, setImportOpen] = useState(false);
   const [importFornecedorId, setImportFornecedorId] = useState('');
@@ -219,6 +221,33 @@ export default function Produtos() {
           </Button>
           <Button leftIcon={<Upload size={15} />} variant="secondary" onClick={() => { setImportResult(null); setImportFornecedorId(''); setImportOpen(true); }}>
             Importar CSV Molano
+          </Button>
+          {/* Sprint 192: batch re-optimize imagens legacy (Molano CSV / uploads antigos). */}
+          <Button
+            variant="ghost"
+            disabled={optimizingLegacy}
+            onClick={async () => {
+              setOptimizingLegacy(true);
+              try {
+                const r = await api.post<{ processed: number; remaining: number; errors: unknown[] }>(
+                  '/products/optimize-legacy-images',
+                  null,
+                  { params: { limit: 20 } },
+                );
+                qc.invalidateQueries({ queryKey: ['products'] });
+                if (r.data.processed === 0 && r.data.remaining === 0) {
+                  toast.success('Todas as imagens já estão optimizadas.');
+                } else {
+                  toast.success(`✨ ${r.data.processed} imagens optimizadas. Restam ${r.data.remaining}.`);
+                }
+              } catch (err) {
+                toast.fromError(err, 'Falhou batch optimize');
+              } finally {
+                setOptimizingLegacy(false);
+              }
+            }}
+          >
+            {optimizingLegacy ? 'A optimizar…' : '✨ Optimizar imagens legacy'}
           </Button>
           <Button leftIcon={<Plus size={15} />} onClick={openCreate}>Novo produto</Button>
         </>}

@@ -258,6 +258,89 @@ public class ProductsController : ControllerBase
             height = newImage.Height,
         });
     }
+
+    /// <summary>
+    /// Sprint 192: processa em batch imagens legacy (OptimizedAt=NULL) — descarrega URL
+    /// original via HTTP, passa pelo pipeline Sprint 189, actualiza campos. Após cada
+    /// produto, dispara webhook PhonesAtualizado (Sprint 190) para a loja receber sizes.
+    ///
+    /// Idempotente: imagens já optimizadas são ignoradas. Limita a N imagens por chamada
+    /// (default 20) para não causar timeout — Bruno corre várias vezes até esgotar.
+    /// </summary>
+    [HttpPost("optimize-legacy-images")]
+    public async Task<IActionResult> OptimizeLegacyImages([FromQuery] int limit = 20, CancellationToken ct = default)
+    {
+        if (limit < 1 || limit > 100) return BadRequest(new { code = "invalid_limit", detail = "limit ∈ [1,100]" });
+
+        var legacy = await _db.ProductImages
+            .Where(i => i.OptimizedAt == null && i.Url.StartsWith("http"))
+            .OrderBy(i => i.CreatedAt)
+            .Take(limit)
+            .Include(i => i.Product)
+            .ToListAsync(ct);
+
+        if (legacy.Count == 0) return Ok(new { processed = 0, remaining = 0, errors = Array.Empty<object>() });
+
+        var http = _httpFactory.CreateClient();
+        http.Timeout = TimeSpan.FromSeconds(30);
+        var errors = new List<object>();
+        var touchedProducts = new HashSet<Guid>();
+        var processed = 0;
+
+        foreach (var img in legacy)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                using var resp = await http.GetAsync(img.Url, ct);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    errors.Add(new { imageId = img.Id, url = img.Url, status = (int)resp.StatusCode });
+                    continue;
+                }
+                var mime = resp.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+                if (mime is not "image/jpeg" and not "image/png" and not "image/webp" and not "image/gif")
+                {
+                    errors.Add(new { imageId = img.Id, error = $"unsupported mime {mime}" });
+                    continue;
+                }
+                var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                if (bytes.Length > 10 * 1024 * 1024)
+                {
+                    errors.Add(new { imageId = img.Id, error = "exceeds 10MB" });
+                    continue;
+                }
+                var keyPrefix = $"products/{img.TenantId}/{img.ProductId}/{Guid.NewGuid():N}";
+                var optimized = await _imageOpt.OptimizeAsync(bytes, mime, keyPrefix, ct);
+                img.Url480w = optimized.Url480w;
+                img.Url1024w = optimized.Url1024w;
+                img.Url2048w = optimized.Url2048w;
+                img.BlurDataUrl = optimized.BlurDataUrl;
+                img.Width = optimized.Width;
+                img.Height = optimized.Height;
+                img.OptimizedAt = DateTime.UtcNow;
+                processed++;
+                touchedProducts.Add(img.ProductId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falhou optimização legacy imageId={Id} url={Url}", img.Id, img.Url);
+                errors.Add(new { imageId = img.Id, error = ex.Message });
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        // Dispara webhook por produto tocado (não por imagem — evita N x publishs do mesmo produto).
+        foreach (var pid in touchedProducts)
+        {
+            try { await _service.RepublishWebhookAsync(pid, ct); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Falhou republish webhook productId={Id}", pid); }
+        }
+
+        var remaining = await _db.ProductImages.CountAsync(i => i.OptimizedAt == null && i.Url.StartsWith("http"), ct);
+        return Ok(new { processed, remaining, errors });
+    }
 }
 
 public sealed record ImportMolanoRequest(Guid FornecedorId, string Csv);
