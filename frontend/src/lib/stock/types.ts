@@ -114,6 +114,8 @@ export interface PartMovimento {
   reparacaoId: string | null;
   notas: string | null;
   createdAt: string;
+  // Sprint 177: custo unitário snapshot da peça para UI mostrar preço.
+  custoUnitarioCents: number;
 }
 
 export interface CreatePartMovimentoForm {

@@ -72,7 +72,10 @@ public sealed record PartMovimentoDto(
     PartMovimentoMotivo Motivo,
     Guid? ReparacaoId,
     string? Notas,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    // Sprint 177: custo unitário da peça (snapshot do Part.CustoUnitarioCents). Útil
+    // para UI mostrar custo na lista de peças usadas.
+    int CustoUnitarioCents);
 
 public sealed record ImportPartsRequest(string Csv);
 

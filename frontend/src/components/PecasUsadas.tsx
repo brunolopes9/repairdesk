@@ -12,7 +12,7 @@ import {
   type Part,
   type PartMovimento,
 } from '../lib/stock/types';
-import { formatDate } from '../lib/money';
+import { formatCents, formatDate } from '../lib/money';
 import { toast } from '../lib/toast';
 
 export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: string; readOnly?: boolean }) {
@@ -80,8 +80,13 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
 
   const lookupItems = (parts.data?.items ?? []).filter((p) => p.activo);
   const rows = useMemo(() => movimentos.data ?? [], [movimentos.data]);
-  // Saldo conta TODOS os movimentos (incluindo pares anulados) — é o stock real consumido.
-  const saldo = useMemo(() => rows.reduce((sum, m) => sum + m.quantidade, 0), [rows]);
+  // Sprint 177: 'consumidoQtd' = peças usadas líquido (positivo = peças saíram do stock).
+  // Substituiu o antigo 'saldo' que era um número negativo cripto.
+  const consumidoQtd = useMemo(() => -rows.reduce((sum, m) => sum + m.quantidade, 0), [rows]);
+  const custoTotalCents = useMemo(
+    () => rows.reduce((sum, m) => sum + (-m.quantidade) * m.custoUnitarioCents, 0),
+    [rows],
+  );
 
   // Sprint 135: esconder pares (Uso + Devolução do mesmo Part que se cancelam mutuamente).
   // Mantém os 2 no DB para audit mas remove o ruído visual. Se houver uso sem devolução ou
@@ -113,7 +118,9 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
         <div>
           <h2 className="text-sm font-semibold">Peças do stock</h2>
           <p className="text-xs text-zinc-500">
-            {visibleRows.length} {visibleRows.length === 1 ? 'peça' : 'peças'} · saldo {saldo}
+            {visibleRows.length} {visibleRows.length === 1 ? 'peça consumida' : 'peças consumidas'}
+            {consumidoQtd > 0 && <span className="ml-1">· {consumidoQtd}× unidades</span>}
+            {custoTotalCents > 0 && <span className="ml-1 text-zinc-700 dark:text-zinc-300">· custo {formatCents(custoTotalCents)}</span>}
             {rows.length !== visibleRows.length && (
               <span className="ml-1 text-zinc-400">· {rows.length - visibleRows.length} mov. anulados (audit)</span>
             )}
@@ -193,7 +200,9 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
                   {m.partNome}
                 </div>
                 <div className="text-xs text-zinc-500">
-                  {PART_MOVIMENTO_LABEL[m.motivo]} · {m.quantidade > 0 ? '+' : ''}{m.quantidade} · {formatDate(m.createdAt)}
+                  {PART_MOVIMENTO_LABEL[m.motivo]} · {Math.abs(m.quantidade)}× a {formatCents(m.custoUnitarioCents)} ={' '}
+                  <strong className="text-zinc-700 dark:text-zinc-300">{formatCents(Math.abs(m.quantidade) * m.custoUnitarioCents)}</strong>
+                  <span className="ml-1 text-zinc-400">· {formatDate(m.createdAt)}</span>
                 </div>
               </div>
               {!readOnly && m.quantidade < 0 && m.motivo === PART_MOVIMENTO_MOTIVO.UsoEmReparacao && (

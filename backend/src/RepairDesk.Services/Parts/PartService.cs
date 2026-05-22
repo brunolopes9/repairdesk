@@ -455,5 +455,6 @@ public class PartService : IPartService
             m.Motivo,
             m.ReparacaoId,
             m.Notas,
-            m.CreatedAt);
+            m.CreatedAt,
+            m.Part?.CustoUnitarioCents ?? 0);
 }
