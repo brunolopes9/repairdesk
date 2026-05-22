@@ -39,6 +39,10 @@ export interface TenantSettings {
   garantiaVendaCoberturaDefault: string | null;
   garantiaVendaExclusoesDefault: string | null;
   googleReviewUrl: string | null;
+  // Sprint 175b: retention policy (dias). NULL = nunca apaga.
+  retentionRejectedDays: number | null;
+  retentionFailedDays: number | null;
+  retentionApprovedPdfDays: number | null;
 }
 
 export interface OnboardingStatus {

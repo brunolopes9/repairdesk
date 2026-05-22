@@ -80,8 +80,20 @@ public class TenantSettingsService : ITenantSettingsService
         tenant.GarantiaVendaExclusoesDefault = Clean(req.GarantiaVendaExclusoesDefault);
         tenant.GoogleReviewUrl = Clean(req.GoogleReviewUrl);
 
+        // Sprint 175b: retention. NULL = nunca apaga. Min 1 dia, max 36500 (100 anos).
+        tenant.RetentionRejectedDays = ClampNullable(req.RetentionRejectedDays, 1, 36500);
+        tenant.RetentionFailedDays = ClampNullable(req.RetentionFailedDays, 1, 36500);
+        tenant.RetentionApprovedPdfDays = ClampNullable(req.RetentionApprovedPdfDays, 1, 36500);
+
         await _repo.SaveAsync(ct);
         return ToDto(tenant);
+    }
+
+    private static int? ClampNullable(int? value, int min, int max)
+    {
+        if (value is null) return null;
+        if (value <= 0) return null; // permite 0 → trata como NULL (sem retention)
+        return Math.Clamp(value.Value, min, max);
     }
 
     public async Task<OnboardingStatusDto> GetOnboardingStatusAsync(CancellationToken ct = default)
@@ -167,5 +179,8 @@ public class TenantSettingsService : ITenantSettingsService
         t.GarantiaVendaUsadoDias,
         t.GarantiaVendaCoberturaDefault,
         t.GarantiaVendaExclusoesDefault,
-        t.GoogleReviewUrl);
+        t.GoogleReviewUrl,
+        t.RetentionRejectedDays,
+        t.RetentionFailedDays,
+        t.RetentionApprovedPdfDays);
 }

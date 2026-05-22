@@ -31,7 +31,11 @@ public sealed record TenantSettingsDto(
     int GarantiaVendaUsadoDias,
     string? GarantiaVendaCoberturaDefault,
     string? GarantiaVendaExclusoesDefault,
-    string? GoogleReviewUrl);
+    string? GoogleReviewUrl,
+    // Sprint 175b: retention policy supplier invoices.
+    int? RetentionRejectedDays,
+    int? RetentionFailedDays,
+    int? RetentionApprovedPdfDays);
 
 public sealed record UpdateTenantSettingsRequest(
     string Name,
@@ -60,7 +64,11 @@ public sealed record UpdateTenantSettingsRequest(
     int GarantiaVendaUsadoDias,
     string? GarantiaVendaCoberturaDefault,
     string? GarantiaVendaExclusoesDefault,
-    string? GoogleReviewUrl);
+    string? GoogleReviewUrl,
+    // Sprint 175b: retention policy. NULL = sem retention (mantém para sempre).
+    int? RetentionRejectedDays,
+    int? RetentionFailedDays,
+    int? RetentionApprovedPdfDays);
 
 public sealed record OnboardingStatusDto(
     bool OnboardingCompletado,

@@ -52,6 +52,9 @@ const emptySettings: UpdateTenantSettings = {
   garantiaVendaCoberturaDefault: null,
   garantiaVendaExclusoesDefault: null,
   googleReviewUrl: null,
+  retentionRejectedDays: 15,
+  retentionFailedDays: 30,
+  retentionApprovedPdfDays: null,
 };
 
 const emptyCliente: ClienteForm = {

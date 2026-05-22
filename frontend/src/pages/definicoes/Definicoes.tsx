@@ -1426,6 +1426,54 @@ function PosVendaSection({
           className={inputCls}
         />
       </Field>
+
+      {/* Sprint 175b: retention policy de faturas de fornecedor importadas. */}
+      <div className="mt-6 space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
+        <div>
+          <h3 className="text-sm font-semibold">Retenção de faturas importadas (RGPD)</h3>
+          <p className="mt-1 text-xs text-zinc-500">
+            Apaga automaticamente faturas antigas conforme o estado. Metadata (totais, items, IVA) fica
+            sempre — só os PDFs raw são apagados. Deixa vazio (ou 0) para nunca apagar.
+            <strong className="ml-1">PT (CIRS art. 123.º): documentos fiscais aprovados devem ficar 10 anos.</strong>
+          </p>
+        </div>
+        <Field label="Rejeitadas — dias até apagar" hint="Default: 15 dias. Faturas rejeitadas são lixo.">
+          <input
+            type="number"
+            min={0}
+            max={3650}
+            value={form.retentionRejectedDays ?? ''}
+            onChange={(e) => update('retentionRejectedDays', e.target.value ? Number(e.target.value) : null)}
+            placeholder="15"
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Falhas de parsing — dias até apagar" hint="Default: 30 dias. Tempo para debug.">
+          <input
+            type="number"
+            min={0}
+            max={3650}
+            value={form.retentionFailedDays ?? ''}
+            onChange={(e) => update('retentionFailedDays', e.target.value ? Number(e.target.value) : null)}
+            placeholder="30"
+            className={inputCls}
+          />
+        </Field>
+        <Field
+          label="Aprovadas — dias até apagar PDF raw"
+          hint="Default: vazio = permanente (recomendado PT). Mete um número se quiseres apagar PDFs aprovados depois de X dias — metadata fica sempre."
+        >
+          <input
+            type="number"
+            min={0}
+            max={36500}
+            value={form.retentionApprovedPdfDays ?? ''}
+            onChange={(e) => update('retentionApprovedPdfDays', e.target.value ? Number(e.target.value) : null)}
+            placeholder="(vazio = permanente)"
+            className={inputCls}
+          />
+        </Field>
+      </div>
     </div>
   );
 }
