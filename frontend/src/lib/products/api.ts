@@ -91,6 +91,8 @@ export interface Product {
 }
 
 export interface ProductImageWriteRequest {
+  /** ID existente quando editing produto; null/undefined em novas imagens. */
+  id?: string;
   url: string;
   alt: string | null;
   ordem: number;

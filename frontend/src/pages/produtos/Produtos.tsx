@@ -115,7 +115,7 @@ export default function Produtos() {
         active: p.active,
         mostrarLojaOnline: p.mostrarLojaOnline,
         fornecedorId: p.fornecedorId,
-        images: p.images.map((i) => ({ url: i.url, alt: i.alt, ordem: i.ordem, isCurated: i.isCurated })),
+        images: p.images.map((i) => ({ id: i.id, url: i.url, alt: i.alt, ordem: i.ordem, isCurated: i.isCurated })),
       });
       setPriceStr((p.priceCents / 100).toFixed(2).replace('.', ','));
       setCustoStr((p.custoUnitarioCents / 100).toFixed(2).replace('.', ','));
@@ -519,16 +519,56 @@ export default function Produtos() {
                 )}
                 <ul className="space-y-1">
                   {form.images.map((img, idx) => (
-                    <li key={idx} className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900">
-                      <span className="text-zinc-400">{idx + 1}.</span>
-                      <span className="flex-1 truncate font-mono">{img.url}</span>
-                      <button
-                        type="button"
-                        onClick={() => setForm({ ...form, images: form.images.filter((_, i) => i !== idx) })}
-                        className="text-rose-600 hover:text-rose-700"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                    <li key={img.id ?? `new-${idx}`} className="space-y-1 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900">
+                      <div className="flex items-center gap-2">
+                        <span className="text-zinc-400">{idx + 1}.</span>
+                        <span className="flex-1 truncate font-mono">{img.url}</span>
+                        {/* Sprint 166b: gerar alt via Claude Vision para imagem específica. */}
+                        {editingId && img.id && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const r = await api.post<{ alt: string }>(
+                                  `/products/${editingId}/images/${img.id}/generate-alt`,
+                                );
+                                setForm({
+                                  ...form,
+                                  images: form.images.map((it, i) =>
+                                    i === idx ? { ...it, alt: r.data.alt } : it,
+                                  ),
+                                });
+                                toast.success('Alt gerado.');
+                              } catch (e) { toast.fromError(e, 'Falhou gerar alt'); }
+                            }}
+                            className="rounded border border-brand-300 bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 hover:bg-brand-100 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-300"
+                            title="Gera alt via Claude Vision (~0.5¢)"
+                          >
+                            ✍️ Alt
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, images: form.images.filter((_, i) => i !== idx) })}
+                          className="text-rose-600 hover:text-rose-700"
+                          title="Remover"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={img.alt ?? ''}
+                        onChange={(e) => setForm({
+                          ...form,
+                          images: form.images.map((it, i) =>
+                            i === idx ? { ...it, alt: e.target.value || null } : it,
+                          ),
+                        })}
+                        placeholder="alt text (SEO + acessibilidade)"
+                        maxLength={200}
+                        className="w-full rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[11px] dark:border-zinc-800 dark:bg-zinc-950"
+                      />
                     </li>
                   ))}
                 </ul>
