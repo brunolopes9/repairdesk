@@ -72,6 +72,8 @@ export default function Produtos() {
   const [priceStr, setPriceStr] = useState('0,00');
   const [custoStr, setCustoStr] = useState('0,00');
   const [newImageUrl, setNewImageUrl] = useState('');
+  // Sprint 191: estado de loading do upload com pipeline SEO.
+  const [uploadingImage, setUploadingImage] = useState(false);
   // Sprint 153b: importer CSV Molano UI.
   const [importOpen, setImportOpen] = useState(false);
   const [importFornecedorId, setImportFornecedorId] = useState('');
@@ -511,11 +513,68 @@ export default function Produtos() {
                       setNewImageUrl('');
                     }}
                   >
-                    Adicionar
+                    URL externa
                   </Button>
                 </div>
+
+                {/* Sprint 191: upload nativo com pipeline SEO (Sprint 189). Só disponível se
+                    produto já foi guardado (precisa de productId). Para produtos novos, save
+                    primeiro e depois faz upload. */}
+                {editingId ? (
+                  <div className="rounded-md border-2 border-dashed border-brand-300 bg-brand-50/30 p-3 text-xs dark:border-brand-800/40 dark:bg-brand-950/10">
+                    <label className="flex cursor-pointer items-center justify-center gap-2 text-brand-700 dark:text-brand-300">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="sr-only"
+                        disabled={uploadingImage}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 10 * 1024 * 1024) { toast.error('Máx 10MB'); return; }
+                          setUploadingImage(true);
+                          try {
+                            const fd = new FormData();
+                            fd.append('image', file);
+                            const r = await api.post<{ imageId: string; url: string; url480w: string; url1024w: string; url2048w: string; blurDataUrl: string; width: number; height: number }>(
+                              `/products/${editingId}/images/upload`,
+                              fd,
+                              { headers: { 'Content-Type': 'multipart/form-data' } },
+                            );
+                            // Reload product to ver a nova imagem
+                            qc.invalidateQueries({ queryKey: ['products'] });
+                            const newImg: ProductImageWriteRequest = {
+                              id: r.data.imageId,
+                              url: r.data.url,
+                              alt: null,
+                              ordem: form.images.length,
+                              isCurated: true,
+                            };
+                            setForm({ ...form, images: [...form.images, newImg] });
+                            toast.success(`Imagem optimizada (${r.data.width}×${r.data.height} → 3 sizes WebP + blur).`);
+                          } catch (err) {
+                            toast.fromError(err, 'Falhou upload');
+                          } finally {
+                            setUploadingImage(false);
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                      {uploadingImage ? (
+                        <span>A optimizar imagem (resize × 3 + blur LQIP)…</span>
+                      ) : (
+                        <span>📤 <strong>Upload com pipeline SEO</strong> — JPG/PNG até 10MB, gera 3 WebP automáticamente</span>
+                      )}
+                    </label>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-500">
+                    💡 Guarda primeiro o produto para activar <strong>upload com pipeline SEO</strong> (resize + blur LQIP).
+                  </p>
+                )}
+
                 {form.images.length === 0 && (
-                  <p className="text-[11px] text-zinc-500">URLs externas (R2/S3/Imgur). Upload nativo fica para sprint futuro.</p>
+                  <p className="text-[11px] text-zinc-500">Ou cola URL externa (R2/S3/Imgur) acima — sem pipeline SEO.</p>
                 )}
                 <ul className="space-y-1">
                   {form.images.map((img, idx) => (
