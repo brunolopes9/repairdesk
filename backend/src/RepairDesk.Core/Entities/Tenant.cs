@@ -59,11 +59,19 @@ public class Tenant : BaseEntity
     public DateTime? AnthropicValidatedAt { get; set; }
 
     // Sprint 173: email forwarding ingest per-tenant (RGPD-clean).
-    // Slug único kebab-case → email faturas-{slug}@ingest.repairdesk.app.
-    // Tenant configura forward Gmail/Outlook (filter from:fornecedor) → este email.
-    // Cloudflare Email Routing detecta tenant pelo TO header → pipeline ingest.
-    // NULL = ainda não setup; gerado auto na 1ª chamada GET /tenants/me/ingest-email.
     public string? IngestEmailSlug { get; set; }
+
+    // Sprint 175: retention policy por tipo de SupplierInvoiceImport.
+    // Defaults conservadores PT (CIRS art. 123 obriga arquivo fiscal 10 anos).
+    // Cron diário às 3h apaga PDFs raw + soft-delete entity quando expira.
+    // Metadata estruturada (items JSON, totais, IVA) mantém-se sempre — é o
+    // "accounting vault" do tenant.
+    /// <summary>Dias após criação para apagar imports Rejected. NULL = nunca.</summary>
+    public int? RetentionRejectedDays { get; set; } = 15;
+    /// <summary>Dias após criação para apagar imports Failed (parsing falhou). NULL = nunca.</summary>
+    public int? RetentionFailedDays { get; set; } = 30;
+    /// <summary>Dias após aprovação para apagar PDF raw (metadata fica). NULL = permanente (recomendado para PT).</summary>
+    public int? RetentionApprovedPdfDays { get; set; } = null;
 }
 
 public enum TenantPlan

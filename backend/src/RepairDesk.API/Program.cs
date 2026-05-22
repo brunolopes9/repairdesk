@@ -257,6 +257,8 @@ try
         .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(20));
     builder.Services.AddHostedService<RepairDesk.API.Webhooks.WebhookDeliveryHostedService>();
     builder.Services.AddHostedService<RepairDesk.API.Webhooks.GarantiaExpirationHostedService>();
+    // Sprint 175: retention cleanup diário às 3h UTC.
+    builder.Services.AddHostedService<RepairDesk.API.HostedServices.SupplierInvoiceRetentionHostedService>();
 
     // External checkout (Sprint 73) — atómico para loja online / integrações
     builder.Services.AddScoped<RepairDesk.Services.External.IExternalCheckoutService, RepairDesk.Services.External.ExternalCheckoutService>();
