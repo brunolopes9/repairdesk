@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using RepairDesk.Core.Abstractions;
 
 namespace RepairDesk.Services.Documents;
 
@@ -63,26 +64,57 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
     private readonly ILogger<AnthropicSupplierParser> _logger;
     private readonly ILlmUsageTracker _tracker;
     private readonly ILlmQuotaService _quota;
-    private readonly string? _apiKey;
+    private readonly ITenantContext _tenant;
+    private readonly ITenantRepository _tenants;
+    private readonly ISecretProtector _secrets;
     private readonly string _model;
 
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
+    /// <summary>
+    /// Sprint 168: agora retorna sempre true (apenas é falso se SecretProtector
+    /// não estiver injectável, o que nunca acontece em prod). A verificação real
+    /// se há key per-tenant é feita on-demand antes de cada chamada.
+    /// </summary>
+    public bool IsConfigured => true;
 
-    public AnthropicSupplierParser(HttpClient http, IConfiguration config, ILlmUsageTracker tracker, ILlmQuotaService quota, ILogger<AnthropicSupplierParser> logger)
+    public AnthropicSupplierParser(
+        HttpClient http,
+        IConfiguration config,
+        ILlmUsageTracker tracker,
+        ILlmQuotaService quota,
+        ITenantContext tenant,
+        ITenantRepository tenants,
+        ISecretProtector secrets,
+        ILogger<AnthropicSupplierParser> logger)
     {
         _http = http;
         _tracker = tracker;
         _quota = quota;
+        _tenant = tenant;
+        _tenants = tenants;
+        _secrets = secrets;
         _logger = logger;
-        _apiKey = config["ANTHROPIC_API_KEY"];
         _model = config["ANTHROPIC_MODEL"] ?? "claude-haiku-4-5-20251001";
-        if (string.IsNullOrWhiteSpace(_apiKey))
-            _logger.LogInformation("AnthropicSupplierParser: ANTHROPIC_API_KEY não configurado — LLM fallback desactivado.");
+    }
+
+    /// <summary>Sprint 168: resolve a Anthropic API key do tenant actual. NULL se não configurada.</summary>
+    private async Task<string?> ResolveApiKeyAsync(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId) return null;
+        var tenant = await _tenants.FindByIdAsync(tenantId, ct);
+        if (tenant?.AnthropicApiKeyCipherText is not { } cipher) return null;
+        try { return _secrets.Unprotect(cipher); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Falhou unprotect Anthropic key tenant={Tid}", tenantId); return null; }
     }
 
     public async Task<LlmParseResult?> ParseAsync(string pdfText, CancellationToken ct = default)
     {
-        if (!IsConfigured || string.IsNullOrWhiteSpace(pdfText)) return null;
+        if (string.IsNullOrWhiteSpace(pdfText)) return null;
+        var apiKey = await ResolveApiKeyAsync(ct);
+        if (apiKey is null)
+        {
+            _logger.LogInformation("ParseAsync skipped: tenant não configurou Anthropic API key.");
+            return null;
+        }
         // Sprint 167b: quota check antes de gastar dinheiro.
         var quotaCheck = await _quota.CheckAsync(ct);
         if (!quotaCheck.Allowed)
@@ -127,7 +159,7 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
             {
                 Content = JsonContent.Create(requestBody),
             };
-            req.Headers.Add("x-api-key", _apiKey);
+            req.Headers.Add("x-api-key", apiKey);
             req.Headers.Add("anthropic-version", "2023-06-01");
 
             using var resp = await _http.SendAsync(req, cts.Token);
@@ -194,7 +226,13 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
     /// </summary>
     public async Task<LlmParseResult?> ParseImageAsync(byte[] imageBytes, string mimeType, CancellationToken ct = default)
     {
-        if (!IsConfigured || imageBytes is null || imageBytes.Length == 0) return null;
+        if (imageBytes is null || imageBytes.Length == 0) return null;
+        var apiKey = await ResolveApiKeyAsync(ct);
+        if (apiKey is null)
+        {
+            _logger.LogInformation("ParseImageAsync skipped: tenant não configurou Anthropic API key.");
+            return null;
+        }
         var quotaCheck = await _quota.CheckAsync(ct);
         if (!quotaCheck.Allowed)
         {
@@ -272,7 +310,7 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
             {
                 Content = JsonContent.Create(requestBody),
             };
-            req.Headers.Add("x-api-key", _apiKey);
+            req.Headers.Add("x-api-key", apiKey);
             req.Headers.Add("anthropic-version", "2023-06-01");
 
             using var resp = await _http.SendAsync(req, cts.Token);

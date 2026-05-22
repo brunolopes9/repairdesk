@@ -52,6 +52,12 @@ public class Tenant : BaseEntity
     public TenantPlan Plan { get; set; } = TenantPlan.Free;
     /// <summary>Quota override per-tenant. NULL → usa default do plano (100/1000/ilimitado).</summary>
     public int? LlmQuotaMonthly { get; set; }
+
+    // Sprint 168: Anthropic API key per-tenant (RGPD-clean — Bruno não vê faturas tenants).
+    // Encriptada via DataProtection (mesmo mecanismo do Moloni cipher Sprint 41).
+    // NULL = não configurada, LLM features desactivadas para este tenant.
+    public string? AnthropicApiKeyCipherText { get; set; }
+    public DateTime? AnthropicValidatedAt { get; set; }
 }
 
 public enum TenantPlan

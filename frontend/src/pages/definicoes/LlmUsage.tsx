@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
-import { Sparkles, FileText, Camera, AlertCircle } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Sparkles, FileText, Camera, AlertCircle, Key, ExternalLink, CheckCircle2, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { api } from '../../lib/api';
+import { toast } from '../../lib/toast';
 
 /**
  * Sprint 167a: dashboard de uso LLM Anthropic. Bruno vê:
@@ -72,10 +74,38 @@ function operationLabel(op: string): { label: string; icon: React.ComponentType<
 }
 
 export default function LlmUsage() {
+  const qc = useQueryClient();
   const query = useQuery({
     queryKey: ['llm-usage'],
     queryFn: () => api.get<LlmUsageResponse>('/llm-usage/me').then((r) => r.data),
     refetchInterval: 60_000,
+  });
+
+  // Sprint 168: estado da Anthropic key per-tenant.
+  const keyStatus = useQuery({
+    queryKey: ['anthropic-key-status'],
+    queryFn: () => api.get<{ configured: boolean; validatedAt: string | null }>('/llm-usage/anthropic-key/status').then((r) => r.data),
+  });
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const setKey = useMutation({
+    mutationFn: (apiKey: string) => api.post('/llm-usage/anthropic-key', { apiKey }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['anthropic-key-status'] });
+      qc.invalidateQueries({ queryKey: ['llm-usage'] });
+      toast.success('Anthropic key configurada e validada.');
+      setShowKeyInput(false);
+      setApiKeyInput('');
+    },
+    onError: (err) => toast.fromError(err, 'Key inválida ou rejeitada pela Anthropic.'),
+  });
+  const removeKey = useMutation({
+    mutationFn: () => api.delete('/llm-usage/anthropic-key').then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['anthropic-key-status'] });
+      toast.warning('Anthropic key removida — features IA desactivadas.');
+    },
+    onError: (err) => toast.fromError(err, 'Falhou remover key.'),
   });
 
   if (query.isLoading) return <div className="p-6 text-sm text-zinc-500">A carregar uso LLM…</div>;
@@ -96,6 +126,86 @@ export default function LlmUsage() {
           Útil para conferir custo + escolher plano SaaS correcto.
         </p>
       </header>
+
+      {/* Sprint 168: Anthropic key per-tenant (RGPD clean — tenant tem controlo do uso). */}
+      <section className={`rounded-xl border p-4 ${keyStatus.data?.configured ? 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20' : 'border-amber-300 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-950/30'}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex-1">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Key size={16} />
+              Anthropic API key
+              {keyStatus.data?.configured ? (
+                <span className="flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[10px] text-white">
+                  <CheckCircle2 size={11} /> Configurada
+                </span>
+              ) : (
+                <span className="rounded bg-amber-600 px-2 py-0.5 text-[10px] text-white">Em falta</span>
+              )}
+            </h2>
+            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+              {keyStatus.data?.configured ? (
+                <>Configurada e validada em {keyStatus.data.validatedAt ? new Date(keyStatus.data.validatedAt).toLocaleString('pt-PT') : '?'}. Features de IA (parser fatura, OCR foto) activas.</>
+              ) : (
+                <>Para usar IA (parsing automático de facturas), cria conta gratuita Anthropic, adiciona <strong>$5 de crédito</strong> (chega para 1000+ facturas) e cola aqui a tua API key. O RepairDesk nunca vê os teus dados — vão directos da tua conta Anthropic para os teus servidores.</>
+              )}
+            </p>
+            {!keyStatus.data?.configured && (
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 underline dark:text-brand-400">
+                Criar key na Anthropic <ExternalLink size={11} />
+              </a>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {keyStatus.data?.configured ? (
+              <button
+                type="button"
+                onClick={() => { if (confirm('Remover a key? Features IA ficam desactivadas.')) removeKey.mutate(); }}
+                disabled={removeKey.isPending}
+                className="flex items-center gap-1 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+              >
+                <Trash2 size={12} /> Remover
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowKeyInput(true)}
+                className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+              >
+                Configurar key
+              </button>
+            )}
+          </div>
+        </div>
+        {showKeyInput && !keyStatus.data?.configured && (
+          <div className="mt-3 space-y-2 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">API key Anthropic</label>
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              placeholder="sk-ant-api03-..."
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm font-mono dark:border-zinc-700 dark:bg-zinc-950"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setKey.mutate(apiKeyInput)}
+                disabled={!apiKeyInput.startsWith('sk-ant-') || setKey.isPending}
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+              >
+                {setKey.isPending ? 'A validar…' : 'Validar e gravar'}
+              </button>
+              <button type="button" onClick={() => { setShowKeyInput(false); setApiKeyInput(''); }} className="rounded-md px-3 py-1.5 text-xs text-zinc-600">
+                Cancelar
+              </button>
+            </div>
+            <div className="text-[11px] text-zinc-500">
+              Encriptada no servidor (DataProtection). Validada com chamada a Anthropic /v1/models antes de gravar.
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* Sprint 167b: card plano + quota */}
       <section className={`rounded-xl border p-4 ${quota.allowed ? 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20' : 'border-rose-300 bg-rose-50 dark:border-rose-800/40 dark:bg-rose-950/30'}`}>
