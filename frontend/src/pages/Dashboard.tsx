@@ -21,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { stockApi } from '../lib/stock/api';
+import { relatoriosApi } from '../lib/relatorios/api';
 import {
   dashboardApi,
   periodRange,
@@ -388,6 +389,8 @@ export default function Dashboard() {
               tone="zinc"
               loading={isLoading}
             />
+            {/* Sprint 183: KPI IVA estimado deste trimestre, click leva a /relatorios/iva. */}
+            <IvaTrimestreKpi />
           </section>
 
           <TendenciaSection meses={tendencia.data?.meses ?? []} loading={tendencia.isLoading} />
@@ -581,6 +584,44 @@ function deltaPct(
     positive,
     arrow: delta > 0 ? '↑' : delta < 0 ? '↓' : '·',
   };
+}
+
+/**
+ * Sprint 183: KPI IVA estimado do trimestre actual. Click leva ao relatório completo.
+ * Lê /relatorios/iva — pode ser negativo (crédito) ou positivo (a entregar).
+ */
+function IvaTrimestreKpi() {
+  const now = new Date();
+  const ano = now.getUTCFullYear();
+  const trimestre = Math.floor(now.getUTCMonth() / 3) + 1;
+  const iva = useQuery({
+    queryKey: ['dashboard-iva', ano, trimestre],
+    queryFn: () => relatoriosApi.iva(ano, trimestre, 0),
+  });
+  const saldo = iva.data?.ivaAEntregarCents ?? 0;
+  const isCredito = saldo < 0;
+  const isZero = saldo === 0;
+  const tone: 'emerald' | 'amber' | 'zinc' = isCredito ? 'emerald' : isZero ? 'zinc' : 'amber';
+  const label = isCredito
+    ? `Crédito IVA T${trimestre}`
+    : isZero
+      ? `IVA equilibrado T${trimestre}`
+      : `IVA a entregar T${trimestre}`;
+  const sublabel = iva.data
+    ? `Liquidado ${formatCents(iva.data.ivaLiquidadoCents)} − Dedutível ${formatCents(iva.data.ivaDedutivelTotalCents)}`
+    : undefined;
+  return (
+    <Link to="/relatorios/iva" className="block rounded-xl ring-offset-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
+      <Kpi
+        label={label}
+        value={`${isCredito ? '+' : ''}${formatCents(Math.abs(saldo))}`}
+        sublabel={sublabel}
+        tone={tone}
+        loading={iva.isLoading}
+        hint="Estimativa interna. Valor oficial é o SAF-T Moloni que vai à AT. Clica para ver detalhe."
+      />
+    </Link>
+  );
 }
 
 function Kpi({
