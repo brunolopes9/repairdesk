@@ -135,3 +135,14 @@ export interface ImportPartsResponse {
 }
 
 export type PartsPage = PagedResult<Part>;
+
+/** Sprint 186: previsão reabastecer — Part em risco de ruptura no período. */
+export interface ReabastecerSugestao {
+  partId: string;
+  sku: string;
+  nome: string;
+  qtdStockActual: number;
+  consumoDias: number;
+  diasRestantesEstimados: number;
+  custoUnitarioCents: number;
+}

@@ -380,6 +380,8 @@ public class MoloniBillingTests
         public Task<IReadOnlyList<PartMovimento>> MovimentosAsync(Guid? partId, Guid? reparacaoId, CancellationToken ct = default)
             => Task.FromResult((IReadOnlyList<PartMovimento>)Array.Empty<PartMovimento>());
         public Task<int> SumCustoByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<IReadOnlyList<ReabastecerSugestao>> ReabastecerSugestoesAsync(int days, CancellationToken ct = default)
+            => Task.FromResult((IReadOnlyList<ReabastecerSugestao>)Array.Empty<ReabastecerSugestao>());
         public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 

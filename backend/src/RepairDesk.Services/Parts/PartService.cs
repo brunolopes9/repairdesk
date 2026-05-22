@@ -21,6 +21,8 @@ public interface IPartService
     Task<PartMovimentoDto> AddMovimentoAsync(Guid partId, CreatePartMovimentoRequest req, CancellationToken ct = default);
     Task<IReadOnlyList<PartMovimentoDto>> MovimentosAsync(Guid? partId, Guid? reparacaoId, CancellationToken ct = default);
     Task<ImportPartsResponse> ImportCsvAsync(string csv, CancellationToken ct = default);
+    /// <summary>Sprint 186: previsão reabastecer — Parts onde consumo30d &gt;= stock.</summary>
+    Task<IReadOnlyList<ReabastecerSugestao>> ReabastecerSugestoesAsync(int days = 30, CancellationToken ct = default);
 }
 
 public class PartService : IPartService
@@ -67,6 +69,9 @@ public class PartService : IPartService
 
     public async Task<IReadOnlyList<PartDto>> LowStockAsync(CancellationToken ct = default)
         => (await _repo.LowStockAsync(ct)).Select(ToDto).ToList();
+
+    public Task<IReadOnlyList<ReabastecerSugestao>> ReabastecerSugestoesAsync(int days = 30, CancellationToken ct = default)
+        => _repo.ReabastecerSugestoesAsync(Math.Clamp(days, 7, 90), ct);
 
     public Task<IReadOnlyList<string>> MarcasAsync(CancellationToken ct = default)
         => _repo.MarcasAsync(ct);

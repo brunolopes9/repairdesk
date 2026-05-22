@@ -106,5 +106,43 @@ public class PartRepository : IPartRepository
         return movimentos.Sum(m => -(m.Quantidade) * (m.Part?.CustoUnitarioCents ?? 0));
     }
 
+    public async Task<IReadOnlyList<ReabastecerSugestao>> ReabastecerSugestoesAsync(int days, CancellationToken ct = default)
+    {
+        // Sprint 186: consumo dos últimos N dias por Part. PartMovimento.Quantidade negativa quando consumo.
+        var since = DateTime.UtcNow.AddDays(-days);
+        var consumo = await _db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.CreatedAt >= since
+                && m.Motivo == Core.Enums.PartMovimentoMotivo.UsoEmReparacao
+                && m.Quantidade < 0
+                && m.Part != null
+                && m.Part.Activo)
+            .GroupBy(m => new { m.PartId, m.Part!.Sku, m.Part.Nome, m.Part.QtdStock, m.Part.CustoUnitarioCents })
+            .Select(g => new
+            {
+                g.Key.PartId,
+                g.Key.Sku,
+                g.Key.Nome,
+                g.Key.QtdStock,
+                g.Key.CustoUnitarioCents,
+                Consumo = -g.Sum(m => m.Quantidade), // positivo
+            })
+            .ToListAsync(ct);
+
+        // Filtra: stock <= consumo (risco de ruptura no mesmo período).
+        return consumo
+            .Where(c => c.Consumo > 0 && c.QtdStock <= c.Consumo)
+            .Select(c => new ReabastecerSugestao(
+                c.PartId,
+                c.Sku,
+                c.Nome,
+                c.QtdStock,
+                c.Consumo,
+                c.Consumo > 0 ? (int)Math.Round(c.QtdStock / (double)c.Consumo * days) : 0,
+                c.CustoUnitarioCents))
+            .OrderBy(c => c.DiasRestantesEstimados)
+            .ToList();
+    }
+
     public Task SaveAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

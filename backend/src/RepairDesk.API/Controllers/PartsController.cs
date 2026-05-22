@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Parts;
@@ -29,6 +30,11 @@ public class PartsController : ControllerBase
     [HttpGet("low-stock")]
     public Task<IReadOnlyList<PartDto>> LowStock(CancellationToken ct)
         => _service.LowStockAsync(ct);
+
+    /// <summary>Sprint 186: previsão reabastecer — Parts em risco de ruptura nos próximos N dias.</summary>
+    [HttpGet("reabastecer-sugestoes")]
+    public Task<IReadOnlyList<ReabastecerSugestao>> ReabastecerSugestoes([FromQuery] int days = 30, CancellationToken ct = default)
+        => _service.ReabastecerSugestoesAsync(days, ct);
 
     [HttpGet("marcas")]
     public Task<IReadOnlyList<string>> Marcas(CancellationToken ct)

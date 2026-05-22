@@ -168,6 +168,13 @@ export default function Dashboard() {
     staleTime: 60_000,
   });
 
+  // Sprint 186: previsão reabastecer — Parts cujo consumo30d >= stock actual.
+  const reabastecer = useQuery({
+    queryKey: ['parts-reabastecer-30d'],
+    queryFn: () => stockApi.reabastecerSugestoes(30),
+    staleTime: 5 * 60_000,
+  });
+
   const reparacoesPendentesFatura = useQuery({
     queryKey: ['reparacoes-pagas-sem-fatura'],
     queryFn: () => reparacoesApi.listPagasSemFatura(100),
@@ -195,12 +202,13 @@ export default function Dashboard() {
       0,
     );
 
+  const reabastecerCount = reabastecer.data?.length ?? 0;
   const totalAlertas =
     (alertas.data
       ? alertas.data.reparacoesNaoPagas.length +
         alertas.data.trabalhosNaoPagos.length +
         alertas.data.despesasOrfas.length
-      : 0) + lowStockCount + totalFaturasPendentesCount;
+      : 0) + lowStockCount + reabastecerCount + totalFaturasPendentesCount;
 
   return (
     <div className="space-y-8">
@@ -258,6 +266,42 @@ export default function Dashboard() {
                   className="mt-3 inline-flex items-center gap-1 rounded-md border border-rose-400 bg-white px-3 py-1.5 text-xs font-medium text-rose-800 hover:bg-rose-100 dark:border-rose-700 dark:bg-zinc-900 dark:text-rose-200"
                 >
                   {lowStockCount > 5 ? `Ver as ${lowStockCount}` : 'Abrir Stock'}
+                  <ChevronRight size={13} />
+                </Link>
+              </div>
+            )}
+            {/* Sprint 186: previsão reabastecer — distinto de stock baixo (estes esgotam em < 30d). */}
+            {(reabastecer.data?.length ?? 0) > 0 && (
+              <div className="rounded-xl border border-orange-300 bg-orange-50 p-4 dark:border-orange-800/60 dark:bg-orange-950/30">
+                <div className="flex items-start gap-3">
+                  <TrendingUp size={20} strokeWidth={2} className="flex-none text-orange-700 dark:text-orange-300" aria-hidden />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold">
+                      {reabastecer.data!.length} {reabastecer.data!.length === 1 ? 'peça vai esgotar' : 'peças vão esgotar'} em &lt; 30 dias
+                    </div>
+                    <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                      Baseado em consumo dos últimos 30d. Encomenda já para evitar ruptura.
+                    </div>
+                  </div>
+                </div>
+                <ul className="mt-3 space-y-1.5">
+                  {reabastecer.data!.slice(0, 5).map((p) => (
+                    <li key={p.partId} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="truncate">
+                        <span className="font-mono text-orange-700 dark:text-orange-300">{p.sku}</span>
+                        <span className="ml-1 text-zinc-700 dark:text-zinc-300">{p.nome}</span>
+                      </span>
+                      <span className="flex-none font-mono tabular-nums text-orange-700 dark:text-orange-300">
+                        stock {p.qtdStockActual} · usaste {p.consumoDias}/30d
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to="/stock"
+                  className="mt-3 inline-flex items-center gap-1 rounded-md border border-orange-400 bg-white px-3 py-1.5 text-xs font-medium text-orange-800 hover:bg-orange-100 dark:border-orange-700 dark:bg-zinc-900 dark:text-orange-200"
+                >
+                  {reabastecer.data!.length > 5 ? `Ver as ${reabastecer.data!.length}` : 'Abrir Stock'}
                   <ChevronRight size={13} />
                 </Link>
               </div>

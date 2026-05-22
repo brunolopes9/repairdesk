@@ -24,5 +24,18 @@ public interface IPartRepository
     void AddMovimento(PartMovimento movimento);
     Task<IReadOnlyList<PartMovimento>> MovimentosAsync(Guid? partId, Guid? reparacaoId, CancellationToken ct = default);
     Task<int> SumCustoByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
+    /// <summary>Sprint 186: previsão reabastecimento — devolve Parts onde consumo30d
+    /// excede o stock actual (Bruno vai ficar sem stock antes de fechar o mês).</summary>
+    Task<IReadOnlyList<ReabastecerSugestao>> ReabastecerSugestoesAsync(int days, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }
+
+/// <summary>Sprint 186: linha de sugestão reabastecimento.</summary>
+public sealed record ReabastecerSugestao(
+    Guid PartId,
+    string Sku,
+    string Nome,
+    int QtdStockActual,
+    int ConsumoDias,
+    int DiasRestantesEstimados,
+    int CustoUnitarioCents);

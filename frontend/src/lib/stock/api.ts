@@ -8,6 +8,7 @@ import type {
   PartMovimento,
   PartsPage,
   PartUpdateForm,
+  ReabastecerSugestao,
 } from './types';
 
 export const stockApi = {
@@ -30,6 +31,10 @@ export const stockApi = {
   },
   lowStock() {
     return api.get<Part[]>('/parts/low-stock').then((r) => r.data);
+  },
+  /** Sprint 186: previsão reabastecer — Parts em risco de ruptura no período. */
+  reabastecerSugestoes(days = 30) {
+    return api.get<ReabastecerSugestao[]>('/parts/reabastecer-sugestoes', { params: { days } }).then((r) => r.data);
   },
   marcas() {
     return api.get<string[]>('/parts/marcas').then((r) => r.data);
