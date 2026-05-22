@@ -37,6 +37,8 @@ export default function LegalLayout({ title, lastUpdated, children }: Props) {
             <Link to="/privacidade" className="hover:text-zinc-700 dark:hover:text-zinc-300">Privacidade</Link>
             <Link to="/termos" className="hover:text-zinc-700 dark:hover:text-zinc-300">Termos</Link>
             <Link to="/cookies" className="hover:text-zinc-700 dark:hover:text-zinc-300">Cookies</Link>
+            <Link to="/dpa" className="hover:text-zinc-700 dark:hover:text-zinc-300">DPA</Link>
+            <Link to="/sub-processors" className="hover:text-zinc-700 dark:hover:text-zinc-300">Sub-processadores</Link>
             <a href="mailto:privacidade@lopestech.pt" className="hover:text-zinc-700 dark:hover:text-zinc-300">privacidade@lopestech.pt</a>
           </nav>
         </div>

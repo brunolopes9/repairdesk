@@ -41,6 +41,8 @@ const PortalGarantia = lazy(() => import('./pages/PortalGarantia'));
 const PoliticaPrivacidade = lazy(() => import('./pages/legal/PoliticaPrivacidade'));
 const Termos = lazy(() => import('./pages/legal/Termos'));
 const Cookies = lazy(() => import('./pages/legal/Cookies'));
+const Dpa = lazy(() => import('./pages/legal/Dpa'));
+const SubProcessors = lazy(() => import('./pages/legal/SubProcessors'));
 
 function RouteLoading() {
   // Skeleton subtil que mantém estrutura tipo "page com header + 3 cards".
@@ -90,6 +92,8 @@ export default function App() {
             <Route path="/privacidade" element={<PoliticaPrivacidade />} />
             <Route path="/termos" element={<Termos />} />
             <Route path="/cookies" element={<Cookies />} />
+            <Route path="/dpa" element={<Dpa />} />
+            <Route path="/sub-processors" element={<SubProcessors />} />
 
             <Route path="/login" element={<Login />} />
             <Route
