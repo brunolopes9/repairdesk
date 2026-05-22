@@ -61,12 +61,22 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
         // Regime IsentoArt53 não deduz nada (Bruno fica sem IVA cobrado nem dedutível).
         var ivaDedutivelPecas = 0;
         var ivaDedutivelDespesas = 0;
+        IReadOnlyList<IvaDeducaoLinhaDto> comprasStockDetalhe = Array.Empty<IvaDeducaoLinhaDto>();
+        IReadOnlyList<IvaDeducaoLinhaDto> despesasOpExDetalhe = Array.Empty<IvaDeducaoLinhaDto>();
         if (tenant.RegimeFiscal != RegimeFiscal.IsentoArt53)
         {
             var pecasCustoComIva = await _repo.SumPecasCustoComIvaAsync(from, to, ct);
             var despesasComIva = await _repo.SumDespesasComIvaAsync(from, to, ct);
             ivaDedutivelPecas = (int)Math.Round(pecasCustoComIva * 23.0 / 123.0);
             ivaDedutivelDespesas = (int)Math.Round(despesasComIva * 23.0 / 123.0);
+
+            // Sprint 180: drill-down detalhe.
+            var compras = await _repo.ListComprasStockAsync(from, to, ct);
+            var opex = await _repo.ListDespesasOpExAsync(from, to, ct);
+            comprasStockDetalhe = compras.Select(l => new IvaDeducaoLinhaDto(
+                l.Data, l.Descricao, l.Fornecedor, l.Origem, l.ValorComIvaCents, l.IvaCents)).ToList();
+            despesasOpExDetalhe = opex.Select(l => new IvaDeducaoLinhaDto(
+                l.Data, l.Descricao, l.Fornecedor, l.Origem, l.ValorComIvaCents, l.IvaCents)).ToList();
         }
         var ivaDedutivelTotal = ivaCompras + ivaDedutivelPecas + ivaDedutivelDespesas;
 
@@ -84,7 +94,9 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
             Math.Max(0, ivaLiquidado - ivaDedutivelTotal),
             prevDocs.Sum(d => d.BaseCents),
             prevDocs.Sum(d => d.IvaCents),
-            docs);
+            docs,
+            comprasStockDetalhe,
+            despesasOpExDetalhe);
     }
 
     public async Task<byte[]> ExportIvaCsvAsync(int ano, int trimestre, int ivaComprasCents = 0, CancellationToken ct = default)

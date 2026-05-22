@@ -1,5 +1,15 @@
 import { api } from '../api';
 
+/** Sprint 180: linha individual para drill-down (PartMovimento Entrada ou Despesa). */
+export interface IvaDeducaoLinha {
+  data: string;
+  descricao: string;
+  fornecedor: string | null;
+  origem: 'stock-entrada' | 'despesa-pecas' | 'despesa-opex';
+  valorComIvaCents: number;
+  ivaCents: number;
+}
+
 export interface RelatorioIvaDocumento {
   id: string;
   tipo: string;
@@ -27,6 +37,10 @@ export interface RelatorioIvaResponse {
   ivaDedutivelPecasCents: number;
   /** Sprint 176: auto — IVA das Despesas OpEx (IsCogs=false) no período. */
   ivaDedutivelDespesasCents: number;
+  /** Sprint 180: drill-down — linhas individuais que somam para 'Compras stock'. */
+  comprasStockDetalhe: IvaDeducaoLinha[];
+  /** Sprint 180: drill-down — linhas individuais 'Despesas operacionais'. */
+  despesasOpExDetalhe: IvaDeducaoLinha[];
   /** Soma das 3 fontes. */
   ivaDedutivelTotalCents: number;
   // === A entregar ===

@@ -113,6 +113,86 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .SumAsync(d => d.ValorCents, ct);
     }
 
+    /// <summary>
+    /// Sprint 180: detalhe das compras stock — PartMovimento Entrada + Despesas Peças/Material.
+    /// Cada linha já com IVA extraído (× 23/123). Util para drill-down UI.
+    /// </summary>
+    public async Task<IReadOnlyList<IvaDeducaoLinha>> ListComprasStockAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        var partsEntrada = await _db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.Quantidade > 0
+                && m.CreatedAt >= fromUtc && m.CreatedAt < toUtc
+                && m.Motivo == Core.Enums.PartMovimentoMotivo.Entrada
+                && m.Part != null)
+            .Select(m => new
+            {
+                m.CreatedAt,
+                Descricao = m.Part!.Nome,
+                m.Quantidade,
+                CustoUnit = m.Part.CustoUnitarioCents,
+            })
+            .ToListAsync(ct);
+
+        var despesasPecas = await _db.Despesas
+            .AsNoTracking()
+            .Where(d => d.Data >= fromUtc && d.Data < toUtc
+                && !d.IsCogs
+                && (d.Categoria == Core.Enums.DespesaCategoria.Pecas
+                 || d.Categoria == Core.Enums.DespesaCategoria.Material))
+            .Select(d => new { d.Data, d.Descricao, d.Fornecedor, d.ValorCents })
+            .ToListAsync(ct);
+
+        var result = new List<IvaDeducaoLinha>(partsEntrada.Count + despesasPecas.Count);
+        foreach (var p in partsEntrada)
+        {
+            var valor = p.Quantidade * p.CustoUnit;
+            var iva = (int)Math.Round(valor * 23.0 / 123.0);
+            result.Add(new IvaDeducaoLinha(p.CreatedAt, $"{p.Descricao} ({p.Quantidade}× a {p.CustoUnit / 100m:0.00}€)", null, "stock-entrada", valor, iva));
+        }
+        foreach (var d in despesasPecas)
+        {
+            var iva = (int)Math.Round(d.ValorCents * 23.0 / 123.0);
+            result.Add(new IvaDeducaoLinha(d.Data, d.Descricao, d.Fornecedor, "despesa-pecas", d.ValorCents, iva));
+        }
+        return result.OrderByDescending(l => l.Data).ToList();
+    }
+
+    /// <summary>
+    /// Sprint 180: detalhe das despesas operacionais (não-Peças/Material, não-IsCogs) para drill-down.
+    /// </summary>
+    public async Task<IReadOnlyList<IvaDeducaoLinha>> ListDespesasOpExAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        var reparacoesPagasIds = await _db.Reparacoes
+            .Where(r => r.EntregueEm != null && r.EntregueEm >= fromUtc && r.EntregueEm < toUtc
+                && (r.EstadoPagamento == PaymentStatus.Pago || r.EstadoPagamento == PaymentStatus.PagoParcial))
+            .Select(r => r.Id)
+            .ToListAsync(ct);
+        var trabalhosPagosIds = await _db.Trabalhos
+            .Where(t => t.Status == TrabalhoStatus.Concluido
+                && t.DataConclusao != null && t.DataConclusao >= fromUtc && t.DataConclusao < toUtc
+                && (t.EstadoPagamento == PaymentStatus.Pago || t.EstadoPagamento == PaymentStatus.PagoParcial))
+            .Select(t => t.Id)
+            .ToListAsync(ct);
+
+        var despesas = await _db.Despesas
+            .AsNoTracking()
+            .Where(d => d.Data >= fromUtc && d.Data < toUtc
+                && !d.IsCogs
+                && d.Categoria != Core.Enums.DespesaCategoria.Pecas
+                && d.Categoria != Core.Enums.DespesaCategoria.Material
+                && ((d.ReparacaoId != null && reparacoesPagasIds.Contains(d.ReparacaoId.Value))
+                 || (d.TrabalhoId != null && trabalhosPagosIds.Contains(d.TrabalhoId.Value))
+                 || (d.ReparacaoId == null && d.TrabalhoId == null)))
+            .Select(d => new { d.Data, d.Descricao, d.Fornecedor, d.ValorCents })
+            .OrderByDescending(d => d.Data)
+            .ToListAsync(ct);
+
+        return despesas.Select(d => new IvaDeducaoLinha(
+            d.Data, d.Descricao, d.Fornecedor, "despesa-opex", d.ValorCents,
+            (int)Math.Round(d.ValorCents * 23.0 / 123.0))).ToList();
+    }
+
     public async Task<IReadOnlyList<RelatorioFiscalDocumentoRow>> ListDocumentosAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
     {
         var reparacoes = await _db.Reparacoes

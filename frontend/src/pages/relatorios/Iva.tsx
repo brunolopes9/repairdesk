@@ -4,7 +4,7 @@ import { Download, FileText, ReceiptText } from 'lucide-react';
 import { Button, EmptyState, PageHeader, SkeletonCard, SkeletonTable } from '../../components/ui';
 import { downloadFile, openPdfInNewTab } from '../../lib/downloadPdf';
 import { formatCents, parseEuros } from '../../lib/money';
-import { relatoriosApi, type RelatorioIvaDocumento } from '../../lib/relatorios/api';
+import { relatoriosApi, type RelatorioIvaDocumento, type IvaDeducaoLinha } from '../../lib/relatorios/api';
 
 const QUARTERS = [1, 2, 3, 4] as const;
 const PAGE_SIZE = 20;
@@ -131,12 +131,29 @@ export default function RelatorioIva() {
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <KpiSmall title="Compras de stock (auto)" value={report.data.ivaDedutivelPecasCents}
-                  hint="IVA pago nas peças que entraram em stock no período (PartMovimento Entrada)" />
+                  hint="IVA pago em peças/material comprados no período (clica para detalhe)" />
                 <KpiSmall title="Despesas operacionais (auto)" value={report.data.ivaDedutivelDespesasCents}
-                  hint="IVA das despesas overhead (rent, ferramentas, …) imputadas a trabalhos pagos ou sem imputação" />
+                  hint="IVA de despesas overhead (rent, ferramentas, …) — clica para detalhe" />
                 <KpiSmall title="Compras manuais (input)" value={report.data.ivaComprasCents}
                   hint="Campo acima — fornecedores fora do RepairDesk (ex: portes pagos por fora)" />
               </div>
+
+              {/* Sprint 180: drill-down — Bruno consegue ver de onde vem cada cêntimo. */}
+              {(report.data.comprasStockDetalhe.length > 0 || report.data.despesasOpExDetalhe.length > 0) && (
+                <details className="mt-3 rounded-lg border border-emerald-200 bg-white p-3 dark:border-emerald-900/40 dark:bg-zinc-900">
+                  <summary className="cursor-pointer text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                    🔍 Ver detalhe das compras + despesas ({report.data.comprasStockDetalhe.length + report.data.despesasOpExDetalhe.length} linhas)
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {report.data.comprasStockDetalhe.length > 0 && (
+                      <DeducaoTable title="Compras de stock" rows={report.data.comprasStockDetalhe} />
+                    )}
+                    {report.data.despesasOpExDetalhe.length > 0 && (
+                      <DeducaoTable title="Despesas operacionais" rows={report.data.despesasOpExDetalhe} />
+                    )}
+                  </div>
+                </details>
+              )}
               <div className="mt-3 rounded bg-emerald-100/60 px-3 py-2 text-sm dark:bg-emerald-900/30">
                 <strong>Total dedutível:</strong> {formatCents(report.data.ivaDedutivelTotalCents)}
               </div>
@@ -186,6 +203,51 @@ export default function RelatorioIva() {
           )}
         </>
       ) : null}
+    </div>
+  );
+}
+
+/** Sprint 180: tabela de drill-down — lista linhas que somam para um KPI. */
+function DeducaoTable({ title, rows }: { title: string; rows: IvaDeducaoLinha[] }) {
+  const totalIva = rows.reduce((s, r) => s + r.ivaCents, 0);
+  const originLabel: Record<IvaDeducaoLinha['origem'], string> = {
+    'stock-entrada': 'Stock',
+    'despesa-pecas': 'Despesa peça',
+    'despesa-opex': 'OpEx',
+  };
+  return (
+    <div className="overflow-x-auto rounded border border-zinc-200 bg-zinc-50/50 p-2 text-xs dark:border-zinc-700 dark:bg-zinc-950/50">
+      <div className="mb-1 flex items-center justify-between px-1">
+        <strong className="text-zinc-700 dark:text-zinc-300">{title}</strong>
+        <span className="font-mono text-emerald-700 dark:text-emerald-300">{formatCents(totalIva)} IVA</span>
+      </div>
+      <table className="w-full">
+        <thead className="text-[10px] uppercase text-zinc-500">
+          <tr>
+            <th className="px-1 py-1 text-left">Data</th>
+            <th className="px-1 py-1 text-left">Descrição</th>
+            <th className="px-1 py-1 text-left">Origem</th>
+            <th className="px-1 py-1 text-right">Total c/IVA</th>
+            <th className="px-1 py-1 text-right">IVA</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <td className="px-1 py-1 whitespace-nowrap text-zinc-500">{new Date(r.data).toLocaleDateString('pt-PT')}</td>
+              <td className="px-1 py-1">
+                <span className="font-medium">{r.descricao}</span>
+                {r.fornecedor && <span className="ml-1 text-zinc-500">· {r.fornecedor}</span>}
+              </td>
+              <td className="px-1 py-1">
+                <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] dark:bg-zinc-800">{originLabel[r.origem]}</span>
+              </td>
+              <td className="px-1 py-1 text-right font-mono tabular-nums">{formatCents(r.valorComIvaCents)}</td>
+              <td className="px-1 py-1 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-300">{formatCents(r.ivaCents)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

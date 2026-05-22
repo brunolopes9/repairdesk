@@ -18,7 +18,27 @@ public interface IRelatorioFiscalRepository
     /// PAGOS no período + despesas overhead (sem trabalho associado, ex: renda, internet).
     /// </summary>
     Task<int> SumDespesasComIvaAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 180: detalhe das compras de stock (PartMovimento Entrada + Despesas Peças/Material)
+    /// para drill-down UI.
+    /// </summary>
+    Task<IReadOnlyList<IvaDeducaoLinha>> ListComprasStockAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 180: detalhe das despesas operacionais (Despesas excepto Peças/Material e excepto IsCogs)
+    /// para drill-down UI.
+    /// </summary>
+    Task<IReadOnlyList<IvaDeducaoLinha>> ListDespesasOpExAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 }
+
+public sealed record IvaDeducaoLinha(
+    DateTime Data,
+    string Descricao,
+    string? Fornecedor,
+    string Origem,
+    int ValorComIvaCents,
+    int IvaCents);
 
 public sealed record RelatorioFiscalDocumentoRow(
     Guid Id,
