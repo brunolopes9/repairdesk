@@ -456,8 +456,9 @@ public class DashboardRepository : IDashboardRepository
             .Take(50)
             .ToListAsync(ct);
 
+        // Sprint 176: exclui IsCogs (peças consumidas em reparações já contadas via PartMovimento).
         var despesasOrfas = await _db.Despesas
-            .Where(d => d.TrabalhoId == null && d.ReparacaoId == null)
+            .Where(d => d.TrabalhoId == null && d.ReparacaoId == null && !d.IsCogs)
             .OrderByDescending(d => d.Data)
             .Select(d => new DespesaOrfaRow(
                 d.Id,

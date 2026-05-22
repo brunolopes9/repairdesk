@@ -52,26 +52,23 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
     }
 
     /// <summary>
-    /// Sprint 159: soma o custo com IVA das peças do stock consumidas em reparações pagas
-    /// no período. O IVA dedutível desta soma calcula-se externamente (cents × 23/123).
+    /// Sprint 176: soma o custo com IVA das peças COMPRADAS (entrada em stock) no período.
+    /// Fiscalmente correcto em PT — IVA é dedutível na compra, não no consumo.
+    /// Anterior (Sprint 159) somava consumo em reparações pagas, o que duplicava IVA
+    /// quando a mesma peça era importada como Despesa overhead + consumida via PartMovimento.
     /// </summary>
     public async Task<int> SumPecasCustoComIvaAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
     {
-        // Reparações pagas entregues no período.
-        var reparacoesPagasIds = await _db.Reparacoes
-            .Where(r => r.EntregueEm != null && r.EntregueEm >= fromUtc && r.EntregueEm < toUtc
-                && (r.EstadoPagamento == PaymentStatus.Pago || r.EstadoPagamento == PaymentStatus.PagoParcial))
-            .Select(r => r.Id)
-            .ToListAsync(ct);
-        if (reparacoesPagasIds.Count == 0) return 0;
-
-        // PartMovimentos.Quantidade é negativa para UsoEmReparacao, positiva para Devolucao.
-        // -Sum(qty) dá o consumo líquido. CustoUnitarioCents inclui IVA da compra.
+        // PartMovimentos com Quantidade > 0 = entrada em stock (compra a fornecedor).
+        // CreatedAt = data do registo do movimento (= data da compra para Entradas vindas
+        // de SupplierInvoiceImport ou input manual).
         var custo = await _db.PartMovimentos
             .AsNoTracking()
-            .Where(m => m.ReparacaoId != null && reparacoesPagasIds.Contains(m.ReparacaoId.Value))
+            .Where(m => m.Quantidade > 0
+                && m.CreatedAt >= fromUtc && m.CreatedAt < toUtc
+                && m.Motivo == Core.Enums.PartMovimentoMotivo.Entrada)
             .GroupBy(m => 1)
-            .Select(g => g.Sum(m => -m.Quantidade * (m.Part != null ? m.Part.CustoUnitarioCents : 0)))
+            .Select(g => g.Sum(m => m.Quantidade * (m.Part != null ? m.Part.CustoUnitarioCents : 0)))
             .FirstOrDefaultAsync(ct);
         return custo;
     }
@@ -94,8 +91,12 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .Select(t => t.Id)
             .ToListAsync(ct);
 
+        // Sprint 176: filtra IsCogs=false — Despesas marcadas como COGS (peça consumida)
+        // não contam aqui porque já estão contadas via PartMovimento Entrada em
+        // SumPecasCustoComIvaAsync. Evita duplicação IVA dedutível.
         return await _db.Despesas
             .Where(d => d.Data >= fromUtc && d.Data < toUtc
+                && !d.IsCogs
                 && ((d.ReparacaoId != null && reparacoesPagasIds.Contains(d.ReparacaoId.Value))
                  || (d.TrabalhoId != null && trabalhosPagosIds.Contains(d.TrabalhoId.Value))
                  || (d.ReparacaoId == null && d.TrabalhoId == null)))  // overhead
