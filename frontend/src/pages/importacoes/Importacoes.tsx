@@ -234,7 +234,7 @@ export default function Importacoes() {
           <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
             Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
           </p>
-          <ImportsTable data={failed} onPdf={openPdf} onApprove={setApproveTarget} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+          <ImportsTable data={failed} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
         </section>
       )}
 
@@ -266,7 +266,7 @@ export default function Importacoes() {
                 Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
               </div>
             ) : ready.length > 0 ? (
-              <ImportsTable data={ready} onPdf={openPdf} onApprove={setApproveTarget} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+              <ImportsTable data={ready} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
             ) : null
           ) : (
             history.isLoading ? (
@@ -340,11 +340,10 @@ export default function Importacoes() {
 }
 
 function ImportsTable({
-  data, onPdf, onApprove, onApproveStock, onReject,
+  data, onPdf, onApproveStock, onReject,
 }: {
   data: SupplierInvoiceImport[];
   onPdf: (id: string) => void;
-  onApprove: (x: SupplierInvoiceImport) => void;
   onApproveStock: (x: SupplierInvoiceImport) => void;
   onReject: (x: SupplierInvoiceImport) => void;
 }) {
@@ -363,7 +362,7 @@ function ImportsTable({
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {data.map((x) => (
-            <ImportRow key={x.id} x={x} onPdf={onPdf} onApprove={onApprove} onApproveStock={onApproveStock} onReject={onReject} />
+            <ImportRow key={x.id} x={x} onPdf={onPdf} onApproveStock={onApproveStock} onReject={onReject} />
           ))}
         </tbody>
       </table>
@@ -372,11 +371,10 @@ function ImportsTable({
 }
 
 function ImportRow({
-  x, onPdf, onApprove, onApproveStock, onReject,
+  x, onPdf, onApproveStock, onReject,
 }: {
   x: SupplierInvoiceImport;
   onPdf: (id: string) => void;
-  onApprove: (x: SupplierInvoiceImport) => void;
   onApproveStock: (x: SupplierInvoiceImport) => void;
   onReject: (x: SupplierInvoiceImport) => void;
 }) {
@@ -398,17 +396,17 @@ function ImportRow({
             <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
               <FileText size={14} />
             </button>
+            {/* Sprint 181: 1 botão único 'Aprovar'. Modal classifica items automáticamente
+                (stock/despesa/skip) e Bruno só override se necessário. Removido o '🧾 Despesa
+                overhead' que duplicava IVA no relatório. */}
             <button
               type="button"
               onClick={() => onApproveStock(x)}
-              className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
-              title="Aprovar e adicionar items ao stock (Parts)"
+              className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 flex items-center gap-1"
+              title="Revê items e confirma — sistema classifica automáticamente"
               disabled={!x.items || x.items.length === 0}
             >
-              📦 Stock
-            </button>
-            <button type="button" onClick={() => onApprove(x)} className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700" title="Aprovar e criar Despesa overhead">
-              <CheckCircle2 size={14} />
+              <CheckCircle2 size={14} /> Aprovar
             </button>
             <button type="button" onClick={() => onReject(x)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800/40 dark:bg-zinc-900 dark:text-rose-300" title="Rejeitar">
               <XCircle size={14} />
@@ -683,16 +681,17 @@ function ApproveStockModal({
   }
 
   const validItems = items.filter((x) => x.action !== 'skip');
-  // Sprint 163d: SKU agora opcional — backend auto-gera se vazio (igual a /stock).
+  // Sprint 163d+181: SKU opcional (auto-gera no backend) + suporte despesa (não exige Part).
   const canSubmit = validItems.length > 0
     && validItems.every((x) =>
       (x.action === 'existing' && x.existingPartId)
-      || (x.action === 'new' && (x.newName ?? '').trim().length > 0));
+      || (x.action === 'new' && (x.newName ?? '').trim().length > 0)
+      || x.action === 'despesa');
 
   return (
     <Modal
       open
-      title={`Aprovar como Stock — ${target.fornecedorName ?? 'fornecedor'}`}
+      title={`Confirmar importação — ${target.fornecedorName ?? 'fornecedor'}`}
       onClose={onClose}
       footer={<>
         <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">Cancelar</button>
@@ -702,15 +701,15 @@ function ApproveStockModal({
           onClick={() => onSubmit(items)}
           className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
         >
-          {submitting ? 'A criar…' : `Aprovar ${validItems.length} item(s) como stock`}
+          {submitting ? 'A confirmar…' : `Confirmar ${validItems.length} item(s)`}
         </button>
       </>}
     >
       <div className="space-y-3 text-sm">
         <p className="text-xs text-zinc-500">
-          Para cada item, escolhe se criar uma Part nova ou ligar a uma existente.
-          O custo unitário é calculado do lineTotal/qty da fatura — actualiza Part.CustoUnitario
-          (última compra prevalece) e cria PartMovimento Entrada.
+          Cada linha tem classificação automática (Stock / Despesa / Skip). Revê o dropdown
+          e ajusta se necessário. Stock cria PartMovimento Entrada (entra no inventário);
+          Despesa cria Despesa avulsa Categoria=Peças (não vai para stock).
         </p>
         <ul className="space-y-3">
           {items.map((it, i) => {
@@ -745,12 +744,13 @@ function ApproveStockModal({
                   </div>
                   <select
                     value={it.action}
-                    onChange={(e) => patch(i, { action: e.target.value as 'existing' | 'new' | 'skip' })}
+                    onChange={(e) => patch(i, { action: e.target.value as 'existing' | 'new' | 'despesa' | 'skip' })}
                     className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
                   >
-                    <option value="existing">Ligar a Part existente</option>
-                    <option value="new">Criar Part nova</option>
-                    <option value="skip">Skip (não importar)</option>
+                    <option value="existing">📦 Stock — ligar a Part existente</option>
+                    <option value="new">📦 Stock — criar Part nova</option>
+                    <option value="despesa">🧾 Despesa avulsa (não cria stock)</option>
+                    <option value="skip">⊘ Skip (não importar)</option>
                   </select>
                 </div>
 

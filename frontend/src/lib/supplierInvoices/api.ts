@@ -45,8 +45,8 @@ export interface ApproveSupplierInvoiceRequest {
   notas: string | null;
 }
 
-// Sprint 160b: aprovar items como Stock (cria Parts + PartMovimento).
-export type ApproveAsStockAction = 'existing' | 'new' | 'skip';
+// Sprint 160b + 181: aprovar items — Stock (cria Parts + PartMovimento) ou Despesa avulsa.
+export type ApproveAsStockAction = 'existing' | 'new' | 'despesa' | 'skip';
 
 export interface ApproveAsStockItem {
   description: string;

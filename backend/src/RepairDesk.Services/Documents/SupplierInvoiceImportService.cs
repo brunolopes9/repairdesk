@@ -69,7 +69,8 @@ public sealed record ApproveAsStockItem(
     string Description,
     int Quantity,
     int UnitCostCents,
-    /// <summary>"existing" | "new" | "skip".</summary>
+    /// <summary>Sprint 181: "existing" | "new" | "despesa" | "skip".
+    /// "despesa" = não entra em stock, cria Despesa Categoria=Pecas (compra avulsa).</summary>
     string Action,
     Guid? ExistingPartId,
     string? NewSku,
@@ -822,9 +823,30 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         var newParts = 0;
         var notas = $"Compra fornecedor {entity.Fornecedor?.Name ?? entity.FornecedorNameRaw ?? "?"} doc {entity.ParsedDocumentNumber ?? "?"}";
 
+        var despesasCriadas = 0;
         foreach (var item in req.Items)
         {
             if (string.Equals(item.Action, "skip", StringComparison.OrdinalIgnoreCase)) continue;
+
+            // Sprint 181: action="despesa" cria Despesa avulsa (sem PartMovimento).
+            // Para itens que NÃO entram em inventário (ferramentas, serviços, portes pagos
+            // ou peças usadas directamente sem passar por stock).
+            if (string.Equals(item.Action, "despesa", StringComparison.OrdinalIgnoreCase))
+            {
+                await _despesas.CreateAsync(new Despesas.CreateDespesaRequest(
+                    Descricao: item.Description.Length > 200 ? item.Description[..200] : item.Description,
+                    Categoria: DespesaCategoria.Pecas,
+                    ValorCents: item.Quantity * item.UnitCostCents,
+                    Data: entity.ParsedDocumentDate ?? DateTime.UtcNow,
+                    Fornecedor: entity.Fornecedor?.Name ?? entity.FornecedorNameRaw,
+                    NumeroEncomenda: entity.ParsedDocumentNumber,
+                    Notas: notas,
+                    TrabalhoId: null,
+                    ReparacaoId: null,
+                    IsCogs: false), ct);
+                despesasCriadas++;
+                continue;
+            }
 
             Part part;
             if (string.Equals(item.Action, "existing", StringComparison.OrdinalIgnoreCase))
@@ -867,7 +889,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             }
             else
             {
-                throw new ValidationException("invalid_action", $"Action '{item.Action}' inválida — usa existing/new/skip.");
+                throw new ValidationException("invalid_action", $"Action '{item.Action}' inválida — usa existing/new/despesa/skip.");
             }
 
             // PartMovimento Entrada (compra a fornecedor).
