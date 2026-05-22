@@ -28,6 +28,7 @@ import {
   Search,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
+import PwaStatus from './PwaStatus';
 import HealthIndicator from './HealthIndicator';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
 import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Theme } from '../lib/theme';
@@ -169,6 +170,9 @@ export default function Layout() {
           </div>
         </div>
       </main>
+
+      {/* Sprint 194: PWA Fase 1 — indicador offline + botão instalar. */}
+      <PwaStatus />
 
       {/* Bottom nav (mobile) */}
       <nav
