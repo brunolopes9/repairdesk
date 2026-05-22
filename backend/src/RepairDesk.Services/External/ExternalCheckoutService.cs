@@ -56,8 +56,26 @@ public sealed record ExternalProductDto(
     string? SeoTitle,
     string? SeoDescription,
     string? SupplierName,
+    /// <summary>Sprint 122 (back-compat): array de URLs originais. Lojas novas devem usar Images com sizes/blur.</summary>
     IReadOnlyList<string> ImageUrls,
+    /// <summary>Sprint 189: imagens com pipeline SEO (sizes WebP + blur LQIP + alt + dimensões).
+    /// Quando Sizes != null: produto tem versões optimizadas. Quando null: imagem legacy só com Url original.</summary>
+    IReadOnlyList<ExternalProductImageDto> Images,
     DateTime UpdatedAt);
+
+/// <summary>Sprint 189: imagem rica com sizes para &lt;picture&gt; srcset + LQIP placeholder.</summary>
+public sealed record ExternalProductImageDto(
+    string Url,
+    string? Alt,
+    ExternalProductImageSizes? Sizes,
+    string? BlurDataUrl,
+    int? Width,
+    int? Height);
+
+public sealed record ExternalProductImageSizes(
+    string Webp480w,
+    string Webp1024w,
+    string Webp2048w);
 
 /// <summary>Resposta do health check — usada por integradores para clock skew e confirmação do tenant.</summary>
 public sealed record ExternalHealthResponse(
@@ -295,6 +313,15 @@ public class ExternalCheckoutService : IExternalCheckoutService
         SeoTitle: p.SeoTitle, SeoDescription: p.SeoDescription,
         SupplierName: p.Fornecedor?.Name,
         ImageUrls: p.Images.OrderBy(i => i.Ordem).Select(i => i.Url).ToList(),
+        Images: p.Images.OrderBy(i => i.Ordem).Select(i => new ExternalProductImageDto(
+            Url: i.Url,
+            Alt: i.Alt,
+            Sizes: i.Url480w is not null && i.Url1024w is not null && i.Url2048w is not null
+                ? new ExternalProductImageSizes(i.Url480w, i.Url1024w, i.Url2048w)
+                : null,
+            BlurDataUrl: i.BlurDataUrl,
+            Width: i.Width,
+            Height: i.Height)).ToList(),
         UpdatedAt: p.UpdatedAt ?? p.CreatedAt);
 
     public async Task<ExternalClienteHistoricoResponse?> GetHistoricoByNifAsync(string nif, CancellationToken ct = default)
