@@ -547,6 +547,25 @@ export default function ReparacaoDetalhe() {
           </button>
         )}
         <p className="text-xs text-zinc-500">recebido {formatDate(r.recebidoEm)}</p>
+        {/* Sprint 229: copiar link público para cliente (partilhar via WhatsApp/SMS). */}
+        {r.publicSlug && (
+          <button
+            type="button"
+            onClick={async () => {
+              const url = `${window.location.origin}/r/${r.publicSlug}`;
+              try {
+                await navigator.clipboard.writeText(url);
+                toast.success('Link copiado!', url);
+              } catch {
+                toast.fromError(new Error(url), 'Copia manualmente');
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50/50 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50 dark:border-brand-800/60 dark:bg-brand-950/30 dark:text-brand-300"
+            title="Copiar link público para enviar ao cliente"
+          >
+            📋 Copiar link cliente
+          </button>
+        )}
         <div className="flex flex-wrap gap-2 pt-1">
           {/* Sprint 141: o orçamento informativo do Mender foi descontinuado.
               Usa-se Moloni como fonte de orçamento oficial (botão "Emitir Orçamento Moloni" /

@@ -114,6 +114,8 @@ export interface Reparacao {
   custoDespesasCents: number;
   notas: string | null;
   estadoPagamento: PaymentStatus;
+  /** Sprint 229: slug público para portal cliente (/r/{slug}) — sempre presente. */
+  publicSlug: string | null;
   invoiceProvider: 0 | 1 | 2;
   invoiceExternalId: string | null;
   invoicePdfUrl: string | null;
