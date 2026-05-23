@@ -4,6 +4,7 @@ using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.EquipmentFields;
+using RepairDesk.Services.TenantPreferences;
 
 namespace RepairDesk.Services.PublicPortal;
 
@@ -25,6 +26,7 @@ public class PublicPortalService : IPublicPortalService
     private readonly IReparacaoFotoRepository _fotos;
     private readonly IEquipmentFieldService _equipmentFields;
     private readonly IVendaRepository _vendas;
+    private readonly ITenantPreferencesService _preferences;
 
     public PublicPortalService(
         IReparacaoRepository repo,
@@ -34,7 +36,8 @@ public class PublicPortalService : IPublicPortalService
         IAvaliacaoRepository avaliacoes,
         IReparacaoFotoRepository fotos,
         IEquipmentFieldService equipmentFields,
-        IVendaRepository vendas)
+        IVendaRepository vendas,
+        ITenantPreferencesService preferences)
     {
         _repo = repo;
         _tenants = tenants;
@@ -44,6 +47,7 @@ public class PublicPortalService : IPublicPortalService
         _fotos = fotos;
         _equipmentFields = equipmentFields;
         _vendas = vendas;
+        _preferences = preferences;
     }
 
     public async Task<PublicGarantiaDto> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default)
@@ -129,7 +133,9 @@ public class PublicPortalService : IPublicPortalService
             throw new ConflictException("ja_avaliado", "Esta reparação já foi avaliada.");
 
         var tenant = await _tenants.FindByIdAsync(rep.TenantId, ct);
-        var dirigirGoogle = score >= 4 && !string.IsNullOrWhiteSpace(tenant?.GoogleReviewUrl);
+        var prefs = await _preferences.GetForTenantAsync(rep.TenantId, ct);
+        var googleReviewUrl = prefs.Portal.GoogleReviewUrl ?? tenant?.GoogleReviewUrl;
+        var dirigirGoogle = score >= prefs.Portal.GoogleReviewMinScore && !string.IsNullOrWhiteSpace(googleReviewUrl);
 
         var avaliacao = new Avaliacao
         {
@@ -143,7 +149,7 @@ public class PublicPortalService : IPublicPortalService
         await _avaliacoes.AddAsync(avaliacao, ct);
         await _avaliacoes.SaveAsync(ct);
 
-        return new AvaliacaoSubmittedDto(score, avaliacao.Comentario, dirigirGoogle ? tenant!.GoogleReviewUrl : null);
+        return new AvaliacaoSubmittedDto(score, avaliacao.Comentario, dirigirGoogle ? googleReviewUrl : null);
     }
 
     public async Task<PublicRepairDto> GetBySlugAsync(string slug, CancellationToken ct = default)
@@ -153,6 +159,7 @@ public class PublicPortalService : IPublicPortalService
 
         var rep = await _repo.FindByPublicSlugWithTimelineAsync(slug, ct)
             ?? throw new NotFoundException("Reparacao", slug);
+        var prefs = await _preferences.GetForTenantAsync(rep.TenantId, ct);
 
         // Compliance: não revelar reparações > 2 anos
         if (rep.RecebidoEm() < DateTime.UtcNow.AddYears(-2))
@@ -165,7 +172,7 @@ public class PublicPortalService : IPublicPortalService
         var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
         var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
         var cobertura = await ResolveCoberturaGarantiaAsync(rep, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura);
+        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura, prefs.Portal);
     }
 
     /// <summary>
@@ -196,6 +203,10 @@ public class PublicPortalService : IPublicPortalService
     {
         var rep = await _repo.FindByPublicSlugWithTimelineAsync(slug, ct)
             ?? throw new NotFoundException("Reparacao", slug);
+        var prefs = await _preferences.GetForTenantAsync(rep.TenantId, ct);
+
+        if (!prefs.Portal.PermitirAprovarOrcamento)
+            throw new ForbiddenException("orcamento_aprovacao_desactivada", "A aprovacao online de orcamentos esta desactivada nesta loja.");
 
         if (rep.OrcamentoCents is null)
             throw new ConflictException("sem_orcamento", "Esta reparação não tem orçamento para aprovar.");
@@ -217,7 +228,7 @@ public class PublicPortalService : IPublicPortalService
         var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
         var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
         var cobertura = await ResolveCoberturaGarantiaAsync(rep, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura);
+        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura, prefs.Portal);
     }
 
     private static PublicRepairDto ToDto(
@@ -228,7 +239,8 @@ public class PublicPortalService : IPublicPortalService
         bool jaAvaliado,
         IReadOnlyList<ReparacaoFoto> fotos,
         IReadOnlyList<EquipmentFieldValueDto> campos,
-        PublicCoberturaGarantia? cobertura)
+        PublicCoberturaGarantia? cobertura,
+        PortalPrefs portal)
     {
         var primeiroNome = rep.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente";
         var loja = new PublicLoja(
@@ -238,15 +250,17 @@ public class PublicPortalService : IPublicPortalService
             tenant?.Website,
             tenant?.LogoUrl);
 
-        var timeline = rep.Timeline
-            .OrderBy(t => t.MudouEm)
-            .Select(t => new PublicTimelineEntry(PublicEstadoMapper.From(t.EstadoTo), t.MudouEm))
-            .ToList();
+        var timeline = portal.MostrarTimeline
+            ? rep.Timeline
+                .OrderBy(t => t.MudouEm)
+                .Select(t => new PublicTimelineEntry(PublicEstadoMapper.From(t.EstadoTo), t.MudouEm))
+                .ToList()
+            : [];
 
         // Diagnóstico só exposto se está completado (caso contrário pode confundir cliente)
         int? healthScore = null;
         var destaques = new List<string>();
-        if (diag is not null && diag.CompletadoEm.HasValue)
+        if (portal.MostrarDiagnostico && diag is not null && diag.CompletadoEm.HasValue)
         {
             healthScore = diag.Score;
             destaques = diag.Items
@@ -261,28 +275,30 @@ public class PublicPortalService : IPublicPortalService
             Slug: rep.PublicSlug!,
             EquipamentoPublico: rep.Equipamento,
             AvariaPublica: rep.Avaria,
-            Diagnostico: rep.Diagnostico,
+            Diagnostico: portal.MostrarDiagnostico ? rep.Diagnostico : null,
             Estado: PublicEstadoMapper.From(rep.Estado),
             EstadoSince: rep.EstadoSince,
             RecebidoEm: rep.RecebidoEm(),
             EntregueEm: rep.EntregueEm,
-            OrcamentoCents: rep.OrcamentoCents,
-            OrcamentoAprovado: rep.OrcamentoAprovado,
-            TemPrecoFinal: rep.PrecoFinalCents.HasValue,
-            PrecoFinalCents: rep.PrecoFinalCents,
+            OrcamentoCents: portal.MostrarOrcamento ? rep.OrcamentoCents : null,
+            OrcamentoAprovado: portal.MostrarOrcamento && rep.OrcamentoAprovado,
+            TemPrecoFinal: portal.MostrarOrcamento && rep.PrecoFinalCents.HasValue,
+            PrecoFinalCents: portal.MostrarOrcamento ? rep.PrecoFinalCents : null,
             Loja: loja,
             ClientePrimeiroNome: primeiroNome,
             Timeline: timeline,
             HealthScore: healthScore,
             DiagnosticoDestaques: destaques,
-            GarantiaSlug: garantia?.Slug,
-            JaAvaliado: jaAvaliado,
-            Fotos: fotos.Select(f => new PublicFotoDto(f.Id, (int)f.Tipo, f.Legenda, f.CreatedAt)).ToList(),
+            GarantiaSlug: portal.MostrarGarantia ? garantia?.Slug : null,
+            JaAvaliado: !portal.MostrarAvaliacao || jaAvaliado,
+            Fotos: portal.MostrarFotos
+                ? fotos.Select(f => new PublicFotoDto(f.Id, (int)f.Tipo, f.Legenda, f.CreatedAt)).ToList()
+                : [],
             CamposEquipamento: campos
                 .Where(c => !string.IsNullOrWhiteSpace(c.Value))
                 .Select(c => new PublicEquipmentFieldDto(c.Label, c.Value, c.Ordem))
                 .ToList(),
-            CoberturaGarantia: cobertura);
+            CoberturaGarantia: portal.MostrarGarantia ? cobertura : null);
     }
 }
 
