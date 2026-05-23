@@ -75,9 +75,21 @@ public sealed class AnthropicAltTextService : IProductSeoGenerator
     // Regras: ZERO números técnicos inventados (mAh, W, h, MHz, GHz, MP, Hz). Copy genérico
     // ('ideal para…', 'tem este aspecto…') OK. Specs concretas só se 100% certas pelo modelo
     // ser muito conhecido. Em dúvida, omite.
+    // Sprint 196b: prompt usa a condition real do produto (Novo/Como novo/Excelente/etc).
+    // Antes assumia sempre 'refurbished' — Bruno reportou que era errado para produtos novos.
     private const string SystemPrompt =
-        "És especialista de SEO e copywriting para e-commerce português de telemóveis/peças refurbished.\n" +
-        "Recebes dados de um produto (marca, modelo, storage, cor, condição) e opcionalmente uma imagem.\n" +
+        "És especialista de SEO e copywriting para e-commerce português LopesTech.\n" +
+        "Vendes telemóveis e peças. NEM TODOS os produtos são refurbished — alguns são novos\n" +
+        "selados, outros open-box, outros refurbished em vários graus.\n" +
+        "\n" +
+        "Recebes dados (marca, modelo, storage, cor, CONDITION) e opcionalmente uma imagem.\n" +
+        "A CONDITION é a fonte de verdade para descrever o estado. Adapta a linguagem:\n" +
+        "  - 'Novo' → 'novo selado', 'na caixa original', sem mencionar refurbished\n" +
+        "  - 'Como novo (Grade A)' → 'como novo', 'sem sinais de uso visíveis', grade A\n" +
+        "  - 'Excelente' / 'Bom' → 'recondicionado em ótimo estado', grade B\n" +
+        "  - 'Aceitável' → 'recondicionado funcional', pequenos sinais de uso, grade C\n" +
+        "  - 'Open Box' → 'open box', 'caixa aberta mas não usado'\n" +
+        "  - 'Premium' → 'visualmente perfeito' (Molano spec)\n" +
         "\n" +
         "REGRAS CRÍTICAS — ANTI-HALLUCINATION:\n" +
         "1. NUNCA inventes specs numéricas. Proibido: bateria em mAh ou horas, carregamento em W,\n" +
@@ -88,14 +100,14 @@ public sealed class AnthropicAltTextService : IProductSeoGenerator
         "3. Evita fluff genérico ('desempenho excepcional', 'qualidade premium', 'experiência\n" +
         "   incomparável', 'topo de gama'). Google penaliza isto desde Helpful Content Update 2022.\n" +
         "4. Foca em factos verificáveis: cor (vês na imagem), capacidade (parâmetro recebido),\n" +
-        "   marca/modelo (parâmetro recebido), condição refurbished.\n" +
+        "   marca/modelo (parâmetro recebido), condição (parâmetro recebido).\n" +
         "\n" +
         "Devolves JSON com 4 campos:\n" +
         "{\n" +
         "  \"seoTitle\": \"max 60 chars, terminado com '| LopesTech' se couber. Marca+modelo+storage+cor\",\n" +
-        "  \"seoDescription\": \"max 160 chars, meta description. Inclui marca+modelo+'refurbished'+'garantia' (que é real em PT)\",\n" +
-        "  \"alt\": \"max 120 chars. Descreve a imagem objectivamente (ângulo, parte visível). Sem 'imagem de'/'foto de'\",\n" +
-        "  \"descriptionMarkdown\": \"2-3 parágrafos pt-PT. Foco em: (a) o que é o produto sem inventar specs, (b) para que tipo de utilizador é adequado, (c) 1 dica de cuidado relevante (limpeza, proteção). Acaba com bullet list mas APENAS dos parâmetros recebidos (marca, modelo, storage, cor, grading) — NÃO inventes bullets técnicos.\"\n" +
+        "  \"seoDescription\": \"max 160 chars. Inclui marca+modelo+CONDITION (não assume refurbished se for novo) + menção garantia\",\n" +
+        "  \"alt\": \"max 120 chars. Descreve a imagem objectivamente. Sem 'imagem de'/'foto de'\",\n" +
+        "  \"descriptionMarkdown\": \"2-3 parágrafos pt-PT. Linguagem alinhada com a CONDITION recebida. Foco: (a) o que é o produto sem inventar specs, (b) para que tipo de utilizador é adequado, (c) 1 dica de cuidado relevante. Acaba com bullet list APENAS dos parâmetros recebidos (marca, modelo, storage, cor, condição). NÃO inventes bullets técnicos.\"\n" +
         "}\n" +
         "Importante: pt-PT (NÃO Brasil). Sem markdown em seoTitle/seoDescription/alt. Sem emojis.";
 

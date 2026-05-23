@@ -493,6 +493,15 @@ export default function Produtos() {
                           descriptionMarkdown: form.descriptionMarkdown || r.data.descriptionMarkdown,
                         });
                       } else {
+                        // Sprint 196b: Condition PT label conforme grading (Novo, Como novo, etc).
+                        const gradingLabels: Record<number, string> = {
+                          0: 'Novo (selado)',
+                          1: 'Como novo (Grade A)',
+                          2: 'Excelente (Grade B)',
+                          3: 'Bom (Grade C)',
+                          4: 'Open Box',
+                          5: 'Premium',
+                        };
                         const r = await api.post<{ seoTitle: string; seoDescription: string; descriptionMarkdown: string }>(
                           '/products/preview-seo',
                           {
@@ -500,6 +509,7 @@ export default function Produtos() {
                             model: form.model,
                             storage: form.storage,
                             color: form.color,
+                            condition: gradingLabels[form.grading] ?? null,
                             imageUrl: form.images[0]?.url ?? null,
                           },
                         );

@@ -123,7 +123,7 @@ public class ProductsController : ControllerBase
             Model: product.Model,
             Storage: product.Storage,
             Color: product.Color,
-            Condition: null,
+            Condition: RepairDesk.Services.Products.ProductGradingMapper.ToLabelPt(product.Grading),
             ExtraContext: product.SeoTitle);
 
         var seo = await _seoGen.GenerateAsync(input, imageBytes, imageMime, ct);
@@ -180,7 +180,7 @@ public class ProductsController : ControllerBase
             Model: image.Product.Model,
             Storage: image.Product.Storage,
             Color: image.Product.Color,
-            Condition: null,
+            Condition: RepairDesk.Services.Products.ProductGradingMapper.ToLabelPt(image.Product.Grading),
             ExtraContext: null);
 
         var alt = await _seoGen.GenerateAltAsync(bytes, mimeType, ctx, ct);
@@ -263,7 +263,7 @@ public class ProductsController : ControllerBase
             catch (Exception ex) { _logger.LogWarning(ex, "preview-seo: falhou fetch imagem {Url}", req.ImageUrl); }
         }
 
-        var input = new ProductSeoInput(req.Brand, req.Model, req.Storage, req.Color, null, null);
+        var input = new ProductSeoInput(req.Brand, req.Model, req.Storage, req.Color, req.Condition, null);
         var seo = await _seoGen.GenerateAsync(input, imageBytes, imageMime, ct);
         if (seo is null) return BadRequest(new { code = "llm_unavailable" });
         return Ok(new { seo.SeoTitle, seo.SeoDescription, Alt = seo.Alt, seo.DescriptionMarkdown });
@@ -417,6 +417,8 @@ public sealed record PreviewSeoRequest(
     string Model,
     string? Storage,
     string? Color,
+    /// <summary>Sprint 196b: 'Novo', 'Como novo (Grade A)', 'Excelente', 'Bom', 'Aceitável', 'Open Box', etc. Vem do mapper PT.</summary>
+    string? Condition,
     string? ImageUrl);
 public sealed record MigrateShopRequest(IReadOnlyList<MigrateShopProductRequest> Products);
 public sealed record GenerateSeoResponse(
