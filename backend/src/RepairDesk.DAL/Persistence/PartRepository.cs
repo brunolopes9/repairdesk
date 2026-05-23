@@ -108,13 +108,15 @@ public class PartRepository : IPartRepository
 
     public async Task<IReadOnlyList<ReabastecerSugestao>> ReabastecerSugestoesAsync(int days, CancellationToken ct = default)
     {
-        // Sprint 186: consumo dos últimos N dias por Part. PartMovimento.Quantidade negativa quando consumo.
+        // Sprint 186+197d: consumo NET dos últimos N dias. Inclui Uso (qty negativa) E Devolução
+        // (qty positiva motivo Devolucao) — bug Bruno: peça consumida e devolvida contava como
+        // consumo. Net = Uso - Devolução. Só Parts activos.
         var since = DateTime.UtcNow.AddDays(-days);
         var consumo = await _db.PartMovimentos
             .AsNoTracking()
             .Where(m => m.CreatedAt >= since
-                && m.Motivo == Core.Enums.PartMovimentoMotivo.UsoEmReparacao
-                && m.Quantidade < 0
+                && (m.Motivo == Core.Enums.PartMovimentoMotivo.UsoEmReparacao
+                 || m.Motivo == Core.Enums.PartMovimentoMotivo.Devolucao)
                 && m.Part != null
                 && m.Part.Activo)
             .GroupBy(m => new { m.PartId, m.Part!.Sku, m.Part.Nome, m.Part.QtdStock, m.Part.CustoUnitarioCents })
@@ -125,7 +127,8 @@ public class PartRepository : IPartRepository
                 g.Key.Nome,
                 g.Key.QtdStock,
                 g.Key.CustoUnitarioCents,
-                Consumo = -g.Sum(m => m.Quantidade), // positivo
+                // Uso é negativo, Devolução é positivo → -Sum dá consumo líquido positivo.
+                Consumo = -g.Sum(m => m.Quantidade),
             })
             .ToListAsync(ct);
 

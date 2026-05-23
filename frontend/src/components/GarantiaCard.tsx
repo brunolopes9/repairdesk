@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ExternalLink, FileDown, ShieldCheck, ShieldOff, ShieldX } from 'lucide-react';
 import { openPdfInNewTab } from '../lib/downloadPdf';
 import { garantiasApi, type GarantiaAdminDto } from '../lib/garantias/api';
+import { useAuth } from '../lib/auth/AuthContext';
 import { toast } from '../lib/toast';
 import Modal from './Modal';
 
@@ -14,6 +15,7 @@ type Props =
 /// Permite copiar o link público e anular com motivo (audit log).
 export default function GarantiaCard(props: Props) {
   const qc = useQueryClient();
+  const { hasRole } = useAuth();
   const queryKey = props.kind === 'reparacao'
     ? ['garantia-reparacao', props.reparacaoId]
     : ['garantia-venda', props.vendaId];
@@ -123,11 +125,15 @@ export default function GarantiaCard(props: Props) {
             >
               copiar link
             </button>
-            {!g.anulada && (
+            {/* Sprint 198: anular garantia só para admin. Bruno reportou que staff não devia
+                poder anular garantia ao cliente sem aprovação. Defesa em profundidade: backend
+                também valida via [Authorize(Roles="Admin")] no controller. */}
+            {!g.anulada && hasRole('Admin') && (
               <button
                 type="button"
                 onClick={() => setAnularOpen(true)}
                 className="text-[10px] text-rose-600 hover:underline dark:text-rose-400"
+                title="Anular garantia — só admin pode fazer isto"
               >
                 anular
               </button>

@@ -196,8 +196,21 @@ public class PartService : IPartService
 
         Reparacao? reparacao = null;
         if (req.ReparacaoId is not null)
+        {
             reparacao = await _reparacoes.FindByIdAsync(req.ReparacaoId.Value, ct)
                 ?? throw new NotFoundException("Reparacao", req.ReparacaoId.Value);
+
+            // Sprint 198: lock — após reparação Entregue+Pago, não permite mexer em PartMovimentos.
+            // Defesa em profundidade: UI já esconde botões (readOnly), backend valida igualmente.
+            // Bruno reportou: conseguia eliminar peça de reparação encerrada e a contabilidade
+            // ficava errada.
+            var isEntregue = reparacao.EntregueEm != null;
+            var isPago = reparacao.EstadoPagamento == PaymentStatus.Pago;
+            if (isEntregue && isPago)
+                throw new ConflictException("reparacao_encerrada",
+                    "Esta reparação está entregue e paga. Não é possível alterar peças usadas. " +
+                    "Se precisas mesmo, abre Auditoria e regista a correção manualmente.");
+        }
 
         var stockAntes = part.QtdStock;
         var stockDepois = stockAntes + req.Quantidade;

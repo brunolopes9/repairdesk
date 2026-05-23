@@ -468,10 +468,13 @@ export default function Produtos() {
                     <input
                       type="number"
                       step="0.01"
-                      value={form.compareAtPriceCents != null ? (form.compareAtPriceCents / 100).toFixed(2) : ''}
+                      min="0"
+                      // Sprint 197d: tirado .toFixed(2) — reformatava enquanto Bruno escrevia,
+                      // impedia escrever números acima de 1 dígito ("1" virava "1.00" antes do "2").
+                      value={form.compareAtPriceCents != null ? form.compareAtPriceCents / 100 : ''}
                       onChange={(e) => setForm({ ...form, compareAtPriceCents: e.target.value ? Math.round(Number(e.target.value) * 100) : null })}
                       className={inputCls}
-                      placeholder="ex: 349,90"
+                      placeholder="ex: 349.90"
                     />
                   </Field>
                   {/* Sprint 197: OpenBox legacy = Origin=Used + Grade=A++ no novo modelo. */}

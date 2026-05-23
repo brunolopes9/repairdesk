@@ -833,7 +833,9 @@ export default function ReparacaoDetalhe() {
 
       <FotosReparacao reparacaoId={r.id} readOnly={isFrozen} />
 
-      <PecasReparacao reparacaoId={r.id} readOnly={isFrozen} />
+      {/* Sprint 198: usar isLocked (Entregue+Pago) em vez de isFrozen (só Entregue) —
+          Bruno reportou: conseguia eliminar peças mesmo após reparação fechada. */}
+      <PecasReparacao reparacaoId={r.id} readOnly={isLocked} />
 
 
       <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
