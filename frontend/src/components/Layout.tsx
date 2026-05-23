@@ -28,6 +28,7 @@ import {
   Moon,
   Monitor,
   Search,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
@@ -65,6 +66,7 @@ const nav: NavItem[] = [
     ],
   },
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
+  { to: '/definicoes/preferencias', label: 'Preferências', icon: SlidersHorizontal, adminOnly: true },
   { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true },
   { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2, adminOnly: true },
   { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow, adminOnly: true },
