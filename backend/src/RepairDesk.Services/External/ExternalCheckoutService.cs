@@ -71,6 +71,8 @@ public sealed record ExternalProductDto(
     string? AttributesJson,
     string? SeoTitle,
     string? SeoDescription,
+    /// <summary>Sprint 205: flag explícita open-box (loja mostra badge laranja + página /loja/open-box). NÃO usar Grade A++ para inferir.</summary>
+    bool IsOpenBox,
     /// <summary>Sprint 204: saúde da bateria 0-100% (null = não aplicável). Loja usa para filtro 4-bucket.</summary>
     int? BatteryHealthPercent,
     /// <summary>Sprint 204: 'never_opened' | 'original_parts' | 'repaired' | null. Loja usa para selo trust + filtros.</summary>
@@ -341,6 +343,7 @@ public class ExternalCheckoutService : IExternalCheckoutService
         StockDisplayMode: p.SupplyType == ProductSupplyType.Dropship ? "on-demand" : "exact",
         DescriptionMarkdown: p.DescriptionMarkdown, AttributesJson: p.AttributesJson,
         SeoTitle: p.SeoTitle, SeoDescription: p.SeoDescription,
+        IsOpenBox: p.IsOpenBox,
         BatteryHealthPercent: p.BatteryHealthPercent,
         TechnicalState: p.TechnicalState == RepairDesk.Core.Enums.ProductTechnicalState.Unknown
             ? null

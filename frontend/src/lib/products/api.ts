@@ -133,6 +133,8 @@ export interface Product {
   seoTitle: string | null;
   seoDescription: string | null;
   openBoxReason: string | null;
+  /** Sprint 205: flag explícita open-box (loja mostra badge laranja). Default false. */
+  isOpenBox: boolean;
   /** Sprint 204: saúde bateria 0-100% (null = não aplicável). */
   batteryHealthPercent: number | null;
   /** Sprint 204: estado técnico. */
@@ -182,6 +184,8 @@ export interface ProductWriteRequest {
   seoTitle: string | null;
   seoDescription: string | null;
   openBoxReason: string | null;
+  /** Sprint 205: flag explícita open-box (loja mostra badge laranja). Default false. */
+  isOpenBox: boolean;
   /** Sprint 204: saúde bateria 0-100% (null = não aplicável). */
   batteryHealthPercent: number | null;
   /** Sprint 204: estado técnico. */

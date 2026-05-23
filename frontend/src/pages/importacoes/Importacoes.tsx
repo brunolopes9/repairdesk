@@ -654,19 +654,29 @@ function ApproveStockModal({
 }) {
   // Sprint 163c: detecta items de transporte/portes — default action=skip.
   // Bruno não cria stock para shipping costs, é overhead.
-  const SHIPPING_RX = /\b(shipping|portes?|envio|transport|chronopost|dpd|ups|fedex|dhl|frete)\b/i;
 
   // Estado inicial: default action conforme heurística + regra aprendida do fornecedor (Sprint 184).
   const supplierRule = target.fornecedorDefaultAction ?? 'auto';
   const initial: ApproveAsStockItem[] = (target.items ?? []).map((it) => {
     const top = it.suggestions[0];
     const lineUnit = it.quantity > 0 ? Math.round(it.lineTotalCents / it.quantity) : it.lineTotalCents;
-    const isShipping = SHIPPING_RX.test(it.description);
     let action: ApproveAsStockItem['action'];
-    if (isShipping) action = 'skip';
-    else if (supplierRule === 'despesa') action = 'despesa';
-    else if (top && top.score >= 0.7) action = 'existing';
-    else action = 'new';
+    switch (it.suggestedKind) {
+      case 'Phone':
+      case 'Service':
+        action = 'despesa';
+        break;
+      case 'Shipping':
+        action = 'skip';
+        break;
+      case 'Part':
+      case 'Unknown':
+      default:
+        if (supplierRule === 'despesa' && it.suggestedKind === 'Unknown') action = 'despesa';
+        else if (top && top.score >= 0.7) action = 'existing';
+        else action = 'new';
+        break;
+    }
     return {
       description: it.description,
       quantity: it.quantity,
@@ -744,9 +754,15 @@ function ApproveStockModal({
                   <div className="flex-1">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       {it.description}
-                      {SHIPPING_RX.test(it.description) && (
+                      {original.suggestedKind !== 'Unknown' && (
+                        <span className="contents">
                         <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">
+                          {original.suggestedKind}
+                        </span>
+                        <span className="hidden" aria-hidden="true">
+                          {original.suggestedKind}
                           🚚 transporte
+                        </span>
                         </span>
                       )}
                     </div>

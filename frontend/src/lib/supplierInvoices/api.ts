@@ -17,6 +17,7 @@ export interface SupplierInvoiceItem {
   lineTotalCents: number;
   brand: string | null;
   model: string | null;
+  suggestedKind: string;
   suggestions: SkuMatchSuggestion[];
 }
 

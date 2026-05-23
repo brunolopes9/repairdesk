@@ -57,6 +57,7 @@ const emptyForm = (): ProductWriteRequest => ({
   seoTitle: null,
   seoDescription: null,
   openBoxReason: null,
+  isOpenBox: false,
   batteryHealthPercent: null,
   technicalState: PRODUCT_TECHNICAL_STATE.Unknown,
   technicalNotes: null,
@@ -135,6 +136,7 @@ export default function Produtos() {
         seoTitle: p.seoTitle,
         seoDescription: p.seoDescription,
         openBoxReason: p.openBoxReason,
+        isOpenBox: p.isOpenBox,
         batteryHealthPercent: p.batteryHealthPercent,
         technicalState: p.technicalState,
         technicalNotes: p.technicalNotes,
@@ -490,9 +492,25 @@ export default function Produtos() {
                       placeholder="ex: 349.90"
                     />
                   </Field>
-                  {/* Sprint 197: OpenBox legacy = Origin=Used + Grade=A++ no novo modelo. */}
+                  {/* Sprint 205: checkbox explícito IsOpenBox (alinhado com shop Claude).
+                      Distingue 'exposição loja sem uso' vs 'usado premium do cliente'. */}
                   {form.origin === PRODUCT_ORIGIN.Used && form.grade === PRODUCT_GRADE.APlusPlus && (
+                    <div className="sm:col-span-2">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={form.isOpenBox}
+                          onChange={(e) => setForm({ ...form, isOpenBox: e.target.checked })}
+                          className="h-4 w-4 rounded border-zinc-300 text-brand-600 focus:ring-brand-500"
+                        />
+                        <span className="font-medium">É Open Box</span>
+                        <span className="text-zinc-500">— exposição loja ou demonstração (vs usado normal do cliente)</span>
+                      </label>
+                    </div>
+                  )}
+                  {form.isOpenBox && (
                     <Field label="Razão Open Box" hint="Texto curto que aparece na PDP loja.">
+                      {/* Bloco original mantido — só aparece quando IsOpenBox=true */}
                       <input
                         value={form.openBoxReason ?? ''}
                         onChange={(e) => setForm({ ...form, openBoxReason: e.target.value || null })}

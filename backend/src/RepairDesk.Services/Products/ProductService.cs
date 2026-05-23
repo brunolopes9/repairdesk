@@ -105,6 +105,8 @@ public sealed record ProductDto(
     string? SeoTitle,
     string? SeoDescription,
     string? OpenBoxReason,
+    /// <summary>Sprint 205: flag explícita open-box (Used+A++ pode ser premium do cliente OU exposição loja). Loja usa para badge laranja.</summary>
+    bool IsOpenBox,
     /// <summary>Sprint 204: saúde bateria 0-100% (null = não aplicável).</summary>
     int? BatteryHealthPercent,
     /// <summary>Sprint 204: estado técnico (NeverOpened/OriginalParts/Repaired/Unknown).</summary>
@@ -146,6 +148,8 @@ public sealed record ProductWriteRequest(
     string? SeoTitle,
     string? SeoDescription,
     string? OpenBoxReason,
+    /// <summary>Sprint 205: flag open-box explícita.</summary>
+    bool IsOpenBox,
     /// <summary>Sprint 204: saúde bateria 0-100% (null = sem info).</summary>
     int? BatteryHealthPercent,
     /// <summary>Sprint 204: estado técnico (Unknown default).</summary>
@@ -221,6 +225,7 @@ public class ProductService : IProductService
             SeoTitle = Clean(req.SeoTitle),
             SeoDescription = Clean(req.SeoDescription),
             OpenBoxReason = Clean(req.OpenBoxReason),
+            IsOpenBox = req.IsOpenBox,
             BatteryHealthPercent = req.BatteryHealthPercent,
             TechnicalState = req.TechnicalState,
             TechnicalNotes = Clean(req.TechnicalNotes),
@@ -283,6 +288,7 @@ public class ProductService : IProductService
         entity.SeoTitle = Clean(req.SeoTitle);
         entity.SeoDescription = Clean(req.SeoDescription);
         entity.OpenBoxReason = Clean(req.OpenBoxReason);
+        entity.IsOpenBox = req.IsOpenBox;
         entity.BatteryHealthPercent = req.BatteryHealthPercent;
         entity.TechnicalState = req.TechnicalState;
         entity.TechnicalNotes = Clean(req.TechnicalNotes);
@@ -431,6 +437,8 @@ public class ProductService : IProductService
             shopConditionTier = ShopConditionTierFromGrading(product.Grading),
             shopIsOpenBox = product.Grading == ProductGrading.OpenBox,
             shopOpenBoxReason = product.OpenBoxReason,
+            // Sprint 205: flag explícita confirmada com shop Claude.
+            isOpenBox = product.IsOpenBox,
             // Sprint 204: trust signals pedidos pelo shop Claude.
             batteryHealthPercent = product.BatteryHealthPercent,
             technicalState = product.TechnicalState == Core.Enums.ProductTechnicalState.Unknown
@@ -963,7 +971,7 @@ public class ProductService : IProductService
             p.PriceCents, p.CompareAtPriceCents,
             p.StockQuantity, p.StockMinima, p.CustoUnitarioCents,
             p.DescriptionMarkdown, p.AttributesJson, p.SeoTitle, p.SeoDescription,
-            p.OpenBoxReason,
+            p.OpenBoxReason, p.IsOpenBox,
             p.BatteryHealthPercent, p.TechnicalState, p.TechnicalNotes,
             p.Active, p.MostrarLojaOnline, p.FornecedorId, p.Fornecedor?.Name, p.Fornecedor?.Code,
             p.Images.OrderBy(i => i.Ordem).Select(i => new ProductImageDto(i.Id, i.Url, i.Alt, i.Ordem, i.IsCurated)).ToList(),

@@ -35,6 +35,7 @@ const LlmUsage = lazy(() => import('./pages/definicoes/LlmUsage'));
 const Produtos = lazy(() => import('./pages/produtos/Produtos'));
 const Precos = lazy(() => import('./pages/precos/Precos'));
 const RelatorioIva = lazy(() => import('./pages/relatorios/Iva'));
+const RelatorioNegocio = lazy(() => import('./pages/relatorios/Negocio'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
 const PortalCliente = lazy(() => import('./pages/PortalCliente'));
 const PortalGarantia = lazy(() => import('./pages/PortalGarantia'));
@@ -124,6 +125,7 @@ export default function App() {
               <Route path="/stock" element={<Stock />} />
               <Route path="/precos" element={<Precos />} />
               <Route path="/relatorios/iva" element={<RelatorioIva />} />
+              <Route path="/relatorios/negocio" element={<RelatorioNegocio />} />
               <Route path="/auditoria" element={<Auditoria />} />
               <Route path="/definicoes" element={<Definicoes />} />
               <Route path="/definicoes/webhooks" element={<Webhooks />} />

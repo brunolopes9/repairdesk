@@ -11,6 +11,8 @@ import {
   PackageSearch,
   Tags,
   FileText,
+  BarChart3,
+  ChevronDown,
   ClipboardList,
   Settings,
   Webhook,
@@ -34,8 +36,15 @@ import { tenantSettingsApi } from '../lib/tenantSettings/api';
 import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Theme } from '../lib/theme';
 
 type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
+type NavItem = {
+  to?: string;
+  label: string;
+  icon: IconCmp;
+  adminOnly?: boolean;
+  children?: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean }>;
+};
 
-const nav: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean }> = [
+const nav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/clientes', label: 'Clientes', icon: Users },
   { to: '/reparacoes', label: 'Reparações', icon: Wrench },
@@ -47,7 +56,14 @@ const nav: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean
   { to: '/stock', label: 'Stock', icon: PackageSearch },
   { to: '/produtos', label: 'Produtos', icon: Smartphone, adminOnly: true },
   { to: '/precos', label: 'Preços', icon: Tags },
-  { to: '/relatorios/iva', label: 'Relatorios', icon: FileText },
+  {
+    label: 'Relatorios',
+    icon: FileText,
+    children: [
+      { to: '/relatorios/iva', label: 'IVA', icon: FileText },
+      { to: '/relatorios/negocio', label: 'Negocio', icon: BarChart3 },
+    ],
+  },
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
   { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true },
   { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2, adminOnly: true },
@@ -85,6 +101,8 @@ export default function Layout() {
   const themeLabel = theme === 'light' ? 'Claro' : theme === 'dark' ? 'Escuro' : 'Sistema';
 
   const expanded = hovered || pinned;
+  const visibleNav = nav.filter((item) => !item.adminOnly || hasRole('Admin'));
+  const mobileNav = visibleNav.flatMap((item) => item.children ?? (item.to ? [item as { to: string; label: string; icon: IconCmp; adminOnly?: boolean }] : []));
 
   const onboarding = useQuery({
     queryKey: ['onboarding-status'],
@@ -180,7 +198,7 @@ export default function Layout() {
         aria-label="Bottom navigation"
       >
         <ul className="mx-auto flex max-w-5xl">
-          {nav.filter((item) => !item.adminOnly || hasRole('Admin')).map((item) => (
+          {mobileNav.map((item) => (
             <li key={item.to} className="flex-1">
               <NavLink
                 to={item.to}
@@ -232,29 +250,79 @@ export default function Layout() {
 
         {/* Nav items */}
         <ul className="flex-1 space-y-1 p-2">
-          {nav.filter((item) => !item.adminOnly || hasRole('Admin')).map((item) => (
+          {visibleNav.map((item) => (
             <li key={item.to}>
-              <NavLink
-                to={item.to}
-                end={item.to === '/'}
-                className={({ isActive }) =>
-                  `group flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-400'
-                      : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
-                  }`
-                }
-                title={item.label}
-              >
-                <item.icon size={20} strokeWidth={1.75} aria-hidden />
-                <span
-                  className={`flex-1 truncate transition-opacity duration-150 ${
-                    expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
-                  }`}
+              {item.children ? (
+                <div>
+                  <div
+                    className={`group flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition ${
+                      location.pathname.startsWith('/relatorios')
+                        ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-400'
+                        : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                    }`}
+                    title={item.label}
+                  >
+                    <item.icon size={20} strokeWidth={1.75} aria-hidden />
+                    <span
+                      className={`flex-1 truncate transition-opacity duration-150 ${
+                        expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      strokeWidth={1.75}
+                      className={`transition-opacity ${expanded ? 'opacity-70' : 'opacity-0'}`}
+                      aria-hidden
+                    />
+                  </div>
+                  {expanded && (
+                    <ul className="mt-1 space-y-1 pl-8">
+                      {item.children.filter((child) => !child.adminOnly || hasRole('Admin')).map((child) => (
+                        <li key={child.to}>
+                          <NavLink
+                            to={child.to}
+                            className={({ isActive }) =>
+                              `flex h-9 items-center gap-2 rounded-lg px-3 text-sm transition ${
+                                isActive
+                                  ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-400'
+                                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                              }`
+                            }
+                            title={child.label}
+                          >
+                            <child.icon size={16} strokeWidth={1.75} aria-hidden />
+                            <span className="truncate">{child.label}</span>
+                          </NavLink>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : item.to ? (
+                <NavLink
+                  to={item.to}
+                  end={item.to === '/'}
+                  className={({ isActive }) =>
+                    `group flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition ${
+                      isActive
+                        ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-400'
+                        : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                    }`
+                  }
+                  title={item.label}
                 >
-                  {item.label}
-                </span>
-              </NavLink>
+                  <item.icon size={20} strokeWidth={1.75} aria-hidden />
+                  <span
+                    className={`flex-1 truncate transition-opacity duration-150 ${
+                      expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </NavLink>
+              ) : null}
             </li>
           ))}
         </ul>

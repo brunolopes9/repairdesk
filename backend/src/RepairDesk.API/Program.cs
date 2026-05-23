@@ -191,6 +191,8 @@ try
     // Relatorios fiscais
     builder.Services.AddScoped<IRelatorioFiscalRepository, RelatorioFiscalRepository>();
     builder.Services.AddScoped<IRelatorioFiscalService, RelatorioFiscalService>();
+    builder.Services.AddScoped<IRelatorioNegocioRepository, RelatorioNegocioRepository>();
+    builder.Services.AddScoped<IRelatorioNegocioService, RelatorioNegocioService>();
 
     // Documents (PDF orçamento)
     QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;

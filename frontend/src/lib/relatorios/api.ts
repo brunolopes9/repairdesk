@@ -51,10 +51,57 @@ export interface RelatorioIvaResponse {
   documentos: RelatorioIvaDocumento[];
 }
 
+export interface TopReparacaoLucrativa {
+  id: string;
+  numero: number;
+  equipamento: string;
+  clienteNome: string | null;
+  receitaCents: number;
+  custoPecasCents: number;
+  lucroCents: number;
+}
+
+export interface TopPecaUsada {
+  partId: string;
+  nome: string;
+  sku: string | null;
+  quantidade: number;
+}
+
+export interface TopFornecedor {
+  nome: string;
+  totalCompradoCents: number;
+}
+
+export interface RelatorioNegocioResponse {
+  ano: number;
+  trimestre: number;
+  periodoDe: string;
+  periodoAte: string;
+  receitaTotalCents: number;
+  receitaReparacoesCents: number;
+  receitaTrabalhosCents: number;
+  receitaVendasCents: number;
+  custoPecasCents: number;
+  opexCents: number;
+  lucroBrutoCents: number;
+  margemMedia: number;
+  ticketMedioCents: number;
+  reparacoesPagasCount: number;
+  topReparacoesLucrativas: TopReparacaoLucrativa[];
+  topPecasUsadas: TopPecaUsada[];
+  topFornecedores: TopFornecedor[];
+}
+
 export const relatoriosApi = {
   iva(ano: number, trimestre: number, ivaComprasCents = 0) {
     return api
       .get<RelatorioIvaResponse>('/relatorios/iva', { params: { ano, trimestre, ivaComprasCents } })
+      .then((r) => r.data);
+  },
+  negocio(ano: number, trimestre: number) {
+    return api
+      .get<RelatorioNegocioResponse>('/relatorios/negocio', { params: { ano, trimestre } })
       .then((r) => r.data);
   },
 };

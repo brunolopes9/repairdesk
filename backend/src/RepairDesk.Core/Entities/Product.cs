@@ -80,9 +80,17 @@ public class Product : BaseEntity, ITenantEntity
     /// <summary>
     /// Sprint 151: razão pela qual o produto é Open Box ("Devolução cliente, embalagem aberta",
     /// "Demonstração loja", etc). Aparece na PDP loja para transparência. Só relevante quando
-    /// <see cref="Grading"/> == OpenBox; ignorado para outros.
+    /// <see cref="IsOpenBox"/> == true; ignorado para outros.
     /// </summary>
     public string? OpenBoxReason { get; set; }
+
+    /// <summary>
+    /// Sprint 205: flag explícita open-box. Confirmado com shop Claude — Open Box NÃO é 4ª origin,
+    /// é boolean dentro de Used (origin=used + grade=A++ + isOpenBox=true). Loja usa para badge
+    /// laranja e página /loja/open-box. Permite distinguir "exposição loja" (true) de "usado
+    /// premium do cliente que trouxe em condições óptimas" (false).
+    /// </summary>
+    public bool IsOpenBox { get; set; } = false;
 
     /// <summary>
     /// Sprint 204: saúde da bateria em % (0-100). Apple iPhone/iPad/Mac mostra no settings.
