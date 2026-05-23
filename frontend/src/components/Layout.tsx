@@ -251,7 +251,7 @@ export default function Layout() {
         {/* Nav items */}
         <ul className="flex-1 space-y-1 p-2">
           {visibleNav.map((item) => (
-            <li key={item.to}>
+            <li key={item.to ?? item.label}>
               {item.children ? (
                 <div>
                   <div
