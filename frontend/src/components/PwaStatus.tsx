@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Wifi, WifiOff, Download } from 'lucide-react';
+import { WifiOff, Download } from 'lucide-react';
 
 /**
  * Sprint 194: indicador online/offline + botão instalar PWA. Discreto na bottom-right.
@@ -66,7 +66,7 @@ export default function PwaStatus() {
           <WifiOff size={14} /> Sem internet — dados podem estar desatualizados
         </div>
       )}
-      {online && false && <Wifi /> /* placeholder para futuro indicador "a sincronizar" */}
+      {/* Placeholder Wifi para futuro indicador "a sincronizar" — não renderizado ainda. */}
 
       {/* Botão instalar PWA (Chromium) ou hint iOS */}
       {canInstall && (

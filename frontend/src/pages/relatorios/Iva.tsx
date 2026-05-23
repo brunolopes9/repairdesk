@@ -22,7 +22,7 @@ export default function RelatorioIva() {
     queryFn: () => relatoriosApi.iva(ano, trimestre, ivaComprasCents),
   });
 
-  const docs = report.data?.documentos ?? [];
+  const docs = useMemo(() => report.data?.documentos ?? [], [report.data?.documentos]);
   const totalPages = Math.max(1, Math.ceil(docs.length / PAGE_SIZE));
   const pageDocs = useMemo(() => docs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [docs, page]);
   const query = `ano=${ano}&trimestre=${trimestre}&ivaComprasCents=${ivaComprasCents}`;
