@@ -171,6 +171,34 @@ public class PartsApiTests : IClassFixture<RepairDeskApiFactory>
         sugestoes!.Should().NotContain(s => s.PartId == part.Id, "movimentos de reparações apagadas não devem contar");
     }
 
+    /// <summary>
+    /// Sprint 214: endpoint admin purge apaga movimentos de reparações soft-deleted.
+    /// </summary>
+    [Fact]
+    public async Task PurgeOrphanMovimentos_ApagaMovimentosDeReparacoesDeleted()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var part = await CreatePartAsync(client, new CreatePartRequest(
+            "ORPH-" + Guid.NewGuid().ToString("N")[..6], "Test orphan",
+            PartCategoria.Outro, null, null, null, 1, 1, 100, null, null, null));
+
+        var cliente = await CreateClienteAsync(client);
+        var rep = await CreateReparacaoAsync(client, cliente.Id);
+
+        await client.PostAsJsonAsync($"/api/parts/{part.Id}/movimento",
+            new CreatePartMovimentoRequest(-1, PartMovimentoMotivo.UsoEmReparacao, rep.Id, "Test"));
+
+        var del = await client.DeleteAsync($"/api/reparacoes/{rep.Id}");
+        del.StatusCode.Should().BeOneOf(HttpStatusCode.NoContent, HttpStatusCode.OK);
+
+        var purge = await client.PostAsync("/api/parts/admin/orphan-movimentos/purge", null);
+        purge.EnsureSuccessStatusCode();
+        var result = await purge.Content.ReadFromJsonAsync<PurgeOrphansResult>();
+        result!.Purged.Should().BeGreaterThan(0);
+    }
+
+    private record PurgeOrphansResult(int Purged);
+
     private async Task<HttpClient> NewAuthedClient(string email)
     {
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions
