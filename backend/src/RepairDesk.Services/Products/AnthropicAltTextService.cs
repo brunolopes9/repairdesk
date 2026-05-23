@@ -57,7 +57,10 @@ public sealed record ProductSeoPack(
     string SeoTitle,
     string SeoDescription,
     string Alt,
-    string DescriptionMarkdown);
+    string DescriptionMarkdown,
+    /// <summary>Sprint 199: dictionary de atributos técnicos verificáveis (Display, Chip, Connector, etc).
+    /// Vazio para modelos obscuros. Frontend popula Product.AttributesJson se ainda vazio.</summary>
+    string? AttributesJson);
 
 public sealed class AnthropicAltTextService : IProductSeoGenerator
 {
@@ -101,13 +104,23 @@ public sealed class AnthropicAltTextService : IProductSeoGenerator
         "5. Estrutura 'para quem é': fotografia, gaming, multitasking, uso profissional, uso comum.\n" +
         "6. Inclui menção da garantia legal PT 36 meses (DL 84/2021) para particulares.\n" +
         "\n" +
-        "JSON com 4 campos:\n" +
+        "JSON com 5 campos:\n" +
         "{\n" +
         "  \"seoTitle\": \"max 60 chars, com '| LopesTech' se couber. Marca+modelo+storage+cor\",\n" +
         "  \"seoDescription\": \"max 160 chars. Marca+modelo+CONDITION+benefício-chave+CTA.\",\n" +
-        "  \"alt\": \"max 120 chars. Descreve a imagem objectivamente (ângulo, cor, parte visível).\",\n" +
-        "  \"descriptionMarkdown\": \"3-4 parágrafos pt-PT. Estrutura: (a) hero 2-3 linhas com features-chave do modelo (apenas se modelo conhecido), (b) 'Para quem é' com 3-4 perfis, (c) menção da CONDITION e garantia legal PT, (d) bullet list final 5-7 itens com features verificáveis específicas do modelo (ex: 'Apple Intelligence ready', 'eSIM + nano-SIM', 'MagSafe', 'USB-C 3.2'). NÃO inventes números que não conheces (bateria mAh, watts, taxa refresh) — só usa se tens certeza absoluta.\"\n" +
+        "  \"alt\": \"max 120 chars. Descreve a imagem objectivamente.\",\n" +
+        "  \"descriptionMarkdown\": \"3-4 parágrafos pt-PT. Estrutura: hero + 'Para quem é' + CONDITION/garantia + bullets verificáveis. NÃO inventes números.\",\n" +
+        "  \"attributes\": { \"display\": \"6.9 OLED ProMotion\", \"chip\": \"Apple A19 Pro\", \"connector\": \"USB-C\", \"sim\": \"nano-SIM + eSIM\", \"biometric\": \"Face ID\", \"wireless_charging\": \"MagSafe\", \"os\": \"iOS\" }\n" +
         "}\n" +
+        "\n" +
+        "Sobre o campo 'attributes':\n" +
+        "- Dicionário key-value com specs VERIFICÁVEIS do modelo (só se 100% confiantes).\n" +
+        "- Para iPhones, Galaxy S/A, Pixel: enche com display, chip, connector, sim, biometric, wireless_charging, os.\n" +
+        "- Para modelos OBSCUROS: devolve objecto vazio {} (não inventes).\n" +
+        "- Não inclui storage/color/brand/model (já são campos top-level do produto).\n" +
+        "- Não inclui números que possam errar (battery mAh, exact MP, exact Hz) a menos que tenhas certeza.\n" +
+        "- Keys em snake_case inglês. Values strings concisas (max 50 chars cada).\n" +
+        "\n" +
         "Importante: pt-PT (NÃO Brasil). Sem markdown em seoTitle/seoDescription/alt. Sem emojis.\n" +
         "Sem prefixos 'Compre já!' / 'Aproveite!'. Tom calmo e factual, como Apple ou Backmarket.";
 
@@ -233,11 +246,17 @@ public sealed class AnthropicAltTextService : IProductSeoGenerator
             });
             if (parsed is null || string.IsNullOrWhiteSpace(parsed.Alt)) { outcome = "error"; return null; }
 
+            // Sprint 199: serializa attributes dict para JSON. Vazio se {} ou null.
+            string? attrsJson = null;
+            if (parsed.Attributes is { Count: > 0 })
+                attrsJson = JsonSerializer.Serialize(parsed.Attributes);
+
             return new ProductSeoPack(
                 SeoTitle: (parsed.SeoTitle ?? "").Trim(),
                 SeoDescription: (parsed.SeoDescription ?? "").Trim(),
                 Alt: parsed.Alt.Trim(),
-                DescriptionMarkdown: (parsed.DescriptionMarkdown ?? "").Trim());
+                DescriptionMarkdown: (parsed.DescriptionMarkdown ?? "").Trim(),
+                AttributesJson: attrsJson);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || ex is TaskCanceledException)
         {
@@ -384,7 +403,9 @@ public sealed class AnthropicAltTextService : IProductSeoGenerator
         [property: JsonPropertyName("seoTitle")] string? SeoTitle,
         [property: JsonPropertyName("seoDescription")] string? SeoDescription,
         [property: JsonPropertyName("alt")] string? Alt,
-        [property: JsonPropertyName("descriptionMarkdown")] string? DescriptionMarkdown);
+        [property: JsonPropertyName("descriptionMarkdown")] string? DescriptionMarkdown,
+        /// <summary>Sprint 199: dictionary specs verificáveis. Claude devolve {} para modelos obscuros.</summary>
+        [property: JsonPropertyName("attributes")] Dictionary<string, string>? Attributes);
 
     private sealed record AnthropicResponse(
         [property: JsonPropertyName("content")] List<AnthropicContent>? Content,

@@ -524,18 +524,20 @@ export default function Produtos() {
                   disabled={!form.brand.trim() || !form.model.trim()}
                   onClick={async () => {
                     try {
+                      // Sprint 199: response inclui attributesJson com specs structured (Claude
+                      // só preenche para modelos populares como iPhones/Galaxy). Frontend popula
+                      // form.attributesJson se ainda vazio — Bruno reclamou que este campo ficava
+                      // sempre por preencher.
+                      type SeoResponse = {
+                        seoTitle: string;
+                        seoDescription: string;
+                        descriptionMarkdown: string;
+                        attributesJson: string | null;
+                      };
+                      let r;
                       if (editingId) {
-                        const r = await api.post<{ seoTitle: string; seoDescription: string; descriptionMarkdown: string }>(
-                          `/products/${editingId}/generate-seo`,
-                        );
-                        setForm({
-                          ...form,
-                          seoTitle: r.data.seoTitle,
-                          seoDescription: r.data.seoDescription,
-                          descriptionMarkdown: form.descriptionMarkdown || r.data.descriptionMarkdown,
-                        });
+                        r = await api.post<SeoResponse>(`/products/${editingId}/generate-seo`);
                       } else {
-                        // Sprint 196b: Condition PT label conforme grading (Novo, Como novo, etc).
                         const gradingLabels: Record<number, string> = {
                           0: 'Novo (selado)',
                           1: 'Como novo (Grade A)',
@@ -544,25 +546,27 @@ export default function Produtos() {
                           4: 'Open Box',
                           5: 'Premium',
                         };
-                        const r = await api.post<{ seoTitle: string; seoDescription: string; descriptionMarkdown: string }>(
-                          '/products/preview-seo',
-                          {
-                            brand: form.brand,
-                            model: form.model,
-                            storage: form.storage,
-                            color: form.color,
-                            condition: gradingLabels[form.grading] ?? null,
-                            imageUrl: form.images[0]?.url ?? null,
-                          },
-                        );
-                        setForm({
-                          ...form,
-                          seoTitle: r.data.seoTitle,
-                          seoDescription: r.data.seoDescription,
-                          descriptionMarkdown: form.descriptionMarkdown || r.data.descriptionMarkdown,
+                        r = await api.post<SeoResponse>('/products/preview-seo', {
+                          brand: form.brand,
+                          model: form.model,
+                          storage: form.storage,
+                          color: form.color,
+                          condition: gradingLabels[form.grading] ?? null,
+                          imageUrl: form.images[0]?.url ?? null,
                         });
                       }
-                      toast.success('SEO gerado por Claude. Revê e guarda.');
+                      setForm({
+                        ...form,
+                        seoTitle: r.data.seoTitle,
+                        seoDescription: r.data.seoDescription,
+                        descriptionMarkdown: form.descriptionMarkdown || r.data.descriptionMarkdown,
+                        attributesJson: form.attributesJson || r.data.attributesJson,
+                      });
+                      toast.success(
+                        r.data.attributesJson
+                          ? 'SEO + atributos gerados por Claude. Revê e guarda.'
+                          : 'SEO gerado por Claude. Atributos não disponíveis para este modelo.',
+                      );
                     } catch (e) { toast.fromError(e, 'Falhou gerar SEO'); }
                   }}
                   className="flex w-full items-center justify-center gap-2 rounded-md border border-brand-300 bg-brand-50 px-3 py-2 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-50 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-300"

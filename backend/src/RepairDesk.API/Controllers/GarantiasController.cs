@@ -27,6 +27,7 @@ public class GarantiasController : ControllerBase
     }
 
     [HttpPost("{id:guid}/anular")]
+    [Authorize(Roles = "Admin")]
     public Task<GarantiaAdminDto> Anular(Guid id, [FromBody] AnularGarantiaRequest req, CancellationToken ct)
         => _service.AnularAsync(id, req.Motivo, ct);
 

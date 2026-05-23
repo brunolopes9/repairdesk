@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
@@ -109,6 +110,15 @@ public sealed record SupplierInvoiceImportResult(
     string PdfRelativePath,
     bool WasDuplicate);
 
+public enum SupplierItemKind
+{
+    Phone,
+    Part,
+    Service,
+    Shipping,
+    Unknown,
+}
+
 public sealed record SupplierInvoiceImportDto(
     Guid Id,
     Guid? FornecedorId,
@@ -132,6 +142,7 @@ public sealed record SupplierInvoiceItemDto(
     int LineTotalCents,
     string? Brand,
     string? Model,
+    string SuggestedKind,
     // Sprint 158: matches sugeridos (top 3 Part candidatos por fuzzy + 1 auto match se mapping existe).
     IReadOnlyList<SkuMatchSuggestion> Suggestions);
 
@@ -551,9 +562,44 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                 item.LineTotalCents,
                 item.Brand,
                 item.Model,
+                ClassifyItemDescription(
+                    item.Description,
+                    item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString(),
                 suggestions));
         }
         return result;
+    }
+
+    public static SupplierItemKind ClassifyItemDescription(string desc)
+        => ClassifyItemDescription(desc, unitCostCents: null);
+
+    public static SupplierItemKind ClassifyItemDescription(string desc, int? unitCostCents)
+    {
+        if (string.IsNullOrWhiteSpace(desc)) return SupplierItemKind.Unknown;
+
+        if (Regex.IsMatch(desc, @"portes|envio|shipping|transport|frete", RegexOptions.IgnoreCase))
+            return SupplierItemKind.Shipping;
+
+        if (Regex.IsMatch(desc, @"servi[cç]o|service|garantia|tax|imposto|iva", RegexOptions.IgnoreCase))
+            return SupplierItemKind.Service;
+
+        var looksLikePhone = Regex.IsMatch(
+            desc,
+            @"iphone\s*\d+|galaxy\s*[as]\d+|pixel\s*\d+|xiaomi\s*\d+|redmi",
+            RegexOptions.IgnoreCase);
+        var hasCapacity = Regex.IsMatch(desc, @"\d+\s*(?:gb|tb)\b|\b\d{3,4}\b", RegexOptions.IgnoreCase);
+        if (looksLikePhone && hasCapacity)
+            return SupplierItemKind.Phone;
+
+        var hasCharger = Regex.IsMatch(desc, @"carregador", RegexOptions.IgnoreCase);
+        var hasPartKeyword = Regex.IsMatch(
+            desc,
+            @"ecr[aã]|display|touch|bateria|battery|flex|conector|cabo|painel",
+            RegexOptions.IgnoreCase);
+        if (hasPartKeyword || (hasCharger && unitCostCents is < 3000))
+            return SupplierItemKind.Part;
+
+        return SupplierItemKind.Unknown;
     }
 
     public async Task<byte[]> GetPdfAsync(Guid importId, CancellationToken ct = default)

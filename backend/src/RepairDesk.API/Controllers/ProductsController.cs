@@ -135,6 +135,11 @@ public class ProductsController : ControllerBase
         product.SeoDescription = seo.SeoDescription;
         if (string.IsNullOrWhiteSpace(product.DescriptionMarkdown))
             product.DescriptionMarkdown = seo.DescriptionMarkdown;
+        // Sprint 199: popula AttributesJson se ainda vazio — Bruno reclamou que este campo ficava
+        // sempre vazio. Claude devolve dict structured (display/chip/connector/sim/etc) só quando
+        // tem certeza absoluta para o modelo.
+        if (string.IsNullOrWhiteSpace(product.AttributesJson) && !string.IsNullOrWhiteSpace(seo.AttributesJson))
+            product.AttributesJson = seo.AttributesJson;
         await _db.SaveChangesAsync(ct);
 
         return Ok(new GenerateSeoResponse(
@@ -142,6 +147,7 @@ public class ProductsController : ControllerBase
             SeoDescription: seo.SeoDescription,
             Alt: seo.Alt,
             DescriptionMarkdown: seo.DescriptionMarkdown,
+            AttributesJson: seo.AttributesJson,
             ImagesUpdated: 0));  // não tocamos em alts existentes — usa generate-alt per imagem
     }
 
@@ -266,7 +272,7 @@ public class ProductsController : ControllerBase
         var input = new ProductSeoInput(req.Brand, req.Model, req.Storage, req.Color, req.Condition, null);
         var seo = await _seoGen.GenerateAsync(input, imageBytes, imageMime, ct);
         if (seo is null) return BadRequest(new { code = "llm_unavailable" });
-        return Ok(new { seo.SeoTitle, seo.SeoDescription, Alt = seo.Alt, seo.DescriptionMarkdown });
+        return Ok(new { seo.SeoTitle, seo.SeoDescription, Alt = seo.Alt, seo.DescriptionMarkdown, seo.AttributesJson });
     }
 
     /// <summary>
@@ -426,4 +432,6 @@ public sealed record GenerateSeoResponse(
     string SeoDescription,
     string Alt,
     string DescriptionMarkdown,
+    /// <summary>Sprint 199: JSON string com specs estruturadas. Null se Claude não gerou.</summary>
+    string? AttributesJson,
     int ImagesUpdated);
