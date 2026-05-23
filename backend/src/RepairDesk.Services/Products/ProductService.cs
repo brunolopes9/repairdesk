@@ -496,12 +496,30 @@ public class ProductService : IProductService
 
     private async Task<string> EnsureUniqueSlugAsync(string? rawSlug, Guid? excludeId, string brand, string model, string? storage, string? color, ProductGrading grading, CancellationToken ct)
     {
-        var slug = string.IsNullOrWhiteSpace(rawSlug)
+        var baseSlug = string.IsNullOrWhiteSpace(rawSlug)
             ? Slugify($"{brand} {model} {storage} {color} {grading}")
             : Slugify(rawSlug);
-        if (await _repo.SlugExistsAsync(slug, excludeId, ct))
-            throw new ConflictException("slug_in_use", $"Slug '{slug}' já existe.");
-        return slug;
+
+        // Sprint 236 fix: para imports CSV onde 2 linhas geram mesmo slug (ex: mesmo modelo
+        // e storage e cor mas variantes diferentes do fornecedor), gerar slug-2, slug-3 em
+        // vez de ConflictException. Para CreateAsync/UpdateAsync (rawSlug explícito), mantém
+        // comportamento estrito: throw se Bruno escreveu slug que colide.
+        if (!string.IsNullOrWhiteSpace(rawSlug))
+        {
+            if (await _repo.SlugExistsAsync(baseSlug, excludeId, ct))
+                throw new ConflictException("slug_in_use", $"Slug '{baseSlug}' já existe.");
+            return baseSlug;
+        }
+
+        // Slug auto-gerado: itera até encontrar único.
+        var candidate = baseSlug;
+        for (var n = 2; n < 1000; n++)
+        {
+            if (!await _repo.SlugExistsAsync(candidate, excludeId, ct))
+                return candidate;
+            candidate = $"{baseSlug}-{n}";
+        }
+        throw new ConflictException("slug_in_use", $"Slug '{baseSlug}' tem >1000 variantes.");
     }
 
     private static string GenerateSku(string brand, string model)
@@ -654,6 +672,10 @@ public class ProductService : IProductService
         var updated = 0;
         var skipped = 0;
 
+        // Sprint 236 fix: track slugs já adicionados no batch (sem SaveAsync), para 2 linhas
+        // do mesmo CSV com mesmo slug gerarem slug-2, slug-3 em vez de duplicate key na DB.
+        var slugsInBatch = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         for (var i = 1; i < rows.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
@@ -723,6 +745,20 @@ public class ProductService : IProductService
                     // Auto-gera SKU interno + slug.
                     var internalSku = await EnsureUniqueSkuAsync(null, null, brand, model, ct);
                     var slug = await EnsureUniqueSlugAsync(null, null, brand, model, Get(iStorage), Get(iColor), grading, ct);
+                    // Sprint 236: garantir que outra linha do mesmo batch não gerou o mesmo slug.
+                    if (!slugsInBatch.Add(slug))
+                    {
+                        var baseSlug = slug;
+                        for (var n = 2; n < 1000; n++)
+                        {
+                            var candidate = $"{baseSlug}-{n}";
+                            if (!await _repo.SlugExistsAsync(candidate, null, ct) && slugsInBatch.Add(candidate))
+                            {
+                                slug = candidate;
+                                break;
+                            }
+                        }
+                    }
 
                     var entity = new Product
                     {
