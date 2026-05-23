@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, EyeOff, Plus, Search, Smartphone, Trash2, Upload, XCircle } from 'lucide-react';
 import Modal from '../../components/Modal';
+import UniversalCsvImportModal from '../../components/UniversalCsvImportModal';
 import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import { api } from '../../lib/api';
@@ -86,6 +87,8 @@ export default function Produtos() {
   const [optimizingLegacy, setOptimizingLegacy] = useState(false);
   // Sprint 153b: importer CSV Molano UI.
   const [importOpen, setImportOpen] = useState(false);
+  // Sprint 203: universal CSV importer (qualquer fornecedor via Claude)
+  const [universalImportOpen, setUniversalImportOpen] = useState(false);
   const [importFornecedorId, setImportFornecedorId] = useState('');
   const [importResult, setImportResult] = useState<ImportProductsResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -229,8 +232,9 @@ export default function Produtos() {
           <Button leftIcon={<Upload size={15} />} variant="ghost" onClick={() => { setMigrateResult(null); setMigrateOpen(true); }}>
             Migrar shop (one-off)
           </Button>
-          <Button leftIcon={<Upload size={15} />} variant="secondary" onClick={() => { setImportResult(null); setImportFornecedorId(''); setImportOpen(true); }}>
-            Importar CSV Molano
+          {/* Sprint 203: importer universal (qualquer fornecedor, Claude detecta colunas). */}
+          <Button leftIcon={<Upload size={15} />} variant="secondary" onClick={() => setUniversalImportOpen(true)}>
+            Importar CSV
           </Button>
           {/* Sprint 192: batch re-optimize imagens legacy (Molano CSV / uploads antigos). */}
           <Button
@@ -821,6 +825,13 @@ export default function Produtos() {
           </div>
         </div>
       </Modal>
+
+      {/* Sprint 203: universal CSV importer — Claude detecta colunas para qualquer fornecedor. */}
+      <UniversalCsvImportModal
+        open={universalImportOpen}
+        onClose={() => setUniversalImportOpen(false)}
+        onImported={() => qc.invalidateQueries({ queryKey: ['products'] })}
+      />
 
       {/* Sprint 153b: modal upload CSV Molano. Idempotente — re-importar mesmo CSV não duplica. */}
       <Modal open={importOpen} title="Importar CSV de fornecedor (Molano, dropship)" onClose={() => setImportOpen(false)}>

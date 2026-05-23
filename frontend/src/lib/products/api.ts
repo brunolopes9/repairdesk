@@ -194,12 +194,45 @@ export const productsApi = {
   importMolano(fornecedorId: string, csv: string) {
     return api.post<ImportProductsResponse>('/products/import-molano', { fornecedorId, csv }).then((r) => r.data);
   },
+  // Sprint 203: detector universal de colunas CSV via Claude. Devolve mapping sugerido para
+  // qualquer fornecedor (não precisa hardcode). Bruno confirma 1× e mapping fica guardado.
+  detectCsvColumns(csv: string) {
+    return api.post<DetectCsvColumnsResponse>('/products/csv/detect-columns', { csv }).then((r) => r.data);
+  },
+  importCsvWithMapping(fornecedorId: string, csv: string, mapping: CsvColumnMapping, saveMapping: boolean) {
+    return api.post<ImportProductsResponse>('/products/csv/import-with-mapping', {
+      fornecedorId, csv, mapping, saveMapping,
+    }).then((r) => r.data);
+  },
   // Sprint 155b: migração one-off de produtos shop-only (vinham só da loja antes do
   // single-source-of-truth). Aceita o JSON exportado pelo outro Claude via npm run db:export-shop-only.
   migrateShop(products: MigrateShopProductRequest[]) {
     return api.post<ImportProductsResponse>('/products/migrate-shop', { products }).then((r) => r.data);
   },
 };
+
+// Sprint 203: mapping de colunas CSV → campos canónicos (Claude-detected ou Bruno-edited).
+export interface CsvColumnMapping {
+  sku: string | null;
+  brand: string | null;
+  model: string | null;
+  product: string | null;
+  storage: string | null;
+  color: string | null;
+  grading: string | null;
+  price: string | null;
+  stock: string | null;
+  cost: string | null;
+  images: string | null;
+}
+
+export interface DetectCsvColumnsResponse {
+  detected: boolean;
+  mapping?: CsvColumnMapping & { confidence: string; notes: string };
+  header: string[];
+  samplesShown?: number;
+  reason?: string;
+}
 
 export interface MigrateShopProductRequest {
   sku: string;
