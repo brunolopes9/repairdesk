@@ -61,4 +61,77 @@ public static class ProductGradingMapper
         CondicaoArtigo.Usado => "used",
         _ => "n/a",
     };
+
+    // ===== Sprint 197: 2D Origin + Grade =====
+
+    /// <summary>Sprint 197: schema.org canonical (NewCondition / UsedCondition / RefurbishedCondition).</summary>
+    public static string OriginCanonical(ProductOrigin o) => o switch
+    {
+        ProductOrigin.New => "new",
+        ProductOrigin.Used => "used",
+        ProductOrigin.Refurbished => "refurbished",
+        _ => "n/a",
+    };
+
+    public static string OriginLabelPt(ProductOrigin o) => o switch
+    {
+        ProductOrigin.New => "Novo",
+        ProductOrigin.Used => "Usado original",
+        ProductOrigin.Refurbished => "Recondicionado",
+        _ => o.ToString(),
+    };
+
+    public static string GradeCanonical(ProductGrade g) => g switch
+    {
+        ProductGrade.Sealed => "sealed",
+        ProductGrade.APlusPlus => "A++",
+        ProductGrade.APlus => "A+",
+        ProductGrade.A => "A",
+        ProductGrade.BPlus => "B+",
+        ProductGrade.B => "B",
+        ProductGrade.CPlus => "C+",
+        ProductGrade.C => "C",
+        _ => g.ToString(),
+    };
+
+    /// <summary>Sprint 197: labels alinhadas com Molano grading guide (buymolano.com) — todos garantem
+    /// bateria 80%+. A++ é específico Bruno (open-box premium 100% bateria).</summary>
+    public static string GradeLabelPt(ProductGrade g) => g switch
+    {
+        ProductGrade.Sealed => "Selado",
+        ProductGrade.APlusPlus => "A++ · Como novo (open-box 100% bateria)",
+        ProductGrade.APlus => "A+ · Como novo (vestígio quase impercetível)",
+        ProductGrade.A => "A · Excelente (ligeira descoloração possível)",
+        ProductGrade.BPlus => "B+ · Muito bom (vestígios menores, max 3)",
+        ProductGrade.B => "B · Bom (vestígios menores, max 5)",
+        ProductGrade.CPlus => "C+ · Razoável (riscos profundos / amolgadelas)",
+        ProductGrade.C => "C · Aceitável (desgaste significativo)",
+        _ => g.ToString(),
+    };
+
+    /// <summary>Sprint 197: label combinado para SEO prompt + UI. "Novo (selado)", "Usado original A++", "Recondicionado B".</summary>
+    public static string ComposedLabelPt(ProductOrigin origin, ProductGrade grade)
+    {
+        if (origin == ProductOrigin.New && grade == ProductGrade.Sealed) return "Novo (selado)";
+        return $"{OriginLabelPt(origin)} {GradeCanonical(grade)}";
+    }
+
+    /// <summary>
+    /// Sprint 197: deriva o ProductGrading legacy para back-compat (webhook envia ambos durante
+    /// transição). Heurística aproximada — não é bijectivo.
+    /// </summary>
+    public static ProductGrading ComposeLegacy(ProductOrigin origin, ProductGrade grade) => (origin, grade) switch
+    {
+        (ProductOrigin.New, ProductGrade.Sealed) => ProductGrading.Novo,
+        (ProductOrigin.New, _) => ProductGrading.OpenBox,
+        (ProductOrigin.Used, ProductGrade.APlusPlus) => ProductGrading.OpenBox,
+        (ProductOrigin.Used, ProductGrade.APlus) => ProductGrading.Premium,
+        (ProductOrigin.Used, ProductGrade.A) => ProductGrading.GradeA,
+        (ProductOrigin.Used, ProductGrade.BPlus or ProductGrade.B) => ProductGrading.GradeB,
+        (ProductOrigin.Used, ProductGrade.CPlus or ProductGrade.C) => ProductGrading.GradeC,
+        (ProductOrigin.Refurbished, ProductGrade.APlusPlus or ProductGrade.APlus or ProductGrade.A) => ProductGrading.GradeA,
+        (ProductOrigin.Refurbished, ProductGrade.BPlus or ProductGrade.B) => ProductGrading.GradeB,
+        (ProductOrigin.Refurbished, ProductGrade.CPlus or ProductGrade.C) => ProductGrading.GradeC,
+        _ => ProductGrading.Novo,
+    };
 }

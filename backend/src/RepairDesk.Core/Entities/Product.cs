@@ -29,7 +29,13 @@ public class Product : BaseEntity, ITenantEntity
     public string? Storage { get; set; }
     /// <summary>Cor (Black, Blue, Pink).</summary>
     public string? Color { get; set; }
+    /// <summary>Sprint 197: deprecated, mantido por back-compat. Origin+Grade são o source of truth.
+    /// Setter automático ao gravar (ProductGradingMapper.ComposeLegacy). UI nova não usa.</summary>
     public ProductGrading Grading { get; set; } = ProductGrading.Novo;
+    /// <summary>Sprint 197: eixo "de onde vem" (New/Used/Refurbished). Independente do estado visual.</summary>
+    public ProductOrigin Origin { get; set; } = ProductOrigin.New;
+    /// <summary>Sprint 197: estado visual/funcional (Sealed/A++/A+/A/B/C). Sealed só faz sentido com Origin=New.</summary>
+    public ProductGrade Grade { get; set; } = ProductGrade.Sealed;
     public ProductSupplyType SupplyType { get; set; } = ProductSupplyType.Stock;
     /// <summary>
     /// Sprint 151: categoria de produto na loja online. Distingue telemóveis (Phone) de

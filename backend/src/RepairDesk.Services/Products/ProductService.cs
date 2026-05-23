@@ -352,11 +352,17 @@ public class ProductService : IProductService
             model = product.Model,
             storage = product.Storage,
             color = product.Color,
-            // Sprint 122 internal grading.
+            // Sprint 122 internal grading (deprecated, back-compat).
             grading = product.Grading.ToString(),
             // Sprint 146: canónicos para a loja (A+/A/B/C/OpenBox + label PT).
             gradingCanonical = ProductGradingMapper.ToCanonical(product.Grading),
             gradingLabel = ProductGradingMapper.ToLabelPt(product.Grading),
+            // Sprint 197: 2D classification — loja deve usar isto em vez do grading legacy.
+            origin = product.Origin.ToString().ToLowerInvariant(),
+            originLabel = ProductGradingMapper.OriginLabelPt(product.Origin),
+            grade = ProductGradingMapper.GradeCanonical(product.Grade),
+            gradeLabel = ProductGradingMapper.GradeLabelPt(product.Grade),
+            conditionCombined = ProductGradingMapper.ComposedLabelPt(product.Origin, product.Grade),
             // Sprint 151: categoria de produto.
             category = product.Category.ToString().ToLowerInvariant(),
             // Sprint 154: derivados do spec.
