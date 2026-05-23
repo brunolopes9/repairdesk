@@ -489,24 +489,36 @@ public class ProductService : IProductService
             throw new ValidationException("csv_sem_dados", "CSV precisa de header + pelo menos 1 linha.");
 
         var header = rows[0].Select(h => h.Trim().ToLowerInvariant()).ToArray();
+        // Sprint 201: matching com prefix (para "Price (EUR)", "warranty 12m price", etc).
+        // Exact match primeiro; se não, tenta prefix.
         int Idx(params string[] names) => header
             .Select((h, i) => new { h, i })
-            .FirstOrDefault(x => names.Contains(x.h))?.i ?? -1;
+            .FirstOrDefault(x => names.Contains(x.h))?.i
+            ?? header
+                .Select((h, i) => new { h, i })
+                .FirstOrDefault(x => names.Any(n => x.h.StartsWith(n + " ") || x.h.StartsWith(n + "(") || x.h == n))?.i
+            ?? -1;
 
         var iSku = Idx("sku", "supplier_sku", "ref", "referencia");
         var iBrand = Idx("brand", "marca");
         var iModel = Idx("model", "modelo");
+        // Sprint 201: Molano novo CSV (quick-order-export) usa "Product" como descrição combinada
+        // em vez de Brand+Model separados. Se ambos faltam, usamos esta coluna como fallback.
+        var iProduct = Idx("product", "produto", "description", "descricao");
         var iStorage = Idx("storage", "capacidade", "armazenamento");
-        var iColor = Idx("color", "cor");
+        var iColor = Idx("color", "colour", "cor"); // UK spelling 'colour'
         var iGrading = Idx("grading", "grade", "condicao", "condição");
         var iPrice = Idx("price", "preco", "preço", "preco_venda");
         var iStock = Idx("stock", "qtd", "quantidade", "qtdstock");
         var iImages = Idx("images", "imagens", "image_urls");
         var iCusto = Idx("cost", "custo", "preco_compra");
 
-        if (iSku < 0 || iBrand < 0 || iModel < 0 || iPrice < 0)
+        if (iSku < 0 || iPrice < 0)
             throw new ValidationException("csv_falta_coluna",
-                "Colunas obrigatórias: sku, brand, model, price. Aceito também storage, color, grading, stock, images, cost.");
+                "Colunas obrigatórias: SKU + Price (ou Brand + Model + Price). Detectado header: " + string.Join(", ", header));
+        if ((iBrand < 0 || iModel < 0) && iProduct < 0)
+            throw new ValidationException("csv_falta_coluna",
+                "Precisa de Brand+Model separados OU coluna Product combinada. Header: " + string.Join(", ", header));
 
         var errors = new List<ImportProductError>();
         var created = 0;
@@ -529,9 +541,34 @@ public class ProductService : IProductService
 
             var brand = Get(iBrand);
             var model = Get(iModel);
+            // Sprint 201: fallback Molano novo formato — extrair brand+model de "Product" combinado.
+            // Ex: "iPad 10 (2022) 256GB 4G – 256 · Blue · Grade B" → Brand=Apple (inferido), Model=iPad 10 (2022)
             if (string.IsNullOrWhiteSpace(brand) || string.IsNullOrWhiteSpace(model))
             {
-                errors.Add(new ImportProductError(lineNo, "brand/model", "Marca ou modelo em branco.", supplierSku));
+                var productText = Get(iProduct);
+                if (!string.IsNullOrWhiteSpace(productText))
+                {
+                    // Heurística: primeiro segmento (antes do "–" ou "·") é o modelo
+                    var firstSegment = productText.Split(new[] { '–', '·', '-' }, 2)[0].Trim();
+                    if (string.IsNullOrWhiteSpace(brand))
+                    {
+                        // Inferir brand das palavras-chave conhecidas
+                        var lower = firstSegment.ToLowerInvariant();
+                        brand = lower.StartsWith("iphone") || lower.StartsWith("ipad") || lower.StartsWith("macbook") || lower.StartsWith("imac") || lower.StartsWith("apple") || lower.StartsWith("watch") ? "Apple"
+                              : lower.StartsWith("galaxy") || lower.StartsWith("samsung") ? "Samsung"
+                              : lower.StartsWith("pixel") || lower.StartsWith("google") ? "Google"
+                              : lower.StartsWith("redmi") || lower.StartsWith("xiaomi") || lower.StartsWith("poco") ? "Xiaomi"
+                              : lower.StartsWith("oppo") ? "OPPO"
+                              : lower.StartsWith("oneplus") ? "OnePlus"
+                              : lower.StartsWith("huawei") ? "Huawei"
+                              : firstSegment.Split(' ', 2)[0]; // primeiro token
+                    }
+                    if (string.IsNullOrWhiteSpace(model)) model = firstSegment;
+                }
+            }
+            if (string.IsNullOrWhiteSpace(brand) || string.IsNullOrWhiteSpace(model))
+            {
+                errors.Add(new ImportProductError(lineNo, "brand/model", "Marca ou modelo em branco (CSV não tem colunas separadas nem coluna Product utilizável).", supplierSku));
                 continue;
             }
 
