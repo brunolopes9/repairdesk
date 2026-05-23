@@ -240,6 +240,58 @@ exige validacao comercial e hardening continuado antes de escala publica.
 
 ---
 
+## Sprints 199-206 — addendum (2026-05-23 tarde)
+
+Após este documento ser escrito, mais 8 entregas foram integradas no mesmo dia.
+
+### Sprint 199 — AttributesJson auto-gerado por Claude
+- Prompt SEO retorna agora `attributes: { display, chip, connector, sim, biometric, wireless_charging, os, ... }` (dict structured).
+- Frontend popula `Product.AttributesJson` se ainda vazio; toast diferencia "SEO + atributos" de "atributos não disponíveis" (modelo obscuro).
+- Validação anti-hallucination: server descarta chaves que não estão no header.
+
+### Sprint 200 — ExternalProductDto com Origin+Grade 2D
+- Loja consume `origin` (`new`/`used`/`refurbished`), `originLabel`, `grade` (`A++` etc), `gradeLabel`, `conditionCombined` ("Novo (selado)", "Usado original A++").
+- Schema.org `itemCondition` mapping directo: New/Used/Refurbished.
+
+### Sprint 201 — Fix CSV Molano novo formato
+- Header `Product` combinado (em vez de Brand+Model separados), `Price (EUR)`, `Colour` UK.
+- Brand inferida por keyword (iPad → Apple, Galaxy → Samsung, etc).
+- Idx() com prefix matching.
+
+### Sprint 202 — GradeSlug URL-safe
+- A++ literal em URLs faz decode para `A   `. Loja consome `gradeSlug`: `a-plus-plus` / `a-plus` / `a` / `b-plus` / `b` / `c-plus` / `c` / `sealed`.
+- Disponível em webhook + ExternalProductDto.
+
+### Sprint 203 — Universal CSV importer (Claude column detection)
+- Endpoint `POST /products/csv/detect-columns` (Claude Haiku ~0.05¢).
+- Endpoint `POST /products/csv/import-with-mapping` com `saveMapping` opcional.
+- `Fornecedor.CsvColumnMappingJson` (nullable) guarda mapeamento aprendido.
+- Frontend `UniversalCsvImportModal.tsx` com 2 steps (upload → review).
+- Custo zero para fornecedores já conhecidos (mapping em DB).
+
+### Sprint 204 — Battery + Technical state + notes
+- `Product.BatteryHealthPercent` (int? 0-100), `TechnicalState` enum (NeverOpened/OriginalParts/Repaired), `TechnicalNotes` (string?).
+- Webhook + ExternalProductDto + UI bloco "Saúde técnica" com badge Trust.
+- Pedido pelo shop Claude para filtros 4-bucket bateria + selo "Peças originais".
+
+### Sprint 205 — IsOpenBox flag explícita
+- `Product.IsOpenBox` boolean (default false). Distingue exposição loja vs usado premium do cliente.
+- Migration backfill: Grading legacy=OpenBox → IsOpenBox=true.
+- Checkbox visível só quando Origin=Used + Grade=A++.
+
+### Sprint 206 — Integração Codex Tasks A/B/C/D
+4 tasks paralelas executadas pelo Codex:
+
+**A) Backend role check garantia anular** — `[Authorize(Roles = "Admin")]` em `GarantiasController.Anular`. Defesa em profundidade ao frontend hide do Sprint 198. Teste 403 Forbidden.
+
+**B) `/relatorios/negocio` (Dashboard Negócio)** — separa fiscal (IVA) de gestão (lucro). `GET /api/relatorios/negocio?ano&trimestre` agrega Receita + CustoPecas + OpEx + Lucro + Margem + Ticket + tops 5 (reparações, peças, fornecedores). `IRelatorioNegocioService` + `RelatorioNegocioRepository` com filtro TenantId. Frontend `Negocio.tsx` + Sidebar dropdown Relatórios (IVA + Negócio). 5 tests.
+
+**C) Auto-classify supplier invoice items** — `SupplierItemKind` enum (Phone/Part/Service/Shipping/Unknown) + `ClassifyItemDescription` helper com regex. Modal approve usa para defaultar: Phone/Service → despesa, Part → existing/new, Shipping → skip. 8 tests cobrem cada categoria.
+
+**D) Doc 63 (este)** — escrito pelo Codex como entregável independente.
+
+---
+
 ## Roadmap futuro
 
 - PWA offline write.
@@ -259,11 +311,10 @@ exige validacao comercial e hardening continuado antes de escala publica.
 
 ## Metricas
 
-- Git log verificado ate Sprint 198 em 2026-05-23.
-- Aproximadamente 330 entregas/sprints curtos contabilizados no trabalho interno.
-- Baseline comunicada para apresentacao: 243 testes passing.
-- Revalidacao local em 2026-05-23 nao chegou a executar testes por 2 erros de
-  compilacao em servicos recentes; corrigir antes de demonstracao tecnica.
+- Git log verificado ate Sprint 206 em 2026-05-23 (tarde).
+- Aproximadamente 338 entregas/sprints curtos contabilizados no trabalho interno.
+- **257 testes passing** (baseline 243 + 8 Sprint 206C + 5 Sprint 206B + 1 Sprint 206A).
+- Backend build OK; frontend TS limpo; suite verde.
 - Zero clientes em producao.
 - Estado comercial: early, ainda sem receita SaaS.
 - Estado tecnico: produto funcional, com integracoes e compliance PT em fase
