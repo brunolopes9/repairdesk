@@ -1,4 +1,4 @@
-# RepairDesk
+# Mender
 
 [![CI](https://github.com/brunolopes9/repairdesk/actions/workflows/ci.yml/badge.svg)](https://github.com/brunolopes9/repairdesk/actions/workflows/ci.yml)
 [![Deploy staging](https://github.com/brunolopes9/repairdesk/actions/workflows/deploy-staging.yml/badge.svg)](https://github.com/brunolopes9/repairdesk/actions/workflows/deploy-staging.yml)
@@ -21,7 +21,7 @@ Oficina de reparação de telemóveis / electrónica em Portugal, **1-5 funcion�
 - Software de faturação separado (Moloni, Wisedat, etc) — sem ligação ao registo da reparação
 - Sem visibilidade financeira clara (margem, receita pendente, custo de stock)
 
-O RepairDesk substitui o Excel + organiza a comunicação + dá visibilidade financeira honesta. A faturação fiscal continua a sair de provider certificado (ver [Faturação](#faturação) abaixo) — o RepairDesk integra, não substitui.
+O Mender substitui o Excel + organiza a comunicação + dá visibilidade financeira honesta. A faturação fiscal continua a sair de provider certificado (ver [Faturação](#faturação) abaixo) — o Mender integra, não substitui.
 
 ---
 
@@ -75,7 +75,7 @@ O RepairDesk substitui o Excel + organiza a comunicação + dá visibilidade fin
 
 ## O que torna isto diferente
 
-Em mercado dominado por software genérico (Moloni / Vendus / InvoiceXpress) ou estrangeiro (RepairShopr, mHelpDesk), o RepairDesk diferencia-se por:
+Em mercado dominado por software genérico (Moloni / Vendus / InvoiceXpress) ou estrangeiro (RepairShopr, mHelpDesk), o Mender diferencia-se por:
 
 1. **Portal cliente público estilo Uber** — outros softwares só mandam SMS feio. Aqui o cliente vê timeline visual, fotos antes/depois, aprova orçamento em 2 cliques.
 2. **Garantia digital com QR** — cliente nunca mais perde garantia.
@@ -116,17 +116,17 @@ Onboarding wizard cria um novo tenant em 5 passos (dados empresa, primeiro clien
 ## Estrutura
 
 ```
-RepairDesk/
+Mender/
 ├── backend/
 │   ├── src/
-│   │   ├── RepairDesk.Core/            # Entities, interfaces, enums (zero deps)
-│   │   ├── RepairDesk.Common/          # Helpers, Guards, Result types
-│   │   ├── RepairDesk.DAL/             # DbContext, Configurations, Migrations
-│   │   ├── RepairDesk.Services/        # Lógica de negócio, validators, DTOs
-│   │   ├── RepairDesk.Infrastructure/  # Storage (Local/R2), serviços externos
-│   │   └── RepairDesk.API/             # Controllers, middleware, composição DI
-│   ├── tests/RepairDesk.Tests/
-│   └── RepairDesk.sln
+│   │   ├── Mender.Core/            # Entities, interfaces, enums (zero deps)
+│   │   ├── Mender.Common/          # Helpers, Guards, Result types
+│   │   ├── Mender.DAL/             # DbContext, Configurations, Migrations
+│   │   ├── Mender.Services/        # Lógica de negócio, validators, DTOs
+│   │   ├── Mender.Infrastructure/  # Storage (Local/R2), serviços externos
+│   │   └── Mender.API/             # Controllers, middleware, composição DI
+│   ├── tests/Mender.Tests/
+│   └── Mender.sln
 ├── frontend/                           # Vite + React + Tailwind v4
 │   └── src/
 │       ├── components/                 # Layout, Modal, primitives (Button, PageHeader, EmptyState, Skeleton)
@@ -180,7 +180,7 @@ docker compose up db cache
 
 # Terminal 2 — API (auto-aplica migrations + seed)
 cd backend
-dotnet run --project src/RepairDesk.API/RepairDesk.API.csproj
+dotnet run --project src/Mender.API/Mender.API.csproj
 
 # Terminal 3 — Frontend
 cd frontend
@@ -202,14 +202,14 @@ cd backend
 
 # Adicionar nova migration
 dotnet ef migrations add <Nome> \
-  --project src/RepairDesk.DAL \
-  --startup-project src/RepairDesk.API \
+  --project src/Mender.DAL \
+  --startup-project src/Mender.API \
   --output-dir Migrations
 
 # Aplicar manualmente (não é preciso, a API aplica no arranque)
 dotnet ef database update \
-  --project src/RepairDesk.DAL \
-  --startup-project src/RepairDesk.API
+  --project src/Mender.DAL \
+  --startup-project src/Mender.API
 ```
 
 Para desactivar auto-migrate em arranque, define `Database:SkipAutoMigrate=true` em `appsettings`.
@@ -235,7 +235,7 @@ Exemplo completo em `.env.example`.
 
 ## Faturação
 
-**Curta:** O RepairDesk **não emite faturas legais directamente** — integra com provider PT certificado (Moloni / InvoiceXpress) que emite em nome do tenant. O RepairDesk armazena referência + PDF.
+**Curta:** O Mender **não emite faturas legais directamente** — integra com provider PT certificado (Moloni / InvoiceXpress) que emite em nome do tenant. O Mender armazena referência + PDF.
 
 **Porquê:** DL 28/2019 art. 4.º n.º 1 b) obriga que software que emite faturas seja certificado pela AT (auditoria, hash chain, assinatura digital, etc — processo de 6-12 meses + €5-15k). Caminho ineficiente para um produto novo a validar mercado.
 

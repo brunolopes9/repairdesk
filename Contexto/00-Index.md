@@ -1,6 +1,6 @@
-# Contexto — Índice de Documentação RepairDesk SaaS
+# Contexto — Índice de Documentação Mender SaaS
 
-Documentação estratégica para o produto RepairDesk SaaS. Mantida por sprint.
+Documentação estratégica para o produto Mender SaaS. Mantida por sprint.
 
 Última atualização: 2026-05-17
 
@@ -11,14 +11,14 @@ Documentação estratégica para o produto RepairDesk SaaS. Mantida por sprint.
 Para alguém novo a este projeto (futuro Bruno, futuro Claude, futuro sócio):
 
 0. **[`01-Estado-Actual.md`](01-Estado-Actual.md)** — 🎯 **COMEÇA AQUI.** Snapshot vivo do que está implementado, o que falta para Beta, e menu de próximos passos. Actualizar a cada 3-5 sprints.
-1. **[`RepairDesk_Novas_Ideias.md`](RepairDesk_Novas_Ideias.md)** — ideias raw, scratchpad histórico. Contém secção 5 com **estratégia SaaS** consolidada.
+1. **[`Mender_Novas_Ideias.md`](Mender_Novas_Ideias.md)** — ideias raw, scratchpad histórico. Contém secção 5 com **estratégia SaaS** consolidada.
 2. **[`02-Concorrentes.md`](02-Concorrentes.md)** — quem está no mercado, preços, features, vulnerabilidades. Atualizar quando descobrirmos coisas novas.
 3. **[`03-Dores-Reais.md`](03-Dores-Reais.md)** — dores reais observadas (Reddit, Capterra, Bruno). **Citações literais** com análise crítica. **Esta é a bíblia das decisões de produto.**
 4. **[`04-Roadmap-Detalhado.md`](04-Roadmap-Detalhado.md)** — mapping dor → feature → sprint. Sprints 14-22 + horizons 2/3/4.
 5. **[`05-Reflexao-Critica.md`](05-Reflexao-Critica.md)** — onde concordo/discordo de Codex, ChatGPT e do próprio Bruno. Não aceitar tudo cegamente.
 6. **[`06-Prompts-Codex.md`](06-Prompts-Codex.md)** — templates fortes para delegar tarefas a Codex. Anti-padrões a evitar.
-7. **[`07-Pricing-Proposta.md`](07-Pricing-Proposta.md)** — pricing tiers (€19/39/89 por loja), CAC/LTV, comparação RO App/RepairDesk, trial/freemium. **Resultado da delegação ao Codex (task #56).**
-8. **[`10-Compliance-PT.md`](10-Compliance-PT.md)** — SAF-T, ATCUD, e-Fatura, certificação AT. **Resultado da delegação ao Codex (Prompt #7).** Documento corrige erro grave: emissão de faturas pelo RepairDesk **obriga** certificação (DL 28/2019 art. 4.º n.º 1 b), independente do regime do utilizador.
+7. **[`07-Pricing-Proposta.md`](07-Pricing-Proposta.md)** — pricing tiers (€19/39/89 por loja), CAC/LTV, comparação RO App/Mender, trial/freemium. **Resultado da delegação ao Codex (task #56).**
+8. **[`10-Compliance-PT.md`](10-Compliance-PT.md)** — SAF-T, ATCUD, e-Fatura, certificação AT. **Resultado da delegação ao Codex (Prompt #7).** Documento corrige erro grave: emissão de faturas pelo Mender **obriga** certificação (DL 28/2019 art. 4.º n.º 1 b), independente do regime do utilizador.
 9. **[`11-WhatsApp-Templates.md`](11-WhatsApp-Templates.md)** — templates WhatsApp por estado de reparação, com variações por categoria, casos especiais, defaults e notas RGPD/opt-in. **Resultado da delegação ao Codex (Prompt #10).**
 10. **[`12-Onboarding-Wizard.md`](12-Onboarding-Wizard.md)** — especificação do wizard de onboarding de novas lojas (passos, mockups ASCII, métricas, plano B). **Resultado da delegação ao Codex (Prompt #11).**
 11. **[`09-Customer-Acquisition.md`](09-Customer-Acquisition.md)** — estratégia de aquisição B2B PT (mercado, canais, CAC, roadmap 90 dias). **Resultado da delegação ao Codex (Prompt #9).**
@@ -41,14 +41,14 @@ Para alguém novo a este projeto (futuro Bruno, futuro Claude, futuro sócio):
 28. **[`29-Privacy-By-Design-Audit.md`](29-Privacy-By-Design-Audit.md)** — audit técnico de privacy by design aplicado à arquitetura atual, com mapa de dados, gaps RGPD e plano de remediação pré-beta. **Resultado da delegação ao Codex (Prompt #28).**
 29. **[`30-Release-Strategy.md`](30-Release-Strategy.md)** — estratégia operacional de releases, versioning, changelog público, migrations, deploy, rollback e comunicação a clientes. **Resultado da delegação ao Codex (Prompt #29).**
 30. **[`31-Sales-Playbook.md`](31-Sales-Playbook.md)** — playbook de vendas founder-led: discovery, demo, objeções, pricing, follow-up, CRM simples e plano para 3 lojas amigas. **Resultado da delegação ao Codex (Prompt #30).**
-31. **[`32-Audit-UX-UI.md`](32-Audit-UX-UI.md)** — audit UX/UI completo do RepairDesk, score por critério, quick wins, roadmap visual, mockups ASCII e inspiração SaaS B2B. **Resultado da delegação ao Codex (Prompt #31).**
+31. **[`32-Audit-UX-UI.md`](32-Audit-UX-UI.md)** — audit UX/UI completo do Mender, score por critério, quick wins, roadmap visual, mockups ASCII e inspiração SaaS B2B. **Resultado da delegação ao Codex (Prompt #31).**
 32. **[`33-CI-CD-Setup.md`](33-CI-CD-Setup.md)** — setup operacional GitHub Actions, secrets, deploy staging/production. **Resultado do Codex coding #C4 (em curso).**
 33. **[`34-Beta-Launch-Criteria.md`](34-Beta-Launch-Criteria.md)** — 🎯 critérios objectivos MUST/SHOULD/NICE-have para lançar beta, diferenciação real, gap analysis e timeline 6-8 semanas. Reflexão crítica anti-feature-creep.
 34. **[`35-Faturacao-Decisao-Final.md`](35-Faturacao-Decisao-Final.md)** — 🔒 decisão fechada Path A (Moloni/InvoiceXpress). Explica Camada 1 (certificação) vs Camada 2 (webservices AT) — fecha confusão histórica. Prompt Codex preparado.
 35. **[`36-Video-Demo-Script.md`](36-Video-Demo-Script.md)** — 🎬 script 90s pronto para gravar. 8 cenas + storyboard + notas técnicas + checklist + versão 15s para Stories. Materializar diferenciação que o produto já tem.
-36. **[`37-Insights-Mercado-Reddit.md`](37-Insights-Mercado-Reddit.md)** — 🚨 captura de 2 threads Reddit r/mobilerepair + r/CRM. Achado crítico: colisão de nome com "RepairDesk" US — rebrand urgente antes do beta. + 11 outros insights (pricing per-tenant, SKU auto, segmento solo, custom fields, trade-ins, integração contabilidade).
-37. **[`38-Rebrand-Mapping.md`](38-Rebrand-Mapping.md)** — mapeamento exacto de onde aparece "RepairDesk" no código + UI + docs. 8 sítios alta prioridade (UI visível), 21 ocorrências copy legal, plus branding técnico. Processo de rebrand em 4 fases + shortlist inicial de nomes.
-38. **[`40-Ideias-Spin-off-Automation.md`](40-Ideias-Spin-off-Automation.md)** — 🧊 análise crítica de Bruno querer lançar spin-off de automações em paralelo com RepairDesk. **Recomendação: NÃO agora.** Mercado saturado, é agência não produto, foco mata possibilidade. 3 ideias melhores (extracções do RepairDesk) + métrica para revisitar Q4 2026.
+36. **[`37-Insights-Mercado-Reddit.md`](37-Insights-Mercado-Reddit.md)** — 🚨 captura de 2 threads Reddit r/mobilerepair + r/CRM. Achado crítico: colisão de nome com "Mender" US — rebrand urgente antes do beta. + 11 outros insights (pricing per-tenant, SKU auto, segmento solo, custom fields, trade-ins, integração contabilidade).
+37. **[`38-Rebrand-Mapping.md`](38-Rebrand-Mapping.md)** — mapeamento exacto de onde aparece "Mender" no código + UI + docs. 8 sítios alta prioridade (UI visível), 21 ocorrências copy legal, plus branding técnico. Processo de rebrand em 4 fases + shortlist inicial de nomes.
+38. **[`40-Ideias-Spin-off-Automation.md`](40-Ideias-Spin-off-Automation.md)** — 🧊 análise crítica de Bruno querer lançar spin-off de automações em paralelo com Mender. **Recomendação: NÃO agora.** Mercado saturado, é agência não produto, foco mata possibilidade. 3 ideias melhores (extracções do Mender) + métrica para revisitar Q4 2026.
 39. **[`41-Moloni-Setup.md`](41-Moloni-Setup.md)** — 💳 passo-a-passo para Bruno criar conta Moloni + obter API key + configurar série, **antes** do Codex aterrar #C9. Multi-tenant: cada oficina cria a sua conta. Free tier 50 docs/mês. Sandbox primeiro.
 40. **[`42-Moloni-Troubleshooting.md`](42-Moloni-Troubleshooting.md)** — 🛠️ guia de 12 erros comuns na integração Moloni (503 sandbox down, 422 credenciais, plano sem API, refresh expirado, séries em falta, CompanyId/ProductId missing, IVA M02, etc) + tabela rápida de status HTTP. Útil para suporte beta.
 41. **[`43-Moloni-Setup-Beta-Users.md`](43-Moloni-Setup-Beta-Users.md)** — 📋 guia passo-a-passo para tenants beta ligarem Moloni: registo, OAuth, e configuração de IDs operacionais (vai ser auto-descoberto no Sprint 45 #C14).
@@ -65,13 +65,13 @@ Para alguém novo a este projeto (futuro Bruno, futuro Claude, futuro sócio):
 - Regime fiscal: Isenção Art. 53 CIVA
 
 ### Que produto fazemos
-- **RepairDesk SaaS** — backoffice multi-tenant para oficinas de reparação
+- **Mender SaaS** — backoffice multi-tenant para oficinas de reparação
 - Foco vertical: telemóveis, computadores, eletrónica geral
 - Portugal-first (SAFT-PT, IVA PT, WhatsApp, MBWay no roadmap)
 - Stack: .NET 10 + EF Core 10 + SQL Server (backend), React 19 + Vite + Tailwind v4 (frontend)
 
 ### Quem é a concorrência (resumo)
-- **RepairDesk Lahore** — incumbente $99/user/mês, 3000+ lojas, UX antiga
+- **Mender Lahore** — incumbente $99/user/mês, 3000+ lojas, UX antiga
 - **RO App** — moderno, €15-69/mês, generalista demais
 - **BytePhase, RepairCMS, PC Repair Tracker** — outros do mercado, ver `02-Concorrentes.md`
 - **Reparo (Kossano)** — gratuito offline, referência de UX simples
@@ -93,7 +93,7 @@ Ver `01-Estado-Actual.md` secção 5 "menu de próximos passos". **Resumo:** com
 | Ficheiro | Status | Última atualização |
 |---|---|---|
 | 00-Index.md | Vivo | 2026-05-16 |
-| RepairDesk_Novas_Ideias.md | Vivo (scratchpad) | 2026-05-13 |
+| Mender_Novas_Ideias.md | Vivo (scratchpad) | 2026-05-13 |
 | 02-Concorrentes.md | Vivo | 2026-05-13 |
 | 03-Dores-Reais.md | Vivo (enriquecer com novas) | 2026-05-13 |
 | 04-Roadmap-Detalhado.md | Vivo (revisitar a cada 6 sprints) | 2026-05-13 |

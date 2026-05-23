@@ -1,4 +1,4 @@
-# Estado Actual do RepairDesk — 2026-05-17
+# Estado Actual do Mender — 2026-05-17
 
 **Single source of truth.** Único sítio onde se vê tudo o que está implementado vs o que falta. Actualizar a cada 3-5 sprints, não em cada commit.
 
@@ -173,7 +173,7 @@ Stack: `api` (.NET 10), `web` (React + nginx), `db` (SQL Server 2022), `cache` (
 | Domínio público (`repairdesk.lopestech.pt`?) | Bruno | esta semana | Bruno já tem lopestech.pt |
 | Moloni vs InvoiceXpress | Bruno | antes sprint 39 | Doc 35 recomenda Moloni |
 | Pricing tier inicial em beta | Bruno | antes 1ª oficina | Cf. `07-Pricing-Proposta.md` (€19/39/89) |
-| Rebrand do nome RepairDesk | Bruno | depois 5-10 clientes | Cf. `05-Reflexao-Critica.md` |
+| Rebrand do nome Mender | Bruno | depois 5-10 clientes | Cf. `05-Reflexao-Critica.md` |
 | Sociedade Lda vs nome individual | Bruno + contabilista | quando ultrapassar €15k/ano | Hoje Isenção Art. 53 |
 
 ---

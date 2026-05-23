@@ -1,4 +1,4 @@
-# 63 - Estado da arquitectura RepairDesk - 2026-05-23
+# 63 - Estado da arquitectura Mender - 2026-05-23
 
 Documento para conversas com potenciais clientes, parceiros e investidores.
 
@@ -10,7 +10,7 @@ preparado em arquitectura e o que continua em roadmap.
 
 ## Resumo executivo
 
-RepairDesk e um SaaS de gestao para oficinas de reparacao em Portugal. Cobre o
+Mender e um SaaS de gestao para oficinas de reparacao em Portugal. Cobre o
 fluxo operacional de balcão: clientes, reparacoes, trabalhos, diagnostico,
 orcamentos, stock, vendas, garantias digitais, faturacao via provider
 certificado e integracoes com loja online. O produto nasceu Portugal-first:
@@ -95,7 +95,7 @@ exige validacao comercial e hardening continuado antes de escala publica.
 
 ### Compras e despesas
 
-- Despesas operacionais registadas no RepairDesk.
+- Despesas operacionais registadas no Mender.
 - Distincao entre compras para stock e despesas gerais.
 - `IsCogs` separa COGS de OpEx.
 - IVA dedutivel tratado de forma distinta de custo operacional.
@@ -106,7 +106,7 @@ exige validacao comercial e hardening continuado antes de escala publica.
 ### Importacoes fornecedor
 
 - Endpoint de ingest para faturas de fornecedor.
-- Fluxo n8n/IMAP para transportar PDFs/email para RepairDesk.
+- Fluxo n8n/IMAP para transportar PDFs/email para Mender.
 - Parser PDF especifico para fornecedores conhecidos.
 - Fallback LLM para PDFs mal formatados.
 - OCR Claude Vision para foto/scan de fatura.
@@ -156,7 +156,7 @@ exige validacao comercial e hardening continuado antes de escala publica.
 
 ### Pipeline imagens SEO
 
-- Upload de imagens de produto no RepairDesk.
+- Upload de imagens de produto no Mender.
 - Resize automatico para WebP em multiplas larguras.
 - `blurDataUrl` para placeholder LQIP.
 - Width/height para reduzir CLS na loja.
@@ -230,9 +230,9 @@ exige validacao comercial e hardening continuado antes de escala publica.
 - CIRS art. 123: horizonte de 10 anos para arquivo fiscal quando aplicavel.
 - RGPD: DPA, sub-processadores, privacy policy e retention policy.
 - Audit log para eventos sensiveis e alteracoes relevantes.
-- Dados dos clientes finais pertencem a loja; RepairDesk actua como
+- Dados dos clientes finais pertencem a loja; Mender actua como
   subcontratante.
-- Faturacao: RepairDesk nao se apresenta como software certificado AT.
+- Faturacao: Mender nao se apresenta como software certificado AT.
 - Emissao fiscal e feita por providers certificados, Moloni ou InvoiceXpress.
 - Estrategia fiscal decidida em [`35-Faturacao-Decisao-Final.md`](35-Faturacao-Decisao-Final.md).
 - Pesquisa legal detalhada em [`10-Compliance-PT.md`](10-Compliance-PT.md).
