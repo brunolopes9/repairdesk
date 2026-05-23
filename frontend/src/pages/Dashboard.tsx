@@ -1,1862 +1,623 @@
-import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
-  Activity,
-  BarChart3,
-  TrendingUp,
-  Trophy,
-  Star,
-  Users,
-  Clock,
-  Lightbulb,
-  ChevronRight,
-  FileText,
+  ArrowRight,
+  Boxes,
+  CheckCircle2,
+  Clock3,
+  Euro,
   PackageSearch,
-  Phone,
   ShieldCheck,
-  ShoppingBag,
-  Webhook,
-  X,
+  Trophy,
+  TrendingUp,
+  Wrench,
+  type LucideIcon,
 } from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { stockApi } from '../lib/stock/api';
-import { relatoriosApi } from '../lib/relatorios/api';
-import {
-  dashboardApi,
-  periodRange,
-  type AlertasResponse,
-  type CategoriaFinanceira,
-  type DespesaOrfa,
-  type GarantiaProximaExpirar,
-  type GarantiasResumoResponse,
-  type ItemPorCobrar,
-  type MesFinanceiro,
-  type Period,
-  type ReparacaoEmGarantia,
-  type ReparacaoTop,
-  type ReparacoesEmGarantiaResponse,
-} from '../lib/dashboard/api';
-import { reparacoesApi } from '../lib/reparacoes/api';
-import { trabalhosApi } from '../lib/trabalhos/api';
-import {
-  STATES_EM_CURSO,
-  STATUS_COLOR,
-  STATUS_LABEL,
-  type RepairStatus,
-} from '../lib/reparacoes/types';
-import { tenantSettingsApi } from '../lib/tenantSettings/api';
-import { webhooksApi, type WebhookStats } from '../lib/webhooks/api';
+import { dashboardApi } from '../lib/dashboard/api';
+import { useDashboardKpisHoje } from '../lib/dashboard/hooks';
 import { formatCents, formatDateOnly } from '../lib/money';
-import { EmptyState, PageHeader, Skeleton, SkeletonCard, SkeletonRow } from '../components/ui';
+import { EmptyState, PageHeader, Skeleton } from '../components/ui';
 
-const PERIODS: Array<{ value: Period; label: string }> = [
-  { value: 'this-month', label: 'Este mês' },
-  { value: 'last-month', label: 'Mês anterior' },
-  { value: 'last-90', label: '90 dias' },
-  { value: 'this-year', label: 'Este ano' },
-];
+type Tone = 'blue' | 'emerald' | 'amber' | 'rose' | 'zinc';
+
+const toneClass: Record<Tone, { border: string; icon: string; soft: string; text: string; chart: string }> = {
+  blue: {
+    border: 'border-blue-200 hover:border-blue-300 dark:border-blue-900/70 dark:hover:border-blue-800',
+    icon: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+    soft: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    text: 'text-blue-700 dark:text-blue-300',
+    chart: '#2563eb',
+  },
+  emerald: {
+    border: 'border-emerald-200 hover:border-emerald-300 dark:border-emerald-900/70 dark:hover:border-emerald-800',
+    icon: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+    soft: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+    text: 'text-emerald-700 dark:text-emerald-300',
+    chart: '#059669',
+  },
+  amber: {
+    border: 'border-amber-200 hover:border-amber-300 dark:border-amber-900/70 dark:hover:border-amber-800',
+    icon: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+    soft: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+    text: 'text-amber-700 dark:text-amber-300',
+    chart: '#d97706',
+  },
+  rose: {
+    border: 'border-rose-200 hover:border-rose-300 dark:border-rose-900/70 dark:hover:border-rose-800',
+    icon: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+    soft: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
+    text: 'text-rose-700 dark:text-rose-300',
+    chart: '#e11d48',
+  },
+  zinc: {
+    border: 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700',
+    icon: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+    soft: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+    text: 'text-zinc-700 dark:text-zinc-300',
+    chart: '#52525b',
+  },
+};
 
 export default function Dashboard() {
-  const [period, setPeriod] = useState<Period>('this-month');
-  const range = periodRange(period);
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['dashboard', period],
-    queryFn: () =>
-      period === 'this-month'
-        ? dashboardApi.current()
-        : dashboardApi.range(range.from.toISOString(), range.to.toISOString()),
-    staleTime: 60_000,
-  });
-
-  const financeiro = useQuery({
-    queryKey: ['dashboard-financeiro', period],
-    queryFn: () =>
-      period === 'this-month'
-        ? dashboardApi.financeiroCurrent()
-        : dashboardApi.financeiroRange(range.from.toISOString(), range.to.toISOString()),
-    staleTime: 60_000,
-  });
-
-  const alertas = useQuery({
-    queryKey: ['dashboard-alertas'],
-    queryFn: () => dashboardApi.alertas(),
-    staleTime: 30_000,
-  });
-
-  // Para Δ% precisamos do período imediatamente anterior (mesma duração)
-  const previousRange = useMemo(() => {
-    const durationMs = range.to.getTime() - range.from.getTime();
-    return {
-      from: new Date(range.from.getTime() - durationMs),
-      to: new Date(range.to.getTime() - durationMs),
-    };
-  }, [range.from, range.to]);
-
-  const financeiroPrev = useQuery({
-    queryKey: ['dashboard-financeiro-prev', period],
-    queryFn: () => dashboardApi.financeiroRange(previousRange.from.toISOString(), previousRange.to.toISOString()),
-    staleTime: 60_000,
-  });
-
-  const tendencia = useQuery({
-    queryKey: ['dashboard-tendencia'],
-    queryFn: () => dashboardApi.tendencia(6),
-    staleTime: 5 * 60_000,
-  });
-
-  const topReparacoes = useQuery({
-    queryKey: ['dashboard-top-reparacoes', period],
-    queryFn: () =>
-      period === 'this-month'
-        ? dashboardApi.topReparacoesCurrent(5)
-        : dashboardApi.topReparacoesRange(range.from.toISOString(), range.to.toISOString(), 5),
-    staleTime: 60_000,
-  });
+  const hojeIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const kpis = useDashboardKpisHoje(hojeIso);
 
   const garantias = useQuery({
-    queryKey: ['dashboard-garantias-resumo'],
-    queryFn: () => dashboardApi.garantiasResumo(30, 8),
+    queryKey: ['dashboard-garantias-resumo-v2'],
+    queryFn: () => dashboardApi.garantiasResumo(30, 5),
     staleTime: 5 * 60_000,
   });
 
-  const reparacoesGarantia = useQuery({
-    queryKey: ['dashboard-reparacoes-em-garantia'],
-    queryFn: () => dashboardApi.reparacoesEmGarantia(90, 30),
-    staleTime: 5 * 60_000,
-  });
-
-  const webhookStats = useQuery({
-    queryKey: ['dashboard-webhook-stats'],
-    queryFn: () => webhooksApi.stats(24),
-    staleTime: 60_000,
-  });
-
-  // Em curso: agrega Recebido + Diagnóstico + Aguarda Peça + Em Reparação + Reparado (5 queries paralelas).
-  const emCurso = useQuery({
-    queryKey: ['reparacoes-em-curso'],
-    queryFn: async () => {
-      const pages = await Promise.all(
-        STATES_EM_CURSO.map((st) => reparacoesApi.list({ estado: st, pageSize: 100 })),
-      );
-      const items = pages.flatMap((p) => p.items);
-      items.sort((a, b) => {
-        // Prioridade visual: Recebido (precisa diag) > Reparado (precisa entregar) > Em Reparação > Aguarda Peça > Diagnóstico
-        const order: Record<RepairStatus, number> = { 0: 0, 4: 1, 3: 2, 2: 3, 1: 4, 5: 99, 6: 99, 7: 99 };
-        const oa = order[a.estado] ?? 99;
-        const ob = order[b.estado] ?? 99;
-        if (oa !== ob) return oa - ob;
-        return new Date(a.estadoSince).getTime() - new Date(b.estadoSince).getTime();
-      });
-      return items;
-    },
-    staleTime: 30_000,
-  });
-  const emCursoItems = emCurso.data ?? [];
-
-  const onboarding = useQuery({
-    queryKey: ['onboarding-status'],
-    queryFn: () => tenantSettingsApi.onboardingStatus(),
-    staleTime: 30_000,
-  });
-  const onboardingIncomplete = onboarding.data ? !onboarding.data.onboardingCompletado : false;
-
-  const lowStock = useQuery({
-    queryKey: ['parts-low-stock'],
-    queryFn: () => stockApi.lowStock(),
-    staleTime: 60_000,
-  });
-
-  // Sprint 186: previsão reabastecer — Parts cujo consumo30d >= stock actual.
   const reabastecer = useQuery({
-    queryKey: ['parts-reabastecer-30d'],
+    queryKey: ['parts-reabastecer-30d-v2'],
     queryFn: () => stockApi.reabastecerSugestoes(30),
     staleTime: 5 * 60_000,
   });
 
-  const reparacoesPendentesFatura = useQuery({
-    queryKey: ['reparacoes-pagas-sem-fatura'],
-    queryFn: () => reparacoesApi.listPagasSemFatura(100),
-    staleTime: 60_000,
-  });
+  const sparklineData = useMemo(() => {
+    const values = kpis.data?.receita7d ?? Array.from({ length: 7 }, () => 0);
+    const start = new Date(`${hojeIso}T00:00:00.000Z`);
+    start.setUTCDate(start.getUTCDate() - 6);
+    return values.map((value, index) => {
+      const day = new Date(start);
+      day.setUTCDate(start.getUTCDate() + index);
+      return {
+        dia: day.toLocaleDateString('pt-PT', { weekday: 'short' }),
+        valor: value,
+      };
+    });
+  }, [hojeIso, kpis.data?.receita7d]);
 
-  const trabalhosPendentesFatura = useQuery({
-    queryKey: ['trabalhos-pagas-sem-fatura'],
-    queryFn: () => trabalhosApi.listPagasSemFatura(100),
-    staleTime: 60_000,
-  });
-
-  const totalEmCurso = emCursoItems.length;
-  const lowStockCount = lowStock.data?.length ?? 0;
-  const repsPendentesCount = reparacoesPendentesFatura.data?.length ?? 0;
-  const trabsPendentesCount = trabalhosPendentesFatura.data?.length ?? 0;
-  const totalFaturasPendentesCount = repsPendentesCount + trabsPendentesCount;
-  const totalFaturasPendentesCents =
-    (reparacoesPendentesFatura.data ?? []).reduce(
-      (sum, r) => sum + (r.precoFinalCents ?? r.orcamentoCents ?? 0),
-      0,
-    ) +
-    (trabalhosPendentesFatura.data ?? []).reduce(
-      (sum, t) => sum + (t.precoFinalCents ?? t.orcamentoCents ?? 0),
-      0,
-    );
-
-  const reabastecerCount = reabastecer.data?.length ?? 0;
-  const totalAlertas =
-    (alertas.data
-      ? alertas.data.reparacoesNaoPagas.length +
-        alertas.data.trabalhosNaoPagos.length +
-        alertas.data.despesasOrfas.length
-      : 0) + lowStockCount + reabastecerCount + totalFaturasPendentesCount;
+  const receita7dTotal = (kpis.data?.receita7d ?? []).reduce((sum, value) => sum + value, 0);
+  const hasOperationalAlert =
+    (kpis.data?.valorAReceberCents ?? 0) > 0 ||
+    (kpis.data?.stockCriticoCount ?? 0) > 0 ||
+    (garantias.data?.expiramEm30Dias ?? 0) > 0 ||
+    (reabastecer.data?.length ?? 0) > 0;
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Dashboard"
-        description={`Vista geral da tua oficina - hoje, ${new Date().toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+        description={`Operacao diaria da oficina - ${new Date().toLocaleDateString('pt-PT', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+        })}`}
       />
 
-      {isError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          Não foi possível carregar o dashboard.
+      {kpis.isError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+          Nao foi possivel carregar os KPIs operacionais.
         </div>
       )}
 
-      {/* ZONE 1 — Precisa de atenção */}
-      {totalAlertas > 0 && (
-        <Zone
-          icon={AlertTriangle}
-          title="Precisa de atenção"
-          subtitle="Itens que não devem ficar esquecidos"
-          tone="amber"
-          count={totalAlertas}
-        >
-          <div className="space-y-3">
-            {lowStockCount > 0 && (
-              <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 dark:border-rose-800/60 dark:bg-rose-950/30">
-                <div className="flex items-start gap-3">
-                  <PackageSearch size={20} strokeWidth={2} className="flex-none text-rose-700 dark:text-rose-300" aria-hidden />
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold">
-                      {lowStockCount} {lowStockCount === 1 ? 'peça' : 'peças'} com stock baixo
-                    </div>
-                    <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                      Encomendar antes que pare uma reparação
-                    </div>
-                  </div>
-                </div>
-                {/* Sprint 131: top 5 peças visíveis directamente — Bruno vê o que falta sem clicar. */}
-                <ul className="mt-3 space-y-1.5">
-                  {(lowStock.data ?? []).slice(0, 5).map((p) => (
-                    <li key={p.id} className="flex items-center justify-between gap-3 text-xs">
-                      <span className="truncate">
-                        {p.sku ? <span className="font-mono text-rose-700 dark:text-rose-300">{p.sku}</span> : null}
-                        {p.sku ? ' · ' : null}
-                        <span className="text-zinc-700 dark:text-zinc-300">{p.nome}</span>
-                      </span>
-                      <span className="flex-none font-mono tabular-nums text-rose-700 dark:text-rose-300">
-                        {p.qtdStock}/{p.qtdMinima}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to="/stock?lowStock=1"
-                  className="mt-3 inline-flex items-center gap-1 rounded-md border border-rose-400 bg-white px-3 py-1.5 text-xs font-medium text-rose-800 hover:bg-rose-100 dark:border-rose-700 dark:bg-zinc-900 dark:text-rose-200"
-                >
-                  {lowStockCount > 5 ? `Ver as ${lowStockCount}` : 'Abrir Stock'}
-                  <ChevronRight size={13} />
-                </Link>
-              </div>
-            )}
-            {/* Sprint 186: previsão reabastecer — distinto de stock baixo (estes esgotam em < 30d). */}
-            {(reabastecer.data?.length ?? 0) > 0 && (
-              <div className="rounded-xl border border-orange-300 bg-orange-50 p-4 dark:border-orange-800/60 dark:bg-orange-950/30">
-                <div className="flex items-start gap-3">
-                  <TrendingUp size={20} strokeWidth={2} className="flex-none text-orange-700 dark:text-orange-300" aria-hidden />
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold">
-                      {reabastecer.data!.length} {reabastecer.data!.length === 1 ? 'peça vai esgotar' : 'peças vão esgotar'} em &lt; 30 dias
-                    </div>
-                    <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                      Baseado em consumo dos últimos 30d. Encomenda já para evitar ruptura.
-                    </div>
-                  </div>
-                </div>
-                <ul className="mt-3 space-y-1.5">
-                  {reabastecer.data!.slice(0, 5).map((p) => (
-                    <li key={p.partId} className="flex items-center justify-between gap-3 text-xs">
-                      <span className="truncate">
-                        <span className="font-mono text-orange-700 dark:text-orange-300">{p.sku}</span>
-                        <span className="ml-1 text-zinc-700 dark:text-zinc-300">{p.nome}</span>
-                      </span>
-                      <span className="flex-none font-mono tabular-nums text-orange-700 dark:text-orange-300">
-                        stock {p.qtdStockActual} · usaste {p.consumoDias}/30d
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to="/stock"
-                  className="mt-3 inline-flex items-center gap-1 rounded-md border border-orange-400 bg-white px-3 py-1.5 text-xs font-medium text-orange-800 hover:bg-orange-100 dark:border-orange-700 dark:bg-zinc-900 dark:text-orange-200"
-                >
-                  {reabastecer.data!.length > 5 ? `Ver as ${reabastecer.data!.length}` : 'Abrir Stock'}
-                  <ChevronRight size={13} />
-                </Link>
-              </div>
-            )}
-            {totalFaturasPendentesCount > 0 && (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30">
-                <div className="flex items-start gap-3">
-                  <FileText size={20} strokeWidth={2} className="flex-none text-amber-700 dark:text-amber-300" aria-hidden />
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold">
-                      {totalFaturasPendentesCount} {totalFaturasPendentesCount === 1 ? 'fatura pendente' : 'faturas pendentes'} — {formatCents(totalFaturasPendentesCents)}
-                    </div>
-                    <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                      Pagas mas ainda não comunicadas à AT. Emite em batch para fechar o dia.
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {repsPendentesCount > 0 && (
-                    <Link
-                      to="/reparacoes"
-                      className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-200"
-                    >
-                      {repsPendentesCount} reparação{repsPendentesCount === 1 ? '' : 'ões'}
-                      <ChevronRight size={13} />
-                    </Link>
-                  )}
-                  {trabsPendentesCount > 0 && (
-                    <Link
-                      to="/trabalhos"
-                      className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-200"
-                    >
-                      {trabsPendentesCount} trabalho{trabsPendentesCount === 1 ? '' : 's'}
-                      <ChevronRight size={13} />
-                    </Link>
-                  )}
-                </div>
-              </div>
-            )}
-            <AlertasSection data={alertas.data} loading={alertas.isLoading} />
-            <GarantiasSection data={garantias.data} loading={garantias.isLoading} />
-            <ReparacoesGarantiaSection data={reparacoesGarantia.data} loading={reparacoesGarantia.isLoading} />
-            <WebhooksSection data={webhookStats.data} loading={webhookStats.isLoading} />
-          </div>
-        </Zone>
-      )}
+      <section className="space-y-3">
+        <ZoneHeader
+          eyebrow="Hoje"
+          title="O que precisa de movimento agora"
+          subtitle="Entrada, cobranca e stock critico. Fiscal fica nos relatorios."
+        />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+          <KpiLinkCard
+            to="/reparacoes?estado=Em curso"
+            icon={Wrench}
+            tone="blue"
+            label="Reparacoes em curso"
+            value={kpis.data?.reparacoesEmCurso}
+            suffix="abertas"
+            loading={kpis.isLoading}
+            helper="Abre o kanban para destravar diagnostico, pecas e entrega."
+          />
+          <KpiLinkCard
+            to="/reparacoes?estado=Entregue&pagamento=NaoPago"
+            icon={Euro}
+            tone="emerald"
+            label="Valor a receber hoje"
+            value={formatCents(kpis.data?.valorAReceberCents)}
+            loading={kpis.isLoading}
+            helper="Reparacoes entregues hoje ainda marcadas como nao pagas."
+          />
+          <KpiLinkCard
+            to="/stock?lowStock=1"
+            icon={AlertTriangle}
+            tone={(kpis.data?.stockCriticoCount ?? 0) > 0 ? 'rose' : 'zinc'}
+            label="Stock critico"
+            value={kpis.data?.stockCriticoCount}
+            suffix="pecas"
+            loading={kpis.isLoading}
+            helper="Pecas activas com stock igual ou abaixo do minimo."
+          />
+        </div>
+      </section>
 
-      {/* ZONE 2 — Hoje na oficina */}
-      <Zone
-        icon={Activity}
-        title="Hoje na oficina"
-        subtitle="Trabalho em curso, agrupado por etapa"
-        tone="blue"
-        count={totalEmCurso > 0 ? totalEmCurso : undefined}
-      >
-        <EmCursoSection items={emCursoItems} loading={emCurso.isLoading} onboardingIncomplete={onboardingIncomplete} />
-      </Zone>
-
-      {/* ZONE 3 — Saúde do negócio (com filtro de período) */}
-      <Zone
-        icon={BarChart3}
-        title="Saúde do negócio"
-        subtitle={range.label}
-        tone="emerald"
-        actions={
-          <div className="flex flex-wrap gap-1.5">
-            {PERIODS.map((p) => (
-              <button
-                key={p.value}
-                type="button"
-                onClick={() => setPeriod(p.value)}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
-                  period === p.value
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        }
-      >
-        <div className="space-y-6">
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Kpi
-              label="Lucro realizado"
-              value={formatCents(financeiro.data?.lucroRealizadoCents)}
-              sublabel={financeiro.data ? `Receita ${formatCents(financeiro.data.receitaRealizadaCents)} − Custo ${formatCents(financeiro.data.custoImputadoCents)}` : undefined}
-              tone={financeiro.data && financeiro.data.lucroRealizadoCents >= 0 ? 'emerald' : 'red'}
-              loading={financeiro.isLoading}
-              delta={deltaPct(financeiro.data?.lucroRealizadoCents, financeiroPrev.data?.lucroRealizadoCents)}
-              hint="Só conta receita já paga menos despesas imputadas a esses trabalhos."
-            />
-            <Kpi
-              label="Receita pendente"
-              value={formatCents(financeiro.data?.receitaPendenteCents)}
-              sublabel="Concluído mas não pago"
-              tone="amber"
-              loading={financeiro.isLoading}
-              delta={deltaPct(financeiro.data?.receitaPendenteCents, financeiroPrev.data?.receitaPendenteCents, { invertColor: true })}
-              hint="Trabalhos/reparações terminados a aguardar pagamento do cliente."
-            />
-            <Kpi
-              label="Investimento stock"
-              value={formatCents(financeiro.data?.investimentoStockCents)}
-              sublabel="Despesas sem trabalho pago"
-              tone="zinc"
-              loading={financeiro.isLoading}
-              hint="Peças compradas ou despesas gerais ainda não associadas a um trabalho pago."
-            />
-            <Kpi
-              label="Em curso"
-              value={data ? `${data.kpis.reparacoesAbertas + data.kpis.trabalhosAbertos}` : '—'}
-              sublabel={data ? `${data.kpis.reparacoesAbertas} reparações · ${data.kpis.trabalhosAbertos} trabalhos` : undefined}
-              loading={isLoading}
-            />
-            <Kpi
-              label="Vendas hoje"
-              value={formatCents(data?.kpis.vendasHojeCents)}
-              sublabel={data ? `Mes: ${formatCents(data.kpis.vendasMesCents)}` : undefined}
-              tone="emerald"
-              loading={isLoading}
-            />
-            <Kpi
-              label="Vendas mes"
-              value={formatCents(data?.kpis.vendasMesCents)}
-              sublabel="POS e venda direta"
-              tone="zinc"
-              loading={isLoading}
-            />
-            {/* Sprint 183: KPI IVA estimado deste trimestre, click leva a /relatorios/iva. */}
-            <IvaTrimestreKpi />
-          </section>
-
-          <TendenciaSection meses={tendencia.data?.meses ?? []} loading={tendencia.isLoading} />
-
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <TopReparacoesSection items={topReparacoes.data?.items ?? []} loading={topReparacoes.isLoading} />
-
-            <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-sm font-semibold">
-                  <Users size={15} strokeWidth={2} className="text-zinc-500" />
-                  Top clientes (90 dias)
-                </h3>
-                <span className="text-xs text-zinc-500">por receita</span>
-              </div>
-              {isLoading ? (
-                <div className="mt-3 space-y-3">
-                  {Array.from({ length: 3 }).map((_, index) => (
-                    <SkeletonRow key={index} widths={['w-5', 'w-1/3', 'w-24', 'w-20']} />
-                  ))}
-                </div>
-              ) : !data || data.topClientes.length === 0 ? (
-                <div className="mt-3">
-                  <EmptyState
-                    compact
-                    icon={Users}
-                    title="Sem clientes pagos"
-                    description="Quando houver trabalhos pagos nos ultimos 90 dias, os melhores clientes aparecem aqui."
+      <section className="space-y-3">
+        <ZoneHeader
+          eyebrow="Esta semana"
+          title="Ritmo dos ultimos 7 dias"
+          subtitle="So operacao: receita realizada, entregas, lucro estimado e tempo medio."
+        />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+          <WeeklyCard
+            to="/relatorios/negocio"
+            icon={TrendingUp}
+            tone="emerald"
+            label="Receita 7d"
+            value={formatCents(receita7dTotal)}
+            loading={kpis.isLoading}
+          >
+            <div className="mt-3 h-20">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sparklineData} margin={{ left: 0, right: 0, top: 6, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="receita7d" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor={toneClass.emerald.chart} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={toneClass.emerald.chart} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <Tooltip formatter={(value) => formatCents(Number(value))} labelFormatter={(label) => `${label}`} />
+                  <Area
+                    type="monotone"
+                    dataKey="valor"
+                    stroke={toneClass.emerald.chart}
+                    strokeWidth={2}
+                    fill="url(#receita7d)"
+                    dot={{ r: 2 }}
+                    activeDot={{ r: 4 }}
                   />
-                </div>
-              ) : (
-                <ol className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {data.topClientes.map((c, i) => (
-                    <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                      <div className="flex items-center gap-3">
-                        <span className="w-5 text-right font-mono text-xs text-zinc-400">{i + 1}.</span>
-                        <span className="font-medium">{c.nome}</span>
-                        <span className="text-xs text-zinc-500">{c.trabalhos} {c.trabalhos === 1 ? 'trabalho' : 'trabalhos'}</span>
-                      </div>
-                      <span className="font-semibold">{formatCents(c.totalCents)}</span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </section>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <FinanceiroPorCategoria
-              rows={financeiro.data?.porCategoria}
-              loading={financeiro.isLoading}
-            />
-            <Breakdown
-              title="Despesas por categoria"
-              rows={data?.despesaPorCategoria}
-              empty="Nenhuma despesa no período."
-              accent="red"
-              loading={isLoading}
-            />
-          </div>
-
-          {/* Top produtos vendidos (Sprint 45 — Vendas/POS) */}
-          <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <ShoppingBag size={15} strokeWidth={2} className="text-zinc-500" />
-                Top produtos vendidos (90 dias)
-              </h3>
-              <span className="text-xs text-zinc-500">por receita</span>
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-            {isLoading ? (
-              <div className="mt-3 space-y-3">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <SkeletonRow key={index} widths={['w-5', 'w-1/3', 'w-20', 'w-24']} />
-                ))}
-              </div>
-            ) : !data || data.topProdutosVendidos.length === 0 ? (
-              <div className="mt-3">
-                <EmptyState
-                  compact
-                  icon={ShoppingBag}
-                  title="Sem vendas registadas"
-                  description="Quando houver vendas POS nos últimos 90 dias, os produtos mais vendidos aparecem aqui."
-                />
-              </div>
-            ) : (
-              <ol className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
-                {data.topProdutosVendidos.map((p, i) => (
-                  <li key={`${p.partId ?? p.descricao}-${i}`} className="flex items-center justify-between gap-3 py-2 text-sm">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="w-5 text-right font-mono text-xs text-zinc-400">{i + 1}.</span>
-                      <span className="truncate font-medium">{p.descricao}</span>
-                      <span className="shrink-0 text-xs text-zinc-500">×{p.quantidade}</span>
-                    </div>
-                    <span className="font-semibold">{formatCents(p.totalCents)}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
+          </WeeklyCard>
 
-          <AvaliacoesSection />
+          <WeeklyCard
+            to="/reparacoes?estado=Entregue"
+            icon={CheckCircle2}
+            tone="blue"
+            label="Reparacoes entregues 7d"
+            value={kpis.data?.reparacoesEntregues7d}
+            suffix="entregues"
+            loading={kpis.isLoading}
+          />
+
+          <WeeklyCard
+            to="/relatorios/negocio"
+            icon={Trophy}
+            tone={(kpis.data?.lucroEstimado7dCents ?? 0) >= 0 ? 'amber' : 'rose'}
+            label="Lucro estimado 7d"
+            value={formatCents(kpis.data?.lucroEstimado7dCents)}
+            loading={kpis.isLoading}
+            helper="Receita menos pecas consumidas e OpEx puro."
+          />
+
+          <WeeklyCard
+            to="/reparacoes"
+            icon={Clock3}
+            tone="zinc"
+            label="Tempo medio reparacao"
+            value={formatHours(kpis.data?.tempoMedioReparacaoHoras)}
+            loading={kpis.isLoading}
+            helper="Da ficha criada ate Entregue, nos ultimos 7 dias."
+          />
         </div>
-      </Zone>
+      </section>
+
+      <section className="space-y-3">
+        <ZoneHeader
+          eyebrow="Alertas + Top"
+          title="O que merece accao ou repeticao"
+          subtitle={hasOperationalAlert ? 'Primeiro o risco, depois o que esta a dar dinheiro.' : 'Sem incendios operacionais neste momento.'}
+        />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-4">
+          <GarantiasWidget loading={garantias.isLoading} activas={garantias.data?.activas ?? 0} expiram={garantias.data?.expiramEm30Dias ?? 0} items={garantias.data?.proximasAExpirar ?? []} />
+          <ReabastecerWidget loading={reabastecer.isLoading} items={reabastecer.data ?? []} />
+          <TopReparacoesWidget loading={kpis.isLoading} items={kpis.data?.topReparacoesLucrativas30d ?? []} />
+          <TopPecasWidget loading={kpis.isLoading} items={kpis.data?.topPecasUsadas30d ?? []} />
+        </div>
+      </section>
     </div>
   );
 }
 
-type ZoneTone = 'amber' | 'blue' | 'emerald';
-type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
-
-const ZONE_TONES: Record<ZoneTone, { iconBg: string; iconFg: string; border: string }> = {
-  amber: {
-    iconBg: 'bg-amber-100 dark:bg-amber-900/40',
-    iconFg: 'text-amber-700 dark:text-amber-300',
-    border: 'border-amber-200/70 dark:border-amber-800/40',
-  },
-  blue: {
-    iconBg: 'bg-blue-100 dark:bg-blue-900/40',
-    iconFg: 'text-blue-700 dark:text-blue-300',
-    border: 'border-blue-200/70 dark:border-blue-800/40',
-  },
-  emerald: {
-    iconBg: 'bg-emerald-100 dark:bg-emerald-900/40',
-    iconFg: 'text-emerald-700 dark:text-emerald-300',
-    border: 'border-emerald-200/70 dark:border-emerald-800/40',
-  },
-};
-
-function Zone({
-  icon: Icon,
-  title,
-  subtitle,
-  tone,
-  count,
-  actions,
-  children,
-}: {
-  icon: IconCmp;
-  title: string;
-  subtitle?: string;
-  tone: ZoneTone;
-  count?: number;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  const t = ZONE_TONES[tone];
+function ZoneHeader({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {
   return (
-    <section className="space-y-3">
-      <div className={`flex flex-wrap items-center justify-between gap-3 border-b pb-2 ${t.border}`}>
-        <div className="flex items-center gap-2.5">
-          <span className={`grid h-8 w-8 flex-none place-items-center rounded-lg ${t.iconBg}`}>
-            <Icon size={16} strokeWidth={2} className={t.iconFg} />
-          </span>
-          <div>
-            <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
-              {title}
-              {typeof count === 'number' && count > 0 && (
-                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                  {count}
-                </span>
-              )}
-            </h2>
-            {subtitle && <p className="text-xs text-zinc-500">{subtitle}</p>}
-          </div>
-        </div>
-        {actions}
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{eyebrow}</div>
+      <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <h2 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">{title}</h2>
+        <p className="max-w-2xl text-sm text-zinc-500">{subtitle}</p>
       </div>
-      {children}
-    </section>
+    </div>
   );
 }
 
-interface DeltaInfo {
-  pct: number;
-  positive: boolean;
-  arrow: string;
-}
-
-function deltaPct(
-  current: number | undefined,
-  previous: number | undefined,
-  opts: { invertColor?: boolean } = {},
-): DeltaInfo | undefined {
-  if (current == null || previous == null) return undefined;
-  if (previous === 0 && current === 0) return undefined;
-  const delta = previous === 0 ? 100 : ((current - previous) / Math.abs(previous)) * 100;
-  const positive = opts.invertColor ? delta < 0 : delta > 0;
-  return {
-    pct: Math.round(delta),
-    positive,
-    arrow: delta > 0 ? '↑' : delta < 0 ? '↓' : '·',
-  };
-}
-
-/**
- * Sprint 183: KPI IVA estimado do trimestre actual. Click leva ao relatório completo.
- * Lê /relatorios/iva — pode ser negativo (crédito) ou positivo (a entregar).
- */
-function IvaTrimestreKpi() {
-  const now = new Date();
-  const ano = now.getUTCFullYear();
-  const trimestre = Math.floor(now.getUTCMonth() / 3) + 1;
-  const iva = useQuery({
-    queryKey: ['dashboard-iva', ano, trimestre],
-    queryFn: () => relatoriosApi.iva(ano, trimestre, 0),
-  });
-  const saldo = iva.data?.ivaAEntregarCents ?? 0;
-  const isCredito = saldo < 0;
-  const isZero = saldo === 0;
-  const tone: 'emerald' | 'amber' | 'zinc' = isCredito ? 'emerald' : isZero ? 'zinc' : 'amber';
-  const label = isCredito
-    ? `Crédito IVA T${trimestre}`
-    : isZero
-      ? `IVA equilibrado T${trimestre}`
-      : `IVA a entregar T${trimestre}`;
-  const sublabel = iva.data
-    ? `Liquidado ${formatCents(iva.data.ivaLiquidadoCents)} − Dedutível ${formatCents(iva.data.ivaDedutivelTotalCents)}`
-    : undefined;
-  return (
-    <Link to="/relatorios/iva" className="block rounded-xl ring-offset-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
-      <Kpi
-        label={label}
-        value={`${isCredito ? '+' : ''}${formatCents(Math.abs(saldo))}`}
-        sublabel={sublabel}
-        tone={tone}
-        loading={iva.isLoading}
-        hint="Estimativa interna. Valor oficial é o SAF-T Moloni que vai à AT. Clica para ver detalhe."
-      />
-    </Link>
-  );
-}
-
-function Kpi({
+function KpiLinkCard({
+  to,
+  icon: Icon,
+  tone,
   label,
   value,
-  sublabel,
-  tone,
+  suffix,
+  helper,
   loading,
-  delta,
-  hint,
 }: {
+  to: string;
+  icon: LucideIcon;
+  tone: Tone;
   label: string;
-  value: string;
-  sublabel?: string;
-  tone?: 'emerald' | 'red' | 'amber' | 'zinc';
-  loading?: boolean;
-  delta?: DeltaInfo;
-  hint?: string;
-}) {
-  const toneCls =
-    tone === 'emerald'
-      ? 'text-emerald-700 dark:text-emerald-400'
-      : tone === 'red'
-        ? 'text-red-700 dark:text-red-400'
-        : tone === 'amber'
-          ? 'text-amber-700 dark:text-amber-400'
-          : tone === 'zinc'
-            ? 'text-zinc-700 dark:text-zinc-300'
-            : '';
-  const deltaCls = delta
-    ? delta.positive
-      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-      : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
-    : '';
-  return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900" title={hint}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs uppercase tracking-wide text-zinc-500">{label}</div>
-        {delta && (
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums ${deltaCls}`} title="vs período anterior">
-            {delta.arrow} {Math.abs(delta.pct)}%
-          </span>
-        )}
-      </div>
-      <div className={`mt-1 text-2xl font-semibold ${toneCls}`}>{loading ? <Skeleton className="h-8 w-28" /> : value}</div>
-      {sublabel && <div className="text-[11px] text-zinc-500">{sublabel}</div>}
-    </div>
-  );
-}
-
-const MONTH_LABELS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-function TendenciaSection({ meses, loading }: { meses: MesFinanceiro[]; loading: boolean }) {
-  if (loading) {
-    return (
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <TrendingUp size={15} strokeWidth={2} className="text-zinc-500" />
-          Evolução (últimos 6 meses)
-        </h3>
-        <div className="mt-3 space-y-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <SkeletonRow key={index} widths={['w-1/3', 'w-1/2', 'w-20']} />
-          ))}
-        </div>
-      </section>
-    );
-  }
-  const hasData = meses.some((m) => m.receitaCents > 0 || m.custoCents > 0);
-  if (!hasData) return null;
-
-  const maxValue = Math.max(1, ...meses.flatMap((m) => [m.receitaCents, m.custoCents]));
-  const totalReceita = meses.reduce((s, m) => s + m.receitaCents, 0);
-  const totalLucro = meses.reduce((s, m) => s + m.lucroCents, 0);
-  const margemMedia = totalReceita > 0 ? Math.round((totalLucro / totalReceita) * 100) : 0;
-
-  // SVG dimensions
-  const W = 600;
-  const H = 180;
-  const PAD = { top: 12, right: 12, bottom: 28, left: 44 };
-  const innerW = W - PAD.left - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
-  const groupW = innerW / meses.length;
-  const barW = Math.max(6, (groupW - 12) / 2);
-
-  return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <TrendingUp size={15} strokeWidth={2} className="text-zinc-500" />
-            Evolução (últimos 6 meses)
-          </h3>
-          <p className="text-xs text-zinc-500">Receita vs custo imputado, mês a mês</p>
-        </div>
-        <div className="flex gap-4 text-[11px]">
-          <div className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-emerald-500/80" />Receita</div>
-          <div className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-rose-500/70" />Custo</div>
-          <div className="flex items-center gap-1.5"><span className="inline-block h-2 w-3 rounded-sm bg-brand-500" />Lucro</div>
-          <span className="text-zinc-500">·</span>
-          <span className="text-zinc-600 dark:text-zinc-400">Margem média {margemMedia}%</span>
-        </div>
-      </div>
-
-      <div className="mt-3 overflow-x-auto">
-        <svg viewBox={`0 0 ${W} ${H}`} className="block h-44 w-full min-w-[560px]" role="img" aria-label="Evolução mensal">
-          {/* Grid lines */}
-          {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-            <line
-              key={t}
-              x1={PAD.left}
-              x2={W - PAD.right}
-              y1={PAD.top + innerH * (1 - t)}
-              y2={PAD.top + innerH * (1 - t)}
-              className="stroke-zinc-200 dark:stroke-zinc-800"
-              strokeDasharray={t === 0 ? '0' : '2 3'}
-            />
-          ))}
-          {/* Y axis labels */}
-          {[0, 0.5, 1].map((t) => (
-            <text
-              key={t}
-              x={PAD.left - 6}
-              y={PAD.top + innerH * (1 - t) + 4}
-              className="fill-zinc-500 text-[10px]"
-              textAnchor="end"
-            >
-              {formatCentsShort(maxValue * t)}
-            </text>
-          ))}
-
-          {/* Bars + labels */}
-          {meses.map((m, i) => {
-            const baseX = PAD.left + i * groupW;
-            const receitaH = (m.receitaCents / maxValue) * innerH;
-            const custoH = (m.custoCents / maxValue) * innerH;
-            const cx = baseX + groupW / 2;
-            return (
-              <g key={`${m.ano}-${m.mes}`}>
-                <rect
-                  x={cx - barW - 1}
-                  y={PAD.top + innerH - receitaH}
-                  width={barW}
-                  height={receitaH}
-                  className="fill-emerald-500/80"
-                  rx="1"
-                >
-                  <title>{`${MONTH_LABELS_PT[m.mes - 1]} ${m.ano} · Receita ${formatCents(m.receitaCents)}`}</title>
-                </rect>
-                <rect
-                  x={cx + 1}
-                  y={PAD.top + innerH - custoH}
-                  width={barW}
-                  height={custoH}
-                  className="fill-rose-500/70"
-                  rx="1"
-                >
-                  <title>{`${MONTH_LABELS_PT[m.mes - 1]} ${m.ano} · Custo ${formatCents(m.custoCents)}`}</title>
-                </rect>
-                <text
-                  x={cx}
-                  y={H - PAD.bottom + 14}
-                  className="fill-zinc-500 text-[10px]"
-                  textAnchor="middle"
-                >
-                  {MONTH_LABELS_PT[m.mes - 1]}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Lucro line */}
-          <polyline
-            points={meses.map((m, i) => {
-              const cx = PAD.left + i * groupW + groupW / 2;
-              const cy = PAD.top + innerH - (Math.max(0, m.lucroCents) / maxValue) * innerH;
-              return `${cx},${cy}`;
-            }).join(' ')}
-            className="fill-none stroke-brand-500"
-            strokeWidth="2"
-          />
-          {meses.map((m, i) => {
-            const cx = PAD.left + i * groupW + groupW / 2;
-            const cy = PAD.top + innerH - (Math.max(0, m.lucroCents) / maxValue) * innerH;
-            return (
-              <circle key={`dot-${i}`} cx={cx} cy={cy} r={3} className="fill-brand-500">
-                <title>{`Lucro ${formatCents(m.lucroCents)}`}</title>
-              </circle>
-            );
-          })}
-        </svg>
-      </div>
-    </section>
-  );
-}
-
-function TopReparacoesSection({ items, loading }: { items: ReparacaoTop[]; loading: boolean }) {
-  if (loading) {
-    return (
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Trophy size={15} strokeWidth={2} className="text-zinc-500" />
-          Top reparações lucrativas
-        </h3>
-        <div className="mt-3 space-y-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <SkeletonRow key={index} widths={['w-1/3', 'w-1/2', 'w-20']} />
-          ))}
-        </div>
-      </section>
-    );
-  }
-  if (items.length === 0) return null;
-
-  return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Trophy size={15} strokeWidth={2} className="text-zinc-500" />
-          Top reparações lucrativas
-        </h3>
-        <span className="text-xs text-zinc-500">por lucro no período</span>
-      </div>
-      <ol className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
-        {items.map((r, i) => {
-          const margem = r.receitaCents > 0 ? Math.round((r.lucroCents / r.receitaCents) * 100) : 0;
-          return (
-            <li key={r.id}>
-              <Link to={`/reparacoes/${r.id}`} className="flex items-center justify-between gap-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 text-right font-mono text-xs text-zinc-400">{i + 1}.</span>
-                    <span className="text-xs font-mono text-zinc-500">#{r.numero}</span>
-                    <span className="truncate font-medium">{r.equipamento}</span>
-                  </div>
-                  {r.clienteNome && <div className="ml-7 text-[11px] text-zinc-500">{r.clienteNome}</div>}
-                </div>
-                <div className="text-right">
-                  <div className="font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">{formatCents(r.lucroCents)}</div>
-                  <div className="text-[10px] text-zinc-500 tabular-nums">{formatCents(r.receitaCents)} − {formatCents(r.custoCents)} · {margem}%</div>
-                </div>
-              </Link>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
-function formatCentsShort(cents: number): string {
-  const v = cents / 100;
-  if (Math.abs(v) >= 1000) return `${Math.round(v / 100) / 10}k €`;
-  return `${Math.round(v)} €`;
-}
-
-function AvaliacoesSection() {
-  const q = useQuery({
-    queryKey: ['dashboard-avaliacoes'],
-    queryFn: () => dashboardApi.avaliacoes(),
-    staleTime: 5 * 60_000,
-  });
-
-  if (q.isLoading) return null;
-  const data = q.data;
-  if (!data || data.total === 0) {
-    // Empty state — incentivar a primeira avaliação
-    return (
-      <section className="rounded-xl border border-dashed border-zinc-300 bg-white p-4 text-center dark:border-zinc-700 dark:bg-zinc-900">
-        <h3 className="flex items-center justify-center gap-2 text-sm font-semibold">
-          <Star size={15} strokeWidth={2} className="text-zinc-500" />
-          Avaliações
-        </h3>
-        <p className="mt-2 text-xs text-zinc-500">
-          Ainda sem avaliações. Marca uma reparação como <em>Entregue</em> — o cliente recebe pedido de avaliação automático no portal.
-        </p>
-      </section>
-    );
-  }
-
-  const maxDist = Math.max(1, ...Object.values(data.distribuicao));
-  const npsTone = data.nps >= 50 ? 'emerald' : data.nps >= 0 ? 'amber' : 'rose';
-  const npsCls =
-    npsTone === 'emerald'
-      ? 'text-emerald-700 dark:text-emerald-400'
-      : npsTone === 'amber'
-        ? 'text-amber-700 dark:text-amber-400'
-        : 'text-rose-700 dark:text-rose-400';
-
-  return (
-    <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      {/* Card média + total */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-zinc-500">
-          <Star size={12} strokeWidth={2} />
-          Avaliação média
-        </div>
-        <div className="mt-1 flex items-baseline gap-1">
-          <span className="text-4xl font-semibold tabular-nums text-amber-600 dark:text-amber-400">
-            {data.mediaScore?.toFixed(1) ?? '—'}
-          </span>
-          <span className="text-base text-zinc-500">/5</span>
-        </div>
-        <div className="mt-1 text-amber-500" aria-hidden>
-          {'★'.repeat(Math.round(data.mediaScore ?? 0))}
-          <span className="text-zinc-300 dark:text-zinc-700">{'★'.repeat(5 - Math.round(data.mediaScore ?? 0))}</span>
-        </div>
-        <div className="mt-2 text-[11px] text-zinc-500">
-          {data.total} {data.total === 1 ? 'avaliação' : 'avaliações'} no total
-        </div>
-      </div>
-
-      {/* Distribuição */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="text-xs uppercase tracking-wide text-zinc-500">Distribuição</div>
-        <ul className="mt-2 space-y-1">
-          {[5, 4, 3, 2, 1].map((star) => {
-            const count = data.distribuicao[String(star)] ?? 0;
-            const pct = (count / maxDist) * 100;
-            return (
-              <li key={star} className="flex items-center gap-2 text-xs">
-                <span className="w-8 text-right tabular-nums">{star}★</span>
-                <div className="flex-1 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                  <div className={`h-full ${star >= 4 ? 'bg-emerald-500/70' : star === 3 ? 'bg-amber-500/70' : 'bg-rose-500/70'}`} style={{ width: `${pct}%` }} />
-                </div>
-                <span className="w-8 text-right tabular-nums text-zinc-500">{count}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      {/* NPS */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900" title="NPS = % de 5★ menos % de 1-2★. Acima de 50 é excelente.">
-        <div className="text-xs uppercase tracking-wide text-zinc-500">NPS</div>
-        <div className={`mt-1 text-4xl font-semibold tabular-nums ${npsCls}`}>
-          {data.nps > 0 ? '+' : ''}{data.nps}
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-1 text-[11px]">
-          <div className="text-emerald-700 dark:text-emerald-400">↑ {data.promoters} promoters</div>
-          <div className="text-rose-700 dark:text-rose-400">↓ {data.detractors} detractors</div>
-        </div>
-      </div>
-
-      {/* Recentes — span full */}
-      <div className="col-span-full rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Avaliações recentes</h3>
-          <span className="text-xs text-zinc-500">últimas {data.recentes.length}</span>
-        </div>
-        {data.recentes.length === 0 ? (
-          <p className="mt-2 text-xs text-zinc-500">Sem avaliações ainda.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-zinc-100 dark:divide-zinc-800">
-            {data.recentes.map((r) => (
-              <li key={r.id}>
-                <Link to={`/reparacoes/${r.reparacaoId}`} className="flex items-start gap-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                  <div className="flex-shrink-0 text-amber-500 text-base">
-                    {'★'.repeat(r.score)}
-                    <span className="text-zinc-300 dark:text-zinc-700">{'★'.repeat(5 - r.score)}</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="font-mono text-zinc-500">#{r.reparacaoNumero}</span>
-                      <span className="font-medium">{r.clienteNome}</span>
-                      <span className="text-zinc-500">· {r.equipamento}</span>
-                      <span className="ml-auto text-zinc-400">{formatDateOnly(r.criadaEm)}</span>
-                    </div>
-                    {r.comentario && <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-300">"{r.comentario}"</p>}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function FinanceiroPorCategoria({
-  rows,
-  loading,
-}: {
-  rows: CategoriaFinanceira[] | undefined;
-  loading?: boolean;
-}) {
-  const max = Math.max(1, ...(rows ?? []).map((r) => Math.max(r.receitaCents, r.custoCents)));
-  return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Lucro por categoria</h2>
-        <span className="text-xs text-zinc-500">Receita · Custo · Lucro</span>
-      </div>
-      {loading ? (
-        <div className="mt-3 space-y-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <SkeletonRow key={index} widths={['w-1/3', 'w-1/2', 'w-20']} />
-          ))}
-        </div>
-      ) : !rows || rows.length === 0 ? (
-        <div className="mt-3">
-          <EmptyState
-            compact
-            icon={BarChart3}
-            title="Sem trabalhos pagos"
-            description="Quando houver receita no periodo, a margem por categoria aparece aqui."
-          />
-        </div>
-      ) : (
-        <ul className="mt-3 space-y-3">
-          {rows.map((r) => {
-            const receitaPct = Math.round((r.receitaCents / max) * 100);
-            const custoPct = Math.round((r.custoCents / max) * 100);
-            const margem = r.receitaCents > 0 ? Math.round((r.lucroCents / r.receitaCents) * 100) : 0;
-            return (
-              <li key={r.label}>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">
-                    {r.label} <span className="text-xs font-normal text-zinc-500">· {r.count}</span>
-                  </span>
-                  <span className={`text-sm font-semibold ${r.lucroCents >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
-                    {formatCents(r.lucroCents)}{' '}
-                    <span className="text-[11px] font-normal text-zinc-500">({margem}%)</span>
-                  </span>
-                </div>
-                <div className="mt-1 space-y-1">
-                  <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                    <span className="w-12">Receita</span>
-                    <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                      <div className="h-full bg-emerald-500/70" style={{ width: `${receitaPct}%` }} />
-                    </div>
-                    <span className="w-20 text-right tabular-nums">{formatCents(r.receitaCents)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                    <span className="w-12">Custo</span>
-                    <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                      <div className="h-full bg-red-500/70" style={{ width: `${custoPct}%` }} />
-                    </div>
-                    <span className="w-20 text-right tabular-nums">{formatCents(r.custoCents)}</span>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function Breakdown({
-  title,
-  rows,
-  empty,
-  accent,
-  loading,
-}: {
-  title: string;
-  rows: { label: string; count: number; totalCents: number }[] | undefined;
-  empty: string;
-  accent: 'emerald' | 'red';
-  loading?: boolean;
-}) {
-  const total = (rows ?? []).reduce((s, r) => s + r.totalCents, 0);
-  const barCls = accent === 'emerald' ? 'bg-emerald-500/70' : 'bg-red-500/70';
-  return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <span className="text-xs text-zinc-500">{formatCents(total)}</span>
-      </div>
-      {loading ? (
-        <div className="mt-3 space-y-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <SkeletonRow key={index} widths={['w-1/3', 'w-1/2', 'w-20']} />
-          ))}
-        </div>
-      ) : !rows || rows.length === 0 ? (
-        <div className="mt-3">
-          <EmptyState compact icon={BarChart3} title="Sem movimento no periodo" description={empty} />
-        </div>
-      ) : (
-        <ul className="mt-2 space-y-2">
-          {rows.map((r) => {
-            const pct = total > 0 ? Math.round((r.totalCents / total) * 100) : 0;
-            return (
-              <li key={r.label}>
-                <div className="flex items-center justify-between text-sm">
-                  <span>{r.label} <span className="text-xs text-zinc-500">· {r.count}</span></span>
-                  <span className="font-medium">{formatCents(r.totalCents)}</span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                  <div className={`h-full ${barCls}`} style={{ width: `${pct}%` }} />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-interface EmCursoItem {
-  id: string;
-  numero: number;
-  equipamento: string;
-  cliente: { nome: string; telefone: string };
-  estado: RepairStatus;
-  estadoSince: string;
-  recebidoEm: string;
-}
-
-function EmCursoSection({
-  items,
-  loading,
-  onboardingIncomplete,
-}: {
-  items: EmCursoItem[];
+  value: ReactNode;
+  suffix?: string;
+  helper: string;
   loading: boolean;
-  onboardingIncomplete: boolean;
 }) {
-  if (loading) {
-    return (
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <SkeletonCard key={index} />
-        ))}
-      </div>
-      </div>
-    );
-  }
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        icon={Activity}
-        title="Sem reparacoes em curso"
-        description={
-          onboardingIncomplete
-            ? 'Termina o arranque para criares a primeira ficha em poucos minutos.'
-            : 'Quando entrar uma reparacao, aparece aqui agrupada por etapa.'
-        }
-        action={onboardingIncomplete ? (
-          <Link
-            to="/bemvindo"
-            className="inline-flex h-9 items-center justify-center rounded-lg bg-brand-600 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-          >
-            Continuar wizard
-          </Link>
-        ) : undefined}
-      />
-    );
-  }
-
-  // separar por urgência: Recebido (precisa diag) primeiro, Reparado (precisa entregar) depois, Diag (a aguardar peça) por último
-  const recebidos = items.filter((i) => i.estado === 0);
-  const reparados = items.filter((i) => i.estado === 4);
-  const emReparacao = items.filter((i) => i.estado === 3);
-  const aguardaPeca = items.filter((i) => i.estado === 2);
-  const diagnostico = items.filter((i) => i.estado === 1);
-
-  return (
-    <div className="space-y-4">
-      {recebidos.length > 0 && (
-        <Group
-          title="Por diagnosticar"
-          subtitle="Acabados de entrar na loja — vê estes primeiro"
-          items={recebidos}
-          accent="amber"
-        />
-      )}
-      {reparados.length > 0 && (
-        <Group
-          title="Prontos para entregar"
-          subtitle="Acabados, à espera do cliente — avisa que pode passar"
-          items={reparados}
-          accent="emerald"
-        />
-      )}
-      {emReparacao.length > 0 && (
-        <Group
-          title="Em reparação"
-          subtitle="A trabalhar nelas — termina e marca como Reparado"
-          items={emReparacao}
-          accent="blue"
-        />
-      )}
-      {aguardaPeca.length > 0 && (
-        <Group
-          title="A aguardar peça"
-          subtitle="Peça encomendada — quando chegar avança para Em reparação"
-          items={aguardaPeca}
-          accent="sky"
-        />
-      )}
-      {diagnostico.length > 0 && (
-        <Group
-          title="Em análise"
-          subtitle="A diagnosticar — decide se encomenda peça ou avança para reparar"
-          items={diagnostico}
-          accent="violet"
-        />
-      )}
-    </div>
-  );
-}
-
-function Group({
-  title,
-  subtitle,
-  items,
-  accent,
-}: {
-  title: string;
-  subtitle: string;
-  items: EmCursoItem[];
-  accent: 'amber' | 'emerald' | 'blue' | 'sky' | 'violet';
-}) {
-  const borderCls =
-    accent === 'amber'
-      ? 'border-amber-300 dark:border-amber-700'
-      : accent === 'emerald'
-        ? 'border-emerald-300 dark:border-emerald-700'
-        : accent === 'sky'
-          ? 'border-sky-300 dark:border-sky-700'
-          : accent === 'violet'
-            ? 'border-violet-300 dark:border-violet-700'
-            : 'border-blue-300 dark:border-blue-700';
-  return (
-    <div className={`rounded-xl border-l-4 ${borderCls} bg-white dark:bg-zinc-900`}>
-      <div className="px-4 pt-3">
-        <div className="text-sm font-semibold">{title} <span className="text-zinc-500">· {items.length}</span></div>
-        <div className="text-xs text-zinc-500">{subtitle}</div>
-      </div>
-      <ul className="divide-y divide-zinc-100 px-2 pb-2 pt-2 dark:divide-zinc-800">
-        {items.map((r) => {
-          const diasParado = Math.floor((Date.now() - new Date(r.estadoSince).getTime()) / (1000 * 60 * 60 * 24));
-          const stale = diasParado >= 7;
-          return (
-            <li key={r.id}>
-              <Link
-                to={`/reparacoes/${r.id}`}
-                className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-mono text-zinc-500">#{r.numero}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[r.estado]}`}>
-                      {STATUS_LABEL[r.estado]}
-                    </span>
-                    {stale && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-300">
-                        <Clock size={11} strokeWidth={2.25} />
-                        {diasParado} dias parado
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 truncate font-medium">{r.equipamento}</div>
-                  <div className="text-[11px] text-zinc-500">
-                    {r.cliente.nome}{r.cliente.telefone && ` · ${r.cliente.telefone}`}
-                  </div>
-                </div>
-                <span className="text-[11px] text-zinc-400 whitespace-nowrap">
-                  desde {formatDateOnly(r.estadoSince)}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-function ReparacoesGarantiaSection({ data, loading }: { data: ReparacoesEmGarantiaResponse | undefined; loading: boolean }) {
-  const [open, setOpen] = useState(false);
-  if (loading || !data || data.totalReparacoes === 0) return null;
-
-  // Tone baseado em %: <5% verde (qualidade boa), 5-15% amarelo, >15% vermelho
-  const pct = data.totalPorcento;
-  const tone = pct < 5 ? 'emerald' : pct < 15 ? 'amber' : 'red';
-  const colourCls = tone === 'emerald'
-    ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/30'
-    : tone === 'amber'
-      ? 'border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/30'
-      : 'border-red-200 bg-red-50/60 dark:border-red-900/60 dark:bg-red-950/30';
-  const textCls = tone === 'emerald'
-    ? 'text-emerald-800 dark:text-emerald-200/80'
-    : tone === 'amber'
-      ? 'text-amber-800 dark:text-amber-200/80'
-      : 'text-red-800 dark:text-red-200/80';
-
-  return (
-    <button
-      type="button"
-      onClick={() => setOpen(true)}
-      className={`w-full rounded-xl border p-4 text-left transition hover:brightness-95 ${colourCls}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500">
-            Reparações de equipamentos vendidos aqui · últimos 90 dias
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <div className="text-2xl font-semibold tabular-nums">{data.totalReparacoes}</div>
-            <div className={`text-sm font-medium ${textCls}`}>({pct}% do total)</div>
-          </div>
-          <div className={`text-xs ${textCls}`}>
-            {data.totalEntregues} entregue{data.totalEntregues === 1 ? '' : 's'}
-            {data.valorOrcamentoCents > 0 && (
-              <> · orçamentos {formatCents(data.valorOrcamentoCents)}</>
-            )}
-          </div>
-          {tone === 'red' && (
-            <div className="mt-1 text-[10px] text-red-700 dark:text-red-300">
-              ⚠ Taxa alta de defeitos pós-venda — considera reclamar ao fornecedor (Art. 21º DL 84/2021)
-            </div>
-          )}
-        </div>
-        <ChevronRight size={16} className="mt-1 shrink-0 text-zinc-400" />
-      </div>
-      {open && (
-        <ReparacoesGarantiaPanel items={data.itens} onClose={() => setOpen(false)} />
-      )}
-    </button>
-  );
-}
-
-function ReparacoesGarantiaPanel({ items, onClose }: { items: ReparacaoEmGarantia[]; onClose: () => void }) {
-  async function exportCsv() {
-    try {
-      const blob = await dashboardApi.reparacoesEmGarantiaCsv(90);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `reparacoes_em_garantia_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      /* silencio */
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
-      <div
-        className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-xl bg-white p-5 shadow-xl dark:bg-zinc-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-semibold">Equipamentos vendidos aqui que voltaram a reparação</h2>
-            <p className="text-xs text-zinc-500">
-              Indicador de qualidade pós-venda · candidatos a direito de regresso (DL 84/2021 art. 21º)
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={exportCsv}
-              className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-              title="Descarregar CSV para enviar ao fornecedor"
-            >
-              <FileText size={13} /> CSV
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="grid h-8 w-8 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              aria-label="Fechar"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
-          {items.map((r) => {
-            const dias = Math.round((new Date(r.recebidoEm).getTime() - new Date(r.vendaData).getTime()) / 86_400_000);
-            return (
-              <li key={r.reparacaoId} className="flex items-start justify-between gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link to={`/reparacoes/${r.reparacaoId}`} className="font-mono text-xs text-brand-600 hover:underline">
-                      #{String(r.reparacaoNumero).padStart(5, '0')}
-                    </Link>
-                    <span className="text-xs text-zinc-500">→ veio de Venda #{String(r.vendaNumero).padStart(5, '0')}</span>
-                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                      {dias} dias após venda
-                    </span>
-                  </div>
-                  <div className="mt-1 truncate font-medium">{r.equipamento}</div>
-                  <div className="text-[11px] text-zinc-500">
-                    {r.clienteNome ?? 'Consumidor final'}
-                    {' · '}
-                    <span className="font-mono">IMEI {r.imei}</span>
-                  </div>
-                </div>
-                <div className="text-right text-xs">
-                  {r.orcamentoCents !== null && (
-                    <div className="font-medium">{formatCents(r.orcamentoCents)}</div>
-                  )}
-                  <div className="text-[10px] text-zinc-400">{formatDateOnly(r.recebidoEm)}</div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Sprint 110: Widget operacional do estado das integrações webhook.
- * Só aparece quando há subscriptions activas — tenants sem integração não veem ruído.
- */
-function WebhooksSection({ data, loading }: { data: WebhookStats | undefined; loading: boolean }) {
-  if (loading || !data) return null;
-  if (data.activeSubscriptions === 0 && data.disabledSubscriptions === 0) return null;
-
-  const hasIssues = data.failedInWindow > 0 || data.disabledSubscriptions > 0;
-  const successLabel = data.successRatePercent < 0 ? '—' : `${data.successRatePercent}%`;
-  const tone = data.disabledSubscriptions > 0
-    ? 'border-rose-300 bg-rose-50/50 dark:border-rose-900/60 dark:bg-rose-950/30'
-    : data.failedInWindow > 0
-      ? 'border-amber-300 bg-amber-50/50 dark:border-amber-900/60 dark:bg-amber-950/30'
-      : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900';
-
+  const cls = toneClass[tone];
   return (
     <Link
-      to="/definicoes/webhooks"
-      className={`block rounded-xl border p-4 transition hover:shadow-md ${tone}`}
+      to={to}
+      className={`group flex min-h-44 flex-col justify-between rounded-lg border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-zinc-900 ${cls.border}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-zinc-500">
-            <Webhook size={13} strokeWidth={2} /> Webhooks
-          </div>
-          <div className="mt-1 text-2xl font-semibold">
-            {data.deliveredInWindow}
-            <span className="ml-1 text-sm font-normal text-zinc-500">/ {data.deliveriesInWindow}</span>
-          </div>
-          <div className="text-xs text-zinc-500">
-            Entregas últimas {data.hoursWindow}h · sucesso {successLabel}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500">
-            <span>{data.activeSubscriptions} {data.activeSubscriptions === 1 ? 'subscription activa' : 'subscriptions activas'}</span>
-            {data.disabledSubscriptions > 0 && (
-              <span className="text-rose-600 dark:text-rose-400">
-                ⚠ {data.disabledSubscriptions} desactivada{data.disabledSubscriptions === 1 ? '' : 's'} (auto-disabled)
-              </span>
-            )}
-            {data.failedInWindow > 0 && (
-              <span className="text-amber-700 dark:text-amber-300">
-                {data.failedInWindow} falha{data.failedInWindow === 1 ? '' : 's'}
-              </span>
-            )}
-            {data.pendingNow > 0 && <span>{data.pendingNow} em fila</span>}
-          </div>
+        <div className={`grid h-11 w-11 place-items-center rounded-lg ${cls.icon}`}>
+          <Icon size={22} strokeWidth={2} />
         </div>
-        <ChevronRight size={16} strokeWidth={2} className="text-zinc-400" />
+        <ArrowRight size={16} className="text-zinc-400 transition group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
       </div>
-      {hasIssues && (
-        <div className="mt-2 text-[11px] text-zinc-500">
-          {data.disabledSubscriptions > 0
-            ? 'Subscription auto-desactivada após 10 falhas. Verifica endpoint.'
-            : 'Algumas entregas falharam. Vê histórico para retry manual.'}
-        </div>
-      )}
+      <div>
+        <div className="text-sm font-medium text-zinc-500">{label}</div>
+        {loading ? (
+          <Skeleton className="mt-2 h-8 w-28" />
+        ) : (
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">{value ?? 0}</span>
+            {suffix && <span className="text-sm text-zinc-500">{suffix}</span>}
+          </div>
+        )}
+        <p className="mt-2 text-xs leading-5 text-zinc-500">{helper}</p>
+      </div>
     </Link>
   );
 }
 
-function GarantiasSection({ data, loading }: { data: GarantiasResumoResponse | undefined; loading: boolean }) {
-  const [open, setOpen] = useState(false);
-
-  if (loading || !data) return null;
-  if (data.activas === 0 && data.expiramEm30Dias === 0) return null;
-
+function WeeklyCard({
+  to,
+  icon: Icon,
+  tone,
+  label,
+  value,
+  suffix,
+  helper,
+  loading,
+  children,
+}: {
+  to: string;
+  icon: LucideIcon;
+  tone: Tone;
+  label: string;
+  value: ReactNode;
+  suffix?: string;
+  helper?: string;
+  loading: boolean;
+  children?: ReactNode;
+}) {
+  const cls = toneClass[tone];
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
-        <div className="flex items-start gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-            <ShieldCheck size={18} strokeWidth={2} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-2xl font-semibold tabular-nums">{data.activas}</div>
-            <div className="text-xs text-emerald-800 dark:text-emerald-200/80">
-              garantias activas (reparações + vendas)
-            </div>
-          </div>
+    <Link
+      to={to}
+      className={`group flex min-h-36 flex-col rounded-lg border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-zinc-900 ${cls.border}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className={`inline-flex items-center gap-2 rounded-md px-2.5 py-1 text-xs font-medium ${cls.soft}`}>
+          <Icon size={14} strokeWidth={2} />
+          {label}
         </div>
+        <ArrowRight size={15} className="text-zinc-400 transition group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
       </div>
-
-      {data.expiramEm30Dias > 0 && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-left transition hover:bg-amber-100/60 dark:border-amber-900/60 dark:bg-amber-950/30 dark:hover:bg-amber-900/30"
-        >
-          <div className="flex items-start gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-              <Clock size={18} strokeWidth={2} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-2xl font-semibold tabular-nums">{data.expiramEm30Dias}</div>
-              <div className="text-xs text-amber-800 dark:text-amber-200/80">
-                {data.expiramEm30Dias === 1 ? 'expira' : 'expiram'} nos próximos 30 dias — clica para contactar
-              </div>
-            </div>
-            <ChevronRight size={16} className="mt-1 shrink-0 text-amber-700/60" />
-          </div>
-        </button>
+      {loading ? (
+        <Skeleton className="mt-5 h-7 w-24" />
+      ) : (
+        <div className="mt-4 flex items-baseline gap-2">
+          <span className="text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">{value ?? 0}</span>
+          {suffix && <span className="text-xs text-zinc-500">{suffix}</span>}
+        </div>
       )}
-
-      {open && (
-        <GarantiasExpirarPanel items={data.proximasAExpirar} onClose={() => setOpen(false)} />
-      )}
-    </div>
+      {children}
+      {helper && <p className="mt-auto pt-3 text-xs leading-5 text-zinc-500">{helper}</p>}
+    </Link>
   );
 }
 
-function GarantiasExpirarPanel({ items, onClose }: { items: GarantiaProximaExpirar[]; onClose: () => void }) {
+function GarantiasWidget({
+  loading,
+  activas,
+  expiram,
+  items,
+}: {
+  loading: boolean;
+  activas: number;
+  expiram: number;
+  items: Array<{
+    id: string;
+    slug: string;
+    dataFim: string;
+    diasRestantes: number;
+    origem: 'Reparacao' | 'Venda';
+    documentoReferencia: string | null;
+    equipamentoOuArtigo: string | null;
+    clienteNome: string | null;
+  }>;
+}) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
-      <div
-        className="max-h-[85vh] w-full max-w-2xl overflow-auto rounded-xl bg-white p-5 shadow-xl dark:bg-zinc-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold">Garantias a expirar (30 dias)</h2>
-            <p className="text-xs text-zinc-500">Contacta os clientes — oportunidade de renovação / re-engagement.</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            aria-label="Fechar"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
-          {items.map((g) => (
-            <li key={g.id} className="flex items-start justify-between gap-3 py-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                    g.origem === 'Venda'
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                  }`}>
-                    {g.origem === 'Venda' ? 'Venda' : 'Reparação'}
+    <Panel
+      to="/reparacoes"
+      icon={ShieldCheck}
+      tone={expiram > 0 ? 'amber' : 'emerald'}
+      title="Garantias a expirar"
+      value={loading ? null : `${expiram}`}
+      meta={`${activas} activas`}
+    >
+      {loading ? (
+        <PanelSkeleton />
+      ) : items.length === 0 ? (
+        <EmptyState compact icon={ShieldCheck} title="Nada a expirar" description="As garantias dos proximos 30 dias estao limpas." />
+      ) : (
+        <ul className="mt-3 divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+          {items.slice(0, 4).map((g) => (
+            <li key={g.id} className="py-2">
+              <a href={`/g/${g.slug}`} target="_blank" rel="noopener noreferrer" className="block rounded-md px-1 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">{g.equipamentoOuArtigo ?? g.documentoReferencia ?? 'Garantia'}</span>
+                  <span className={g.diasRestantes <= 7 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-700 dark:text-amber-300'}>
+                    {g.diasRestantes}d
                   </span>
-                  <span className="text-xs text-zinc-500">{g.documentoReferencia}</span>
                 </div>
-                <div className="mt-0.5 truncate font-medium">{g.equipamentoOuArtigo ?? '—'}</div>
-                <div className="text-[11px] text-zinc-500">
-                  {g.clienteNome ?? 'Consumidor final'}
-                  {g.clienteTelefone && (
-                    <>
-                      {' · '}
-                      <a
-                        href={`tel:${g.clienteTelefone.replace(/\s/g, '')}`}
-                        className="inline-flex items-center gap-1 text-emerald-600 hover:underline dark:text-emerald-400"
-                      >
-                        <Phone size={11} strokeWidth={2} /> {g.clienteTelefone}
-                      </a>
-                    </>
-                  )}
+                <div className="truncate text-xs text-zinc-500">
+                  {g.clienteNome ?? 'Consumidor final'} - {formatDateOnly(g.dataFim)}
                 </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+function ReabastecerWidget({
+  loading,
+  items,
+}: {
+  loading: boolean;
+  items: Array<{
+    partId: string;
+    sku: string;
+    nome: string;
+    qtdStockActual: number;
+    consumoDias: number;
+    diasRestantesEstimados: number;
+  }>;
+}) {
+  return (
+    <Panel
+      to="/stock"
+      icon={PackageSearch}
+      tone={items.length > 0 ? 'rose' : 'zinc'}
+      title="Reabastecer < 30d"
+      value={loading ? null : `${items.length}`}
+      meta="previsao por consumo"
+    >
+      {loading ? (
+        <PanelSkeleton />
+      ) : items.length === 0 ? (
+        <EmptyState compact icon={Boxes} title="Stock estavel" description="Nenhuma peca esta a caminho de ruptura nos proximos 30 dias." />
+      ) : (
+        <ul className="mt-3 divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+          {items.slice(0, 4).map((p) => (
+            <li key={p.partId} className="py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-medium">{p.nome}</span>
+                <span className="text-rose-600 dark:text-rose-400">{p.diasRestantesEstimados}d</span>
               </div>
-              <div className="text-right">
-                <div className={`text-xs font-medium ${
-                  g.diasRestantes <= 7
-                    ? 'text-red-600 dark:text-red-400'
-                    : g.diasRestantes <= 14
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-zinc-500'
-                }`}>
-                  {g.diasRestantes === 0 ? 'expira hoje' : `${g.diasRestantes} ${g.diasRestantes === 1 ? 'dia' : 'dias'}`}
-                </div>
-                <div className="text-[10px] text-zinc-400">{formatDateOnly(g.dataFim)}</div>
-                <a
-                  href={`/g/${g.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] text-brand-600 hover:underline"
-                >
-                  ver portal
-                </a>
+              <div className="truncate text-xs text-zinc-500">
+                {p.sku} - stock {p.qtdStockActual} - usaste {p.consumoDias}/30d
               </div>
             </li>
           ))}
         </ul>
-      </div>
-    </div>
+      )}
+    </Panel>
   );
 }
 
-function AlertasSection({ data, loading }: { data: AlertasResponse | undefined; loading: boolean }) {
-  const [open, setOpen] = useState<'porCobrar' | 'orfas' | null>(null);
-
-  if (loading || !data) return null;
-
-  const porCobrarItems: ItemPorCobrar[] = [...data.reparacoesNaoPagas, ...data.trabalhosNaoPagos]
-    .sort((a, b) => {
-      const ad = a.concluidoEm ? new Date(a.concluidoEm).getTime() : 0;
-      const bd = b.concluidoEm ? new Date(b.concluidoEm).getTime() : 0;
-      return bd - ad;
-    });
-
-  const nadaParaAvisar = porCobrarItems.length === 0 && data.despesasOrfas.length === 0;
-  if (nadaParaAvisar) return null;
-
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {porCobrarItems.length > 0 && (
-        <AlertCard
-          tone="amber"
-          icon={AlertTriangle}
-          title={`${porCobrarItems.length} ${porCobrarItems.length === 1 ? 'item' : 'itens'} concluídos por cobrar`}
-          subtitle={`${formatCents(data.totalPorCobrarCents)} pendente — clica para ver`}
-          onClick={() => setOpen('porCobrar')}
-        />
-      )}
-      {data.despesasOrfas.length > 0 && (
-        <AlertCard
-          tone="blue"
-          icon={Lightbulb}
-          title={`${data.despesasOrfas.length} ${data.despesasOrfas.length === 1 ? 'despesa' : 'despesas'} sem trabalho associado`}
-          subtitle={`${formatCents(data.totalDespesasOrfasCents)} em stock/overhead — confirma se está certo`}
-          onClick={() => setOpen('orfas')}
-        />
-      )}
-
-      {open === 'porCobrar' && (
-        <PorCobrarPanel
-          trabalhos={data.trabalhosNaoPagos}
-          reparacoes={data.reparacoesNaoPagas}
-          onClose={() => setOpen(null)}
-        />
-      )}
-      {open === 'orfas' && (
-        <DespesasOrfasPanel
-          items={data.despesasOrfas}
-          onClose={() => setOpen(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-function AlertCard({
-  tone,
-  icon: Icon,
-  title,
-  subtitle,
-  onClick,
+function TopReparacoesWidget({
+  loading,
+  items,
 }: {
-  tone: 'amber' | 'blue';
-  icon: IconCmp;
-  title: string;
-  subtitle: string;
-  onClick: () => void;
+  loading: boolean;
+  items: Array<{
+    id: string;
+    numero: number;
+    equipamento: string;
+    clienteNome: string | null;
+    receitaCents: number;
+    custoPecasCents: number;
+    lucroCents: number;
+  }>;
 }) {
-  const toneCls =
-    tone === 'amber'
-      ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-950/30 dark:hover:bg-amber-950/50'
-      : 'border-blue-300 bg-blue-50 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-950/30 dark:hover:bg-blue-950/50';
-  const iconCls = tone === 'amber' ? 'text-amber-700 dark:text-amber-300' : 'text-blue-700 dark:text-blue-300';
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-start gap-3 rounded-xl border p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${toneCls}`}
+    <Panel
+      to="/relatorios/negocio"
+      icon={Trophy}
+      tone="amber"
+      title="Top reparacoes 30d"
+      value={loading ? null : `${items.length}`}
+      meta="por lucro"
     >
-      <Icon size={20} strokeWidth={2} className={`flex-none ${iconCls}`} aria-hidden />
-      <div className="flex-1">
-        <div className="text-sm font-semibold">{title}</div>
-        <div className="text-xs text-zinc-600 dark:text-zinc-400">{subtitle}</div>
-      </div>
-      <ChevronRight size={16} strokeWidth={2} className="flex-none text-zinc-400" aria-hidden />
-    </button>
-  );
-}
-
-function PorCobrarPanel({
-  trabalhos,
-  reparacoes,
-  onClose,
-}: {
-  trabalhos: ItemPorCobrar[];
-  reparacoes: ItemPorCobrar[];
-  onClose: () => void;
-}) {
-  return (
-    <div className="col-span-full rounded-xl border border-amber-300 bg-white p-4 dark:border-amber-800/60 dark:bg-zinc-900">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Itens concluídos por cobrar</h3>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar painel"
-          className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-        >
-          <X size={14} strokeWidth={2} />
-        </button>
-      </div>
-      {reparacoes.length > 0 && (
-        <>
-          <div className="mb-1 text-[11px] uppercase tracking-wide text-zinc-500">Reparações</div>
-          <ul className="mb-3 divide-y divide-zinc-100 dark:divide-zinc-800">
-            {reparacoes.map((r) => (
-              <li key={r.id}>
-                <Link to={`/reparacoes/${r.id}`} className="flex items-center justify-between gap-2 rounded-md py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-mono text-zinc-500">#{r.numero}</span>{' '}
-                    <span className="truncate font-medium">{r.titulo}</span>
-                    {r.clienteNome && <span className="ml-2 text-[11px] text-zinc-500">· {r.clienteNome}</span>}
-                  </div>
-                  <span className="font-semibold tabular-nums">{formatCents(r.valorCents)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {trabalhos.length > 0 && (
-        <>
-          <div className="mb-1 text-[11px] uppercase tracking-wide text-zinc-500">Trabalhos</div>
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {trabalhos.map((t) => (
-              <li key={t.id}>
-                <Link to={`/trabalhos/${t.id}`} className="flex items-center justify-between gap-2 rounded-md py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-mono text-zinc-500">#{t.numero}</span>{' '}
-                    <span className="truncate font-medium">{t.titulo}</span>
-                    {t.clienteNome && <span className="ml-2 text-[11px] text-zinc-500">· {t.clienteNome}</span>}
-                  </div>
-                  <span className="font-semibold tabular-nums">{formatCents(t.valorCents)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </div>
-  );
-}
-
-function DespesasOrfasPanel({ items, onClose }: { items: DespesaOrfa[]; onClose: () => void }) {
-  return (
-    <div className="col-span-full rounded-xl border border-blue-300 bg-white p-4 dark:border-blue-800/60 dark:bg-zinc-900">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Despesas sem trabalho associado</h3>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar painel"
-          className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-        >
-          <X size={14} strokeWidth={2} />
-        </button>
-      </div>
-      <p className="mb-3 text-xs text-zinc-500">
-        Estas despesas não estão ligadas a nenhuma reparação ou trabalho. Clica numa despesa para a editar (e associar a trabalho/reparação) ou apagar. Se for compra de stock ou overhead (renda, internet…), deixa como está.
-      </p>
-      <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {items.map((d) => (
-          <li key={d.id}>
-            <Link to={`/despesas?edit=${d.id}`} className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{d.descricao}</div>
-                <div className="text-[11px] text-zinc-500">
-                  {formatDateOnly(d.data)}{d.fornecedor && ` · ${d.fornecedor}`}
+      {loading ? (
+        <PanelSkeleton />
+      ) : items.length === 0 ? (
+        <EmptyState compact icon={Trophy} title="Ainda sem top" description="Quando entregares reparacoes pagas, aparecem aqui as mais lucrativas." />
+      ) : (
+        <ul className="mt-3 divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+          {items.map((r) => (
+            <li key={r.id}>
+              <Link to={`/reparacoes/${r.id}`} className="block rounded-md px-1 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">#{r.numero} - {r.equipamento}</span>
+                  <span className={r.lucroCents >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}>
+                    {formatCents(r.lucroCents)}
+                  </span>
                 </div>
-              </div>
-              <span className="font-semibold tabular-nums">{formatCents(d.valorCents)}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+                <div className="truncate text-xs text-zinc-500">
+                  {r.clienteNome ?? 'Cliente'} - receita {formatCents(r.receitaCents)} - pecas {formatCents(r.custoPecasCents)}
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+function TopPecasWidget({
+  loading,
+  items,
+}: {
+  loading: boolean;
+  items: Array<{
+    partId: string;
+    nome: string;
+    sku: string | null;
+    quantidade: number;
+  }>;
+}) {
+  const data = items.map((p) => ({
+    nome: p.sku ?? p.nome,
+    quantidade: p.quantidade,
+  }));
+
+  return (
+    <Panel
+      to="/stock"
+      icon={Boxes}
+      tone="blue"
+      title="Top pecas usadas 30d"
+      value={loading ? null : `${items.length}`}
+      meta="uso em reparacao"
+    >
+      {loading ? (
+        <PanelSkeleton />
+      ) : items.length === 0 ? (
+        <EmptyState compact icon={Boxes} title="Sem consumo" description="As pecas usadas em reparacoes aparecem aqui para comprares melhor." />
+      ) : (
+        <>
+          <div className="mt-3 h-28">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} layout="vertical" margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="nome" hide />
+                <Tooltip formatter={(value) => `${value} un.`} />
+                <Bar dataKey="quantidade" radius={[0, 4, 4, 0]} fill={toneClass.blue.chart} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <ul className="mt-2 space-y-1 text-xs text-zinc-500">
+            {items.slice(0, 3).map((p) => (
+              <li key={p.partId} className="flex justify-between gap-2">
+                <span className="truncate">{p.sku ? `${p.sku} - ` : ''}{p.nome}</span>
+                <span className="font-medium text-zinc-700 dark:text-zinc-300">{p.quantidade}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function Panel({
+  to,
+  icon: Icon,
+  tone,
+  title,
+  value,
+  meta,
+  children,
+}: {
+  to: string;
+  icon: LucideIcon;
+  tone: Tone;
+  title: string;
+  value: string | null;
+  meta: string;
+  children: ReactNode;
+}) {
+  const cls = toneClass[tone];
+  return (
+    <div className={`rounded-lg border bg-white p-4 shadow-sm dark:bg-zinc-900 ${cls.border}`}>
+      <Link to={to} className="group flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className={`inline-flex items-center gap-2 rounded-md px-2.5 py-1 text-xs font-medium ${cls.soft}`}>
+            <Icon size={14} strokeWidth={2} />
+            {title}
+          </div>
+          <div className="mt-3 flex items-end gap-2">
+            {value == null ? <Skeleton className="h-7 w-12" /> : <span className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">{value}</span>}
+            <span className="pb-1 text-xs text-zinc-500">{meta}</span>
+          </div>
+        </div>
+        <ArrowRight size={15} className="mt-1 text-zinc-400 transition group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
+      </Link>
+      {children}
     </div>
   );
+}
+
+function PanelSkeleton() {
+  return (
+    <div className="mt-4 space-y-2">
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-5/6" />
+      <Skeleton className="h-4 w-2/3" />
+    </div>
+  );
+}
+
+function formatHours(hours: number | null | undefined) {
+  if (hours == null) return '-';
+  if (hours < 24) return `${hours.toFixed(1)} h`;
+  return `${(hours / 24).toFixed(1)} dias`;
 }

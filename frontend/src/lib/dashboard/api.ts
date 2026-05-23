@@ -40,6 +40,35 @@ export interface DashboardResponse {
   topProdutosVendidos: TopProdutoVendido[];
 }
 
+export interface DashboardKpisHojeResponse {
+  reparacoesEmCurso: number;
+  valorAReceberCents: number;
+  stockCriticoCount: number;
+  receita7d: number[];
+  reparacoesEntregues7d: number;
+  lucroEstimado7dCents: number;
+  tempoMedioReparacaoHoras: number | null;
+  topReparacoesLucrativas30d: DashboardTopReparacaoLucrativa[];
+  topPecasUsadas30d: DashboardTopPecaUsada[];
+}
+
+export interface DashboardTopReparacaoLucrativa {
+  id: string;
+  numero: number;
+  equipamento: string;
+  clienteNome: string | null;
+  receitaCents: number;
+  custoPecasCents: number;
+  lucroCents: number;
+}
+
+export interface DashboardTopPecaUsada {
+  partId: string;
+  nome: string;
+  sku: string | null;
+  quantidade: number;
+}
+
 export interface CategoriaFinanceira {
   label: string;
   count: number;
@@ -60,6 +89,11 @@ export interface FinanceiroResponse {
 }
 
 export const dashboardApi = {
+  kpisHoje(dia?: string) {
+    return api
+      .get<DashboardKpisHojeResponse>('/dashboard/kpis-hoje', { params: dia ? { dia } : undefined })
+      .then((r) => r.data);
+  },
   current() {
     return api.get<DashboardResponse>('/dashboard').then((r) => r.data);
   },

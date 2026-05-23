@@ -38,7 +38,9 @@ export default function UniversalCsvImportModal({ open, onClose, onImported }: {
   }, [open]);
 
   const detect = useMutation({
-    mutationFn: () => productsApi.detectCsvColumns(csv),
+    // Sprint 209: passa fornecedorId → se Fornecedor tem mapping cached, backend devolve
+    // direct sem chamar Claude (poupa ~0.05¢ + 2-3s).
+    mutationFn: () => productsApi.detectCsvColumns(csv, fornecedorId || undefined),
     onSuccess: (r) => {
       setHeader(r.header);
       if (r.detected && r.mapping) {
@@ -46,6 +48,10 @@ export default function UniversalCsvImportModal({ open, onClose, onImported }: {
         setMapping(m);
         setConfidence(c);
         setNotes(n);
+        // Sprint 209: source='cache' = mapping já guardado neste fornecedor — toast informativo.
+        if (r.source === 'cache') {
+          toast.success('Mapping recuperado do fornecedor', 'Skip Claude — revê e importa.');
+        }
       } else {
         // Sem Claude — mapping vazio, Bruno preenche tudo manual
         setMapping({ sku: null, brand: null, model: null, product: null, storage: null,

@@ -225,10 +225,10 @@ export const productsApi = {
   importMolano(fornecedorId: string, csv: string) {
     return api.post<ImportProductsResponse>('/products/import-molano', { fornecedorId, csv }).then((r) => r.data);
   },
-  // Sprint 203: detector universal de colunas CSV via Claude. Devolve mapping sugerido para
-  // qualquer fornecedor (não precisa hardcode). Bruno confirma 1× e mapping fica guardado.
-  detectCsvColumns(csv: string) {
-    return api.post<DetectCsvColumnsResponse>('/products/csv/detect-columns', { csv }).then((r) => r.data);
+  // Sprint 203 + 209: detector universal de colunas CSV via Claude. FornecedorId opcional —
+  // se enviado e Fornecedor tem CsvColumnMappingJson cached, backend skip Claude (~0.05¢ saved).
+  detectCsvColumns(csv: string, fornecedorId?: string) {
+    return api.post<DetectCsvColumnsResponse>('/products/csv/detect-columns', { csv, fornecedorId }).then((r) => r.data);
   },
   importCsvWithMapping(fornecedorId: string, csv: string, mapping: CsvColumnMapping, saveMapping: boolean) {
     return api.post<ImportProductsResponse>('/products/csv/import-with-mapping', {
@@ -263,6 +263,8 @@ export interface DetectCsvColumnsResponse {
   header: string[];
   samplesShown?: number;
   reason?: string;
+  /** Sprint 209: 'cache' | 'claude' | 'llm-unavailable'. */
+  source?: 'cache' | 'claude' | 'llm-unavailable';
 }
 
 export interface MigrateShopProductRequest {

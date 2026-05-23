@@ -5,6 +5,7 @@ namespace RepairDesk.Core.Abstractions;
 public interface IDashboardRepository
 {
     Task<DashboardSnapshot> GetSnapshotAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+    Task<DashboardKpisHojeSnapshot> GetKpisHojeAsync(DateTime diaUtc, CancellationToken ct = default);
     Task<FinanceiroSnapshot> GetFinanceiroAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     Task<AlertasSnapshot> GetAlertasAsync(CancellationToken ct = default);
     Task<IReadOnlyList<MesFinanceiroRow>> GetTendenciaAsync(int mesesAtras, CancellationToken ct = default);
@@ -102,3 +103,29 @@ public sealed record ReparacaoTopRow(
     int ReceitaCents,
     int CustoCents,
     int LucroCents);
+
+public sealed record DashboardKpisHojeSnapshot(
+    int ReparacoesEmCurso,
+    int ValorAReceberCents,
+    int StockCriticoCount,
+    IReadOnlyList<int> Receita7d,
+    int ReparacoesEntregues7d,
+    int LucroEstimado7dCents,
+    double? TempoMedioReparacaoHoras,
+    IReadOnlyList<DashboardTopReparacaoLucrativaRow> TopReparacoesLucrativas30d,
+    IReadOnlyList<DashboardTopPecaUsadaRow> TopPecasUsadas30d);
+
+public sealed record DashboardTopReparacaoLucrativaRow(
+    Guid Id,
+    int Numero,
+    string Equipamento,
+    string? ClienteNome,
+    int ReceitaCents,
+    int CustoPecasCents,
+    int LucroCents);
+
+public sealed record DashboardTopPecaUsadaRow(
+    Guid PartId,
+    string Nome,
+    string? Sku,
+    int Quantidade);

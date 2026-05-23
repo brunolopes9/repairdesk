@@ -10,7 +10,21 @@ namespace RepairDesk.API.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly IDashboardService _service;
-    public DashboardController(IDashboardService service) => _service = service;
+    private readonly IDashboardKpiHojeService _kpisHoje;
+
+    public DashboardController(IDashboardService service, IDashboardKpiHojeService kpisHoje)
+    {
+        _service = service;
+        _kpisHoje = kpisHoje;
+    }
+
+    [HttpGet("kpis-hoje")]
+    public Task<DashboardKpisHojeResponse> GetKpisHoje([FromQuery] DateOnly? dia, CancellationToken ct)
+    {
+        var target = dia ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var diaUtc = target.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        return _kpisHoje.GetAsync(diaUtc, ct);
+    }
 
     [HttpGet]
     public Task<DashboardResponse> Get([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)

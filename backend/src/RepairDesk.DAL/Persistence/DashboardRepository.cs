@@ -9,6 +9,200 @@ public class DashboardRepository : IDashboardRepository
     private readonly AppDbContext _db;
     public DashboardRepository(AppDbContext db) => _db = db;
 
+    public async Task<DashboardKpisHojeSnapshot> GetKpisHojeAsync(DateTime diaUtc, CancellationToken ct = default)
+    {
+        var dia = DateTime.SpecifyKind(diaUtc.Date, DateTimeKind.Utc);
+        var diaSeguinte = dia.AddDays(1);
+        var inicio7d = dia.AddDays(-6);
+        var inicio30d = dia.AddDays(-29);
+
+        var openRepairStatuses = new[]
+        {
+            RepairStatus.Recebido, RepairStatus.Diagnostico, RepairStatus.AguardaPeca,
+            RepairStatus.EmReparacao, RepairStatus.Pronto
+        };
+
+        var paidStatuses = new[] { PaymentStatus.Pago, PaymentStatus.PagoParcial };
+
+        var reparacoesEmCurso = await _db.Reparacoes
+            .CountAsync(r => openRepairStatuses.Contains(r.Estado), ct);
+
+        var valorAReceberRows = await _db.Reparacoes
+            .AsNoTracking()
+            .Where(r => r.Estado == RepairStatus.Entregue
+                        && r.EstadoPagamento == PaymentStatus.NaoPago
+                        && r.EntregueEm != null
+                        && r.EntregueEm >= dia && r.EntregueEm < diaSeguinte)
+            .Select(r => new { r.PrecoFinalCents, r.OrcamentoCents })
+            .ToListAsync(ct);
+        var valorAReceberCents = valorAReceberRows.Sum(r => r.PrecoFinalCents ?? r.OrcamentoCents ?? 0);
+
+        var stockCriticoCount = await _db.Parts
+            .CountAsync(p => p.Activo && p.QtdStock <= p.QtdMinima, ct);
+
+        var reparacoesPagas = await _db.Reparacoes
+            .AsNoTracking()
+            .Where(r => r.EntregueEm != null
+                        && r.EntregueEm >= inicio7d && r.EntregueEm < diaSeguinte
+                        && paidStatuses.Contains(r.EstadoPagamento))
+            .Select(r => new
+            {
+                r.Id,
+                Data = r.EntregueEm!.Value,
+                RecebidaEm = r.CreatedAt,
+                ReceitaCents = r.PrecoFinalCents ?? r.OrcamentoCents ?? 0,
+            })
+            .ToListAsync(ct);
+
+        var trabalhosPagos = await _db.Trabalhos
+            .AsNoTracking()
+            .Where(t => t.Status == TrabalhoStatus.Concluido
+                        && t.DataConclusao != null
+                        && t.DataConclusao >= inicio7d && t.DataConclusao < diaSeguinte
+                        && paidStatuses.Contains(t.EstadoPagamento))
+            .Select(t => new
+            {
+                Data = t.DataConclusao!.Value,
+                ReceitaCents = t.PrecoFinalCents ?? t.OrcamentoCents ?? 0,
+            })
+            .ToListAsync(ct);
+
+        var vendasPagas = await _db.Vendas
+            .AsNoTracking()
+            .Where(v => v.Status == VendaStatus.Paga && v.Data >= inicio7d && v.Data < diaSeguinte)
+            .Select(v => new { v.Data, v.TotalCents })
+            .ToListAsync(ct);
+
+        var receita7d = new int[7];
+        for (var i = 0; i < 7; i++)
+        {
+            var bucketStart = inicio7d.AddDays(i);
+            var bucketEnd = bucketStart.AddDays(1);
+            receita7d[i] = reparacoesPagas.Where(r => r.Data >= bucketStart && r.Data < bucketEnd).Sum(r => r.ReceitaCents)
+                         + trabalhosPagos.Where(t => t.Data >= bucketStart && t.Data < bucketEnd).Sum(t => t.ReceitaCents)
+                         + vendasPagas.Where(v => v.Data >= bucketStart && v.Data < bucketEnd).Sum(v => v.TotalCents);
+        }
+
+        var vendaItensPagos = await _db.VendaItems
+            .AsNoTracking()
+            .Where(i => i.Venda != null
+                        && i.Venda.Status == VendaStatus.Paga
+                        && i.Venda.Data >= inicio7d && i.Venda.Data < diaSeguinte)
+            .Select(i => new
+            {
+                CustoCents = i.Part != null ? i.Part.CustoUnitarioCents * i.Quantidade : 0,
+            })
+            .ToListAsync(ct);
+
+        var custoPecasReparacoesCents = await _db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.Motivo == PartMovimentoMotivo.UsoEmReparacao
+                        && m.CreatedAt >= inicio7d && m.CreatedAt < diaSeguinte
+                        && m.Part != null)
+            .SumAsync(m => (int?)((m.Quantidade < 0 ? -m.Quantidade : m.Quantidade) * m.Part!.CustoUnitarioCents), ct) ?? 0;
+
+        var opexCents = await _db.Despesas
+            .AsNoTracking()
+            .Where(d => d.Data >= inicio7d && d.Data < diaSeguinte
+                        && !d.IsCogs
+                        && d.Categoria != DespesaCategoria.Pecas
+                        && d.Categoria != DespesaCategoria.Material)
+            .SumAsync(d => (int?)d.ValorCents, ct) ?? 0;
+
+        var receitaTotal7d = receita7d.Sum();
+        var custoPecasCents = custoPecasReparacoesCents + vendaItensPagos.Sum(v => v.CustoCents);
+        var lucroEstimado7dCents = receitaTotal7d - custoPecasCents - opexCents;
+
+        var duracoes = reparacoesPagas
+            .Where(r => r.Data >= r.RecebidaEm)
+            .Select(r => (r.Data - r.RecebidaEm).TotalHours)
+            .ToList();
+        var tempoMedioHoras = duracoes.Count == 0
+            ? (double?)null
+            : Math.Round(duracoes.Average(), 1, MidpointRounding.AwayFromZero);
+
+        var reparacoesPagas30d = await _db.Reparacoes
+            .AsNoTracking()
+            .Where(r => r.EntregueEm != null
+                        && r.EntregueEm >= inicio30d && r.EntregueEm < diaSeguinte
+                        && paidStatuses.Contains(r.EstadoPagamento))
+            .Select(r => new
+            {
+                r.Id,
+                r.Numero,
+                r.Equipamento,
+                ClienteNome = r.Cliente != null ? r.Cliente.Nome : null,
+                ReceitaCents = r.PrecoFinalCents ?? r.OrcamentoCents ?? 0,
+            })
+            .ToListAsync(ct);
+
+        var reparacaoIds30d = reparacoesPagas30d.Select(r => r.Id).ToHashSet();
+        var custosPecas30d = await _db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.ReparacaoId != null
+                        && reparacaoIds30d.Contains(m.ReparacaoId.Value)
+                        && m.Motivo == PartMovimentoMotivo.UsoEmReparacao
+                        && m.Part != null)
+            .GroupBy(m => m.ReparacaoId!.Value)
+            .Select(g => new
+            {
+                ReparacaoId = g.Key,
+                CustoCents = g.Sum(m => (m.Quantidade < 0 ? -m.Quantidade : m.Quantidade) * (m.Part != null ? m.Part.CustoUnitarioCents : 0)),
+            })
+            .ToListAsync(ct);
+        var custoMap30d = custosPecas30d.ToDictionary(x => x.ReparacaoId, x => x.CustoCents);
+
+        var topReparacoes30d = reparacoesPagas30d
+            .Select(r =>
+            {
+                var custo = custoMap30d.GetValueOrDefault(r.Id);
+                return new DashboardTopReparacaoLucrativaRow(
+                    r.Id,
+                    r.Numero,
+                    r.Equipamento,
+                    r.ClienteNome,
+                    r.ReceitaCents,
+                    custo,
+                    r.ReceitaCents - custo);
+            })
+            .OrderByDescending(r => r.LucroCents)
+            .ThenBy(r => r.Numero)
+            .Take(5)
+            .ToList();
+
+        var topPecas30dRows = await _db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.Motivo == PartMovimentoMotivo.UsoEmReparacao
+                        && m.CreatedAt >= inicio30d && m.CreatedAt < diaSeguinte
+                        && m.Part != null)
+            .GroupBy(m => new { m.PartId, m.Part!.Nome, m.Part.Sku })
+            .Select(g => new
+            {
+                g.Key.PartId,
+                g.Key.Nome,
+                g.Key.Sku,
+                Quantidade = g.Sum(m => m.Quantidade < 0 ? -m.Quantidade : m.Quantidade),
+            })
+            .OrderByDescending(p => p.Quantidade)
+            .ThenBy(p => p.Nome)
+            .Take(5)
+            .ToListAsync(ct);
+        var topPecas30d = topPecas30dRows
+            .Select(p => new DashboardTopPecaUsadaRow(p.PartId, p.Nome, p.Sku, p.Quantidade))
+            .ToList();
+
+        return new DashboardKpisHojeSnapshot(
+            ReparacoesEmCurso: reparacoesEmCurso,
+            ValorAReceberCents: valorAReceberCents,
+            StockCriticoCount: stockCriticoCount,
+            Receita7d: receita7d,
+            ReparacoesEntregues7d: reparacoesPagas.Count,
+            LucroEstimado7dCents: lucroEstimado7dCents,
+            TempoMedioReparacaoHoras: tempoMedioHoras,
+            TopReparacoesLucrativas30d: topReparacoes30d,
+            TopPecasUsadas30d: topPecas30d);
+    }
+
     public async Task<DashboardSnapshot> GetSnapshotAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
     {
         var openRepairStatuses = new[]
