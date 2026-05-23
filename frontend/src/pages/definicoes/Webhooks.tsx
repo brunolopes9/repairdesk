@@ -96,7 +96,7 @@ export default function Webhooks() {
     <div className="space-y-5">
       <PageHeader
         title="Webhooks"
-        description="Recebe eventos do Reparo no teu servidor (loja online, automações). Cada delivery é assinada com HMAC-SHA256 para verificares autenticidade."
+        description="Recebe eventos do Mender no teu servidor (loja online, automações). Cada delivery é assinada com HMAC-SHA256 para verificares autenticidade."
         actions={<Button leftIcon={<Plus size={15} />} onClick={openCreate}>Novo webhook</Button>}
       />
 
@@ -230,7 +230,7 @@ export default function Webhooks() {
         <div className="max-h-[60vh] overflow-y-auto">
           {deliveriesQuery.isLoading && <SkeletonRow columns={4} />}
           {!deliveriesQuery.isLoading && (deliveriesQuery.data?.length ?? 0) === 0 && (
-            <EmptyState icon={History} title="Sem entregas ainda" description="Quando o Reparo publicar um evento que esta subscription ouve, aparece aqui." />
+            <EmptyState icon={History} title="Sem entregas ainda" description="Quando o Mender publicar um evento que esta subscription ouve, aparece aqui." />
           )}
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {deliveriesQuery.data?.map((d) => (
@@ -297,7 +297,7 @@ export default function Webhooks() {
               <ShieldCheck size={15} className="mt-0.5 flex-shrink-0" />
               <div>
                 <strong>Este secret só é mostrado uma vez.</strong> Copia-o agora para o teu servidor.
-                Usa-o para verificar HMAC-SHA256 do payload no header <code className="font-mono">X-Reparo-Signature</code>.
+                Usa-o para verificar HMAC-SHA256 do payload no header <code className="font-mono">X-Mender-Signature</code>.
               </div>
             </div>
           </div>

@@ -5,19 +5,19 @@ export default function PoliticaPrivacidade() {
     <LegalLayout title="Política de Privacidade" lastUpdated="2026-05-17">
       <p>
         A LopesTech respeita a tua privacidade. Esta política explica que dados pessoais
-        tratamos quando visitas o nosso site, nos contactas ou usas o Reparo enquanto
+        tratamos quando visitas o nosso site, nos contactas ou usas o Mender enquanto
         utilizador de uma loja.
       </p>
       <p>
-        O Reparo é um software de gestão para oficinas de reparação. Quando uma loja
-        usa o Reparo para gerir os seus próprios clientes, <strong>a loja é a responsável
+        O Mender é um software de gestão para oficinas de reparação. Quando uma loja
+        usa o Mender para gerir os seus próprios clientes, <strong>a loja é a responsável
         pelo tratamento</strong> desses dados. A LopesTech trata esses dados como subcontratante,
         de acordo com as instruções da loja e com o Contrato de Processamento de Dados (DPA)
         aplicável.
       </p>
 
       <Section title="1. Quem somos">
-        <p>O Reparo é desenvolvido pela LopesTech, projecto de Bruno Lopes, em Portugal.</p>
+        <p>O Mender é desenvolvido pela LopesTech, projecto de Bruno Lopes, em Portugal.</p>
         <p>
           Contacto para privacidade e protecção de dados:{' '}
           <a href="mailto:privacidade@lopestech.pt" className="text-brand-600 hover:underline dark:text-brand-400">
@@ -46,7 +46,7 @@ export default function PoliticaPrivacidade() {
           <li>mensagem enviada e histórico de contacto</li>
         </ul>
 
-        <h3 className="mt-4 font-medium text-zinc-900 dark:text-zinc-100">Utilizadores do Reparo</h3>
+        <h3 className="mt-4 font-medium text-zinc-900 dark:text-zinc-100">Utilizadores do Mender</h3>
         <ul className="ml-5 list-disc space-y-1">
           <li>nome, email</li>
           <li>palavra-passe em formato protegido (hash)</li>
@@ -64,7 +64,7 @@ export default function PoliticaPrivacidade() {
           <li>histórico de pagamentos e facturas</li>
         </ul>
 
-        <h3 className="mt-4 font-medium text-zinc-900 dark:text-zinc-100">Dados que as lojas colocam no Reparo</h3>
+        <h3 className="mt-4 font-medium text-zinc-900 dark:text-zinc-100">Dados que as lojas colocam no Mender</h3>
         <p>
           As lojas podem inserir dados dos seus próprios clientes finais — nome, telefone, email,
           NIF, equipamento, IMEI/serial, avarias, histórico de reparações, fotos e comunicações.
@@ -83,7 +83,7 @@ export default function PoliticaPrivacidade() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              <tr><td className="px-3 py-2">Prestar o Reparo (conta, login, loja, operação)</td><td className="px-3 py-2">Execução de contrato</td></tr>
+              <tr><td className="px-3 py-2">Prestar o Mender (conta, login, loja, operação)</td><td className="px-3 py-2">Execução de contrato</td></tr>
               <tr><td className="px-3 py-2">Gerir clientes e facturação da LopesTech</td><td className="px-3 py-2">Execução de contrato / obrigação legal</td></tr>
               <tr><td className="px-3 py-2">Responder a contactos e pedidos de demo</td><td className="px-3 py-2">Diligências pré-contratuais / interesse legítimo</td></tr>
               <tr><td className="px-3 py-2">Segurança, prevenção de abuso e logs</td><td className="px-3 py-2">Interesse legítimo / segurança</td></tr>
@@ -101,7 +101,7 @@ export default function PoliticaPrivacidade() {
       </Section>
 
       <Section title="4. Com quem partilhamos dados">
-        <p>Podemos usar fornecedores técnicos para operar o Reparo, por exemplo:</p>
+        <p>Podemos usar fornecedores técnicos para operar o Mender, por exemplo:</p>
         <ul className="ml-5 list-disc space-y-1">
           <li>alojamento / cloud e base de dados</li>
           <li>armazenamento de ficheiros e backups</li>
@@ -134,7 +134,7 @@ export default function PoliticaPrivacidade() {
 
       <Section title="6. Durante quanto tempo guardamos os dados">
         <ul className="ml-5 list-disc space-y-1">
-          <li>conta Reparo: durante a vigência da conta</li>
+          <li>conta Mender: durante a vigência da conta</li>
           <li>dados de facturação: pelo prazo legal aplicável a documentos fiscais</li>
           <li>contactos comerciais sem contrato: até 24 meses após o último contacto</li>
           <li>tickets de suporte: até 24 meses</li>
@@ -157,11 +157,11 @@ export default function PoliticaPrivacidade() {
           <li>apresentar reclamação junto da CNPD</li>
         </ul>
         <p>
-          Para exercer direitos sobre a tua conta Reparo ou contacto com a LopesTech, escreve
+          Para exercer direitos sobre a tua conta Mender ou contacto com a LopesTech, escreve
           para <a href="mailto:privacidade@lopestech.pt" className="text-brand-600 hover:underline dark:text-brand-400">privacidade@lopestech.pt</a>.
         </p>
         <p>
-          Se fores cliente final de uma loja que usa Reparo, contacta primeiro essa loja —
+          Se fores cliente final de uma loja que usa Mender, contacta primeiro essa loja —
           é ela a responsável pelo tratamento dos teus dados. A LopesTech ajudará a loja a
           responder, quando necessário.
         </p>

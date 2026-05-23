@@ -390,7 +390,7 @@ try
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(c =>
     {
-        c.SwaggerDoc("v1", new() { Title = "Reparo API", Version = "v1" });
+        c.SwaggerDoc("v1", new() { Title = "Mender API", Version = "v1" });
     });
 
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p

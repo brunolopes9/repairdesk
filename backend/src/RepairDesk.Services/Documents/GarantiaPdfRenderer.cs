@@ -230,7 +230,7 @@ public static class GarantiaPdfRenderer
         container.AlignCenter().Text(t =>
         {
             t.Span("Gerado por ").FontSize(7).FontColor(Colors.Grey.Darken1);
-            t.Span("Reparo").FontSize(7).Bold().FontColor(Colors.Grey.Darken2);
+            t.Span("Mender").FontSize(7).Bold().FontColor(Colors.Grey.Darken2);
             t.Span(" · este documento é a representação imprimível da garantia digital. Verifica sempre online via QR code para o estado actual.")
                 .FontSize(7).FontColor(Colors.Grey.Darken1);
         });

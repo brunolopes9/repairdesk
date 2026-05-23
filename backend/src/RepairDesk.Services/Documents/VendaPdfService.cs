@@ -59,7 +59,7 @@ public class VendaPdfService : IVendaPdfService
                 {
                     row.RelativeItem().Column(col =>
                     {
-                        col.Item().Text(tenant?.LegalName ?? tenant?.Name ?? "Reparo").FontSize(18).Bold().FontColor("#0EA5E9");
+                        col.Item().Text(tenant?.LegalName ?? tenant?.Name ?? "Mender").FontSize(18).Bold().FontColor("#0EA5E9");
                         if (!string.IsNullOrWhiteSpace(tenant?.Nif)) col.Item().Text($"NIF {tenant.Nif}").FontSize(9).FontColor(Colors.Grey.Darken1);
                         if (!string.IsNullOrWhiteSpace(tenant?.Address)) col.Item().Text(tenant.Address).FontSize(9).FontColor(Colors.Grey.Darken1);
                     });
@@ -165,7 +165,7 @@ public class VendaPdfService : IVendaPdfService
                     }
                 });
 
-                page.Footer().AlignCenter().Text($"{tenant?.Name ?? "Reparo"} - Gerado pelo Reparo").FontSize(7).FontColor(Colors.Grey.Lighten1);
+                page.Footer().AlignCenter().Text($"{tenant?.Name ?? "Mender"} - Gerado pelo Mender").FontSize(7).FontColor(Colors.Grey.Lighten1);
             });
         }).GeneratePdf();
 

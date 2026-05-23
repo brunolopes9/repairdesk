@@ -193,7 +193,7 @@ export default function Vendas() {
       qc.invalidateQueries({ queryKey: ['vendas-historico'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       setVendaDetalhe(venda);
-      toast.success('Referência limpa', 'Venda removida do Relatório IVA do Reparo. (Moloni não foi chamado.)');
+      toast.success('Referência limpa', 'Venda removida do Relatório IVA do Mender. (Moloni não foi chamado.)');
     },
     onError: (err) => toast.fromError(err, 'Não foi possível limpar referência.'),
   });
@@ -722,7 +722,7 @@ export default function Vendas() {
                       onClick={() => {
                         const ok = confirm(
                           `Anular fatura ${vendaDetalhe.invoiceNumber} via Moloni\n\n` +
-                          'O Reparo vai chamar a Moloni para cancelar este documento ' +
+                          'O Mender vai chamar a Moloni para cancelar este documento ' +
                           '(documentCancel ou Nota de Crédito).\n\n' +
                           `Saldo na AT após: 0,00 € (nada a pagar)\n\nContinuar?`
                         );
@@ -739,9 +739,9 @@ export default function Vendas() {
                       onClick={() => {
                         const ok = confirm(
                           'Já anulei manualmente no painel Moloni\n\n' +
-                          'Esta acção APENAS remove a referência da fatura no Reparo.\n' +
+                          'Esta acção APENAS remove a referência da fatura no Mender.\n' +
                           'NÃO chama a Moloni. Usa só se já cancelaste a fatura no painel moloni.pt.\n\n' +
-                          'A venda fica sem fatura associada e sai do Relatório IVA do Reparo.\n\nContinuar?'
+                          'A venda fica sem fatura associada e sai do Relatório IVA do Mender.\n\nContinuar?'
                         );
                         if (ok) limparFaturaLocal.mutate(vendaDetalhe.id);
                       }}

@@ -548,7 +548,7 @@ export default function ReparacaoDetalhe() {
         )}
         <p className="text-xs text-zinc-500">recebido {formatDate(r.recebidoEm)}</p>
         <div className="flex flex-wrap gap-2 pt-1">
-          {/* Sprint 141: o orçamento informativo do Reparo foi descontinuado.
+          {/* Sprint 141: o orçamento informativo do Mender foi descontinuado.
               Usa-se Moloni como fonte de orçamento oficial (botão "Emitir Orçamento Moloni" /
               "Orcamento OR ..." abaixo). O endpoint /orcamento.pdf permanece para retro-compat
               mas não está exposto na UI. */}

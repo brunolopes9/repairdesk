@@ -59,7 +59,7 @@ export default function Automacoes() {
           Automações
         </h1>
         <p className="text-sm text-zinc-500">
-          Workflows de automação que correm fora do Reparo (n8n) e alimentam o sistema com dados
+          Workflows de automação que correm fora do Mender (n8n) e alimentam o sistema com dados
           de fornecedores. Configura uma vez, deixa correr em background.
         </p>
       </header>
@@ -165,17 +165,17 @@ export default function Automacoes() {
             'Configura credenciais IMAP do teu Gmail/Outlook',
             'Filtra: from contém "@tudo4mobile" OU "@utopya" OU "@molano" (ou outros)',
             'Extrai anexos + body HTML',
-            'HTTP POST com API key Reparo (cria em /definicoes → chaves)',
+            'HTTP POST com API key Mender (cria em /definicoes → chaves)',
           ]}
         />
 
         <WorkflowCard
           icon={Camera}
-          title="Foto papel mobile → Reparo"
+          title="Foto papel mobile → Mender"
           description="Alternativa: usa o telemóvel para fotografar fatura papel directamente em /importacoes. Não precisa de n8n. Claude Vision faz OCR."
           docPath="(Sprint 164 — já disponível em /importacoes → '📷 Foto papel')"
           steps={[
-            'Abre Reparo no telemóvel',
+            'Abre Mender no telemóvel',
             'Vai a /importacoes',
             'Clica "📷 Foto papel" — câmara abre directamente',
             'Tira foto da fatura',

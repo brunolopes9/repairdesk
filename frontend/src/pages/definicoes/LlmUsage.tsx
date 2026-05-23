@@ -127,7 +127,7 @@ export default function LlmUsage() {
         </p>
       </header>
 
-      {/* Sprint 172: Anthropic key BYOK opcional — central key (Reparo) é o default. */}
+      {/* Sprint 172: Anthropic key BYOK opcional — central key (Mender) é o default. */}
       <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex-1">
@@ -139,14 +139,14 @@ export default function LlmUsage() {
                   <CheckCircle2 size={11} /> BYOK activo
                 </span>
               ) : (
-                <span className="rounded bg-zinc-500 px-2 py-0.5 text-[10px] text-white">Usa Reparo</span>
+                <span className="rounded bg-zinc-500 px-2 py-0.5 text-[10px] text-white">Usa Mender</span>
               )}
             </h2>
             <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
               {keyStatus.data?.configured ? (
-                <>BYOK activo desde {keyStatus.data.validatedAt ? new Date(keyStatus.data.validatedAt).toLocaleString('pt-PT') : '?'}. Pagas Anthropic directamente — Reparo não conta para a quota do plano. Útil para grandes volumes ou requisitos RGPD estritos.</>
+                <>BYOK activo desde {keyStatus.data.validatedAt ? new Date(keyStatus.data.validatedAt).toLocaleString('pt-PT') : '?'}. Pagas Anthropic directamente — Mender não conta para a quota do plano. Útil para grandes volumes ou requisitos RGPD estritos.</>
               ) : (
-                <>Por defeito IA usa a infraestrutura Reparo — não precisas de fazer nada. Se preferires <strong>pagar Anthropic directamente</strong> (Bring Your Own Key) e remover quota do plano, cola aqui a tua key.</>
+                <>Por defeito IA usa a infraestrutura Mender — não precisas de fazer nada. Se preferires <strong>pagar Anthropic directamente</strong> (Bring Your Own Key) e remover quota do plano, cola aqui a tua key.</>
               )}
             </p>
             {!keyStatus.data?.configured && (

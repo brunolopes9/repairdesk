@@ -24,7 +24,7 @@ export interface UpdateWebhookSubscriptionRequest extends CreateWebhookSubscript
 
 export interface CreateWebhookSubscriptionResponse {
   subscription: WebhookSubscription;
-  /** Devolvido UMA VEZ — usar para verificar HMAC dos POSTs do Reparo. */
+  /** Devolvido UMA VEZ — usar para verificar HMAC dos POSTs do Mender. */
   secret: string;
 }
 

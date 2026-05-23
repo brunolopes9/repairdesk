@@ -404,7 +404,7 @@ function Shell({
           <div>
             <div className="flex items-center gap-2 font-semibold">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-50 text-brand-600 dark:bg-zinc-900">●</span>
-              Reparo
+              Mender
             </div>
             <p className="mt-1 text-sm text-zinc-500">Em menos de meia hora, ficas com a primeira reparação registada.</p>
           </div>

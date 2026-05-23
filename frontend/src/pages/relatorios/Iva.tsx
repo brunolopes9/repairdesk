@@ -135,7 +135,7 @@ export default function RelatorioIva() {
                 <KpiSmall title="Despesas operacionais (auto)" value={report.data.ivaDedutivelDespesasCents}
                   hint="IVA de despesas overhead (rent, ferramentas, …) — clica para detalhe" />
                 <KpiSmall title="Compras manuais (input)" value={report.data.ivaComprasCents}
-                  hint="Campo acima — fornecedores fora do Reparo (ex: portes pagos por fora)" />
+                  hint="Campo acima — fornecedores fora do Mender (ex: portes pagos por fora)" />
               </div>
 
               {/* Sprint 180: drill-down — Bruno consegue ver de onde vem cada cêntimo. */}

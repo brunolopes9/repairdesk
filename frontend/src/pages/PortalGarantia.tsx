@@ -214,7 +214,7 @@ export default function PortalGarantia() {
         <footer className="mt-10 space-y-2 text-center text-[11px] text-zinc-400">
           <div>
             Verifica esta garantia em qualquer altura — link permanente.<br />
-            Gerado pelo Reparo · LopesTech
+            Gerado pelo Mender · LopesTech
           </div>
           <div className="flex justify-center gap-3">
             <a href="/privacidade" className="hover:text-zinc-600 dark:hover:text-zinc-300">Privacidade</a>

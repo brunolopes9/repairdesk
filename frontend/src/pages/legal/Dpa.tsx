@@ -12,16 +12,16 @@ export default function Dpa() {
     <LegalLayout title="Contrato de Processamento de Dados (DPA)" lastUpdated="22 Maio 2026">
       <p>
         Este Contrato de Processamento de Dados ("DPA") forma parte integrante dos Termos do
-        Reparo entre o Cliente (Responsável pelo Tratamento) e a LopesTech (Subcontratante),
+        Mender entre o Cliente (Responsável pelo Tratamento) e a LopesTech (Subcontratante),
         nos termos do Regulamento (UE) 2016/679 (RGPD).
       </p>
 
       <Section title="1. Definições">
         <ul className="list-disc pl-6">
-          <li><strong>Cliente / Tenant</strong>: a entidade que utiliza o Reparo.</li>
-          <li><strong>LopesTech</strong>: Bruno Lopes, sediada em Viseu, Portugal, fornecedor do Reparo.</li>
+          <li><strong>Cliente / Tenant</strong>: a entidade que utiliza o Mender.</li>
+          <li><strong>LopesTech</strong>: Bruno Lopes, sediada em Viseu, Portugal, fornecedor do Mender.</li>
           <li><strong>Dados Pessoais</strong>: qualquer informação relativa a pessoa singular identificada
-          ou identificável processada no contexto do Reparo.</li>
+          ou identificável processada no contexto do Mender.</li>
           <li><strong>Sub-processador</strong>: terceiro contratado pela LopesTech para apoiar o tratamento.</li>
         </ul>
       </Section>
@@ -29,7 +29,7 @@ export default function Dpa() {
       <Section title="2. Objecto e duração">
         <p>
           A LopesTech trata Dados Pessoais <strong>em nome do Cliente</strong> exclusivamente para
-          fornecer as funcionalidades do Reparo. O tratamento dura enquanto a conta estiver activa
+          fornecer as funcionalidades do Mender. O tratamento dura enquanto a conta estiver activa
           + 90 dias após terminação (retention de backups).
         </p>
       </Section>

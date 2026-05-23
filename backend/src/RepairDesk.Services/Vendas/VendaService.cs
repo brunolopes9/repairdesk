@@ -476,7 +476,7 @@ public class VendaService : IVendaService
                 var cancelled = await _moloni.CancelDocumentAsync(
                     settings,
                     originalDocId,
-                    $"Anulado via Reparo — venda #{venda.Numero}",
+                    $"Anulado via Mender — venda #{venda.Numero}",
                     ct);
 
                 if (!cancelled)
@@ -499,13 +499,13 @@ public class VendaService : IVendaService
                         customerId,
                         $"Venda #{venda.Numero}",
                         items,
-                        $"Anulacao da Fatura {venda.InvoiceNumber} via Reparo"
+                        $"Anulacao da Fatura {venda.InvoiceNumber} via Mender"
                     ), ct);
                 }
             }
             else if (settings?.Provider == BillingProvider.InvoiceXpress && venda.InvoiceProvider == BillingProvider.InvoiceXpress)
             {
-                var reason = $"Anulado via Reparo - venda #{venda.Numero}";
+                var reason = $"Anulado via Mender - venda #{venda.Numero}";
                 var cancelled = await _invoiceXpress.CancelDocumentAsync(settings, venda.InvoiceExternalId, reason, ct);
 
                 if (!cancelled)
@@ -527,13 +527,13 @@ public class VendaService : IVendaService
                             venda.Cliente?.Telefone),
                         $"Venda #{venda.Numero}",
                         items,
-                        $"Anulacao da Fatura {venda.InvoiceNumber} via Reparo"
+                        $"Anulacao da Fatura {venda.InvoiceNumber} via Mender"
                     ), ct);
                 }
             }
         }
 
-        // Limpa referencias locais para a venda sair do Relatorio IVA do Reparo
+        // Limpa referencias locais para a venda sair do Relatorio IVA do Mender
         venda.InvoiceProvider = BillingProvider.None;
         venda.InvoiceExternalId = null;
         venda.InvoiceNumber = null;
@@ -559,7 +559,7 @@ public class VendaService : IVendaService
                 var cancelled = await _moloni.CancelDocumentAsync(
                     settings,
                     originalDocId,
-                    $"Cancelado via Reparo — venda #{venda.Numero}",
+                    $"Cancelado via Mender — venda #{venda.Numero}",
                     ct);
 
                 if (!cancelled)
@@ -572,13 +572,13 @@ public class VendaService : IVendaService
                     {
                         await _moloni.InsertCreditNoteAsync(settings, new MoloniCreditNoteDraft(
                             originalDocId, customerId, $"Venda #{venda.Numero}", items,
-                            $"Cancelamento da Fatura {venda.InvoiceNumber} via Reparo"), ct);
+                            $"Cancelamento da Fatura {venda.InvoiceNumber} via Mender"), ct);
                     }
                 }
             }
             else if (settings?.Provider == BillingProvider.InvoiceXpress && venda.InvoiceProvider == BillingProvider.InvoiceXpress)
             {
-                var reason = $"Cancelado via Reparo - venda #{venda.Numero}";
+                var reason = $"Cancelado via Mender - venda #{venda.Numero}";
                 var cancelled = await _invoiceXpress.CancelDocumentAsync(settings, venda.InvoiceExternalId, reason, ct);
 
                 if (!cancelled)
@@ -600,7 +600,7 @@ public class VendaService : IVendaService
                             venda.Cliente?.Telefone),
                         $"Venda #{venda.Numero}",
                         items,
-                        $"Cancelamento da Fatura {venda.InvoiceNumber} via Reparo"
+                        $"Cancelamento da Fatura {venda.InvoiceNumber} via Mender"
                     ), ct);
                 }
             }

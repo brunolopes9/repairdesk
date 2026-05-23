@@ -6,7 +6,7 @@ const STORAGE_KEY = 'rd.cookie.ack';
 
 /**
  * Banner discreto que reconhece uso de cookies essenciais.
- * NÃO bloqueia navegação — o Reparo usa apenas cookies essenciais (sessão, JWT, preferências).
+ * NÃO bloqueia navegação — o Mender usa apenas cookies essenciais (sessão, JWT, preferências).
  * Quando aparecerem analytics/marketing, este componente terá de ser substituído por
  * banner com consentimento granular real.
  */

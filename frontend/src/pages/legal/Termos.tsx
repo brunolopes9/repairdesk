@@ -4,12 +4,12 @@ export default function Termos() {
   return (
     <LegalLayout title="Termos de Serviço" lastUpdated="2026-05-17">
       <p>
-        Estes Termos regulam a utilização do Reparo, um software SaaS de gestão para
-        oficinas de reparação. Ao criar conta ou usar o Reparo, a loja aceita estes Termos.
+        Estes Termos regulam a utilização do Mender, um software SaaS de gestão para
+        oficinas de reparação. Ao criar conta ou usar o Mender, a loja aceita estes Termos.
       </p>
 
       <Section title="1. Quem presta o serviço">
-        <p>O Reparo é prestado pela LopesTech, projecto de Bruno Lopes, em Portugal.</p>
+        <p>O Mender é prestado pela LopesTech, projecto de Bruno Lopes, em Portugal.</p>
         <p>
           Contacto geral: <a href="mailto:geral@lopestech.pt" className="text-brand-600 hover:underline dark:text-brand-400">geral@lopestech.pt</a><br />
           Contacto privacidade: <a href="mailto:privacidade@lopestech.pt" className="text-brand-600 hover:underline dark:text-brand-400">privacidade@lopestech.pt</a>
@@ -18,18 +18,18 @@ export default function Termos() {
 
       <Section title="2. Quem pode usar">
         <p>
-          O Reparo destina-se a profissionais, empresas e trabalhadores independentes
+          O Mender destina-se a profissionais, empresas e trabalhadores independentes
           que gerem reparações, clientes, equipamentos, orçamentos, despesas e operação de
           oficina.
         </p>
         <p>
-          Ao usar o Reparo em nome de uma loja ou empresa, declaras que tens autorização
+          Ao usar o Mender em nome de uma loja ou empresa, declaras que tens autorização
           para aceitar estes Termos em nome dessa entidade.
         </p>
       </Section>
 
-      <Section title="3. O que o Reparo faz">
-        <p>O Reparo ajuda a gerir:</p>
+      <Section title="3. O que o Mender faz">
+        <p>O Mender ajuda a gerir:</p>
         <ul className="ml-5 list-disc space-y-1">
           <li>clientes</li>
           <li>reparações e estados de reparação</li>
@@ -40,14 +40,14 @@ export default function Termos() {
           <li>comunicações e integrações futuras</li>
         </ul>
         <p>
-          Salvo indicação expressa em contrário, o Reparo não substitui aconselhamento
+          Salvo indicação expressa em contrário, o Mender não substitui aconselhamento
           jurídico, fiscal, contabilístico ou técnico.
         </p>
       </Section>
 
       <Section title="4. Documentos fiscais e facturação">
         <p>
-          Enquanto o Reparo não tiver módulo fiscal certificado ou integração certificada
+          Enquanto o Mender não tiver módulo fiscal certificado ou integração certificada
           activa, os documentos gerados <strong>são documentos operacionais</strong> (orçamentos,
           fichas de reparação, garantias) e <strong>não substituem facturas legalmente
           obrigatórias</strong>.
@@ -76,7 +76,7 @@ export default function Termos() {
 
       <Section title="6. Propriedade dos dados">
         <p>
-          Os dados inseridos pela loja no Reparo <strong>pertencem sempre à loja</strong> ou aos
+          Os dados inseridos pela loja no Mender <strong>pertencem sempre à loja</strong> ou aos
           respectivos titulares, conforme aplicável.
         </p>
         <p>
@@ -85,7 +85,7 @@ export default function Termos() {
         </p>
         <p>
           A loja pode pedir exportação dos seus dados em formato razoável e utilizável. O
-          objectivo do Reparo é evitar lock-in.
+          objectivo do Mender é evitar lock-in.
         </p>
       </Section>
 
@@ -118,7 +118,7 @@ export default function Termos() {
       </Section>
 
       <Section title="9. Disponibilidade e SLA">
-        <p>A LopesTech fará esforços razoáveis para manter o Reparo disponível e seguro.</p>
+        <p>A LopesTech fará esforços razoáveis para manter o Mender disponível e seguro.</p>
         <p>SLA durante beta:</p>
         <ul className="ml-5 list-disc space-y-1">
           <li>objectivo de disponibilidade: 99% mensal, excluindo manutenções programadas, falhas de terceiros, força maior e problemas fora do controlo razoável da LopesTech</li>
@@ -140,7 +140,7 @@ export default function Termos() {
       </Section>
 
       <Section title="11. Uso aceitável">
-        <p>Não é permitido usar o Reparo para:</p>
+        <p>Não é permitido usar o Mender para:</p>
         <ul className="ml-5 list-disc space-y-1">
           <li>actividades ilegais</li>
           <li>inserir dados obtidos de forma ilícita</li>
@@ -155,7 +155,7 @@ export default function Termos() {
         <p>
           Na medida permitida por lei, a LopesTech não será responsável por perdas indirectas,
           lucros cessantes, perda de negócio, perda de reputação ou danos resultantes de uso
-          indevido do Reparo pela loja.
+          indevido do Mender pela loja.
         </p>
         <p>
           A responsabilidade total da LopesTech por danos relacionados com o serviço fica

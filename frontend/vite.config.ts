@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons.svg'],
       manifest: {
-        name: 'Reparo · LopesTech',
-        short_name: 'Reparo',
+        name: 'Mender · LopesTech',
+        short_name: 'Mender',
         description: 'Gestão de oficinas de reparação — clientes, reparações, stock, faturação.',
         start_url: '/?source=pwa',
         scope: '/',
