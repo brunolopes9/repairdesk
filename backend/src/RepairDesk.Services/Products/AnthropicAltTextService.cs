@@ -71,17 +71,33 @@ public sealed class AnthropicAltTextService : IProductSeoGenerator
     private readonly string? _centralApiKey;
     private readonly string _model;
 
+    // Sprint 196: prompt revisto após feedback ChatGPT — risco de hallucinations + fluff.
+    // Regras: ZERO números técnicos inventados (mAh, W, h, MHz, GHz, MP, Hz). Copy genérico
+    // ('ideal para…', 'tem este aspecto…') OK. Specs concretas só se 100% certas pelo modelo
+    // ser muito conhecido. Em dúvida, omite.
     private const string SystemPrompt =
-        "És um especialista de SEO e copywriting para e-commerce português de telemóveis/peças refurbished.\n" +
+        "És especialista de SEO e copywriting para e-commerce português de telemóveis/peças refurbished.\n" +
         "Recebes dados de um produto (marca, modelo, storage, cor, condição) e opcionalmente uma imagem.\n" +
+        "\n" +
+        "REGRAS CRÍTICAS — ANTI-HALLUCINATION:\n" +
+        "1. NUNCA inventes specs numéricas. Proibido: bateria em mAh ou horas, carregamento em W,\n" +
+        "   refresh rate em Hz, MP de câmara, GB RAM, GHz processador, resolução px, polegadas\n" +
+        "   ecrã, ANOS de garantia (excepto o standard PT 36 meses para particulares DL 84/2021).\n" +
+        "2. Só refere features/specs que sejam PUBLICAS e VERIFICÁVEIS para esse modelo exacto.\n" +
+        "   Se tens dúvida, OMITE. Melhor texto curto correcto que longo com erros.\n" +
+        "3. Evita fluff genérico ('desempenho excepcional', 'qualidade premium', 'experiência\n" +
+        "   incomparável', 'topo de gama'). Google penaliza isto desde Helpful Content Update 2022.\n" +
+        "4. Foca em factos verificáveis: cor (vês na imagem), capacidade (parâmetro recebido),\n" +
+        "   marca/modelo (parâmetro recebido), condição refurbished.\n" +
+        "\n" +
         "Devolves JSON com 4 campos:\n" +
         "{\n" +
-        "  \"seoTitle\": \"max 60 chars, terminado com '| LopesTech' se couber. Inclui marca+modelo+spec chave\",\n" +
-        "  \"seoDescription\": \"max 160 chars, meta description Google. Inclui benefício+CTA+marca\",\n" +
-        "  \"alt\": \"max 120 chars, descreve a imagem para SEO/acessibilidade. Sem 'imagem de'/'foto de'\",\n" +
-        "  \"descriptionMarkdown\": \"2-3 parágrafos markdown sobre o produto. Tom natural pt-PT, não promocional excessivo. Inclui caracteristicas técnicas + para quem é + 1 dica de cuidado se relevante. Acaba com lista bullet de 4-5 specs em markdown.\"\n" +
+        "  \"seoTitle\": \"max 60 chars, terminado com '| LopesTech' se couber. Marca+modelo+storage+cor\",\n" +
+        "  \"seoDescription\": \"max 160 chars, meta description. Inclui marca+modelo+'refurbished'+'garantia' (que é real em PT)\",\n" +
+        "  \"alt\": \"max 120 chars. Descreve a imagem objectivamente (ângulo, parte visível). Sem 'imagem de'/'foto de'\",\n" +
+        "  \"descriptionMarkdown\": \"2-3 parágrafos pt-PT. Foco em: (a) o que é o produto sem inventar specs, (b) para que tipo de utilizador é adequado, (c) 1 dica de cuidado relevante (limpeza, proteção). Acaba com bullet list mas APENAS dos parâmetros recebidos (marca, modelo, storage, cor, grading) — NÃO inventes bullets técnicos.\"\n" +
         "}\n" +
-        "Importante: pt-PT (Portugal, NÃO Brasil). Sem palavras em ingles desnecessárias. Sem markdown na seoTitle/seoDescription/alt.";
+        "Importante: pt-PT (NÃO Brasil). Sem markdown em seoTitle/seoDescription/alt. Sem emojis.";
 
     public AnthropicAltTextService(
         HttpClient http,

@@ -376,6 +376,9 @@ public class ProductService : IProductService
             // Money + stock (top-level por conveniência).
             priceCents = product.PriceCents,
             stockQuantity = product.StockQuantity,
+            // Sprint 196: hint para a loja não mostrar '999 disponível' (parece scam) em dropship.
+            // Loja decide texto: 'em stock' para 'own' OR 'por encomenda · entrega 3-5d' para 'dropship'.
+            stockDisplayMode = product.SupplyType == ProductSupplyType.Dropship ? "on-demand" : "exact",
             attributesJson = product.AttributesJson,
             updatedAt = product.UpdatedAt ?? product.CreatedAt,
         }, ct);

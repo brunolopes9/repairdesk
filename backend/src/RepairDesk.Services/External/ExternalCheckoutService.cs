@@ -51,6 +51,9 @@ public sealed record ExternalProductDto(
     string SupplyType,
     int PriceCents,
     int StockQuantity,
+    /// <summary>Sprint 196: 'on-demand' (dropship — loja mostra 'por encomenda · entrega 3-5d')
+    /// ou 'exact' (stock próprio — loja mostra quantidade real). Evita '999 disponível' que parece scam.</summary>
+    string StockDisplayMode,
     string? DescriptionMarkdown,
     string? AttributesJson,
     string? SeoTitle,
@@ -309,6 +312,7 @@ public class ExternalCheckoutService : IExternalCheckoutService
         GradingLabel: RepairDesk.Services.Products.ProductGradingMapper.ToLabelPt(p.Grading),
         SupplyType: p.SupplyType.ToString(),
         PriceCents: p.PriceCents, StockQuantity: p.StockQuantity,
+        StockDisplayMode: p.SupplyType == ProductSupplyType.Dropship ? "on-demand" : "exact",
         DescriptionMarkdown: p.DescriptionMarkdown, AttributesJson: p.AttributesJson,
         SeoTitle: p.SeoTitle, SeoDescription: p.SeoDescription,
         SupplierName: p.Fornecedor?.Name,
