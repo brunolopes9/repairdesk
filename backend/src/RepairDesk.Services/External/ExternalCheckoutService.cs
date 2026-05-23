@@ -52,8 +52,11 @@ public sealed record ExternalProductDto(
     string Origin,
     /// <summary>Sprint 197: origem PT label ("Novo", "Usado original", "Recondicionado").</summary>
     string OriginLabel,
-    /// <summary>Sprint 197: grade canonical (sealed/A++/A+/A/B+/B/C+/C).</summary>
+    /// <summary>Sprint 197: grade canonical (sealed/A++/A+/A/B+/B/C+/C). Display only — NÃO usar em URLs.</summary>
     string Grade,
+    /// <summary>Sprint 202: URL-safe slug (a-plus-plus/a-plus/a/b-plus/b/c-plus/c/sealed).
+    /// Usar em URLs, filtros query string, breadcrumbs, Google Shopping feeds.</summary>
+    string GradeSlug,
     /// <summary>Sprint 197: grade PT label ("A++ · Como novo", etc).</summary>
     string GradeLabel,
     /// <summary>Sprint 197: label combinado ("Novo (selado)", "Usado original A++", "Recondicionado B").</summary>
@@ -324,6 +327,7 @@ public class ExternalCheckoutService : IExternalCheckoutService
         Origin: RepairDesk.Services.Products.ProductGradingMapper.OriginCanonical(p.Origin),
         OriginLabel: RepairDesk.Services.Products.ProductGradingMapper.OriginLabelPt(p.Origin),
         Grade: RepairDesk.Services.Products.ProductGradingMapper.GradeCanonical(p.Grade),
+        GradeSlug: RepairDesk.Services.Products.ProductGradingMapper.GradeSlug(p.Grade),
         GradeLabel: RepairDesk.Services.Products.ProductGradingMapper.GradeLabelPt(p.Grade),
         ConditionCombined: RepairDesk.Services.Products.ProductGradingMapper.ComposedLabelPt(p.Origin, p.Grade),
         SupplyType: p.SupplyType.ToString(),

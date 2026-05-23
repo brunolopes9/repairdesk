@@ -373,6 +373,7 @@ public class ProductService : IProductService
             origin = product.Origin.ToString().ToLowerInvariant(),
             originLabel = ProductGradingMapper.OriginLabelPt(product.Origin),
             grade = ProductGradingMapper.GradeCanonical(product.Grade),
+            gradeSlug = ProductGradingMapper.GradeSlug(product.Grade),
             gradeLabel = ProductGradingMapper.GradeLabelPt(product.Grade),
             conditionCombined = ProductGradingMapper.ComposedLabelPt(product.Origin, product.Grade),
             // Sprint 151: categoria de produto.

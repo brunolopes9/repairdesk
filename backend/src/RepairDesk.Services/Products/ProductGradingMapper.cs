@@ -94,6 +94,22 @@ public static class ProductGradingMapper
         _ => g.ToString(),
     };
 
+    /// <summary>Sprint 202: URL-safe slug do grade. '++' literal quebra parsers HTTP
+    /// (?grade=A++ → 'A   ' após URL decode). Loja deve usar isto em URLs, breadcrumbs
+    /// e Google Shopping feeds. GradeCanonical mantém-se para display.</summary>
+    public static string GradeSlug(ProductGrade g) => g switch
+    {
+        ProductGrade.Sealed => "sealed",
+        ProductGrade.APlusPlus => "a-plus-plus",
+        ProductGrade.APlus => "a-plus",
+        ProductGrade.A => "a",
+        ProductGrade.BPlus => "b-plus",
+        ProductGrade.B => "b",
+        ProductGrade.CPlus => "c-plus",
+        ProductGrade.C => "c",
+        _ => g.ToString().ToLowerInvariant(),
+    };
+
     /// <summary>Sprint 197: labels alinhadas com Molano grading guide (buymolano.com) — todos garantem
     /// bateria 80%+. A++ é específico Bruno (open-box premium 100% bateria).</summary>
     public static string GradeLabelPt(ProductGrade g) => g switch
