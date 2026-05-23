@@ -84,6 +84,26 @@ public class Product : BaseEntity, ITenantEntity
     /// </summary>
     public string? OpenBoxReason { get; set; }
 
+    /// <summary>
+    /// Sprint 204: saúde da bateria em % (0-100). Apple iPhone/iPad/Mac mostra no settings.
+    /// Null para Samsung/Xiaomi/acessórios (não há indicador padrão). Loja usa para filtros
+    /// "Bateria 100% / 95+ / 90+ / 85+" e mostrar selo verde na PDP.
+    /// </summary>
+    public int? BatteryHealthPercent { get; set; }
+
+    /// <summary>
+    /// Sprint 204: estado técnico — Unknown/NeverOpened/OriginalParts/Repaired.
+    /// Eixo independente do estético (Grade). Loja usa para selo "Peças originais" + filtros.
+    /// </summary>
+    public ProductTechnicalState TechnicalState { get; set; } = ProductTechnicalState.Unknown;
+
+    /// <summary>
+    /// Sprint 204: notas técnicas free-form para Bruno descrever a intervenção quando TechnicalState=Repaired.
+    /// Ex: "Ecrã substituído por original Apple · Bateria nova premium · Face ID funcional".
+    /// Aparece na PDP loja como bullet list. NULL ou vazio = não mostra secção.
+    /// </summary>
+    public string? TechnicalNotes { get; set; }
+
     public Guid? FornecedorId { get; set; }
     public Fornecedor? Fornecedor { get; set; }
 

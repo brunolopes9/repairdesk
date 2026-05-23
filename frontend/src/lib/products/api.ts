@@ -45,6 +45,21 @@ export const PRODUCT_GRADE = {
   C: 7,
 } as const;
 export type ProductGrade = (typeof PRODUCT_GRADE)[keyof typeof PRODUCT_GRADE];
+// Sprint 204: estado técnico (independente do estético) — pedido pelo shop Claude.
+export const PRODUCT_TECHNICAL_STATE = {
+  Unknown: 0,
+  NeverOpened: 1,
+  OriginalParts: 2,
+  Repaired: 3,
+} as const;
+export type ProductTechnicalState = (typeof PRODUCT_TECHNICAL_STATE)[keyof typeof PRODUCT_TECHNICAL_STATE];
+export const PRODUCT_TECHNICAL_STATE_LABEL: Record<ProductTechnicalState, string> = {
+  0: '— sem info —',
+  1: '🔒 Nunca aberto',
+  2: '✅ Peças originais (sem reparação)',
+  3: '🔧 Reparado (ver notas)',
+};
+
 export const PRODUCT_GRADE_LABEL: Record<ProductGrade, string> = {
   0: 'Selado',
   1: 'A++ · Como novo (open-box 100% bateria)',
@@ -118,6 +133,12 @@ export interface Product {
   seoTitle: string | null;
   seoDescription: string | null;
   openBoxReason: string | null;
+  /** Sprint 204: saúde bateria 0-100% (null = não aplicável). */
+  batteryHealthPercent: number | null;
+  /** Sprint 204: estado técnico. */
+  technicalState: ProductTechnicalState;
+  /** Sprint 204: notas técnicas free-form. */
+  technicalNotes: string | null;
   active: boolean;
   mostrarLojaOnline: boolean;
   fornecedorId: string | null;
@@ -161,6 +182,12 @@ export interface ProductWriteRequest {
   seoTitle: string | null;
   seoDescription: string | null;
   openBoxReason: string | null;
+  /** Sprint 204: saúde bateria 0-100% (null = não aplicável). */
+  batteryHealthPercent: number | null;
+  /** Sprint 204: estado técnico. */
+  technicalState: ProductTechnicalState;
+  /** Sprint 204: notas técnicas free-form. */
+  technicalNotes: string | null;
   active: boolean;
   mostrarLojaOnline: boolean;
   fornecedorId: string | null;

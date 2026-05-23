@@ -15,6 +15,9 @@ import {
   PRODUCT_ORIGIN_LABEL,
   PRODUCT_GRADE,
   PRODUCT_GRADE_LABEL,
+  PRODUCT_TECHNICAL_STATE,
+  PRODUCT_TECHNICAL_STATE_LABEL,
+  type ProductTechnicalState,
   type ProductOrigin,
   type ProductGrade,
   PRODUCT_SUPPLY_TYPE,
@@ -54,6 +57,9 @@ const emptyForm = (): ProductWriteRequest => ({
   seoTitle: null,
   seoDescription: null,
   openBoxReason: null,
+  batteryHealthPercent: null,
+  technicalState: PRODUCT_TECHNICAL_STATE.Unknown,
+  technicalNotes: null,
   active: true,
   mostrarLojaOnline: true,
   fornecedorId: null,
@@ -129,6 +135,9 @@ export default function Produtos() {
         seoTitle: p.seoTitle,
         seoDescription: p.seoDescription,
         openBoxReason: p.openBoxReason,
+        batteryHealthPercent: p.batteryHealthPercent,
+        technicalState: p.technicalState,
+        technicalNotes: p.technicalNotes,
         active: p.active,
         mostrarLojaOnline: p.mostrarLojaOnline,
         fornecedorId: p.fornecedorId,
@@ -513,6 +522,50 @@ export default function Produtos() {
                 <Field label="Stock mínimo (alerta)">
                   <input type="number" value={form.stockMinima} onChange={(e) => setForm({ ...form, stockMinima: Number(e.target.value) || 0 })} className={inputCls} />
                 </Field>
+              </div>
+            </details>
+
+            {/* Sprint 204: Saúde técnica (battery + technical state + notes) — Trust signals loja. */}
+            <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                Saúde técnica
+                <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">Trust</span>
+              </summary>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Saúde da bateria (%)" hint="Apple mostra em Settings > Bateria. Deixa vazio se não aplicável.">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={form.batteryHealthPercent ?? ''}
+                    onChange={(e) => setForm({ ...form, batteryHealthPercent: e.target.value ? Math.min(100, Math.max(0, Number(e.target.value))) : null })}
+                    className={inputCls}
+                    placeholder="ex: 100"
+                  />
+                </Field>
+                <Field label="Estado técnico" hint="Independente do estado estético (Grade).">
+                  <select
+                    value={form.technicalState}
+                    onChange={(e) => setForm({ ...form, technicalState: Number(e.target.value) as ProductTechnicalState })}
+                    className={inputCls}
+                  >
+                    {Object.values(PRODUCT_TECHNICAL_STATE).map((v) => (
+                      <option key={v} value={v}>{PRODUCT_TECHNICAL_STATE_LABEL[v]}</option>
+                    ))}
+                  </select>
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Notas técnicas (opcional)" hint='Mostra na loja como bullets. Ex: "Ecrã substituído original Apple · Bateria nova · Face ID funcional"'>
+                    <textarea
+                      rows={2}
+                      value={form.technicalNotes ?? ''}
+                      onChange={(e) => setForm({ ...form, technicalNotes: e.target.value || null })}
+                      className={`${inputCls} resize-none`}
+                      placeholder="Ecrã substituído · Bateria nova · Face ID OK"
+                      maxLength={500}
+                    />
+                  </Field>
+                </div>
               </div>
             </details>
 

@@ -71,6 +71,12 @@ public sealed record ExternalProductDto(
     string? AttributesJson,
     string? SeoTitle,
     string? SeoDescription,
+    /// <summary>Sprint 204: saúde da bateria 0-100% (null = não aplicável). Loja usa para filtro 4-bucket.</summary>
+    int? BatteryHealthPercent,
+    /// <summary>Sprint 204: 'never_opened' | 'original_parts' | 'repaired' | null. Loja usa para selo trust + filtros.</summary>
+    string? TechnicalState,
+    /// <summary>Sprint 204: notas técnicas free-form ('Ecrã substituído · Bateria nova premium'). Loja mostra na PDP.</summary>
+    string? TechnicalNotes,
     string? SupplierName,
     /// <summary>Sprint 122 (back-compat): array de URLs originais. Lojas novas devem usar Images com sizes/blur.</summary>
     IReadOnlyList<string> ImageUrls,
@@ -335,6 +341,17 @@ public class ExternalCheckoutService : IExternalCheckoutService
         StockDisplayMode: p.SupplyType == ProductSupplyType.Dropship ? "on-demand" : "exact",
         DescriptionMarkdown: p.DescriptionMarkdown, AttributesJson: p.AttributesJson,
         SeoTitle: p.SeoTitle, SeoDescription: p.SeoDescription,
+        BatteryHealthPercent: p.BatteryHealthPercent,
+        TechnicalState: p.TechnicalState == RepairDesk.Core.Enums.ProductTechnicalState.Unknown
+            ? null
+            : p.TechnicalState switch
+            {
+                RepairDesk.Core.Enums.ProductTechnicalState.NeverOpened => "never_opened",
+                RepairDesk.Core.Enums.ProductTechnicalState.OriginalParts => "original_parts",
+                RepairDesk.Core.Enums.ProductTechnicalState.Repaired => "repaired",
+                _ => null,
+            },
+        TechnicalNotes: p.TechnicalNotes,
         SupplierName: p.Fornecedor?.Name,
         ImageUrls: p.Images.OrderBy(i => i.Ordem).Select(i => i.Url).ToList(),
         Images: p.Images.OrderBy(i => i.Ordem).Select(i => new ExternalProductImageDto(

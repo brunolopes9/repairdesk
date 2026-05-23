@@ -105,6 +105,12 @@ public sealed record ProductDto(
     string? SeoTitle,
     string? SeoDescription,
     string? OpenBoxReason,
+    /// <summary>Sprint 204: saúde bateria 0-100% (null = não aplicável).</summary>
+    int? BatteryHealthPercent,
+    /// <summary>Sprint 204: estado técnico (NeverOpened/OriginalParts/Repaired/Unknown).</summary>
+    ProductTechnicalState TechnicalState,
+    /// <summary>Sprint 204: notas técnicas free-form (mostra na PDP loja se preenchido).</summary>
+    string? TechnicalNotes,
     bool Active,
     bool MostrarLojaOnline,
     Guid? FornecedorId,
@@ -140,6 +146,12 @@ public sealed record ProductWriteRequest(
     string? SeoTitle,
     string? SeoDescription,
     string? OpenBoxReason,
+    /// <summary>Sprint 204: saúde bateria 0-100% (null = sem info).</summary>
+    int? BatteryHealthPercent,
+    /// <summary>Sprint 204: estado técnico (Unknown default).</summary>
+    ProductTechnicalState TechnicalState,
+    /// <summary>Sprint 204: notas técnicas free-form (loja mostra na PDP se preenchido).</summary>
+    string? TechnicalNotes,
     bool Active,
     bool MostrarLojaOnline,
     Guid? FornecedorId,
@@ -209,6 +221,9 @@ public class ProductService : IProductService
             SeoTitle = Clean(req.SeoTitle),
             SeoDescription = Clean(req.SeoDescription),
             OpenBoxReason = Clean(req.OpenBoxReason),
+            BatteryHealthPercent = req.BatteryHealthPercent,
+            TechnicalState = req.TechnicalState,
+            TechnicalNotes = Clean(req.TechnicalNotes),
             Active = req.Active,
             MostrarLojaOnline = req.MostrarLojaOnline,
             FornecedorId = req.FornecedorId,
@@ -268,6 +283,9 @@ public class ProductService : IProductService
         entity.SeoTitle = Clean(req.SeoTitle);
         entity.SeoDescription = Clean(req.SeoDescription);
         entity.OpenBoxReason = Clean(req.OpenBoxReason);
+        entity.BatteryHealthPercent = req.BatteryHealthPercent;
+        entity.TechnicalState = req.TechnicalState;
+        entity.TechnicalNotes = Clean(req.TechnicalNotes);
         entity.Active = req.Active;
         entity.MostrarLojaOnline = req.MostrarLojaOnline;
         entity.FornecedorId = req.FornecedorId;
@@ -413,6 +431,12 @@ public class ProductService : IProductService
             shopConditionTier = ShopConditionTierFromGrading(product.Grading),
             shopIsOpenBox = product.Grading == ProductGrading.OpenBox,
             shopOpenBoxReason = product.OpenBoxReason,
+            // Sprint 204: trust signals pedidos pelo shop Claude.
+            batteryHealthPercent = product.BatteryHealthPercent,
+            technicalState = product.TechnicalState == Core.Enums.ProductTechnicalState.Unknown
+                ? null
+                : product.TechnicalState.ToString().ToLowerInvariant().Replace("neveropened", "never_opened").Replace("originalparts", "original_parts"),
+            technicalNotes = product.TechnicalNotes,
             shopCompareAtPriceCents = product.CompareAtPriceCents,
             shopImagesCurated = imageUrls,
             shopMarketingDescription = product.DescriptionMarkdown,
@@ -940,6 +964,7 @@ public class ProductService : IProductService
             p.StockQuantity, p.StockMinima, p.CustoUnitarioCents,
             p.DescriptionMarkdown, p.AttributesJson, p.SeoTitle, p.SeoDescription,
             p.OpenBoxReason,
+            p.BatteryHealthPercent, p.TechnicalState, p.TechnicalNotes,
             p.Active, p.MostrarLojaOnline, p.FornecedorId, p.Fornecedor?.Name, p.Fornecedor?.Code,
             p.Images.OrderBy(i => i.Ordem).Select(i => new ProductImageDto(i.Id, i.Url, i.Alt, i.Ordem, i.IsCurated)).ToList(),
             p.CreatedAt, p.UpdatedAt);

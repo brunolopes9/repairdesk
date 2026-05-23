@@ -61,6 +61,22 @@ public enum ProductGrade
 }
 
 /// <summary>
+/// Sprint 204: estado técnico do equipamento (independente do estético Grade).
+/// Pedido pelo shop Claude para filtros trust ("Peças originais", "Nunca aberto").
+/// </summary>
+public enum ProductTechnicalState
+{
+    /// <summary>Sem info (default — não exposto na loja).</summary>
+    Unknown = 0,
+    /// <summary>Caixa nunca aberta. Tipicamente Origin=New + Sealed.</summary>
+    NeverOpened = 1,
+    /// <summary>Foi aberto/usado mas todas as peças são originais. Não reparado.</summary>
+    OriginalParts = 2,
+    /// <summary>Componentes substituídos (ecrã/bateria/etc). Detalhe em TechnicalNotes.</summary>
+    Repaired = 3,
+}
+
+/// <summary>
 /// Tipo de fornecimento — diz à loja se precisa de manter stock ou se é dropshipping.
 /// Decide o flow de checkout: stock real verifica QtdStock; dropship aceita sempre e
 /// encomenda ao fornecedor depois.
