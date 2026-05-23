@@ -30,6 +30,7 @@ import EquipmentFieldsForm, {
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
+import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import NovoClienteModal from '../../components/NovoClienteModal';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
@@ -89,6 +90,12 @@ export default function Reparacoes() {
     queryKey: ['reparacoes-pagas-sem-fatura'],
     queryFn: () => reparacoesApi.listPagasSemFatura(100),
     staleTime: 30_000,
+  });
+
+  const preferences = useQuery({
+    queryKey: ['tenant-preferences'],
+    queryFn: () => tenantPreferencesApi.get(),
+    staleTime: 60_000,
   });
 
   const bulkEmit = useMutation({
@@ -307,6 +314,7 @@ export default function Reparacoes() {
           onMove={(id, to) => changeEstado.mutate({ id, estado: to })}
           onCardClick={(id) => navigate(`/reparacoes/${id}`)}
           pending={changeEstado.isPending}
+          staleDaysThreshold={preferences.data?.communication.staleDaysThreshold ?? 7}
         />
       )}
 
@@ -890,12 +898,14 @@ function KanbanBoard({
   onMove,
   onCardClick,
   pending,
+  staleDaysThreshold,
 }: {
   data: Map<RepairStatus, Reparacao[]> | undefined;
   loading: boolean;
   onMove: (id: string, to: RepairStatus) => void;
   onCardClick: (id: string) => void;
   pending: boolean;
+  staleDaysThreshold: number;
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragFrom, setDragFrom] = useState<RepairStatus | null>(null);
@@ -946,7 +956,7 @@ function KanbanBoard({
               <ul className="min-h-[100px] space-y-2 px-2 pb-2">
                 {items.map((r) => {
                   const diasParado = Math.floor((Date.now() - new Date(r.estadoSince).getTime()) / (1000 * 60 * 60 * 24));
-                  const stale = diasParado >= 7;
+                  const stale = diasParado >= staleDaysThreshold;
                   const dragging = dragId === r.id;
                   return (
                     <li

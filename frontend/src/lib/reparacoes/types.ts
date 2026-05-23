@@ -128,6 +128,8 @@ export interface Reparacao {
   equipmentFieldTemplateId: string | null;
   equipmentFieldTemplateNome: string | null;
   fields: EquipmentFieldValue[];
+  precisaConfirmacaoPagamento: boolean;
+  precisaConfirmacaoGarantia: boolean;
 }
 
 export interface ReparacaoDetalhada {

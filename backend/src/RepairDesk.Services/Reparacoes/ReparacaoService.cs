@@ -9,6 +9,7 @@ using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.EquipmentFields;
 using RepairDesk.Services.Push;
+using RepairDesk.Services.TenantPreferences;
 using RepairDesk.Services.Webhooks;
 // ImeiValidator do Common.Helpers
 
@@ -52,6 +53,7 @@ public class ReparacaoService : IReparacaoService
     private readonly IAuditLogger _audit;
     private readonly IWebhookPublisher _webhooks;
     private readonly IPartRepository _parts;
+    private readonly ITenantPreferencesService _preferences;
     private readonly IValidator<CreateReparacaoRequest> _createV;
     private readonly IValidator<UpdateReparacaoRequest> _updateV;
     private readonly IValidator<ChangeEstadoRequest> _estadoV;
@@ -73,6 +75,7 @@ public class ReparacaoService : IReparacaoService
         IAuditLogger audit,
         IWebhookPublisher webhooks,
         IPartRepository parts,
+        ITenantPreferencesService preferences,
         IValidator<CreateReparacaoRequest> createV,
         IValidator<UpdateReparacaoRequest> updateV,
         IValidator<ChangeEstadoRequest> estadoV)
@@ -93,6 +96,7 @@ public class ReparacaoService : IReparacaoService
         _audit = audit;
         _webhooks = webhooks;
         _parts = parts;
+        _preferences = preferences;
         _createV = createV;
         _updateV = updateV;
         _estadoV = estadoV;
@@ -470,6 +474,9 @@ public class ReparacaoService : IReparacaoService
     {
         await _estadoV.ValidateAndThrowAsync(req, ct);
         var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+        var prefs = await _preferences.GetAsync(ct);
+        var precisaConfirmacaoPagamento = false;
+        var precisaConfirmacaoGarantia = false;
 
         if (rep.Estado == req.Estado)
             throw new ConflictException("estado_unchanged", $"Reparação já está no estado {req.Estado}.");
@@ -493,9 +500,18 @@ public class ReparacaoService : IReparacaoService
         if (req.Estado == RepairStatus.Entregue)
         {
             rep.EntregueEm = now;
-            // Default Pago ao entregar — utilizador pode override editando manualmente
             if (rep.EstadoPagamento == PaymentStatus.NaoPago)
-                rep.EstadoPagamento = PaymentStatus.Pago;
+            {
+                switch (prefs.Repairs.EntregarMarcaPago)
+                {
+                    case EntregarMarcaPagoMode.Sim:
+                        rep.EstadoPagamento = PaymentStatus.Pago;
+                        break;
+                    case EntregarMarcaPagoMode.Perguntar:
+                        precisaConfirmacaoPagamento = true;
+                        break;
+                }
+            }
         }
 
         _repo.AddEstadoLog(log);
@@ -504,7 +520,15 @@ public class ReparacaoService : IReparacaoService
         // Auto-emite garantia ao Entregar (se ainda não existir)
         if (req.Estado == RepairStatus.Entregue)
         {
-            await EmitirGarantiaSeNecessarioAsync(rep, now, ct);
+            switch (prefs.Repairs.GarantiaAutomatica)
+            {
+                case GarantiaAutoMode.Sim:
+                    await EmitirGarantiaSeNecessarioAsync(rep, now, ct);
+                    break;
+                case GarantiaAutoMode.Perguntar:
+                    precisaConfirmacaoGarantia = true;
+                    break;
+            }
 
             if (_tenant.TenantId is { } publishTenantId)
             {
@@ -521,12 +545,16 @@ public class ReparacaoService : IReparacaoService
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(rep.PublicSlug))
+        if (!string.IsNullOrWhiteSpace(rep.PublicSlug)
+            && prefs.Communication.Push.Enabled
+            && prefs.Communication.Push.EstadosPermitidos.Contains(rep.Estado.ToString(), StringComparer.OrdinalIgnoreCase))
+        {
             await _pushQueue.EnqueueStatusChangedAsync(new RepairStatusChangedPushJob(rep.Id), ct);
+        }
 
         rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
         var custoChange = await _despesas.SumByReparacaoAsync(rep.Id, ct);
-        return ToDto(rep, custoChange);
+        return ToDto(rep, custoChange, precisaConfirmacaoPagamento: precisaConfirmacaoPagamento, precisaConfirmacaoGarantia: precisaConfirmacaoGarantia);
     }
 
     private async Task EmitirGarantiaSeNecessarioAsync(Reparacao rep, DateTime agora, CancellationToken ct)
@@ -1020,7 +1048,12 @@ public class ReparacaoService : IReparacaoService
         return amountCents.Value;
     }
 
-    private static ReparacaoDto ToDto(Reparacao r, int custoDespesasCents, IReadOnlyList<EquipmentFieldValueDto>? fields = null)
+    private static ReparacaoDto ToDto(
+        Reparacao r,
+        int custoDespesasCents,
+        IReadOnlyList<EquipmentFieldValueDto>? fields = null,
+        bool precisaConfirmacaoPagamento = false,
+        bool precisaConfirmacaoGarantia = false)
     {
         var receita = r.PrecoFinalCents ?? 0;
         var lucro = receita - custoDespesasCents - r.CustoPecasCents;
@@ -1047,6 +1080,8 @@ public class ReparacaoService : IReparacaoService
             r.EstimateEmittedAt,
             r.EquipmentFieldTemplateId,
             r.EquipmentFieldTemplate?.Nome,
-            fields ?? Array.Empty<EquipmentFieldValueDto>());
+            fields ?? Array.Empty<EquipmentFieldValueDto>(),
+            precisaConfirmacaoPagamento,
+            precisaConfirmacaoGarantia);
     }
 }

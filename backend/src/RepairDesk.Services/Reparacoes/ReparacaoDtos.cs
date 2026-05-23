@@ -75,7 +75,9 @@ public sealed record ReparacaoDto(
     DateTime? EstimateEmittedAt,
     Guid? EquipmentFieldTemplateId,
     string? EquipmentFieldTemplateNome,
-    IReadOnlyList<EquipmentFieldValueDto> Fields);
+    IReadOnlyList<EquipmentFieldValueDto> Fields,
+    bool PrecisaConfirmacaoPagamento = false,
+    bool PrecisaConfirmacaoGarantia = false);
 
 public sealed record ReparacaoDetalhadaDto(
     ReparacaoDto Reparacao,
