@@ -7,6 +7,7 @@ using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Billing;
 using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.TenantPreferences;
 using RepairDesk.Services.Webhooks;
 
 namespace RepairDesk.Services.Vendas;
@@ -42,6 +43,7 @@ public class VendaService : IVendaService
     private readonly ITenantRepository _tenants;
     private readonly IReparacaoRepository _reparacoes;
     private readonly IWebhookPublisher _webhooks;
+    private readonly ITenantPreferencesService _preferences;
 
     public VendaService(
         IVendaRepository vendas,
@@ -55,7 +57,8 @@ public class VendaService : IVendaService
         IGarantiaRepository garantias,
         ITenantRepository tenants,
         IReparacaoRepository reparacoes,
-        IWebhookPublisher webhooks)
+        IWebhookPublisher webhooks,
+        ITenantPreferencesService preferences)
     {
         _vendas = vendas;
         _parts = parts;
@@ -69,6 +72,7 @@ public class VendaService : IVendaService
         _tenants = tenants;
         _reparacoes = reparacoes;
         _webhooks = webhooks;
+        _preferences = preferences;
     }
 
     public async Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
@@ -131,6 +135,10 @@ public class VendaService : IVendaService
             throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
         if (req.Items.Count == 0)
             throw new ValidationException("venda_sem_items", "Adiciona pelo menos uma linha ao carrinho.");
+        var prefs = await _preferences.GetAsync(ct);
+        var defaultCondicao = Enum.IsDefined(typeof(CondicaoArtigo), prefs.Sales.DefaultCondicaoArtigo)
+            ? (CondicaoArtigo)prefs.Sales.DefaultCondicaoArtigo
+            : CondicaoArtigo.NaoAplicavel;
 
         Cliente? cliente = null;
         if (req.ClienteId is not null)
@@ -185,7 +193,7 @@ public class VendaService : IVendaService
                 Imei = imei is null ? null : ImeiValidator.Normalize(imei),
                 Imei2 = imei2 is null ? null : ImeiValidator.Normalize(imei2),
                 FornecedorNome = Clean(itemReq.FornecedorNome),
-                Condicao = itemReq.Condicao ?? CondicaoArtigo.NaoAplicavel,
+                Condicao = itemReq.Condicao ?? defaultCondicao,
                 GarantiaFornecedorAteAo = itemReq.GarantiaFornecedorAteAo,
             });
         }
@@ -209,6 +217,7 @@ public class VendaService : IVendaService
     public async Task<EmitVendaFaturaResponse> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default)
     {
         var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        var prefs = await _preferences.GetAsync(ct);
         if (venda.Status == VendaStatus.Cancelada)
             throw new ConflictException("venda_cancelada", "Venda cancelada nao pode ser marcada como paga.");
 
@@ -255,11 +264,18 @@ public class VendaService : IVendaService
             }
 
             // DL 84/2021: emite garantia digital automática (3 anos default para consumo).
-            await EmitirGarantiaVendaSeNecessarioAsync(venda, venda.Data, ct);
+            if (prefs.Sales.VendaGarantia == GarantiaAutoMode.Sim)
+                await EmitirGarantiaVendaSeNecessarioAsync(venda, venda.Data, ct);
         }
 
         InvoiceDto? invoice = null;
-        if (req.EmitirFatura && await HasBillingProviderAsync(ct))
+        var emitirFatura = prefs.Sales.EmitirFatura switch
+        {
+            EmitirFaturaMode.Nunca => false,
+            EmitirFaturaMode.Automatico => true,
+            _ => req.EmitirFatura,
+        };
+        if (emitirFatura && await HasBillingProviderAsync(ct))
             invoice = await EmitirFaturaAsync(venda.Id, ct);
 
         venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? venda;

@@ -13,6 +13,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Tags,
   Users,
   User,
@@ -84,6 +85,7 @@ export default function CommandPalette() {
       { id: 'nav-precos', label: 'Tabela de preços', icon: Tags, keywords: ['precos', 'tabela', 'pricing'], action: () => navigate('/precos') },
       { id: 'nav-auditoria', label: 'Auditoria', icon: ScrollText, keywords: ['auditoria', 'audit', 'log', 'rgpd'], action: () => navigate('/auditoria') },
       { id: 'nav-definicoes', label: 'Definições', icon: Settings, keywords: ['definicoes', 'settings', 'config'], action: () => navigate('/definicoes') },
+      { id: 'nav-preferencias', label: 'Preferências da loja', icon: SlidersHorizontal, keywords: ['preferencias', 'customizacao', 'tenant'], action: () => navigate('/definicoes/preferencias') },
 
       // Acções rápidas
       { id: 'new-reparacao', label: 'Nova reparação', hint: 'Criar nova ficha de reparação', icon: Plus, keywords: ['nova', 'criar', 'reparacao', 'add'], action: () => navigate('/reparacoes?new=1') },

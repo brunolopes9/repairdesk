@@ -8,6 +8,7 @@ import type { Cliente } from '../../lib/clientes/types';
 import { formatCents } from '../../lib/money';
 import { stockApi } from '../../lib/stock/api';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
+import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import { PART_CATEGORIA_REQUER_IMEI, type Part } from '../../lib/stock/types';
 import { isValidImei, normalizeImei } from '../../lib/imei';
 import { Link } from 'react-router-dom';
@@ -39,6 +40,15 @@ const paymentOptions: Array<{ value: PaymentMethod; label: string }> = [
   { value: PAYMENT_METHOD.Cartao, label: 'Cartao' },
 ];
 
+const PAYMENT_NAME_TO_VALUE: Record<string, PaymentMethod> = {
+  Dinheiro: PAYMENT_METHOD.Dinheiro,
+  Multibanco: PAYMENT_METHOD.Multibanco,
+  MBWay: PAYMENT_METHOD.MBWay,
+  TransferenciaBancaria: PAYMENT_METHOD.TransferenciaBancaria,
+  Cartao: PAYMENT_METHOD.Cartao,
+  Outro: PAYMENT_METHOD.Outro,
+};
+
 export default function Vendas() {
   const qc = useQueryClient();
   const [q, setQ] = useState('');
@@ -60,6 +70,19 @@ export default function Vendas() {
     queryFn: () => tenantSettingsApi.getBilling(),
     staleTime: 5 * 60_000,
   });
+
+  const preferences = useQuery({
+    queryKey: ['tenant-preferences'],
+    queryFn: () => tenantPreferencesApi.get(),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    const configured = preferences.data?.sales.defaultMetodoPagamento;
+    if (!configured) return;
+    const method = PAYMENT_NAME_TO_VALUE[configured];
+    if (method != null) setPaymentMethod(method);
+  }, [preferences.data?.sales.defaultMetodoPagamento]);
 
   const clientes = useQuery({
     queryKey: ['vendas-clientes', clienteQ],
@@ -121,7 +144,7 @@ export default function Vendas() {
           garantiaFornecedorAteAo: line.garantiaFornecedorAteAo || null,
         })),
       });
-      return vendasApi.marcarPaga(venda.id, paymentMethod, false);
+      return vendasApi.marcarPaga(venda.id, paymentMethod, preferences.data?.sales.emitirFatura === 2);
     },
     onSuccess: (res) => {
       setLastVenda(res.venda);
@@ -204,6 +227,10 @@ export default function Vendas() {
       return;
     }
 
+    const defaultCondicao = Object.values(CONDICAO_ARTIGO).includes(preferences.data?.sales.defaultCondicaoArtigo as CondicaoArtigo)
+      ? preferences.data!.sales.defaultCondicaoArtigo as CondicaoArtigo
+      : CONDICAO_ARTIGO.NaoAplicavel;
+
     setCart((current) => {
       const existing = current.find((l) => l.part.id === part.id);
       if (existing) {
@@ -222,6 +249,7 @@ export default function Vendas() {
           precoUnitarioCents: Math.max(part.custoUnitarioCents, 0),
           descontoCents: 0,
           ivaRate: 23,
+          condicao: defaultCondicao,
         },
       ];
     });

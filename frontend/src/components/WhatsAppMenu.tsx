@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, MessageCircle } from 'lucide-react';
 import {
-  TEMPLATES,
+  templatesFromPreferences,
   templatesForState,
   waMeLink,
   type TemplateMeta,
   type WhatsAppVars,
 } from '../lib/whatsapp/templates';
 import type { RepairStatus } from '../lib/reparacoes/types';
+import { tenantPreferencesApi } from '../lib/tenantPreferences/api';
+import { whatsappNotificationsApi } from '../lib/whatsapp/notifications';
+import { toast } from '../lib/toast';
 
 interface Props {
   phone: string;
@@ -20,6 +24,8 @@ interface Props {
   showAll?: boolean;
   /** Lista custom de templates (usado para Trabalhos ou outros fluxos não-Reparação). */
   customList?: TemplateMeta[];
+  entityId?: string;
+  entityType?: string;
   size?: 'sm' | 'md';
 }
 
@@ -27,10 +33,26 @@ interface Props {
  * Dropdown para abrir WhatsApp com mensagem pré-preenchida consoante o estado.
  * O utilizador SEMPRE vê a mensagem no WhatsApp antes de carregar enviar — esta UI só compõe.
  */
-export default function WhatsAppMenu({ phone, vars, estado, staleDays, showAll = false, customList, size = 'sm' }: Props) {
+export default function WhatsAppMenu({
+  phone,
+  vars,
+  estado,
+  staleDays,
+  showAll = false,
+  customList,
+  entityId,
+  entityType = 'Reparacao',
+  size = 'sm',
+}: Props) {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<TemplateMeta | null>(null);
+  const [sendingKey, setSendingKey] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const prefs = useQuery({
+    queryKey: ['tenant-preferences'],
+    queryFn: () => tenantPreferencesApi.get(),
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -50,19 +72,50 @@ export default function WhatsAppMenu({ phone, vars, estado, staleDays, showAll =
   }, [open]);
 
   if (!phone) return null;
+  if (prefs.data && !prefs.data.communication.whatsAppEnabled) return null;
 
-  const list = customList
+  const configuredTemplates = templatesFromPreferences(prefs.data);
+  const configuredByKey = prefs.data?.communication.templatesByState;
+  const list = (customList
     ?? (showAll
-      ? Object.values(TEMPLATES)
+      ? Object.values(configuredTemplates).sort((a, b) => (configuredByKey?.[a.key]?.order ?? 999) - (configuredByKey?.[b.key]?.order ?? 999))
       : estado != null
-        ? templatesForState(estado, { staleDays })
-        : Object.values(TEMPLATES));
+        ? templatesForState(estado, {
+            staleDays,
+            staleThreshold: prefs.data?.communication.staleDaysThreshold,
+            preferences: prefs.data,
+          })
+        : Object.values(configuredTemplates))).filter((t) => configuredByKey?.[t.key]?.enabled ?? true);
 
-  function send(template: TemplateMeta) {
-    const url = waMeLink(phone, template.build(vars));
-    window.open(url, '_blank', 'noopener,noreferrer');
-    setOpen(false);
-    setPreview(null);
+  async function send(template: TemplateMeta) {
+    setSendingKey(template.key);
+    try {
+      if (prefs.data?.communication.repeatMode === 1 && entityId) {
+        const status = await whatsappNotificationsApi.sent({ entityId, entityType, templateKey: template.key });
+        if (status.jaEnviado) {
+          toast.info('WhatsApp ja enviado', 'Esta loja esta configurada para enviar este template so uma vez por reparacao.');
+          return;
+        }
+      }
+
+      const url = waMeLink(phone, template.build(vars));
+      window.open(url, '_blank', 'noopener,noreferrer');
+      if (entityId) {
+        await whatsappNotificationsApi.create({
+          entityId,
+          entityType,
+          templateKey: template.key,
+          phone,
+          estado: estado ?? null,
+        });
+      }
+      setOpen(false);
+      setPreview(null);
+    } catch (err) {
+      toast.fromError(err, 'Nao foi possivel preparar o WhatsApp.');
+    } finally {
+      setSendingKey(null);
+    }
   }
 
   const buttonCls =
@@ -98,12 +151,13 @@ export default function WhatsAppMenu({ phone, vars, estado, staleDays, showAll =
                 <button
                   type="button"
                   role="menuitem"
+                  disabled={sendingKey === t.key}
                   onClick={() => send(t)}
                   onMouseEnter={() => setPreview(t)}
                   onMouseLeave={() => setPreview(null)}
                   onFocus={() => setPreview(t)}
                   onBlur={() => setPreview(null)}
-                  className="block w-full px-3 py-2 text-left text-sm transition hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
+                  className="block w-full px-3 py-2 text-left text-sm transition hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none disabled:opacity-60 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
                 >
                   <div className="font-medium text-zinc-900 dark:text-zinc-100">{t.label}</div>
                   <div className="mt-0.5 text-[11px] text-zinc-500">{t.hint}</div>
