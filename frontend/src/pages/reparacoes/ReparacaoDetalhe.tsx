@@ -17,6 +17,7 @@ import Modal from '../../components/Modal';
 import WhatsAppMenu from '../../components/WhatsAppMenu';
 import { Breadcrumb, SkeletonCard } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
+import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { clientesApi } from '../../lib/clientes/api';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
@@ -55,6 +56,12 @@ export default function ReparacaoDetalhe() {
     queryKey: ['tenant-billing-settings'],
     queryFn: () => tenantSettingsApi.getBilling(),
     staleTime: 5 * 60_000,
+  });
+
+  const preferences = useQuery({
+    queryKey: ['tenant-preferences'],
+    queryFn: () => tenantPreferencesApi.get(),
+    staleTime: 60_000,
   });
 
   const fieldTemplates = useQuery({
@@ -253,8 +260,9 @@ export default function ReparacaoDetalhe() {
 
   function tryChangeEstado(target: RepairStatus) {
     const r = detail.data?.reparacao;
+    const entregarMarcaPago = preferences.data?.repairs.entregarMarcaPago ?? 0;
     // Ao Entregar (estado 5) se ainda não está pago, perguntar primeiro
-    if (target === 5 && r && r.estadoPagamento === PAYMENT_STATUS.NaoPago) {
+    if (target === 5 && r && r.estadoPagamento === PAYMENT_STATUS.NaoPago && entregarMarcaPago === 1) {
       setPagamentoPrompt(target);
       return;
     }
@@ -533,7 +541,7 @@ export default function ReparacaoDetalhe() {
             >
               <Phone size={12} strokeWidth={2} /> Ligar
             </a>
-            <WhatsAppMenu phone={cleanPhone} vars={waVars} estado={r.estado} staleDays={staleDays} />
+            <WhatsAppMenu phone={cleanPhone} vars={waVars} estado={r.estado} staleDays={staleDays} entityId={r.id} />
             <span className="self-center text-xs text-zinc-500">{displayPhone(r.cliente.telefone)}</span>
           </div>
         ) : (
@@ -1564,4 +1572,3 @@ function FornecedorCoberturaBanner({ venda }: { venda: ReparacaoVendaOrigem }) {
     </div>
   );
 }
-

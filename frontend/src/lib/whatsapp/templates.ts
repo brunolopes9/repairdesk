@@ -3,6 +3,7 @@
 // Modo "padrão" PT-PT (tratamento por tu) — variantes informal/profissional adiados.
 
 import type { RepairStatus } from '../reparacoes/types';
+import type { TenantPreferencesRoot } from '../tenantPreferences/types';
 
 export interface WhatsAppVars {
   cliente_nome: string;
@@ -39,6 +40,12 @@ export interface TemplateMeta {
   /** Constrói a mensagem com vars substituídas. */
   build: (v: WhatsAppVars) => string;
 }
+
+type TemplateOptions = {
+  staleDays?: number;
+  staleThreshold?: number;
+  preferences?: TenantPreferencesRoot | null;
+};
 
 function prazoFallback(v: WhatsAppVars): string {
   return v.prazo_estimado ?? 'os próximos dias';
@@ -148,13 +155,54 @@ export const TEMPLATES: Record<TemplateKey, TemplateMeta> = {
   },
 };
 
+export function renderPreferenceTemplate(texto: string, vars: WhatsAppVars): string {
+  const values: Record<string, string | number | undefined> = {
+    ...vars,
+    cliente: vars.cliente_nome,
+    cliente_nome: vars.cliente_nome,
+    equipamento: vars.equipamento,
+    loja: vars.loja_nome ?? 'loja',
+    loja_nome: vars.loja_nome ?? 'loja',
+    horario_loja: vars.horario_loja ?? '',
+    valor: vars.valor ?? '[valor]',
+    link_aprovacao: vars.link_aprovacao ?? '',
+    link_review_google: vars.link_review_google ?? '',
+    peca_nome: vars.peca_nome ?? 'a peça encomendada',
+    prazo_estimado: vars.prazo_estimado ?? 'os próximos dias',
+    data_pronto: vars.data_pronto ?? '',
+  };
+
+  return texto.replace(/{{\s*([\w_]+)\s*}}/g, (_, key: string) => {
+    const value = values[key];
+    return value == null || value === '' ? '' : String(value);
+  });
+}
+
+export function templatesFromPreferences(preferences?: TenantPreferencesRoot | null): Record<TemplateKey, TemplateMeta> {
+  const configured = preferences?.communication.templatesByState;
+  if (!configured) return TEMPLATES;
+
+  const merged = { ...TEMPLATES };
+  for (const key of Object.keys(TEMPLATES) as TemplateKey[]) {
+    const custom = configured[key];
+    if (!custom) continue;
+    const fallback = TEMPLATES[key];
+    merged[key] = {
+      ...fallback,
+      build: (v) => renderPreferenceTemplate(custom.texto || fallback.build(v), v),
+    };
+  }
+  return merged;
+}
+
 /**
  * Lista de templates relevantes para o estado actual da reparação.
  * Ordem: o mais provável primeiro.
  */
-export function templatesForState(estado: RepairStatus, opts: { staleDays?: number } = {}): TemplateMeta[] {
-  const t = TEMPLATES;
-  const stale7 = (opts.staleDays ?? 0) >= 7;
+export function templatesForState(estado: RepairStatus, opts: TemplateOptions = {}): TemplateMeta[] {
+  const t = templatesFromPreferences(opts.preferences);
+  const staleThreshold = opts.staleThreshold ?? opts.preferences?.communication.staleDaysThreshold ?? 7;
+  const isStale = (opts.staleDays ?? 0) >= staleThreshold;
 
   switch (estado) {
     case 0: // Recebido
@@ -166,7 +214,7 @@ export function templatesForState(estado: RepairStatus, opts: { staleDays?: numb
     case 3: // EmReparacao
       return [t.EmReparacao, t.PrazoDerrapou];
     case 4: // Pronto
-      return stale7 ? [t.LembreteLevantamento, t.Pronto] : [t.Pronto, t.LembreteLevantamento];
+      return isStale ? [t.LembreteLevantamento, t.Pronto] : [t.Pronto, t.LembreteLevantamento];
     case 5: // Entregue
       return [t.Entregue, t.PedidoReview];
     case 6: // Cancelado
