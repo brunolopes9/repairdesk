@@ -27,6 +27,22 @@ Bruno está a trabalhar na loja online em paralelo e pediu que eu continuasse a 
 
 ---
 
+### Sprint 229 — Botão "Copiar link cliente" no detalhe da reparação
+**Ficheiros:** `frontend/src/lib/reparacoes/types.ts`, `frontend/src/pages/reparacoes/ReparacaoDetalhe.tsx`
+- Backend já devolvia `publicSlug` no DTO mas frontend type não tinha.
+- Adicionei `publicSlug: string | null` ao type `Reparacao`.
+- Detalhe ganhou botão "📋 Copiar link cliente" que copia `{origin}/r/{slug}` para clipboard.
+- Útil para Bruno copiar e enviar via WhatsApp/SMS sem ter de procurar.
+- **Testar:** abre reparação → clica botão → toast "Link copiado!".
+
+### Sprint 230 — Prompt Codex para customização per-tenant (Doc 66 criado)
+**Ficheiros:** `Contexto/66-Customizacao-Per-Tenant-Codex-Prompt.md`
+- Bruno mencionou: WhatsApp templates devem ser opt-in + configuráveis per-tenant (texto, estados, on/off). Mas o pedido é geral — **tudo** que possa ser preferência pessoal.
+- Criei prompt Codex completo com Fase 1 (audit) + Fase 2 (implementação).
+- Bruno: copia o bloco do Doc 66 para Codex quando puder.
+
+---
+
 ## Próximas tarefas planeadas (vou fazer enquanto Bruno trabalha)
 
 - [ ] Editar cliente da reparação (consumidor final → cliente com NIF a meio do trabalho)
