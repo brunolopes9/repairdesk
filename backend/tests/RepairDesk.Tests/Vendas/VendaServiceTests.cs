@@ -6,6 +6,7 @@ using RepairDesk.Core.Enums;
 using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Billing;
 using RepairDesk.Services.Billing.InvoiceXpress;
+using RepairDesk.Services.TenantPreferences;
 using RepairDesk.Services.Vendas;
 using DomainValidationException = RepairDesk.Core.Exceptions.ValidationException;
 
@@ -216,6 +217,70 @@ public class VendaServiceTests
         billing.EmitVendaCalls.Should().Be(0);
     }
 
+    [Fact]
+    public async Task CreateAsync_DefaultCondicaoFromPreferences_AppliesToItem()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var part = new Part { TenantId = tenantId, Nome = "iPhone OpenBox", QtdStock = 1, CustoUnitarioCents = 10000 };
+        db.Parts.Add(part);
+        await db.SaveChangesAsync();
+        var prefs = TenantPreferencesDefaults.Create();
+        prefs = prefs with { Sales = prefs.Sales with { DefaultCondicaoArtigo = (int)CondicaoArtigo.OpenBox } };
+        var service = NewService(db, tenantId, prefs: prefs);
+
+        var venda = await service.CreateAsync(new CreateVendaRequest(null, [
+            new CreateVendaItemRequest(part.Id, null, 1, 20000, 0, 23)
+        ], null));
+
+        var item = await db.VendaItems.SingleAsync(i => i.VendaId == venda.Id);
+        item.Condicao.Should().Be(CondicaoArtigo.OpenBox);
+    }
+
+    [Fact]
+    public async Task MarcarPagaAsync_EmitirFaturaAutomatico_EmitsInvoiceWithoutRequestFlag()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var part = new Part { TenantId = tenantId, Nome = "Capa", QtdStock = 1, CustoUnitarioCents = 300 };
+        db.Parts.Add(part);
+        await db.SaveChangesAsync();
+        var prefs = TenantPreferencesDefaults.Create();
+        prefs = prefs with { Sales = prefs.Sales with { EmitirFatura = EmitirFaturaMode.Automatico } };
+        var billing = new FakeBillingProvider();
+        var service = NewService(db, tenantId, billing, prefs, BillingProvider.Moloni);
+        var venda = await service.CreateAsync(new CreateVendaRequest(null, [
+            new CreateVendaItemRequest(part.Id, null, 1, 1000, 0, 23)
+        ], null));
+
+        var result = await service.MarcarPagaAsync(venda.Id, new MarcarVendaPagaRequest(PaymentMethod.MBWay, EmitirFatura: false));
+
+        result.Invoice.Should().NotBeNull();
+        billing.EmitVendaCalls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task MarcarPagaAsync_EmitirFaturaNunca_IgnoresRequestFlag()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var part = new Part { TenantId = tenantId, Nome = "Capa", QtdStock = 1, CustoUnitarioCents = 300 };
+        db.Parts.Add(part);
+        await db.SaveChangesAsync();
+        var prefs = TenantPreferencesDefaults.Create();
+        prefs = prefs with { Sales = prefs.Sales with { EmitirFatura = EmitirFaturaMode.Nunca } };
+        var billing = new FakeBillingProvider();
+        var service = NewService(db, tenantId, billing, prefs, BillingProvider.Moloni);
+        var venda = await service.CreateAsync(new CreateVendaRequest(null, [
+            new CreateVendaItemRequest(part.Id, null, 1, 1000, 0, 23)
+        ], null));
+
+        var result = await service.MarcarPagaAsync(venda.Id, new MarcarVendaPagaRequest(PaymentMethod.MBWay, EmitirFatura: true));
+
+        result.Invoice.Should().BeNull();
+        billing.EmitVendaCalls.Should().Be(0);
+    }
+
     private static AppDbContext NewDb(Guid tenantId)
     {
         var opts = new DbContextOptionsBuilder<AppDbContext>()
@@ -224,20 +289,26 @@ public class VendaServiceTests
         return new AppDbContext(opts, new TestTenantContext(tenantId));
     }
 
-    private static VendaService NewService(AppDbContext db, Guid tenantId, IBillingProvider? billing = null)
+    private static VendaService NewService(
+        AppDbContext db,
+        Guid tenantId,
+        IBillingProvider? billing = null,
+        TenantPreferencesRoot? prefs = null,
+        BillingProvider configuredProvider = BillingProvider.None)
         => new(
             new VendaRepository(db),
             new PartRepository(db),
             new ClienteRepository(db),
             new TestTenantContext(tenantId),
-            new FakeBillingSettingsRepository(),
+            new FakeBillingSettingsRepository(configuredProvider),
             billing ?? new FakeBillingProvider(),
             new FakeMoloniNoOp(),
             new FakeInvoiceXpressNoOp(),
             new GarantiaRepository(db),
             new TenantRepository(db),
             new ReparacaoRepository(db),
-            new NoOpWebhookPublisher());
+            new NoOpWebhookPublisher(),
+            new FakeTenantPreferencesService(prefs));
 
     private sealed class TestTenantContext(Guid tenantId) : ITenantContext
     {
@@ -250,9 +321,35 @@ public class VendaServiceTests
         public Task PublishAsync(Guid tenantId, string eventType, object payload, CancellationToken ct = default) => Task.CompletedTask;
     }
 
-    private sealed class FakeBillingSettingsRepository : ITenantBillingSettingsRepository
+    private sealed class FakeTenantPreferencesService : ITenantPreferencesService
     {
-        public Task<TenantBillingSettings?> FindByTenantIdAsync(Guid tenantId, CancellationToken ct = default) => Task.FromResult<TenantBillingSettings?>(null);
+        private TenantPreferencesRoot _prefs;
+        public FakeTenantPreferencesService(TenantPreferencesRoot? prefs = null)
+        {
+            _prefs = prefs ?? TenantPreferencesDefaults.Create();
+        }
+
+        public Task<TenantPreferencesRoot> GetAsync(CancellationToken ct = default) => Task.FromResult(_prefs);
+        public Task<TenantPreferencesRoot> GetForTenantAsync(Guid tenantId, CancellationToken ct = default) => Task.FromResult(_prefs);
+        public Task<TenantPreferencesRoot> UpdateAsync(TenantPreferencesRoot preferences, CancellationToken ct = default)
+        {
+            _prefs = preferences;
+            return Task.FromResult(_prefs);
+        }
+
+        public Task<TenantPreferencesRoot> ResetGroupAsync(string group, CancellationToken ct = default)
+        {
+            _prefs = TenantPreferencesDefaults.Create();
+            return Task.FromResult(_prefs);
+        }
+    }
+
+    private sealed class FakeBillingSettingsRepository(BillingProvider provider) : ITenantBillingSettingsRepository
+    {
+        public Task<TenantBillingSettings?> FindByTenantIdAsync(Guid tenantId, CancellationToken ct = default)
+            => Task.FromResult(provider == BillingProvider.None
+                ? null
+                : new TenantBillingSettings { TenantId = tenantId, Provider = provider });
         public Task AddAsync(TenantBillingSettings settings, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
     }

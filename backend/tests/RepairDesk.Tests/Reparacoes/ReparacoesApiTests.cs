@@ -7,6 +7,7 @@ using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Reparacoes;
+using RepairDesk.Services.TenantPreferences;
 using RepairDesk.Tests.Auth;
 
 namespace RepairDesk.Tests.Reparacoes;
@@ -68,6 +69,10 @@ public class ReparacoesApiTests : IClassFixture<RepairDeskApiFactory>
     public async Task ChangeEstado_ToEntregue_AutoMarksPago()
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var prefs = await client.GetFromJsonAsync<TenantPreferencesRoot>("/api/tenant-settings/me/preferences");
+        prefs = prefs! with { Repairs = prefs.Repairs with { EntregarMarcaPago = EntregarMarcaPagoMode.Sim } };
+        (await client.PutAsJsonAsync("/api/tenant-settings/me/preferences", prefs)).EnsureSuccessStatusCode();
+
         var cliente = await CreateCliente(client, "Cli-Pago");
         var rep = await Create(client, cliente.Id, "iPhone", "x");
 
@@ -85,6 +90,49 @@ public class ReparacoesApiTests : IClassFixture<RepairDeskApiFactory>
         var dto = await entregue.Content.ReadFromJsonAsync<ReparacaoDto>();
         dto!.Estado.Should().Be(RepairStatus.Entregue);
         dto.EstadoPagamento.Should().Be(PaymentStatus.Pago);
+    }
+
+    [Fact]
+    public async Task ChangeEstado_ToEntregue_WithPreferenceNao_DoesNotAutoMarkPago()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var prefs = await client.GetFromJsonAsync<TenantPreferencesRoot>("/api/tenant-settings/me/preferences");
+        prefs = prefs! with { Repairs = prefs.Repairs with { EntregarMarcaPago = EntregarMarcaPagoMode.Nao } };
+        (await client.PutAsJsonAsync("/api/tenant-settings/me/preferences", prefs)).EnsureSuccessStatusCode();
+
+        var cliente = await CreateCliente(client, "Cli-Nao-Pago");
+        var rep = await Create(client, cliente.Id, "iPhone", "x");
+        foreach (var st in new[] { RepairStatus.Diagnostico, RepairStatus.Pronto })
+            (await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/estado", new ChangeEstadoRequest(st, null))).EnsureSuccessStatusCode();
+
+        var entregue = await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/estado",
+            new ChangeEstadoRequest(RepairStatus.Entregue, null));
+        entregue.EnsureSuccessStatusCode();
+        var dto = await entregue.Content.ReadFromJsonAsync<ReparacaoDto>();
+
+        dto!.EstadoPagamento.Should().Be(PaymentStatus.NaoPago);
+    }
+
+    [Fact]
+    public async Task ChangeEstado_ToEntregue_WithPreferencePerguntar_ReturnsConfirmationFlag()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var prefs = await client.GetFromJsonAsync<TenantPreferencesRoot>("/api/tenant-settings/me/preferences");
+        prefs = prefs! with { Repairs = prefs.Repairs with { EntregarMarcaPago = EntregarMarcaPagoMode.Perguntar } };
+        (await client.PutAsJsonAsync("/api/tenant-settings/me/preferences", prefs)).EnsureSuccessStatusCode();
+
+        var cliente = await CreateCliente(client, "Cli-Perguntar-Pago");
+        var rep = await Create(client, cliente.Id, "iPhone", "x");
+        foreach (var st in new[] { RepairStatus.Diagnostico, RepairStatus.Pronto })
+            (await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/estado", new ChangeEstadoRequest(st, null))).EnsureSuccessStatusCode();
+
+        var entregue = await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/estado",
+            new ChangeEstadoRequest(RepairStatus.Entregue, null));
+        entregue.EnsureSuccessStatusCode();
+        var dto = await entregue.Content.ReadFromJsonAsync<ReparacaoDto>();
+
+        dto!.EstadoPagamento.Should().Be(PaymentStatus.NaoPago);
+        dto.PrecisaConfirmacaoPagamento.Should().BeTrue();
     }
 
     [Fact]
