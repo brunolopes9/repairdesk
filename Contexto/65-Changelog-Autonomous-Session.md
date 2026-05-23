@@ -51,6 +51,20 @@ Bruno está a trabalhar na loja online em paralelo e pediu que eu continuasse a 
 - Side benefit: novos tenants em fresh deploy têm backup imediato.
 - **Testar:** ver logs API depois de rebuild — não deve haver ERR repetido.
 
+### Sprint 231b — Backup catch-up também se backup > 24h (não só vazio)
+**Ficheiro:** `backend/src/RepairDesk.API/HostedServices/BackupHostedService.cs`
+- Sprint 231 v1 só corria se `Count==0`. Bruno tinha backup local de 2 dias atrás — Count>0 mas stale, health 503 continuava.
+- Fix v2: `needsBackup = (latest is null) OR (age > 24h)`. Corre catch-up.
+- Validado: backup criado em 2026-05-23 17:27 no deploy, `/api/health/backup` agora 200 Healthy.
+
+### Sprint 233 — Doc 68 prompt Codex Task G (bugs/segurança/melhorias/novas)
+**Ficheiro:** `Contexto/68-Codex-Improvements-Bugs-Security.md`
+- Prompt grande para Codex com 3 frentes (~13-21h trabalho):
+  - Frente 1: Bugs/segurança (admin seed password, EF logs spam, webhook polling, rate limit login, CORS, R2 fallback)
+  - Frente 2: Melhorias (Dashboard paradas, filtro garantia, WhatsApp log, NIF universal, bulk pago, save indicator)
+  - Frente 3: Novas (lembrete bateria 6m, agendamento online, auto-import preços, filtros auditoria)
+- Bruno enviou ao Codex. Aguarda commits.
+
 ### Sprint 232 — Integrar Codex Task F Fase 1
 **Ficheiro:** `Contexto/67-Customizacao-Audit.md` (148 linhas, criado pelo Codex)
 - Codex entregou audit completo: 38 áreas hardcoded identificadas + shortlist Fase 2 + arquitectura proposta (TenantPreferences sem dezenas de colunas).
