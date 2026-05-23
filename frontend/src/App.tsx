@@ -37,6 +37,7 @@ const Precos = lazy(() => import('./pages/precos/Precos'));
 const RelatorioIva = lazy(() => import('./pages/relatorios/Iva'));
 const RelatorioNegocio = lazy(() => import('./pages/relatorios/Negocio'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
+const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const PortalCliente = lazy(() => import('./pages/PortalCliente'));
 const PortalGarantia = lazy(() => import('./pages/PortalGarantia'));
 const PoliticaPrivacidade = lazy(() => import('./pages/legal/PoliticaPrivacidade'));
@@ -97,6 +98,14 @@ export default function App() {
             <Route path="/sub-processors" element={<SubProcessors />} />
 
             <Route path="/login" element={<Login />} />
+            <Route
+              path="/auth/change-password"
+              element={
+                <ProtectedRoute>
+                  <ChangePassword />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/bemvindo"
               element={

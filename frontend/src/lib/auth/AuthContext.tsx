@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import axios from 'axios';
 import { api } from '../api';
 import { clearAccessToken, setAccessToken } from './token';
-import type { AuthResponse, LoginRequest, UserInfo } from './types';
+import type { AuthResponse, ChangePasswordRequest, LoginRequest, UserInfo } from './types';
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
 
@@ -13,6 +13,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (req: LoginRequest) => Promise<void>;
+  changePassword: (req: ChangePasswordRequest) => Promise<void>;
   logout: () => Promise<void>;
   hasRole: (role: string) => boolean;
 }
@@ -62,6 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [setAuth],
   );
 
+  const changePassword = useCallback(
+    async (req: ChangePasswordRequest) => {
+      const { data } = await api.post<AuthResponse>('/auth/change-password', req);
+      setAuth(data);
+    },
+    [setAuth],
+  );
+
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout');
@@ -78,8 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, logout, hasRole }),
-    [state, login, logout, hasRole],
+    () => ({ ...state, login, changePassword, logout, hasRole }),
+    [state, login, changePassword, logout, hasRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

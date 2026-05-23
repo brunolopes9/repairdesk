@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function ProtectedRoute({ children, roles }: Props) {
-  const { status, hasRole } = useAuth();
+  const { status, user, hasRole } = useAuth();
   const location = useLocation();
 
   if (status === 'loading') {
@@ -21,6 +21,10 @@ export default function ProtectedRoute({ children, roles }: Props) {
 
   if (status === 'anonymous') {
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (user?.requireChangePasswordOnNextLogin && location.pathname !== '/auth/change-password') {
+    return <Navigate to="/auth/change-password" replace state={{ from: location }} />;
   }
 
   if (roles && !roles.some((r) => hasRole(r))) {

@@ -10,7 +10,7 @@ interface LocationState {
 }
 
 export default function Login() {
-  const { status, login } = useAuth();
+  const { status, user, login } = useAuth();
   const location = useLocation();
   const from = (location.state as LocationState | null)?.from?.pathname ?? '/';
 
@@ -21,6 +21,9 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
 
   if (status === 'authenticated') {
+    if (user?.requireChangePasswordOnNextLogin) {
+      return <Navigate to="/auth/change-password" replace />;
+    }
     return <Navigate to={from} replace />;
   }
 

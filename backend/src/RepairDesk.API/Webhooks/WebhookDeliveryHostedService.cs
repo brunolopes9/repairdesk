@@ -68,6 +68,12 @@ public class WebhookDeliveryHostedService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var now = DateTime.UtcNow;
+        var hasDue = await db.WebhookDeliveries
+            .IgnoreQueryFilters()
+            .AnyAsync(d => d.Status == WebhookDeliveryStatus.Pending
+                           && d.NextRetryAt != null && d.NextRetryAt <= now, ct);
+        if (!hasDue) return;
+
         var due = await db.WebhookDeliveries
             .IgnoreQueryFilters()
             .Include(d => d.Subscription)

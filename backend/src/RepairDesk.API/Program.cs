@@ -332,16 +332,16 @@ try
         .AddCheck<PhotoStorageHealthCheck>("storage", tags: ["ready", "storage"])
         .AddCheck<BackupHealthCheck>("backup", tags: ["backup"]);
 
-    // Rate limiting (login: 5 per 15 min per IP). Disabled in Testing/E2E envs.
+    // Rate limiting (auth-strict: 5 login attempts per 15 min per IP). Disabled in Testing/E2E envs.
     var isTesting = builder.Environment.IsEnvironment("Testing");
     var disableRateLimits = isTesting || builder.Configuration.GetValue("E2E:Enabled", false);
     builder.Services.AddRateLimiter(opt =>
     {
         opt.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-        opt.AddPolicy("login", ctx =>
+        opt.AddPolicy("auth-strict", ctx =>
         {
             if (disableRateLimits)
-                return RateLimitPartition.GetNoLimiter("login");
+                return RateLimitPartition.GetNoLimiter("auth-strict");
             var key = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
             {
@@ -393,8 +393,9 @@ try
         c.SwaggerDoc("v1", new() { Title = "Mender API", Version = "v1" });
     });
 
+    var corsOrigins = BuildCorsOrigins(builder.Configuration, builder.Environment);
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
-        .WithOrigins("http://localhost:5173", "http://localhost:3000")
+        .WithOrigins(corsOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials()));
@@ -449,6 +450,32 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+static string[] BuildCorsOrigins(IConfiguration configuration, IWebHostEnvironment environment)
+{
+    var origins = configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>()?
+        .Where(o => !string.IsNullOrWhiteSpace(o))
+        .Select(o => o.Trim().TrimEnd('/'))
+        .ToList() ?? [];
+
+    var frontendBaseUrl = configuration["Frontend:BaseUrl"];
+    if (!string.IsNullOrWhiteSpace(frontendBaseUrl))
+        origins.Add(frontendBaseUrl.Trim().TrimEnd('/'));
+
+    if (environment.IsDevelopment() || environment.IsEnvironment("Testing"))
+    {
+        origins.Add("http://localhost:5173");
+        origins.Add("http://localhost:3000");
+    }
+
+    origins = origins.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    if (origins.Count == 0)
+        throw new InvalidOperationException("CORS origins not configured. Set Frontend:BaseUrl or Cors:AllowedOrigins.");
+
+    return origins.ToArray();
 }
 
 public partial class Program;

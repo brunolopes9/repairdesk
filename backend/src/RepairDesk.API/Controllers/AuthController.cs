@@ -36,7 +36,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    [EnableRateLimiting("login")]
+    [EnableRateLimiting("auth-strict")]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest req, CancellationToken ct)
     {
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
@@ -99,6 +99,39 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<ActionResult<AuthResponse>> ChangePassword([FromBody] ChangePasswordRequest req, CancellationToken ct)
+    {
+        var user = await _users.GetUserAsync(User);
+        if (user is null || !user.IsActive) return Unauthorized(new { code = "user_inactive" });
+
+        var result = await _users.ChangePasswordAsync(user, req.CurrentPassword, req.NewPassword);
+        if (!result.Succeeded)
+        {
+            return BadRequest(new
+            {
+                code = "password_change_failed",
+                errors = result.Errors.Select(e => e.Code).ToList()
+            });
+        }
+
+        user.RequireChangePasswordOnNextLogin = false;
+        user.LastLoginAt = DateTime.UtcNow;
+        user.LastLoginIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+        await _users.UpdateAsync(user);
+        await _audit.LogAsync(
+            AuditAction.Update,
+            "AppUser",
+            user.Id,
+            new { requireChangePasswordOnNextLogin = false },
+            user.TenantId,
+            user.Id,
+            ct);
+
+        return await IssueTokensAsync(user, user.LastLoginIp, ct);
+    }
+
     [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<UserInfo>> Me()
@@ -106,7 +139,7 @@ public class AuthController : ControllerBase
         var user = await _users.GetUserAsync(User);
         if (user is null) return Unauthorized();
         var roles = await _users.GetRolesAsync(user);
-        return Ok(new UserInfo(user.Id, user.Email!, user.DisplayName, user.TenantId, roles.ToList()));
+        return Ok(ToUserInfo(user, roles));
     }
 
     private async Task<ActionResult<AuthResponse>> IssueTokensAsync(AppUser user, string? ip, CancellationToken ct)
@@ -132,6 +165,9 @@ public class AuthController : ControllerBase
         return new AuthResponse(
             access,
             _tokens.AccessTokenExpiry,
-            new UserInfo(user.Id, user.Email!, user.DisplayName, user.TenantId, roles.ToList()));
+            ToUserInfo(user, roles));
     }
+
+    private static UserInfo ToUserInfo(AppUser user, IEnumerable<string> roles)
+        => new(user.Id, user.Email!, user.DisplayName, user.TenantId, roles.ToList(), user.RequireChangePasswordOnNextLogin);
 }

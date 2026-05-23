@@ -267,8 +267,15 @@ public static class DbInitializer
 
         if (existing is not null)
         {
-            if (password == DefaultAdminPassword)
+            if (PasswordMatches(hasher, existing, DefaultAdminPassword))
+            {
+                if (!existing.RequireChangePasswordOnNextLogin)
+                {
+                    existing.RequireChangePasswordOnNextLogin = true;
+                    await db.SaveChangesAsync(ct);
+                }
                 logger.LogWarning("Admin user already exists with DEFAULT seed password — change it.");
+            }
             return;
         }
 
@@ -288,6 +295,7 @@ public static class DbInitializer
             DisplayName = displayName,
             TenantId = LopesTechTenantId,
             IsActive = true,
+            RequireChangePasswordOnNextLogin = password == DefaultAdminPassword,
             SecurityStamp = Guid.NewGuid().ToString("N"),
             ConcurrencyStamp = Guid.NewGuid().ToString("N")
         };
@@ -302,4 +310,8 @@ public static class DbInitializer
         if (password == DefaultAdminPassword)
             logger.LogWarning("Admin created with default seed password. Set Seed:AdminPassword env to override before exposing the app.");
     }
+
+    private static bool PasswordMatches(IPasswordHasher<AppUser> hasher, AppUser user, string password)
+        => !string.IsNullOrWhiteSpace(user.PasswordHash)
+           && hasher.VerifyHashedPassword(user, user.PasswordHash, password) != PasswordVerificationResult.Failed;
 }

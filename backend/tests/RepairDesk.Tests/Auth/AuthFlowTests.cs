@@ -2,7 +2,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using RepairDesk.API.Infrastructure;
+using RepairDesk.Core.Entities;
+using RepairDesk.DAL.Persistence;
 
 namespace RepairDesk.Tests.Auth;
 
@@ -125,12 +129,66 @@ public class AuthFlowTests : IClassFixture<RepairDeskApiFactory>
         refresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task ChangePassword_ClearsRequiredPasswordChangeFlag_AndAllowsNewPassword()
+    {
+        var email = $"seed-{Guid.NewGuid():N}@test.local";
+        const string oldPassword = "Temp!Pass2026";
+        const string newPassword = "New!Pass2026";
+        await SeedPasswordChangeUser(email, oldPassword);
+
+        var client = NewClient(_factory);
+        var login = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, oldPassword));
+        login.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = (await login.Content.ReadFromJsonAsync<AuthResponse>())!;
+        auth.User.RequireChangePasswordOnNextLogin.Should().BeTrue();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var change = await client.PostAsJsonAsync(
+            "/api/auth/change-password",
+            new ChangePasswordRequest(oldPassword, newPassword));
+
+        change.StatusCode.Should().Be(HttpStatusCode.OK);
+        var changed = (await change.Content.ReadFromJsonAsync<AuthResponse>())!;
+        changed.User.RequireChangePasswordOnNextLogin.Should().BeFalse();
+
+        var oldLogin = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, oldPassword));
+        oldLogin.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var newLogin = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, newPassword));
+        newLogin.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     private static async Task<AuthResponse> Login(HttpClient client)
     {
         var resp = await client.PostAsJsonAsync("/api/auth/login",
             new LoginRequest(RepairDeskApiFactory.AdminEmail, RepairDeskApiFactory.AdminPassword));
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<AuthResponse>())!;
+    }
+
+    private async Task SeedPasswordChangeUser(string email, string password)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var role = db.Roles.Single(r => r.Name == "Admin");
+        var user = new AppUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = email,
+            Email = email,
+            EmailConfirmed = true,
+            DisplayName = "Seed Password User",
+            TenantId = RepairDeskApiFactory.TenantId,
+            IsActive = true,
+            RequireChangePasswordOnNextLogin = true
+        };
+
+        var result = await users.CreateAsync(user, password);
+        result.Succeeded.Should().BeTrue(string.Join(", ", result.Errors.Select(e => e.Code)));
+        db.UserRoles.Add(new IdentityUserRole<Guid> { UserId = user.Id, RoleId = role.Id });
+        await db.SaveChangesAsync();
     }
 
     private sealed record ErrorBody(string Code);

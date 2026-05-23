@@ -4,6 +4,7 @@ export interface UserInfo {
   displayName: string;
   tenantId: string;
   roles: string[];
+  requireChangePasswordOnNextLogin: boolean;
 }
 
 export interface AuthResponse {
@@ -15,4 +16,9 @@ export interface AuthResponse {
 export interface LoginRequest {
   email: string;
   password: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
 }

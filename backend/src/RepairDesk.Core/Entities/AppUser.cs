@@ -8,6 +8,7 @@ public class AppUser : IdentityUser<Guid>, ITenantEntity
     public Guid TenantId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
+    public bool RequireChangePasswordOnNextLogin { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
     public string? LastLoginIp { get; set; }
