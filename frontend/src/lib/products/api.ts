@@ -21,6 +21,41 @@ export const PRODUCT_GRADING_LABEL: Record<ProductGrading, string> = {
   5: 'Premium',
 };
 
+// Sprint 197: 2D classification — substitui Grading no UI novo.
+export const PRODUCT_ORIGIN = {
+  New: 0,
+  Used: 1,
+  Refurbished: 2,
+} as const;
+export type ProductOrigin = (typeof PRODUCT_ORIGIN)[keyof typeof PRODUCT_ORIGIN];
+export const PRODUCT_ORIGIN_LABEL: Record<ProductOrigin, string> = {
+  0: 'Novo (selado)',
+  1: 'Usado original',
+  2: 'Recondicionado',
+};
+
+export const PRODUCT_GRADE = {
+  Sealed: 0,
+  APlusPlus: 1,
+  APlus: 2,
+  A: 3,
+  BPlus: 4,
+  B: 5,
+  CPlus: 6,
+  C: 7,
+} as const;
+export type ProductGrade = (typeof PRODUCT_GRADE)[keyof typeof PRODUCT_GRADE];
+export const PRODUCT_GRADE_LABEL: Record<ProductGrade, string> = {
+  0: 'Selado',
+  1: 'A++ · Como novo (open-box 100% bateria)',
+  2: 'A+ · Como novo (vestígio quase impercetível)',
+  3: 'A · Excelente (ligeira descoloração possível)',
+  4: 'B+ · Muito bom (max 3 vestígios menores)',
+  5: 'B · Bom (max 5 vestígios menores)',
+  6: 'C+ · Razoável (riscos profundos ou amolgadelas)',
+  7: 'C · Aceitável (desgaste significativo)',
+};
+
 export const PRODUCT_SUPPLY_TYPE = {
   Stock: 0,
   Dropship: 1,
@@ -66,7 +101,10 @@ export interface Product {
   model: string;
   storage: string | null;
   color: string | null;
+  /** Sprint 197: deprecated, server recalcula de Origin+Grade. UI nova usa Origin+Grade. */
   grading: ProductGrading;
+  origin: ProductOrigin;
+  grade: ProductGrade;
   supplyType: ProductSupplyType;
   category: ProductCategory;
   dropshipSupplierSku: string | null;
@@ -106,7 +144,10 @@ export interface ProductWriteRequest {
   model: string;
   storage: string | null;
   color: string | null;
+  /** Sprint 197: deprecated. Server recalcula de Origin+Grade. */
   grading: ProductGrading;
+  origin: ProductOrigin;
+  grade: ProductGrade;
   supplyType: ProductSupplyType;
   category: ProductCategory;
   dropshipSupplierSku: string | null;

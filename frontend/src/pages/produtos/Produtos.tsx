@@ -10,12 +10,17 @@ import {
   PRODUCT_CATEGORY_LABEL,
   PRODUCT_GRADING,
   PRODUCT_GRADING_LABEL,
+  PRODUCT_ORIGIN,
+  PRODUCT_ORIGIN_LABEL,
+  PRODUCT_GRADE,
+  PRODUCT_GRADE_LABEL,
+  type ProductOrigin,
+  type ProductGrade,
   PRODUCT_SUPPLY_TYPE,
   PRODUCT_SUPPLY_TYPE_LABEL,
   productsApi,
   type ImportProductsResponse,
   type ProductCategory,
-  type ProductGrading,
   type ProductImageWriteRequest,
   type ProductSupplyType,
   type ProductWriteRequest,
@@ -31,6 +36,9 @@ const emptyForm = (): ProductWriteRequest => ({
   storage: null,
   color: null,
   grading: PRODUCT_GRADING.Novo,
+  // Sprint 197: 2D classification — substitui Grading no UI.
+  origin: PRODUCT_ORIGIN.New,
+  grade: PRODUCT_GRADE.Sealed,
   supplyType: PRODUCT_SUPPLY_TYPE.Stock,
   // Sprint 151
   category: PRODUCT_CATEGORY.Phone,
@@ -103,6 +111,8 @@ export default function Produtos() {
         storage: p.storage,
         color: p.color,
         grading: p.grading,
+        origin: p.origin,
+        grade: p.grade,
         supplyType: p.supplyType,
         category: p.category,
         dropshipSupplierSku: p.dropshipSupplierSku,
@@ -351,8 +361,8 @@ export default function Produtos() {
                 <Field label="SKU" hint="Deixa vazio para gerar automaticamente.">
                   <input value={form.sku ?? ''} onChange={(e) => setForm({ ...form, sku: e.target.value || null })} className={inputCls} />
                 </Field>
-                <Field label="Slug" hint="URL-friendly. Auto-gerado de Brand+Model+Storage+Cor+Grading.">
-                  <input value={form.slug ?? ''} onChange={(e) => setForm({ ...form, slug: e.target.value || null })} className={inputCls} placeholder="iphone-12-128gb-black-grade-a" />
+                <Field label="Slug" hint="URL pública na loja. Auto-gerado pelo servidor de Brand+Model+Storage+Cor+Grading. Deixa vazio para auto.">
+                  <input value={form.slug ?? ''} onChange={(e) => setForm({ ...form, slug: e.target.value || null })} className={inputCls} placeholder={form.brand && form.model ? `${form.brand}-${form.model}-${form.storage ?? ''}-${form.color ?? ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : 'Auto-gerado ao guardar'} />
                 </Field>
               </div>
             </details>
@@ -376,11 +386,39 @@ export default function Produtos() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Grading">
-                  <select value={form.grading} onChange={(e) => setForm({ ...form, grading: Number(e.target.value) as ProductGrading })} className={inputCls}>
-                    {Object.values(PRODUCT_GRADING).map((v) => (
-                      <option key={v} value={v}>{PRODUCT_GRADING_LABEL[v]}</option>
+                {/* Sprint 197: 2D classification — substitui dropdown único Grading. */}
+                <Field label="Origem">
+                  <select
+                    value={form.origin}
+                    onChange={(e) => {
+                      const newOrigin = Number(e.target.value) as ProductOrigin;
+                      // Auto-ajusta Grade: New só faz sentido com Sealed; Used/Refurb com A++ default.
+                      const newGrade = newOrigin === PRODUCT_ORIGIN.New ? PRODUCT_GRADE.Sealed : PRODUCT_GRADE.APlusPlus;
+                      setForm({ ...form, origin: newOrigin, grade: newGrade });
+                    }}
+                    className={inputCls}
+                  >
+                    {Object.values(PRODUCT_ORIGIN).map((v) => (
+                      <option key={v} value={v}>{PRODUCT_ORIGIN_LABEL[v]}</option>
                     ))}
+                  </select>
+                </Field>
+                <Field label="Grade">
+                  <select
+                    value={form.grade}
+                    onChange={(e) => setForm({ ...form, grade: Number(e.target.value) as ProductGrade })}
+                    className={inputCls}
+                    disabled={form.origin === PRODUCT_ORIGIN.New}
+                  >
+                    {form.origin === PRODUCT_ORIGIN.New ? (
+                      <option value={PRODUCT_GRADE.Sealed}>{PRODUCT_GRADE_LABEL[PRODUCT_GRADE.Sealed]}</option>
+                    ) : (
+                      Object.values(PRODUCT_GRADE)
+                        .filter((v) => v !== PRODUCT_GRADE.Sealed)
+                        .map((v) => (
+                          <option key={v} value={v}>{PRODUCT_GRADE_LABEL[v]}</option>
+                        ))
+                    )}
                   </select>
                 </Field>
                 <Field label="Tipo de fornecimento">
@@ -436,7 +474,8 @@ export default function Produtos() {
                       placeholder="ex: 349,90"
                     />
                   </Field>
-                  {form.grading === PRODUCT_GRADING.OpenBox && (
+                  {/* Sprint 197: OpenBox legacy = Origin=Used + Grade=A++ no novo modelo. */}
+                  {form.origin === PRODUCT_ORIGIN.Used && form.grade === PRODUCT_GRADE.APlusPlus && (
                     <Field label="Razão Open Box" hint="Texto curto que aparece na PDP loja.">
                       <input
                         value={form.openBoxReason ?? ''}

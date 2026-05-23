@@ -65,7 +65,10 @@ public sealed record ProductDto(
     string Model,
     string? Storage,
     string? Color,
+    /// <summary>Sprint 197: deprecated mas mantido (back-compat). Origin+Grade são o canonical.</summary>
     ProductGrading Grading,
+    ProductOrigin Origin,
+    ProductGrade Grade,
     ProductSupplyType SupplyType,
     // Sprint 151: novos campos shop.
     ProductCategory Category,
@@ -98,7 +101,10 @@ public sealed record ProductWriteRequest(
     string Model,
     string? Storage,
     string? Color,
+    /// <summary>Sprint 197: deprecated. UI nova envia Origin+Grade; Grading é recalculado server-side.</summary>
     ProductGrading Grading,
+    ProductOrigin Origin,
+    ProductGrade Grade,
     ProductSupplyType SupplyType,
     ProductCategory Category,
     string? DropshipSupplierSku,
@@ -162,7 +168,10 @@ public class ProductService : IProductService
             Model = req.Model.Trim(),
             Storage = Clean(req.Storage),
             Color = Clean(req.Color),
-            Grading = req.Grading,
+            Origin = req.Origin,
+            Grade = req.Grade,
+            // Sprint 197: Grading recalculado server-side a partir do par Origin+Grade.
+            Grading = ProductGradingMapper.ComposeLegacy(req.Origin, req.Grade),
             SupplyType = req.SupplyType,
             Category = req.Category,
             DropshipSupplierSku = Clean(req.DropshipSupplierSku),
@@ -218,7 +227,10 @@ public class ProductService : IProductService
         entity.Model = req.Model.Trim();
         entity.Storage = Clean(req.Storage);
         entity.Color = Clean(req.Color);
-        entity.Grading = req.Grading;
+        entity.Origin = req.Origin;
+        entity.Grade = req.Grade;
+        // Sprint 197: Grading recalculado server-side.
+        entity.Grading = ProductGradingMapper.ComposeLegacy(req.Origin, req.Grade);
         entity.SupplyType = req.SupplyType;
         entity.Category = req.Category;
         entity.DropshipSupplierSku = Clean(req.DropshipSupplierSku);
@@ -788,7 +800,7 @@ public class ProductService : IProductService
     }
 
     private static ProductDto ToDto(Product p) =>
-        new(p.Id, p.Sku, p.Slug, p.Brand, p.Model, p.Storage, p.Color, p.Grading, p.SupplyType,
+        new(p.Id, p.Sku, p.Slug, p.Brand, p.Model, p.Storage, p.Color, p.Grading, p.Origin, p.Grade, p.SupplyType,
             p.Category, p.DropshipSupplierSku,
             p.PriceCents, p.CompareAtPriceCents,
             p.StockQuantity, p.StockMinima, p.CustoUnitarioCents,
