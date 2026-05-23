@@ -72,6 +72,14 @@ export const stockApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data);
   },
+  /** Sprint 214: lista PartMovimentos órfãos (de reparações apagadas). Admin only. */
+  listOrphanMovimentos() {
+    return api.get<{ count: number; items: unknown[] }>('/parts/admin/orphan-movimentos').then((r) => r.data);
+  },
+  /** Sprint 214: hard-delete movimentos órfãos. Admin only. Devolve count purged. */
+  purgeOrphanMovimentos() {
+    return api.post<{ purged: number }>('/parts/admin/orphan-movimentos/purge').then((r) => r.data);
+  },
 };
 
 export interface PdfExtractionResult {

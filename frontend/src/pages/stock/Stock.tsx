@@ -79,6 +79,23 @@ export default function Stock() {
         meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'peça' : 'peças'} · valor nesta página: {formatCents(totalStockCents)}</span>}
         actions={
           <>
+            {/* Sprint 214: limpar movimentos de reparações apagadas (dados sujos do Bruno). */}
+            <Button type="button" variant="ghost" size="sm"
+              onClick={async () => {
+                try {
+                  const { count } = await stockApi.listOrphanMovimentos();
+                  if (count === 0) { toast.success('Sem movimentos órfãos.'); return; }
+                  if (!window.confirm(`Encontrei ${count} movimentos de reparações apagadas. Limpar?`)) return;
+                  const { purged } = await stockApi.purgeOrphanMovimentos();
+                  toast.success(`${purged} movimentos órfãos eliminados.`);
+                  qc.invalidateQueries({ queryKey: ['parts'] });
+                } catch (err) {
+                  toast.fromError(err, 'Falhou limpar órfãos (precisa Admin?)');
+                }
+              }}
+            >
+              🧹 Limpar órfãos
+            </Button>
             <Button type="button" variant="secondary" onClick={() => setImportOpen(true)} leftIcon={<Upload size={15} />}>
               Importar CSV
             </Button>
