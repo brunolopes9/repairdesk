@@ -24,6 +24,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     }
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantPreferences> TenantPreferences => Set<TenantPreferences>();
     public DbSet<TenantBillingSettings> TenantBillingSettings => Set<TenantBillingSettings>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
@@ -47,6 +48,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<Venda> Vendas => Set<Venda>();
     public DbSet<VendaItem> VendaItems => Set<VendaItem>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
+    public DbSet<WhatsAppNotificationLog> WhatsAppNotificationLogs => Set<WhatsAppNotificationLog>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<ServiceApiKey> ServiceApiKeys => Set<ServiceApiKey>();

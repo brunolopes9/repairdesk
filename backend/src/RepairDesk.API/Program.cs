@@ -28,6 +28,7 @@ using RepairDesk.Services.PublicPortal;
 using RepairDesk.Services.Reparacoes;
 using RepairDesk.Services.Relatorios;
 using RepairDesk.Services.TenantSettings;
+using RepairDesk.Services.TenantPreferences;
 using RepairDesk.Services.Trabalhos;
 using RepairDesk.Services.Vendas;
 using Serilog;
@@ -198,6 +199,9 @@ try
     // Documents (PDF orçamento)
     QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
     builder.Services.AddScoped<ITenantRepository, TenantRepository>();
+    builder.Services.AddScoped<ITenantPreferencesRepository, TenantPreferencesRepository>();
+    builder.Services.AddScoped<ITenantPreferencesService, TenantPreferencesService>();
+    builder.Services.AddScoped<IWhatsAppNotificationLogRepository, WhatsAppNotificationLogRepository>();
     builder.Services.AddScoped<IOrcamentoPdfService, OrcamentoPdfService>();
     builder.Services.AddScoped<IVendaPdfService, VendaPdfService>();
 
