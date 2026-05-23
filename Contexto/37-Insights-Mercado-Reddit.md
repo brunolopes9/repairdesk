@@ -201,6 +201,80 @@ Adicionar à roadmap Horizon 2.
 
 ---
 
+## Estado da implementação (2026-05-23)
+
+Revisão dos 12 insights contra o código actual após Sprints 41-219.
+
+### 1. ⚠️ Rebrand "RepairDesk" — ❌ NÃO FEITO
+- Continua presente em Logo, README, footer PDF, portal cliente, docker-compose, deploy URL.
+- **Acção pendente** (alta prioridade antes de beta pago).
+
+### 2. Pricing por tenant (não per-location) — ✅ Arquitectura correcta
+- Sistema é multi-tenant via `ITenantContext` — preço **por tenant**, multi-loja seriam sub-entidades.
+- Único "tier" hoje é `LlmQuotaTier` (free/pro/enterprise) via Sprint 167b — distinto de pricing per-location.
+- Confirmar em `07-Pricing-Proposta.md` que comunicação comercial reflecte isto.
+
+### 3. Inventory cross-location — ❌ NÃO FEITO
+- Stock hoje é per-tenant, **single location**.
+- Multi-loja com stock partilhado é Horizon 2 (não bloqueia 1ª oficina cliente).
+
+### 4. Auto-SKU generator — ✅ JÁ FEITO
+- `PartService.GenerateNextSkuAsync` implementa **formato exacto pedido pelo doc**:
+  `BAT-0001`, `ECRA-0001`, `BAT-0002`, etc.
+- Prefix por categoria: ECRA/BAT/CON/CAM/VID/FLX/TMP/ADE/CSM/PCA.
+- Itera até 9999, fallback timestamp se esgotado. Per-tenant via filter EF.
+- Bruno pode override manualmente no formulário de criação.
+
+### 5. Trade-ins — ❌ NÃO FEITO
+- Sem entidade nem fluxo. Horizon 2-3 (segmento UK/US, não comum em PT).
+
+### 6. ERP vertical (não horizontal) — ✅ Princípio aplicado
+- Stack vertical: reparações + vendas + stock + faturação + portal cliente. Nada genérico.
+
+### 7. Tier "Solo" €9-15/mês — ⏳ Parcialmente
+- Existem 3 tiers LLM (free/pro/enterprise, Sprint 167b) mas centrados em quota AI.
+- **Falta posicionamento comercial de tier "Solo"** em `07-Pricing-Proposta.md`.
+
+### 8. Custom fields equipamento — ✅ JÁ FEITO
+- `EquipmentCustomField` entity + UI em /definicoes (Sprint 41 Codex + Sprint 193 cleanup).
+- Schema configurável per-tenant. Aplica-se a Reparação detail.
+
+### 9. UI moderna — ✅ Stack actual
+- React 19 + Tailwind v4 + Sonner toast + Recharts. Design system actual.
+- Dashboard refactor (Sprint 210 Codex Task E) traz zonas Hoje/Semana/Alertas + sparklines.
+
+### 10. Integração contabilidade PT — ⏳ Parcial
+- **Facturação certificada via providers**: ✅ Moloni (Sprint 41-48 + 144) + InvoiceXpress (Codex #C18).
+- **Contabilidade pura** (TOConline / Sage / PHC / Primavera): ❌ não há. Horizon 2 retenção.
+
+### 11. PWA primeiro — ✅ FEITO
+- Sprint 194 PWA Fase 1: instalável + indicador offline. Sem offline write (Fases 2-4 doc 24).
+
+### 12. Outras ideias dispersas
+| Ideia | Estado |
+|---|---|
+| Customer loyalty / points | ❌ não há |
+| Agendamento online cliente | ❌ não há |
+| Push notifications web | ✅ Codex #C15 |
+| AI diagnóstico via sintomas | ❌ correctamente adiado (Horizon 3) |
+| Base conhecimento sintoma→solução | ❌ correctamente adiado |
+| Pagamento MBWay portal cliente | ❌ não há (precisa KYC SIBS) |
+
+### Resumo executivo do estado
+
+**Done (7/12):** Auto-SKU, Custom fields, PWA, UI moderna, Push notifications, ERP vertical aplicado, pricing-por-tenant arquitectado.
+
+**Parcial (2/12):** Tier Solo (precisa decisão comercial), Integração contabilidade (faturação OK, contabilidade pura por fazer).
+
+**Não feito (3/12):** **Rebrand (crítico)**, Inventory cross-location (Horizon 2), Trade-ins (Horizon 2-3).
+
+**Prioridades imediatas reordenadas:**
+1. **Rebrand RepairDesk** — única acção bloqueante para beta pago. ~2-3h de migração mecânica + decisão de nome + verificação .pt/EUIPO.
+2. **Tier Solo €9-15** em `07-Pricing-Proposta.md` — decisão de positioning, não código.
+3. Resto fica em backlog de Horizon 2-3.
+
+---
+
 ## Reflexão crítica (minha)
 
 A descoberta do **conflict de nome com "RepairDesk" US** é a coisa mais importante deste batch. Bruno tem investido meses num nome que **não pode usar publicamente**. Quanto mais cedo rebrand, menos custo. Hoje o nome aparece em:
