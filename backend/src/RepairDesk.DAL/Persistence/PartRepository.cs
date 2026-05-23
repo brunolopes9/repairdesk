@@ -108,9 +108,9 @@ public class PartRepository : IPartRepository
 
     public async Task<IReadOnlyList<ReabastecerSugestao>> ReabastecerSugestoesAsync(int days, CancellationToken ct = default)
     {
-        // Sprint 186+197d: consumo NET dos últimos N dias. Inclui Uso (qty negativa) E Devolução
-        // (qty positiva motivo Devolucao) — bug Bruno: peça consumida e devolvida contava como
-        // consumo. Net = Uso - Devolução. Só Parts activos.
+        // Sprint 208: consumo NET dos últimos N dias excluindo reparações soft-deleted.
+        // Bruno reportou: peça aparecia 2/30d mas só usou 1× — outra rep tinha sido apagada.
+        // Sprint 198 fixou Uso vs Devolução; este adiciona filtro IsDeleted=false.
         var since = DateTime.UtcNow.AddDays(-days);
         var consumo = await _db.PartMovimentos
             .AsNoTracking()
@@ -118,7 +118,12 @@ public class PartRepository : IPartRepository
                 && (m.Motivo == Core.Enums.PartMovimentoMotivo.UsoEmReparacao
                  || m.Motivo == Core.Enums.PartMovimentoMotivo.Devolucao)
                 && m.Part != null
-                && m.Part.Activo)
+                && m.Part.Activo
+                // Sprint 208: ignora movimentos ligados a reparações apagadas.
+                // Global filter de IsDeleted no AppDbContext aplica em Include/Navigation, mas
+                // aqui consultamos PartMovimentos directo sem Include — filtro explícito.
+                && (m.ReparacaoId == null
+                    || _db.Reparacoes.Any(r => r.Id == m.ReparacaoId && !r.IsDeleted)))
             .GroupBy(m => new { m.PartId, m.Part!.Sku, m.Part.Nome, m.Part.QtdStock, m.Part.CustoUnitarioCents })
             .Select(g => new
             {
