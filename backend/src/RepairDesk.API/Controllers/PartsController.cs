@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
@@ -110,5 +111,70 @@ public class PartsController : ControllerBase
         {
             return BadRequest(new { detail = $"PDF inválido ou corrompido: {ex.Message}" });
         }
+    }
+
+    /// <summary>
+    /// Sprint 214: lista PartMovimentos cuja Reparação está soft-deleted (IsDeleted=true).
+    /// São dados sujos — Sprint 208 já os exclui de cálculos mas ficam no histórico.
+    /// Bruno usa antes de chamar purge para confirmar o que vai ser apagado.
+    /// </summary>
+    [HttpGet("admin/orphan-movimentos")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ListOrphanMovimentos(
+        [FromServices] RepairDesk.DAL.Persistence.AppDbContext db,
+        CancellationToken ct)
+    {
+        var orphans = await db.PartMovimentos
+            .AsNoTracking()
+            .Where(m => m.ReparacaoId != null
+                && db.Reparacoes.IgnoreQueryFilters().Any(r => r.Id == m.ReparacaoId && r.IsDeleted))
+            .Include(m => m.Part)
+            .Select(m => new
+            {
+                m.Id,
+                m.Quantidade,
+                m.Motivo,
+                m.CreatedAt,
+                m.ReparacaoId,
+                m.Notas,
+                PartSku = m.Part != null ? m.Part.Sku : null,
+                PartNome = m.Part != null ? m.Part.Nome : null,
+            })
+            .OrderByDescending(m => m.CreatedAt)
+            .Take(200)
+            .ToListAsync(ct);
+
+        return Ok(new { count = orphans.Count, items = orphans });
+    }
+
+    /// <summary>
+    /// Sprint 214: hard-delete PartMovimentos cuja Reparação está soft-deleted.
+    /// Apenas Admin. Audita o número apagado.
+    /// </summary>
+    [HttpPost("admin/orphan-movimentos/purge")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> PurgeOrphanMovimentos(
+        [FromServices] RepairDesk.DAL.Persistence.AppDbContext db,
+        [FromServices] RepairDesk.Core.Abstractions.IAuditLogger audit,
+        CancellationToken ct)
+    {
+        var orphans = await db.PartMovimentos
+            .Where(m => m.ReparacaoId != null
+                && db.Reparacoes.IgnoreQueryFilters().Any(r => r.Id == m.ReparacaoId && r.IsDeleted))
+            .ToListAsync(ct);
+
+        if (orphans.Count == 0) return Ok(new { purged = 0 });
+
+        db.PartMovimentos.RemoveRange(orphans);
+        await db.SaveChangesAsync(ct);
+
+        await audit.LogAsync(
+            RepairDesk.Core.Enums.AuditAction.Delete,
+            nameof(RepairDesk.Core.Entities.PartMovimento),
+            null,
+            new { purged = orphans.Count, source = "admin_orphan_cleanup" },
+            ct: ct);
+
+        return Ok(new { purged = orphans.Count });
     }
 }
