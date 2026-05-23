@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using RepairDesk.API.Infrastructure;
+using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Parts;
@@ -114,6 +115,60 @@ public class PartsApiTests : IClassFixture<RepairDeskApiFactory>
 
         var crossGet = await clientA.GetAsync($"/api/parts/{inB.Id}");
         crossGet.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
+    /// Sprint 198 regression: Uso seguido de Devolução resulta em consumo NET 0.
+    /// Bruno bug 1ª vez: widget Reabastecer contava 3 quando real era 2 após estorno.
+    /// </summary>
+    [Fact]
+    public async Task ReabastecerSugestoes_UsoMaisDevolucao_NetZero_NaoConta()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var part = await CreatePartAsync(client, new CreatePartRequest(
+            "REG198-" + Guid.NewGuid().ToString("N")[..6], "Test net zero",
+            PartCategoria.Outro, null, null, null, QtdStock: 1, QtdMinima: 1,
+            CustoUnitarioCents: 100, Fornecedor: null, LocalArmazenamento: null, Notas: null));
+
+        var cliente = await CreateClienteAsync(client);
+        var reparacao = await CreateReparacaoAsync(client, cliente.Id);
+
+        // Uso (qty -1) seguido de Devolução (qty +1) na mesma reparação
+        await client.PostAsJsonAsync($"/api/parts/{part.Id}/movimento",
+            new CreatePartMovimentoRequest(-1, PartMovimentoMotivo.UsoEmReparacao, reparacao.Id, "Test uso"));
+        await client.PostAsJsonAsync($"/api/parts/{part.Id}/movimento",
+            new CreatePartMovimentoRequest(1, PartMovimentoMotivo.Devolucao, reparacao.Id, "Test devolução"));
+
+        var sugestoes = await client.GetFromJsonAsync<IReadOnlyList<ReabastecerSugestao>>("/api/parts/reabastecer-sugestoes?days=30");
+        sugestoes!.Should().NotContain(s => s.PartId == part.Id, "net=0 não deve aparecer no reabastecer");
+    }
+
+    /// <summary>
+    /// Sprint 208 regression: movimentos de reparações soft-deleted NÃO contam no consumo.
+    /// Bruno bug 2ª vez: peça aparecia 2/30d mas só usou 1× — outra reparação tinha sido apagada.
+    /// </summary>
+    [Fact]
+    public async Task ReabastecerSugestoes_ReparacaoApagada_NaoConta()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var part = await CreatePartAsync(client, new CreatePartRequest(
+            "REG208-" + Guid.NewGuid().ToString("N")[..6], "Test deleted rep",
+            PartCategoria.Outro, null, null, null, QtdStock: 1, QtdMinima: 1,
+            CustoUnitarioCents: 100, Fornecedor: null, LocalArmazenamento: null, Notas: null));
+
+        var cliente = await CreateClienteAsync(client);
+        var repApagada = await CreateReparacaoAsync(client, cliente.Id);
+
+        // Uso na reparação ANTES de apagar
+        await client.PostAsJsonAsync($"/api/parts/{part.Id}/movimento",
+            new CreatePartMovimentoRequest(-1, PartMovimentoMotivo.UsoEmReparacao, repApagada.Id, "Test uso pré-delete"));
+
+        // Apagar reparação (soft-delete)
+        var del = await client.DeleteAsync($"/api/reparacoes/{repApagada.Id}");
+        del.StatusCode.Should().BeOneOf(HttpStatusCode.NoContent, HttpStatusCode.OK);
+
+        var sugestoes = await client.GetFromJsonAsync<IReadOnlyList<ReabastecerSugestao>>("/api/parts/reabastecer-sugestoes?days=30");
+        sugestoes!.Should().NotContain(s => s.PartId == part.Id, "movimentos de reparações apagadas não devem contar");
     }
 
     private async Task<HttpClient> NewAuthedClient(string email)
