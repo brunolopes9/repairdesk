@@ -377,14 +377,15 @@ function ResultButtons({ value, onChange }: { value: Resultado; onChange: (r: Re
 }
 
 function ResultBadge({ resultado }: { resultado: Resultado }) {
-  const map: Record<Resultado, { label: string; cls: string }> = {
-    0: { label: 'N/T', cls: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
-    1: { label: '✓ OK', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' },
-    2: { label: '✕ Avaria', cls: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200' },
-    3: { label: '◐ Marginal', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' },
+  // Sprint 228: labels expandidas (braindump UX 2026-05-20: "N/T" era confuso).
+  const map: Record<Resultado, { label: string; title: string; cls: string }> = {
+    0: { label: 'Não testado', title: 'Ainda não foi testado nesta reparação', cls: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+    1: { label: '✓ OK', title: 'Funciona como esperado', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' },
+    2: { label: '✕ Avariado', title: 'Não funciona, precisa de reparação', cls: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200' },
+    3: { label: '◐ Marginal', title: 'Funciona com defeito ligeiro', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' },
   };
   const r = map[resultado];
-  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${r.cls}`}>{r.label}</span>;
+  return <span title={r.title} className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${r.cls}`}>{r.label}</span>;
 }
 
 function calcularScore(items: DiagnosticoExecucaoItem[]): number | null {
