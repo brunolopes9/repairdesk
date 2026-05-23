@@ -203,6 +203,73 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
+    /// Sprint 195: upload imagem ANTES de produto existir. Bruno precisa de poder
+    /// fazer upload no modal de criação. Devolve URLs optimizadas; frontend guarda
+    /// no form e ao Create envia URLs no payload. Sem productId = sem ProductImage
+    /// criado aqui — só optimiza e armazena no storage.
+    /// </summary>
+    [HttpPost("images/upload-pending")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    public async Task<IActionResult> UploadPendingImage(IFormFile image, CancellationToken ct)
+    {
+        if (image is null || image.Length == 0) return BadRequest(new { code = "no_image" });
+        var mime = string.IsNullOrWhiteSpace(image.ContentType) ? "image/jpeg" : image.ContentType.ToLowerInvariant();
+        if (mime is not "image/jpeg" and not "image/png" and not "image/webp" and not "image/gif")
+            return BadRequest(new { code = "unsupported_mime" });
+
+        var tenantId = User.FindFirst("tenant_id")?.Value ?? "shared";
+        using var ms = new MemoryStream();
+        await image.CopyToAsync(ms, ct);
+        var bytes = ms.ToArray();
+        var keyPrefix = $"products/{tenantId}/pending/{Guid.NewGuid():N}";
+        var optimized = await _imageOpt.OptimizeAsync(bytes, mime, keyPrefix, ct);
+        return Ok(new
+        {
+            url = optimized.OriginalUrl,
+            url480w = optimized.Url480w,
+            url1024w = optimized.Url1024w,
+            url2048w = optimized.Url2048w,
+            blurDataUrl = optimized.BlurDataUrl,
+            width = optimized.Width,
+            height = optimized.Height,
+        });
+    }
+
+    /// <summary>
+    /// Sprint 195: gera SEO ANTES de produto existir. Recebe campos no body + opcional
+    /// imageUrl (que vai buscar via HTTP) ou imagem inline. Devolve SEO sem persistir.
+    /// </summary>
+    [HttpPost("preview-seo")]
+    public async Task<IActionResult> PreviewSeo([FromBody] PreviewSeoRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Brand) || string.IsNullOrWhiteSpace(req.Model))
+            return BadRequest(new { code = "brand_model_required" });
+
+        byte[]? imageBytes = null;
+        string? imageMime = null;
+        if (!string.IsNullOrWhiteSpace(req.ImageUrl))
+        {
+            try
+            {
+                using var http = _httpFactory.CreateClient();
+                http.Timeout = TimeSpan.FromSeconds(20);
+                using var resp = await http.GetAsync(req.ImageUrl, ct);
+                if (resp.IsSuccessStatusCode)
+                {
+                    imageBytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                    imageMime = resp.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+                }
+            }
+            catch (Exception ex) { _logger.LogWarning(ex, "preview-seo: falhou fetch imagem {Url}", req.ImageUrl); }
+        }
+
+        var input = new ProductSeoInput(req.Brand, req.Model, req.Storage, req.Color, null, null);
+        var seo = await _seoGen.GenerateAsync(input, imageBytes, imageMime, ct);
+        if (seo is null) return BadRequest(new { code = "llm_unavailable" });
+        return Ok(new { seo.SeoTitle, seo.SeoDescription, Alt = seo.Alt, seo.DescriptionMarkdown });
+    }
+
+    /// <summary>
     /// Sprint 189: upload imagem com pipeline SEO automático (Contexto/60).
     /// Recebe ficheiro arbitrário (PNG/JPG até 10MB), produz 3 WebP (480/1024/2048) +
     /// blur LQIP + dimensões, faz upload R2 e cria ProductImage com todas as URLs.
@@ -344,6 +411,13 @@ public class ProductsController : ControllerBase
 }
 
 public sealed record ImportMolanoRequest(Guid FornecedorId, string Csv);
+/// <summary>Sprint 195: input para gerar SEO sem productId (durante criação).</summary>
+public sealed record PreviewSeoRequest(
+    string Brand,
+    string Model,
+    string? Storage,
+    string? Color,
+    string? ImageUrl);
 public sealed record MigrateShopRequest(IReadOnlyList<MigrateShopProductRequest> Products);
 public sealed record GenerateSeoResponse(
     string SeoTitle,
