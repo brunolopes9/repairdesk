@@ -183,7 +183,7 @@ export default function PortalCliente() {
         <ContactoLoja loja={data.loja} mensagemBase={`Olá! Sou ${data.clientePrimeiroNome}, queria saber novidades sobre o ${data.equipamentoPublico}.`} />
 
         <footer className="mt-10 space-y-1 text-center text-[11px] text-zinc-400">
-          <div>Gerado pelo RepairDesk · LopesTech</div>
+          <div>Gerado pelo Reparo · LopesTech</div>
           <div className="flex justify-center gap-3">
             <a href="/privacidade" className="hover:text-zinc-600 dark:hover:text-zinc-300">Privacidade</a>
             <span aria-hidden>·</span>

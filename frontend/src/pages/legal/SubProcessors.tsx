@@ -67,7 +67,7 @@ export default function SubProcessors() {
     <LegalLayout title="Sub-processadores" lastUpdated="22 Maio 2026">
       <p>
         Esta página lista todos os terceiros que a LopesTech utiliza para processar Dados Pessoais
-        em nome dos seus Clientes (tenants RepairDesk). É actualizada com 30 dias de antecedência
+        em nome dos seus Clientes (tenants Reparo). É actualizada com 30 dias de antecedência
         sempre que adicionarmos novo sub-processador.
       </p>
 

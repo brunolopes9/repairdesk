@@ -47,7 +47,7 @@ export default function Login() {
           <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-600 text-white shadow-sm">
             <Wrench size={22} strokeWidth={2} />
           </span>
-          <div className="text-lg font-semibold tracking-tight">RepairDesk</div>
+          <div className="text-lg font-semibold tracking-tight">Reparo</div>
           <p className="text-xs text-zinc-500">Gestão de oficinas, simples e profissional.</p>
         </div>
 
@@ -120,7 +120,7 @@ export default function Login() {
         </form>
 
         <div className="mt-6 space-y-1 text-center text-[11px] text-zinc-400">
-          <div>© {new Date().getFullYear()} LopesTech · RepairDesk</div>
+          <div>© {new Date().getFullYear()} LopesTech · Reparo</div>
           <div className="flex justify-center gap-3">
             <a href="/privacidade" className="hover:text-zinc-600 dark:hover:text-zinc-300">Privacidade</a>
             <span aria-hidden>·</span>

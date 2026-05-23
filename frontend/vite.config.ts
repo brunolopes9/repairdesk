@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons.svg'],
       manifest: {
-        name: 'RepairDesk · LopesTech',
-        short_name: 'RepairDesk',
+        name: 'Reparo · LopesTech',
+        short_name: 'Reparo',
         description: 'Gestão de oficinas de reparação — clientes, reparações, stock, faturação.',
         start_url: '/?source=pwa',
         scope: '/',

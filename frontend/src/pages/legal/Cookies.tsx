@@ -4,7 +4,7 @@ export default function Cookies() {
   return (
     <LegalLayout title="Política de Cookies" lastUpdated="2026-05-17">
       <p>
-        Esta política explica como a LopesTech usa cookies e tecnologias semelhantes no site e no RepairDesk.
+        Esta política explica como a LopesTech usa cookies e tecnologias semelhantes no site e no Reparo.
       </p>
 
       <Section title="1. O que são cookies">

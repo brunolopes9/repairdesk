@@ -826,7 +826,7 @@ export default function Produtos() {
       <Modal open={migrateOpen} title="Migrar produtos shop (one-off)" onClose={() => setMigrateOpen(false)}>
         <div className="space-y-4">
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-            <p><strong>Migração única:</strong> traz produtos que existiam só na loja online (antes do single-source-of-truth, Sprints 151-154) para o RepairDesk.</p>
+            <p><strong>Migração única:</strong> traz produtos que existiam só na loja online (antes do single-source-of-truth, Sprints 151-154) para o Reparo.</p>
             <ul className="mt-1 list-inside list-disc space-y-0.5">
               <li>Outro Claude exportou via <code>npm run db:export-shop-only</code> em <code>ecommerce/shop-only-products.json</code></li>
               <li>Upsert por SKU — re-correr não duplica (skip existentes)</li>

@@ -230,7 +230,7 @@ public static class OrcamentoPdfRenderer
             });
             col.Item().PaddingTop(2).AlignCenter().Text(text =>
             {
-                text.Span($"{o.Emissor.Nome} · Gerado pelo RepairDesk").FontSize(7).FontColor(Colors.Grey.Lighten1);
+                text.Span($"{o.Emissor.Nome} · Gerado pelo Reparo").FontSize(7).FontColor(Colors.Grey.Lighten1);
             });
         });
     }

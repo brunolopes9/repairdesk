@@ -513,7 +513,7 @@ function FaturacaoSection() {
     onSuccess: (result) => {
       // Abre Moloni numa nova tab e mostra modal para o user colar o URL final.
       // (Necessario porque o callback Moloni vai para o URL configurado — ex: lopestech.pt —
-      // e nao para o RepairDesk localhost.)
+      // e nao para o Reparo localhost.)
       window.open(result.authorizationUrl, '_blank', 'noopener,noreferrer');
       setPasteUrl('');
       setShowPasteModal(true);
@@ -602,7 +602,7 @@ function FaturacaoSection() {
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950">
           <p className="font-medium">InvoiceXpress - provider certificado AT</p>
           <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-            Usa a tua conta InvoiceXpress existente. Preenche Account Name, API key e serie por defeito; o RepairDesk cria
+            Usa a tua conta InvoiceXpress existente. Preenche Account Name, API key e serie por defeito; o Reparo cria
             faturas, faturas simplificadas e notas de credito pela API.
           </p>
         </div>
@@ -614,7 +614,7 @@ function FaturacaoSection() {
         <p className="font-medium">Moloni — certificação AT Nº 2860</p>
         <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
           A faturação fiscal é emitida pela tua conta Moloni Flex (ou superior, com API). Configura uma vez,
-          o RepairDesk gere os tokens automaticamente — não precisas de copiar ou renovar nada.
+          o Reparo gere os tokens automaticamente — não precisas de copiar ou renovar nada.
         </p>
       </div>
 
@@ -714,7 +714,7 @@ function FaturacaoSection() {
         <div>
           <h3 className="text-sm font-semibold">2. Ligar conta Moloni</h3>
           <p className="text-xs text-zinc-500">
-            Vamos abrir o login Moloni numa nova janela. Tu autorizas — o RepairDesk nunca vê a tua password.
+            Vamos abrir o login Moloni numa nova janela. Tu autorizas — o Reparo nunca vê a tua password.
           </p>
         </div>
 
@@ -1128,7 +1128,7 @@ function FaturacaoSection() {
 
             <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-[11px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
               <strong>Como copiar:</strong> selecciona a URL completa da barra do browser (Ctrl+L → Ctrl+C) e cola aqui (Ctrl+V).
-              O RepairDesk extrai automaticamente o <code>code</code> e o <code>state</code>.
+              O Reparo extrai automaticamente o <code>code</code> e o <code>state</code>.
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
@@ -1193,7 +1193,7 @@ function ConnectMoloniModal({
         <h2 className="text-base font-semibold">Ligar conta Moloni</h2>
         <p className="mt-1 text-xs text-zinc-500">
           Credenciais usadas <strong>uma única vez</strong> para obter tokens OAuth2. A password
-          NUNCA é guardada no RepairDesk — só os tokens (encriptados, renovados automaticamente).
+          NUNCA é guardada no Reparo — só os tokens (encriptados, renovados automaticamente).
         </p>
 
         <div className="mt-4 space-y-3">
@@ -1224,8 +1224,8 @@ function ConnectMoloniModal({
 
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
           <strong>Segurança:</strong> usa sempre HTTPS. A password viaja apenas do teu browser para o
-          backend RepairDesk → Moloni; nada é armazenado. Se preferires, cria um subutilizador Moloni
-          dedicado ao RepairDesk com permissões mínimas.
+          backend Reparo → Moloni; nada é armazenado. Se preferires, cria um subutilizador Moloni
+          dedicado ao Reparo com permissões mínimas.
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
