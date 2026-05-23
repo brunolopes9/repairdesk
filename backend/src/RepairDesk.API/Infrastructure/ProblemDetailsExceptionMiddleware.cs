@@ -64,7 +64,8 @@ public class ProblemDetailsExceptionMiddleware
             Status = status,
             Title = code,
             Detail = detail,
-            Type = $"https://repairdesk.app/errors/{code}",
+            // Sprint 226: URN canónico sem depender de DNS — após rebrand para Mender.
+            Type = $"urn:mender:errors:{code}",
             Instance = ctx.Request.Path
         };
         if (errors is not null) problem.Extensions["errors"] = errors;
