@@ -48,6 +48,16 @@ public sealed record ExternalProductDto(
     string GradingCanonical,
     /// <summary>Sprint 146: label PT user-friendly ("Como novo", "Excelente", etc).</summary>
     string GradingLabel,
+    /// <summary>Sprint 197: 2D classification — origem (new/used/refurbished). Schema.org itemCondition compatible.</summary>
+    string Origin,
+    /// <summary>Sprint 197: origem PT label ("Novo", "Usado original", "Recondicionado").</summary>
+    string OriginLabel,
+    /// <summary>Sprint 197: grade canonical (sealed/A++/A+/A/B+/B/C+/C).</summary>
+    string Grade,
+    /// <summary>Sprint 197: grade PT label ("A++ · Como novo", etc).</summary>
+    string GradeLabel,
+    /// <summary>Sprint 197: label combinado ("Novo (selado)", "Usado original A++", "Recondicionado B").</summary>
+    string ConditionCombined,
     string SupplyType,
     int PriceCents,
     int StockQuantity,
@@ -310,6 +320,12 @@ public class ExternalCheckoutService : IExternalCheckoutService
         Grading: p.Grading.ToString(),
         GradingCanonical: RepairDesk.Services.Products.ProductGradingMapper.ToCanonical(p.Grading),
         GradingLabel: RepairDesk.Services.Products.ProductGradingMapper.ToLabelPt(p.Grading),
+        // Sprint 197: 2D origin+grade — loja deve usar isto em vez do grading legacy.
+        Origin: RepairDesk.Services.Products.ProductGradingMapper.OriginCanonical(p.Origin),
+        OriginLabel: RepairDesk.Services.Products.ProductGradingMapper.OriginLabelPt(p.Origin),
+        Grade: RepairDesk.Services.Products.ProductGradingMapper.GradeCanonical(p.Grade),
+        GradeLabel: RepairDesk.Services.Products.ProductGradingMapper.GradeLabelPt(p.Grade),
+        ConditionCombined: RepairDesk.Services.Products.ProductGradingMapper.ComposedLabelPt(p.Origin, p.Grade),
         SupplyType: p.SupplyType.ToString(),
         PriceCents: p.PriceCents, StockQuantity: p.StockQuantity,
         StockDisplayMode: p.SupplyType == ProductSupplyType.Dropship ? "on-demand" : "exact",
