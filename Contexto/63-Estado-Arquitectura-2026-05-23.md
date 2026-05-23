@@ -299,6 +299,19 @@ Após este documento ser escrito, mais 8 entregas foram integradas no mesmo dia.
      `Uso+Devolução = net 0` e `Reparação apagada = não conta`.
 212. **Fix React key warning Layout** — Codex Task E adicionou item dropdown sem
      campo `to` (só `children`). Fix: `key={item.to ?? item.label}`.
+213. **Doc 63 addendum 2** (este ficheiro com Sprints 207-212).
+214. **Endpoint admin orphan-movimentos** — `GET/POST /api/parts/admin/orphan-movimentos[/purge]`.
+     Hard-delete dos PartMovimentos cuja Reparação está soft-deleted. Apenas Admin.
+     Audit log incluído.
+215. **UI button "🧹 Limpar órfãos"** em `/stock` header. Chama GET para contar,
+     window.confirm, depois POST purge. Toast com count purged. Backend rejeita 403
+     se non-admin.
+216. **Regression test Sprint 214** — verifica purge apaga movimentos de reparações
+     soft-deleted. 263 tests passing.
+217. **Zero warnings backend** — limpou 3 CS8604 (MoloniClient content null,
+     SupplierInvoiceImportService rawText !, ReabastecerSugestao Sku default).
+218. **Zero issues frontend** — ESLint: PwaStatus removed dead placeholder Wifi import;
+     Iva.tsx useMemo wrap `docs` para estabilizar deps.
 
 ### Sprint 206 — Integração Codex Tasks A/B/C/D
 4 tasks paralelas executadas pelo Codex:
@@ -332,9 +345,11 @@ Após este documento ser escrito, mais 8 entregas foram integradas no mesmo dia.
 
 ## Metricas
 
-- Git log verificado até Sprint 212 em 2026-05-23 (noite).
-- Aproximadamente 344 entregas/sprints curtos contabilizados no trabalho interno.
-- **262 testes passing** (baseline 257 + 3 Codex Dashboard + 2 regression reab).
+- Git log verificado até Sprint 218 em 2026-05-23 (noite tarde).
+- Aproximadamente 350 entregas/sprints curtos contabilizados no trabalho interno.
+- **263 testes passing** (baseline 257 + 3 Codex Dashboard + 2 regression reab + 1 purge).
+- Backend build: 0 warnings, 0 errors.
+- Frontend ESLint + TypeScript: 0 issues.
 - Backend build OK; frontend TS limpo; suite verde.
 - Zero clientes em producao.
 - Estado comercial: early, ainda sem receita SaaS.
