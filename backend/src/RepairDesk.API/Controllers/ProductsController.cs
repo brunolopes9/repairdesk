@@ -80,6 +80,7 @@ public class ProductsController : ControllerBase
     public async Task<IActionResult> DetectCsvColumns(
         [FromBody] DetectCsvColumnsRequest req,
         [FromServices] RepairDesk.Services.Products.ICsvColumnDetector detector,
+        [FromServices] RepairDesk.Core.Abstractions.IFornecedorRepository fornecedores,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(req.Csv))
@@ -92,11 +93,52 @@ public class ProductsController : ControllerBase
         var header = rows[0].Select(h => h.Trim()).ToArray();
         var samples = rows.Skip(1).Take(3).ToList();
 
+        // Sprint 209: auto-skip Claude se Fornecedor já tem mapping guardado.
+        // Poupa ~0.05¢ + 2-3s por upload de fornecedor recorrente (Molano, Tudo4Mobile, etc).
+        if (req.FornecedorId is Guid fId && fId != Guid.Empty)
+        {
+            var fornecedor = await fornecedores.FindByIdAsync(fId, ct);
+            if (fornecedor?.CsvColumnMappingJson is { Length: > 0 } cached)
+            {
+                try
+                {
+                    var savedMapping = System.Text.Json.JsonSerializer.Deserialize<RepairDesk.Services.Products.CsvImportMapping>(cached);
+                    if (savedMapping is not null)
+                    {
+                        return Ok(new
+                        {
+                            detected = true,
+                            mapping = new
+                            {
+                                sku = savedMapping.Sku,
+                                brand = savedMapping.Brand,
+                                model = savedMapping.Model,
+                                product = savedMapping.Product,
+                                storage = savedMapping.Storage,
+                                color = savedMapping.Color,
+                                grading = savedMapping.Grading,
+                                price = savedMapping.Price,
+                                stock = savedMapping.Stock,
+                                cost = savedMapping.Cost,
+                                images = savedMapping.Images,
+                                confidence = "cached",
+                                notes = $"Mapping guardado para {fornecedor.Name}. Não chamei Claude.",
+                            },
+                            header,
+                            samplesShown = samples.Count,
+                            source = "cache",
+                        });
+                    }
+                }
+                catch { /* JSON inválido → fallback Claude */ }
+            }
+        }
+
         var mapping = await detector.DetectAsync(header, samples, ct);
         if (mapping is null)
-            return Ok(new { detected = false, reason = "LLM indisponível ou quota esgotada — completa o mapping manualmente.", header });
+            return Ok(new { detected = false, reason = "LLM indisponível ou quota esgotada — completa o mapping manualmente.", header, source = "llm-unavailable" });
 
-        return Ok(new { detected = true, mapping, header, samplesShown = samples.Count });
+        return Ok(new { detected = true, mapping, header, samplesShown = samples.Count, source = "claude" });
     }
 
     /// <summary>
@@ -459,7 +501,8 @@ public class ProductsController : ControllerBase
 public sealed record ImportMolanoRequest(Guid FornecedorId, string Csv);
 
 /// <summary>Sprint 203: request para detectar colunas CSV via Claude.</summary>
-public sealed record DetectCsvColumnsRequest(string Csv);
+/// <summary>Sprint 209: opcional FornecedorId — se Fornecedor já tem mapping cached, skip Claude.</summary>
+public sealed record DetectCsvColumnsRequest(string Csv, Guid? FornecedorId = null);
 
 /// <summary>Sprint 203: import com mapping específico (Bruno confirma após detecção Claude).</summary>
 public sealed record ImportCsvWithMappingRequest(
