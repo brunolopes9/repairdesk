@@ -5,15 +5,18 @@ namespace RepairDesk.API.HostedServices;
 public sealed class BackupHostedService : BackgroundService
 {
     private readonly IBackupService _backup;
+    private readonly IBackupFileSystem _files;
     private readonly TimeProvider _clock;
     private readonly ILogger<BackupHostedService> _logger;
 
     public BackupHostedService(
         IBackupService backup,
+        IBackupFileSystem files,
         TimeProvider clock,
         ILogger<BackupHostedService> logger)
     {
         _backup = backup;
+        _files = files;
         _clock = clock;
         _logger = logger;
     }
@@ -28,6 +31,26 @@ public sealed class BackupHostedService : BackgroundService
             "BackupHostedServiceStarted CronSchedule={CronSchedule} RetentionDays={RetentionDays}",
             options.CronSchedule,
             options.RetentionDays);
+
+        // Sprint 231: se nunca houve backup, correr 1 imediato em vez de esperar até 03:00.
+        // Evita health check spam 'No local backup found' por horas após primeiro deploy.
+        try
+        {
+            var existing = _files.ListLocalBackups(options.LocalPath);
+            if (existing.Count == 0)
+            {
+                _logger.LogInformation("BackupInitialRun: nenhum backup local — a executar agora");
+                await _backup.RunBackupAsync(BackupTrigger.Scheduled, stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "BackupInitialRunFailed");
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
