@@ -279,6 +279,27 @@ Após este documento ser escrito, mais 8 entregas foram integradas no mesmo dia.
 - Migration backfill: Grading legacy=OpenBox → IsOpenBox=true.
 - Checkbox visível só quando Origin=Used + Grade=A++.
 
+### Sprints 207-212 — addendum 2 (2026-05-23 noite)
+
+207. **Doc 63 actualização** (este ficheiro com Sprints 199-206).
+208. **Reabastecer filtra reparações apagadas** — bug Bruno: peça contava 2/30d porque
+     reparação #4 estava soft-deleted mas movimentos ainda contavam. Fix EF query
+     `m.ReparacaoId == null || EXISTS Reparacao !IsDeleted`.
+209. **Cache mapping CSV por Fornecedor** — Bruno faz upload Molano 2ª vez → skip Claude
+     (poupa ~0.05¢ + 2-3s). DetectCsvColumnsRequest aceita FornecedorId opcional;
+     se `CsvColumnMappingJson` cached, retorna directo. Response inclui `source:
+     'cache' | 'claude' | 'llm-unavailable'`.
+210. **Codex Task E — Dashboard novo** (1h16 Codex) + Sprint 209c frontend.
+     - Backend `DashboardKpiHojeService` + `GET /api/dashboard/kpis-hoje`
+     - Frontend Dashboard refactor: zonas Hoje + Esta semana + Alertas
+     - Sparklines via Recharts (já dep)
+     - Sidebar Relatórios → dropdown (IVA + Negócio)
+     - 3 testes RelatorioKpisHoje
+211. **Regression tests Sprint 198 + 208** — 2 tests defensivos no PartsApiTests:
+     `Uso+Devolução = net 0` e `Reparação apagada = não conta`.
+212. **Fix React key warning Layout** — Codex Task E adicionou item dropdown sem
+     campo `to` (só `children`). Fix: `key={item.to ?? item.label}`.
+
 ### Sprint 206 — Integração Codex Tasks A/B/C/D
 4 tasks paralelas executadas pelo Codex:
 
@@ -311,9 +332,9 @@ Após este documento ser escrito, mais 8 entregas foram integradas no mesmo dia.
 
 ## Metricas
 
-- Git log verificado ate Sprint 206 em 2026-05-23 (tarde).
-- Aproximadamente 338 entregas/sprints curtos contabilizados no trabalho interno.
-- **257 testes passing** (baseline 243 + 8 Sprint 206C + 5 Sprint 206B + 1 Sprint 206A).
+- Git log verificado até Sprint 212 em 2026-05-23 (noite).
+- Aproximadamente 344 entregas/sprints curtos contabilizados no trabalho interno.
+- **262 testes passing** (baseline 257 + 3 Codex Dashboard + 2 regression reab).
 - Backend build OK; frontend TS limpo; suite verde.
 - Zero clientes em producao.
 - Estado comercial: early, ainda sem receita SaaS.
