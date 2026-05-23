@@ -17,6 +17,14 @@ public interface IProductService
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     /// <summary>Sprint 153: importer CSV Molano. Upsert idempotente por (FornecedorId, DropshipSupplierSku).</summary>
     Task<ImportProductsResponse> ImportMolanoCsvAsync(string csv, Guid fornecedorId, CancellationToken ct = default);
+
+    /// <summary>Sprint 203: import CSV usando mapping específico (Bruno confirma após Claude).</summary>
+    Task<ImportProductsResponse> ImportCsvWithMappingAsync(
+        string csv,
+        Guid fornecedorId,
+        CsvImportMapping mapping,
+        bool saveMapping,
+        CancellationToken ct = default);
     /// <summary>
     /// Sprint 155: migra produtos shop-only (existiam só na loja antes do single-source-of-truth)
     /// para o RepairDesk. Upsert por SKU. Todos ficam MostrarLojaOnline=true.
@@ -54,6 +62,20 @@ public sealed record ImportProductsResponse(
     IReadOnlyList<ImportProductError> Errors);
 
 public sealed record ImportProductError(int Line, string Field, string Message, string? Sku);
+
+/// <summary>Sprint 203: mapping de colunas CSV → campos canónicos (Claude-detected ou manual).</summary>
+public sealed record CsvImportMapping(
+    string? Sku,
+    string? Brand,
+    string? Model,
+    string? Product,
+    string? Storage,
+    string? Color,
+    string? Grading,
+    string? Price,
+    string? Stock,
+    string? Cost,
+    string? Images);
 
 public sealed record ProductImageDto(Guid Id, string Url, string? Alt, int Ordem, bool IsCurated);
 
@@ -129,13 +151,15 @@ public class ProductService : IProductService
     private readonly ITenantContext _tenant;
     private readonly IAuditLogger _audit;
     private readonly IWebhookPublisher _webhooks;
+    private readonly IFornecedorRepository _fornecedores;
 
-    public ProductService(IProductRepository repo, ITenantContext tenant, IAuditLogger audit, IWebhookPublisher webhooks)
+    public ProductService(IProductRepository repo, ITenantContext tenant, IAuditLogger audit, IWebhookPublisher webhooks, IFornecedorRepository fornecedores)
     {
         _repo = repo;
         _tenant = tenant;
         _audit = audit;
         _webhooks = webhooks;
+        _fornecedores = fornecedores;
     }
 
     public async Task<PagedResult<ProductDto>> SearchAsync(string? search, string? brand, bool? lojaOnline, bool includeInactive, int page, int pageSize, CancellationToken ct = default)
@@ -478,6 +502,61 @@ public class ProductService : IProductService
     /// Header CSV aceite (case-insensitive):
     /// sku, brand, model, storage, color, grading, price, stock, images (comma-separated URLs)
     /// </summary>
+    /// <summary>
+    /// Sprint 203: import CSV genérico usando mapping explícito (Claude-detected ou Bruno-defined).
+    /// Substitui ImportMolanoCsvAsync para fornecedores novos. Se saveMapping=true, persiste
+    /// no Fornecedor.CsvColumnMappingJson para próximos uploads automáticos.
+    /// </summary>
+    public async Task<ImportProductsResponse> ImportCsvWithMappingAsync(
+        string csv,
+        Guid fornecedorId,
+        CsvImportMapping mapping,
+        bool saveMapping,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) throw new ValidationException("csv_vazio", "CSV vazio.");
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
+
+        var rows = RepairDesk.Common.Helpers.CsvParser.Parse(csv);
+        if (rows.Count < 2) throw new ValidationException("csv_sem_dados", "CSV precisa header + 1 linha.");
+
+        var header = rows[0].Select(h => h.Trim()).ToArray();
+        int Idx(string? col) => string.IsNullOrEmpty(col) ? -1
+            : Array.FindIndex(header, h => h.Equals(col, StringComparison.OrdinalIgnoreCase));
+
+        var iSku = Idx(mapping.Sku);
+        var iBrand = Idx(mapping.Brand);
+        var iModel = Idx(mapping.Model);
+        var iProduct = Idx(mapping.Product);
+        var iStorage = Idx(mapping.Storage);
+        var iColor = Idx(mapping.Color);
+        var iGrading = Idx(mapping.Grading);
+        var iPrice = Idx(mapping.Price);
+        var iStock = Idx(mapping.Stock);
+        var iCusto = Idx(mapping.Cost);
+        var iImages = Idx(mapping.Images);
+
+        if (iSku < 0 || iPrice < 0)
+            throw new ValidationException("mapping_invalido", "Mapping precisa SKU + Price.");
+        if (iBrand < 0 && iModel < 0 && iProduct < 0)
+            throw new ValidationException("mapping_invalido", "Mapping precisa Brand+Model OU Product.");
+
+        // Persist mapping se Bruno confirmou via saveMapping=true.
+        if (saveMapping)
+        {
+            var fornecedor = await _fornecedores.FindByIdAsync(fornecedorId, ct);
+            if (fornecedor is not null)
+            {
+                fornecedor.CsvColumnMappingJson = System.Text.Json.JsonSerializer.Serialize(mapping);
+                await _fornecedores.SaveAsync(ct);
+            }
+        }
+
+        return await ImportRowsAsync(rows, fornecedorId, iSku, iBrand, iModel, iProduct,
+            iStorage, iColor, iGrading, iPrice, iStock, iCusto, iImages, ct);
+    }
+
     public async Task<ImportProductsResponse> ImportMolanoCsvAsync(string csv, Guid fornecedorId, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(csv))
@@ -520,6 +599,23 @@ public class ProductService : IProductService
         if ((iBrand < 0 || iModel < 0) && iProduct < 0)
             throw new ValidationException("csv_falta_coluna",
                 "Precisa de Brand+Model separados OU coluna Product combinada. Header: " + string.Join(", ", header));
+
+        return await ImportRowsAsync(rows, fornecedorId, iSku, iBrand, iModel, iProduct,
+            iStorage, iColor, iGrading, iPrice, iStock, iCusto, iImages, ct);
+    }
+
+    /// <summary>Sprint 203: helper compartilhado entre ImportMolanoCsvAsync (Sprint 153/201)
+    /// e ImportCsvWithMappingAsync (universal). Recebe os índices já calculados.</summary>
+    private async Task<ImportProductsResponse> ImportRowsAsync(
+        IReadOnlyList<string[]> rows,
+        Guid fornecedorId,
+        int iSku, int iBrand, int iModel, int iProduct,
+        int iStorage, int iColor, int iGrading, int iPrice,
+        int iStock, int iCusto, int iImages,
+        CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
 
         var errors = new List<ImportProductError>();
         var created = 0;

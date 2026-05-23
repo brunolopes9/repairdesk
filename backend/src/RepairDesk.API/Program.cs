@@ -278,6 +278,8 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmQuotaService, RepairDesk.Services.Documents.LlmQuotaService>();
     // Sprint 166a: pacote SEO completo (title+description+alt+markdown) gerado por Claude.
     builder.Services.AddHttpClient<RepairDesk.Services.Products.IProductSeoGenerator, RepairDesk.Services.Products.AnthropicAltTextService>();
+    // Sprint 203: detector de mapeamento colunas CSV (universal importer com Claude).
+    builder.Services.AddHttpClient<RepairDesk.Services.Products.ICsvColumnDetector, RepairDesk.Services.Products.CsvColumnDetectionService>();
     // Sprint 188: Shop AI Bridge — assistant NL + image search via Anthropic central.
     builder.Services.AddHttpClient<RepairDesk.Services.Shop.IShopAiService, RepairDesk.Services.Shop.ShopAiService>();
     // Sprint 189: pipeline imagens SEO (resize WebP + blur LQIP) — usa IPhotoStorage para R2.

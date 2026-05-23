@@ -51,6 +51,16 @@ public class Fornecedor : BaseEntity, ITenantEntity
     /// Permite Bruno classificar uma vez e reduzir cliques nas próximas facturas.
     /// </summary>
     public DefaultImportAction DefaultImportAction { get; set; } = DefaultImportAction.Auto;
+
+    /// <summary>
+    /// Sprint 203: mapeamento aprendido de colunas CSV para campos canónicos.
+    /// JSON Object com chaves canónicas e valores = nome da coluna no CSV (case-insensitive).
+    /// Ex: { "sku":"SKU", "brand":"", "model":"Product", "price":"Price (EUR)", "stock":"Stock",
+    ///       "storage":"Storage", "color":"Colour", "grading":"Grade" }
+    /// Vazio brand="" quando o fornecedor não tem brand separado (parser infere de model).
+    /// NULL = não há mapping aprendido; sistema pede ao Claude para sugerir.
+    /// </summary>
+    public string? CsvColumnMappingJson { get; set; }
 }
 
 public enum DefaultImportAction

@@ -71,6 +71,46 @@ public class ProductsController : ControllerBase
         => _service.ImportMolanoCsvAsync(req.Csv, req.FornecedorId, ct);
 
     /// <summary>
+    /// Sprint 203: detecta mapeamento de colunas CSV via Claude. Bruno envia primeiras linhas
+    /// dum CSV novo (sem precisar de Molano-specific code) e Claude sugere o mapping. Bruno
+    /// confirma 1× no UI, mapping fica guardado no Fornecedor, próximos imports são automáticos.
+    /// Custo ~0.05¢ por análise.
+    /// </summary>
+    [HttpPost("csv/detect-columns")]
+    public async Task<IActionResult> DetectCsvColumns(
+        [FromBody] DetectCsvColumnsRequest req,
+        [FromServices] RepairDesk.Services.Products.ICsvColumnDetector detector,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Csv))
+            return BadRequest(new { code = "csv_empty" });
+
+        var rows = RepairDesk.Common.Helpers.CsvParser.Parse(req.Csv);
+        if (rows.Count < 2)
+            return BadRequest(new { code = "csv_too_short", detail = "CSV precisa header + pelo menos 1 linha." });
+
+        var header = rows[0].Select(h => h.Trim()).ToArray();
+        var samples = rows.Skip(1).Take(3).ToList();
+
+        var mapping = await detector.DetectAsync(header, samples, ct);
+        if (mapping is null)
+            return Ok(new { detected = false, reason = "LLM indisponível ou quota esgotada — completa o mapping manualmente.", header });
+
+        return Ok(new { detected = true, mapping, header, samplesShown = samples.Count });
+    }
+
+    /// <summary>
+    /// Sprint 203: importar CSV usando mapping (do Fornecedor.CsvColumnMappingJson aprendido,
+    /// ou enviado no request após Bruno confirmar). Se saveMapping=true e fornecedorId existe,
+    /// guarda mapping no Fornecedor para próximos uploads automáticos.
+    /// </summary>
+    [HttpPost("csv/import-with-mapping")]
+    public Task<ImportProductsResponse> ImportCsvWithMapping(
+        [FromBody] ImportCsvWithMappingRequest req,
+        CancellationToken ct)
+        => _service.ImportCsvWithMappingAsync(req.Csv, req.FornecedorId, req.Mapping, req.SaveMapping, ct);
+
+    /// <summary>
     /// Sprint 155: migração one-off de produtos shop-only (existiam só na loja antes do
     /// single-source-of-truth). Outro Claude gera o JSON via npm run db:export-shop-only.
     /// Upsert por SKU — re-correr é seguro (skip existentes).
@@ -417,6 +457,16 @@ public class ProductsController : ControllerBase
 }
 
 public sealed record ImportMolanoRequest(Guid FornecedorId, string Csv);
+
+/// <summary>Sprint 203: request para detectar colunas CSV via Claude.</summary>
+public sealed record DetectCsvColumnsRequest(string Csv);
+
+/// <summary>Sprint 203: import com mapping específico (Bruno confirma após detecção Claude).</summary>
+public sealed record ImportCsvWithMappingRequest(
+    Guid FornecedorId,
+    string Csv,
+    RepairDesk.Services.Products.CsvImportMapping Mapping,
+    bool SaveMapping);
 /// <summary>Sprint 195: input para gerar SEO sem productId (durante criação).</summary>
 public sealed record PreviewSeoRequest(
     string Brand,
