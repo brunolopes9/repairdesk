@@ -292,7 +292,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             && (parsed?.Items is null || parsed.Items.Count == 0 || parsed.Confidence != ParseConfidence.High);
         if (llmShouldFire)
         {
-            var llm = await _llmParser.ParseAsync(rawText, ct);
+            var llm = await _llmParser.ParseAsync(rawText!, ct);
             if (llm is not null && llm.Items.Count > 0)
             {
                 _logger.LogInformation("LLM parser extraiu {Count} items confidence={Conf:F2}",

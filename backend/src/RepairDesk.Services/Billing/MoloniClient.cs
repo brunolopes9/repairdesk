@@ -801,7 +801,9 @@ public class MoloniClient : IMoloniClient
                 content?.Length > 800 ? content[..800] : content);
         }
 
-        if (allowRefresh && IsAuthFailure(response.StatusCode, content) && CanRefresh(settings))
+        // Sprint 217: content pode ser null aqui (ReadAsStringAsync devolveu null). Normaliza.
+        var safeContent = content ?? string.Empty;
+        if (allowRefresh && IsAuthFailure(response.StatusCode, safeContent) && CanRefresh(settings))
         {
             _logger.LogInformation("Moloni access token rejected; attempting refresh for tenant {TenantId}", settings.TenantId);
             await RefreshAccessTokenAsync(settings, ct);
@@ -810,7 +812,7 @@ public class MoloniClient : IMoloniClient
 
         if (!response.IsSuccessStatusCode)
         {
-            var msg = ExtractMoloniError(content);
+            var msg = ExtractMoloniError(safeContent);
             throw new BillingProviderException(
                 "moloni_http_error",
                 $"Moloni respondeu {(int)response.StatusCode}: {msg}");

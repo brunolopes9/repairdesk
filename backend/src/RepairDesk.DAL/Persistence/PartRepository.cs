@@ -142,7 +142,7 @@ public class PartRepository : IPartRepository
             .Where(c => c.Consumo > 0 && c.QtdStock <= c.Consumo)
             .Select(c => new ReabastecerSugestao(
                 c.PartId,
-                c.Sku,
+                c.Sku ?? string.Empty,
                 c.Nome,
                 c.QtdStock,
                 c.Consumo,
