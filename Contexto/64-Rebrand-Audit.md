@@ -167,3 +167,30 @@ Confirma disponibilidade antes de comprometer.
 ## Próximo passo
 
 Bruno: decide nome → eu executo Fase A num único sprint (~2h, suite verde mantida).
+
+---
+
+## Execução do rebrand (2026-05-23 noite)
+
+### Tentativa 1: "Reparo" (Sprint 222) → falhou
+- Find-and-replace executado em frontend + backend user-facing strings.
+- Bruno descobriu **`reparo.pt` já registado** por terceiro.
+
+### Decisão final: **Mender** (Sprint 223)
+- sed `Reparo → Mender` em todos os files do Sprint 222.
+- Domain a verificar: `mender.pt` / `mender.io` / `mendersuite.com`.
+
+### Resultado
+- Frontend: 23 ficheiros `.tsx`/`.ts`/`.html` actualizados.
+- Backend user-facing: 5 ficheiros (Program.cs swagger, VendaPdfService, GarantiaPdfRenderer, OrcamentoPdfRenderer, VendaService Moloni reasons).
+- Suite: 263 testes passing. Build: 0 warnings, 0 errors.
+- Mantidos intencionalmente (Sprint 64 estratégia):
+  - Namespaces `.NET` `RepairDesk.*` (~19k ocorrências) — invisíveis user.
+  - Webhook headers `X-RepairDesk-*` — breaking change para integradores.
+  - `DatabaseName`, `DataProtection ApplicationName` — partiam DB/tokens.
+  - `LopesTech` (entidade legal) intacto.
+
+### Pendentes
+1. Bruno: registar `mender.pt` ou alternativa + EUIPO trademark search.
+2. Quando domain pronto: actualizar Caddyfile + DNS.
+3. Sprint 224 actualizar docs `Contexto/` restantes.
