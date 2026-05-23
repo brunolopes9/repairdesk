@@ -32,14 +32,20 @@ public sealed class BackupHostedService : BackgroundService
             options.CronSchedule,
             options.RetentionDays);
 
-        // Sprint 231: se nunca houve backup, correr 1 imediato em vez de esperar até 03:00.
-        // Evita health check spam 'No local backup found' por horas após primeiro deploy.
+        // Sprint 231 (v2): correr backup imediato se nunca houve OU se mais recente > 24h.
+        // Evita health check spam '/api/health/backup 503' quando container fica off mais
+        // tempo que o intervalo (ex: weekend, dev local 2-3 dias).
         try
         {
             var existing = _files.ListLocalBackups(options.LocalPath);
-            if (existing.Count == 0)
+            var latest = existing.Count == 0 ? (DateTimeOffset?)null : existing.Max(b => b.Timestamp);
+            var needsBackup = latest is null
+                || (_clock.GetUtcNow() - latest.Value.ToUniversalTime()) > TimeSpan.FromHours(24);
+            if (needsBackup)
             {
-                _logger.LogInformation("BackupInitialRun: nenhum backup local — a executar agora");
+                _logger.LogInformation(
+                    "BackupCatchUpRun: latest={Latest} — a executar agora antes do próximo schedule",
+                    latest);
                 await _backup.RunBackupAsync(BackupTrigger.Scheduled, stoppingToken);
             }
         }
