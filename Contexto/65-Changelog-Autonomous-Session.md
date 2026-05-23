@@ -43,6 +43,22 @@ Bruno está a trabalhar na loja online em paralelo e pediu que eu continuasse a 
 
 ---
 
+### Sprint 231 — Fix logs: backup imediato no startup
+**Ficheiro:** `backend/src/RepairDesk.API/HostedServices/BackupHostedService.cs`
+- **Bug encontrado nos logs:** API spamava ERR a cada 20s "Latest local backup is older than 26 hours" (`/api/health/backup` retornava 503).
+- Causa: BackupHostedService só corre cron schedule "03:00". Se arrancar container ao meio-dia sem backups prévios, espera 15h até primeiro.
+- Fix: no startup, `ListLocalBackups`. Se Count==0, `RunBackupAsync` imediato. Próximas corridas seguem schedule normal.
+- Side benefit: novos tenants em fresh deploy têm backup imediato.
+- **Testar:** ver logs API depois de rebuild — não deve haver ERR repetido.
+
+### Sprint 232 — Integrar Codex Task F Fase 1
+**Ficheiro:** `Contexto/67-Customizacao-Audit.md` (148 linhas, criado pelo Codex)
+- Codex entregou audit completo: 38 áreas hardcoded identificadas + shortlist Fase 2 + arquitectura proposta (TenantPreferences sem dezenas de colunas).
+- **Bruno: lê o doc e decide quais features avançar para Fase 2.**
+- Branch codex/sprint-230 apagada após cherry-pick.
+
+---
+
 ## Próximas tarefas planeadas (vou fazer enquanto Bruno trabalha)
 
 - [ ] Editar cliente da reparação (consumidor final → cliente com NIF a meio do trabalho)
