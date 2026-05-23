@@ -641,13 +641,13 @@ function FaturacaoSection() {
             </label>
           </Field>
           {isMoloni && (
-          <Field label="Developer ID" hint="Identificador único da tua app na Moloni (ex: repairdesk-lopestech).">
+          <Field label="Developer ID" hint="Identificador único da tua app na Moloni (ex: mender-lopestech).">
             <input
               type="text"
               value={form.clientId ?? ''}
               onChange={(e) => update('clientId', e.target.value || null)}
               className={inputCls}
-              placeholder="repairdesk-lopestech"
+              placeholder="mender-lopestech"
               autoComplete="off"
             />
           </Field>

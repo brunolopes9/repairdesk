@@ -20,7 +20,7 @@ const subs: Sub[] = [
   },
   {
     name: 'Cloudflare, Inc.',
-    purpose: 'Storage de PDFs/imagens de facturas (R2) + CDN + Email Routing (forwarding faturas-{slug}@ingest.repairdesk.app).',
+    purpose: 'Storage de PDFs/imagens de facturas (R2) + CDN + Email Routing (forwarding faturas-{slug}@ingest.mender.pt).',
     dataCategories: 'Ficheiros (facturas, fotos, garantias), emails reencaminhados.',
     location: 'Global (zona EU disponível), Cláusulas Contratuais-Tipo',
     url: 'https://www.cloudflare.com/privacypolicy/',

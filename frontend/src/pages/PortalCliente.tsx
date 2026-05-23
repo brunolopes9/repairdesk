@@ -400,7 +400,9 @@ function OrcamentoCard({
 
 function ContactoLoja({ loja, mensagemBase }: { loja: PublicLoja; mensagemBase: string }) {
   const tel = loja.telefone?.replace(/\s/g, '') ?? '';
-  const wa = tel.startsWith('+') ? tel.slice(1) : tel;
+  // Sprint 227: normaliza para wa.me — remove '+' e prefixa 351 para números PT 9 dígitos sem indicativo.
+  const waDigits = tel.replace(/[^0-9]/g, '');
+  const wa = tel.startsWith('+') ? waDigits : (waDigits.length === 9 ? `351${waDigits}` : waDigits);
   return (
     <Card titulo="Precisas de algo?" icon={MessageCircle}>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">Fala directamente com a loja.</p>

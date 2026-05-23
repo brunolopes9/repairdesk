@@ -186,7 +186,7 @@ export default function Webhooks() {
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-zinc-500">URL (HTTPS)</span>
-            <input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} className={`${inputCls} font-mono text-xs`} placeholder="https://shop.example.com/api/repairdesk-events" />
+            <input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} className={`${inputCls} font-mono text-xs`} placeholder="https://shop.example.com/api/mender-events" />
           </label>
           <fieldset>
             <legend className="mb-2 text-xs font-medium text-zinc-500">Eventos subscritos</legend>

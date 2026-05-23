@@ -77,7 +77,7 @@ export default function ClienteDetalhe() {
     mutationFn: () => clientesApi.exportRgpd(id!),
     onSuccess: (blob) => {
       const nome = cliente.data?.nome ?? 'cliente';
-      downloadBlob(blob, `repairdesk-${safeFileName(nome)}-rgpd.json`);
+      downloadBlob(blob, `mender-${safeFileName(nome)}-rgpd.json`);
       toast.success('Exportação RGPD gerada', 'O JSON inclui cliente, reparações, trabalhos, fotos e auditoria.');
     },
     onError: (err) => toast.fromError(err, 'Não foi possível exportar os dados do cliente.'),

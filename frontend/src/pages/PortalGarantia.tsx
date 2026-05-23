@@ -201,12 +201,29 @@ export default function PortalGarantia() {
               <Mail size={14} strokeWidth={2} /> Reclamar por email
             </a>
             {data.lojaTelefone && (
-              <a
-                href={`tel:${data.lojaTelefone.replace(/\s/g, '')}`}
-                className="ml-2 inline-flex items-center gap-2 rounded-lg border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 dark:border-brand-700 dark:bg-zinc-900 dark:text-brand-300"
-              >
-                📞 {data.lojaTelefone}
-              </a>
+              <>
+                <a
+                  href={`tel:${data.lojaTelefone.replace(/\s/g, '')}`}
+                  className="ml-2 inline-flex items-center gap-2 rounded-lg border border-brand-300 bg-white px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 dark:border-brand-700 dark:bg-zinc-900 dark:text-brand-300"
+                >
+                  📞 {data.lojaTelefone}
+                </a>
+                {/* Sprint 227: deep-link WhatsApp — assume telefone PT começa 9 ou tem indicativo 351.
+                    wa.me normaliza, e a maioria dos lojistas tem WhatsApp Business no mesmo número. */}
+                <a
+                  href={(() => {
+                    const num = data.lojaTelefone.replace(/[^0-9]/g, '');
+                    const e164 = num.startsWith('351') ? num : (num.length === 9 ? `351${num}` : num);
+                    const subject = `Olá ${data.loja}, sobre a minha garantia ${data.slug}`;
+                    return `https://wa.me/${e164}?text=${encodeURIComponent(subject)}`;
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-2 inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                >
+                  💬 WhatsApp
+                </a>
+              </>
             )}
           </section>
         )}
