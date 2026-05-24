@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import App from './App.tsx';
 import { applyTheme, getStoredTheme } from './lib/theme';
+import { initSentry } from './lib/monitoring/sentry';
+
+// Sprint 250: Sentry primeiro para apanhar erros do bootstrap. No-op sem DSN.
+initSentry();
 
 // Aplica tema cedo para evitar flash
 applyTheme(getStoredTheme());
