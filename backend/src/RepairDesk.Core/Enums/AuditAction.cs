@@ -9,4 +9,7 @@ public enum AuditAction
     Login = 4,
     Export = 5,
     Restore = 6,
+    LoginFailed = 7,
+    Logout = 8,
+    UserDeactivated = 9,
 }

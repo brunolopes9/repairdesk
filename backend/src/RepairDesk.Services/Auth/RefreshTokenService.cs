@@ -22,12 +22,14 @@ public class RefreshTokenService : IRefreshTokenService
     public async Task<(string PlaintextToken, RefreshToken Stored)> IssueAsync(AppUser user, string? ip, CancellationToken ct = default)
     {
         var (plaintext, hash) = GenerateToken();
+        var now = _clock.GetUtcNow().UtcDateTime;
         var entity = new RefreshToken
         {
             UserId = user.Id,
             TenantId = user.TenantId,
             TokenHash = hash,
-            ExpiresAt = _clock.GetUtcNow().UtcDateTime.AddDays(_opt.RefreshTokenDays),
+            ExpiresAt = now.AddDays(_opt.RefreshTokenDays),
+            LastUsedAt = now,
             CreatedByIp = ip,
         };
         await _store.AddAsync(entity, ct);
@@ -40,13 +42,19 @@ public class RefreshTokenService : IRefreshTokenService
         if (string.IsNullOrWhiteSpace(plaintextToken)) return null;
         var hash = HashToken(plaintextToken);
         var token = await _store.FindByHashAsync(hash, ct);
-        return token?.IsActive == true ? token : null;
+        if (token?.IsActive != true) return null;
+
+        token.LastUsedAt = _clock.GetUtcNow().UtcDateTime;
+        await _store.SaveAsync(ct);
+        return token;
     }
 
     public async Task<(string PlaintextToken, RefreshToken Stored)> RotateAsync(RefreshToken existing, AppUser user, string? ip, CancellationToken ct = default)
     {
         var (plaintext, replacement) = await IssueAsync(user, ip, ct);
-        existing.RevokedAt = _clock.GetUtcNow().UtcDateTime;
+        var now = _clock.GetUtcNow().UtcDateTime;
+        existing.LastUsedAt = now;
+        existing.RevokedAt = now;
         existing.RevokedByIp = ip;
         existing.ReplacedByTokenId = replacement.Id;
         await _store.SaveAsync(ct);
@@ -60,6 +68,12 @@ public class RefreshTokenService : IRefreshTokenService
         token.RevokedByIp = ip;
         await _store.SaveAsync(ct);
     }
+
+    public Task<int> RevokeAllForUserAsync(Guid userId, string? ip, CancellationToken ct = default)
+        => _store.RevokeAllForUserAsync(userId, ip, ct);
+
+    public Task<int> RevokeIdleAsync(DateTime cutoffUtc, string? ip, CancellationToken ct = default)
+        => _store.RevokeIdleAsync(cutoffUtc, _clock.GetUtcNow().UtcDateTime, ip, ct);
 
     private static (string Plaintext, string Hash) GenerateToken()
     {

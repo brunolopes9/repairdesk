@@ -64,6 +64,7 @@ try
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.Configure<MetricsOptions>(builder.Configuration.GetSection(MetricsOptions.SectionName));
     builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
+    builder.Services.Configure<RefreshTokenCleanupOptions>(builder.Configuration.GetSection(RefreshTokenCleanupOptions.SectionName));
     builder.Services.Configure<AtNifLookupOptions>(builder.Configuration.GetSection(AtNifLookupOptions.SectionName));
     builder.Services.Configure<PushOptions>(builder.Configuration.GetSection(PushOptions.SectionName));
     builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
@@ -266,6 +267,8 @@ try
     builder.Services.AddHostedService<RepairDesk.API.Webhooks.GarantiaExpirationHostedService>();
     // Sprint 175: retention cleanup diário às 3h UTC.
     builder.Services.AddHostedService<RepairDesk.API.HostedServices.SupplierInvoiceRetentionHostedService>();
+    if (!builder.Environment.IsEnvironment("Testing"))
+        builder.Services.AddHostedService<RefreshTokenCleanupHostedService>();
 
     // External checkout (Sprint 73) — atómico para loja online / integrações
     builder.Services.AddScoped<RepairDesk.Services.External.IExternalCheckoutService, RepairDesk.Services.External.ExternalCheckoutService>();
@@ -336,15 +339,18 @@ try
         .AddCheck<PhotoStorageHealthCheck>("storage", tags: ["ready", "storage"])
         .AddCheck<BackupHealthCheck>("backup", tags: ["backup"]);
 
-    // Rate limiting (auth-strict: 5 login attempts per 15 min per IP). Disabled in Testing/E2E envs.
+    // Rate limiting (auth-strict: 5 login attempts per 15 min per IP). Auth is disabled in Testing/E2E;
+    // public portal remains active in tests so anti-enumeration has regression coverage.
     var isTesting = builder.Environment.IsEnvironment("Testing");
-    var disableRateLimits = isTesting || builder.Configuration.GetValue("E2E:Enabled", false);
+    var e2eEnabled = builder.Configuration.GetValue("E2E:Enabled", false);
+    var disableAuthRateLimits = isTesting || e2eEnabled;
+    var disablePublicPortalRateLimit = e2eEnabled;
     builder.Services.AddRateLimiter(opt =>
     {
         opt.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
         opt.AddPolicy("auth-strict", ctx =>
         {
-            if (disableRateLimits)
+            if (disableAuthRateLimits)
                 return RateLimitPartition.GetNoLimiter("auth-strict");
             var key = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
@@ -357,12 +363,12 @@ try
         });
         opt.AddPolicy("public-portal", ctx =>
         {
-            if (disableRateLimits)
+            if (disablePublicPortalRateLimit)
                 return RateLimitPartition.GetNoLimiter("public-portal");
             var key = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 30,
+                PermitLimit = 60,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
@@ -373,7 +379,7 @@ try
         // suficiente para impedir runaway loop de uma integração com bug.
         opt.AddPolicy("external-apikey", ctx =>
         {
-            if (disableRateLimits)
+            if (disableAuthRateLimits)
                 return RateLimitPartition.GetNoLimiter("external-apikey");
             // Particiona pelo claim service_api_key_id (preenchido pelo ApiKeyAuthHandler).
             // Sem chave válida, particiona por IP (defensa em profundidade — request rejeitado

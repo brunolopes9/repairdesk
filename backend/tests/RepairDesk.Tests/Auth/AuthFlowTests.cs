@@ -3,9 +3,11 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Entities;
+using RepairDesk.Core.Enums;
 using RepairDesk.DAL.Persistence;
 
 namespace RepairDesk.Tests.Auth;
@@ -53,6 +55,31 @@ public class AuthFlowTests : IClassFixture<RepairDeskApiFactory>
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         var body = await resp.Content.ReadFromJsonAsync<ErrorBody>();
         body!.Code.Should().BeOneOf("invalid_credentials", "locked_out");
+    }
+
+    [Fact]
+    public async Task Login_WithWrongPassword_WritesLoginFailedAuditEntry()
+    {
+        var email = $"audit-failed-{Guid.NewGuid():N}@test.local";
+        await SeedPasswordChangeUser(email, "Temp!Pass2026");
+        var client = NewClient(_factory);
+
+        var resp = await client.PostAsJsonAsync("/api/auth/login",
+            new LoginRequest(email, "Wrong!Pass2026"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entry = await db.AuditEntries
+            .IgnoreQueryFilters()
+            .Where(x => x.Action == AuditAction.LoginFailed && x.ChangesJson!.Contains(email))
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        entry.Should().NotBeNull();
+        entry!.TenantId.Should().Be(RepairDeskApiFactory.TenantId);
+        entry.ChangesJson.Should().Contain("invalid_credentials");
     }
 
     [Fact]
@@ -130,6 +157,29 @@ public class AuthFlowTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Logout_WritesAuditEntry()
+    {
+        var client = NewClient(_factory);
+        var auth = await Login(client);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        var logout = await client.PostAsync("/api/auth/logout", content: null);
+
+        logout.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entry = await db.AuditEntries
+            .IgnoreQueryFilters()
+            .Where(x => x.Action == AuditAction.Logout && x.AppUserId == auth.User.Id)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        entry.Should().NotBeNull();
+        entry!.TenantId.Should().Be(RepairDeskApiFactory.TenantId);
+    }
+
+    [Fact]
     public async Task ChangePassword_ClearsRequiredPasswordChangeFlag_AndAllowsNewPassword()
     {
         var email = $"seed-{Guid.NewGuid():N}@test.local";
@@ -157,6 +207,42 @@ public class AuthFlowTests : IClassFixture<RepairDeskApiFactory>
 
         var newLogin = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, newPassword));
         newLogin.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task ChangePassword_RevokesAllRefreshTokens_ForUser()
+    {
+        var email = $"seed-{Guid.NewGuid():N}@test.local";
+        const string oldPassword = "Temp!Pass2026";
+        const string newPassword = "New!Pass2026";
+        await SeedPasswordChangeUser(email, oldPassword);
+
+        var firstClient = NewClient(_factory);
+        var secondClient = NewClient(_factory);
+
+        var firstLogin = await firstClient.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, oldPassword));
+        firstLogin.StatusCode.Should().Be(HttpStatusCode.OK);
+        var firstAuth = (await firstLogin.Content.ReadFromJsonAsync<AuthResponse>())!;
+
+        var secondLogin = await secondClient.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, oldPassword));
+        secondLogin.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        firstClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", firstAuth.AccessToken);
+        var change = await firstClient.PostAsJsonAsync(
+            "/api/auth/change-password",
+            new ChangePasswordRequest(oldPassword, newPassword));
+
+        change.StatusCode.Should().Be(HttpStatusCode.OK);
+        change.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        cookies!.Should().Contain(c => c.Contains("rd_refresh=", StringComparison.OrdinalIgnoreCase)
+                                      && c.Contains("expires=", StringComparison.OrdinalIgnoreCase));
+
+        firstClient.DefaultRequestHeaders.Authorization = null;
+        var firstRefresh = await firstClient.PostAsync("/api/auth/refresh", content: null);
+        firstRefresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var secondRefresh = await secondClient.PostAsync("/api/auth/refresh", content: null);
+        secondRefresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     private static async Task<AuthResponse> Login(HttpClient client)

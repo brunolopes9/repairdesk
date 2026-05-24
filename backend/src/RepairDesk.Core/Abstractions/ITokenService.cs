@@ -14,4 +14,6 @@ public interface IRefreshTokenService
     Task<RefreshToken?> ValidateAsync(string plaintextToken, CancellationToken ct = default);
     Task<(string PlaintextToken, RefreshToken Stored)> RotateAsync(RefreshToken existing, AppUser user, string? ip, CancellationToken ct = default);
     Task RevokeAsync(RefreshToken token, string? ip, CancellationToken ct = default);
+    Task<int> RevokeAllForUserAsync(Guid userId, string? ip, CancellationToken ct = default);
+    Task<int> RevokeIdleAsync(DateTime cutoffUtc, string? ip, CancellationToken ct = default);
 }

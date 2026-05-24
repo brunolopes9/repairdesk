@@ -19,6 +19,7 @@ public class AuthController : ControllerBase
     private readonly ITokenService _tokens;
     private readonly IRefreshTokenService _refresh;
     private readonly IAuditLogger _audit;
+    private readonly IHostEnvironment _env;
     private readonly ILogger<AuthController> _log;
 
     public AuthController(
@@ -26,12 +27,14 @@ public class AuthController : ControllerBase
         ITokenService tokens,
         IRefreshTokenService refresh,
         IAuditLogger audit,
+        IHostEnvironment env,
         ILogger<AuthController> log)
     {
         _users = users;
         _tokens = tokens;
         _refresh = refresh;
         _audit = audit;
+        _env = env;
         _log = log;
     }
 
@@ -42,20 +45,34 @@ public class AuthController : ControllerBase
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
 
         var user = await _users.FindByEmailAsync(req.Email);
-        if (user is null || !user.IsActive)
+        if (user is null)
+        {
+            await LogFailedLoginAsync(req, null, "invalid_credentials", ip, ct);
             return Unauthorized(new { code = "invalid_credentials" });
+        }
+
+        if (!user.IsActive)
+        {
+            await LogFailedLoginAsync(req, user, "user_inactive", ip, ct);
+            return Unauthorized(new { code = "invalid_credentials" });
+        }
 
         if (await _users.IsLockedOutAsync(user))
+        {
+            await LogFailedLoginAsync(req, user, "locked_out", ip, ct);
             return Unauthorized(new { code = "locked_out" });
+        }
 
         var passwordOk = await _users.CheckPasswordAsync(user, req.Password);
         if (!passwordOk)
         {
             await _users.AccessFailedAsync(user);
             _log.LogWarning("Failed login for {Email} from {Ip}", req.Email, ip);
+            var code = await _users.IsLockedOutAsync(user) ? "locked_out" : "invalid_credentials";
+            await LogFailedLoginAsync(req, user, code, ip, ct);
             return Unauthorized(new
             {
-                code = await _users.IsLockedOutAsync(user) ? "locked_out" : "invalid_credentials"
+                code
             });
         }
 
@@ -95,7 +112,11 @@ public class AuthController : ControllerBase
             if (token is not null)
                 await _refresh.RevokeAsync(token, HttpContext.Connection.RemoteIpAddress?.ToString(), ct);
         }
-        Response.Cookies.Delete(RefreshCookieName);
+        var user = await _users.GetUserAsync(User);
+        if (user is not null)
+            await _audit.LogAsync(AuditAction.Logout, "AppUser", user.Id, new { email = user.Email }, user.TenantId, user.Id, ct);
+
+        DeleteRefreshCookie();
         return NoContent();
     }
 
@@ -118,7 +139,8 @@ public class AuthController : ControllerBase
 
         user.RequireChangePasswordOnNextLogin = false;
         user.LastLoginAt = DateTime.UtcNow;
-        user.LastLoginIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        user.LastLoginIp = ip;
         await _users.UpdateAsync(user);
         await _audit.LogAsync(
             AuditAction.Update,
@@ -129,7 +151,9 @@ public class AuthController : ControllerBase
             user.Id,
             ct);
 
-        return await IssueTokensAsync(user, user.LastLoginIp, ct);
+        await _refresh.RevokeAllForUserAsync(user.Id, ip, ct);
+        DeleteRefreshCookie();
+        return Ok(await BuildAccessResponse(user));
     }
 
     [HttpGet("me")]
@@ -148,24 +172,42 @@ public class AuthController : ControllerBase
         return Ok(await BuildResponse(user, plaintext));
     }
 
+    private Task LogFailedLoginAsync(LoginRequest req, AppUser? user, string reason, string? ip, CancellationToken ct)
+        => _audit.LogAsync(
+            AuditAction.LoginFailed,
+            "Auth",
+            user?.Id,
+            new { email = req.Email, ip, reason },
+            user?.TenantId ?? Guid.Empty,
+            user?.Id,
+            ct);
+
     private async Task<AuthResponse> BuildResponse(AppUser user, string refreshPlaintext)
+    {
+        Response.Cookies.Append(RefreshCookieName, refreshPlaintext, BuildRefreshCookieOptions(DateTimeOffset.UtcNow.AddDays(7)));
+        return await BuildAccessResponse(user);
+    }
+
+    private async Task<AuthResponse> BuildAccessResponse(AppUser user)
     {
         var roles = await _users.GetRolesAsync(user);
         var access = _tokens.IssueAccessToken(user, roles);
 
-        Response.Cookies.Append(RefreshCookieName, refreshPlaintext, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
-            Path = "/api/auth",
-            Expires = DateTimeOffset.UtcNow.AddDays(7)
-        });
+        return new AuthResponse(access, _tokens.AccessTokenExpiry, ToUserInfo(user, roles));
+    }
 
-        return new AuthResponse(
-            access,
-            _tokens.AccessTokenExpiry,
-            ToUserInfo(user, roles));
+    private CookieOptions BuildRefreshCookieOptions(DateTimeOffset? expires = null) => new()
+    {
+        HttpOnly = true,
+        Secure = string.Equals(Request.Scheme, "https", StringComparison.OrdinalIgnoreCase),
+        SameSite = _env.IsProduction() ? SameSiteMode.Strict : SameSiteMode.Lax,
+        Path = "/api/auth",
+        Expires = expires
+    };
+
+    private void DeleteRefreshCookie()
+    {
+        Response.Cookies.Delete(RefreshCookieName, BuildRefreshCookieOptions());
     }
 
     private static UserInfo ToUserInfo(AppUser user, IEnumerable<string> roles)

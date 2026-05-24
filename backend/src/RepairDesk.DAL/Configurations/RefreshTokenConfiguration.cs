@@ -18,6 +18,7 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         builder.Property(x => x.RevokedByIp).HasMaxLength(64);
 
         builder.HasIndex(x => new { x.UserId, x.RevokedAt });
+        builder.HasIndex(x => new { x.RevokedAt, x.LastUsedAt });
         builder.HasIndex(x => x.TenantId);
     }
 }
