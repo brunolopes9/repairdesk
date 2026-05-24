@@ -141,7 +141,7 @@ crontab -e
 0 5 1 * * cd /opt/repairdesk && pwsh scripts/Restore-DpKeys.ps1 --validate-only > /var/log/dp-keys-drill.log 2>&1
 ```
 
-(Restore-DpKeys.ps1 ainda não tem `--validate-only` — adicionar em sprint futura. Por agora, drill manual trimestral.)
+(`-ValidateOnly` implementado Sprint 254b — decrypt + verifica tar válido SEM extrair. Encontra o último backup R2 automaticamente.)
 
 ### 3.2 Better Stack Uptime (free tier)
 - [ ] Criar conta https://betterstack.com/uptime

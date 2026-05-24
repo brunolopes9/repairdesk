@@ -19,9 +19,14 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$R2Key,
+    [Parameter(Mandatory=$false)][string]$R2Key,
     [string]$DestPath = "./data/dp-keys",
-    [string]$TempFile = ""
+    [string]$TempFile = "",
+    # Sprint 254 (Doc 78 cron mensal): valida apenas que o backup é recuperável
+    # SEM tocar em ./data/dp-keys. Modo drill — usado para o cron mensal.
+    # Quando -ValidateOnly: pega no último .tar.aes do R2 (mais recente por LastModified),
+    # decrypt, confirma tar válido, e sai 0. Sem -ValidateOnly: precisa de -R2Key.
+    [switch]$ValidateOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,6 +51,35 @@ if ($DPKEYS_BACKUP_PASSWORD.Length -lt 16) {
 
 if (-not $TempFile) {
     $TempFile = Join-Path ([System.IO.Path]::GetTempPath()) "dp-keys-restore-$([Guid]::NewGuid().ToString('N')).tar.aes"
+}
+
+# Validate mode: encontra o último .tar.aes automaticamente
+if ($ValidateOnly -and -not $R2Key) {
+    Write-Host "=== DP keys backup VALIDATION drill ===" -ForegroundColor Yellow
+    Write-Step "Listar últimos backups dp-keys em R2..."
+    $awsCmd = Get-Command aws -ErrorAction SilentlyContinue
+    if (-not $awsCmd) { Write-Fail "AWS CLI obrigatório"; exit 2 }
+    $env:AWS_ACCESS_KEY_ID = $env:R2_ACCESS_KEY_ID
+    $env:AWS_SECRET_ACCESS_KEY = $env:R2_SECRET_ACCESS_KEY
+    $endpoint = "https://$($env:R2_ACCOUNT_ID).r2.cloudflarestorage.com"
+    $list = aws s3api list-objects-v2 `
+        --bucket $env:R2_BUCKET `
+        --prefix "dp-keys/" `
+        --endpoint-url $endpoint `
+        --region auto `
+        --query "reverse(sort_by(Contents, &LastModified))[0].Key" `
+        --output text 2>&1
+    if ($LASTEXITCODE -ne 0 -or -not $list -or $list -eq "None") {
+        Write-Fail "Nenhum dp-keys backup encontrado em R2"
+        exit 3
+    }
+    $R2Key = $list.Trim()
+    Write-Ok "Último backup: $R2Key"
+}
+
+if (-not $R2Key) {
+    Write-Fail "Falta -R2Key (ou usar -ValidateOnly para detectar último automaticamente)"
+    exit 1
 }
 
 Write-Host ""
@@ -116,7 +150,30 @@ catch {
 finally { $aes.Dispose() }
 Write-Ok "Decrypt OK ($($plain.Length) bytes plaintext)"
 
-# 4. Extrair tar para DestPath
+# 4. Modo validate-only: confirma tar válido + conta entries, sem extrair
+if ($ValidateOnly) {
+    Write-Step "Modo VALIDATE-ONLY: verificar tar sem extrair..."
+    $tarTmp = "$TempFile.tar"
+    [System.IO.File]::WriteAllBytes($tarTmp, $plain)
+    $entries = tar -tf $tarTmp 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "tar -tf falhou — payload corrompido"
+        Remove-Item $tarTmp -Force -ErrorAction SilentlyContinue
+        Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
+        exit 9
+    }
+    $count = ($entries | Measure-Object -Line).Lines
+    Remove-Item $tarTmp -Force
+    Remove-Item $TempFile -Force
+    Write-Ok "$count entries no tarball — payload OK"
+    Write-Host ""
+    Write-Host "=== Validate OK ===" -ForegroundColor Green
+    Write-Host "Backup $R2Key recuperável. dp-keys NÃO foi tocado."
+    Write-Host ""
+    exit 0
+}
+
+# 5. Extrair tar para DestPath (restore real)
 Write-Step "Extrair tar para $DestPath..."
 if (Test-Path $DestPath) {
     $existing = (Get-ChildItem -Path $DestPath -ErrorAction SilentlyContinue).Count
