@@ -27,9 +27,18 @@ export default function Automacoes() {
   // Sprint 173: email forwarding ingest (load on mount).
   const [ingestEmail, setIngestEmail] = useState<{ email: string; slug: string; domain: string } | null>(null);
   useEffect(() => {
+    // Sprint 253 (Doc 77): antes era catch silencioso com comentário "só admins" — mas
+    // se o endpoint falha por OUTRA razão (DB down, 500, network), user fica sem feedback.
+    // Agora: 403 silencioso (não-admin esperado), restos reportam a Sentry sem toast
+    // (não-bloqueante — secção mostra placeholder vazio sem este dado).
     api.get<{ email: string; slug: string; domain: string }>('/automacoes/ingest-email')
       .then((r) => setIngestEmail(r.data))
-      .catch(() => { /* silenciosamente — só admins */ });
+      .catch((err) => {
+        if (err?.response?.status === 403 || err?.response?.status === 401) return;
+        import('@sentry/react').then((Sentry) =>
+          Sentry.captureException(err, { tags: { feature: 'automacoes.ingest-email' } }),
+        );
+      });
   }, []);
 
   async function copyEmail() {
