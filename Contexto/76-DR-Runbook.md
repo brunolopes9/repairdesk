@@ -26,16 +26,16 @@ Reduzir RPO para <1h exige transaction log shipping → futuro (SQL Server Stand
 | DB completo `.bak` | Cloudflare R2 `{bucket}/backups/{yyyy}/{mm}/RepairDesk-yyyymmdd-hhmm.bak` | `R2_ACCESS_KEY` + `R2_SECRET` |
 | Fotos reparação | Cloudflare R2 `{bucket}/photos/...` | Idem |
 | Facturas fornecedor PDFs | R2 `{bucket}/supplier-invoices/...` | Idem |
-| DataProtection keys | **NÃO REPLICADO** — só no volume `dp_keys` no VPS | Ver §3 |
+| DataProtection keys | ✅ R2 `{bucket}/dp-keys/{yyyy}/{mm}/dp-keys-yyyymmdd-hhmm.tar.aes` (Sprint 352) | `DPKEYS_BACKUP_PASSWORD` |
 | Código + workflows | GitHub `brunolopes9/repairdesk` | `git clone` |
 | Docker images | GHCR `ghcr.io/brunolopes9/repairdesk-{api,web}:vX.Y.Z` | `docker login` |
 | Secrets prod (`.env`) | **NÃO no git**. Cópia em 1Password / file local | Manual |
 | Cloudflare DNS | Cloudflare account | Login |
 | Domínio | Registrar (verificar quem) | Login |
 
-**Único ponto frágil:** DataProtection keys. Se o volume `dp_keys` desaparecer, **todos os secrets cifrados em DB tornam-se ilegíveis** (Moloni refresh token, Anthropic key per-tenant, OAuth state cache).
+**~~Único ponto frágil~~** ✅ **resolvido Sprint 352:** `DpKeysBackupHostedService` corre 03:30 diário, tar + AES-256-GCM encrypt com chave derivada PBKDF2 (100k iter SHA256) da password offline, upload para R2. Layout do payload: `[magic:8][version:1][salt:16][nonce:12][tag:16][cipher:N]`. Restore via `scripts/Restore-DpKeys.ps1`.
 
-⚠️ **Acção P0 futura:** copiar `dp_keys` para R2 diariamente, encriptado com password offline. Ver Sprint futuro a criar.
+**Acção tua (única vez):** gerar `DPKEYS_BACKUP_PASSWORD` 32+ chars random, guardar em 1Password, meter em `.env` produção. Sem ela, o backup é inútil — encriptado mas irrecuperável.
 
 ---
 
@@ -106,9 +106,13 @@ cd repairdesk
 #    senão sessions actuais falham E DataProtection não consegue ler
 #    qualquer key cifrada (Moloni, etc).
 
-# 5. Recuperar DataProtection keys (se cópia existir em R2 encriptada)
+# 5. Recuperar DataProtection keys do R2 (Sprint 352)
 mkdir -p ./data/dp-keys
-# ... fetch + decrypt dp-keys-YYYYMMDD.tar.gz.gpg de R2 ...
+R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... \
+R2_BUCKET=mender-prod-backups DPKEYS_BACKUP_PASSWORD=... \
+pwsh ./scripts/Restore-DpKeys.ps1 \
+  -R2Key "dp-keys/YYYY/MM/dp-keys-YYYYMMDD-HHMM.tar.aes" \
+  -DestPath ./data/dp-keys
 
 # 6. Pull image versão actual em produção
 docker login ghcr.io -u brunolopes9

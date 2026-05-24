@@ -355,6 +355,20 @@ try
     if (builder.Configuration.GetValue("Backup:Enabled", false))
         builder.Services.AddHostedService<BackupHostedService>();
 
+    // Sprint 352 (Doc 76 gap crítico): dp-keys backup off-VPS encriptado.
+    var dpBackupOptions = new DpKeysBackupOptions();
+    builder.Configuration.GetSection("DpKeysBackup").Bind(dpBackupOptions);
+    if (!string.IsNullOrWhiteSpace(builder.Configuration["DpKeysBackup:R2:Bucket"]))
+    {
+        // R2 dpBackupOptions partilha BackupR2Options — bind manual das credenciais R2 padrão
+        // se DpKeysBackup:R2 não tiver — Bruno pode reutilizar mesmo bucket.
+        builder.Configuration.GetSection("DpKeysBackup:R2").Bind(dpBackupOptions.R2);
+    }
+    builder.Services.AddSingleton(dpBackupOptions);
+    builder.Services.AddSingleton<IDpKeysBackupService, DpKeysBackupService>();
+    if (dpBackupOptions.Enabled)
+        builder.Services.AddHostedService<DpKeysBackupHostedService>();
+
     builder.Services.AddHealthChecks()
         .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("API process is alive."), tags: ["live"])
         .AddCheck<RepairDeskDbHealthCheck>("db", tags: ["ready", "db"])

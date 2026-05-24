@@ -67,6 +67,18 @@ services:
       Backup__DatabaseName: ${Backup__DatabaseName:-RepairDesk}
       Backup__R2__Bucket: ${Backup__R2__Bucket:?Backup__R2__Bucket is required}
       Backup__R2__Prefix: ${Backup__R2__Prefix:-backups}
+      # Sprint 352 (Doc 76): dp-keys backup off-VPS. Reutiliza credenciais R2 do backup
+      # SQL — pode partilhar mesmo bucket (key prefix separado: dp-keys/yyyy/MM/...) ou
+      # diferente. Password Bruno guarda em 1Password — sem ela, dp-keys backup é inútil.
+      DpKeysBackup__Enabled: ${DPKEYS_BACKUP_ENABLED:-true}
+      DpKeysBackup__KeysPath: ${DPKEYS_BACKUP_KEYS_PATH:-/data/dp-keys}
+      DpKeysBackup__CronSchedule: ${DPKEYS_BACKUP_CRON:-03:30}
+      DpKeysBackup__Password: ${DPKEYS_BACKUP_PASSWORD:?DPKEYS_BACKUP_PASSWORD is required (min 16 chars)}
+      DpKeysBackup__R2__AccountId: ${Storage__R2__AccountId:-}
+      DpKeysBackup__R2__AccessKey: ${Storage__R2__AccessKey:-}
+      DpKeysBackup__R2__Secret: ${Storage__R2__Secret:-}
+      DpKeysBackup__R2__Bucket: ${DPKEYS_BACKUP_R2_BUCKET:-${Backup__R2__Bucket}}
+      DpKeysBackup__R2__Prefix: ${DPKEYS_BACKUP_R2_PREFIX:-}
       AtNifLookup__Production: ${AT_PRODUCTION:-true}
       AtNifLookup__CertPath: ${AT_CERT_PATH:-}
       AtNifLookup__KeyPath: ${AT_KEY_PATH:-}
