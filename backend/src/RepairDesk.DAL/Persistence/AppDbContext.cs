@@ -63,6 +63,9 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<SkuMapping> SkuMappings => Set<SkuMapping>();
     // Sprint 167a: tracking de uso LLM Anthropic per-tenant.
     public DbSet<LlmUsage> LlmUsage => Set<LlmUsage>();
+    // Sprint 300 (Doc 80 Pillar A.1): POS PT — controlo de caixa.
+    public DbSet<CashMovement> CashMovements => Set<CashMovement>();
+    public DbSet<DailyClosing> DailyClosings => Set<DailyClosing>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

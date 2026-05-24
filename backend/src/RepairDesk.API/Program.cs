@@ -347,6 +347,9 @@ try
     // Sprint 246 (Doc 73): validador central de uploads por magic bytes.
     builder.Services.AddSingleton<RepairDesk.Services.Files.IFileValidator, RepairDesk.Services.Files.FileValidator>();
 
+    // Sprint 300 (Doc 80 Pillar A.1): controlo de caixa POS PT.
+    builder.Services.AddScoped<RepairDesk.API.Cash.ICashService, RepairDesk.API.Cash.CashService>();
+
     // Backups (scheduler only registers when enabled; admin endpoint remains available)
     builder.Services.AddSingleton<IBackupFileSystem, BackupFileSystem>();
     builder.Services.AddSingleton<ISqlServerBackupExecutor, SqlServerBackupExecutor>();
