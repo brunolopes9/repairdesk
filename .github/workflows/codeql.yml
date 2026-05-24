@@ -1,0 +1,71 @@
+# Sprint 252 (Doc 75 área 6 P2): CodeQL static analysis para C# e TypeScript.
+#
+# Apanha CWEs comuns: SQL injection, XSS, hardcoded credentials, path traversal,
+# insecure deserialization, etc. Resultados aparecem em Security > Code scanning.
+#
+# Custo: zero para repos públicos; ~3$/mês para privados (GitHub Advanced Security).
+# Bruno: confirmar plano GHAS em settings antes de mergear este workflow se repo
+# for privado, senão GitHub bloqueia execuções com 403.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Domingo 04:00 UTC — pega vulnerabilidades em deps novas mesmo sem código novo
+    - cron: "0 4 * * 0"
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+            build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # security-extended apanha mais CWEs do que o default. security-and-quality
+          # ainda incluiria code-quality (ruído alto para nós) — não vale.
+          queries: security-extended
+
+      - name: Autobuild (.NET)
+        if: matrix.build-mode == 'autobuild'
+        uses: github/codeql-action/autobuild@v3
+        with:
+          working-directory: backend
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

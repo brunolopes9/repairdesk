@@ -421,6 +421,18 @@ try
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
 
+    // Sprint 252 (Doc 75 área 9 P2): output cache em endpoints portal público.
+    // In-memory por defeito — quando houver >1 instância da API, Redis cache.
+    builder.Services.AddOutputCache(options =>
+    {
+        options.AddPolicy("public-portal-30s", b => b
+            .Expire(TimeSpan.FromSeconds(30))
+            .SetVaryByRouteValue("slug"));
+        options.AddPolicy("public-warranty-5min", b => b
+            .Expire(TimeSpan.FromMinutes(5))
+            .SetVaryByRouteValue("slug"));
+    });
+
     // Sprint 250 (Doc 75 área 9 P2): response compression Brotli + Gzip.
     // Reduz payload de JSON/HTML/SVG em 70-90%. ASP.NET Core não comprime HTTPS
     // por defeito (BREACH/CRIME), mas vamos correr atrás de Caddy/Cloudflare —
@@ -501,6 +513,10 @@ try
 
     app.UseCors();
     app.UseRateLimiter();
+    // Sprint 252 (Doc 75): output cache nos endpoints públicos (atributo [OutputCache]).
+    // Após rate-limiter para que rate-limit seja sempre verificado, mesmo em cache hit
+    // (caso contrário um único IP podia spammar via cache warm).
+    app.UseOutputCache();
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapHealthChecks("/api/health/live", HealthCheckJsonResponseWriter.OptionsForTag("live", forceHealthyStatusCode: true));

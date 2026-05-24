@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
 using RepairDesk.Services.Garantias;
 using RepairDesk.Services.Push;
@@ -21,7 +22,12 @@ public class PublicPortalController : ControllerBase
 
     public PublicPortalController(IPublicPortalService service) => _service = service;
 
+    // Sprint 252 (Doc 75 área 9 P2): output cache 30s no GET portal. Cliente
+    // que recarrega a página (ou app a fazer polling) bate uma vez por 30s.
+    // Slug-scoped — caches separados por reparação. Em prod com 100 clientes a
+    // refrescar a cada 10s, isto poupa ~70% das queries DB.
     [HttpGet("{slug}")]
+    [OutputCache(PolicyName = "public-portal-30s")]
     public Task<PublicRepairDto> Get(string slug, CancellationToken ct)
         => _service.GetBySlugAsync(slug, ct);
 
@@ -51,7 +57,10 @@ public class PublicWarrantyController : ControllerBase
         _garantias = garantias;
     }
 
+    // Garantia muda raramente; cache 5min é seguro. Anular garantia invalida via
+    // tag (futuro) ou via TTL natural.
     [HttpGet("{slug}")]
+    [OutputCache(PolicyName = "public-warranty-5min")]
     public Task<PublicGarantiaDto> Get(string slug, CancellationToken ct)
         => _service.GetGarantiaBySlugAsync(slug, ct);
 
