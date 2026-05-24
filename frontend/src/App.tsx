@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import CommandPalette from './components/CommandPalette';
+import { ConfirmProvider } from './components/ConfirmDialog';
 import CookieBanner from './components/CookieBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import GShortcuts from './components/GShortcuts';
@@ -83,6 +84,7 @@ export default function App() {
       />
       <CookieBanner />
       <AuthProvider>
+        <ConfirmProvider>
         <CommandPalette />
         <KeyboardHelp />
         <GShortcuts />
@@ -151,6 +153,7 @@ export default function App() {
           </Routes>
           </RouteErrorBoundary>
         </Suspense>
+        </ConfirmProvider>
       </AuthProvider>
     </BrowserRouter>
   );
