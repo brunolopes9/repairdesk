@@ -7,6 +7,7 @@ import {
   Wrench,
   Briefcase,
   Receipt,
+  Banknote,
   ShoppingCart,
   PackageSearch,
   Tags,
@@ -51,6 +52,7 @@ const nav: NavItem[] = [
   { to: '/reparacoes', label: 'Reparações', icon: Wrench },
   { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
   { to: '/despesas', label: 'Despesas', icon: Receipt },
+  { to: '/cash', label: 'Caixa', icon: Banknote },
   // Sprint 148: inbox de faturas de fornecedor importadas via n8n IMAP.
   { to: '/importacoes', label: 'Importações', icon: Inbox, adminOnly: true },
   { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
