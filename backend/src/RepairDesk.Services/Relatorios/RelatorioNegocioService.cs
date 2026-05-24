@@ -6,6 +6,11 @@ namespace RepairDesk.Services.Relatorios;
 public interface IRelatorioNegocioService
 {
     Task<RelatorioNegocioResponse> GetAsync(int ano, int trimestre, CancellationToken ct = default);
+
+    // Sprint 187: análise B2B — taxa de defeito por fornecedor, calculada sobre IMEIs vendidos
+    // com fornecedor identificado que voltaram para reparação. `meses` controla quão atrás se
+    // olha (default 12). Não inclui vendas onde FornecedorNome ou IMEI estejam vazios.
+    Task<TaxaDefeitoFornecedorResponse> GetTaxaDefeitoFornecedorAsync(int meses, CancellationToken ct = default);
 }
 
 public sealed class RelatorioNegocioService : IRelatorioNegocioService
@@ -71,6 +76,25 @@ public sealed class RelatorioNegocioService : IRelatorioNegocioService
                 f.TotalCompradoCents)).ToList());
     }
 
+    public async Task<TaxaDefeitoFornecedorResponse> GetTaxaDefeitoFornecedorAsync(int meses, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is null)
+            throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
+        if (meses is < 1 or > 60)
+            throw new ValidationException("invalid_lookback", "Janela de análise deve estar entre 1 e 60 meses.");
+
+        var fromUtc = DateTime.UtcNow.AddMonths(-meses);
+        var rows = await _repo.GetTaxaDefeitoFornecedorAsync(fromUtc, ct);
+        return new TaxaDefeitoFornecedorResponse(
+            Meses: meses,
+            DesdeUtc: fromUtc,
+            Fornecedores: rows.Select(r => new FornecedorDefeitoDto(
+                r.Nome,
+                r.ItemsVendidos,
+                r.ItemsComReparacao,
+                r.TaxaDefeitoPct)).ToList());
+    }
+
     private static (DateTime FromUtc, DateTime ToUtc) Periodo(int ano, int trimestre)
     {
         if (ano is < 2000 or > 2100) throw new ValidationException("invalid_year", "Ano invalido.");
@@ -118,3 +142,14 @@ public sealed record TopPecaUsadaDto(
 public sealed record TopFornecedorDto(
     string Nome,
     int TotalCompradoCents);
+
+public sealed record TaxaDefeitoFornecedorResponse(
+    int Meses,
+    DateTime DesdeUtc,
+    IReadOnlyList<FornecedorDefeitoDto> Fornecedores);
+
+public sealed record FornecedorDefeitoDto(
+    string Nome,
+    int ItemsVendidos,
+    int ItemsComReparacao,
+    decimal TaxaDefeitoPct);

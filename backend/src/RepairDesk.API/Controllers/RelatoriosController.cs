@@ -26,6 +26,13 @@ public sealed class RelatoriosController : ControllerBase
     public Task<RelatorioNegocioResponse> GetNegocio([FromQuery] int ano, [FromQuery] int trimestre, CancellationToken ct = default)
         => _negocio.GetAsync(ano, trimestre, ct);
 
+    // Sprint 187: análise B2B do desempenho de cada fornecedor — quantos dos artigos vendidos
+    // voltaram para reparação. Janela deslizante (default 12 meses) porque defeitos manifestam-se
+    // ao longo de muitos meses pós-venda, ao contrário das outras métricas trimestrais.
+    [HttpGet("taxa-defeito-fornecedor")]
+    public Task<TaxaDefeitoFornecedorResponse> GetTaxaDefeitoFornecedor([FromQuery] int meses = 12, CancellationToken ct = default)
+        => _negocio.GetTaxaDefeitoFornecedorAsync(meses, ct);
+
     [HttpGet("iva/export.csv")]
     public async Task<IActionResult> ExportCsv([FromQuery] int ano, [FromQuery] int trimestre, [FromQuery] int ivaComprasCents = 0, CancellationToken ct = default)
     {

@@ -158,4 +158,59 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
             TopPecasUsadas: topPecas,
             TopFornecedores: topFornecedores);
     }
+
+    public async Task<IReadOnlyList<FornecedorDefeitoRow>> GetTaxaDefeitoFornecedorAsync(
+        DateTime fromUtc,
+        CancellationToken ct = default)
+    {
+        var tenantId = _tenant.TenantId ?? Guid.Empty;
+
+        // Carrega vendas com IMEI + fornecedor + data, e em paralelo todos os IMEIs reparados
+        // dentro do tenant. Cruzar em memória é mais simples que correlated subquery em EF e
+        // o volume é manejável (vendas com IMEI são caras, dezenas/centenas por ano).
+        var vendaItems = await _db.VendaItems
+            .AsNoTracking()
+            .Where(vi => vi.TenantId == tenantId
+                && vi.FornecedorNome != null
+                && vi.Imei != null
+                && vi.Venda!.Data >= fromUtc)
+            .Select(vi => new
+            {
+                vi.Imei,
+                Fornecedor = vi.FornecedorNome!,
+                DataVenda = vi.Venda!.Data,
+            })
+            .ToListAsync(ct);
+
+        if (vendaItems.Count == 0) return Array.Empty<FornecedorDefeitoRow>();
+
+        var imeisVendidos = vendaItems.Select(v => v.Imei!).Distinct().ToList();
+
+        // Reparações com IMEI matching, agrupado para minimizar payload: para cada IMEI a data
+        // mais antiga de criação. Se a reparação foi anterior à venda, não conta.
+        var reparacoesPorImei = await _db.Reparacoes
+            .AsNoTracking()
+            .Where(r => r.TenantId == tenantId && r.Imei != null && imeisVendidos.Contains(r.Imei))
+            .GroupBy(r => r.Imei!)
+            .Select(g => new { Imei = g.Key, MinCreatedAt = g.Min(r => r.CreatedAt) })
+            .ToListAsync(ct);
+
+        var minCreatedByImei = reparacoesPorImei.ToDictionary(x => x.Imei, x => x.MinCreatedAt);
+
+        return vendaItems
+            .GroupBy(vi => vi.Fornecedor)
+            .Select(g =>
+            {
+                var vendidos = g.Count();
+                var comReparacao = g.Count(vi =>
+                    minCreatedByImei.TryGetValue(vi.Imei!, out var minCreated) && minCreated > vi.DataVenda);
+                var taxa = vendidos == 0
+                    ? 0m
+                    : Math.Round(comReparacao * 100m / vendidos, 2, MidpointRounding.AwayFromZero);
+                return new FornecedorDefeitoRow(g.Key, vendidos, comReparacao, taxa);
+            })
+            .OrderByDescending(r => r.TaxaDefeitoPct)
+            .ThenByDescending(r => r.ItemsVendidos)
+            .ToList();
+    }
 }

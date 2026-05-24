@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Building2, PackageSearch, ReceiptText, TrendingUp, Wrench } from 'lucide-react';
+import { AlertTriangle, BarChart3, Building2, PackageSearch, ReceiptText, TrendingUp, Wrench } from 'lucide-react';
 import { EmptyState, PageHeader, SkeletonCard, SkeletonTable } from '../../components/ui';
 import { formatCents } from '../../lib/money';
-import { relatoriosApi, type TopFornecedor, type TopPecaUsada, type TopReparacaoLucrativa } from '../../lib/relatorios/api';
+import { relatoriosApi, type FornecedorDefeito, type TopFornecedor, type TopPecaUsada, type TopReparacaoLucrativa } from '../../lib/relatorios/api';
 
 const QUARTERS = [1, 2, 3, 4] as const;
 
@@ -15,6 +15,14 @@ export default function RelatorioNegocio() {
   const report = useQuery({
     queryKey: ['relatorio-negocio', ano, trimestre],
     queryFn: () => relatoriosApi.negocio(ano, trimestre),
+  });
+
+  // Sprint 187: análise B2B independente do trimestre — janela de 12 meses corridos por defeito.
+  // Calcula-se sobre toda a base histórica para que defeitos manifestos tarde também contem.
+  const [mesesDefeito, setMesesDefeito] = useState(12);
+  const defeito = useQuery({
+    queryKey: ['relatorio-defeito-fornecedor', mesesDefeito],
+    queryFn: () => relatoriosApi.taxaDefeitoFornecedor(mesesDefeito),
   });
 
   return (
@@ -79,6 +87,13 @@ export default function RelatorioNegocio() {
             <TopPecas rows={report.data.topPecasUsadas} />
             <TopFornecedores rows={report.data.topFornecedores} />
           </section>
+
+          <TaxaDefeitoFornecedores
+            data={defeito.data}
+            loading={defeito.isLoading}
+            meses={mesesDefeito}
+            onChangeMeses={setMesesDefeito}
+          />
         </>
       ) : null}
     </div>
@@ -170,6 +185,102 @@ function TopFornecedores({ rows }: { rows: TopFornecedor[] }) {
         </li>
       ))}
     </TopPanel>
+  );
+}
+
+// Sprint 187: cruzamento Vendas (IMEI + Fornecedor) × Reparações (mesmo IMEI, criada depois).
+// Mostra fornecedores com mais volume vendido primeiro quando empate em taxa.
+function TaxaDefeitoFornecedores({
+  data,
+  loading,
+  meses,
+  onChangeMeses,
+}: {
+  data: { fornecedores: FornecedorDefeito[] } | undefined;
+  loading: boolean;
+  meses: number;
+  onChangeMeses: (m: number) => void;
+}) {
+  return (
+    <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <AlertTriangle size={15} className="text-amber-500" aria-hidden />
+            Taxa de defeito por fornecedor
+          </h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            % de equipamentos vendidos (com IMEI + fornecedor) que voltaram para reparação. Útil
+            para decidir se mantér ou trocar de fornecedor B2B.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-zinc-500">
+          Janela:
+          <select
+            value={meses}
+            onChange={(e) => onChangeMeses(Number(e.target.value))}
+            className="min-h-9 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+          >
+            <option value={3}>3 meses</option>
+            <option value={6}>6 meses</option>
+            <option value={12}>12 meses</option>
+            <option value={24}>24 meses</option>
+          </select>
+        </label>
+      </div>
+
+      {loading ? (
+        <div className="mt-3"><SkeletonTable columns={4} rows={3} /></div>
+      ) : !data || data.fornecedores.length === 0 ? (
+        <p className="mt-3 rounded-lg bg-zinc-50 px-3 py-4 text-sm text-zinc-500 dark:bg-zinc-950">
+          Sem vendas com IMEI + fornecedor identificado nesta janela.
+        </p>
+      ) : (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-[11px] uppercase text-zinc-500">
+              <tr>
+                <th className="py-2 pr-3">Fornecedor</th>
+                <th className="py-2 pr-3 text-right">Vendidos</th>
+                <th className="py-2 pr-3 text-right">Voltaram</th>
+                <th className="py-2 pl-3 text-right">Taxa defeito</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.fornecedores.map((f) => (
+                <tr key={f.nome} className="border-t border-zinc-100 dark:border-zinc-800">
+                  <td className="py-2 pr-3">
+                    <span className="flex items-center gap-2">
+                      <Building2 size={14} className="text-zinc-400" aria-hidden />
+                      <span className="font-medium">{f.nome}</span>
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3 text-right font-mono tabular-nums">{f.itemsVendidos}</td>
+                  <td className="py-2 pr-3 text-right font-mono tabular-nums">{f.itemsComReparacao}</td>
+                  <td className="py-2 pl-3 text-right">
+                    <TaxaBadge pct={f.taxaDefeitoPct} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TaxaBadge({ pct }: { pct: number }) {
+  // Thresholds informais — refinar com base no histórico real. < 5% verde, 5-15 amarelo, > 15 vermelho.
+  const cls = pct < 5
+    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+    : pct < 15
+      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+      : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${cls}`}>
+      {pct.toFixed(1)}%
+    </span>
   );
 }
 

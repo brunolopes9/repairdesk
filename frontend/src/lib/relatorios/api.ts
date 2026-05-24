@@ -93,6 +93,20 @@ export interface RelatorioNegocioResponse {
   topFornecedores: TopFornecedor[];
 }
 
+/** Sprint 187: linha por fornecedor com taxa de devolução para reparação. */
+export interface FornecedorDefeito {
+  nome: string;
+  itemsVendidos: number;
+  itemsComReparacao: number;
+  taxaDefeitoPct: number;
+}
+
+export interface TaxaDefeitoFornecedorResponse {
+  meses: number;
+  desdeUtc: string;
+  fornecedores: FornecedorDefeito[];
+}
+
 export const relatoriosApi = {
   iva(ano: number, trimestre: number, ivaComprasCents = 0) {
     return api
@@ -102,6 +116,11 @@ export const relatoriosApi = {
   negocio(ano: number, trimestre: number) {
     return api
       .get<RelatorioNegocioResponse>('/relatorios/negocio', { params: { ano, trimestre } })
+      .then((r) => r.data);
+  },
+  taxaDefeitoFornecedor(meses = 12) {
+    return api
+      .get<TaxaDefeitoFornecedorResponse>('/relatorios/taxa-defeito-fornecedor', { params: { meses } })
       .then((r) => r.data);
   },
 };
