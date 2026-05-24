@@ -25,6 +25,9 @@ public interface ICashService
     /// <summary>Devolve fecho específico (qualquer dia).</summary>
     Task<DailyClosingDto?> GetByDateAsync(DateOnly date, Guid? locationId, CancellationToken ct = default);
 
+    /// <summary>Devolve fecho por Id (qualquer dia, qualquer location). NULL se não existe.</summary>
+    Task<DailyClosingDto?> GetByIdAsync(Guid dailyClosingId, CancellationToken ct = default);
+
     /// <summary>
     /// Regista um movimento. Se for dinheiro entra no CashEntries do fecho aberto;
     /// se for MBWay/MB/cartão entra no total correspondente. Cria fecho automático

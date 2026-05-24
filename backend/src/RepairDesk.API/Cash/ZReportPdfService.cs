@@ -33,15 +33,7 @@ public sealed class ZReportPdfService : IZReportPdfService
 
     public async Task<(byte[] Pdf, string Filename)> ForClosingAsync(Guid dailyClosingId, CancellationToken ct = default)
     {
-        // ICashService não tem GetByIdAsync — recarregamos via "recent + filter" só para
-        // evitar duplicar lógica de tenancy. Acceitável: lista cap a 100, fecho recente.
-        // TODO Sprint 304: adicionar GetByIdAsync ao ICashService para path sem listagem.
-        var recent = await _cash.ListRecentAsync(100, locationId: null, ct);
-        var closing = recent.FirstOrDefault(c => c.Id == dailyClosingId)
-            ?? throw new NotFoundException("DailyClosing", dailyClosingId);
-
-        // Recarregar com movimentos detalhados (o ListRecentAsync devolve agregados sem detalhe).
-        var detailed = await _cash.GetByDateAsync(closing.Date, closing.LocationId, ct)
+        var detailed = await _cash.GetByIdAsync(dailyClosingId, ct)
             ?? throw new NotFoundException("DailyClosing", dailyClosingId);
 
         var tenant = _tenantContext.TenantId is { } tenantId

@@ -92,6 +92,13 @@ public sealed class CashService : ICashService
         return closing is null ? null : await BuildDtoAsync(closing.Id, ct);
     }
 
+    public async Task<DailyClosingDto?> GetByIdAsync(Guid dailyClosingId, CancellationToken ct = default)
+    {
+        EnsureTenant();
+        var closing = await _db.DailyClosings.FirstOrDefaultAsync(c => c.Id == dailyClosingId, ct);
+        return closing is null ? null : await BuildDtoAsync(closing.Id, ct);
+    }
+
     public async Task<CashMovementDto> RecordMovementAsync(RecordMovementRequest req, CancellationToken ct = default)
     {
         EnsureTenant();
