@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RepairDesk.API.Cash;
+using RepairDesk.Core.Enums;
 using RepairDesk.Services.Billing;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Documents;
@@ -14,11 +16,15 @@ public class VendasController : ControllerBase
 {
     private readonly IVendaService _service;
     private readonly IVendaPdfService _pdf;
+    private readonly ICashService _cash;
+    private readonly ILogger<VendasController> _logger;
 
-    public VendasController(IVendaService service, IVendaPdfService pdf)
+    public VendasController(IVendaService service, IVendaPdfService pdf, ICashService cash, ILogger<VendasController> logger)
     {
         _service = service;
         _pdf = pdf;
+        _cash = cash;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -62,9 +68,40 @@ public class VendasController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
     }
 
+    // Sprint 301 (Doc 80 Pillar A.1): após marcar paga, regista automaticamente
+    // CashMovement no fecho do dia. Falha no cash NÃO reverte a venda — o pagamento
+    // está confirmado e perder-se o lançamento de caixa é menos grave que duplicar
+    // o pagamento. Log estruturado para reconciliação manual se ocorrer.
     [HttpPost("{id:guid}/marcar-paga")]
-    public Task<EmitVendaFaturaResponse> MarcarPaga(Guid id, [FromBody] MarcarVendaPagaRequest req, CancellationToken ct)
-        => _service.MarcarPagaAsync(id, req, ct);
+    public async Task<EmitVendaFaturaResponse> MarcarPaga(Guid id, [FromBody] MarcarVendaPagaRequest req, CancellationToken ct)
+    {
+        var result = await _service.MarcarPagaAsync(id, req, ct);
+
+        try
+        {
+            var venda = await _service.GetAsync(id, ct);
+            var descricao = $"Venda #{venda.Numero}"
+                + (venda.Cliente is { } c ? $" — {c.Nome}" : "")
+                + (req.EmitirFatura && !string.IsNullOrEmpty(venda.InvoiceNumber) ? $" (FT {venda.InvoiceNumber})" : "");
+
+            await _cash.RecordMovementAsync(new RecordMovementRequest(
+                Type: CashMovementType.PagamentoCliente,
+                PaymentMethod: req.PaymentMethod,
+                AmountCents: venda.TotalCents,
+                Descricao: descricao,
+                VendaId: venda.Id,
+                ReparacaoId: null,
+                LocationId: null), ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "CashMovementRecordFailed VendaId={VendaId} Method={Method} — venda continua paga, requer reconciliação manual",
+                id, req.PaymentMethod);
+        }
+
+        return result;
+    }
 
     [HttpPost("{id:guid}/emitir-fatura")]
     public Task<InvoiceDto> EmitirFatura(Guid id, CancellationToken ct)
