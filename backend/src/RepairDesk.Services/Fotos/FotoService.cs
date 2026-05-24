@@ -1,3 +1,4 @@
+using RepairDesk.Common.Helpers;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
@@ -83,7 +84,7 @@ public class FotoService : IFotoService
             Id = fotoId,
             ReparacaoId = rep.Id,
             StorageKey = storageKey,
-            FileName = SafeFileName(fileName),
+            FileName = FileNameSanitizer.Safe(fileName),
             ContentType = contentType,
             Size = size,
             Tipo = tipo,
@@ -147,9 +148,5 @@ public class FotoService : IFotoService
         f.Id, f.ReparacaoId, f.FileName, f.ContentType, f.Size,
         f.Tipo, f.Ordem, f.Legenda, f.VisivelNoPortal, f.CreatedAt);
 
-    private static string SafeFileName(string raw)
-    {
-        var clean = string.Concat(raw.Where(c => char.IsLetterOrDigit(c) || c is '.' or '-' or '_' or ' '));
-        return clean.Length > 100 ? clean[..100] : clean;
-    }
+    // Sprint 248: SafeFileName promovido para Common.FileNameSanitizer.Safe.
 }
