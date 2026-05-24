@@ -147,7 +147,10 @@ public class ReparacoesController : ControllerBase
     public Task<ReparacaoDto> Reabrir(Guid id, [FromBody] ReabrirRequest? req, CancellationToken ct)
         => _service.ReabrirAsync(id, req?.Notas, ct);
 
+    // Sprint 237 H1.1: apagar reparação é destrutivo (soft-delete mas remove do histórico
+    // visível e dos cálculos de KPI). Só Admin.
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await _service.DeleteAsync(id, ct);

@@ -70,17 +70,22 @@ public class VendasController : ControllerBase
     public Task<InvoiceDto> EmitirFatura(Guid id, CancellationToken ct)
         => _service.EmitirFaturaAsync(id, ct);
 
+    // Sprint 237 H1.1: cancelar venda + anular fatura + limpar fatura são operações
+    // destrutivas com impacto fiscal (Moloni NC). Só Admin.
     [HttpPost("{id:guid}/cancelar")]
+    [Authorize(Roles = "Admin")]
     public Task<VendaDto> Cancelar(Guid id, CancellationToken ct)
         => _service.CancelarAsync(id, ct);
 
     /// <summary>Emite Nota de Crédito Moloni para anular a fatura (chama API Moloni).</summary>
     [HttpPost("{id:guid}/anular-fatura")]
+    [Authorize(Roles = "Admin")]
     public Task<VendaDto> AnularFatura(Guid id, CancellationToken ct)
         => _service.AnularFaturaAsync(id, ct);
 
     /// <summary>Limpa só referências locais — para casos onde o operador já anulou manualmente no painel Moloni.</summary>
     [HttpPost("{id:guid}/limpar-fatura-local")]
+    [Authorize(Roles = "Admin")]
     public Task<VendaDto> LimparFaturaLocal(Guid id, CancellationToken ct)
         => _service.LimparReferenciaFaturaAsync(id, ct);
 

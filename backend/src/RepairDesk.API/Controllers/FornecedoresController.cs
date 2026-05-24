@@ -18,14 +18,17 @@ public class FornecedoresController : ControllerBase
         => _service.ListAsync(includeInactive, ct);
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public Task<FornecedorDto> Create([FromBody] FornecedorWriteRequest req, CancellationToken ct)
         => _service.CreateAsync(req, ct);
 
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public Task<FornecedorDto> Update(Guid id, [FromBody] FornecedorWriteRequest req, CancellationToken ct)
         => _service.UpdateAsync(id, req, ct);
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await _service.DeleteAsync(id, ct);

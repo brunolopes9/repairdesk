@@ -23,6 +23,7 @@ public class TenantSettingsController : ControllerBase
     public Task<TenantSettingsDto> GetMine(CancellationToken ct) => _service.GetMineAsync(ct);
 
     [HttpPut("me")]
+    [Authorize(Roles = "Admin")]
     public Task<TenantSettingsDto> UpdateMine([FromBody] UpdateTenantSettingsRequest req, CancellationToken ct)
         => _service.UpdateMineAsync(req, ct);
 
@@ -39,6 +40,7 @@ public class TenantSettingsController : ControllerBase
         => _billing.GetMineAsync(ct);
 
     [HttpPut("me/billing")]
+    [Authorize(Roles = "Admin")]
     public Task<TenantBillingSettingsDto> UpdateBilling([FromBody] UpdateTenantBillingSettingsRequest req, CancellationToken ct)
         => _billing.UpdateMineAsync(req, ct);
 
@@ -51,10 +53,12 @@ public class TenantSettingsController : ControllerBase
         => _billing.SyncSeriesAsync(ct);
 
     [HttpPost("me/billing/moloni/connect")]
+    [Authorize(Roles = "Admin")]
     public Task<TenantBillingSettingsDto> ConnectMoloni([FromBody] ConnectMoloniRequest req, CancellationToken ct)
         => _billing.ConnectMoloniAsync(req, ct);
 
     [HttpPost("me/billing/moloni/disconnect")]
+    [Authorize(Roles = "Admin")]
     public Task<TenantBillingSettingsDto> DisconnectMoloni(CancellationToken ct)
         => _billing.DisconnectMoloniAsync(ct);
 

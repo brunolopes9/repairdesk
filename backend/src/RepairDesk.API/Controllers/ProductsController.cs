@@ -67,6 +67,7 @@ public class ProductsController : ControllerBase
     /// Upsert idempotente — re-importar mesmo CSV não duplica produtos.
     /// </summary>
     [HttpPost("import-molano")]
+    [Authorize(Roles = "Admin")]
     public Task<ImportProductsResponse> ImportMolano([FromBody] ImportMolanoRequest req, CancellationToken ct)
         => _service.ImportMolanoCsvAsync(req.Csv, req.FornecedorId, ct);
 
@@ -147,6 +148,7 @@ public class ProductsController : ControllerBase
     /// guarda mapping no Fornecedor para próximos uploads automáticos.
     /// </summary>
     [HttpPost("csv/import-with-mapping")]
+    [Authorize(Roles = "Admin")]
     public Task<ImportProductsResponse> ImportCsvWithMapping(
         [FromBody] ImportCsvWithMappingRequest req,
         CancellationToken ct)
@@ -158,6 +160,7 @@ public class ProductsController : ControllerBase
     /// Upsert por SKU — re-correr é seguro (skip existentes).
     /// </summary>
     [HttpPost("migrate-shop")]
+    [Authorize(Roles = "Admin")]
     public Task<ImportProductsResponse> MigrateShop([FromBody] MigrateShopRequest req, CancellationToken ct)
         => _service.MigrateShopProductsAsync(req.Products, ct);
 
