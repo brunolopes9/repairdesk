@@ -95,4 +95,7 @@ export const cashApi = {
   close(id: string, payload: CloseDayRequest) {
     return api.post<DailyClosingDto>(`/cash/${id}/close`, payload).then((r) => r.data);
   },
+  zReportPdfPath(id: string) {
+    return `/cash/${id}/zreport.pdf`;
+  },
 };

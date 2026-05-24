@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Banknote, CreditCard, Landmark, Lock, Minus, Plus, ReceiptText, WalletCards } from 'lucide-react';
+import { Banknote, CreditCard, FileDown, Landmark, Lock, Minus, Plus, ReceiptText, WalletCards } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
@@ -16,6 +16,7 @@ import {
   type PaymentMethod,
 } from '../../lib/cash/api';
 import { formatDateShort, formatDateTime } from '../../lib/dates';
+import { downloadFile } from '../../lib/downloadPdf';
 import { formatCents, parseEuros } from '../../lib/money';
 import { toast } from '../../lib/toast';
 
@@ -367,6 +368,15 @@ function Kpi({ title, value, icon: Icon, tone = 'zinc' }: { title: string; value
 function ClosedSummary({ closing }: { closing: DailyClosingDto }) {
   const diff = closing.diffCents ?? 0;
   const tone = diff >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+
+  async function handleDownloadZReport() {
+    try {
+      await downloadFile(cashApi.zReportPdfPath(closing.id), `ZReport_${closing.date}.pdf`);
+    } catch (err) {
+      toast.fromError(err, 'Não foi possível descarregar o Z-Report.');
+    }
+  }
+
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -381,6 +391,11 @@ function ClosedSummary({ closing }: { closing: DailyClosingDto }) {
       </div>
       {closing.closedAt && <p className="mt-3 text-xs text-zinc-500">Fechada em {formatDateTime(closing.closedAt)}</p>}
       {closing.notas && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{closing.notas}</p>}
+      <div className="mt-3 flex">
+        <Button type="button" variant="secondary" leftIcon={<FileDown size={17} />} onClick={handleDownloadZReport}>
+          Descarregar Z-Report
+        </Button>
+      </div>
     </section>
   );
 }
