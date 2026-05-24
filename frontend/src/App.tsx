@@ -1,8 +1,9 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import CommandPalette from './components/CommandPalette';
 import CookieBanner from './components/CookieBanner';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import GShortcuts from './components/GShortcuts';
 import KeyboardHelp from './components/KeyboardHelp';
 import Layout from './components/Layout';
@@ -86,6 +87,7 @@ export default function App() {
         <KeyboardHelp />
         <GShortcuts />
         <Suspense fallback={<RouteLoading />}>
+          <RouteErrorBoundary>
           <Routes>
             {/* Portal cliente público — sem layout, sem auth */}
             <Route path="/r/:slug" element={<PortalCliente />} />
@@ -147,8 +149,22 @@ export default function App() {
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
+          </RouteErrorBoundary>
         </Suspense>
       </AuthProvider>
     </BrowserRouter>
+  );
+}
+
+/**
+ * Sprint 253 (Doc 77): boundary que reseta quando o utilizador navega. Sem
+ * isto, um erro numa rota persiste mesmo depois do clique para outro link.
+ */
+function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  return (
+    <ErrorBoundary scope={location.pathname} key={location.pathname}>
+      {children}
+    </ErrorBoundary>
   );
 }

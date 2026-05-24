@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Sentry from '@sentry/react';
 import { isAxiosError } from 'axios';
 import { Camera, Pencil } from 'lucide-react';
 import Modal from './Modal';
@@ -200,7 +201,11 @@ function FotoThumb({ foto, onClick }: { foto: Foto; onClick: () => void }) {
         url = u;
         setSrc(u);
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      // Sprint 253 (Doc 77): antes era catch silencioso → user via thumb "⋯" para
+      // sempre sem perceber porquê. Agora reporta a Sentry e mantém placeholder.
+      Sentry.captureException(err, { tags: { feature: 'fotos.contentUrl' } });
+    });
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
@@ -235,7 +240,11 @@ function LightboxModal({ foto, onClose }: { foto: Foto; onClose: () => void }) {
         url = u;
         setSrc(u);
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      // Sprint 253 (Doc 77): antes era catch silencioso → user via thumb "⋯" para
+      // sempre sem perceber porquê. Agora reporta a Sentry e mantém placeholder.
+      Sentry.captureException(err, { tags: { feature: 'fotos.contentUrl' } });
+    });
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
