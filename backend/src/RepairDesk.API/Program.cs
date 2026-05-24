@@ -324,6 +324,8 @@ try
     }
     builder.Services.AddScoped<RepairDesk.Services.Fotos.IFotoService, RepairDesk.Services.Fotos.FotoService>();
     builder.Services.AddScoped<RepairDesk.Services.Fotos.IPhotoExportLinkService, RepairDesk.Services.Fotos.PhotoExportLinkService>();
+    // Sprint 246 (Doc 73): validador central de uploads por magic bytes.
+    builder.Services.AddSingleton<RepairDesk.Services.Files.IFileValidator, RepairDesk.Services.Files.FileValidator>();
 
     // Backups (scheduler only registers when enabled; admin endpoint remains available)
     builder.Services.AddSingleton<IBackupFileSystem, BackupFileSystem>();
