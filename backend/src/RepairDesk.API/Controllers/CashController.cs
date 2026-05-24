@@ -16,7 +16,12 @@ namespace RepairDesk.API.Controllers;
 public sealed class CashController : ControllerBase
 {
     private readonly ICashService _service;
-    public CashController(ICashService service) => _service = service;
+    private readonly IZReportPdfService _pdf;
+    public CashController(ICashService service, IZReportPdfService pdf)
+    {
+        _service = service;
+        _pdf = pdf;
+    }
 
     [HttpGet("today")]
     public Task<DailyClosingDto?> Today([FromQuery] Guid? locationId, CancellationToken ct)
@@ -43,4 +48,12 @@ public sealed class CashController : ControllerBase
     [Authorize(Roles = "Admin")]
     public Task<DailyClosingDto> Close(Guid id, [FromBody] CloseDayRequest req, CancellationToken ct)
         => _service.CloseDayAsync(id, req, ct);
+
+    /// <summary>Sprint 302: PDF Z-report do fecho (DL 28/2019 art. 6.º). Aberto ou fechado.</summary>
+    [HttpGet("{id:guid}/zreport.pdf")]
+    public async Task<IActionResult> ZReportPdf(Guid id, CancellationToken ct)
+    {
+        var (pdf, filename) = await _pdf.ForClosingAsync(id, ct);
+        return File(pdf, "application/pdf", filename);
+    }
 }

@@ -39,7 +39,7 @@ testes e esta matriz com snapshot.
 | DiagnosticoController | `POST/DELETE /templates` (execuções por reparação ficam Authenticated) | `Admin` |
 | ClientesController | `DELETE /{id}` (soft-delete), `POST /import` | `Admin` |
 | **Sprint 300 (Doc 80 Pillar A.1) — POS PT controlo de caixa** | | |
-| CashController | `GET /today`, `/by-date/{date}`, `/recent`, `POST /open`, `POST /movement` | `Authenticated` |
+| CashController | `GET /today`, `/by-date/{date}`, `/recent`, `POST /open`, `POST /movement`, `GET /{id}/zreport.pdf` | `Authenticated` |
 | CashController | `POST /{id}/close` (fecho caixa impacta relatórios fiscais) | `Admin` |
 
 Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por reflection dos controllers.

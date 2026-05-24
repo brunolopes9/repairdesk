@@ -349,6 +349,8 @@ try
 
     // Sprint 300 (Doc 80 Pillar A.1): controlo de caixa POS PT.
     builder.Services.AddScoped<RepairDesk.API.Cash.ICashService, RepairDesk.API.Cash.CashService>();
+    // Sprint 302 (Doc 80 Pillar A.1): PDF Z-report.
+    builder.Services.AddScoped<RepairDesk.API.Cash.IZReportPdfService, RepairDesk.API.Cash.ZReportPdfService>();
 
     // Backups (scheduler only registers when enabled; admin endpoint remains available)
     builder.Services.AddSingleton<IBackupFileSystem, BackupFileSystem>();
