@@ -142,7 +142,7 @@ Para SaaS B2B early-stage, **single VPS é correcto.** Cloud autoscaling é over
 
 ### Próximos passos
 1. **P1 — Branch protection em `main`**: require CI pass + linear history + no force-push. Setup via GitHub UI ~5min.
-2. **P1 — Dependabot** para frontend (npm) + backend (NuGet). YAML simples em `.github/dependabot.yml`. Já há PRs Dependabot abertos (visto na review anterior).
+2. ~~Dependabot~~ ✅ já existe em `.github/dependabot.yml` (nuget + npm + docker + github-actions, weekly Monday).
 3. **P2 — CodeQL** scan em PRs (`github/codeql-action`) para detectar SQL injection, XSS, CWE patterns. Free para repos públicos; ~$3/mo para privados.
 4. **P3 — Conventional Commits enforced** via commitlint + pre-commit hook.
 

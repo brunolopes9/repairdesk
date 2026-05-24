@@ -41,6 +41,26 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
+    // Sprint 250 (Doc 75 área 11 P0): Sentry para captura de exceptions não-tratadas.
+    // Env-gated — sem SENTRY_DSN o SDK é no-op e não envia nada. Bruno mete o DSN
+    // como secret no docker-compose.prod.yml (Sentry__Dsn) quando a infra estiver pronta.
+    var sentryDsn = builder.Configuration["Sentry:Dsn"];
+    if (!string.IsNullOrWhiteSpace(sentryDsn))
+    {
+        builder.WebHost.UseSentry(o =>
+        {
+            o.Dsn = sentryDsn;
+            o.Environment = builder.Environment.EnvironmentName;
+            o.TracesSampleRate = builder.Environment.IsProduction() ? 0.1 : 0.0;
+            // Não envia HTTP request body por defeito (PII risk). Bruno active manualmente
+            // via env var se precisar de debug profundo.
+            o.MaxRequestBodySize = Sentry.Extensibility.RequestSize.None;
+            o.SendDefaultPii = false;
+            o.AttachStacktrace = true;
+            o.Release = typeof(Program).Assembly.GetName().Version?.ToString();
+        });
+    }
+
     builder.Host.UseSerilog(RepairDeskSerilog.Configure);
 
     builder.Services.AddHttpContextAccessor();
@@ -400,6 +420,31 @@ try
 
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
+
+    // Sprint 250 (Doc 75 área 9 P2): response compression Brotli + Gzip.
+    // Reduz payload de JSON/HTML/SVG em 70-90%. ASP.NET Core não comprime HTTPS
+    // por defeito (BREACH/CRIME), mas vamos correr atrás de Caddy/Cloudflare —
+    // o downstream tem TLS. Aqui o link API↔proxy é HTTP em rede privada.
+    builder.Services.AddResponseCompression(options =>
+    {
+        options.EnableForHttps = true;
+        options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+        options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+        options.MimeTypes =
+        [
+            "application/json",
+            "application/problem+json",
+            "application/xml",
+            "text/csv",
+            "text/plain",
+            "text/html",
+            "image/svg+xml",
+        ];
+    });
+    builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(o =>
+        o.Level = System.IO.Compression.CompressionLevel.Fastest);
+    builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o =>
+        o.Level = System.IO.Compression.CompressionLevel.Fastest);
     builder.Services.AddSwaggerGen(c =>
     {
         c.SwaggerDoc("v1", new() { Title = "Mender API", Version = "v1" });
@@ -427,6 +472,9 @@ try
 
     var app = builder.Build();
 
+    // Sprint 250 (Doc 75): response compression antes de tudo — comprime mesmo
+    // as responses de erro do exception middleware.
+    app.UseResponseCompression();
     app.UseMiddleware<CorrelationIdMiddleware>();
     // Sprint 249 (Doc 74): security headers aplicados a TODAS as responses, incluindo
     // preflight CORS. Tem que vir antes de UseCors para apanhar o response do OPTIONS.

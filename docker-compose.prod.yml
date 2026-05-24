@@ -72,6 +72,12 @@ services:
       AtNifLookup__KeyPath: ${AT_KEY_PATH:-}
       AtNifLookup__KeyPassword: ${AT_KEY_PASSWORD:-}
       AtNifLookup__MaxDailyCallsPerTenant: ${AT_NIF_MAX_DAILY_CALLS:-100}
+      # Sprint 250 (Doc 75): Sentry error tracking. Sem SENTRY_DSN o SDK é no-op.
+      # Cria projecto em sentry.io (free tier 5k events/mês cobre LopesTech easily).
+      Sentry__Dsn: ${SENTRY_DSN:-}
+      # Cors: lista de origens permitidas em produção. Apertado em Sprint 249.
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN_PRIMARY:-https://app.mender.pt}
+      Frontend__BaseUrl: ${FRONTEND_BASE_URL:-https://app.mender.pt}
     volumes:
       - photos_data:/data/photos
       # DataProtection keys (cifram tokens Moloni, refresh tokens). Volume persistente — critico.
