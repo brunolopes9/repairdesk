@@ -66,12 +66,22 @@ const nav: NavItem[] = [
     ],
   },
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
-  { to: '/definicoes/preferencias', label: 'Preferências', icon: SlidersHorizontal, adminOnly: true },
-  { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true },
-  { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2, adminOnly: true },
-  { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow, adminOnly: true },
-  { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles, adminOnly: true },
-  { to: '/definicoes', label: 'Definições', icon: Settings },
+  // Sprint 240: agrupar tudo de configuração num único dropdown "Definições" — antes eram
+  // 6 items soltos na sidebar (Preferências, Webhooks, Fornecedores, Automações, Uso de IA,
+  // Definições) que poluíam o menu principal.
+  {
+    label: 'Definições',
+    icon: Settings,
+    adminOnly: true,
+    children: [
+      { to: '/definicoes', label: 'Empresa & Faturação', icon: Settings },
+      { to: '/definicoes/preferencias', label: 'Preferências', icon: SlidersHorizontal },
+      { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2 },
+      { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook },
+      { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
+      { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },
+    ],
+  },
 ];
 
 const SIDEBAR_PIN_KEY = 'rd.sidebar.pinned';
@@ -258,7 +268,9 @@ export default function Layout() {
                 <div>
                   <div
                     className={`group flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition ${
-                      location.pathname.startsWith('/relatorios')
+                      // Sprint 240: highlight quando QUALQUER child está activo (suporta dropdowns
+                      // genéricos — antes era hardcoded só /relatorios).
+                      item.children.some((c) => location.pathname === c.to || location.pathname.startsWith(c.to + '/'))
                         ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-400'
                         : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
                     }`}
