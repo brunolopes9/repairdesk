@@ -49,7 +49,10 @@ public class ClientesController : ControllerBase
     public Task<ClienteDto> Update(Guid id, [FromBody] UpdateClienteRequest req, CancellationToken ct)
         => _service.UpdateAsync(id, req, ct);
 
+    // Sprint 244 Fase B: soft-delete cliente esconde histórico (vendas, reparações) das
+    // listas. Hard-delete já é Admin. Import bulk insere dados em massa. Doc 72 §2.
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await _service.DeleteAsync(id, ct);
@@ -61,6 +64,7 @@ public class ClientesController : ControllerBase
     /// Separador auto-detectado (vírgula/ponto-e-vírgula/tab). Dedupe por NIF.
     /// </summary>
     [HttpPost("import")]
+    [Authorize(Roles = "Admin")]
     public Task<ImportClientesResponse> Import([FromBody] ImportClientesRequest req, CancellationToken ct)
         => _service.ImportCsvAsync(req.Csv, ct);
 

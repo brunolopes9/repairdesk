@@ -30,7 +30,10 @@ public class PriceTableController : ControllerBase
     [HttpGet("{id:guid}")]
     public Task<PriceTableEntryDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
 
+    // Sprint 244 Fase B: tabela de preços é configuração comercial — afecta orçamentos
+    // e KPI margem. Admin-only para evitar alterações ad-hoc por funcionário. Doc 72 §2.
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<PriceTableEntryDto>> Create([FromBody] CreatePriceEntryRequest req, CancellationToken ct)
     {
         var dto = await _service.CreateAsync(req, ct);
@@ -38,10 +41,12 @@ public class PriceTableController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public Task<PriceTableEntryDto> Update(Guid id, [FromBody] UpdatePriceEntryRequest req, CancellationToken ct)
         => _service.UpdateAsync(id, req, ct);
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await _service.DeleteAsync(id, ct);
@@ -49,6 +54,7 @@ public class PriceTableController : ControllerBase
     }
 
     [HttpPost("import")]
+    [Authorize(Roles = "Admin")]
     public Task<ImportPriceTableResponse> Import([FromBody] ImportPriceTableRequest req, CancellationToken ct)
         => _service.ImportCsvAsync(req.Csv, ct);
 }

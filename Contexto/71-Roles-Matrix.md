@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:de160bda5fb8cc51 -->
+<!-- roles-matrix-snapshot:9799d6902ff26289 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -34,5 +34,9 @@ testes e esta matriz com snapshot.
 | TenantPreferencesController | `PUT /`, `POST /reset/{group}` | `Admin` |
 | LlmUsageController | `POST/DELETE /anthropic-key` (BYOK credencial) | `Admin` |
 | AutomacoesController | `POST /ingest-email/regenerate` | `Admin` |
+| **Sprint 244 (Doc 72 Fase B) — configuração comercial/estrutural** | | |
+| PriceTableController | `POST /`, `PUT/DELETE /{id}`, `POST /import` | `Admin` |
+| DiagnosticoController | `POST/DELETE /templates` (execuções por reparação ficam Authenticated) | `Admin` |
+| ClientesController | `DELETE /{id}` (soft-delete), `POST /import` | `Admin` |
 
 Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por reflection dos controllers.

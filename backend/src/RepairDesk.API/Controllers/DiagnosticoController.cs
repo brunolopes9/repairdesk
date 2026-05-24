@@ -16,7 +16,10 @@ public class DiagnosticoController : ControllerBase
     public Task<IReadOnlyList<DiagnosticoTemplateDto>> Templates(CancellationToken ct)
         => _service.ListTemplatesAsync(ct);
 
+    // Sprint 244 Fase B: templates de diagnóstico são configuração estrutural —
+    // afecta todas as execuções futuras dos técnicos. Doc 72 §2.
     [HttpPost("templates")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<DiagnosticoTemplateDto>> CreateTemplate([FromBody] CreateTemplateRequest req, CancellationToken ct)
     {
         var t = await _service.CreateTemplateAsync(req, ct);
@@ -24,6 +27,7 @@ public class DiagnosticoController : ControllerBase
     }
 
     [HttpDelete("templates/{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteTemplate(Guid id, CancellationToken ct)
     {
         await _service.DeleteTemplateAsync(id, ct);
