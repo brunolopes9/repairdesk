@@ -405,16 +405,32 @@ try
         c.SwaggerDoc("v1", new() { Title = "Mender API", Version = "v1" });
     });
 
+    // Sprint 249 (Doc 74): CORS apertado — apenas origens explícitas em Cors:AllowedOrigins
+    // (mais Frontend:BaseUrl), headers e métodos restringidos ao que a SPA realmente envia.
+    // AllowCredentials necessário para enviar refresh cookie no /api/auth/refresh.
     var corsOrigins = BuildCorsOrigins(builder.Configuration, builder.Environment);
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
         .WithOrigins(corsOrigins)
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials()));
+        .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+        .WithHeaders(
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "X-Correlation-Id",
+            "X-Requested-With",
+            // Webhooks externos têm o seu próprio handler — estes só aparecem aqui se um
+            // cliente integrador chamar a SPA com a sua API key. Mantém compatibilidade.
+            "X-API-Key")
+        .WithExposedHeaders("X-Correlation-Id")
+        .AllowCredentials()
+        .SetPreflightMaxAge(TimeSpan.FromMinutes(10))));
 
     var app = builder.Build();
 
     app.UseMiddleware<CorrelationIdMiddleware>();
+    // Sprint 249 (Doc 74): security headers aplicados a TODAS as responses, incluindo
+    // preflight CORS. Tem que vir antes de UseCors para apanhar o response do OPTIONS.
+    app.UseMiddleware<SecurityHeadersMiddleware>();
     app.UseSerilogRequestLogging(options =>
     {
         options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
