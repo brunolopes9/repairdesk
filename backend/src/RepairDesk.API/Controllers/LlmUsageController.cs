@@ -48,7 +48,10 @@ public class LlmUsageController : ControllerBase
     /// Sprint 168: salva Anthropic API key encriptada para este tenant.
     /// Valida com chamada a Anthropic /v1/models antes de gravar.
     /// </summary>
+    // Sprint 243 Fase A: BYOK Anthropic é credencial sensível (custos $$ associados,
+    // acesso a API externa). Doc 72 §2 A.6.
     [HttpPost("anthropic-key")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> SetAnthropicKey([FromBody] SetAnthropicKeyRequest req, CancellationToken ct)
     {
         if (_tenant.TenantId is not { } tenantId) return Unauthorized();
@@ -85,6 +88,7 @@ public class LlmUsageController : ControllerBase
 
     /// <summary>Remove a Anthropic key — LLM features ficam desactivadas.</summary>
     [HttpDelete("anthropic-key")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RemoveAnthropicKey(CancellationToken ct)
     {
         if (_tenant.TenantId is not { } tenantId) return Unauthorized();

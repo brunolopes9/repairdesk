@@ -20,11 +20,15 @@ public class TenantPreferencesController : ControllerBase
     public Task<TenantPreferencesRoot> Get(CancellationToken ct)
         => _service.GetAsync(ct);
 
+    // Sprint 243 Fase A: preferências mudam comportamento global do tenant (WhatsApp
+    // templates, portal visibility, automatismos faturação). Doc 72 §2 A.5.
     [HttpPut]
+    [Authorize(Roles = "Admin")]
     public Task<TenantPreferencesRoot> Update([FromBody] TenantPreferencesRoot request, CancellationToken ct)
         => _service.UpdateAsync(request, ct);
 
     [HttpPost("reset/{group}")]
+    [Authorize(Roles = "Admin")]
     public Task<TenantPreferencesRoot> ResetGroup(string group, CancellationToken ct)
         => _service.ResetGroupAsync(group, ct);
 }

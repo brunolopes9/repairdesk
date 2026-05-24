@@ -74,7 +74,10 @@ public class AutomacoesController : ControllerBase
     }
 
     /// <summary>Sprint 173: regenera o slug (caso tenant ache que está exposto).</summary>
+    // Sprint 243 Fase A: regenerar slug quebra workflows existentes (emails antigos
+    // deixam de ser entregues). Doc 72 §2 A.7.
     [HttpPost("ingest-email/regenerate")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RegenerateIngestEmail(CancellationToken ct)
     {
         if (_tenant.TenantId is not { } tenantId) return Unauthorized();

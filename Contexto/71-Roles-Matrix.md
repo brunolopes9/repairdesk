@@ -1,9 +1,10 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:bf0706aa164cdbda -->
+<!-- roles-matrix-snapshot:de160bda5fb8cc51 -->
 
-Documento gerado para Sprint 239. A snapshot acima e a tabela abaixo devem ser actualizadas sempre que
-um controller, rota, verbo HTTP ou atributo `[Authorize]` / `[AllowAnonymous]` mudar.
+Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
+tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
+`[Authorize]` / `[AllowAnonymous]` mudar.
 
 ## Decisão `/api/admin/*`
 
@@ -25,5 +26,13 @@ testes e esta matriz com snapshot.
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |
 | UsersController | `POST /api/users/{id}/revoke-sessions`, `POST /api/users/{id}/deactivate` | `Admin` |
 | WebhooksController | `GET/POST/PUT/DELETE /api/webhooks*` | `Admin` |
+| **Sprint 243 (Doc 72 Fase A) — operações fiscais/credenciais/estruturais** | | |
+| TrabalhosController | `DELETE /{id}`, billing endpoints (`emitir-fatura`, `anular-fatura`, `converter-orcamento-fatura`, `bulk-emit-faturas`, `emitir-orcamento-moloni`), `reabrir` | `Admin` |
+| SupplierInvoicesController | `approve`, `reject`, `approve-stock`, `reprocess` | `Admin` |
+| DespesasController | `POST`, `PUT`, `DELETE` (afecta IVA dedutível) | `Admin` |
+| PartsController | `POST /{id}/movimento` (ajuste manual stock), `POST /import` | `Admin` |
+| TenantPreferencesController | `PUT /`, `POST /reset/{group}` | `Admin` |
+| LlmUsageController | `POST/DELETE /anthropic-key` (BYOK credencial) | `Admin` |
+| AutomacoesController | `POST /ingest-email/regenerate` | `Admin` |
 
 Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por reflection dos controllers.

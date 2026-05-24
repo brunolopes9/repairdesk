@@ -29,11 +29,15 @@ public class SupplierInvoicesController : ControllerBase
         return File(bytes, "application/pdf");
     }
 
+    // Sprint 243 Fase A: aprovar/rejeitar fatura B2B afecta directamente IVA dedutível +
+    // custo de stock. Reprocess pode consumir quota LLM. Só Admin. Doc 72 §2 A.2.
     [HttpPost("{id:guid}/approve")]
+    [Authorize(Roles = "Admin")]
     public Task<SupplierInvoiceImportDto> Approve(Guid id, [FromBody] ApproveSupplierInvoiceRequest req, CancellationToken ct)
         => _service.ApproveAsync(id, req, ct);
 
     [HttpPost("{id:guid}/reject")]
+    [Authorize(Roles = "Admin")]
     public Task<SupplierInvoiceImportDto> Reject(Guid id, [FromBody] RejectSupplierInvoiceRequest req, CancellationToken ct)
         => _service.RejectAsync(id, req.Reason, ct);
 
@@ -43,11 +47,13 @@ public class SupplierInvoicesController : ControllerBase
     /// SkuMapping aprende para próximas importações.
     /// </summary>
     [HttpPost("{id:guid}/approve-stock")]
+    [Authorize(Roles = "Admin")]
     public Task<SupplierInvoiceImportDto> ApproveStock(Guid id, [FromBody] ApproveAsStockRequest req, CancellationToken ct)
         => _service.ApproveAsStockAsync(id, req, ct);
 
     /// <summary>Sprint 163b: re-corre pipeline parser→fingerprint→LLM. Reset Status=Pending.</summary>
     [HttpPost("{id:guid}/reprocess")]
+    [Authorize(Roles = "Admin")]
     public Task<SupplierInvoiceImportDto> Reprocess(Guid id, CancellationToken ct)
         => _service.ReprocessAsync(id, ct);
 

@@ -30,7 +30,11 @@ public class DespesasController : ControllerBase
     [HttpGet("{id:guid}")]
     public Task<DespesaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
 
+    // Sprint 243 Fase A: despesas alimentam IVA dedutível (Sprint 159) e Lucro/OpEx no
+    // Relatório Negócio. Criar/editar/apagar é admin-only para evitar manipulação
+    // fiscal por funcionário sem autorização. Doc 72 §2 A.3.
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<DespesaDto>> Create([FromBody] CreateDespesaRequest req, CancellationToken ct)
     {
         var dto = await _service.CreateAsync(req, ct);
@@ -38,10 +42,12 @@ public class DespesasController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public Task<DespesaDto> Update(Guid id, [FromBody] UpdateDespesaRequest req, CancellationToken ct)
         => _service.UpdateAsync(id, req, ct);
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await _service.DeleteAsync(id, ct);

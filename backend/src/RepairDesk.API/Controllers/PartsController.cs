@@ -74,11 +74,15 @@ public class PartsController : ControllerBase
     public Task<IReadOnlyList<PartMovimentoDto>> MovimentosByPart(Guid id, CancellationToken ct)
         => _service.MovimentosAsync(id, null, ct);
 
+    // Sprint 243 Fase A: ajuste manual de stock pode esconder shrinkage e desviar
+    // KPI. Import CSV insere muitas linhas — admin-only. Doc 72 §2 A.4.
     [HttpPost("{id:guid}/movimento")]
+    [Authorize(Roles = "Admin")]
     public Task<PartMovimentoDto> AddMovimento(Guid id, [FromBody] CreatePartMovimentoRequest req, CancellationToken ct)
         => _service.AddMovimentoAsync(id, req, ct);
 
     [HttpPost("import")]
+    [Authorize(Roles = "Admin")]
     public Task<ImportPartsResponse> Import([FromBody] ImportPartsRequest req, CancellationToken ct)
         => _service.ImportCsvAsync(req.Csv, ct);
 
