@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Core.Enums;
+using RepairDesk.Services.Files;
 using RepairDesk.Services.Fotos;
 
 namespace RepairDesk.API.Controllers;
@@ -11,7 +12,13 @@ namespace RepairDesk.API.Controllers;
 public class FotosController : ControllerBase
 {
     private readonly IFotoService _service;
-    public FotosController(IFotoService service) => _service = service;
+    private readonly IFileValidator _fileValidator;
+
+    public FotosController(IFotoService service, IFileValidator fileValidator)
+    {
+        _service = service;
+        _fileValidator = fileValidator;
+    }
 
     [HttpGet]
     public Task<IReadOnlyList<FotoDto>> List(Guid reparacaoId, CancellationToken ct)
@@ -28,8 +35,13 @@ public class FotosController : ControllerBase
     {
         if (file is null || file.Length == 0)
             return BadRequest(new { detail = "Ficheiro obrigatório." });
-        await using var stream = file.OpenReadStream();
-        var dto = await _service.UploadAsync(reparacaoId, stream, file.FileName, file.ContentType, file.Length, tipo, legenda, ct);
+        // Sprint 247 (Doc 73 Fase B): valida magic bytes ANTES do FotoService. O service
+        // mantém o whitelist como defesa em profundidade, mas aqui rejeitamos cedo (não
+        // tocamos disco/storage se o ficheiro estiver disfarçado).
+        await using var raw = file.OpenReadStream();
+        var validated = await _fileValidator.ValidateAsync(raw, file.ContentType, FileKind.Image, ct);
+        using var stream = new MemoryStream(validated.Buffer);
+        var dto = await _service.UploadAsync(reparacaoId, stream, file.FileName, validated.DetectedMime, validated.Buffer.Length, tipo, legenda, ct);
         return Ok(dto);
     }
 }

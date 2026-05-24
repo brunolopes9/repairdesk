@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.Files;
 using RepairDesk.Services.Products;
 
 namespace RepairDesk.API.Controllers;
@@ -17,6 +18,7 @@ public class ProductsController : ControllerBase
     private readonly IProductSeoGenerator _seoGen;
     private readonly IImageOptimizationService _imageOpt;
     private readonly IHttpClientFactory _httpFactory;
+    private readonly IFileValidator _fileValidator;
     private readonly ILogger<ProductsController> _logger;
 
     public ProductsController(
@@ -25,6 +27,7 @@ public class ProductsController : ControllerBase
         IProductSeoGenerator seoGen,
         IImageOptimizationService imageOpt,
         IHttpClientFactory httpFactory,
+        IFileValidator fileValidator,
         ILogger<ProductsController> logger)
     {
         _service = service;
@@ -32,6 +35,7 @@ public class ProductsController : ControllerBase
         _seoGen = seoGen;
         _imageOpt = imageOpt;
         _httpFactory = httpFactory;
+        _fileValidator = fileValidator;
         _logger = logger;
     }
 
@@ -304,14 +308,13 @@ public class ProductsController : ControllerBase
     public async Task<IActionResult> UploadPendingImage(IFormFile image, CancellationToken ct)
     {
         if (image is null || image.Length == 0) return BadRequest(new { code = "no_image" });
-        var mime = string.IsNullOrWhiteSpace(image.ContentType) ? "image/jpeg" : image.ContentType.ToLowerInvariant();
-        if (mime is not "image/jpeg" and not "image/png" and not "image/webp" and not "image/gif")
-            return BadRequest(new { code = "unsupported_mime" });
+        // Sprint 247 (Doc 73 Fase B): magic bytes em vez de só MIME do cliente.
+        await using var stream = image.OpenReadStream();
+        var validated = await _fileValidator.ValidateAsync(stream, image.ContentType, FileKind.Image, ct);
+        var mime = validated.DetectedMime;
+        var bytes = validated.Buffer;
 
         var tenantId = User.FindFirst("tenant_id")?.Value ?? "shared";
-        using var ms = new MemoryStream();
-        await image.CopyToAsync(ms, ct);
-        var bytes = ms.ToArray();
         var keyPrefix = $"products/{tenantId}/pending/{Guid.NewGuid():N}";
         var optimized = await _imageOpt.OptimizeAsync(bytes, mime, keyPrefix, ct);
         return Ok(new
@@ -370,18 +373,16 @@ public class ProductsController : ControllerBase
     public async Task<IActionResult> UploadImage(Guid productId, IFormFile image, CancellationToken ct)
     {
         if (image is null || image.Length == 0) return BadRequest(new { code = "no_image" });
-        var mime = string.IsNullOrWhiteSpace(image.ContentType) ? "image/jpeg" : image.ContentType.ToLowerInvariant();
-        if (mime is not "image/jpeg" and not "image/png" and not "image/webp" and not "image/gif")
-            return BadRequest(new { code = "unsupported_mime" });
+        // Sprint 247 (Doc 73 Fase B): magic bytes.
+        await using var stream = image.OpenReadStream();
+        var validated = await _fileValidator.ValidateAsync(stream, image.ContentType, FileKind.Image, ct);
+        var mime = validated.DetectedMime;
+        var bytes = validated.Buffer;
 
         var product = await _db.Products
             .Include(p => p.Images)
             .FirstOrDefaultAsync(p => p.Id == productId, ct);
         if (product is null) return NotFound();
-
-        using var ms = new MemoryStream();
-        await image.CopyToAsync(ms, ct);
-        var bytes = ms.ToArray();
 
         var keyPrefix = $"products/{product.TenantId}/{productId}/{Guid.NewGuid():N}";
         var optimized = await _imageOpt.OptimizeAsync(bytes, mime, keyPrefix, ct);

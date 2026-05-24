@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.Files;
 using RepairDesk.Services.Parts;
 
 namespace RepairDesk.API.Controllers;
@@ -14,8 +15,13 @@ namespace RepairDesk.API.Controllers;
 public class PartsController : ControllerBase
 {
     private readonly IPartService _service;
+    private readonly IFileValidator _fileValidator;
 
-    public PartsController(IPartService service) => _service = service;
+    public PartsController(IPartService service, IFileValidator fileValidator)
+    {
+        _service = service;
+        _fileValidator = fileValidator;
+    }
 
     [HttpGet]
     public Task<PagedResult<PartDto>> Search(
@@ -99,14 +105,16 @@ public class PartsController : ControllerBase
             return BadRequest(new { detail = "Ficheiro não fornecido." });
         if (file.Length > RepairDesk.Services.Documents.PdfTextExtractor.MaxBytes)
             return BadRequest(new { detail = $"Ficheiro demasiado grande (máx {RepairDesk.Services.Documents.PdfTextExtractor.MaxBytes / 1024 / 1024} MB)." });
-        if (!file.ContentType.Contains("pdf", StringComparison.OrdinalIgnoreCase)
-            && !file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { detail = "Apenas PDFs são aceites." });
 
-        await using var stream = file.OpenReadStream();
+        // Sprint 247 (Doc 73 Fase B): substitui o OR ContentType/extension fraco por
+        // validação por magic bytes — PdfPig vai abrir o stream confiando que é PDF real.
+        await using var raw = file.OpenReadStream();
+        var validated = await _fileValidator.ValidateAsync(raw, file.ContentType, FileKind.Pdf, ct);
+
         try
         {
-            var result = RepairDesk.Services.Documents.PdfTextExtractor.Extract(stream, file.FileName);
+            using var pdfStream = new MemoryStream(validated.Buffer);
+            var result = RepairDesk.Services.Documents.PdfTextExtractor.Extract(pdfStream, file.FileName);
             // Sprint 124: anexa sugestões parseadas para o frontend popular o form.
             var suggestions = RepairDesk.Services.Documents.SupplierPdfParser.Parse(result.Text);
             return Ok(result with { Suggestions = suggestions });

@@ -5,6 +5,7 @@ using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.External;
+using RepairDesk.Services.Files;
 using RepairDesk.Services.Shop;
 
 namespace RepairDesk.API.Controllers;
@@ -22,11 +23,13 @@ public class ExternalController : ControllerBase
 {
     private readonly IExternalCheckoutService _checkout;
     private readonly IShopAiService _shopAi;
+    private readonly IFileValidator _fileValidator;
 
-    public ExternalController(IExternalCheckoutService checkout, IShopAiService shopAi)
+    public ExternalController(IExternalCheckoutService checkout, IShopAiService shopAi, IFileValidator fileValidator)
     {
         _checkout = checkout;
         _shopAi = shopAi;
+        _fileValidator = fileValidator;
     }
 
     /// <summary>
@@ -163,12 +166,10 @@ public class ExternalController : ControllerBase
     {
         if (image is null || image.Length == 0)
             return BadRequest(new { ok = false, error = "Imagem obrigatória" });
-        var mime = string.IsNullOrWhiteSpace(image.ContentType) ? "image/jpeg" : image.ContentType;
-        if (mime is not "image/jpeg" and not "image/png" and not "image/webp" and not "image/gif")
-            return BadRequest(new { ok = false, error = "MIME não suportado (use jpeg/png/webp/gif)" });
-        using var ms = new MemoryStream();
-        await image.CopyToAsync(ms, ct);
-        var result = await _shopAi.SearchImageAsync(ms.ToArray(), mime, ct);
+        // Sprint 247 (Doc 73 Fase B): magic bytes — Claude Vision custa $$, rejeitar lixo antes.
+        await using var stream = image.OpenReadStream();
+        var validated = await _fileValidator.ValidateAsync(stream, image.ContentType, FileKind.Image, ct);
+        var result = await _shopAi.SearchImageAsync(validated.Buffer, validated.DetectedMime, ct);
         return Ok(result);
     }
 }

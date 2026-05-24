@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Services.Documents;
+using RepairDesk.Services.Files;
 
 namespace RepairDesk.API.Controllers;
 
@@ -15,8 +16,13 @@ namespace RepairDesk.API.Controllers;
 public class SupplierInvoicesController : ControllerBase
 {
     private readonly ISupplierInvoiceImportService _service;
+    private readonly IFileValidator _fileValidator;
 
-    public SupplierInvoicesController(ISupplierInvoiceImportService service) => _service = service;
+    public SupplierInvoicesController(ISupplierInvoiceImportService service, IFileValidator fileValidator)
+    {
+        _service = service;
+        _fileValidator = fileValidator;
+    }
 
     [HttpGet("pending")]
     public Task<IReadOnlyList<SupplierInvoiceImportDto>> Pending([FromQuery] int take = 100, CancellationToken ct = default)
@@ -75,9 +81,11 @@ public class SupplierInvoicesController : ControllerBase
     {
         if (file is null || file.Length == 0)
             return BadRequest(new { code = "no_file", detail = "Anexa uma imagem." });
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms, ct);
-        var result = await _service.IngestPhotoAsync(ms.ToArray(), file.FileName, file.ContentType, fornecedorHint, ct);
+        // Sprint 247 (Doc 73 Fase B): magic-bytes validation antes de processar.
+        // Vision API custa $$ — rejeitar lixo antes de chamar Claude.
+        await using var stream = file.OpenReadStream();
+        var validated = await _fileValidator.ValidateAsync(stream, file.ContentType, FileKind.Image, ct);
+        var result = await _service.IngestPhotoAsync(validated.Buffer, file.FileName, validated.DetectedMime, fornecedorHint, ct);
         return Ok(result);
     }
 
@@ -95,13 +103,12 @@ public class SupplierInvoicesController : ControllerBase
     {
         if (file is null || file.Length == 0)
             return BadRequest(new { code = "no_file", detail = "Anexa um PDF." });
-        if (!string.Equals(file.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase)
-            && !file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { code = "not_pdf", detail = "Só PDFs são aceites." });
-
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms, ct);
-        var bytes = ms.ToArray();
+        // Sprint 247 (Doc 73 Fase B): substitui o OR ContentType/extension fraco por
+        // validação por magic bytes (%PDF-). Buffer fica em memória — mantemos limite
+        // 20 MB no [RequestSizeLimit].
+        await using var stream = file.OpenReadStream();
+        var validated = await _fileValidator.ValidateAsync(stream, file.ContentType, FileKind.Pdf, ct);
+        var bytes = validated.Buffer;
 
         var emailMeta = new SupplierInvoiceEmailMeta(
             MessageId: null,
