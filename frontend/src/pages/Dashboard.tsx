@@ -353,7 +353,10 @@ function WeeklyCard({
           {suffix && <span className="text-xs text-zinc-500">{suffix}</span>}
         </div>
       )}
-      {children}
+      {/* Sprint 239 fix: esconder children (sparkline ResponsiveContainer) quando loading
+          para evitar Recharts warning "width(-1) and height(-1) of chart should be greater
+          than 0" — o container ainda não tem dimensões antes dos KPIs carregarem. */}
+      {!loading && children}
       {helper && <p className="mt-auto pt-3 text-xs leading-5 text-zinc-500">{helper}</p>}
     </Link>
   );
