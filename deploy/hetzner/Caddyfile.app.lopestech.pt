@@ -40,13 +40,6 @@ app.lopestech.pt {
         header_up X-Original-IP {>CF-Connecting-IP}
     }
 
-    log {
-        output file /var/log/caddy/app.lopestech.pt.log {
-            roll_size 100mb
-            roll_keep 7
-            roll_keep_for 30d
-        }
-        format json
-        level INFO
-    }
+    # Logs vão para journald via stdout (default).
+    # Ver com: sudo journalctl -u caddy -f
 }
