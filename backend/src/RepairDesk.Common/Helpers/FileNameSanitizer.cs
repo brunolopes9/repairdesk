@@ -27,10 +27,13 @@ public static class FileNameSanitizer
         if (string.IsNullOrWhiteSpace(raw)) return "file";
 
         // Remove componentes de path — defesa contra "../../etc/passwd" e variantes Windows.
+        // Path.GetFileName em Linux só trata '/' como separator; normalizar '\' → '/' garante
+        // que paths Windows também são strippados quando o backend corre em Linux.
+        var normalized = raw.Replace('\\', '/');
         string nameOnly;
-        try { nameOnly = Path.GetFileName(raw); }
-        catch { nameOnly = raw; }
-        if (string.IsNullOrWhiteSpace(nameOnly)) nameOnly = raw;
+        try { nameOnly = Path.GetFileName(normalized); }
+        catch { nameOnly = normalized; }
+        if (string.IsNullOrWhiteSpace(nameOnly)) nameOnly = normalized;
 
         // Whitelist conservadora: letras/dígitos + . - _ e espaço. Tudo o resto cai.
         var clean = string.Concat(nameOnly.Where(c => char.IsLetterOrDigit(c) || c is '.' or '-' or '_' or ' '));
