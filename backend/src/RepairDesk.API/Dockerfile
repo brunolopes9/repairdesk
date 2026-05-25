@@ -21,6 +21,9 @@ RUN apt-get update \
  && chown -R app:app /data /backups
 
 COPY --from=build /app ./
-USER app
+COPY src/RepairDesk.API/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh
+# USER root: entrypoint corre chmod e DROP privileges com runuser antes de dotnet arrancar.
+USER root
 EXPOSE 8080
-ENTRYPOINT ["dotnet", "RepairDesk.API.dll"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
