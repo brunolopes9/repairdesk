@@ -95,6 +95,9 @@ public sealed record ProductDto(
     // Sprint 151: novos campos shop.
     ProductCategory Category,
     string? DropshipSupplierSku,
+    /// <summary>Sprint 305: grade exacto como veio do fornecedor ("B+", "C+", "AB", "A Premium").
+    /// Preservado para webhook payload + admin debug. Pode ser null para produtos antigos.</summary>
+    string? SupplierGrade,
     int PriceCents,
     int? CompareAtPriceCents,
     int StockQuantity,
@@ -1111,7 +1114,7 @@ public class ProductService : IProductService
 
     private static ProductDto ToDto(Product p) =>
         new(p.Id, p.Sku, p.Slug, p.Brand, p.Model, p.Storage, p.Color, p.Grading, p.Origin, p.Grade, p.SupplyType,
-            p.Category, p.DropshipSupplierSku,
+            p.Category, p.DropshipSupplierSku, p.SupplierGrade,
             p.PriceCents, p.CompareAtPriceCents,
             p.StockQuantity, p.StockMinima, p.CustoUnitarioCents,
             p.DescriptionMarkdown, p.AttributesJson, p.SeoTitle, p.SeoDescription,
