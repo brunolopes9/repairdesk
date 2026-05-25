@@ -60,6 +60,20 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Search_Recurring_FilterOnlyRecurring()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var recurring = await CreateOne(client, DespesaCategoria.Software, 1200, isRecorrente: true, periodicidadeMeses: 1);
+        await CreateOne(client, DespesaCategoria.Software, 800);
+
+        var list = await client.GetFromJsonAsync<PagedResult<DespesaDto>>("/api/despesas?isRecorrente=true");
+
+        list!.Items.Should().ContainSingle(d => d.Id == recurring.Id);
+        list.Items.Should().OnlyContain(d => d.IsRecorrente);
+        list.Items.Single().PeriodicidadeMeses.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Update_AllowsLinkingToTrabalho()
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
@@ -103,10 +117,15 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
         return client;
     }
 
-    private static async Task<DespesaDto> CreateOne(HttpClient client, DespesaCategoria cat, int cents)
+    private static async Task<DespesaDto> CreateOne(
+        HttpClient client,
+        DespesaCategoria cat,
+        int cents,
+        bool isRecorrente = false,
+        int? periodicidadeMeses = null)
     {
         var resp = await client.PostAsJsonAsync("/api/despesas",
-            new CreateDespesaRequest($"Desp-{Guid.NewGuid():N}", cat, cents, null, null, null, null, null, null));
+            new CreateDespesaRequest($"Desp-{Guid.NewGuid():N}", cat, cents, null, null, null, null, null, null, false, isRecorrente, periodicidadeMeses));
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<DespesaDto>())!;
     }

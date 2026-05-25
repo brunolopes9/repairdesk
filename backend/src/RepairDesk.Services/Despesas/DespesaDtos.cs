@@ -12,7 +12,9 @@ public sealed record CreateDespesaRequest(
     string? Notas,
     Guid? TrabalhoId,
     Guid? ReparacaoId,
-    bool IsCogs = false);
+    bool IsCogs = false,
+    bool IsRecorrente = false,
+    int? PeriodicidadeMeses = null);
 
 public sealed record UpdateDespesaRequest(
     string Descricao,
@@ -24,7 +26,9 @@ public sealed record UpdateDespesaRequest(
     string? Notas,
     Guid? TrabalhoId,
     Guid? ReparacaoId,
-    bool IsCogs = false);
+    bool IsCogs = false,
+    bool IsRecorrente = false,
+    int? PeriodicidadeMeses = null);
 
 public sealed record DespesaDto(
     Guid Id,
@@ -39,4 +43,6 @@ public sealed record DespesaDto(
     Guid? ReparacaoId,
     DateTime CreatedAt,
     // Sprint 176/177: COGS flag — peça consumida em reparação (não OpEx).
-    bool IsCogs);
+    bool IsCogs,
+    bool IsRecorrente,
+    int? PeriodicidadeMeses);

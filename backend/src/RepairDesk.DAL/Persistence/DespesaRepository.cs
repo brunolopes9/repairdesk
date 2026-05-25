@@ -21,7 +21,7 @@ public class DespesaRepository : IDespesaRepository
 
     public async Task<(IReadOnlyList<Despesa> Items, int Total)> SearchAsync(
         string? query, DespesaCategoria? categoria, DateTime? from, DateTime? to,
-        Guid? trabalhoId, Guid? reparacaoId, int page, int pageSize, CancellationToken ct = default)
+        Guid? trabalhoId, Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
     {
         var q = _db.Despesas.AsNoTracking().AsQueryable();
         if (categoria is not null) q = q.Where(d => d.Categoria == categoria.Value);
@@ -29,6 +29,7 @@ public class DespesaRepository : IDespesaRepository
         if (to is not null) q = q.Where(d => d.Data <= to.Value);
         if (trabalhoId is not null) q = q.Where(d => d.TrabalhoId == trabalhoId.Value);
         if (reparacaoId is not null) q = q.Where(d => d.ReparacaoId == reparacaoId.Value);
+        if (isRecorrente is not null) q = q.Where(d => d.IsRecorrente == isRecorrente.Value);
 
         if (!string.IsNullOrWhiteSpace(query))
         {

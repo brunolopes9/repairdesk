@@ -15,6 +15,7 @@ public interface IDespesaRepository
         DateTime? to,
         Guid? trabalhoId,
         Guid? reparacaoId,
+        bool? isRecorrente,
         int page,
         int pageSize,
         CancellationToken ct = default);
