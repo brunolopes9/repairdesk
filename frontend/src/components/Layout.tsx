@@ -51,6 +51,7 @@ const nav: NavItem[] = [
   { to: '/reparacoes', label: 'Reparações', icon: Wrench },
   { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
   { to: '/despesas', label: 'Despesas', icon: Receipt },
+  { to: '/compras', label: 'Compras', icon: ShoppingCart },
   { to: '/cash', label: 'Caixa', icon: Banknote },
   { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
   { to: '/stock', label: 'Stock', icon: PackageSearch },

@@ -10,5 +10,10 @@ public enum DespesaCategoria
     Comunicacoes = 5,
     Marketing = 6,
     Servicos = 7,
+    Renda = 8,
+    Seguros = 9,
+    Combustivel = 10,
+    PecasUsadas = 11,
     Outro = 99,
+    Outras = 99,
 }

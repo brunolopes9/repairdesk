@@ -11,6 +11,9 @@ public interface IDespesaRepository
     Task<(IReadOnlyList<Despesa> Items, int Total)> SearchAsync(
         string? query,
         DespesaCategoria? categoria,
+        IReadOnlyCollection<DespesaCategoria>? categoriaIn,
+        bool includeSupplierInvoiceImports,
+        bool excludeSupplierInvoiceImports,
         DateTime? from,
         DateTime? to,
         Guid? trabalhoId,

@@ -18,15 +18,18 @@ public class DespesasController : ControllerBase
     public Task<PagedResult<DespesaDto>> Search(
         [FromQuery] string? q,
         [FromQuery] DespesaCategoria? categoria,
+        [FromQuery(Name = "categoria_in")] string? categoriaIn,
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
         [FromQuery] Guid? trabalhoId,
         [FromQuery] Guid? reparacaoId,
         [FromQuery] bool? isRecorrente,
+        [FromQuery(Name = "include_supplier_invoice_imports")] bool includeSupplierInvoiceImports,
+        [FromQuery(Name = "exclude_supplier_invoice_imports")] bool excludeSupplierInvoiceImports,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
-        => _service.SearchAsync(q, categoria, from, to, trabalhoId, reparacaoId, isRecorrente, page, pageSize, ct);
+        => _service.SearchAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, trabalhoId, reparacaoId, isRecorrente, page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<DespesaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
@@ -53,5 +56,28 @@ public class DespesasController : ControllerBase
     {
         await _service.DeleteAsync(id, ct);
         return NoContent();
+    }
+
+    private static IReadOnlyCollection<DespesaCategoria>? ParseCategoriaIn(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        var values = new List<DespesaCategoria>();
+        foreach (var part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (int.TryParse(part, out var numeric) && Enum.IsDefined(typeof(DespesaCategoria), numeric))
+            {
+                values.Add((DespesaCategoria)numeric);
+                continue;
+            }
+
+            if (Enum.TryParse<DespesaCategoria>(part, ignoreCase: true, out var named) &&
+                Enum.IsDefined(typeof(DespesaCategoria), named))
+            {
+                values.Add(named);
+            }
+        }
+
+        return values.Count == 0 ? null : values.Distinct().ToArray();
     }
 }

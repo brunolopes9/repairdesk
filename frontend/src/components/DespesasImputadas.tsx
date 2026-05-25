@@ -161,6 +161,8 @@ export function DespesaFormModal({
   trabalhoId,
   reparacaoId,
   initialRecorrente = false,
+  initialCategoria = DESPESA_CATEGORIA.Pecas,
+  allowedCategorias,
   onClose,
   onSaved,
 }: {
@@ -169,6 +171,8 @@ export function DespesaFormModal({
   trabalhoId?: string;
   reparacaoId?: string;
   initialRecorrente?: boolean;
+  initialCategoria?: DespesaCategoria;
+  allowedCategorias?: readonly DespesaCategoria[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -218,7 +222,7 @@ export function DespesaFormModal({
       setPeriodicidadeMeses(editing.periodicidadeMeses ?? 1);
     } else if (open) {
       setDescricao('');
-      setCategoria(DESPESA_CATEGORIA.Pecas);
+      setCategoria(initialCategoria);
       setValor('');
       setFornecedor('');
       setNumeroEncomenda('');
@@ -230,7 +234,7 @@ export function DespesaFormModal({
       setLinkId('');
     }
     setError(null);
-  }, [editing, open]);
+  }, [editing, initialCategoria, open]);
 
   const save = useMutation({
     mutationFn: () => {
@@ -275,6 +279,9 @@ export function DespesaFormModal({
   });
 
   const valorCents = parseEuros(valor);
+  const categoriaOptions = allowedCategorias?.length
+    ? Array.from(new Set([...(editing ? [editing.categoria] : []), ...allowedCategorias]))
+    : Array.from(new Set(Object.values(DESPESA_CATEGORIA)));
 
   return (
     <Modal
@@ -307,7 +314,7 @@ export function DespesaFormModal({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Categoria">
             <select value={categoria} onChange={e => setCategoria(Number(e.target.value) as DespesaCategoria)} className={inputCls}>
-              {Object.entries(DESPESA_CATEGORIA).map(([_, v]) => <option key={v} value={v}>{DESPESA_LABEL[v]}</option>)}
+              {categoriaOptions.map((v) => <option key={v} value={v}>{DESPESA_LABEL[v]}</option>)}
             </select>
           </Field>
           <Field label="Valor (€) *">

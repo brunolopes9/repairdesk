@@ -60,6 +60,21 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Search_ByCategoriaIn_FiltersMultipleCategorias()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var pecas = await CreateOne(client, DespesaCategoria.Pecas, 1000);
+        var material = await CreateOne(client, DespesaCategoria.Material, 1500);
+        await CreateOne(client, DespesaCategoria.Software, 5000);
+
+        var list = await client.GetFromJsonAsync<PagedResult<DespesaDto>>("/api/despesas?categoria_in=0,1");
+
+        list!.Items.Select(d => d.Id).Should().Contain(new[] { pecas.Id, material.Id });
+        var allowed = new[] { DespesaCategoria.Pecas, DespesaCategoria.Material };
+        list.Items.Should().OnlyContain(d => allowed.Contains(d.Categoria));
+    }
+
+    [Fact]
     public async Task Search_Recurring_FilterOnlyRecurring()
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);

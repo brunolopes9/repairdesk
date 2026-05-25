@@ -9,7 +9,7 @@ namespace RepairDesk.Services.Despesas;
 
 public interface IDespesaService
 {
-    Task<PagedResult<DespesaDto>> SearchAsync(string? query, DespesaCategoria? categoria, DateTime? from, DateTime? to, Guid? trabalhoId, Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<DespesaDto>> SearchAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, Guid? trabalhoId, Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default);
     Task<DespesaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<DespesaDto> CreateAsync(CreateDespesaRequest req, CancellationToken ct = default);
     Task<DespesaDto> UpdateAsync(Guid id, UpdateDespesaRequest req, CancellationToken ct = default);
@@ -33,12 +33,13 @@ public class DespesaService : IDespesaService
     }
 
     public async Task<PagedResult<DespesaDto>> SearchAsync(
-        string? query, DespesaCategoria? categoria, DateTime? from, DateTime? to,
+        string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
+        bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
         Guid? trabalhoId, Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var (items, total) = await _repo.SearchAsync(query, categoria, from, to, trabalhoId, reparacaoId, isRecorrente, page, pageSize, ct);
+        var (items, total) = await _repo.SearchAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, trabalhoId, reparacaoId, isRecorrente, page, pageSize, ct);
         return new PagedResult<DespesaDto>(items.Select(ToDto).ToList(), page, pageSize, total);
     }
 

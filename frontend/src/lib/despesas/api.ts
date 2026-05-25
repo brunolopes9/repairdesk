@@ -6,6 +6,9 @@ export interface UpdateDespesaForm extends CreateDespesaForm {}
 interface ListFilters {
   q?: string;
   categoria?: DespesaCategoria | null;
+  categoriaIn?: readonly DespesaCategoria[];
+  includeSupplierInvoiceImports?: boolean;
+  excludeSupplierInvoiceImports?: boolean;
   from?: string;
   to?: string;
   trabalhoId?: string;
@@ -22,6 +25,9 @@ export const despesasApi = {
         params: {
           q: filters.q || undefined,
           categoria: filters.categoria ?? undefined,
+          categoria_in: filters.categoriaIn?.length ? filters.categoriaIn.join(',') : undefined,
+          include_supplier_invoice_imports: filters.includeSupplierInvoiceImports || undefined,
+          exclude_supplier_invoice_imports: filters.excludeSupplierInvoiceImports || undefined,
           from: filters.from || undefined,
           to: filters.to || undefined,
           trabalhoId: filters.trabalhoId || undefined,

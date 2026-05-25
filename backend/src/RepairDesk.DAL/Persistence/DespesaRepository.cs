@@ -20,11 +20,28 @@ public class DespesaRepository : IDespesaRepository
         => await _db.Despesas.Where(d => d.ReparacaoId == reparacaoId).SumAsync(d => (int?)d.ValorCents, ct) ?? 0;
 
     public async Task<(IReadOnlyList<Despesa> Items, int Total)> SearchAsync(
-        string? query, DespesaCategoria? categoria, DateTime? from, DateTime? to,
+        string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
+        bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
         Guid? trabalhoId, Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
     {
         var q = _db.Despesas.AsNoTracking().AsQueryable();
+        var supplierImportDespesaIds = _db.SupplierInvoiceImports
+            .Where(i => i.DespesaId != null)
+            .Select(i => i.DespesaId!.Value);
+
         if (categoria is not null) q = q.Where(d => d.Categoria == categoria.Value);
+        if (categoriaIn is { Count: > 0 })
+        {
+            var categorias = categoriaIn.ToArray();
+            q = includeSupplierInvoiceImports
+                ? q.Where(d => categorias.Contains(d.Categoria) || supplierImportDespesaIds.Contains(d.Id))
+                : q.Where(d => categorias.Contains(d.Categoria));
+        }
+        else if (includeSupplierInvoiceImports)
+        {
+            q = q.Where(d => supplierImportDespesaIds.Contains(d.Id));
+        }
+        if (excludeSupplierInvoiceImports) q = q.Where(d => !supplierImportDespesaIds.Contains(d.Id));
         if (from is not null) q = q.Where(d => d.Data >= from.Value);
         if (to is not null) q = q.Where(d => d.Data <= to.Value);
         if (trabalhoId is not null) q = q.Where(d => d.TrabalhoId == trabalhoId.Value);
