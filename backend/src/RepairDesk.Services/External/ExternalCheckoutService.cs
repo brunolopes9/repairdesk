@@ -61,6 +61,9 @@ public sealed record ExternalProductDto(
     string GradeLabel,
     /// <summary>Sprint 197: label combinado ("Novo (selado)", "Usado original A++", "Recondicionado B").</summary>
     string ConditionCombined,
+    /// <summary>Sprint 307: grade raw como veio do fornecedor (B+/C+/AB/A Premium). Loja preserva
+    /// para mostrar exactamente o que o fornecedor classificou. Null para produtos pre-Sprint 305.</summary>
+    string? SupplierGrade,
     string SupplyType,
     int PriceCents,
     int StockQuantity,
@@ -338,6 +341,7 @@ public class ExternalCheckoutService : IExternalCheckoutService
         GradeSlug: RepairDesk.Services.Products.ProductGradingMapper.GradeSlug(p.Grade),
         GradeLabel: RepairDesk.Services.Products.ProductGradingMapper.GradeLabelPt(p.Grade),
         ConditionCombined: RepairDesk.Services.Products.ProductGradingMapper.ComposedLabelPt(p.Origin, p.Grade),
+        SupplierGrade: p.SupplierGrade,
         SupplyType: p.SupplyType.ToString(),
         PriceCents: p.PriceCents, StockQuantity: p.StockQuantity,
         StockDisplayMode: p.SupplyType == ProductSupplyType.Dropship ? "on-demand" : "exact",
