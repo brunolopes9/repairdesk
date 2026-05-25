@@ -135,6 +135,7 @@ export interface Product {
   openBoxReason: string | null;
   /** Sprint 205: flag explícita open-box (loja mostra badge laranja). Default false. */
   isOpenBox: boolean;
+  supplierGrade: string | null;
   /** Sprint 204: saúde bateria 0-100% (null = não aplicável). */
   batteryHealthPercent: number | null;
   /** Sprint 204: estado técnico. */
@@ -206,7 +207,18 @@ export interface ImportProductsResponse {
 }
 
 export const productsApi = {
-  list(params: { search?: string; brand?: string; lojaOnline?: boolean; includeInactive?: boolean; page?: number; pageSize?: number } = {}) {
+  list(params: {
+    search?: string;
+    brand?: string;
+    lojaOnline?: boolean;
+    fornecedorId?: string;
+    ativo?: boolean;
+    mostrarLojaOnline?: boolean;
+    sort?: string;
+    includeInactive?: boolean;
+    page?: number;
+    pageSize?: number;
+  } = {}) {
     return api.get<PagedResult<Product>>('/products', { params }).then((r) => r.data);
   },
   get(id: string) {

@@ -3,6 +3,7 @@ import { api } from '../api';
 export interface Fornecedor {
   id: string;
   name: string;
+  code: string | null;
   email: string | null;
   rmaEmail: string | null;
   phone: string | null;

@@ -10,7 +10,18 @@ namespace RepairDesk.Services.Products;
 
 public interface IProductService
 {
-    Task<PagedResult<ProductDto>> SearchAsync(string? search, string? brand, bool? lojaOnline, bool includeInactive, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<ProductDto>> SearchAsync(
+        string? search,
+        string? brand,
+        bool? lojaOnline,
+        Guid? fornecedorId,
+        bool? ativo,
+        bool? mostrarLojaOnline,
+        string? sort,
+        bool includeInactive,
+        int page,
+        int pageSize,
+        CancellationToken ct = default);
     Task<ProductDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<ProductDto> CreateAsync(ProductWriteRequest req, CancellationToken ct = default);
     Task<ProductDto> UpdateAsync(Guid id, ProductWriteRequest req, CancellationToken ct = default);
@@ -181,9 +192,20 @@ public class ProductService : IProductService
         _fornecedores = fornecedores;
     }
 
-    public async Task<PagedResult<ProductDto>> SearchAsync(string? search, string? brand, bool? lojaOnline, bool includeInactive, int page, int pageSize, CancellationToken ct = default)
+    public async Task<PagedResult<ProductDto>> SearchAsync(
+        string? search,
+        string? brand,
+        bool? lojaOnline,
+        Guid? fornecedorId,
+        bool? ativo,
+        bool? mostrarLojaOnline,
+        string? sort,
+        bool includeInactive,
+        int page,
+        int pageSize,
+        CancellationToken ct = default)
     {
-        var (items, total) = await _repo.SearchAsync(search, brand, lojaOnline, includeInactive, page, pageSize, ct);
+        var (items, total) = await _repo.SearchAsync(search, brand, lojaOnline, fornecedorId, ativo, mostrarLojaOnline, sort, includeInactive, page, pageSize, ct);
         return new PagedResult<ProductDto>(items.Select(ToDto).ToList(), page, pageSize, total);
     }
 

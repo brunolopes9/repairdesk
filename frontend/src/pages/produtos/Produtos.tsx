@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, EyeOff, Plus, Search, Smartphone, Trash2, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, EyeOff, Plus, Search, SlidersHorizontal, Smartphone, Trash2, Upload, X, XCircle } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import Modal from '../../components/Modal';
 import UniversalCsvImportModal from '../../components/UniversalCsvImportModal';
 import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
@@ -24,13 +25,17 @@ import {
   PRODUCT_SUPPLY_TYPE_LABEL,
   productsApi,
   type ImportProductsResponse,
+  type Product,
   type ProductCategory,
   type ProductImageWriteRequest,
   type ProductSupplyType,
   type ProductWriteRequest,
 } from '../../lib/products/api';
-import { fornecedoresApi } from '../../lib/fornecedores/api';
+import { fornecedoresApi, type Fornecedor } from '../../lib/fornecedores/api';
+import { fornecedorChipClass } from '../../lib/fornecedores/colors';
 import { formatCents, parseEuros } from '../../lib/money';
+
+const OWN_SUPPLIER_ID = '00000000-0000-0000-0000-000000000000';
 
 const emptyForm = (): ProductWriteRequest => ({
   sku: null,
@@ -69,18 +74,52 @@ const emptyForm = (): ProductWriteRequest => ({
 
 export default function Produtos() {
   const qc = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [includeInactive, setIncludeInactive] = useState(false);
-  const list = useQuery({
-    queryKey: ['products', search, includeInactive],
-    queryFn: () => productsApi.list({ search: search.trim() || undefined, includeInactive, pageSize: 100 }),
-    placeholderData: keepPreviousData,
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [includeInactive, setIncludeInactive] = useState(() => searchParams.get('inactivos') === '1');
+  const [onlyHiddenShop, setOnlyHiddenShop] = useState(() => searchParams.get('ocultos') === '1');
+  const [fornecedorFilter, setFornecedorFilter] = useState(() => searchParams.get('fornecedor') ?? 'todos');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const fornecedores = useQuery({
     queryKey: ['fornecedores'],
     queryFn: () => fornecedoresApi.list(false),
     staleTime: 5 * 60_000,
   });
+  const selectedFornecedorId = useMemo(() => {
+    if (fornecedorFilter === 'todos') return undefined;
+    if (fornecedorFilter === 'proprio') return OWN_SUPPLIER_ID;
+    const byCode = (fornecedores.data ?? []).find((f) => (f.code ?? f.name).toLowerCase() === fornecedorFilter.toLowerCase());
+    if (byCode) return byCode.id;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fornecedorFilter)
+      ? fornecedorFilter
+      : undefined;
+  }, [fornecedorFilter, fornecedores.data]);
+  const list = useQuery({
+    queryKey: ['products', search, includeInactive, onlyHiddenShop, selectedFornecedorId],
+    queryFn: () => productsApi.list({
+      search: search.trim() || undefined,
+      fornecedorId: selectedFornecedorId,
+      ativo: includeInactive ? undefined : true,
+      mostrarLojaOnline: onlyHiddenShop ? false : undefined,
+      sort: 'updated',
+      pageSize: 100,
+    }),
+    placeholderData: keepPreviousData,
+  });
+  const totalUnfiltered = useQuery({
+    queryKey: ['products-total', includeInactive],
+    queryFn: () => productsApi.list({ ativo: includeInactive ? undefined : true, sort: 'updated', pageSize: 1 }),
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (search.trim()) next.set('q', search.trim());
+    if (fornecedorFilter !== 'todos') next.set('fornecedor', fornecedorFilter);
+    if (includeInactive) next.set('inactivos', '1');
+    if (onlyHiddenShop) next.set('ocultos', '1');
+    setSearchParams(next, { replace: true });
+  }, [fornecedorFilter, includeInactive, onlyHiddenShop, search, setSearchParams]);
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -231,14 +270,27 @@ export default function Produtos() {
   });
 
   const items = list.data?.items ?? [];
+  const hasActiveFilters = search.trim().length > 0 || fornecedorFilter !== 'todos' || includeInactive || onlyHiddenShop;
+  const totalProdutos = totalUnfiltered.data?.total ?? list.data?.total ?? 0;
+  const counterText = hasActiveFilters
+    ? `${list.data?.total ?? 0} produto(s) de ${totalProdutos} total`
+    : `${list.data?.total ?? 0} produto(s)`;
   const canSubmit = useMemo(() => form.brand.trim().length > 0 && form.model.trim().length > 0, [form]);
+
+  function clearFilters() {
+    setSearch('');
+    setFornecedorFilter('todos');
+    setIncludeInactive(false);
+    setOnlyHiddenShop(false);
+    setFiltersOpen(false);
+  }
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Produtos"
         description="Telemóveis revendidos (Molano, Tudo4Mobile, etc) para a loja online. Distintos de Peças (peças técnicas em Stock)."
-        meta={<span className="text-sm text-zinc-500">{list.data?.total ?? 0} produto(s)</span>}
+        meta={<span className="text-sm text-zinc-500">{counterText}</span>}
         actions={<>
           <Button leftIcon={<Upload size={15} />} variant="ghost" onClick={() => { setMigrateResult(null); setMigrateOpen(true); }}>
             Migrar shop (one-off)
@@ -278,44 +330,60 @@ export default function Produtos() {
         </>}
       />
 
+      <div className="md:hidden">
+        <Button leftIcon={<SlidersHorizontal size={15} />} variant="secondary" onClick={() => setFiltersOpen(true)}>
+          Filtros
+        </Button>
+      </div>
+
       <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-wrap items-center gap-3 border-b border-zinc-100 px-4 py-2 text-xs dark:border-zinc-800">
-          <div className="relative flex-1">
-            <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="iPhone 12, Samsung A15…" className={`${inputCls} pl-8`} />
-          </div>
-          <label className="inline-flex cursor-pointer items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
-            <input type="checkbox" checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)} />
-            Mostrar inactivos
-          </label>
+        <div className="hidden items-center gap-3 border-b border-zinc-100 px-4 py-2 text-xs dark:border-zinc-800 md:flex">
+          <ProductFilters
+            search={search}
+            setSearch={setSearch}
+            fornecedorFilter={fornecedorFilter}
+            setFornecedorFilter={setFornecedorFilter}
+            includeInactive={includeInactive}
+            setIncludeInactive={setIncludeInactive}
+            onlyHiddenShop={onlyHiddenShop}
+            setOnlyHiddenShop={setOnlyHiddenShop}
+            fornecedores={fornecedores.data ?? []}
+          />
         </div>
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wider text-zinc-500 dark:bg-zinc-800/60">
             <tr>
               <th className="px-4 py-2.5">Produto</th>
-              <th className="px-4 py-2.5">Condição</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Fornecedor</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Condição</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Grade raw</th>
               <th className="px-4 py-2.5">Stock</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Custo</th>
               <th className="px-4 py-2.5">Preço</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Margem %</th>
               <th className="px-4 py-2.5">Estado</th>
-              <th className="px-4 py-2.5" />
+              <th className="hidden px-4 py-2.5 md:table-cell" />
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {list.isLoading && Array.from({ length: 3 }).map((_, i) => <tr key={i}><td colSpan={6}><SkeletonRow columns={6} /></td></tr>)}
+            {list.isLoading && Array.from({ length: 3 }).map((_, i) => <tr key={i}><td colSpan={10}><SkeletonRow columns={10} /></td></tr>)}
             {!list.isLoading && items.map((p) => (
               <tr key={p.id} onClick={() => openEdit(p.id)} className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                 <td className="px-4 py-3">
                   <div className="font-medium">{p.brand} {p.model}</div>
                   <div className="text-[11px] text-zinc-500">
                     {[p.storage, p.color].filter(Boolean).join(' · ')}
-                    {p.fornecedorNome && <> · <span className="text-zinc-600">{p.fornecedorNome}</span></>}
                   </div>
                 </td>
-                <td className="px-4 py-3"><StatusBadge tone="zinc">{PRODUCT_GRADING_LABEL[p.grading]}</StatusBadge></td>
+                <td className="hidden px-4 py-3 md:table-cell"><FornecedorChip code={p.fornecedorCode} name={p.fornecedorNome} /></td>
+                <td className="hidden px-4 py-3 md:table-cell"><StatusBadge tone="zinc">{PRODUCT_GRADING_LABEL[p.grading]}</StatusBadge></td>
+                <td className="hidden px-4 py-3 text-xs font-medium text-zinc-600 dark:text-zinc-300 md:table-cell">{displaySupplierGrade(p)}</td>
                 <td className="px-4 py-3 text-xs">
                   {p.supplyType === PRODUCT_SUPPLY_TYPE.Stock ? `${p.stockQuantity} un.` : 'Dropship'}
                 </td>
+                <td className="hidden px-4 py-3 text-xs md:table-cell">{formatCents(p.custoUnitarioCents)}</td>
                 <td className="px-4 py-3 font-medium">{formatCents(p.priceCents)}</td>
+                <td className="hidden px-4 py-3 md:table-cell"><MarginBadge priceCents={p.priceCents} costCents={p.custoUnitarioCents} /></td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-0.5 text-[11px]">
                     {p.active
@@ -326,7 +394,7 @@ export default function Produtos() {
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="hidden px-4 py-3 text-right md:table-cell">
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); if (confirm(`Remover ${p.brand} ${p.model}?`)) remove.mutate(p.id); }}
@@ -339,17 +407,56 @@ export default function Produtos() {
               </tr>
             ))}
             {!list.isLoading && items.length === 0 && (
-              <tr><td colSpan={6} className="p-6">
+              <tr><td colSpan={10} className="p-6">
                 <EmptyState
                   icon={Smartphone}
-                  title="Sem produtos"
-                  description="Cria iPhone 12, Samsung A15 ou outros telemóveis para revender. Aparecem no catálogo da loja online se mostrarLojaOnline=true."
+                  title={hasActiveFilters ? 'Sem produtos com este filtro' : 'Sem produtos'}
+                  description={hasActiveFilters ? 'Ajusta fornecedor, pesquisa ou estado para voltar a ver produtos.' : 'Cria iPhone 12, Samsung A15 ou outros telemóveis para revender. Aparecem no catálogo da loja online se mostrarLojaOnline=true.'}
+                  action={hasActiveFilters ? <Button variant="secondary" onClick={clearFilters}>Limpar filtros</Button> : undefined}
                 />
               </td></tr>
             )}
           </tbody>
         </table>
       </section>
+
+      {filtersOpen && (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Fechar filtros"
+            onClick={() => setFiltersOpen(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 rounded-t-2xl border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Filtros</h2>
+              <button
+                type="button"
+                className="grid h-10 w-10 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                onClick={() => setFiltersOpen(false)}
+                aria-label="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <ProductFilters
+                search={search}
+                setSearch={setSearch}
+                fornecedorFilter={fornecedorFilter}
+                setFornecedorFilter={setFornecedorFilter}
+                includeInactive={includeInactive}
+                setIncludeInactive={setIncludeInactive}
+                onlyHiddenShop={onlyHiddenShop}
+                setOnlyHiddenShop={setOnlyHiddenShop}
+                fornecedores={fornecedores.data ?? []}
+              />
+              {hasActiveFilters && <Button type="button" variant="ghost" onClick={clearFilters}>Limpar filtros</Button>}
+            </div>
+          </div>
+        </div>
+      )}
 
       <Modal open={open} title={editingId ? 'Editar produto' : 'Novo produto'} onClose={() => setOpen(false)}>
         {editingId && editingQuery.isLoading ? (
@@ -999,6 +1106,91 @@ export default function Produtos() {
 
 const inputCls =
   'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-zinc-700 dark:bg-zinc-900';
+
+function ProductFilters({
+  search,
+  setSearch,
+  fornecedorFilter,
+  setFornecedorFilter,
+  includeInactive,
+  setIncludeInactive,
+  onlyHiddenShop,
+  setOnlyHiddenShop,
+  fornecedores,
+}: {
+  search: string;
+  setSearch: (value: string) => void;
+  fornecedorFilter: string;
+  setFornecedorFilter: (value: string) => void;
+  includeInactive: boolean;
+  setIncludeInactive: (value: boolean) => void;
+  onlyHiddenShop: boolean;
+  setOnlyHiddenShop: (value: boolean) => void;
+  fornecedores: Fornecedor[];
+}) {
+  return (
+    <>
+      <Field label="Fornecedor">
+        <select value={fornecedorFilter} onChange={(e) => setFornecedorFilter(e.target.value)} className={inputCls}>
+          <option value="todos">Todos</option>
+          {fornecedores.map((f) => (
+            <option key={f.id} value={f.code ?? f.id}>{f.name}</option>
+          ))}
+          <option value="proprio">Próprio (sem fornecedor)</option>
+        </select>
+      </Field>
+      <div className="relative min-w-0 flex-1">
+        <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="iPhone 12, Samsung A15..." className={`${inputCls} pl-8`} />
+      </div>
+      <label className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
+        <input type="checkbox" checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)} />
+        Mostrar inactivos
+      </label>
+      <label className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
+        <input type="checkbox" checked={onlyHiddenShop} onChange={(e) => setOnlyHiddenShop(e.target.checked)} />
+        Só ocultos da loja
+      </label>
+    </>
+  );
+}
+
+function FornecedorChip({ code, name }: { code?: string | null; name?: string | null }) {
+  const label = code?.trim() || name?.trim() || '—';
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1 ${fornecedorChipClass(code ?? name)}`}>
+      {label}
+    </span>
+  );
+}
+
+function MarginBadge({ priceCents, costCents }: { priceCents: number; costCents: number }) {
+  if (costCents <= 0 || priceCents <= 0) return <span className="text-xs text-zinc-400">—</span>;
+  const margin = ((priceCents - costCents) / priceCents) * 100;
+  const cls = margin > 30
+    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
+    : margin >= 10
+      ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
+      : 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300';
+  return <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{margin.toFixed(0)}%</span>;
+}
+
+function displaySupplierGrade(product: Product) {
+  const raw = product.supplierGrade?.trim();
+  if (!raw) return <span className="text-zinc-400">—</span>;
+
+  const normalized = raw.toLowerCase();
+  const grading = product.grading;
+  const redundant =
+    (grading === PRODUCT_GRADING.Novo && ['novo', 'new', 'sealed', 'selado'].includes(normalized))
+    || (grading === PRODUCT_GRADING.GradeA && ['a', 'grade a', 'gradea'].includes(normalized))
+    || (grading === PRODUCT_GRADING.GradeB && ['b', 'grade b', 'gradeb'].includes(normalized))
+    || (grading === PRODUCT_GRADING.GradeC && ['c', 'grade c', 'gradec'].includes(normalized))
+    || (grading === PRODUCT_GRADING.Premium && ['premium'].includes(normalized))
+    || (grading === PRODUCT_GRADING.OpenBox && ['openbox', 'open box', 'open-box'].includes(normalized));
+
+  return redundant ? <span className="text-zinc-400">—</span> : raw;
+}
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (

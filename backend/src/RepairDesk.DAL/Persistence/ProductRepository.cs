@@ -13,14 +13,26 @@ public class ProductRepository : IProductRepository
         string? search,
         string? brand,
         bool? lojaOnline,
+        Guid? fornecedorId,
+        bool? ativo,
+        bool? mostrarLojaOnline,
+        string? sort,
         bool includeInactive,
         int page,
         int pageSize,
         CancellationToken ct = default)
     {
         var q = _db.Products.AsNoTracking().AsQueryable();
-        if (!includeInactive) q = q.Where(p => p.Active);
-        if (lojaOnline.HasValue) q = q.Where(p => p.MostrarLojaOnline == lojaOnline.Value);
+        if (ativo.HasValue) q = q.Where(p => p.Active == ativo.Value);
+        else if (!includeInactive) q = q.Where(p => p.Active);
+        var onlineFilter = mostrarLojaOnline ?? lojaOnline;
+        if (onlineFilter.HasValue) q = q.Where(p => p.MostrarLojaOnline == onlineFilter.Value);
+        if (fornecedorId.HasValue)
+        {
+            q = fornecedorId.Value == Guid.Empty
+                ? q.Where(p => p.FornecedorId == null)
+                : q.Where(p => p.FornecedorId == fornecedorId.Value);
+        }
         if (!string.IsNullOrWhiteSpace(brand)) q = q.Where(p => p.Brand == brand);
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -33,9 +45,19 @@ public class ProductRepository : IProductRepository
                 || (p.Color != null && p.Color.Contains(term)));
         }
         var total = await q.CountAsync(ct);
-        var items = await q
+        var ordered = (sort?.Trim().ToLowerInvariant()) switch
+        {
+            "brand" => q.OrderBy(p => p.Brand).ThenBy(p => p.Model),
+            "-brand" => q.OrderByDescending(p => p.Brand).ThenByDescending(p => p.Model),
+            "price" => q.OrderBy(p => p.PriceCents),
+            "-price" => q.OrderByDescending(p => p.PriceCents),
+            "created" => q.OrderByDescending(p => p.CreatedAt),
+            "updated" or "-updated" or null or "" => q.OrderByDescending(p => p.UpdatedAt ?? p.CreatedAt),
+            _ => q.OrderByDescending(p => p.UpdatedAt ?? p.CreatedAt),
+        };
+        var items = await ordered
             .Include(p => p.Images)
-            .OrderByDescending(p => p.UpdatedAt ?? p.CreatedAt)
+            .Include(p => p.Fornecedor)
             .Skip((Math.Max(1, page) - 1) * Math.Clamp(pageSize, 1, 100))
             .Take(Math.Clamp(pageSize, 1, 100))
             .ToListAsync(ct);

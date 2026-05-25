@@ -44,11 +44,15 @@ public class ProductsController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] string? brand,
         [FromQuery] bool? lojaOnline,
-        [FromQuery] bool includeInactive = false,
+        [FromQuery] Guid? fornecedorId,
+        [FromQuery] bool? ativo,
+        [FromQuery] bool? mostrarLojaOnline,
+        [FromQuery] string? sort,
+        [FromQuery] bool? includeInactive = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
-        => _service.SearchAsync(search, brand, lojaOnline, includeInactive, page, pageSize, ct);
+        => _service.SearchAsync(search, brand, lojaOnline, fornecedorId, ativo, mostrarLojaOnline, sort, includeInactive ?? true, page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<ProductDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
