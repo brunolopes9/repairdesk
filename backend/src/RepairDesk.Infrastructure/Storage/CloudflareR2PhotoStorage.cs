@@ -33,6 +33,10 @@ public sealed class CloudflareR2PhotoStorage : IPhotoStorage, IDisposable
             InputStream = content,
             ContentType = contentType,
             AutoCloseStream = false,
+            // Cloudflare R2 não suporta chunked SigV4 encoding (STREAMING-AWS4-HMAC-SHA256-PAYLOAD).
+            // Desactivar chunked encoding força um PUT regular com Content-Length conhecido.
+            UseChunkEncoding = false,
+            DisablePayloadSigning = true,
         };
 
         await _client.Value.PutObjectAsync(request, ct);

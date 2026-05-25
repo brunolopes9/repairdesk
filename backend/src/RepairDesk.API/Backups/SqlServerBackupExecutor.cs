@@ -22,10 +22,11 @@ public sealed class SqlServerBackupExecutor : ISqlServerBackupExecutor
         await using var conn = new SqlConnection(request.ConnectionString);
         await conn.OpenAsync(ct);
 
+        // COMPRESSION não suportado em SQL Server Express. INIT+CHECKSUM são standard.
         var sql = $"""
             BACKUP DATABASE {QuoteDatabaseName(request.DatabaseName)}
             TO DISK = @path
-            WITH INIT, COMPRESSION, CHECKSUM
+            WITH INIT, CHECKSUM
             """;
 
         await using var cmd = new SqlCommand(sql, conn)
