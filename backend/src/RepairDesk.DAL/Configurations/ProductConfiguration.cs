@@ -22,6 +22,9 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>, IEntityTy
         builder.Property(x => x.SupplyType).HasConversion<int>();
         builder.Property(x => x.Category).HasConversion<int>();
         builder.Property(x => x.DropshipSupplierSku).HasMaxLength(100);
+        // Sprint 305: grade raw do fornecedor (preservado sem normalizar). Max 16 chars cobre
+        // todos os formatos conhecidos (Molano "A+", GSM Brokers "A Premium", etc).
+        builder.Property(x => x.SupplierGrade).HasMaxLength(16);
         builder.Property(x => x.OpenBoxReason).HasMaxLength(500);
         builder.Property(x => x.DescriptionMarkdown).HasColumnType("nvarchar(max)");
         builder.Property(x => x.AttributesJson).HasColumnType("nvarchar(max)");

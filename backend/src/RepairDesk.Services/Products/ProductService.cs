@@ -734,7 +734,18 @@ public class ProductService : IProductService
             var stockQuantity = int.TryParse(stockText, out var sq) ? sq : 0;
             var custoText = Get(iCusto);
             TryParseCents(custoText, out var custoCents);
-            var grading = ParseGrading(Get(iGrading));
+            // Sprint 305: parser robusto. Erro de linha em grade vazio/desconhecido em vez do
+            // antigo fallback silencioso que mapeava B+/C+/AB → Novo (46% dos produtos errados).
+            var gradeResult = ParseGradeFromCsv(Get(iGrading));
+            if (!gradeResult.IsValid)
+            {
+                errors.Add(new ImportProductError(lineNo, "grade", gradeResult.ErrorMessage!, supplierSku));
+                skipped++;
+                continue;
+            }
+            var grading = gradeResult.Legacy;
+            var grade2d = gradeResult.Grade2D;
+            var supplierGradeRaw = gradeResult.Raw;
             var imagesRaw = Get(iImages);
 
             try
@@ -770,6 +781,12 @@ public class ProductService : IProductService
                         Storage = Clean(Get(iStorage)),
                         Color = Clean(Get(iColor)),
                         Grading = grading,
+                        Grade = grade2d,
+                        // Sprint 305: assumimos Used para CSV dropship (Molano/GSM Brokers — todos seminovos).
+                        // Tudo4Mobile (selados) usa importer próprio noutra rota. Refurbished detectado pelo grade text.
+                        Origin = supplierGradeRaw?.Equals("refurbished", StringComparison.OrdinalIgnoreCase) == true
+                            ? ProductOrigin.Refurbished : ProductOrigin.Used,
+                        SupplierGrade = supplierGradeRaw,
                         SupplyType = ProductSupplyType.Dropship,
                         Category = ProductCategory.Phone,
                         DropshipSupplierSku = supplierSku,
@@ -800,6 +817,8 @@ public class ProductService : IProductService
                     existing.StockQuantity = stockQuantity;
                     if (custoCents > 0) existing.CustoUnitarioCents = custoCents;
                     existing.Grading = grading;
+                    existing.Grade = grade2d;
+                    existing.SupplierGrade = supplierGradeRaw;
                     // Se não há imagens curadas, substitui as raw existentes pelas novas raw.
                     if (!existing.Images.Any(img => img.IsCurated))
                     {
@@ -978,19 +997,72 @@ public class ProductService : IProductService
         return true;
     }
 
-    private static ProductGrading ParseGrading(string? text)
+    /// <summary>
+    /// Sprint 305: parser do grade vindo do CSV (Molano, GSM Brokers, etc).
+    /// Devolve o legacy <see cref="ProductGrading"/>, o 2D <see cref="ProductGrade"/> (Sprint 197)
+    /// e a string raw normalizada (uppercase trimmed) para preservar em <see cref="Product.SupplierGrade"/>.
+    ///
+    /// <para>Eliminado o fallback silencioso (antes: tudo desconhecido → Novo) — agora devolve
+    /// <c>IsValid=false</c> com mensagem clara para o importer marcar a linha em erro.</para>
+    ///
+    /// <para>Bug histórico (CSV Molano 2026-05-20): B+/C+/AB caíam no fallback e ficavam Novo,
+    /// poluindo a loja com 46% dos produtos no tier errado. <see cref="SupplierGrade"/> preserva
+    /// o raw para o webhook enviar ao shop sem perda.</para>
+    /// </summary>
+    public static GradeParseResult ParseGradeFromCsv(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return ProductGrading.Novo;
-        return text.Trim().ToLowerInvariant() switch
+        if (string.IsNullOrWhiteSpace(text))
+            return GradeParseResult.Invalid("Coluna 'grade' em branco.");
+
+        var raw = text.Trim();
+        var key = raw.ToLowerInvariant();
+        return key switch
         {
-            "novo" or "new" => ProductGrading.Novo,
-            "grade a" or "gradea" or "a" => ProductGrading.GradeA,
-            "grade b" or "gradeb" or "b" => ProductGrading.GradeB,
-            "grade c" or "gradec" or "c" => ProductGrading.GradeC,
-            "openbox" or "open box" or "open-box" => ProductGrading.OpenBox,
-            "premium" or "a+" => ProductGrading.Premium,
-            _ => ProductGrading.Novo,
+            "novo" or "new" or "sealed" or "selado"
+                => GradeParseResult.Ok(raw, ProductGrading.Novo, ProductGrade.Sealed),
+            "premium" or "a+ premium" or "a premium"
+                => GradeParseResult.Ok(raw, ProductGrading.Premium, ProductGrade.APlus),
+            "a++"
+                => GradeParseResult.Ok(raw, ProductGrading.Premium, ProductGrade.APlusPlus),
+            "a+"
+                => GradeParseResult.Ok(raw, ProductGrading.Premium, ProductGrade.APlus),
+            "grade a" or "gradea" or "a"
+                => GradeParseResult.Ok(raw, ProductGrading.GradeA, ProductGrade.A),
+            // AB Molano = "entre A e B". Mapping pragmático: 2D fica B+ (topo do B),
+            // legacy fica GradeA (decisão Bruno-aprovada: AB é mais próximo de A do que B na perceção).
+            "ab" or "a/b"
+                => GradeParseResult.Ok(raw, ProductGrading.GradeA, ProductGrade.BPlus),
+            "b+"
+                => GradeParseResult.Ok(raw, ProductGrading.GradeB, ProductGrade.BPlus),
+            "grade b" or "gradeb" or "b"
+                => GradeParseResult.Ok(raw, ProductGrading.GradeB, ProductGrade.B),
+            // B/C GSM Brokers: tier entre B e C — legacy fica GradeB, 2D fica CPlus (topo do C).
+            "b/c"
+                => GradeParseResult.Ok(raw, ProductGrading.GradeB, ProductGrade.CPlus),
+            "c+"
+                => GradeParseResult.Ok(raw, ProductGrading.GradeC, ProductGrade.CPlus),
+            "grade c" or "gradec" or "c"
+                => GradeParseResult.Ok(raw, ProductGrading.GradeC, ProductGrade.C),
+            "openbox" or "open box" or "open-box"
+                => GradeParseResult.Ok(raw, ProductGrading.OpenBox, ProductGrade.APlusPlus),
+            "refurbished"
+                => GradeParseResult.Ok(raw, ProductGrading.GradeA, ProductGrade.A),
+            _ => GradeParseResult.Invalid(
+                $"Grade desconhecido: '{raw}'. Aceita: Novo, A++, A+, A, AB, B+, B, C+, C, OpenBox, A/B, B/C, Refurbished."),
         };
+    }
+
+    public readonly record struct GradeParseResult(
+        bool IsValid,
+        string? Raw,
+        ProductGrading Legacy,
+        ProductGrade Grade2D,
+        string? ErrorMessage)
+    {
+        public static GradeParseResult Ok(string raw, ProductGrading legacy, ProductGrade grade2d)
+            => new(true, raw, legacy, grade2d, null);
+        public static GradeParseResult Invalid(string error)
+            => new(false, null, default, default, error);
     }
 
     private static IEnumerable<string> ParseImageUrls(string? raw)

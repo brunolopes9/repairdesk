@@ -32,6 +32,13 @@ public class Product : BaseEntity, ITenantEntity
     /// <summary>Sprint 197: deprecated, mantido por back-compat. Origin+Grade são o source of truth.
     /// Setter automático ao gravar (ProductGradingMapper.ComposeLegacy). UI nova não usa.</summary>
     public ProductGrading Grading { get; set; } = ProductGrading.Novo;
+    /// <summary>
+    /// Sprint 305: grade exacto como veio do fornecedor (antes de normalizar para
+    /// <see cref="Grade"/>). Preserva valores como "B+", "C+", "AB", "A Premium" para o
+    /// webhook payload — o shop espera o supplierGrade raw (sem perda) e deriva displays.
+    /// Bug confirmado em 2026-05-24: ParseGrading agregava B+→B e perdia o tier intermédio.
+    /// </summary>
+    public string? SupplierGrade { get; set; }
     /// <summary>Sprint 197: eixo "de onde vem" (New/Used/Refurbished). Independente do estado visual.</summary>
     public ProductOrigin Origin { get; set; } = ProductOrigin.New;
     /// <summary>Sprint 197: estado visual/funcional (Sealed/A++/A+/A/B/C). Sealed só faz sentido com Origin=New.</summary>
