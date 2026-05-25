@@ -25,6 +25,7 @@ const ReparacaoDetalhe = lazy(() => import('./pages/reparacoes/ReparacaoDetalhe'
 const Trabalhos = lazy(() => import('./pages/trabalhos/Trabalhos'));
 const TrabalhoDetalhe = lazy(() => import('./pages/trabalhos/TrabalhoDetalhe'));
 const Despesas = lazy(() => import('./pages/despesas/Despesas'));
+const Cash = lazy(() => import('./pages/cash/Cash'));
 const Importacoes = lazy(() => import('./pages/importacoes/Importacoes'));
 const Stock = lazy(() => import('./pages/stock/Stock'));
 const Vendas = lazy(() => import('./pages/vendas/Vendas'));
@@ -134,6 +135,7 @@ export default function App() {
               <Route path="/trabalhos" element={<Trabalhos />} />
               <Route path="/trabalhos/:id" element={<TrabalhoDetalhe />} />
               <Route path="/despesas" element={<Despesas />} />
+              <Route path="/cash" element={<Cash />} />
               <Route path="/importacoes" element={<Importacoes />} />
               <Route path="/vendas" element={<Vendas />} />
               <Route path="/stock" element={<Stock />} />
