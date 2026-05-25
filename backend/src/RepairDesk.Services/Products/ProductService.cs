@@ -898,7 +898,30 @@ public class ProductService : IProductService
             try
             {
                 var category = MapShopCategory(p.Category);
-                var grading = MapShopGrading(p.Grading, p.IsOpenBox);
+                // Sprint 307c: usar o parser robusto (Sprint 305) em vez do MapShopGrading antigo
+                // que tinha o mesmo bug — fallback silente em desconhecidos e B+/C+ agregados.
+                // OpenBox tem flag explícita (p.IsOpenBox) que pode forçar override do mapping textual.
+                ProductGrading grading;
+                ProductGrade grade2d;
+                string? supplierGradeRaw = null;
+                if (p.IsOpenBox)
+                {
+                    grading = ProductGrading.OpenBox;
+                    grade2d = ProductGrade.APlusPlus;
+                }
+                else
+                {
+                    var gradeResult = ParseGradeFromCsv(p.Grading);
+                    if (!gradeResult.IsValid)
+                    {
+                        errors.Add(new ImportProductError(lineNo, "grading", gradeResult.ErrorMessage!, p.Sku));
+                        skipped++;
+                        continue;
+                    }
+                    grading = gradeResult.Legacy;
+                    grade2d = gradeResult.Grade2D;
+                    supplierGradeRaw = gradeResult.Raw;
+                }
                 var existing = await _repo.SkuExistsAsync(p.Sku.Trim().ToUpperInvariant(), null, ct);
 
                 if (existing)
@@ -921,6 +944,8 @@ public class ProductService : IProductService
                     Storage = Clean(p.Storage),
                     Color = Clean(p.Color),
                     Grading = grading,
+                    Grade = grade2d,
+                    SupplierGrade = supplierGradeRaw,
                     SupplyType = ProductSupplyType.Stock,
                     Category = category,
                     PriceCents = p.PriceCents,
@@ -980,20 +1005,6 @@ public class ProductService : IProductService
             or "accessory" => ProductCategory.Accessory,
         _ => ProductCategory.Other,
     };
-
-    private static ProductGrading MapShopGrading(string? grading, bool isOpenBox)
-    {
-        if (isOpenBox) return ProductGrading.OpenBox;
-        return grading?.Trim().ToUpperInvariant() switch
-        {
-            "A+" or "PREMIUM" => ProductGrading.Premium,
-            "A" => ProductGrading.GradeA,
-            "B+" or "B" => ProductGrading.GradeB,
-            "C+" or "C" => ProductGrading.GradeC,
-            "NOVO" or "NEW" => ProductGrading.Novo,
-            _ => ProductGrading.GradeA,
-        };
-    }
 
     private static bool TryParseCents(string? text, out int cents)
     {
