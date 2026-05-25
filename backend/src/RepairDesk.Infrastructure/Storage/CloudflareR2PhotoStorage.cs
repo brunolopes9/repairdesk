@@ -89,15 +89,12 @@ public sealed class CloudflareR2PhotoStorage : IPhotoStorage, IDisposable
     {
         _options.Validate();
 
+        // AWSSDK.S3 3.7.x — sem trailer-encoding por defeito, compatível com Cloudflare R2.
         var config = new AmazonS3Config
         {
             ServiceURL = _options.Endpoint,
             AuthenticationRegion = "auto",
             ForcePathStyle = true,
-            // Cloudflare R2 não suporta STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER (default no
-            // AWSSDK 4.x). Forçar checksum calculation a WhenRequired evita o trailer.
-            RequestChecksumCalculation = Amazon.Runtime.RequestChecksumCalculation.WHEN_REQUIRED,
-            ResponseChecksumValidation = Amazon.Runtime.ResponseChecksumValidation.WHEN_REQUIRED,
         };
 
         return new AmazonS3Client(new BasicAWSCredentials(_options.AccessKey, _options.Secret), config);
