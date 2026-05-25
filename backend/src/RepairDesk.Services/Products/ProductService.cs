@@ -779,7 +779,8 @@ public class ProductService : IProductService
                         Brand = brand,
                         Model = model,
                         Storage = Clean(Get(iStorage)),
-                        Color = Clean(Get(iColor)),
+                        // Sprint 306: traduzir Blue/Nero/Oro → Azul/Preto/Dourado no momento da ingest.
+                        Color = TranslateColorToPt(Clean(Get(iColor))),
                         Grading = grading,
                         Grade = grade2d,
                         // Sprint 305: assumimos Used para CSV dropship (Molano/GSM Brokers — todos seminovos).
@@ -1049,6 +1050,41 @@ public class ProductService : IProductService
                 => GradeParseResult.Ok(raw, ProductGrading.GradeA, ProductGrade.A),
             _ => GradeParseResult.Invalid(
                 $"Grade desconhecido: '{raw}'. Aceita: Novo, A++, A+, A, AB, B+, B, C+, C, OpenBox, A/B, B/C, Refurbished."),
+        };
+    }
+
+    /// <summary>
+    /// Sprint 306: traduz cor IT/EN → pt-PT para CSV importer. Molano envia maioria em inglês
+    /// ("Blue", "Pink"); GSM Brokers em italiano ("Nero", "Bianco"). Bruno opera em PT — o admin
+    /// e a loja consomem cores em PT, logo a normalização tem de acontecer na ingest.
+    ///
+    /// Tabela acordada com Claude do shop em 2026-05-24 (resposta ao pushback #5).
+    /// Cores compostas (ex: "Pacific Blue", "Alpine Green") ficam inalteradas — o token não-mapeado
+    /// preserva-se para Bruno corrigir manualmente no admin.
+    /// </summary>
+    public static string? TranslateColorToPt(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return raw;
+        var trimmed = raw.Trim();
+        return trimmed.ToLowerInvariant() switch
+        {
+            "nero" or "black" => "Preto",
+            "bianco" or "white" => "Branco",
+            "oro" or "gold" => "Dourado",
+            "viola" or "purple" => "Roxo",
+            "grigio" or "grey" or "gray" => "Cinzento",
+            "rosa" or "pink" => "Rosa",
+            "verde" or "green" => "Verde",
+            "blu" or "blue" => "Azul",
+            "giallo" or "yellow" => "Amarelo",
+            "rosso" or "red" => "Vermelho",
+            "argento" or "silver" => "Prateado",
+            "mezzanotte" or "midnight" => "Meia-noite",
+            "mineral" => "Mineral",
+            "titanio" or "titanium" => "Titânio",
+            "stellare" or "starlight" => "Estelar",
+            "galassia" or "space" => "Espaço",
+            _ => trimmed,
         };
     }
 
