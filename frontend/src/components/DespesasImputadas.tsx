@@ -160,6 +160,7 @@ export function DespesaFormModal({
   editing,
   trabalhoId,
   reparacaoId,
+  initialRecorrente = false,
   onClose,
   onSaved,
 }: {
@@ -167,6 +168,7 @@ export function DespesaFormModal({
   editing?: Despesa | null;
   trabalhoId?: string;
   reparacaoId?: string;
+  initialRecorrente?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -177,6 +179,8 @@ export function DespesaFormModal({
   const [numeroEncomenda, setNumeroEncomenda] = useState('');
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [notas, setNotas] = useState('');
+  const [isRecorrente, setIsRecorrente] = useState(initialRecorrente);
+  const [periodicidadeMeses, setPeriodicidadeMeses] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
   // Linkagem opcional só aparece quando não há trabalhoId/reparacaoId via props
   const showLinkPicker = !trabalhoId && !reparacaoId && !editing;
@@ -210,6 +214,8 @@ export function DespesaFormModal({
       setNumeroEncomenda(editing.numeroEncomenda ?? '');
       setData(editing.data.slice(0, 10));
       setNotas(editing.notas ?? '');
+      setIsRecorrente(editing.isRecorrente);
+      setPeriodicidadeMeses(editing.periodicidadeMeses ?? 1);
     } else if (open) {
       setDescricao('');
       setCategoria(DESPESA_CATEGORIA.Pecas);
@@ -218,6 +224,8 @@ export function DespesaFormModal({
       setNumeroEncomenda('');
       setData(new Date().toISOString().slice(0, 10));
       setNotas('');
+      setIsRecorrente(initialRecorrente);
+      setPeriodicidadeMeses(1);
       setLinkType('none');
       setLinkId('');
     }
@@ -245,6 +253,8 @@ export function DespesaFormModal({
           (showLinkPicker && linkType === 'reparacao' && linkId ? linkId : null),
         // Sprint 176/177: preserva flag COGS quando edita; novas despesas manuais são OpEx.
         isCogs: editing?.isCogs ?? false,
+        isRecorrente,
+        periodicidadeMeses: isRecorrente ? periodicidadeMeses : null,
       };
       if (editing) {
         return despesasApi.update(editing.id, {
@@ -314,6 +324,21 @@ export function DespesaFormModal({
         </div>
         <Field label="Nº encomenda no fornecedor">
           <input value={numeroEncomenda} onChange={e => setNumeroEncomenda(e.target.value)} className={inputCls} placeholder="opcional — para histórico" />
+        </Field>
+        <Field label="Recorrência">
+          <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+            <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+              <input type="checkbox" checked={isRecorrente} onChange={e => setIsRecorrente(e.target.checked)} />
+              <span>Despesa recorrente</span>
+            </label>
+            {isRecorrente && (
+              <select value={periodicidadeMeses} onChange={e => setPeriodicidadeMeses(Number(e.target.value))} className={`${inputCls} mt-3`}>
+                <option value={1}>Mensal</option>
+                <option value={3}>Trimestral</option>
+                <option value={12}>Anual</option>
+              </select>
+            )}
+          </div>
         </Field>
         {showLinkPicker && (
           <Field label="Associar a (opcional)">

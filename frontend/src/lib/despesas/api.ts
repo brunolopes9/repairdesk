@@ -10,6 +10,7 @@ interface ListFilters {
   to?: string;
   trabalhoId?: string;
   reparacaoId?: string;
+  isRecorrente?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -25,6 +26,7 @@ export const despesasApi = {
           to: filters.to || undefined,
           trabalhoId: filters.trabalhoId || undefined,
           reparacaoId: filters.reparacaoId || undefined,
+          isRecorrente: filters.isRecorrente ?? undefined,
           page: filters.page ?? 1,
           pageSize: filters.pageSize ?? 20,
         },

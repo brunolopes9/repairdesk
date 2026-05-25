@@ -21,7 +21,6 @@ import {
   Sparkles,
   Building2,
   Smartphone,
-  Inbox,
   LogOut,
   Pin,
   PinOff,
@@ -53,8 +52,6 @@ const nav: NavItem[] = [
   { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
   { to: '/despesas', label: 'Despesas', icon: Receipt },
   { to: '/cash', label: 'Caixa', icon: Banknote },
-  // Sprint 148: inbox de faturas de fornecedor importadas via n8n IMAP.
-  { to: '/importacoes', label: 'Importações', icon: Inbox, adminOnly: true },
   { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
   { to: '/stock', label: 'Stock', icon: PackageSearch },
   { to: '/produtos', label: 'Produtos', icon: Smartphone, adminOnly: true },

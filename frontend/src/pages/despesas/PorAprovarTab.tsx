@@ -10,7 +10,7 @@ import Modal from '../../components/Modal';
 
 const inputCls = 'mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950';
 
-export default function Importacoes() {
+export default function PorAprovarTab() {
   const qc = useQueryClient();
   const pending = useQuery({
     queryKey: ['supplier-invoices-pending'],
@@ -140,7 +140,7 @@ export default function Importacoes() {
   const ready = data.filter((d) => d.status === 'Pending');
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-4 py-6">
+    <div className="space-y-4">
       <header className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <h1 className="flex items-center gap-2 text-2xl font-semibold">

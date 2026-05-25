@@ -39,6 +39,8 @@ export interface Despesa {
   createdAt: string;
   // Sprint 176: COGS flag — peça consumida em reparação (não OpEx para IVA report).
   isCogs: boolean;
+  isRecorrente: boolean;
+  periodicidadeMeses: number | null;
 }
 
 export interface CreateDespesaForm {
@@ -52,6 +54,8 @@ export interface CreateDespesaForm {
   trabalhoId: string | null;
   reparacaoId: string | null;
   isCogs: boolean;
+  isRecorrente: boolean;
+  periodicidadeMeses: number | null;
 }
 
 export type DespesasPage = PagedResult<Despesa>;

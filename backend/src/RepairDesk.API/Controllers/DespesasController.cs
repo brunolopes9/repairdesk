@@ -22,10 +22,11 @@ public class DespesasController : ControllerBase
         [FromQuery] DateTime? to,
         [FromQuery] Guid? trabalhoId,
         [FromQuery] Guid? reparacaoId,
+        [FromQuery] bool? isRecorrente,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
-        => _service.SearchAsync(q, categoria, from, to, trabalhoId, reparacaoId, page, pageSize, ct);
+        => _service.SearchAsync(q, categoria, from, to, trabalhoId, reparacaoId, isRecorrente, page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<DespesaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);

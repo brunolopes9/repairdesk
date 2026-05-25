@@ -34,4 +34,14 @@ public class Despesa : BaseEntity, ITenantEntity
     ///   OpEx  = despesas operacionais reais (Despesa IsCogs=false)
     /// </summary>
     public bool IsCogs { get; set; }
+
+    /// <summary>
+    /// Sprint 308: despesas recorrentes (renda, EDP, software SaaS).
+    /// </summary>
+    public bool IsRecorrente { get; set; }
+
+    /// <summary>
+    /// Periodicidade em meses para recorrencia. Valores esperados: 1, 3 ou 12.
+    /// </summary>
+    public int? PeriodicidadeMeses { get; set; }
 }
