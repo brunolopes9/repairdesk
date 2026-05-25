@@ -9,7 +9,7 @@
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.8" />
     <PackageReference Include="QRCoder" Version="1.8.0" />
-    <PackageReference Include="QuestPDF" Version="2025.12.4" />
+    <PackageReference Include="QuestPDF" Version="2026.5.0" />
     <PackageReference Include="PdfPig" Version="0.1.14" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.18.0" />
