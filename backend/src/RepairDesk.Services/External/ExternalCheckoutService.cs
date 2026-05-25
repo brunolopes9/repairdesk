@@ -311,7 +311,18 @@ public class ExternalCheckoutService : IExternalCheckoutService
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
         // Externo: sempre MostrarLojaOnline=true + Active. Não revela CustoUnitarioCents nem FornecedorId.
-        var (items, total) = await _products.SearchAsync(search, brand, lojaOnline: true, includeInactive: false, page, pageSize, ct);
+        var (items, total) = await _products.SearchAsync(
+            search: search,
+            brand: brand,
+            lojaOnline: true,
+            fornecedorId: null,
+            ativo: true,
+            mostrarLojaOnline: true,
+            sort: null,
+            includeInactive: false,
+            page: page,
+            pageSize: pageSize,
+            ct: ct);
         // Sprint 132: filter in-memory (lowStock + Sprint 154 updatedAfter). Catálogo refurbished
         // tipicamente <500 items. Promover ao SQL se Bruno chegar a milhares.
         var query = items.AsEnumerable();

@@ -16,6 +16,7 @@ public interface IFornecedorService
 public sealed record FornecedorDto(
     Guid Id,
     string Name,
+    string? Code,
     string? Email,
     string? RmaEmail,
     string? Phone,
@@ -138,5 +139,5 @@ public class FornecedorService : IFornecedorService
     }
 
     private static FornecedorDto ToDto(Fornecedor f) =>
-        new(f.Id, f.Name, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt);
+        new(f.Id, f.Name, f.Code, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt);
 }
