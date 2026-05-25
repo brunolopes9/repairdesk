@@ -17,7 +17,7 @@ USER root
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl libfontconfig1 fonts-dejavu-core fonts-liberation \
  && rm -rf /var/lib/apt/lists/* \
- && mkdir -p /data/photos /backups \
+ && mkdir -p /data/photos /data/dp-keys /backups \
  && chown -R app:app /data /backups
 
 COPY --from=build /app ./

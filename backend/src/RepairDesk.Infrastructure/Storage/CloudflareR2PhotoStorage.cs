@@ -94,6 +94,10 @@ public sealed class CloudflareR2PhotoStorage : IPhotoStorage, IDisposable
             ServiceURL = _options.Endpoint,
             AuthenticationRegion = "auto",
             ForcePathStyle = true,
+            // Cloudflare R2 não suporta STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER (default no
+            // AWSSDK 4.x). Forçar checksum calculation a WhenRequired evita o trailer.
+            RequestChecksumCalculation = Amazon.Runtime.RequestChecksumCalculation.WHEN_REQUIRED,
+            ResponseChecksumValidation = Amazon.Runtime.ResponseChecksumValidation.WHEN_REQUIRED,
         };
 
         return new AmazonS3Client(new BasicAWSCredentials(_options.AccessKey, _options.Secret), config);
