@@ -427,6 +427,10 @@ public class ProductService : IProductService
             gradeSlug = ProductGradingMapper.GradeSlug(product.Grade),
             gradeLabel = ProductGradingMapper.GradeLabelPt(product.Grade),
             conditionCombined = ProductGradingMapper.ComposedLabelPt(product.Origin, product.Grade),
+            // Sprint 305+307: grade exacto como veio do fornecedor (B+/C+/AB/A Premium/etc).
+            // Shop usa: supplierGrade ?? grade ?? gradingCanonical (lookup priority).
+            // Permite ao shop saber que "B+" canonical veio de "AB" (decisão Mender) vs "B+" original.
+            supplierGrade = product.SupplierGrade,
             // Sprint 151: categoria de produto.
             category = product.Category.ToString().ToLowerInvariant(),
             // Sprint 154: derivados do spec.
