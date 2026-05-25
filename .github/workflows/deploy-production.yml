@@ -126,7 +126,7 @@ jobs:
           target: ${{ secrets.PROD_DEPLOY_PATH }}
 
       - name: Pull and restart containers
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.5
         env:
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.actor }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN || github.token }}
