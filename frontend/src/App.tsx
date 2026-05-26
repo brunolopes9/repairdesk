@@ -41,6 +41,7 @@ const Produtos = lazy(() => import('./pages/produtos/Produtos'));
 const Precos = lazy(() => import('./pages/precos/Precos'));
 const RelatorioIva = lazy(() => import('./pages/relatorios/Iva'));
 const RelatorioNegocio = lazy(() => import('./pages/relatorios/Negocio'));
+const RelatorioProdutividade = lazy(() => import('./pages/relatorios/Produtividade'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const PortalCliente = lazy(() => import('./pages/PortalCliente'));
@@ -144,6 +145,7 @@ export default function App() {
               <Route path="/precos" element={<Precos />} />
               <Route path="/relatorios/iva" element={<RelatorioIva />} />
               <Route path="/relatorios/negocio" element={<RelatorioNegocio />} />
+              <Route path="/relatorios/produtividade" element={<RelatorioProdutividade />} />
               <Route path="/auditoria" element={<Auditoria />} />
               <Route path="/definicoes" element={<Definicoes />} />
               <Route path="/definicoes/preferencias" element={<Preferencias />} />

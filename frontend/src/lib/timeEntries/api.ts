@@ -19,6 +19,8 @@ export interface ActiveTimerDto {
 
 export interface TimeStatsRow {
   userId: string;
+  /** Sprint 350: DisplayName resolvido server-side (com fallback para email). */
+  displayName: string;
   totalMinutos: number;
   sessoes: number;
   reparacoes: number;

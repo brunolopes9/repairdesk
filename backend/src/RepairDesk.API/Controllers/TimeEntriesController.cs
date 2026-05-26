@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 
@@ -117,17 +119,31 @@ public sealed class TimeEntriesController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Relatório produtividade: minutos por user num intervalo [from, to).</summary>
+    public sealed record TimeStatsRowDto(Guid UserId, string DisplayName, int TotalMinutos, int Sessoes, int Reparacoes);
+
+    /// <summary>Sprint 349/350: minutos por user num intervalo [from, to) + DisplayName resolvido.</summary>
     [HttpGet("stats")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<IReadOnlyList<TimeStatsRow>>> Stats(
+    public async Task<ActionResult<IReadOnlyList<TimeStatsRowDto>>> Stats(
         [FromQuery] DateTime from,
         [FromQuery] DateTime to,
+        [FromServices] UserManager<AppUser> userManager,
         CancellationToken ct)
     {
         if (to <= from) return BadRequest(new { code = "invalid_range" });
         var rows = await _repo.StatsByUserAsync(from.ToUniversalTime(), to.ToUniversalTime(), ct);
-        return Ok(rows);
+        var userIds = rows.Select(r => r.UserId).ToList();
+        var users = await userManager.Users
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.DisplayName, u.Email })
+            .ToListAsync(ct);
+        var nameById = users.ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.DisplayName) ? (u.Email ?? u.Id.ToString()) : u.DisplayName);
+
+        var dtos = rows.Select(r => new TimeStatsRowDto(
+            r.UserId,
+            nameById.TryGetValue(r.UserId, out var n) ? n : r.UserId.ToString(),
+            r.TotalMinutos, r.Sessoes, r.Reparacoes)).ToList();
+        return Ok(dtos);
     }
 
     private static TimeEntryDto MapDto(ReparacaoTimeEntry e) =>

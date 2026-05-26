@@ -64,6 +64,7 @@ const nav: NavItem[] = [
     children: [
       { to: '/relatorios/iva', label: 'IVA', icon: FileText },
       { to: '/relatorios/negocio', label: 'Negocio', icon: BarChart3 },
+      { to: '/relatorios/produtividade', label: 'Produtividade', icon: BarChart3, adminOnly: true },
     ],
   },
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
