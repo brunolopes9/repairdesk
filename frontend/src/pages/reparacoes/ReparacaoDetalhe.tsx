@@ -23,6 +23,8 @@ import { clientesApi } from '../../lib/clientes/api';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import type { EquipmentFieldTemplate } from '../../lib/equipmentFields/types';
 import { reparacoesApi } from '../../lib/reparacoes/api';
+import { useAuth } from '../../lib/auth/AuthContext';
+import AssignTecnicoModal from '../../components/reparacoes/AssignTecnicoModal';
 import type { ReparacaoVendaOrigem } from '../../lib/reparacoes/types';
 import { toast } from '../../lib/toast';
 import {
@@ -83,6 +85,9 @@ export default function ReparacaoDetalhe() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [changeClienteOpen, setChangeClienteOpen] = useState(false);
+  // Sprint 343: modal atribuição técnico (apenas Admin).
+  const [assignOpen, setAssignOpen] = useState(false);
+  const { hasRole } = useAuth();
   const [pagamentoPrompt, setPagamentoPrompt] = useState<RepairStatus | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   // Sprint 140: modal para escolher Simplificada vs Com NIF antes de emitir fatura.
@@ -555,6 +560,24 @@ export default function ReparacaoDetalhe() {
           </button>
         )}
         <p className="text-xs text-zinc-500">recebido {formatDate(r.recebidoEm)}</p>
+
+        {/* Sprint 343: técnico atribuído (Admin pode editar). */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-zinc-500">Técnico:</span>
+          <span className="font-medium">
+            {r.assignedToDisplayName ?? <span className="text-zinc-400">(não atribuído)</span>}
+          </span>
+          {hasRole('Admin') && (
+            <button
+              type="button"
+              onClick={() => setAssignOpen(true)}
+              className="rounded border border-zinc-300 px-2 py-0.5 text-[10px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              {r.assignedToUserId ? 'Mudar' : 'Atribuir'}
+            </button>
+          )}
+        </div>
+
         {/* Sprint 229: copiar link público para cliente (partilhar via WhatsApp/SMS). */}
         {r.publicSlug && (
           <button
@@ -1232,6 +1255,14 @@ export default function ReparacaoDetalhe() {
           </p>
         </div>
       </Modal>
+
+      {/* Sprint 343: atribuição de técnico (Admin only). */}
+      <AssignTecnicoModal
+        open={assignOpen}
+        reparacaoId={r.id}
+        currentUserId={r.assignedToUserId}
+        onClose={() => setAssignOpen(false)}
+      />
     </div>
   );
 }

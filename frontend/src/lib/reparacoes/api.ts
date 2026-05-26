@@ -38,6 +38,10 @@ export const reparacoesApi = {
   changeEstado(id: string, estado: RepairStatus, notas?: string) {
     return api.post<Reparacao>(`/reparacoes/${id}/estado`, { estado, notas: notas ?? null }).then((r) => r.data);
   },
+  /** Sprint 343: atribui (userId) ou desatribui (null) técnico responsável. Admin only. */
+  assign(id: string, userId: string | null) {
+    return api.put<Reparacao>(`/reparacoes/${id}/assign`, { userId }).then((r) => r.data);
+  },
   emitirFatura(id: string, payload: { vatPercent?: number | null; paymentMethod?: string | null } = {}) {
     return api.post<InvoiceDto>(`/reparacoes/${id}/emitir-fatura`, payload).then((r) => r.data);
   },

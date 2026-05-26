@@ -130,6 +130,9 @@ export interface Reparacao {
   fields: EquipmentFieldValue[];
   precisaConfirmacaoPagamento: boolean;
   precisaConfirmacaoGarantia: boolean;
+  /** Sprint 343: técnico atribuído (null = não atribuída ainda). */
+  assignedToUserId: string | null;
+  assignedToDisplayName: string | null;
 }
 
 export interface ReparacaoDetalhada {
