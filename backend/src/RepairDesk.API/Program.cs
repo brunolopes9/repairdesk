@@ -338,6 +338,8 @@ try
 
     // Sprint 344 (Doc 83 Pillar 3): assinaturas digitais ligadas a reparações.
     builder.Services.AddScoped<ISignatureRepository, RepairDesk.DAL.Persistence.SignatureRepository>();
+    // Sprint 346 (Doc 83 Pillar 6): tags categóricas para reparações.
+    builder.Services.AddScoped<IReparacaoTagRepository, RepairDesk.DAL.Persistence.ReparacaoTagRepository>();
 
     // Sprint 303: Payments — providers (Mock + IFTHENPAY) + orquestrador.
     builder.Services.AddScoped<IPaymentRepository, RepairDesk.DAL.Persistence.PaymentRepository>();

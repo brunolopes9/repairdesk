@@ -25,6 +25,7 @@ import type { EquipmentFieldTemplate } from '../../lib/equipmentFields/types';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { useAuth } from '../../lib/auth/AuthContext';
 import AssignTecnicoModal from '../../components/reparacoes/AssignTecnicoModal';
+import ReparacaoTagsEditor from '../../components/reparacoes/ReparacaoTagsEditor';
 import SignaturePadModal from '../../components/signatures/SignaturePadModal';
 import { signaturesApi } from '../../lib/signatures/api';
 import { SIGNATURE_TYPE, SIGNATURE_TYPE_LABEL, type SignatureType as SigType } from '../../lib/signatures/types';
@@ -565,6 +566,9 @@ export default function ReparacaoDetalhe() {
           </button>
         )}
         <p className="text-xs text-zinc-500">recebido {formatDate(r.recebidoEm)}</p>
+
+        {/* Sprint 346: tags categóricas (Urgente, Em garantia, etc). */}
+        <ReparacaoTagsEditor reparacaoId={r.id} currentTagIds={r.tags.map((t) => t.id)} />
 
         {/* Sprint 343: técnico atribuído (Admin pode editar). */}
         <div className="flex items-center gap-2 text-xs">

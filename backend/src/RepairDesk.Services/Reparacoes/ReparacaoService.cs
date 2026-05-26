@@ -1110,6 +1110,10 @@ public class ReparacaoService : IReparacaoService
             precisaConfirmacaoPagamento,
             precisaConfirmacaoGarantia,
             r.AssignedToUserId,
-            r.AssignedToUser?.DisplayName);
+            r.AssignedToUser?.DisplayName,
+            r.TagAssignments
+                .Where(a => a.ReparacaoTag is not null)
+                .Select(a => new TagSummaryDto(a.ReparacaoTag!.Id, a.ReparacaoTag.Nome, a.ReparacaoTag.CorHex))
+                .ToList());
     }
 }

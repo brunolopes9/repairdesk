@@ -133,6 +133,8 @@ export interface Reparacao {
   /** Sprint 343: técnico atribuído (null = não atribuída ainda). */
   assignedToUserId: string | null;
   assignedToDisplayName: string | null;
+  /** Sprint 346: tags categóricas atribuídas. */
+  tags: Array<{ id: string; nome: string; corHex: string }>;
 }
 
 export interface ReparacaoDetalhada {

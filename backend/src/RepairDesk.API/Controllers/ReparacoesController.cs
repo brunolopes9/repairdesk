@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Billing;
 using RepairDesk.Services.Clientes;
@@ -62,6 +63,19 @@ public class ReparacoesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public Task<ReparacaoDto> Assign(Guid id, [FromBody] AssignReparacaoRequest req, CancellationToken ct)
         => _service.AssignAsync(id, req.UserId, ct);
+
+    /// <summary>Sprint 346: substitui as tags atribuídas a esta reparação.</summary>
+    [HttpPut("{id:guid}/tags")]
+    public async Task<ActionResult<IReadOnlyList<TagSummaryDto>>> SetTags(
+        Guid id,
+        [FromBody] SetReparacaoTagsRequest req,
+        [FromServices] IReparacaoTagRepository tagRepo,
+        CancellationToken ct)
+    {
+        await tagRepo.SetTagsForReparacaoAsync(id, req.TagIds ?? Array.Empty<Guid>(), ct);
+        var tags = await tagRepo.ListByReparacaoAsync(id, ct);
+        return Ok(tags.Select(t => new TagSummaryDto(t.Id, t.Nome, t.CorHex)).ToList());
+    }
 
     [HttpPost("{id:guid}/fields")]
     public Task<IReadOnlyList<EquipmentFieldValueDto>> SetFields(Guid id, [FromBody] SetEquipmentFieldValuesRequest req, CancellationToken ct)

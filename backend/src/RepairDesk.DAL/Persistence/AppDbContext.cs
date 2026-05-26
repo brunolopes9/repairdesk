@@ -70,6 +70,9 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<Payment> Payments => Set<Payment>();
     // Sprint 344 (Doc 83 Pillar 3): assinaturas digitais ligadas a Reparações.
     public DbSet<SignatureCapture> SignatureCaptures => Set<SignatureCapture>();
+    // Sprint 346 (Doc 83 Pillar 6): tags categóricas para reparações (Urgente, Em garantia, etc).
+    public DbSet<ReparacaoTag> ReparacaoTags => Set<ReparacaoTag>();
+    public DbSet<ReparacaoTagAssignment> ReparacaoTagAssignments => Set<ReparacaoTagAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

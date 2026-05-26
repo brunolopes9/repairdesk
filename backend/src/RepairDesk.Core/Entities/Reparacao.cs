@@ -61,4 +61,6 @@ public class Reparacao : BaseEntity, ITenantEntity
 
     public List<ReparacaoEstadoLog> Timeline { get; set; } = new();
     public List<EquipmentFieldValue> EquipmentFieldValues { get; set; } = new();
+    /// <summary>Sprint 346: tags categóricas (Urgente, Em garantia, etc).</summary>
+    public List<ReparacaoTagAssignment> TagAssignments { get; set; } = new();
 }

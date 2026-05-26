@@ -7,6 +7,12 @@ namespace RepairDesk.Services.Reparacoes;
 /// <summary>Sprint 343: payload para PUT /api/reparacoes/{id}/assign.</summary>
 public sealed record AssignReparacaoRequest(Guid? UserId);
 
+/// <summary>Sprint 346: payload para PUT /api/reparacoes/{id}/tags.</summary>
+public sealed record SetReparacaoTagsRequest(Guid[]? TagIds);
+
+/// <summary>Sprint 346: tag resumida (nome + cor) para embed em ReparacaoDto.</summary>
+public sealed record TagSummaryDto(Guid Id, string Nome, string CorHex);
+
 public sealed record CreateReparacaoRequest(
     Guid ClienteId,
     string Equipamento,
@@ -83,7 +89,9 @@ public sealed record ReparacaoDto(
     bool PrecisaConfirmacaoGarantia = false,
     /// <summary>Sprint 343: técnico atribuído à reparação (null = não atribuída).</summary>
     Guid? AssignedToUserId = null,
-    string? AssignedToDisplayName = null);
+    string? AssignedToDisplayName = null,
+    /// <summary>Sprint 346: tags categóricas atribuídas (Urgente, Em garantia, etc).</summary>
+    IReadOnlyList<TagSummaryDto>? Tags = null);
 
 public sealed record ReparacaoDetalhadaDto(
     ReparacaoDto Reparacao,
