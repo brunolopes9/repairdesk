@@ -240,7 +240,10 @@ public static class DbInitializer
     private static async Task SeedRolesAsync(IServiceProvider sp, ILogger logger)
     {
         var roleManager = sp.GetRequiredService<RoleManager<AppRole>>();
-        foreach (var role in Enum.GetNames<UserRole>())
+        // Sprint 311 (Doc 72 Fase D): roles canónicos em AppRoles (Admin/Tech/Cashier/ReadOnly).
+        // Os roles legacy do enum UserRole (Tecnico/Recepcao/Visualizador) deixaram de ser
+        // semeados — nunca foram usados em [Authorize(Roles=...)] e ficam como cleanup pendente.
+        foreach (var role in RepairDesk.Core.Auth.AppRoles.All)
         {
             if (!await roleManager.RoleExistsAsync(role))
             {

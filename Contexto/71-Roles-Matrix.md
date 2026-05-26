@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:0c1dd56ec642b6a0 -->
+<!-- roles-matrix-snapshot:775c2d00cf84d48f -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -41,5 +41,26 @@ testes e esta matriz com snapshot.
 | **Sprint 300 (Doc 80 Pillar A.1) — POS PT controlo de caixa** | | |
 | CashController | `GET /today`, `/by-date/{date}`, `/recent`, `POST /open`, `POST /movement`, `GET /{id}/zreport.pdf` | `Authenticated` |
 | CashController | `POST /{id}/close` (fecho caixa impacta relatórios fiscais) | `Admin` |
+| **Sprint 311 (Doc 72 Fase D) — roles granulares fundação** | | |
+| UsersController | `GET/PUT /{id}/roles` (gestão roles do tenant) | `Admin` |
+
+## Sprint 311 — Roles granulares (Tech / Cashier / ReadOnly)
+
+Foram adicionadas 4 roles canónicas em `RepairDesk.Core.Auth.AppRoles`:
+- `Admin` — acesso total (fiscal, RGPD, peças, fornecedores).
+- `Tech` — reparações, diagnóstico, peças (não-fiscal).
+- `Cashier` — vendas POS, caixa, fatura, clientes.
+- `ReadOnly` — leitura apenas (dashboard, histórico).
+
+Policies disponíveis em `RepairDesk.Core.Auth.AppPolicies`:
+- `RequireAdmin` — só Admin (equivalente ao `[Authorize(Roles = "Admin")]`).
+- `RequireTechOrAdmin` — Admin OU Tech.
+- `RequireCashierOrAdmin` — Admin OU Cashier.
+- `RequireWrite` — Admin OU Tech OU Cashier (qualquer non-readonly).
+
+Roles são aditivas — um user pode ter `Tech + Cashier`. Os `[Authorize(Roles = "Admin")]`
+existentes continuam intactos: refactor para policies fica para Fase E (controllers vão
+passar a usar `[Authorize(Policy = AppPolicies.RequireXxx)]` à medida que cada feature
+precisar de abrir acesso a roles não-Admin).
 
 Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por reflection dos controllers.

@@ -160,6 +160,25 @@ try
             options.AddPolicy($"api_scope:{scope}", policy =>
                 policy.Requirements.Add(new RepairDesk.API.Infrastructure.ApiScopeRequirement(scope)));
         }
+
+        // Sprint 311 (Doc 72 Fase D): policies de roles granulares. Controllers existentes
+        // com [Authorize(Roles = "Admin")] continuam a funcionar — estas policies são
+        // ADITIVAS para refactor incremental.
+        options.AddPolicy(RepairDesk.Core.Auth.AppPolicies.RequireAdmin, p =>
+            p.RequireAuthenticatedUser().RequireRole(RepairDesk.Core.Auth.AppRoles.Admin));
+        options.AddPolicy(RepairDesk.Core.Auth.AppPolicies.RequireTechOrAdmin, p =>
+            p.RequireAuthenticatedUser().RequireRole(
+                RepairDesk.Core.Auth.AppRoles.Admin,
+                RepairDesk.Core.Auth.AppRoles.Tech));
+        options.AddPolicy(RepairDesk.Core.Auth.AppPolicies.RequireCashierOrAdmin, p =>
+            p.RequireAuthenticatedUser().RequireRole(
+                RepairDesk.Core.Auth.AppRoles.Admin,
+                RepairDesk.Core.Auth.AppRoles.Cashier));
+        options.AddPolicy(RepairDesk.Core.Auth.AppPolicies.RequireWrite, p =>
+            p.RequireAuthenticatedUser().RequireRole(
+                RepairDesk.Core.Auth.AppRoles.Admin,
+                RepairDesk.Core.Auth.AppRoles.Tech,
+                RepairDesk.Core.Auth.AppRoles.Cashier));
     });
     builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, RepairDesk.API.Infrastructure.ApiScopeHandler>();
 
