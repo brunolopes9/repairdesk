@@ -48,6 +48,9 @@ public class ReparacaoTimeEntryRepository : IReparacaoTimeEntryRepository
         return active.Count;
     }
 
+    public Task<bool> HasActiveForReparacaoAsync(Guid reparacaoId, CancellationToken ct = default) =>
+        _db.ReparacaoTimeEntries.AnyAsync(e => e.ReparacaoId == reparacaoId && e.EndedAt == null, ct);
+
     public async Task<int> SumMinutesByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
     {
         var rows = await _db.ReparacaoTimeEntries

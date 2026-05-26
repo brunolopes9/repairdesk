@@ -522,9 +522,24 @@ public class ReparacaoService : IReparacaoService
         _repo.AddEstadoLog(log);
         await _repo.SaveAsync(ct);
 
-        // Sprint 352: ao mudar para estado terminal (Entregue/Cancelado), fecha timers
-        // activos desta reparação — evita esquecer timer a contar overnight.
-        if (req.Estado is RepairStatus.Entregue or RepairStatus.Cancelado)
+        // Sprint 360: timer automático ligado ao estado. O tempo de bancada é o intervalo
+        // em "Em reparação" — ninguém liga/desliga manualmente. Entra EmReparacao → arranca;
+        // sai para qualquer outro estado (Reparado, AguardaPeca, Cancelado, Entregue, reabrir) → pára.
+        if (req.Estado == RepairStatus.EmReparacao)
+        {
+            if (_user.UserId is { } uid && !await _timeEntries.HasActiveForReparacaoAsync(rep.Id, ct))
+            {
+                await _timeEntries.AddAsync(new ReparacaoTimeEntry
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = rep.TenantId,
+                    ReparacaoId = rep.Id,
+                    UserId = uid,
+                    StartedAt = now,
+                }, ct);
+            }
+        }
+        else
         {
             await _timeEntries.StopAllActiveForReparacaoAsync(rep.Id, now, ct);
         }

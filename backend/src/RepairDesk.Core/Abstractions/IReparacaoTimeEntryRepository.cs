@@ -18,6 +18,9 @@ public interface IReparacaoTimeEntryRepository
     /// </summary>
     Task<int> StopAllActiveForReparacaoAsync(Guid reparacaoId, DateTime endedAt, CancellationToken ct = default);
 
+    /// <summary>Sprint 360: existe timer activo (EndedAt null) nesta reparação?</summary>
+    Task<bool> HasActiveForReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
+
     /// <summary>Soma de minutos por reparação (apenas entries fechadas).</summary>
     Task<int> SumMinutesByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
 
