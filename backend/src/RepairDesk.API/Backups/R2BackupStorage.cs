@@ -86,13 +86,13 @@ public sealed class R2BackupStorage : IBackupRemoteStorage, IDisposable
                 .Select(o =>
                 {
                     var fileName = Path.GetFileName(o.Key);
-                    var timestamp = GetBackupTimestamp(fileName, o.LastModified.GetValueOrDefault(DateTime.UtcNow));
+                    var timestamp = GetBackupTimestamp(fileName, o.LastModified);
                     return new BackupFileDto(
                         BackupId.For(BackupLocation.R2, o.Key),
                         fileName,
                         BackupLocation.R2,
                         timestamp,
-                        o.Size.GetValueOrDefault(),
+                        o.Size,
                         "OK",
                         GetAgeHours(timestamp),
                         null,

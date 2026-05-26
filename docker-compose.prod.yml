@@ -79,6 +79,9 @@ services:
       DpKeysBackup__R2__Secret: ${Storage__R2__Secret:-}
       DpKeysBackup__R2__Bucket: ${DPKEYS_BACKUP_R2_BUCKET:-${Backup__R2__Bucket}}
       DpKeysBackup__R2__Prefix: ${DPKEYS_BACKUP_R2_PREFIX:-}
+      # Sprint 168: chave Anthropic central (LopesTech) para IA partilhada. Tenants
+      # Free/Pro usam esta key, Enterprise usam BYOK em /definicoes/ia.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AtNifLookup__Production: ${AT_PRODUCTION:-true}
       AtNifLookup__CertPath: ${AT_CERT_PATH:-}
       AtNifLookup__KeyPath: ${AT_KEY_PATH:-}
