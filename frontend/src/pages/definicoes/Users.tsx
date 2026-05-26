@@ -22,7 +22,7 @@ export default function UsersDefinicoes() {
         description="Gestão de roles dos utilizadores do tenant. Sprint 311 (Doc 72 Fase D)."
       />
 
-      {usersQuery.isLoading && <SkeletonTable rows={3} cols={4} />}
+      {usersQuery.isLoading && <SkeletonTable rows={3} columns={4} />}
       {usersQuery.isError && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
           Erro a carregar utilizadores. Provavelmente não tens role <code>Admin</code>.
