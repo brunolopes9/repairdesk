@@ -75,6 +75,9 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<ReparacaoTagAssignment> ReparacaoTagAssignments => Set<ReparacaoTagAssignment>();
     // Sprint 349 (Doc 83 Pillar 6): time tracker por reparação.
     public DbSet<ReparacaoTimeEntry> ReparacaoTimeEntries => Set<ReparacaoTimeEntry>();
+    // Sprint 353 (Doc 83 Pillar 5): kits de peças (bundles aplicáveis a reparação).
+    public DbSet<PartKit> PartKits => Set<PartKit>();
+    public DbSet<PartKitItem> PartKitItems => Set<PartKitItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

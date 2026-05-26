@@ -80,6 +80,7 @@ const nav: NavItem[] = [
       { to: '/definicoes', label: 'Empresa & Faturação', icon: Settings },
       { to: '/definicoes/preferencias', label: 'Preferências', icon: SlidersHorizontal },
       { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2 },
+      { to: '/definicoes/kits', label: 'Kits de peças', icon: PackageSearch, adminOnly: true },
       { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook },
       { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
       { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },

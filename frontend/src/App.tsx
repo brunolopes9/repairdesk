@@ -34,6 +34,7 @@ const Definicoes = lazy(() => import('./pages/definicoes/Definicoes'));
 const Preferencias = lazy(() => import('./pages/definicoes/Preferencias'));
 const Webhooks = lazy(() => import('./pages/definicoes/Webhooks'));
 const Fornecedores = lazy(() => import('./pages/definicoes/Fornecedores'));
+const PartKitsPage = lazy(() => import('./pages/definicoes/PartKits'));
 const Automacoes = lazy(() => import('./pages/definicoes/Automacoes'));
 const LlmUsage = lazy(() => import('./pages/definicoes/LlmUsage'));
 const UsersDefinicoes = lazy(() => import('./pages/definicoes/Users'));
@@ -151,6 +152,7 @@ export default function App() {
               <Route path="/definicoes/preferencias" element={<Preferencias />} />
               <Route path="/definicoes/webhooks" element={<Webhooks />} />
               <Route path="/definicoes/fornecedores" element={<Fornecedores />} />
+              <Route path="/definicoes/kits" element={<PartKitsPage />} />
               <Route path="/definicoes/automacoes" element={<Automacoes />} />
               <Route path="/definicoes/llm-usage" element={<LlmUsage />} />
               <Route path="/definicoes/utilizadores" element={<UsersDefinicoes />} />
