@@ -62,7 +62,8 @@ public class ClienteService : IClienteService
             Telefone = string.IsNullOrWhiteSpace(req.Telefone) ? null : NormalizePhone(req.Telefone),
             Email = req.Email?.Trim(),
             Nif = req.Nif?.Trim(),
-            Notas = req.Notas?.Trim()
+            Notas = req.Notas?.Trim(),
+            NotaImportante = string.IsNullOrWhiteSpace(req.NotaImportante) ? null : req.NotaImportante.Trim(),
         };
         await _repo.AddAsync(cliente, ct);
         await _repo.SaveAsync(ct);
@@ -81,6 +82,7 @@ public class ClienteService : IClienteService
         cliente.Email = req.Email?.Trim();
         cliente.Nif = req.Nif?.Trim();
         cliente.Notas = req.Notas?.Trim();
+        cliente.NotaImportante = string.IsNullOrWhiteSpace(req.NotaImportante) ? null : req.NotaImportante.Trim();
         await _repo.SaveAsync(ct);
         return ToDto(cliente);
     }
@@ -209,5 +211,5 @@ public class ClienteService : IClienteService
         new(raw.Where(c => !char.IsWhiteSpace(c)).ToArray());
 
     private static ClienteDto ToDto(Cliente c) =>
-        new(c.Id, c.Nome, c.Telefone, c.Email, c.Nif, c.Notas, c.CreatedAt, c.UpdatedAt);
+        new(c.Id, c.Nome, c.Telefone, c.Email, c.Nif, c.Notas, c.CreatedAt, c.UpdatedAt, c.NotaImportante);
 }

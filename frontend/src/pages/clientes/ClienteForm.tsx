@@ -34,6 +34,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
   const [email, setEmail] = useState('');
   const [nif, setNif] = useState('');
   const [notas, setNotas] = useState('');
+  const [notaImportante, setNotaImportante] = useState('');
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [generic, setGeneric] = useState<string | null>(null);
   const [atLookup, setAtLookup] = useState<AtLookupState>({ status: 'idle' });
@@ -44,6 +45,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
     setEmail(initial?.email ?? '');
     setNif(initial?.nif ?? '');
     setNotas(initial?.notas ?? '');
+    setNotaImportante(initial?.notaImportante ?? '');
     setErrors({});
     setGeneric(null);
     setAtLookup({ status: 'idle' });
@@ -91,6 +93,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
         email: email.trim() || null,
         nif: nif.trim() || null,
         notas: notas.trim() || null,
+        notaImportante: notaImportante.trim() || null,
       });
     } catch (err) {
       if (isAxiosError(err)) {
@@ -146,6 +149,16 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
           className={inputCls}
         />
         <NifFeedback nif={nif} lookup={atLookup} currentNome={nome} onAcceptName={setNome} />
+      </Field>
+      <Field label="⚠️ Nota importante (alerta destacado)" errors={errors.notaImportante}>
+        <input
+          type="text"
+          maxLength={120}
+          placeholder="ex: Paga sempre em dinheiro · Fatura sempre com NIF"
+          value={notaImportante}
+          onChange={(e) => setNotaImportante(e.target.value)}
+          className={inputCls}
+        />
       </Field>
       <Field label="Notas" errors={errors.notas}>
         <textarea

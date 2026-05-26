@@ -5,14 +5,16 @@ public sealed record CreateClienteRequest(
     string? Telefone,
     string? Email,
     string? Nif,
-    string? Notas);
+    string? Notas,
+    string? NotaImportante = null);
 
 public sealed record UpdateClienteRequest(
     string Nome,
     string? Telefone,
     string? Email,
     string? Nif,
-    string? Notas);
+    string? Notas,
+    string? NotaImportante = null);
 
 public sealed record ClienteDto(
     Guid Id,
@@ -22,7 +24,9 @@ public sealed record ClienteDto(
     string? Nif,
     string? Notas,
     DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    /// <summary>Sprint 355: alerta destacado.</summary>
+    string? NotaImportante = null);
 
 public sealed record PagedResult<T>(
     IReadOnlyList<T> Items,

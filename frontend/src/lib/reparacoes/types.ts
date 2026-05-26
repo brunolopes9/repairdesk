@@ -85,6 +85,8 @@ export interface ClienteResumo {
   nif: string | null;
   /** Sprint 348: usado pelo EmailMenu (Send 1-click). */
   email?: string | null;
+  /** Sprint 355: alerta curto destacado (banner). */
+  notaImportante?: string | null;
 }
 
 export interface EstadoLog {

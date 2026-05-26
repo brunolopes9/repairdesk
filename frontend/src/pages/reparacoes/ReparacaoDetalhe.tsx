@@ -575,6 +575,14 @@ export default function ReparacaoDetalhe() {
         )}
         <p className="text-xs text-zinc-500">recebido {formatDate(r.recebidoEm)}</p>
 
+        {/* Sprint 355: alerta destacado do cliente (ex: "Paga sempre em dinheiro"). */}
+        {r.cliente.notaImportante && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            <span>{r.cliente.notaImportante}</span>
+          </div>
+        )}
+
         {/* Sprint 349: timer trabalho técnico (start/stop). */}
         <ReparacaoTimer reparacaoId={r.id} />
 

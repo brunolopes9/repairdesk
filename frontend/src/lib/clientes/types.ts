@@ -7,6 +7,8 @@ export interface Cliente {
   notas: string | null;
   createdAt: string;
   updatedAt: string | null;
+  /** Sprint 355: alerta curto destacado. */
+  notaImportante?: string | null;
 }
 
 export interface ClienteForm {
@@ -15,6 +17,7 @@ export interface ClienteForm {
   email: string | null;
   nif: string | null;
   notas: string | null;
+  notaImportante?: string | null;
 }
 
 export interface AtNifLookup {

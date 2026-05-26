@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Mail, MessageCircle, Pencil, Phone, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Download, Mail, MessageCircle, Pencil, Phone, ShieldAlert } from 'lucide-react';
 import { displayPhone } from '../../lib/phone/formatter';
 import Modal from '../../components/Modal';
 import { Breadcrumb, Button, SkeletonCard } from '../../components/ui';
@@ -173,6 +173,13 @@ export default function ClienteDetalhe() {
 
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">{c.nome}</h1>
+        {/* Sprint 355: alerta destacado do cliente. */}
+        {c.notaImportante && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            <span>{c.notaImportante}</span>
+          </div>
+        )}
         <div className="space-y-1 text-sm text-zinc-600 dark:text-zinc-300">
           {c.telefone ? (
             <div className="flex items-center gap-1.5"><Phone size={13} strokeWidth={2} className="text-zinc-400" /> {displayPhone(c.telefone)}</div>

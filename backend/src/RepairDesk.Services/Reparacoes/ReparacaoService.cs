@@ -1094,7 +1094,7 @@ public class ReparacaoService : IReparacaoService
         var receita = r.PrecoFinalCents ?? 0;
         var lucro = receita - custoDespesasCents - r.CustoPecasCents;
         var cliente = r.Cliente is not null
-            ? new ClienteResumo(r.Cliente.Id, r.Cliente.Nome, r.Cliente.Telefone ?? string.Empty, r.Cliente.Nif, r.Cliente.Email)
+            ? new ClienteResumo(r.Cliente.Id, r.Cliente.Nome, r.Cliente.Telefone ?? string.Empty, r.Cliente.Nif, r.Cliente.Email, r.Cliente.NotaImportante)
             : new ClienteResumo(r.ClienteId, "(?)", "");
         return new ReparacaoDto(
             r.Id, r.Numero, cliente,
