@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:75af525138c9be3a -->
+<!-- roles-matrix-snapshot:a4c6143e6af42189 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo

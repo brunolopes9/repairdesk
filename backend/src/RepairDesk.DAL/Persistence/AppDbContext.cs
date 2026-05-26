@@ -66,6 +66,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 300 (Doc 80 Pillar A.1): POS PT — controlo de caixa.
     public DbSet<CashMovement> CashMovements => Set<CashMovement>();
     public DbSet<DailyClosing> DailyClosings => Set<DailyClosing>();
+    // Sprint 303: transacções de pagamento (Mock/IFTHENPAY) ligadas a Vendas.
+    public DbSet<Payment> Payments => Set<Payment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

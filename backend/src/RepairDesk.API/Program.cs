@@ -317,6 +317,11 @@ try
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 
+    // Sprint 303: Payments — providers (Mock para dev, IFTHENPAY na Fase B) + orquestrador.
+    builder.Services.AddScoped<IPaymentRepository, RepairDesk.DAL.Persistence.PaymentRepository>();
+    builder.Services.AddSingleton<IPaymentProvider, RepairDesk.Services.Payments.MockPaymentProvider>();
+    builder.Services.AddScoped<RepairDesk.Services.Payments.IPaymentService, RepairDesk.Services.Payments.PaymentService>();
+
     // Tabela de preços
     builder.Services.AddScoped<IPriceTableRepository, RepairDesk.DAL.Persistence.PriceTableRepository>();
     builder.Services.AddScoped<RepairDesk.Services.PriceTable.IPriceTableService, RepairDesk.Services.PriceTable.PriceTableService>();
