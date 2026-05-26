@@ -34,6 +34,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Sprint 365: injeta os handlers de push (push-sw.js em /public) no SW gerado.
+        // generateSW não traz listeners de 'push' — sem isto a notificação nunca aparece.
+        importScripts: ['push-sw.js'],
         // Doc 24: nunca cachear /api/* autenticado no SW — multi-tenant safety.
         // Cache só assets estáticos. App shell NetworkFirst (evita preso em build velha).
         navigateFallback: '/index.html',

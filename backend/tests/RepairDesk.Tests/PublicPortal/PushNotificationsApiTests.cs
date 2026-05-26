@@ -94,7 +94,7 @@ public class PushNotificationsApiTests : IClassFixture<RepairDeskApiFactory>
 
         sent.Should().Be(1);
         sender.Sent.Should().ContainSingle();
-        sender.Sent[0].Payload.Should().Contain($"/portal/{reparacao.PublicSlug}");
+        sender.Sent[0].Payload.Should().Contain($"/r/{reparacao.PublicSlug}");
         sender.Sent[0].Payload.Should().Contain("iPhone 12");
     }
 

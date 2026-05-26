@@ -218,7 +218,7 @@ public class PushNotificationService : IPushNotificationService
         return new PushNotificationPayload(
             Title: title,
             Body: body,
-            Url: $"/portal/{rep.PublicSlug}",
+            Url: $"/r/{rep.PublicSlug}",
             Tag: $"repair-{rep.PublicSlug}",
             Estado: rep.Estado);
     }
