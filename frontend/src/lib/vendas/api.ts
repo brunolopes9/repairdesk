@@ -1,4 +1,5 @@
 import { api } from '../api';
+import type { PaymentProvider } from '../payments/types';
 import type { CreateVendaRequest, EmitVendaFaturaResponse, PaymentMethod, Venda, VendasPage } from './types';
 
 export const vendasApi = {
@@ -11,8 +12,14 @@ export const vendasApi = {
   create(payload: CreateVendaRequest) {
     return api.post<Venda>('/vendas', payload).then((r) => r.data);
   },
-  marcarPaga(id: string, paymentMethod: PaymentMethod, emitirFatura = false) {
-    return api.post<EmitVendaFaturaResponse>(`/vendas/${id}/marcar-paga`, { paymentMethod, emitirFatura }).then((r) => r.data);
+  marcarPaga(id: string, paymentMethod: PaymentMethod, emitirFatura = false, provider?: PaymentProvider) {
+    // provider opcional: null/undefined → Manual (sem Payment record). Mock/Ifthenpay cria
+    // Payment row automático (Sprint 303 Fase A+). Quando frontend já criou Payment via
+    // /api/payments, passa undefined para evitar registo duplicado.
+    return api.post<EmitVendaFaturaResponse>(
+      `/vendas/${id}/marcar-paga`,
+      { paymentMethod, emitirFatura, provider }
+    ).then((r) => r.data);
   },
   emitirFatura(id: string) {
     return api.post<{ number: string; pdfUrl: string | null; emittedAt: string }>(`/vendas/${id}/emitir-fatura`).then((r) => r.data);

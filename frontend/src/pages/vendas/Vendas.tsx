@@ -18,6 +18,8 @@ import { CONDICAO_ARTIGO, CONDICAO_ARTIGO_LABEL, PAYMENT_METHOD, VENDA_ORIGEM, V
 import GarantiaCard from '../../components/GarantiaCard';
 import NovoClienteModal from '../../components/NovoClienteModal';
 import { SkeletonTable } from '../../components/ui';
+import { PaymentMBWayModal } from '../../components/payments/PaymentMBWayModal';
+import { PaymentMultibancoModal } from '../../components/payments/PaymentMultibancoModal';
 
 type CartLine = {
   part: Part;
@@ -58,6 +60,9 @@ export default function Vendas() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PAYMENT_METHOD.MBWay);
   const [lastVenda, setLastVenda] = useState<Venda | null>(null);
+  // Sprint 303 Fase D: venda pendente de cobrança via IFTHENPAY (criada no backend
+  // mas ainda não marcada paga — aguarda webhook ou polling). null = sem modal aberto.
+  const [pendingPaymentVenda, setPendingPaymentVenda] = useState<Venda | null>(null);
 
   const parts = useQuery({
     queryKey: ['vendas-parts', q],
@@ -155,6 +160,63 @@ export default function Vendas() {
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel cobrar.'),
   });
+
+  // Sprint 303 Fase D: cria venda em estado Pendente e abre modal IFTHENPAY.
+  // onConfirmed (no modal) chama marcarPaga sem provider — Payment já existe via /api/payments.
+  const pedirOnline = useMutation({
+    mutationFn: async () => {
+      if (cart.length === 0) throw new Error('Carrinho vazio.');
+      for (const line of cart) {
+        if (PART_CATEGORIA_REQUER_IMEI.has(line.part.categoria)) {
+          if (!line.imei || !isValidImei(line.imei)) {
+            throw new Error(`IMEI inválido ou em falta para ${line.part.nome}.`);
+          }
+          if (line.imei2 && !isValidImei(line.imei2)) {
+            throw new Error(`IMEI secundário inválido para ${line.part.nome}.`);
+          }
+        }
+      }
+      return vendasApi.create({
+        clienteId: cliente?.id ?? null,
+        notas: null,
+        items: cart.map((line) => ({
+          partId: line.part.id,
+          descricao: line.part.nome,
+          quantidade: line.quantidade,
+          precoUnitarioCents: line.precoUnitarioCents,
+          descontoCents: line.descontoCents,
+          ivaRate: line.ivaRate,
+          imei: line.imei ? normalizeImei(line.imei) : null,
+          imei2: line.imei2 ? normalizeImei(line.imei2) : null,
+          fornecedorNome: line.fornecedorNome?.trim() || null,
+          condicao: line.condicao ?? null,
+          garantiaFornecedorAteAo: line.garantiaFornecedorAteAo || null,
+        })),
+      });
+    },
+    onSuccess: (venda) => setPendingPaymentVenda(venda),
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel criar venda.'),
+  });
+
+  async function confirmOnlinePayment() {
+    if (!pendingPaymentVenda) return;
+    try {
+      const res = await vendasApi.marcarPaga(
+        pendingPaymentVenda.id,
+        paymentMethod,
+        preferences.data?.sales.emitirFatura === 2,
+      );
+      setLastVenda(res.venda);
+      setCart([]);
+      setPendingPaymentVenda(null);
+      qc.invalidateQueries({ queryKey: ['vendas-parts'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['vendas-historico'] });
+      toast.success(`Venda #${String(res.venda.numero).padStart(5, '0')} paga via IFTHENPAY`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Nao foi possivel marcar venda paga.');
+    }
+  }
 
   const emitirFatura = useMutation({
     mutationFn: (id: string) => vendasApi.emitirFatura(id),
@@ -550,9 +612,37 @@ export default function Vendas() {
             >
               <CreditCard size={17} /> Cobrar {formatCents(totalCents)}
             </button>
+            {(paymentMethod === PAYMENT_METHOD.MBWay || paymentMethod === PAYMENT_METHOD.Multibanco) && (
+              <button
+                type="button"
+                onClick={() => pedirOnline.mutate()}
+                disabled={cart.length === 0 || pedirOnline.isPending}
+                className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-md border border-brand-600 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-50 dark:text-brand-300 dark:hover:bg-brand-950"
+              >
+                {paymentMethod === PAYMENT_METHOD.MBWay ? 'Pedir online via MBWay' : 'Gerar Referência MB'}
+              </button>
+            )}
           </div>
         </aside>
       </div>
+
+      {pendingPaymentVenda && paymentMethod === PAYMENT_METHOD.MBWay && (
+        <PaymentMBWayModal
+          vendaId={pendingPaymentVenda.id}
+          amountCents={pendingPaymentVenda.totalCents}
+          defaultPhone={cliente?.telefone ?? undefined}
+          onConfirmed={() => { void confirmOnlinePayment(); }}
+          onCancel={() => setPendingPaymentVenda(null)}
+        />
+      )}
+      {pendingPaymentVenda && paymentMethod === PAYMENT_METHOD.Multibanco && (
+        <PaymentMultibancoModal
+          vendaId={pendingPaymentVenda.id}
+          amountCents={pendingPaymentVenda.totalCents}
+          onConfirmed={() => { void confirmOnlinePayment(); }}
+          onCancel={() => setPendingPaymentVenda(null)}
+        />
+      )}
 
       {/* Histórico de vendas */}
       <section className="space-y-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
