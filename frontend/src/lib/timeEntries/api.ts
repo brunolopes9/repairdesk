@@ -28,7 +28,10 @@ export interface TimeStatsRow {
 
 export const timeEntriesApi = {
   active() {
-    return api.get<ActiveTimerDto | null>('/time-entries/active').then((r) => r.data);
+    // Sprint 358: backend devolve 204 (sem body) quando não há timer activo.
+    return api.get<ActiveTimerDto | null>('/time-entries/active').then((r) =>
+      r.status === 204 || !r.data ? null : r.data,
+    );
   },
   byReparacao(reparacaoId: string) {
     return api.get<TimeEntryDto[]>(`/time-entries/by-reparacao/${reparacaoId}`).then((r) => r.data);

@@ -63,11 +63,9 @@ public class TimeEntriesApiTests : IClassFixture<RepairDeskApiFactory>
         entregar.EnsureSuccessStatusCode();
 
         // Sprint 352: ao Entregar, o timer activo é fechado automaticamente.
-        // (Não usamos GetFromJsonAsync porque o body "null" do Ok(null) varia entre runtimes.)
+        // Sprint 358: sem timer activo, o endpoint devolve 204 NoContent.
         var activeResp = await client.GetAsync("/api/time-entries/active");
-        activeResp.EnsureSuccessStatusCode();
-        var body = (await activeResp.Content.ReadAsStringAsync()).Trim();
-        body.Should().BeOneOf("null", "", "{}");
+        activeResp.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         var entries = await client.GetFromJsonAsync<List<TimeEntryDto>>($"/api/time-entries/by-reparacao/{rep.Id}");
         entries!.Should().OnlyContain(e => e.EndedAt != null);

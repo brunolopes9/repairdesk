@@ -48,7 +48,9 @@ public sealed class TimeEntriesController : ControllerBase
     {
         if (_user.UserId is not { } userId) return Unauthorized();
         var entry = await _repo.FindActiveForUserAsync(userId, ct);
-        if (entry is null) return Ok((ActiveTimerDto?)null);
+        // Sprint 358: 204 NoContent quando não há timer (evita body "null" ambíguo
+        // que confunde parsers JSON estritos no cliente).
+        if (entry is null) return NoContent();
         var rep = await _reparacoes.FindByIdAsync(entry.ReparacaoId, ct);
         return Ok(new ActiveTimerDto(entry.Id, entry.ReparacaoId, rep?.Numero ?? 0, entry.StartedAt));
     }
