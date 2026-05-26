@@ -189,7 +189,14 @@ try
     builder.Services.AddScoped<IAuditRepository, AuditRepository>();
     builder.Services.AddScoped<IAuditService, AuditService>();
     builder.Services.AddScoped<IAtNifLookupService, AtNifLookupService>();
-    builder.Services.AddSingleton<IAtNifRemoteClient, AtDadosToiSoapClient>();
+    // Sprint 364: lookup de NIF encadeado — AT dadosTOI (cert) → VIES (grátis, empresas).
+    builder.Services.AddSingleton<AtDadosToiSoapClient>();
+    builder.Services.AddHttpClient<ViesNifRemoteClient>(c =>
+    {
+        c.BaseAddress = new Uri("https://ec.europa.eu/taxation_customs/vies/");
+        c.Timeout = TimeSpan.FromSeconds(12);
+    });
+    builder.Services.AddScoped<IAtNifRemoteClient, CompositeNifRemoteClient>();
     builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
 
     // Clientes
