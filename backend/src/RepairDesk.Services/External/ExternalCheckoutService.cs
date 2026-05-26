@@ -88,7 +88,15 @@ public sealed record ExternalProductDto(
     /// <summary>Sprint 189: imagens com pipeline SEO (sizes WebP + blur LQIP + alt + dimensões).
     /// Quando Sizes != null: produto tem versões optimizadas. Quando null: imagem legacy só com Url original.</summary>
     IReadOnlyList<ExternalProductImageDto> Images,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    /// <summary>Sprint 359: preço da bateria nova deste modelo (cêntimos). Null = modelo sem
+    /// upgrade. A elegibilidade é decidida no shop (condition≠new && !isOpenBox && bateria&lt;95%).</summary>
+    int? BatteryUpgradePriceCents = null,
+    /// <summary>Sprint 359: id do modelo-template, para o shop agrupar variantes do mesmo modelo
+    /// numa página única com seletor (cor/capacidade/grade). Null = produto independente.</summary>
+    Guid? ModelTemplateId = null,
+    /// <summary>Sprint 359: série de marketing herdada do modelo (ex: "iPhone 15"). Null se sem modelo.</summary>
+    string? Series = null);
 
 /// <summary>Sprint 189: imagem rica com sizes para &lt;picture&gt; srcset + LQIP placeholder.</summary>
 public sealed record ExternalProductImageDto(
@@ -340,6 +348,24 @@ public class ExternalCheckoutService : IExternalCheckoutService
         return ToExternalProductDto(p);
     }
 
+    /// <summary>Sprint 359: imagens efectivas — as da unidade se existirem, senão as de marketing do modelo.</summary>
+    private static List<ExternalProductImageDto> ResolveImages(RepairDesk.Core.Entities.Product p)
+    {
+        if (p.Images.Count > 0)
+            return p.Images.OrderBy(i => i.Ordem).Select(i => new ExternalProductImageDto(
+                i.Url, i.Alt,
+                i.Url480w is not null && i.Url1024w is not null && i.Url2048w is not null
+                    ? new ExternalProductImageSizes(i.Url480w, i.Url1024w, i.Url2048w) : null,
+                i.BlurDataUrl, i.Width, i.Height)).ToList();
+        var mt = p.ModelTemplate;
+        if (mt is null || mt.Images.Count == 0) return new List<ExternalProductImageDto>();
+        return mt.Images.OrderBy(i => i.Ordem).Select(i => new ExternalProductImageDto(
+            i.Url, i.Alt,
+            i.Url480w is not null && i.Url1024w is not null && i.Url2048w is not null
+                ? new ExternalProductImageSizes(i.Url480w, i.Url1024w, i.Url2048w) : null,
+            i.BlurDataUrl, i.Width, i.Height)).ToList();
+    }
+
     private static ExternalProductDto ToExternalProductDto(RepairDesk.Core.Entities.Product p) => new(
         p.Id, p.Sku, p.Slug, p.Brand, p.Model, p.Storage, p.Color,
         Grading: p.Grading.ToString(),
@@ -356,7 +382,14 @@ public class ExternalCheckoutService : IExternalCheckoutService
         SupplyType: p.SupplyType.ToString(),
         PriceCents: p.PriceCents, StockQuantity: p.StockQuantity,
         StockDisplayMode: p.SupplyType == ProductSupplyType.Dropship ? "on-demand" : "exact",
-        DescriptionMarkdown: p.DescriptionMarkdown, AttributesJson: p.AttributesJson,
+        // Sprint 359: herança override-com-fallback — usa o valor da unidade se existir,
+        // senão herda do modelo-template.
+        DescriptionMarkdown: !string.IsNullOrWhiteSpace(p.DescriptionMarkdown)
+            ? p.DescriptionMarkdown
+            : p.ModelTemplate?.DescriptionMarkdown,
+        AttributesJson: !string.IsNullOrWhiteSpace(p.AttributesJson)
+            ? p.AttributesJson
+            : p.ModelTemplate?.SpecsJson,
         SeoTitle: p.SeoTitle, SeoDescription: p.SeoDescription,
         IsOpenBox: p.IsOpenBox,
         BatteryHealthPercent: p.BatteryHealthPercent,
@@ -371,17 +404,14 @@ public class ExternalCheckoutService : IExternalCheckoutService
             },
         TechnicalNotes: p.TechnicalNotes,
         SupplierName: p.Fornecedor?.Name,
-        ImageUrls: p.Images.OrderBy(i => i.Ordem).Select(i => i.Url).ToList(),
-        Images: p.Images.OrderBy(i => i.Ordem).Select(i => new ExternalProductImageDto(
-            Url: i.Url,
-            Alt: i.Alt,
-            Sizes: i.Url480w is not null && i.Url1024w is not null && i.Url2048w is not null
-                ? new ExternalProductImageSizes(i.Url480w, i.Url1024w, i.Url2048w)
-                : null,
-            BlurDataUrl: i.BlurDataUrl,
-            Width: i.Width,
-            Height: i.Height)).ToList(),
-        UpdatedAt: p.UpdatedAt ?? p.CreatedAt);
+        // Sprint 359: imagens herdadas do modelo quando a unidade não tem próprias.
+        ImageUrls: ResolveImages(p).Select(i => i.Url).ToList(),
+        Images: ResolveImages(p),
+        UpdatedAt: p.UpdatedAt ?? p.CreatedAt,
+        // Sprint 359: campos herdados do modelo-template (back-compat: defaults null).
+        BatteryUpgradePriceCents: p.ModelTemplate?.BatteryUpgradePriceCents,
+        ModelTemplateId: p.ModelId,
+        Series: p.ModelTemplate?.Series);
 
     public async Task<ExternalClienteHistoricoResponse?> GetHistoricoByNifAsync(string nif, CancellationToken ct = default)
     {

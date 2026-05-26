@@ -122,6 +122,15 @@ public class Product : BaseEntity, ITenantEntity
     public Guid? FornecedorId { get; set; }
     public Fornecedor? Fornecedor { get; set; }
 
+    /// <summary>
+    /// Sprint 359 (Doc 83): liga a unidade ao seu <see cref="ProductModel"/> template.
+    /// NULL = produto independente (back-compat: todos os produtos pré-Sprint 359).
+    /// Quando preenchido, os campos partilhados (descrição, specs, imagens marketing,
+    /// preço bateria) herdam do modelo — a unidade pode sobrepor caso a caso.
+    /// </summary>
+    public Guid? ModelId { get; set; }
+    public ProductModel? ModelTemplate { get; set; }
+
     public List<ProductImage> Images { get; set; } = new();
 }
 

@@ -58,6 +58,8 @@ public class ProductRepository : IProductRepository
         var items = await ordered
             .Include(p => p.Images)
             .Include(p => p.Fornecedor)
+            // Sprint 359: carrega o modelo-template + imagens marketing para resolver herança no webhook.
+            .Include(p => p.ModelTemplate!).ThenInclude(m => m.Images)
             .Skip((Math.Max(1, page) - 1) * Math.Clamp(pageSize, 1, 100))
             .Take(Math.Clamp(pageSize, 1, 100))
             .ToListAsync(ct);
@@ -65,10 +67,14 @@ public class ProductRepository : IProductRepository
     }
 
     public Task<Product?> FindByIdAsync(Guid id, CancellationToken ct = default)
-        => _db.Products.Include(p => p.Images).Include(p => p.Fornecedor).FirstOrDefaultAsync(p => p.Id == id, ct);
+        => _db.Products.Include(p => p.Images).Include(p => p.Fornecedor)
+            .Include(p => p.ModelTemplate!).ThenInclude(m => m.Images)
+            .FirstOrDefaultAsync(p => p.Id == id, ct);
 
     public Task<Product?> FindBySlugAsync(string slug, CancellationToken ct = default)
-        => _db.Products.Include(p => p.Images).FirstOrDefaultAsync(p => p.Slug == slug, ct);
+        => _db.Products.Include(p => p.Images)
+            .Include(p => p.ModelTemplate!).ThenInclude(m => m.Images)
+            .FirstOrDefaultAsync(p => p.Slug == slug, ct);
 
     public Task<Product?> FindByDropshipAsync(Guid fornecedorId, string supplierSku, CancellationToken ct = default)
         => _db.Products

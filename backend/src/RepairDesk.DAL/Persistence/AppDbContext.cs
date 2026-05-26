@@ -80,6 +80,9 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<PartKitItem> PartKitItems => Set<PartKitItem>();
     // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
     public DbSet<RepairRequest> RepairRequests => Set<RepairRequest>();
+    // Sprint 359 (Doc 83): templates de modelo (conteúdo partilhado por variantes).
+    public DbSet<ProductModel> ProductModels => Set<ProductModel>();
+    public DbSet<ProductModelImage> ProductModelImages => Set<ProductModelImage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
