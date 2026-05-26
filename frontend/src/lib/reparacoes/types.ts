@@ -83,6 +83,8 @@ export interface ClienteResumo {
   telefone: string;
   /** Sprint 114: usado para banner "fatura sairá como Simplificada" quando vazio. */
   nif: string | null;
+  /** Sprint 348: usado pelo EmailMenu (Send 1-click). */
+  email?: string | null;
 }
 
 export interface EstadoLog {

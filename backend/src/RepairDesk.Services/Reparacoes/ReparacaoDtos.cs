@@ -42,7 +42,8 @@ public sealed record UpdateReparacaoRequest(
 
 public sealed record ChangeEstadoRequest(RepairStatus Estado, string? Notas);
 
-public sealed record ClienteResumo(Guid Id, string Nome, string Telefone, string? Nif = null);
+/// <summary>Sprint 348: <c>Email</c> adicionado para Send 1-click (EmailMenu).</summary>
+public sealed record ClienteResumo(Guid Id, string Nome, string Telefone, string? Nif = null, string? Email = null);
 
 public sealed record EstadoLogDto(
     Guid Id,

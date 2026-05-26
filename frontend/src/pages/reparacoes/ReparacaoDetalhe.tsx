@@ -28,6 +28,7 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import AssignTecnicoModal from '../../components/reparacoes/AssignTecnicoModal';
 import ReparacaoTagsEditor from '../../components/reparacoes/ReparacaoTagsEditor';
 import SignaturePadModal from '../../components/signatures/SignaturePadModal';
+import EmailMenu from '../../components/EmailMenu';
 import { signaturesApi } from '../../lib/signatures/api';
 import { SIGNATURE_TYPE, SIGNATURE_TYPE_LABEL, type SignatureType as SigType } from '../../lib/signatures/types';
 import type { ReparacaoVendaOrigem } from '../../lib/reparacoes/types';
@@ -554,6 +555,10 @@ export default function ReparacaoDetalhe() {
               <Phone size={12} strokeWidth={2} /> Ligar
             </a>
             <WhatsAppMenu phone={cleanPhone} vars={waVars} estado={r.estado} staleDays={staleDays} entityId={r.id} />
+            {/* Sprint 348: Email 1-click ao lado do WhatsApp; só aparece se cliente tem email. */}
+            {r.cliente.email ? (
+              <EmailMenu email={r.cliente.email} vars={waVars} estado={r.estado} staleDays={staleDays} />
+            ) : null}
             <span className="self-center text-xs text-zinc-500">{displayPhone(r.cliente.telefone)}</span>
           </div>
         ) : (
