@@ -7,6 +7,7 @@ using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Billing;
 using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.Payments;
 using RepairDesk.Services.TenantPreferences;
 using RepairDesk.Services.Webhooks;
 
@@ -44,6 +45,7 @@ public class VendaService : IVendaService
     private readonly IReparacaoRepository _reparacoes;
     private readonly IWebhookPublisher _webhooks;
     private readonly ITenantPreferencesService _preferences;
+    private readonly IPaymentService _payments;
 
     public VendaService(
         IVendaRepository vendas,
@@ -58,7 +60,8 @@ public class VendaService : IVendaService
         ITenantRepository tenants,
         IReparacaoRepository reparacoes,
         IWebhookPublisher webhooks,
-        ITenantPreferencesService preferences)
+        ITenantPreferencesService preferences,
+        IPaymentService payments)
     {
         _vendas = vendas;
         _parts = parts;
@@ -73,6 +76,7 @@ public class VendaService : IVendaService
         _reparacoes = reparacoes;
         _webhooks = webhooks;
         _preferences = preferences;
+        _payments = payments;
     }
 
     public async Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
@@ -249,6 +253,26 @@ public class VendaService : IVendaService
             venda.Data = DateTime.UtcNow;
             RecalculateTotals(venda);
             await _vendas.SaveAsync(ct);
+
+            // Sprint 303: regista Payment via provider (default Manual). Manual não consulta
+            // provider externo — só persiste linha Pago síncrono. Mock/Ifthenpay passam pelo IPaymentProvider.
+            if (req.Provider is { } chosenProvider && _tenant.TenantId is { } payTenantId)
+            {
+                try
+                {
+                    await _payments.InitiateAsync(new PaymentInitiationRequest(
+                        TenantId: payTenantId,
+                        VendaId: venda.Id,
+                        Method: req.PaymentMethod,
+                        AmountCents: venda.TotalCents,
+                        Description: $"Venda #{venda.Numero:D5}"), chosenProvider, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Provider não registado ou método não suportado — falha silenciosa em vez
+                    // de bloquear a venda. Caller pode chamar /api/payments separadamente.
+                }
+            }
 
             if (_tenant.TenantId is { } publishTenantId)
             {

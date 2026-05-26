@@ -6,6 +6,7 @@ using RepairDesk.Core.Enums;
 using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Billing;
 using RepairDesk.Services.Billing.InvoiceXpress;
+using RepairDesk.Services.Payments;
 using RepairDesk.Services.TenantPreferences;
 using RepairDesk.Services.Vendas;
 using DomainValidationException = RepairDesk.Core.Exceptions.ValidationException;
@@ -308,7 +309,8 @@ public class VendaServiceTests
             new TenantRepository(db),
             new ReparacaoRepository(db),
             new NoOpWebhookPublisher(),
-            new FakeTenantPreferencesService(prefs));
+            new FakeTenantPreferencesService(prefs),
+            new NoOpPaymentService());
 
     private sealed class TestTenantContext(Guid tenantId) : ITenantContext
     {
@@ -433,5 +435,16 @@ public class VendaServiceTests
             => Task.FromResult(true);
         public Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string externalId, CancellationToken ct = default)
             => Task.FromResult<Stream>(new MemoryStream());
+    }
+
+    private sealed class NoOpPaymentService : IPaymentService
+    {
+        public Task<Payment> InitiateAsync(PaymentInitiationRequest request, PaymentProvider provider, CancellationToken ct = default)
+            => Task.FromResult(new Payment { Id = Guid.NewGuid(), TenantId = request.TenantId, VendaId = request.VendaId });
+        public Task<Payment?> GetAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Payment?>(null);
+        public Task<IReadOnlyList<Payment>> GetByVendaAsync(Guid vendaId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<Payment>>(Array.Empty<Payment>());
+        public Task<Payment> ApplyStatusUpdateAsync(string providerRef, PaymentStatusSnapshot snapshot, CancellationToken ct = default)
+            => Task.FromResult(new Payment { Id = Guid.NewGuid() });
     }
 }

@@ -24,7 +24,10 @@ public sealed record CreateVendaRequest(
 
 public sealed record MarcarVendaPagaRequest(
     PaymentMethod PaymentMethod,
-    bool EmitirFatura = false);
+    bool EmitirFatura = false,
+    // Sprint 303: provider opcional. null → Manual (sem registo Payment).
+    // Mock/Ifthenpay registam Payment automaticamente quando a venda fica paga.
+    PaymentProvider? Provider = null);
 
 public sealed record VendaClienteResumo(Guid Id, string Nome, string Telefone);
 
