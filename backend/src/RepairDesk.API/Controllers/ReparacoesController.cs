@@ -88,6 +88,14 @@ public class ReparacoesController : ControllerBase
         return File(pdf, "application/pdf", filename);
     }
 
+    /// <summary>Sprint 347 (Doc 83 Pillar 4): PDF de etiqueta 62×29mm com QR para imprimir em térmica Brother QL.</summary>
+    [HttpGet("{id:guid}/label.pdf")]
+    public async Task<IActionResult> LabelPdf(Guid id, [FromServices] ILabelPdfService labels, CancellationToken ct)
+    {
+        var (pdf, filename) = await labels.ForReparacaoAsync(id, ct);
+        return File(pdf, "application/pdf", filename);
+    }
+
     [HttpPost("{id:guid}/emitir-fatura")]
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
         => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);

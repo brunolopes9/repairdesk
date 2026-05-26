@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, Lock, Phone, Search, Snowflake } from 'lucide-react';
+import { AlertTriangle, Lock, Phone, Printer, Search, Snowflake } from 'lucide-react';
+import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import GarantiaCard from '../../components/GarantiaCard';
 import { isAxiosError } from 'axios';
@@ -568,7 +569,18 @@ export default function ReparacaoDetalhe() {
         <p className="text-xs text-zinc-500">recebido {formatDate(r.recebidoEm)}</p>
 
         {/* Sprint 346: tags categóricas (Urgente, Em garantia, etc). */}
-        <ReparacaoTagsEditor reparacaoId={r.id} currentTagIds={r.tags.map((t) => t.id)} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ReparacaoTagsEditor reparacaoId={r.id} currentTagIds={r.tags.map((t) => t.id)} />
+          {/* Sprint 347: imprimir etiqueta 62×29mm com QR para colar no equipamento. */}
+          <button
+            type="button"
+            onClick={() => openPdfInNewTab(`/reparacoes/${r.id}/label.pdf`).catch((e) => toast.error(e instanceof Error ? e.message : 'Erro a gerar etiqueta.'))}
+            className="inline-flex items-center gap-1 rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            title="Imprimir etiqueta com QR (Brother QL 62×29mm)"
+          >
+            <Printer size={11} /> Etiqueta
+          </button>
+        </div>
 
         {/* Sprint 343: técnico atribuído (Admin pode editar). */}
         <div className="flex items-center gap-2 text-xs">
