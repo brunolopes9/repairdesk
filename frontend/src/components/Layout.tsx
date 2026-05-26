@@ -34,6 +34,7 @@ import {
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
 import HealthIndicator from './HealthIndicator';
+import ActiveTimerBanner from './ActiveTimerBanner';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
 import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Theme } from '../lib/theme';
 
@@ -187,6 +188,8 @@ export default function Layout() {
             </button>
           </div>
         </div>
+        {/* Sprint 351: banner global quando há timer activo. */}
+        <ActiveTimerBanner />
       </header>
 
       <main className="mx-auto max-w-5xl px-4 pb-24 pt-6 sm:pl-20">
