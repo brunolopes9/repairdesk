@@ -62,6 +62,7 @@ const nav: NavItem[] = [
   { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
   { to: '/stock', label: 'Stock', icon: PackageSearch },
   { to: '/produtos', label: 'Produtos', icon: Smartphone, adminOnly: true },
+  { to: '/produtos/modelos', label: 'Modelos', icon: Smartphone, adminOnly: true },
   { to: '/precos', label: 'Preços', icon: Tags },
   {
     label: 'Relatorios',
