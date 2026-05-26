@@ -243,6 +243,9 @@ try
     builder.Services.AddScoped<ITenantPreferencesService, TenantPreferencesService>();
     builder.Services.AddScoped<IWhatsAppNotificationLogRepository, WhatsAppNotificationLogRepository>();
     builder.Services.AddScoped<IOrcamentoPdfService, OrcamentoPdfService>();
+    // Sprint 347 (fix Sprint 360): registo do serviço de etiquetas — em falta desde a criação,
+    // causava 500 'No service for ILabelPdfService' no GET /label.pdf.
+    builder.Services.AddScoped<ILabelPdfService, LabelPdfService>();
     builder.Services.AddScoped<IVendaPdfService, VendaPdfService>();
 
     // Tenant settings
