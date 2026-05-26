@@ -32,6 +32,30 @@ public class UsersController : ControllerBase
         _currentUser = currentUser;
     }
 
+    /// <summary>
+    /// Sprint 311 (Doc 72 Fase D): lista users do tenant actual com roles. Admin only.
+    /// Inclui apenas users do mesmo tenant — multi-tenant isolation.
+    /// </summary>
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<UserListItemResponse>>> List(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId) return Unauthorized();
+
+        var users = _users.Users.Where(u => u.TenantId == tenantId).ToList();
+        var result = new List<UserListItemResponse>(users.Count);
+        foreach (var u in users)
+        {
+            var roles = await _users.GetRolesAsync(u);
+            result.Add(new UserListItemResponse(
+                u.Id,
+                u.Email ?? "",
+                u.DisplayName ?? u.UserName ?? "",
+                u.IsActive,
+                roles.ToArray()));
+        }
+        return Ok(result);
+    }
+
     [HttpPost("{id:guid}/revoke-sessions")]
     public async Task<ActionResult<RevokeUserSessionsResponse>> RevokeSessions(Guid id, CancellationToken ct)
     {
@@ -173,3 +197,4 @@ public sealed record DeactivateUserRequest(string? Reason);
 public sealed record DeactivateUserResponse(Guid UserId, int RevokedCount);
 public sealed record SetUserRolesRequest(string[]? Roles);
 public sealed record UserRolesResponse(Guid UserId, string[] Roles);
+public sealed record UserListItemResponse(Guid Id, string Email, string DisplayName, bool IsActive, string[] Roles);

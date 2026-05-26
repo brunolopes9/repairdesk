@@ -29,6 +29,7 @@ import {
   Monitor,
   Search,
   SlidersHorizontal,
+  UserCog,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
@@ -80,6 +81,7 @@ const nav: NavItem[] = [
       { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook },
       { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
       { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },
+      { to: '/definicoes/utilizadores', label: 'Utilizadores', icon: UserCog },
     ],
   },
 ];

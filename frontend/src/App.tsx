@@ -36,6 +36,7 @@ const Webhooks = lazy(() => import('./pages/definicoes/Webhooks'));
 const Fornecedores = lazy(() => import('./pages/definicoes/Fornecedores'));
 const Automacoes = lazy(() => import('./pages/definicoes/Automacoes'));
 const LlmUsage = lazy(() => import('./pages/definicoes/LlmUsage'));
+const UsersDefinicoes = lazy(() => import('./pages/definicoes/Users'));
 const Produtos = lazy(() => import('./pages/produtos/Produtos'));
 const Precos = lazy(() => import('./pages/precos/Precos'));
 const RelatorioIva = lazy(() => import('./pages/relatorios/Iva'));
@@ -150,6 +151,7 @@ export default function App() {
               <Route path="/definicoes/fornecedores" element={<Fornecedores />} />
               <Route path="/definicoes/automacoes" element={<Automacoes />} />
               <Route path="/definicoes/llm-usage" element={<LlmUsage />} />
+              <Route path="/definicoes/utilizadores" element={<UsersDefinicoes />} />
               <Route path="/produtos" element={<Produtos />} />
               <Route path="*" element={<NotFound />} />
             </Route>
