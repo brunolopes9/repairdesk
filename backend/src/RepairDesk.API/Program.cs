@@ -336,6 +336,9 @@ try
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 
+    // Sprint 344 (Doc 83 Pillar 3): assinaturas digitais ligadas a reparações.
+    builder.Services.AddScoped<ISignatureRepository, RepairDesk.DAL.Persistence.SignatureRepository>();
+
     // Sprint 303: Payments — providers (Mock + IFTHENPAY) + orquestrador.
     builder.Services.AddScoped<IPaymentRepository, RepairDesk.DAL.Persistence.PaymentRepository>();
     builder.Services.AddSingleton<IPaymentProvider, RepairDesk.Services.Payments.MockPaymentProvider>();

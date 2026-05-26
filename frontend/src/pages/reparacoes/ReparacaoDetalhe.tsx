@@ -25,6 +25,9 @@ import type { EquipmentFieldTemplate } from '../../lib/equipmentFields/types';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { useAuth } from '../../lib/auth/AuthContext';
 import AssignTecnicoModal from '../../components/reparacoes/AssignTecnicoModal';
+import SignaturePadModal from '../../components/signatures/SignaturePadModal';
+import { signaturesApi } from '../../lib/signatures/api';
+import { SIGNATURE_TYPE, SIGNATURE_TYPE_LABEL, type SignatureType as SigType } from '../../lib/signatures/types';
 import type { ReparacaoVendaOrigem } from '../../lib/reparacoes/types';
 import { toast } from '../../lib/toast';
 import {
@@ -88,6 +91,8 @@ export default function ReparacaoDetalhe() {
   // Sprint 343: modal atribuição técnico (apenas Admin).
   const [assignOpen, setAssignOpen] = useState(false);
   const { hasRole } = useAuth();
+  // Sprint 344: signature pad modal.
+  const [signatureOpen, setSignatureOpen] = useState<SigType | null>(null);
   const [pagamentoPrompt, setPagamentoPrompt] = useState<RepairStatus | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   // Sprint 140: modal para escolher Simplificada vs Com NIF antes de emitir fatura.
@@ -1263,7 +1268,78 @@ export default function ReparacaoDetalhe() {
         currentUserId={r.assignedToUserId}
         onClose={() => setAssignOpen(false)}
       />
+
+      {/* Sprint 344: signature pad modal. */}
+      {signatureOpen !== null && (
+        <SignaturePadModal
+          open={signatureOpen !== null}
+          reparacaoId={r.id}
+          tipoSugerido={signatureOpen}
+          defaultName={r.cliente.nome}
+          defaultContacto={r.cliente.telefone ?? ''}
+          onClose={() => setSignatureOpen(null)}
+        />
+      )}
+
+      {/* Sprint 344: secção assinaturas digitais. */}
+      <SignaturesSection
+        reparacaoId={r.id}
+        onCapture={(tipo) => setSignatureOpen(tipo)}
+      />
     </div>
+  );
+}
+
+function SignaturesSection({ reparacaoId, onCapture }: { reparacaoId: string; onCapture: (tipo: SigType) => void }) {
+  const q = useQuery({
+    queryKey: ['signatures', reparacaoId],
+    queryFn: () => signaturesApi.list(reparacaoId),
+  });
+  const list = q.data ?? [];
+  return (
+    <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">Assinaturas digitais</h2>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => onCapture(SIGNATURE_TYPE.EntradaAutorizacao)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            ✍️ Autorização entrada
+          </button>
+          <button
+            type="button"
+            onClick={() => onCapture(SIGNATURE_TYPE.EntregaLevantamento)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            ✍️ Recibo entrega
+          </button>
+        </div>
+      </div>
+      {list.length === 0 && (
+        <p className="text-xs text-zinc-500">Sem assinaturas recolhidas ainda.</p>
+      )}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {list.map((s) => (
+          <div key={s.id} className="rounded-md border border-zinc-200 p-2 dark:border-zinc-800">
+            <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+              <div className="text-xs font-medium">{SIGNATURE_TYPE_LABEL[s.tipo]}</div>
+              <div className="text-[10px] text-zinc-500">{new Date(s.signedAt).toLocaleString('pt-PT')}</div>
+            </div>
+            <div className="text-xs text-zinc-700 dark:text-zinc-300">
+              <strong>{s.assinanteNome}</strong>
+              {s.assinanteContacto && <span className="ml-2 text-zinc-500">· {s.assinanteContacto}</span>}
+            </div>
+            <img
+              src={s.imagemDataUrl}
+              alt={`Assinatura ${s.assinanteNome}`}
+              className="mt-2 max-h-32 w-full rounded border border-zinc-200 bg-white object-contain dark:border-zinc-700"
+            />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

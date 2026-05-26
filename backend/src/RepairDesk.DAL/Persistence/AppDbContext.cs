@@ -68,6 +68,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<DailyClosing> DailyClosings => Set<DailyClosing>();
     // Sprint 303: transacções de pagamento (Mock/IFTHENPAY) ligadas a Vendas.
     public DbSet<Payment> Payments => Set<Payment>();
+    // Sprint 344 (Doc 83 Pillar 3): assinaturas digitais ligadas a Reparações.
+    public DbSet<SignatureCapture> SignatureCaptures => Set<SignatureCapture>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

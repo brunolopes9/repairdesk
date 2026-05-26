@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:6b62b3eb516d0d9d -->
+<!-- roles-matrix-snapshot:6768c00b6e798f05 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -44,6 +44,9 @@ testes e esta matriz com snapshot.
 | **Sprint 311 (Doc 72 Fase D) — roles granulares fundação** | | |
 | UsersController | `GET/PUT /{id}/roles` (gestão roles do tenant) | `Admin` |
 | ReparacoesController | `PUT /{id}/assign` (atribuir técnico a reparação) | `Admin` |
+| **Sprint 344 (Doc 83 Pillar 3) — assinaturas digitais** | | |
+| SignaturesController | `GET/POST /api/reparacoes/{id}/signatures` | `Authenticated` |
+| SignaturesController | `DELETE /{signatureId}` | `Admin` |
 
 ## Sprint 311 — Roles granulares (Tech / Cashier / ReadOnly)
 
