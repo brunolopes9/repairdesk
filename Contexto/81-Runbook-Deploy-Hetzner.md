@@ -302,10 +302,24 @@ Depois de confirmares que HTTPS funciona com Caddy directo (Passo 9), volta ao C
 | Sintoma | Acção |
 |---|---|
 | SSH não conecta após setup-server | Hetzner Console → rescue mode, refaz `/etc/ssh/sshd_config` |
-| Caddy `cert obtain failed` | Confirma DNS aponta para 178.105.100.96 + porta 80 aberta na firewall Hetzner |
-| API container `healthcheck failed` | `docker compose logs api` — provavelmente connection string ou JWT key inválida |
-| Smoke test `connection refused` | Caddy ainda não tem cert — espera 30s + retry |
+| SSH action falha com `passphrase protected` | A key SSH do `PROD_SSH_KEY` tem passphrase. Gerar nova `ssh-keygen -t ed25519 -N '""' -f repairdesk_deploy`; adicionar public ao servidor, private ao secret |
+| Caddy `cert obtain failed` | Confirma DNS aponta para o IP + porta 80 aberta na firewall Hetzner |
+| Caddy reload falha com `permission denied` em `/var/log/caddy/*.log` | Remover bloco `log { output file ... }` do Caddyfile — usar journald (default). Ver `sudo journalctl -u caddy -f` |
+| API `healthcheck failed` + R2 `STREAMING-AWS4-HMAC-SHA256-PAYLOAD not implemented` | AWSSDK.S3 4.x não funciona com R2. Downgrade para 3.7.x + `UseChunkEncoding=false`/`DisablePayloadSigning=true` no PutObjectRequest |
+| API `Permission denied` em `/data/dp-keys/*.tmp` ou `/backups/*.bak` | Named volumes criados como root. `docker-entrypoint.sh` corre chmod como root antes de drop para `app` user. Se volume já tem dados — apagar volume e recriar (`docker volume rm`) |
+| SQL backup falha com `COMPRESSION not supported on Express Edition` | Remover `WITH COMPRESSION` do SQL backup command. Mantém INIT+CHECKSUM |
+| Comando manual `up -d --force-recreate api` volta para imagem antiga | `IMAGE_TAG` está no `.env.production` desactualizado. Editar para o tag actual OU exportar no shell antes (`export IMAGE_TAG=v0.x.y`) |
+| Smoke test `connection refused` | Caddy ainda não tem cert — espera 30s + retry; ou Caddy não configurado |
 | 502 Bad Gateway | Container web morreu ou nginx config — `docker compose ps`, `logs web` |
+| `ANTHROPIC_API_KEY (central) não configurada` no log | Adicionar `ANTHROPIC_API_KEY=sk-ant-...` ao `.env.production` + restart api. Compose passa via `environment:` block |
+
+### Validação obrigatória pós-deploy
+
+```bash
+curl -s https://app.<domain>/api/health/ready | jq '.entries.storage.status'   # "Healthy"
+docker compose --env-file .env.production -f docker-compose.prod.yml ps         # tudo (healthy)
+docker compose --env-file .env.production -f docker-compose.prod.yml images api # confirma tag activo
+```
 
 ---
 
