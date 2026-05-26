@@ -97,6 +97,16 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
         modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityUserToken<Guid>>().ToTable("Auth_UserTokens");
         modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityRoleClaim<Guid>>().ToTable("Auth_RoleClaims");
 
+        // Sprint 362 fix: a navegação Product.ModelTemplate usa a FK ModelId (nomes não batem
+        // a convenção EF), por isso a relação tem de ser mapeada explicitamente — senão o
+        // Include(p => p.ModelTemplate) não carrega nada e a herança (preço bateria, descrição)
+        // vem null no webhook. SetNull no delete: apagar o modelo não apaga as unidades.
+        modelBuilder.Entity<Product>()
+            .HasOne(p => p.ModelTemplate)
+            .WithMany(m => m.Units)
+            .HasForeignKey(p => p.ModelId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         ApplyGlobalFilters(modelBuilder);
     }
 
