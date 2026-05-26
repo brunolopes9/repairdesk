@@ -37,6 +37,17 @@ public class ReparacaoTimeEntryRepository : IReparacaoTimeEntryRepository
         await _db.SaveChangesAsync(ct);
     }
 
+    public async Task<int> StopAllActiveForReparacaoAsync(Guid reparacaoId, DateTime endedAt, CancellationToken ct = default)
+    {
+        var active = await _db.ReparacaoTimeEntries
+            .Where(e => e.ReparacaoId == reparacaoId && e.EndedAt == null)
+            .ToListAsync(ct);
+        if (active.Count == 0) return 0;
+        foreach (var e in active) e.EndedAt = endedAt;
+        await _db.SaveChangesAsync(ct);
+        return active.Count;
+    }
+
     public async Task<int> SumMinutesByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
     {
         var rows = await _db.ReparacaoTimeEntries

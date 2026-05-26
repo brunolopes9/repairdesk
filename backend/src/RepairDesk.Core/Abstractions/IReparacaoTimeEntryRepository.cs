@@ -12,6 +12,12 @@ public interface IReparacaoTimeEntryRepository
     Task UpdateAsync(ReparacaoTimeEntry entry, CancellationToken ct = default);
     Task DeleteAsync(ReparacaoTimeEntry entry, CancellationToken ct = default);
 
+    /// <summary>
+    /// Sprint 352: fecha qualquer timer activo (EndedAt null) ligado a esta reparação,
+    /// independentemente do user. Devolve nº de timers fechados.
+    /// </summary>
+    Task<int> StopAllActiveForReparacaoAsync(Guid reparacaoId, DateTime endedAt, CancellationToken ct = default);
+
     /// <summary>Soma de minutos por reparação (apenas entries fechadas).</summary>
     Task<int> SumMinutesByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
 

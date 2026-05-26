@@ -59,6 +59,7 @@ public class ReparacaoService : IReparacaoService
     private readonly IValidator<CreateReparacaoRequest> _createV;
     private readonly IValidator<UpdateReparacaoRequest> _updateV;
     private readonly IValidator<ChangeEstadoRequest> _estadoV;
+    private readonly IReparacaoTimeEntryRepository _timeEntries;
 
     public ReparacaoService(
         IReparacaoRepository repo,
@@ -80,7 +81,8 @@ public class ReparacaoService : IReparacaoService
         ITenantPreferencesService preferences,
         IValidator<CreateReparacaoRequest> createV,
         IValidator<UpdateReparacaoRequest> updateV,
-        IValidator<ChangeEstadoRequest> estadoV)
+        IValidator<ChangeEstadoRequest> estadoV,
+        IReparacaoTimeEntryRepository timeEntries)
     {
         _repo = repo;
         _clientes = clientes;
@@ -102,6 +104,7 @@ public class ReparacaoService : IReparacaoService
         _createV = createV;
         _updateV = updateV;
         _estadoV = estadoV;
+        _timeEntries = timeEntries;
     }
 
     public async Task<PagedResult<ReparacaoDto>> SearchAsync(
@@ -518,6 +521,13 @@ public class ReparacaoService : IReparacaoService
 
         _repo.AddEstadoLog(log);
         await _repo.SaveAsync(ct);
+
+        // Sprint 352: ao mudar para estado terminal (Entregue/Cancelado), fecha timers
+        // activos desta reparação — evita esquecer timer a contar overnight.
+        if (req.Estado is RepairStatus.Entregue or RepairStatus.Cancelado)
+        {
+            await _timeEntries.StopAllActiveForReparacaoAsync(rep.Id, now, ct);
+        }
 
         // Auto-emite garantia ao Entregar (se ainda não existir)
         if (req.Estado == RepairStatus.Entregue)
