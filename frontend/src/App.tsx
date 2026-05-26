@@ -47,6 +47,8 @@ const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const PortalCliente = lazy(() => import('./pages/PortalCliente'));
 const PortalGarantia = lazy(() => import('./pages/PortalGarantia'));
+const PedidoReparacao = lazy(() => import('./pages/PedidoReparacao'));
+const PedidosOnline = lazy(() => import('./pages/reparacoes/PedidosOnline'));
 const PoliticaPrivacidade = lazy(() => import('./pages/legal/PoliticaPrivacidade'));
 const Termos = lazy(() => import('./pages/legal/Termos'));
 const Cookies = lazy(() => import('./pages/legal/Cookies'));
@@ -98,6 +100,7 @@ export default function App() {
             {/* Portal cliente público — sem layout, sem auth */}
             <Route path="/r/:slug" element={<PortalCliente />} />
             <Route path="/g/:slug" element={<PortalGarantia />} />
+            <Route path="/pedido/:slug" element={<PedidoReparacao />} />
 
             {/* Páginas legais públicas — RGPD compliance */}
             <Route path="/privacidade" element={<PoliticaPrivacidade />} />
@@ -147,6 +150,7 @@ export default function App() {
               <Route path="/relatorios/iva" element={<RelatorioIva />} />
               <Route path="/relatorios/negocio" element={<RelatorioNegocio />} />
               <Route path="/relatorios/produtividade" element={<RelatorioProdutividade />} />
+              <Route path="/pedidos-online" element={<PedidosOnline />} />
               <Route path="/auditoria" element={<Auditoria />} />
               <Route path="/definicoes" element={<Definicoes />} />
               <Route path="/definicoes/preferencias" element={<Preferencias />} />

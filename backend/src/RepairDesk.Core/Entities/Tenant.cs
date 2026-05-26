@@ -61,6 +61,10 @@ public class Tenant : BaseEntity
     // Sprint 173: email forwarding ingest per-tenant (RGPD-clean).
     public string? IngestEmailSlug { get; set; }
 
+    // Sprint 354 (Doc 83 Pillar 9): slug público para widget de repair-request no website.
+    // NULL = widget desactivado. Gerado on-demand em Definições.
+    public string? IntakeSlug { get; set; }
+
     // Sprint 175: retention policy por tipo de SupplierInvoiceImport.
     // Defaults conservadores PT (CIRS art. 123 obriga arquivo fiscal 10 anos).
     // Cron diário às 3h apaga PDFs raw + soft-delete entity quando expira.

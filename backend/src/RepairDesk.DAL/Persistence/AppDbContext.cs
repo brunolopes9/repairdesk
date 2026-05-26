@@ -78,6 +78,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 353 (Doc 83 Pillar 5): kits de peças (bundles aplicáveis a reparação).
     public DbSet<PartKit> PartKits => Set<PartKit>();
     public DbSet<PartKitItem> PartKitItems => Set<PartKitItem>();
+    // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
+    public DbSet<RepairRequest> RepairRequests => Set<RepairRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

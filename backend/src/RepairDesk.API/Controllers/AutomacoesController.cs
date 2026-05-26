@@ -89,6 +89,59 @@ public class AutomacoesController : ControllerBase
         return Ok(new { slug = tenant.IngestEmailSlug, email = $"faturas-{tenant.IngestEmailSlug}@{domain}" });
     }
 
+    /// <summary>
+    /// Sprint 354 (Doc 83 Pillar 9): devolve a config do widget de repair-request
+    /// (gera IntakeSlug na 1ª chamada). O frontend mostra o URL público + snippet embed.
+    /// </summary>
+    [HttpGet("intake-widget")]
+    public async Task<IActionResult> GetIntakeWidget(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId) return Unauthorized();
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(tenant.IntakeSlug))
+        {
+            tenant.IntakeSlug = await GenerateUniqueIntakeSlugAsync(tenant.Name, ct);
+            await _db.SaveChangesAsync(ct);
+        }
+
+        var baseUrl = _config["Frontend:PortalBaseUrl"]?.TrimEnd('/') ?? "";
+        return Ok(new
+        {
+            slug = tenant.IntakeSlug,
+            publicUrl = string.IsNullOrEmpty(baseUrl) ? null : $"{baseUrl}/pedido/{tenant.IntakeSlug}",
+        });
+    }
+
+    /// <summary>Sprint 354: regenera o IntakeSlug (caso o tenant ache que está exposto a spam).</summary>
+    [HttpPost("intake-widget/regenerate")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> RegenerateIntakeWidget(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId) return Unauthorized();
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null) return NotFound();
+        tenant.IntakeSlug = await GenerateUniqueIntakeSlugAsync(tenant.Name, ct);
+        await _db.SaveChangesAsync(ct);
+        var baseUrl = _config["Frontend:PortalBaseUrl"]?.TrimEnd('/') ?? "";
+        return Ok(new { slug = tenant.IntakeSlug, publicUrl = string.IsNullOrEmpty(baseUrl) ? null : $"{baseUrl}/pedido/{tenant.IntakeSlug}" });
+    }
+
+    private async Task<string> GenerateUniqueIntakeSlugAsync(string baseName, CancellationToken ct)
+    {
+        var baseSlug = Slugify(baseName);
+        if (string.IsNullOrWhiteSpace(baseSlug)) baseSlug = "loja";
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var suffix = Guid.NewGuid().ToString("N")[..6].ToLowerInvariant();
+            var candidate = $"{baseSlug}-{suffix}";
+            var exists = await _db.Tenants.IgnoreQueryFilters().AnyAsync(t => t.IntakeSlug == candidate, ct);
+            if (!exists) return candidate;
+        }
+        throw new InvalidOperationException("Não foi possível gerar IntakeSlug único após 10 tentativas.");
+    }
+
     private async Task<string> GenerateUniqueSlugAsync(string baseName, CancellationToken ct)
     {
         var baseSlug = Slugify(baseName);

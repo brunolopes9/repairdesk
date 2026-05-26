@@ -344,6 +344,8 @@ try
     builder.Services.AddScoped<IReparacaoTimeEntryRepository, RepairDesk.DAL.Persistence.ReparacaoTimeEntryRepository>();
     // Sprint 353 (Doc 83 Pillar 5): kits de peças.
     builder.Services.AddScoped<IPartKitRepository, RepairDesk.DAL.Persistence.PartKitRepository>();
+    // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
+    builder.Services.AddScoped<IRepairRequestRepository, RepairDesk.DAL.Persistence.RepairRequestRepository>();
 
     // Sprint 303: Payments — providers (Mock + IFTHENPAY) + orquestrador.
     builder.Services.AddScoped<IPaymentRepository, RepairDesk.DAL.Persistence.PaymentRepository>();

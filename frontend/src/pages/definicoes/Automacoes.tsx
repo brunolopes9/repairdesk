@@ -1,4 +1,4 @@
-import { Workflow, ExternalLink, Mail, Server, Camera, CheckCircle2, AlertCircle, Copy, RefreshCw } from 'lucide-react';
+import { Workflow, ExternalLink, Mail, Server, Camera, CheckCircle2, AlertCircle, Copy, RefreshCw, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { toast } from '../../lib/toast';
@@ -41,6 +41,25 @@ export default function Automacoes() {
       });
   }, []);
 
+  // Sprint 354: widget de pedido de reparação público.
+  const [intake, setIntake] = useState<{ slug: string; publicUrl: string | null } | null>(null);
+  useEffect(() => {
+    api.get<{ slug: string; publicUrl: string | null }>('/automacoes/intake-widget')
+      .then((r) => setIntake(r.data))
+      .catch((err) => {
+        if (err?.response?.status === 403 || err?.response?.status === 401) return;
+        import('@sentry/react').then((Sentry) =>
+          Sentry.captureException(err, { tags: { feature: 'automacoes.intake-widget' } }),
+        );
+      });
+  }, []);
+
+  async function copyIntakeUrl() {
+    if (!intake?.publicUrl) return;
+    await navigator.clipboard.writeText(intake.publicUrl);
+    toast.success('Link copiado.');
+  }
+
   async function copyEmail() {
     if (!ingestEmail) return;
     try {
@@ -72,6 +91,35 @@ export default function Automacoes() {
           de fornecedores. Configura uma vez, deixa correr em background.
         </p>
       </header>
+
+      {/* Sprint 354: widget público de pedido de reparação. */}
+      {intake && (
+        <section className="rounded-xl border border-sky-200 bg-sky-50/30 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <Wrench size={16} />
+            Widget de pedido online
+          </h2>
+          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+            Partilha este link no teu website ou redes sociais. Os clientes preenchem o problema e o pedido
+            aparece em <strong>Pedidos online</strong> para converteres em reparação.
+          </p>
+          {intake.publicUrl ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <code className="rounded bg-white px-3 py-1.5 text-sm font-mono shadow-sm dark:bg-zinc-900">{intake.publicUrl}</code>
+              <button type="button" onClick={copyIntakeUrl} className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                <Copy size={12} /> Copiar
+              </button>
+              <a href={intake.publicUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                <ExternalLink size={12} /> Abrir
+              </a>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-amber-600">
+              Configura <code>Frontend:PortalBaseUrl</code> no servidor para gerar o link público. Slug: <code>{intake.slug}</code>
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Sprint 173: email forwarding ingest per-tenant. */}
       {ingestEmail && (
