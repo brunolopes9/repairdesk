@@ -57,6 +57,12 @@ public class ReparacoesController : ControllerBase
     public Task<ReparacaoDto> ChangeEstado(Guid id, [FromBody] ChangeEstadoRequest req, CancellationToken ct)
         => _service.ChangeEstadoAsync(id, req, ct);
 
+    /// <summary>Sprint 343: atribui (userId) ou desatribui (null) a reparação a um técnico.</summary>
+    [HttpPut("{id:guid}/assign")]
+    [Authorize(Roles = "Admin")]
+    public Task<ReparacaoDto> Assign(Guid id, [FromBody] AssignReparacaoRequest req, CancellationToken ct)
+        => _service.AssignAsync(id, req.UserId, ct);
+
     [HttpPost("{id:guid}/fields")]
     public Task<IReadOnlyList<EquipmentFieldValueDto>> SetFields(Guid id, [FromBody] SetEquipmentFieldValuesRequest req, CancellationToken ct)
         => _service.SetFieldsAsync(id, req, ct);

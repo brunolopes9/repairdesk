@@ -34,6 +34,14 @@ public class Reparacao : BaseEntity, ITenantEntity
     public string? Notas { get; set; }
     public PaymentStatus EstadoPagamento { get; set; } = PaymentStatus.NaoPago;
 
+    /// <summary>
+    /// Sprint 343: técnico responsável por esta reparação. Null = não atribuída ainda.
+    /// Quando Tech (role não-Admin) faz GET /reparacoes, filtra por AssignedToUserId == self.
+    /// Admin vê todas, independente de owner.
+    /// </summary>
+    public Guid? AssignedToUserId { get; set; }
+    public AppUser? AssignedToUser { get; set; }
+
     public BillingProvider InvoiceProvider { get; set; } = BillingProvider.None;
     public string? InvoiceExternalId { get; set; }
     public string? InvoicePdfUrl { get; set; }

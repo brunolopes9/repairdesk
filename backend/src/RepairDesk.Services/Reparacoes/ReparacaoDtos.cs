@@ -4,6 +4,9 @@ using RepairDesk.Services.EquipmentFields;
 
 namespace RepairDesk.Services.Reparacoes;
 
+/// <summary>Sprint 343: payload para PUT /api/reparacoes/{id}/assign.</summary>
+public sealed record AssignReparacaoRequest(Guid? UserId);
+
 public sealed record CreateReparacaoRequest(
     Guid ClienteId,
     string Equipamento,
@@ -77,7 +80,10 @@ public sealed record ReparacaoDto(
     string? EquipmentFieldTemplateNome,
     IReadOnlyList<EquipmentFieldValueDto> Fields,
     bool PrecisaConfirmacaoPagamento = false,
-    bool PrecisaConfirmacaoGarantia = false);
+    bool PrecisaConfirmacaoGarantia = false,
+    /// <summary>Sprint 343: técnico atribuído à reparação (null = não atribuída).</summary>
+    Guid? AssignedToUserId = null,
+    string? AssignedToDisplayName = null);
 
 public sealed record ReparacaoDetalhadaDto(
     ReparacaoDto Reparacao,

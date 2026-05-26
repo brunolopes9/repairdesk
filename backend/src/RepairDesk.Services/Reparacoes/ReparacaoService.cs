@@ -28,6 +28,8 @@ public interface IReparacaoService
     Task<ReparacaoDto> UpdateAsync(Guid id, UpdateReparacaoRequest req, CancellationToken ct = default);
     Task<ReparacaoDto> ChangeEstadoAsync(Guid id, ChangeEstadoRequest req, CancellationToken ct = default);
     Task<ReparacaoDto> ReabrirAsync(Guid id, string? notas, CancellationToken ct = default);
+    /// <summary>Sprint 343: atribui (ou desatribui se userId=null) reparação a um técnico.</summary>
+    Task<ReparacaoDto> AssignAsync(Guid id, Guid? userId, CancellationToken ct = default);
     Task<IReadOnlyList<EquipmentFieldValueDto>> SetFieldsAsync(Guid id, SetEquipmentFieldValuesRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoHistoricoResponse> HistoricoPorImeiAsync(string imei, Guid? excludeId, CancellationToken ct = default);
@@ -611,6 +613,30 @@ public class ReparacaoService : IReparacaoService
         return ToDto(rep, custo);
     }
 
+    public async Task<ReparacaoDto> AssignAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    {
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+
+        // null = desatribuir. Valor positivo = atribuir. Não validamos se o user existe ou tem
+        // role Tech aqui — Admin é responsável e o user tem de existir no mesmo tenant
+        // (validação fica para sprint futuro se necessária).
+        rep.AssignedToUserId = userId;
+        await _repo.SaveAsync(ct);
+
+        await _audit.LogAsync(
+            AuditAction.Update,
+            "Reparacao",
+            rep.Id,
+            new { action = "assign", assignedToUserId = userId },
+            rep.TenantId,
+            _user.UserId,
+            ct);
+
+        rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
+        var custo = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+        return ToDto(rep, custo);
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
@@ -1082,6 +1108,8 @@ public class ReparacaoService : IReparacaoService
             r.EquipmentFieldTemplate?.Nome,
             fields ?? Array.Empty<EquipmentFieldValueDto>(),
             precisaConfirmacaoPagamento,
-            precisaConfirmacaoGarantia);
+            precisaConfirmacaoGarantia,
+            r.AssignedToUserId,
+            r.AssignedToUser?.DisplayName);
     }
 }
