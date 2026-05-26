@@ -277,10 +277,15 @@ try
     builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
     builder.Services.AddSingleton<IPushNotificationQueue, PushNotificationQueue>();
     builder.Services.AddSingleton<IWebPushSender, WebPushSender>();
+    // Sprint 366: push de staff (eventos internos: pedido online, venda, stock, reparação parada).
+    builder.Services.AddScoped<IStaffPushSubscriptionRepository, StaffPushSubscriptionRepository>();
+    builder.Services.AddScoped<IStaffPushService, StaffPushService>();
+    builder.Services.AddSingleton<IStaffPushQueue, StaffPushQueue>();
     if (!builder.Environment.IsEnvironment("Testing"))
     {
         builder.Services.AddHostedService<PushNotificationWorker>();
         builder.Services.AddHostedService<PushSubscriptionCleanupWorker>();
+        builder.Services.AddHostedService<StaffPushWorker>();
     }
 
     // Diagnóstico guiado + Health Score

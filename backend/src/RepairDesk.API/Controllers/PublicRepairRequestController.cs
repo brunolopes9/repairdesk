@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.DAL.Persistence;
+using RepairDesk.Services.Push;
 
 namespace RepairDesk.API.Controllers;
 
@@ -21,12 +22,14 @@ public class PublicRepairRequestController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IRepairRequestRepository _repo;
+    private readonly IStaffPushQueue _staffPush;
     private readonly ILogger<PublicRepairRequestController> _logger;
 
-    public PublicRepairRequestController(AppDbContext db, IRepairRequestRepository repo, ILogger<PublicRepairRequestController> logger)
+    public PublicRepairRequestController(AppDbContext db, IRepairRequestRepository repo, IStaffPushQueue staffPush, ILogger<PublicRepairRequestController> logger)
     {
         _db = db;
         _repo = repo;
+        _staffPush = staffPush;
         _logger = logger;
     }
 
@@ -88,6 +91,16 @@ public class PublicRepairRequestController : ControllerBase
             SourceIp = ip.Length > 45 ? ip[..45] : ip,
         };
         await _repo.AddAsync(entity, ct);
+
+        // Sprint 366: avisa o staff (push no telemóvel/desktop). Fire-and-forget via fila —
+        // não bloqueia nem falha o pedido do cliente se o push falhar.
+        await _staffPush.EnqueueAsync(new StaffPushJob(
+            tenant.Id,
+            "Novo pedido online",
+            $"{nome} — {equipamento}",
+            "/pedidos-online",
+            "repair-request"), ct);
+
         return Ok(new SubmitResult(true));
     }
 }

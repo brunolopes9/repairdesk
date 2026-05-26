@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Eye, Loader2, MessageCircle, RotateCcw, ShoppingCart, Wrench } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { SkeletonCard } from '../../components/ui';
+import { StaffPushToggle } from '../../components/StaffPushToggle';
 import { toast } from '../../lib/toast';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import type {
@@ -204,6 +205,8 @@ export default function Preferencias() {
           </Button>
         </div>
       </div>
+
+      <StaffPushToggle />
 
       <div className="flex gap-2 overflow-x-auto border-b border-zinc-200 pb-2 dark:border-zinc-800">
         {tabs.map((tab) => {
