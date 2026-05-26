@@ -52,7 +52,7 @@ public sealed class TimeEntriesController : ControllerBase
         // que confunde parsers JSON estritos no cliente).
         if (entry is null) return NoContent();
         var rep = await _reparacoes.FindByIdAsync(entry.ReparacaoId, ct);
-        return Ok(new ActiveTimerDto(entry.Id, entry.ReparacaoId, rep?.Numero ?? 0, entry.StartedAt));
+        return Ok(new ActiveTimerDto(entry.Id, entry.ReparacaoId, rep?.Numero ?? 0, AsUtc(entry.StartedAt)));
     }
 
     [HttpGet("by-reparacao/{reparacaoId:guid}")]
@@ -149,5 +149,13 @@ public sealed class TimeEntriesController : ControllerBase
     }
 
     private static TimeEntryDto MapDto(ReparacaoTimeEntry e) =>
-        new(e.Id, e.ReparacaoId, e.UserId, e.StartedAt, e.EndedAt, e.DuracaoMinutos, e.Notas);
+        new(e.Id, e.ReparacaoId, e.UserId, AsUtc(e.StartedAt), e.EndedAt is { } end ? AsUtc(end) : null, e.DuracaoMinutos, e.Notas);
+
+    /// <summary>
+    /// Sprint 360: o SQL Server devolve DateTime com Kind=Unspecified; sem marca UTC o
+    /// System.Text.Json serializa sem 'Z' e o browser lê como hora local (offset +1h em
+    /// Portugal no verão) — bug do contador a arrancar adiantado. Marcar como UTC força o 'Z'.
+    /// </summary>
+    private static DateTime AsUtc(DateTime dt) =>
+        dt.Kind == DateTimeKind.Utc ? dt : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
 }

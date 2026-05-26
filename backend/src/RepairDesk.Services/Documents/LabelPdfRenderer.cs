@@ -30,7 +30,9 @@ public static class LabelPdfRenderer
             {
                 page.Size(62, 29, Unit.Millimetre);
                 page.Margin(2, Unit.Millimetre);
-                page.DefaultTextStyle(x => x.FontFamily(Fonts.Arial).FontSize(7));
+                // Helvetica: embutida no QuestPDF e disponível no container Linux.
+                // Arial não existe em Linux sem fontes instaladas → render falha (500).
+                page.DefaultTextStyle(x => x.FontFamily("Helvetica").FontSize(7));
 
                 page.Content().Row(row =>
                 {
@@ -39,7 +41,7 @@ public static class LabelPdfRenderer
                         col.Item().Text(d.Numero).FontSize(14).Bold();
                         col.Item().PaddingTop(1).Text(Trunc(d.ClienteNome, 28)).FontSize(7).SemiBold();
                         if (!string.IsNullOrWhiteSpace(d.ClienteTelefone))
-                            col.Item().Text($"📞 {d.ClienteTelefone}").FontSize(6);
+                            col.Item().Text($"Tel: {d.ClienteTelefone}").FontSize(6);
                         col.Item().Text(Trunc(d.Equipamento, 32)).FontSize(6);
                         if (!string.IsNullOrWhiteSpace(d.Imei))
                             col.Item().Text($"IMEI: {d.Imei}").FontSize(5);
