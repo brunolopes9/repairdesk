@@ -39,7 +39,6 @@ const Automacoes = lazy(() => import('./pages/definicoes/Automacoes'));
 const LlmUsage = lazy(() => import('./pages/definicoes/LlmUsage'));
 const UsersDefinicoes = lazy(() => import('./pages/definicoes/Users'));
 const Produtos = lazy(() => import('./pages/produtos/Produtos'));
-const ProductModelsPage = lazy(() => import('./pages/produtos/ProductModels'));
 const Precos = lazy(() => import('./pages/precos/Precos'));
 const RelatorioIva = lazy(() => import('./pages/relatorios/Iva'));
 const RelatorioNegocio = lazy(() => import('./pages/relatorios/Negocio'));
@@ -162,7 +161,6 @@ export default function App() {
               <Route path="/definicoes/llm-usage" element={<LlmUsage />} />
               <Route path="/definicoes/utilizadores" element={<UsersDefinicoes />} />
               <Route path="/produtos" element={<Produtos />} />
-              <Route path="/produtos/modelos" element={<ProductModelsPage />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

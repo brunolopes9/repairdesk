@@ -4,6 +4,7 @@ import { CheckCircle2, EyeOff, Plus, Search, SlidersHorizontal, Smartphone, Tras
 import { useSearchParams } from 'react-router-dom';
 import Modal from '../../components/Modal';
 import UniversalCsvImportModal from '../../components/UniversalCsvImportModal';
+import ProductsByModel from './ProductsByModel';
 import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import { api } from '../../lib/api';
@@ -121,6 +122,8 @@ export default function Produtos() {
     setSearchParams(next, { replace: true });
   }, [fornecedorFilter, includeInactive, onlyHiddenShop, search, setSearchParams]);
 
+  // Sprint 361: vista agrupada por modelo (default) vs plana (pesquisa rápida).
+  const [viewMode, setViewMode] = useState<'model' | 'flat'>('model');
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductWriteRequest>(emptyForm);
@@ -350,6 +353,25 @@ export default function Produtos() {
             fornecedores={fornecedores.data ?? []}
           />
         </div>
+        {/* Sprint 361: alternar entre vista agrupada por modelo e lista plana. */}
+        <div className="flex items-center gap-1.5 border-b border-zinc-100 px-4 py-2 text-xs dark:border-zinc-800">
+          <span className="text-zinc-500">Vista:</span>
+          <button type="button" onClick={() => setViewMode('model')}
+            className={`rounded px-2 py-1 ${viewMode === 'model' ? 'bg-brand-600 font-medium text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}>
+            Por modelo
+          </button>
+          <button type="button" onClick={() => setViewMode('flat')}
+            className={`rounded px-2 py-1 ${viewMode === 'flat' ? 'bg-brand-600 font-medium text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}>
+            Plana
+          </button>
+        </div>
+        {viewMode === 'model' ? (
+          <div className="p-2">
+            {list.isLoading
+              ? <p className="py-6 text-center text-sm text-zinc-500">A carregar…</p>
+              : <ProductsByModel items={items} onEditVariant={openEdit} />}
+          </div>
+        ) : (
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wider text-zinc-500 dark:bg-zinc-800/60">
             <tr>
@@ -418,6 +440,7 @@ export default function Produtos() {
             )}
           </tbody>
         </table>
+        )}
       </section>
 
       {filtersOpen && (
