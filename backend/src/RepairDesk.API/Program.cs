@@ -317,10 +317,24 @@ try
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 
-    // Sprint 303: Payments — providers (Mock para dev, IFTHENPAY na Fase B) + orquestrador.
+    // Sprint 303: Payments — providers (Mock + IFTHENPAY) + orquestrador.
     builder.Services.AddScoped<IPaymentRepository, RepairDesk.DAL.Persistence.PaymentRepository>();
     builder.Services.AddSingleton<IPaymentProvider, RepairDesk.Services.Payments.MockPaymentProvider>();
     builder.Services.AddScoped<RepairDesk.Services.Payments.IPaymentService, RepairDesk.Services.Payments.PaymentService>();
+    // IFTHENPAY: registado apenas quando há pelo menos uma chave configurada. Caso contrário
+    // Mock continua a ser o único provider (útil para dev sem credenciais).
+    var ifthenpayOptions = new RepairDesk.Services.Payments.Ifthenpay.IfthenpayOptions
+    {
+        MBWayKey = builder.Configuration["Ifthenpay:MBWayKey"],
+        MultibancoKey = builder.Configuration["Ifthenpay:MultibancoKey"],
+        AntiPhishingKey = builder.Configuration["Ifthenpay:AntiPhishingKey"],
+        BaseUrl = builder.Configuration["Ifthenpay:BaseUrl"] ?? "https://api.ifthenpay.com",
+    };
+    builder.Services.AddSingleton(ifthenpayOptions);
+    if (ifthenpayOptions.IsConfigured)
+    {
+        builder.Services.AddHttpClient<IPaymentProvider, RepairDesk.Services.Payments.Ifthenpay.IfthenpayProvider>();
+    }
 
     // Tabela de preços
     builder.Services.AddScoped<IPriceTableRepository, RepairDesk.DAL.Persistence.PriceTableRepository>();
