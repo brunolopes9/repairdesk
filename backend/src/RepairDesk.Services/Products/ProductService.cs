@@ -182,14 +182,41 @@ public class ProductService : IProductService
     private readonly IAuditLogger _audit;
     private readonly IWebhookPublisher _webhooks;
     private readonly IFornecedorRepository _fornecedores;
+    private readonly IProductModelRepository _models;
 
-    public ProductService(IProductRepository repo, ITenantContext tenant, IAuditLogger audit, IWebhookPublisher webhooks, IFornecedorRepository fornecedores)
+    public ProductService(IProductRepository repo, ITenantContext tenant, IAuditLogger audit, IWebhookPublisher webhooks, IFornecedorRepository fornecedores, IProductModelRepository models)
     {
         _repo = repo;
         _tenant = tenant;
         _audit = audit;
         _webhooks = webhooks;
         _fornecedores = fornecedores;
+        _models = models;
+    }
+
+    /// <summary>
+    /// Sprint 359 Fase D: garante que existe um ProductModel (Brand+Model) e devolve o Id,
+    /// para ligar a unidade ao template. Cria um modelo vazio se ainda não existir — o lojista
+    /// preenche o conteúdo partilhado 1× depois em /produtos/modelos. <paramref name="cache"/>
+    /// evita N queries num import de lote (mesma marca+modelo repete-se).
+    /// </summary>
+    private async Task<Guid> EnsureModelIdAsync(string brand, string model, Guid tenantId,
+        Dictionary<string, Guid>? cache, CancellationToken ct)
+    {
+        var key = $"{brand.Trim().ToLowerInvariant()}|{model.Trim().ToLowerInvariant()}";
+        if (cache is not null && cache.TryGetValue(key, out var cached)) return cached;
+
+        var existing = await _models.FindByBrandModelAsync(brand, model, ct);
+        Guid id;
+        if (existing is not null) id = existing.Id;
+        else
+        {
+            var created = new ProductModel { Id = Guid.NewGuid(), TenantId = tenantId, Brand = brand.Trim(), Model = model.Trim() };
+            await _models.AddAsync(created, ct);
+            id = created.Id;
+        }
+        cache?.TryAdd(key, id);
+        return id;
     }
 
     public async Task<PagedResult<ProductDto>> SearchAsync(
@@ -223,12 +250,15 @@ public class ProductService : IProductService
         Validate(req);
         var sku = await EnsureUniqueSkuAsync(req.Sku, null, req.Brand, req.Model, ct);
         var slug = await EnsureUniqueSlugAsync(req.Slug, null, req.Brand, req.Model, req.Storage, req.Color, req.Grading, ct);
+        // Sprint 359: liga a unidade ao template do modelo (cria-o vazio se não existir).
+        var modelId = await EnsureModelIdAsync(req.Brand, req.Model, tenantId, null, ct);
 
         var entity = new Product
         {
             TenantId = tenantId,
             Sku = sku,
             Slug = slug,
+            ModelId = modelId,
             Brand = req.Brand.Trim(),
             Model = req.Model.Trim(),
             Storage = Clean(req.Storage),
@@ -700,6 +730,8 @@ public class ProductService : IProductService
         var created = 0;
         var updated = 0;
         var skipped = 0;
+        // Sprint 359: cache de modelId por (brand|model) — evita N queries num lote.
+        var modelCache = new Dictionary<string, Guid>();
 
         // Sprint 236 fix: track slugs já adicionados no batch (sem SaveAsync), para 2 linhas
         // do mesmo CSV com mesmo slug gerarem slug-2, slug-3 em vez de duplicate key na DB.
@@ -800,11 +832,13 @@ public class ProductService : IProductService
                         }
                     }
 
+                    var modelId = await EnsureModelIdAsync(brand, model, tenantId, modelCache, ct);
                     var entity = new Product
                     {
                         TenantId = tenantId,
                         Sku = internalSku,
                         Slug = slug,
+                        ModelId = modelId,
                         Brand = brand,
                         Model = model,
                         Storage = Clean(Get(iStorage)),
@@ -904,6 +938,8 @@ public class ProductService : IProductService
         var created = 0;
         var updated = 0;
         var skipped = 0;
+        // Sprint 359: cache de modelId por (brand|model).
+        var modelCache = new Dictionary<string, Guid>();
 
         for (var i = 0; i < products.Count; i++)
         {
@@ -956,11 +992,13 @@ public class ProductService : IProductService
                 // Auto-gera slug se conflito.
                 var slug = await EnsureUniqueSlugAsync(null, null, p.Brand, p.Model, p.Storage, p.Color, grading, ct);
 
+                var modelId = await EnsureModelIdAsync(p.Brand, p.Model, tenantId, modelCache, ct);
                 var entity = new Product
                 {
                     TenantId = tenantId,
                     Sku = p.Sku.Trim().ToUpperInvariant(),
                     Slug = slug,
+                    ModelId = modelId,
                     Brand = p.Brand.Trim(),
                     Model = p.Model.Trim(),
                     Storage = Clean(p.Storage),
