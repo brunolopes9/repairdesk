@@ -35,6 +35,7 @@ import NovoClienteModal from '../../components/NovoClienteModal';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { vendasApi } from '../../lib/vendas/api';
+import { liveListOptions } from '../../lib/queryOptions';
 import { garantiasApi } from '../../lib/garantias/api';
 import { precosApi, type PriceTableEntry } from '../../lib/precos/api';
 import { toast } from '../../lib/toast';
@@ -145,6 +146,7 @@ export default function Reparacoes() {
     queryFn: () => reparacoesApi.list({ q: search, estado, page, pageSize: 20 }),
     placeholderData: keepPreviousData,
     enabled: view === 'list',
+    ...liveListOptions,
   });
 
   const kanban = useQuery({
@@ -162,6 +164,7 @@ export default function Reparacoes() {
     enabled: view === 'kanban',
     placeholderData: keepPreviousData,
     staleTime: 15_000,
+    ...liveListOptions,
   });
 
   const items = list.data?.items ?? [];

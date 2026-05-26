@@ -6,6 +6,7 @@ import { repairRequestsApi, REPAIR_REQUEST_ESTADO, type RepairRequestEstado } fr
 import { toast } from '../../lib/toast';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { formatDate } from '../../lib/money';
+import { liveListOptions } from '../../lib/queryOptions';
 
 /**
  * Sprint 354 (Doc 83 Pillar 9): backoffice dos pedidos de reparação submetidos
@@ -20,6 +21,7 @@ export default function PedidosOnline() {
   const list = useQuery({
     queryKey: ['repair-requests', filtro],
     queryFn: () => repairRequestsApi.list(filtro),
+    ...liveListOptions,
   });
 
   const converterMut = useMutation({
