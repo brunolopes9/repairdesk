@@ -340,6 +340,8 @@ try
     builder.Services.AddScoped<ISignatureRepository, RepairDesk.DAL.Persistence.SignatureRepository>();
     // Sprint 346 (Doc 83 Pillar 6): tags categóricas para reparações.
     builder.Services.AddScoped<IReparacaoTagRepository, RepairDesk.DAL.Persistence.ReparacaoTagRepository>();
+    // Sprint 349 (Doc 83 Pillar 6): time tracker por reparação.
+    builder.Services.AddScoped<IReparacaoTimeEntryRepository, RepairDesk.DAL.Persistence.ReparacaoTimeEntryRepository>();
 
     // Sprint 303: Payments — providers (Mock + IFTHENPAY) + orquestrador.
     builder.Services.AddScoped<IPaymentRepository, RepairDesk.DAL.Persistence.PaymentRepository>();

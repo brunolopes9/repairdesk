@@ -73,6 +73,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 346 (Doc 83 Pillar 6): tags categóricas para reparações (Urgente, Em garantia, etc).
     public DbSet<ReparacaoTag> ReparacaoTags => Set<ReparacaoTag>();
     public DbSet<ReparacaoTagAssignment> ReparacaoTagAssignments => Set<ReparacaoTagAssignment>();
+    // Sprint 349 (Doc 83 Pillar 6): time tracker por reparação.
+    public DbSet<ReparacaoTimeEntry> ReparacaoTimeEntries => Set<ReparacaoTimeEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

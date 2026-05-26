@@ -29,6 +29,7 @@ import AssignTecnicoModal from '../../components/reparacoes/AssignTecnicoModal';
 import ReparacaoTagsEditor from '../../components/reparacoes/ReparacaoTagsEditor';
 import SignaturePadModal from '../../components/signatures/SignaturePadModal';
 import EmailMenu from '../../components/EmailMenu';
+import ReparacaoTimer from '../../components/reparacoes/ReparacaoTimer';
 import { signaturesApi } from '../../lib/signatures/api';
 import { SIGNATURE_TYPE, SIGNATURE_TYPE_LABEL, type SignatureType as SigType } from '../../lib/signatures/types';
 import type { ReparacaoVendaOrigem } from '../../lib/reparacoes/types';
@@ -572,6 +573,9 @@ export default function ReparacaoDetalhe() {
           </button>
         )}
         <p className="text-xs text-zinc-500">recebido {formatDate(r.recebidoEm)}</p>
+
+        {/* Sprint 349: timer trabalho técnico (start/stop). */}
+        <ReparacaoTimer reparacaoId={r.id} />
 
         {/* Sprint 346: tags categóricas (Urgente, Em garantia, etc). */}
         <div className="flex flex-wrap items-center gap-2">
