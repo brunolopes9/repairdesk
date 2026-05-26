@@ -36,6 +36,7 @@ import PwaStatus from './PwaStatus';
 import HealthIndicator from './HealthIndicator';
 import ActiveTimerBanner from './ActiveTimerBanner';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
+import { repairRequestsApi } from '../lib/repairRequests/api';
 import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Theme } from '../lib/theme';
 
 type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
@@ -44,6 +45,8 @@ type NavItem = {
   label: string;
   icon: IconCmp;
   adminOnly?: boolean;
+  /** Sprint 356: mostra bolha de contagem (ex: pedidos online pendentes). */
+  badgeKey?: 'repair-requests';
   children?: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean }>;
 };
 
@@ -51,7 +54,7 @@ const nav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/clientes', label: 'Clientes', icon: Users },
   { to: '/reparacoes', label: 'Reparações', icon: Wrench },
-  { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench },
+  { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
   { to: '/despesas', label: 'Despesas', icon: Receipt },
   { to: '/compras', label: 'Compras', icon: ShoppingCart },
@@ -128,6 +131,16 @@ export default function Layout() {
     staleTime: 30_000,
     enabled: Boolean(user) && hasRole('Admin'),
   });
+
+  // Sprint 356: contagem de pedidos online pendentes para badge na sidebar.
+  const pedidosPendentes = useQuery({
+    queryKey: ['repair-requests-count'],
+    queryFn: () => repairRequestsApi.countPendentes(),
+    enabled: Boolean(user),
+    refetchInterval: 60_000,
+  });
+  const badgeCount = (key?: NavItem['badgeKey']) =>
+    key === 'repair-requests' ? (pedidosPendentes.data ?? 0) : 0;
 
   useEffect(() => {
     if (!user || !hasRole('Admin') || !onboarding.data || onboarding.data.onboardingCompletado) return;
@@ -335,7 +348,14 @@ export default function Layout() {
                   }
                   title={item.label}
                 >
-                  <item.icon size={20} strokeWidth={1.75} aria-hidden />
+                  <span className="relative">
+                    <item.icon size={20} strokeWidth={1.75} aria-hidden />
+                    {badgeCount(item.badgeKey) > 0 && !expanded && (
+                      <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-semibold text-white">
+                        {badgeCount(item.badgeKey)}
+                      </span>
+                    )}
+                  </span>
                   <span
                     className={`flex-1 truncate transition-opacity duration-150 ${
                       expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -343,6 +363,11 @@ export default function Layout() {
                   >
                     {item.label}
                   </span>
+                  {badgeCount(item.badgeKey) > 0 && expanded && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[10px] font-semibold text-white">
+                      {badgeCount(item.badgeKey)}
+                    </span>
+                  )}
                 </NavLink>
               ) : null}
             </li>
