@@ -46,11 +46,18 @@ export interface SalesPrefs {
   vendaGarantia: GarantiaAutoMode;
 }
 
+export interface BookingPrefs {
+  openHour: number;
+  closeHour: number;
+  slotMinutes: number;
+}
+
 export interface TenantPreferencesRoot {
   communication: CommunicationPrefs;
   portal: PortalPrefs;
   repairs: RepairsPrefs;
   sales: SalesPrefs;
+  booking: BookingPrefs;
 }
 
 export interface WhatsAppNotificationStatus {

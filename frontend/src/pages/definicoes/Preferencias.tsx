@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Eye, Loader2, MessageCircle, RotateCcw, ShoppingCart, Wrench } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Eye, Loader2, MessageCircle, RotateCcw, ShoppingCart, Wrench } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { SkeletonCard } from '../../components/ui';
 import { StaffPushToggle } from '../../components/StaffPushToggle';
 import { toast } from '../../lib/toast';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import type {
+  BookingPrefs,
   CommunicationPrefs,
   EmitirFaturaMode,
   EntregarMarcaPagoMode,
@@ -19,7 +20,7 @@ import type {
 } from '../../lib/tenantPreferences/types';
 import { CONDICAO_ARTIGO_LABEL, type CondicaoArtigo } from '../../lib/vendas/types';
 
-type TabKey = 'communication' | 'portal' | 'repairs' | 'sales';
+type TabKey = 'communication' | 'portal' | 'repairs' | 'sales' | 'booking';
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 const tabs: Array<{ key: TabKey; label: string; icon: typeof MessageCircle }> = [
@@ -27,6 +28,7 @@ const tabs: Array<{ key: TabKey; label: string; icon: typeof MessageCircle }> = 
   { key: 'portal', label: 'Portal Cliente', icon: Eye },
   { key: 'repairs', label: 'Reparações', icon: Wrench },
   { key: 'sales', label: 'Vendas', icon: ShoppingCart },
+  { key: 'booking', label: 'Marcações', icon: CalendarClock },
 ];
 
 const repairStates = ['Recebido', 'Diagnostico', 'AguardaPeca', 'EmReparacao', 'Pronto', 'Entregue', 'Cancelado', 'Orcamento'];
@@ -148,6 +150,10 @@ export default function Preferencias() {
 
   function patchSales(patch: Partial<SalesPrefs>) {
     setDraft((d) => d ? { ...d, sales: { ...d.sales, ...patch } } : d);
+  }
+
+  function patchBooking(patch: Partial<BookingPrefs>) {
+    setDraft((d) => d ? { ...d, booking: { ...d.booking, ...patch } } : d);
   }
 
   function patchTemplate(key: string, patch: { enabled?: boolean; texto?: string }) {
@@ -400,6 +406,32 @@ export default function Preferencias() {
                 {Object.entries(yesAskNoLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </Field>
+          </div>
+        )}
+
+        {active === 'booking' && (
+          <div className="space-y-3">
+            <p className="text-sm text-zinc-500">Horário usado na marcação online (/agendar). Os clientes só veem slots dentro destas horas.</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Abre às (hora)">
+                <select value={draft.booking.openHour} onChange={(e) => patchBooking({ openHour: Number(e.target.value) })} className={inputCls}>
+                  {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+                </select>
+              </Field>
+              <Field label="Fecha às (hora)">
+                <select value={draft.booking.closeHour} onChange={(e) => patchBooking({ closeHour: Number(e.target.value) })} className={inputCls}>
+                  {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+                </select>
+              </Field>
+              <Field label="Duração do slot">
+                <select value={draft.booking.slotMinutes} onChange={(e) => patchBooking({ slotMinutes: Number(e.target.value) })} className={inputCls}>
+                  {[15, 20, 30, 60].map((m) => <option key={m} value={m}>{m} min</option>)}
+                </select>
+              </Field>
+            </div>
+            {draft.booking.closeHour <= draft.booking.openHour && (
+              <p className="text-xs text-rose-600">A hora de fecho tem de ser depois da de abertura.</p>
+            )}
           </div>
         )}
       </section>

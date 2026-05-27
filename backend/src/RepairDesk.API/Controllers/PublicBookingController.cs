@@ -6,6 +6,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Push;
+using RepairDesk.Services.TenantPreferences;
 
 namespace RepairDesk.API.Controllers;
 
@@ -24,17 +25,19 @@ public sealed class PublicBookingController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IAppointmentRepository _repo;
     private readonly IStaffPushQueue _staffPush;
+    private readonly ITenantPreferencesService _prefs;
     private readonly ILogger<PublicBookingController> _logger;
 
-    public PublicBookingController(AppDbContext db, IAppointmentRepository repo, IStaffPushQueue staffPush, ILogger<PublicBookingController> logger)
+    public PublicBookingController(AppDbContext db, IAppointmentRepository repo, IStaffPushQueue staffPush, ITenantPreferencesService prefs, ILogger<PublicBookingController> logger)
     {
         _db = db;
         _repo = repo;
         _staffPush = staffPush;
+        _prefs = prefs;
         _logger = logger;
     }
 
-    public sealed record BookingInfo(string LojaNome, string? PrimaryColor);
+    public sealed record BookingInfo(string LojaNome, string? PrimaryColor, int OpenHour, int CloseHour, int SlotMinutes);
     public sealed record SubmitBooking(
         string Nome, string? Telefone, string? Email, string? Equipamento,
         string? Notas, DateTime ScheduledAt, int? DurationMin, string? Website);
@@ -47,7 +50,34 @@ public sealed class PublicBookingController : ControllerBase
         var tenant = await _db.Tenants.IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.IntakeSlug == intakeSlug && t.IsActive, ct);
         if (tenant is null) return NotFound();
-        return Ok(new BookingInfo(tenant.LegalName ?? tenant.Name, tenant.PrimaryColor));
+        var prefs = await _prefs.GetForTenantAsync(tenant.Id, ct);
+        var b = prefs.Booking;
+        return Ok(new BookingInfo(tenant.LegalName ?? tenant.Name, tenant.PrimaryColor, b.OpenHour, b.CloseHour, b.SlotMinutes));
+    }
+
+    /// <summary>Slots já ocupados (HH:mm em hora local) para um dia — o frontend desativa-os.</summary>
+    [HttpGet("{intakeSlug}/availability")]
+    public async Task<ActionResult<object>> Availability(string intakeSlug, [FromQuery] string date, CancellationToken ct)
+    {
+        var tenant = await _db.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.IntakeSlug == intakeSlug && t.IsActive, ct);
+        if (tenant is null) return NotFound();
+        if (!DateOnly.TryParse(date, out var dia)) return BadRequest(new { code = "invalid_date" });
+
+        // Janela do dia em UTC (assume hora local do servidor = hora da loja; suficiente para PT).
+        var startLocal = dia.ToDateTime(TimeOnly.MinValue);
+        var fromUtc = startLocal.ToUniversalTime();
+        var toUtc = startLocal.AddDays(1).ToUniversalTime();
+
+        var taken = await _db.Set<Appointment>()
+            .IgnoreQueryFilters()
+            .Where(a => a.TenantId == tenant.Id && a.Status != AppointmentStatus.Cancelado
+                     && a.ScheduledAt >= fromUtc && a.ScheduledAt < toUtc)
+            .Select(a => a.ScheduledAt)
+            .ToListAsync(ct);
+
+        var slots = taken.Select(t => t.ToLocalTime().ToString("HH:mm")).Distinct().ToArray();
+        return Ok(new { taken = slots });
     }
 
     [HttpPost("{intakeSlug}")]
@@ -75,6 +105,21 @@ public sealed class PublicBookingController : ControllerBase
         if (when > DateTime.UtcNow.AddDays(90)) return BadRequest(new { code = "too_far", message = "Marca dentro dos próximos 90 dias." });
 
         var duration = req.DurationMin is >= 10 and <= 240 ? req.DurationMin!.Value : 30;
+
+        // Slot ocupado? Busca agendamentos do tenant numa janela à volta da hora pedida (240min = duração máx)
+        // e verifica sobreposição em memória. Evita dois clientes na mesma hora.
+        var windowFrom = when.AddMinutes(-240);
+        var windowTo = when.AddMinutes(duration);
+        var nearby = await _db.Set<Appointment>()
+            .IgnoreQueryFilters()
+            .Where(a => a.TenantId == tenant.Id && a.Status != AppointmentStatus.Cancelado
+                     && a.ScheduledAt >= windowFrom && a.ScheduledAt < windowTo)
+            .Select(a => new { a.ScheduledAt, a.DurationMin })
+            .ToListAsync(ct);
+        var pedidoEnd = when.AddMinutes(duration);
+        var ocupado = nearby.Any(a => a.ScheduledAt < pedidoEnd && when < a.ScheduledAt.AddMinutes(a.DurationMin <= 0 ? 30 : a.DurationMin));
+        if (ocupado)
+            return Conflict(new { code = "slot_taken", message = "Essa hora já está ocupada. Escolhe outra, por favor." });
 
         var entity = new Appointment
         {

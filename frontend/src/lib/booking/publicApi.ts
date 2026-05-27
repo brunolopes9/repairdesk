@@ -7,6 +7,9 @@ const httpPublic = axios.create({ baseURL, withCredentials: false });
 export interface BookingInfo {
   lojaNome: string;
   primaryColor: string | null;
+  openHour: number;
+  closeHour: number;
+  slotMinutes: number;
 }
 
 export interface SubmitBookingPayload {
@@ -26,5 +29,8 @@ export const bookingPublicApi = {
   },
   submit(slug: string, payload: SubmitBookingPayload) {
     return httpPublic.post<{ ok: boolean }>(`/public/booking/${slug}`, payload).then((r) => r.data);
+  },
+  availability(slug: string, date: string) {
+    return httpPublic.get<{ taken: string[] }>(`/public/booking/${slug}/availability`, { params: { date } }).then((r) => r.data.taken);
   },
 };

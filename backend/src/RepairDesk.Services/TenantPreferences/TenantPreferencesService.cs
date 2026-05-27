@@ -76,6 +76,7 @@ public sealed class TenantPreferencesService : ITenantPreferencesService
             "portal" or "portalcliente" or "portal-cliente" => current with { Portal = defaults.Portal },
             "repairs" or "reparacoes" or "reparações" => current with { Repairs = defaults.Repairs },
             "sales" or "vendas" => current with { Sales = defaults.Sales },
+            "booking" or "agendamentos" => current with { Booking = defaults.Booking },
             _ => throw new ValidationException("preferences_group_invalid", "Grupo de preferencias invalido."),
         };
 
@@ -149,7 +150,18 @@ public sealed class TenantPreferencesService : ITenantPreferencesService
             NormalizeCommunication(input.Communication, defaults.Communication),
             NormalizePortal(input.Portal, defaults.Portal),
             NormalizeRepairs(input.Repairs, defaults.Repairs),
-            NormalizeSales(input.Sales, defaults.Sales));
+            NormalizeSales(input.Sales, defaults.Sales),
+            NormalizeBooking(input.Booking, defaults.Booking));
+    }
+
+    private static BookingPrefs NormalizeBooking(BookingPrefs? input, BookingPrefs defaults)
+    {
+        if (input is null) return defaults;
+        var open = Math.Clamp(input.OpenHour, 0, 23);
+        var close = Math.Clamp(input.CloseHour, 0, 23);
+        if (close <= open) { open = defaults.OpenHour; close = defaults.CloseHour; }
+        var slot = input.SlotMinutes is 15 or 20 or 30 or 60 ? input.SlotMinutes : defaults.SlotMinutes;
+        return new BookingPrefs(open, close, slot);
     }
 
     private static CommunicationPrefs NormalizeCommunication(CommunicationPrefs? input, CommunicationPrefs defaults)

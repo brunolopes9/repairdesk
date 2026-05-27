@@ -8,7 +8,7 @@ export const tenantPreferencesApi = {
   update(payload: TenantPreferencesRoot) {
     return api.put<TenantPreferencesRoot>('/tenant-settings/me/preferences', payload).then((r) => r.data);
   },
-  resetGroup(group: 'communication' | 'portal' | 'repairs' | 'sales') {
+  resetGroup(group: 'communication' | 'portal' | 'repairs' | 'sales' | 'booking') {
     return api.post<TenantPreferencesRoot>(`/tenant-settings/me/preferences/reset/${group}`).then((r) => r.data);
   },
 };

@@ -44,7 +44,11 @@ public static class TenantPreferencesDefaults
                 DefaultMetodoPagamento: nameof(PaymentMethod.MBWay),
                 DefaultCondicaoArtigo: (int)CondicaoArtigo.NaoAplicavel,
                 EmitirFatura: EmitirFaturaMode.Perguntar,
-                VendaGarantia: GarantiaAutoMode.Sim));
+                VendaGarantia: GarantiaAutoMode.Sim),
+            Booking: new BookingPrefs(
+                OpenHour: 9,
+                CloseHour: 19,
+                SlotMinutes: 30));
     }
 
     public static Dictionary<string, WhatsAppStateTemplate> CreateWhatsAppTemplates()

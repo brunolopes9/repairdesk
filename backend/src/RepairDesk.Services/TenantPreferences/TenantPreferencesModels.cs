@@ -4,7 +4,17 @@ public sealed record TenantPreferencesRoot(
     CommunicationPrefs Communication,
     PortalPrefs Portal,
     RepairsPrefs Repairs,
-    SalesPrefs Sales);
+    SalesPrefs Sales,
+    BookingPrefs Booking);
+
+/// <summary>
+/// Sprint 396 (Doc 84): horário de funcionamento para o booking online. Os slots públicos
+/// (/agendar/{slug}) são gerados entre OpenHour e CloseHour de SlotMinutes em SlotMinutes.
+/// </summary>
+public sealed record BookingPrefs(
+    int OpenHour,
+    int CloseHour,
+    int SlotMinutes);
 
 public sealed record CommunicationPrefs(
     bool WhatsAppEnabled,

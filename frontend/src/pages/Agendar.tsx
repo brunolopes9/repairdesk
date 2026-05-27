@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { CalendarCheck, CheckCircle2 } from 'lucide-react';
@@ -39,7 +39,13 @@ export default function Agendar() {
       return bookingPublicApi.submit(slug!, payload);
     },
     onSuccess: () => setDone(true),
+    onError: () => {
+      // Refresca disponibilidade (a hora pode ter sido ocupada entretanto).
+      if (slug && data) bookingPublicApi.availability(slug, data).then((t) => setTaken(new Set(t))).catch(() => {});
+    },
   });
+
+  const slotOcupado = (submitMut.error as { response?: { status?: number } } | undefined)?.response?.status === 409;
 
   const brand = info.data?.primaryColor ?? '#0EA5E9';
 
@@ -50,14 +56,33 @@ export default function Agendar() {
     max.setDate(max.getDate() + 90);
     return { minDate: today.toISOString().slice(0, 10), maxDate: max.toISOString().slice(0, 10) };
   }, []);
+  // Sprint 396: slots gerados a partir do horário configurável da loja (info), de slotMinutes em slotMinutes.
   const slots = useMemo(() => {
+    const open = info.data?.openHour ?? 9;
+    const close = info.data?.closeHour ?? 19;
+    const step = info.data?.slotMinutes ?? 30;
     const out: string[] = [];
-    for (let h = 9; h <= 18; h++) {
-      out.push(`${String(h).padStart(2, '0')}:00`);
-      if (h < 18) out.push(`${String(h).padStart(2, '0')}:30`);
+    for (let m = open * 60; m + step <= close * 60; m += step) {
+      out.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
     }
     return out;
-  }, []);
+  }, [info.data?.openHour, info.data?.closeHour, info.data?.slotMinutes]);
+
+  // Slots já ocupados no dia escolhido — desativados no dropdown.
+  const [taken, setTaken] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!slug || !data) { setTaken(new Set()); return; }
+    let cancel = false;
+    bookingPublicApi.availability(slug, data)
+      .then((t) => { if (!cancel) setTaken(new Set(t)); })
+      .catch(() => { if (!cancel) setTaken(new Set()); });
+    return () => { cancel = true; };
+  }, [slug, data]);
+
+  // Se a hora escolhida ficou ocupada (ou fora dos slots), limpa-a.
+  useEffect(() => {
+    if (hora && (taken.has(hora) || !slots.includes(hora))) setHora('');
+  }, [taken, slots, hora]);
 
   if (info.isError) {
     return <div className="mx-auto mt-20 max-w-md px-4 text-center"><p className="text-zinc-600">Esta página de marcação não está disponível.</p></div>;
@@ -103,7 +128,7 @@ export default function Agendar() {
           <Field label="Hora *">
             <select required value={hora} onChange={(e) => setHora(e.target.value)} className={inputCls}>
               <option value="">—</option>
-              {slots.map((s) => <option key={s} value={s}>{s}</option>)}
+              {slots.map((s) => <option key={s} value={s} disabled={taken.has(s)}>{s}{taken.has(s) ? ' (ocupado)' : ''}</option>)}
             </select>
           </Field>
         </div>
@@ -127,7 +152,11 @@ export default function Agendar() {
           <textarea rows={3} value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} className={inputCls} />
         </Field>
 
-        {submitMut.isError && <p className="text-sm text-rose-600">Não foi possível marcar. Verifica os campos e tenta de novo.</p>}
+        {submitMut.isError && (
+          <p className="text-sm text-rose-600">
+            {slotOcupado ? 'Essa hora foi ocupada entretanto — escolhe outra (as ocupadas estão assinaladas).' : 'Não foi possível marcar. Verifica os campos e tenta de novo.'}
+          </p>
+        )}
 
         <button type="submit" disabled={!canSubmit || submitMut.isPending} className="w-full rounded-lg py-2.5 text-sm font-medium text-white disabled:opacity-50" style={{ background: brand }}>
           {submitMut.isPending ? 'A enviar…' : 'Marcar hora'}
