@@ -53,21 +53,21 @@ type NavItem = {
 };
 
 const nav: NavItem[] = [
+  // Modelo de 2 roles (decisão Bruno 2026-05-27): Admin (dono) vê tudo; Empregado (Tech) faz
+  // todo o operacional. Numa loja de reparações ninguém é "só caixa" — não há split Cashier.
+  // Operacional = sem tag (visível a Admin + Tech). Sensível = adminOnly (só Admin).
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/clientes', label: 'Clientes', icon: Users },
-  // Tech: oficina (reparações, pedidos, trabalhos).
-  { to: '/reparacoes', label: 'Reparações', icon: Wrench, roles: ['Tech'] },
-  { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests', roles: ['Tech'] },
-  { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase, roles: ['Tech'] },
-  // Cashier: financeiro/POS (despesas, compras, caixa, vendas, preços).
-  { to: '/despesas', label: 'Despesas', icon: Receipt, roles: ['Cashier'] },
-  { to: '/compras', label: 'Compras', icon: ShoppingCart, roles: ['Cashier'] },
-  { to: '/cash', label: 'Caixa', icon: Banknote, roles: ['Cashier'] },
-  { to: '/vendas', label: 'Vendas', icon: ShoppingCart, roles: ['Cashier'] },
-  // Stock: partilhado — Tech consome, Cashier vende.
-  { to: '/stock', label: 'Stock', icon: PackageSearch, roles: ['Tech', 'Cashier'] },
+  { to: '/reparacoes', label: 'Reparações', icon: Wrench },
+  { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
+  { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
+  { to: '/despesas', label: 'Despesas', icon: Receipt },
+  { to: '/compras', label: 'Compras', icon: ShoppingCart },
+  { to: '/cash', label: 'Caixa', icon: Banknote },
+  { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
+  { to: '/stock', label: 'Stock', icon: PackageSearch },
   { to: '/produtos', label: 'Produtos', icon: Smartphone, adminOnly: true },
-  { to: '/precos', label: 'Preços', icon: Tags, roles: ['Cashier'] },
+  { to: '/precos', label: 'Preços', icon: Tags },
   {
     label: 'Relatorios',
     icon: FileText,
