@@ -55,6 +55,10 @@ export default function Catalogo() {
     ? Math.round((kpis.publicadosLoja / kpis.totalPublicavel) * 100)
     : 0;
 
+  // Catálogo totalmente vazio (sem produtos/peças) vs. só vazio para o filtro atual.
+  const semFiltros = !q.trim() && !categoria && !marca && tab === 'todos';
+  const catalogoVazio = !catalog.isLoading && parents.length === 0 && semFiltros && (kpis?.totalPublicavel ?? 0) === 0;
+
   function toggle(key: string) {
     setExpanded((cur) => {
       const next = new Set(cur);
@@ -146,8 +150,22 @@ export default function Catalogo() {
             <tbody>
               {catalog.isLoading ? (
                 <tr><td colSpan={7} className="p-8 text-center text-sm text-zinc-500">A carregar catálogo…</td></tr>
+              ) : catalogoVazio ? (
+                <tr><td colSpan={7} className="p-12">
+                  <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-center">
+                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"><Boxes size={24} /></span>
+                    <div>
+                      <p className="font-medium">Ainda não tens nada no catálogo</p>
+                      <p className="mt-1 text-sm text-zinc-500">Importa um CSV de fornecedor ou cria o primeiro produto. Peças de stock também aparecem aqui.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <a href="/produtos" className="flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-sm font-medium transition hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"><Upload size={15} /> Importar CSV</a>
+                      <a href="/produtos?new=1" className="flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700"><Plus size={16} strokeWidth={2.5} /> Novo produto</a>
+                    </div>
+                  </div>
+                </td></tr>
               ) : parents.length === 0 ? (
-                <tr><td colSpan={7} className="p-10 text-center text-sm text-zinc-500">Sem itens para este filtro.</td></tr>
+                <tr><td colSpan={7} className="p-10 text-center text-sm text-zinc-500">Sem itens para este filtro. <button type="button" onClick={() => { setQ(''); setCategoria(''); setMarca(''); setTab('todos'); }} className="text-brand-600 hover:underline dark:text-brand-400">Limpar filtros</button></td></tr>
               ) : (
                 parents.map((p) => (
                   <ParentRow key={p.key} parent={p} open={expanded.has(p.key)} onToggle={() => toggle(p.key)} onOpenDetail={() => setDetail(p)} />
