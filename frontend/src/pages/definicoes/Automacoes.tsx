@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { toast } from '../../lib/toast';
 import { tacDbApi } from '../../lib/imeiLookup';
+import { downloadFile } from '../../lib/downloadPdf';
+import { ShieldAlert } from 'lucide-react';
 
 /**
  * Sprint 165: doc page para configurar automações (n8n + ingest IMAP/SFTP).
@@ -152,6 +154,9 @@ export default function Automacoes() {
 
       {/* Sprint 390: base TAC para auto-detetar modelo a partir do IMEI. */}
       <TacDbCard />
+
+      {/* Sprint 391: export da lista de IMEI de usados para a PSP. */}
+      <PspExportCard />
 
       {/* Sprint 173: email forwarding ingest per-tenant. */}
       {ingestEmail && (
@@ -384,6 +389,56 @@ function TacDbCard() {
         <ExternalLink size={12} /> {busy ? 'A importar…' : 'Importar CSV TAC'}
         <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} disabled={busy} />
       </label>
+    </section>
+  );
+}
+
+/**
+ * Sprint 391 (Doc 04): export da lista de IMEI de equipamentos vendidos num período, para o
+ * retalhista enviar à PSP (em PT não há API — é envio periódico manual). Inclui link-out CheckMEND
+ * para verificação manual de roubados, já que não existe verificação automática gratuita.
+ */
+function PspExportCard() {
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+
+  async function baixar() {
+    setBusy(true);
+    try {
+      await downloadFile(`/imei/psp-export.csv?from=${from}T00:00:00Z&to=${to}T23:59:59Z`, `psp-imei_${from}_${to}.csv`);
+    } catch (err) {
+      toast.fromError(err, 'Não foi possível gerar a lista.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-amber-200 bg-amber-50/30 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+      <h2 className="flex items-center gap-2 text-sm font-semibold">
+        <ShieldAlert size={16} />
+        Lista de IMEI para a PSP
+      </h2>
+      <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+        Em Portugal não há base de dados nacional de roubados com API — os retalhistas de usados enviam
+        periodicamente à PSP a lista de IMEI que transaccionaram. Exporta aqui essa lista (a partir das vendas
+        com IMEI) e envia. Para uma verificação manual de roubados podes consultar o{' '}
+        <a className="underline" href="https://www.checkmend.com/" target="_blank" rel="noopener noreferrer">CheckMEND</a>.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-zinc-500">De</span>
+        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-zinc-300 px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-900" />
+        <span className="text-zinc-500">até</span>
+        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-zinc-300 px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-900" />
+        <button type="button" onClick={baixar} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900">
+          <ExternalLink size={12} /> {busy ? 'A gerar…' : 'Exportar CSV'}
+        </button>
+      </div>
     </section>
   );
 }
