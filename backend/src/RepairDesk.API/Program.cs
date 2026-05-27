@@ -348,6 +348,9 @@ try
     builder.Services.AddHttpClient<RepairDesk.Services.Shop.IShopAiService, RepairDesk.Services.Shop.ShopAiService>();
     // Sprint 369: assistente interno read-only (tool-use sobre dados do tenant).
     builder.Services.AddHttpClient<RepairDesk.API.Assistant.IAssistantService, RepairDesk.API.Assistant.AssistantService>();
+    // Sprint 371: agendamentos (booking).
+    builder.Services.AddScoped<IAppointmentRepository, RepairDesk.DAL.Persistence.AppointmentRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Appointments.IAppointmentService, RepairDesk.Services.Appointments.AppointmentService>();
     // Sprint 189: pipeline imagens SEO (resize WebP + blur LQIP) — usa IPhotoStorage para R2.
     builder.Services.AddScoped<RepairDesk.Services.Products.IImageOptimizationService, RepairDesk.Services.Products.ImageOptimizationService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();

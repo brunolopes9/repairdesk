@@ -49,6 +49,7 @@ const PortalCliente = lazy(() => import('./pages/PortalCliente'));
 const PortalGarantia = lazy(() => import('./pages/PortalGarantia'));
 const PedidoReparacao = lazy(() => import('./pages/PedidoReparacao'));
 const PedidosOnline = lazy(() => import('./pages/reparacoes/PedidosOnline'));
+const Agendamentos = lazy(() => import('./pages/agendamentos/Agendamentos'));
 const PoliticaPrivacidade = lazy(() => import('./pages/legal/PoliticaPrivacidade'));
 const Termos = lazy(() => import('./pages/legal/Termos'));
 const Cookies = lazy(() => import('./pages/legal/Cookies'));
@@ -151,6 +152,7 @@ export default function App() {
               <Route path="/relatorios/negocio" element={<RelatorioNegocio />} />
               <Route path="/relatorios/produtividade" element={<RelatorioProdutividade />} />
               <Route path="/pedidos-online" element={<PedidosOnline />} />
+              <Route path="/agendamentos" element={<Agendamentos />} />
               <Route path="/auditoria" element={<Auditoria />} />
               <Route path="/definicoes" element={<Definicoes />} />
               <Route path="/definicoes/preferencias" element={<Preferencias />} />
