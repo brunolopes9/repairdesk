@@ -45,24 +45,29 @@ type NavItem = {
   label: string;
   icon: IconCmp;
   adminOnly?: boolean;
+  /** Sprint 368: roles que veem este item (além de Admin, que vê tudo). Vazio = todos. */
+  roles?: string[];
   /** Sprint 356: mostra bolha de contagem (ex: pedidos online pendentes). */
   badgeKey?: 'repair-requests';
-  children?: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean }>;
+  children?: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean; roles?: string[] }>;
 };
 
 const nav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/clientes', label: 'Clientes', icon: Users },
-  { to: '/reparacoes', label: 'Reparações', icon: Wrench },
-  { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
-  { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
-  { to: '/despesas', label: 'Despesas', icon: Receipt },
-  { to: '/compras', label: 'Compras', icon: ShoppingCart },
-  { to: '/cash', label: 'Caixa', icon: Banknote },
-  { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
-  { to: '/stock', label: 'Stock', icon: PackageSearch },
+  // Tech: oficina (reparações, pedidos, trabalhos).
+  { to: '/reparacoes', label: 'Reparações', icon: Wrench, roles: ['Tech'] },
+  { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests', roles: ['Tech'] },
+  { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase, roles: ['Tech'] },
+  // Cashier: financeiro/POS (despesas, compras, caixa, vendas, preços).
+  { to: '/despesas', label: 'Despesas', icon: Receipt, roles: ['Cashier'] },
+  { to: '/compras', label: 'Compras', icon: ShoppingCart, roles: ['Cashier'] },
+  { to: '/cash', label: 'Caixa', icon: Banknote, roles: ['Cashier'] },
+  { to: '/vendas', label: 'Vendas', icon: ShoppingCart, roles: ['Cashier'] },
+  // Stock: partilhado — Tech consome, Cashier vende.
+  { to: '/stock', label: 'Stock', icon: PackageSearch, roles: ['Tech', 'Cashier'] },
   { to: '/produtos', label: 'Produtos', icon: Smartphone, adminOnly: true },
-  { to: '/precos', label: 'Preços', icon: Tags },
+  { to: '/precos', label: 'Preços', icon: Tags, roles: ['Cashier'] },
   {
     label: 'Relatorios',
     icon: FileText,
@@ -122,8 +127,17 @@ export default function Layout() {
   const themeLabel = theme === 'light' ? 'Claro' : theme === 'dark' ? 'Escuro' : 'Sistema';
 
   const expanded = hovered || pinned;
-  const visibleNav = nav.filter((item) => !item.adminOnly || hasRole('Admin'));
-  const mobileNav = visibleNav.flatMap((item) => item.children ?? (item.to ? [item as { to: string; label: string; icon: IconCmp; adminOnly?: boolean }] : []));
+  // Sprint 368: gating por role. Admin vê tudo; adminOnly só Admin; senão, se houver `roles`
+  // tem de ter pelo menos uma; sem `roles` é visível a todos (ex: Dashboard, Clientes).
+  const canSee = (item: { adminOnly?: boolean; roles?: string[] }) => {
+    if (hasRole('Admin')) return true;
+    if (item.adminOnly) return false;
+    if (item.roles && item.roles.length > 0) return item.roles.some((r) => hasRole(r));
+    return true;
+  };
+  const visibleNav = nav.filter(canSee);
+  const mobileNav = visibleNav.flatMap((item) =>
+    (item.children?.filter(canSee)) ?? (item.to ? [item as { to: string; label: string; icon: IconCmp }] : []));
 
   const onboarding = useQuery({
     queryKey: ['onboarding-status'],
@@ -314,7 +328,7 @@ export default function Layout() {
                   </div>
                   {expanded && (
                     <ul className="mt-1 space-y-1 pl-8">
-                      {item.children.filter((child) => !child.adminOnly || hasRole('Admin')).map((child) => (
+                      {item.children.filter(canSee).map((child) => (
                         <li key={child.to}>
                           <NavLink
                             to={child.to}
