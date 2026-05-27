@@ -89,6 +89,13 @@ O maior desvio NÃO é página-a-página, é a **casca partilhada (Layout)**, qu
   deriva estrutural que motivou o Doc 88 (shell + páginas a 1 coluna) está corrigida. Gap residual
   é cosmético/opcional: donut "reparações por estado" + rail "Atividade". NÃO justifica rebuild
   grande (666 linhas + recharts) com risco de regressão; fica como polish opcional futuro.
-- **Fase 5c — POS 3 colunas** (`POS e Vendas.png`) — ÚNICA peça grande que falta. `Vendas.tsx` tem
-  1104 linhas e é o fluxo crítico de cobrança/fatura. Merece sprint dedicada e cuidada numa sessão
-  fresca (não no fim de uma janela de contexto cheia).
+- **Fase 5c — POS 3 colunas** ✅ S403 — resolvido de forma SEGURA: a 3.ª coluna ("Caixa do dia")
+  foi composta ao nível do **Balcão** (87 linhas), ao lado da `Vendas` embedded (que já é
+  produtos|carrinho), SEM tocar na `Vendas.tsx` (1104 linhas, fluxo crítico). Rail mostra detalhe
+  por método de pagamento + total em caixa (cashApi.today/DailyClosingDto); caixa fechada → CTA
+  "Abrir caixa para vender hoje". Resultado visual: produtos|carrinho|caixa = 3 colunas do mockup.
+
+## ✅ TODAS as fases concluídas (S397-403)
+Shell + Reparações + Clientes + Compras + Catálogo + POS-3col live. Dashboard já alinhado.
+Polish opcional futuro: donut "reparações por estado" + rail "Atividade" no Dashboard;
+refinamentos pixel adicionais à medida que o Bruno aponte desvios concretos por menu.
