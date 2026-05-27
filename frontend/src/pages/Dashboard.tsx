@@ -28,8 +28,11 @@ import {
 import { stockApi } from '../lib/stock/api';
 import { dashboardApi } from '../lib/dashboard/api';
 import { useDashboardKpisHoje } from '../lib/dashboard/hooks';
+import { reparacoesApi } from '../lib/reparacoes/api';
+import { REPAIR_STATUS, STATUS_LABEL, type RepairStatus } from '../lib/reparacoes/types';
+import { liveListOptions } from '../lib/queryOptions';
 import { formatCents, formatDateOnly } from '../lib/money';
-import { EmptyState, PageHeader, Skeleton, KpiCard } from '../components/ui';
+import { EmptyState, PageHeader, Skeleton, KpiCard, SectionCard } from '../components/ui';
 
 type Tone = 'blue' | 'emerald' | 'amber' | 'rose' | 'zinc';
 
@@ -86,6 +89,21 @@ export default function Dashboard() {
     queryFn: () => stockApi.reabastecerSugestoes(30),
     staleTime: 5 * 60_000,
   });
+
+  // Sprint 377: fila operacional — reparações ativas (não Entregue/Cancelado), ao vivo.
+  const fila = useQuery({
+    queryKey: ['dashboard-fila-operacional'],
+    queryFn: () => reparacoesApi.list({ pageSize: 50 }),
+    ...liveListOptions,
+  });
+  const filaItems = useMemo(
+    () =>
+      (fila.data?.items ?? [])
+        .filter((r) => r.estado !== REPAIR_STATUS.Entregue && r.estado !== REPAIR_STATUS.Cancelado)
+        .sort((a, b) => new Date(a.estadoSince).getTime() - new Date(b.estadoSince).getTime())
+        .slice(0, 8),
+    [fila.data],
+  );
 
   const sparklineData = useMemo(() => {
     const values = kpis.data?.receita7d ?? Array.from({ length: 7 }, () => 0);
@@ -157,6 +175,44 @@ export default function Dashboard() {
               value={formatHours(kpis.data?.tempoMedioReparacaoHoras)} />
           </Link>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <ZoneHeader
+          eyebrow="Operação"
+          title="Fila operacional"
+          subtitle="Reparações ativas por ordem de espera — o que precisa de ação a seguir."
+        />
+        <SectionCard
+          action={<Link to="/reparacoes" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">Ver todas →</Link>}
+          bodyClassName="p-0"
+        >
+          {fila.isLoading ? (
+            <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
+          ) : filaItems.length === 0 ? (
+            <div className="p-8"><EmptyState title="Sem reparações ativas" description="Quando houver reparações em curso aparecem aqui por ordem de prioridade." /></div>
+          ) : (
+            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {filaItems.map((r) => {
+                const prio = prioridade(r.estadoSince);
+                return (
+                  <li key={r.id}>
+                    <Link to={`/reparacoes/${r.id}`} className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                      <span className={`hidden w-16 flex-none rounded-md px-2 py-0.5 text-center text-[11px] font-semibold sm:inline ${prio.cls}`}>{prio.label}</span>
+                      <span className="w-28 flex-none truncate text-xs text-zinc-400">#{r.numero} · {estadoLabel(r.estado)}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{r.cliente?.nome ?? '—'}</span>
+                        <span className="block truncate text-xs text-zinc-500">{r.equipamento}</span>
+                      </span>
+                      <span className="hidden w-40 flex-none truncate text-xs text-zinc-600 dark:text-zinc-300 md:inline">{proximaAccao(r.estado)}</span>
+                      <span className="w-16 flex-none text-right text-[11px] text-zinc-400">{tempoDesde(r.estadoSince)}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </SectionCard>
       </section>
 
       <section className="space-y-3">
@@ -257,6 +313,42 @@ function ZoneHeader({ eyebrow, title, subtitle }: { eyebrow: string; title: stri
       </div>
     </div>
   );
+}
+
+// Sprint 377: helpers da fila operacional (derivados do estado/tempo — sem campos novos).
+function estadoLabel(e: RepairStatus): string {
+  return STATUS_LABEL[e] ?? '—';
+}
+
+function proximaAccao(e: RepairStatus): string {
+  return ({
+    [REPAIR_STATUS.Orcamento]: 'Aguardar aprovação',
+    [REPAIR_STATUS.Recebido]: 'Iniciar diagnóstico',
+    [REPAIR_STATUS.Diagnostico]: 'Concluir diagnóstico',
+    [REPAIR_STATUS.AguardaPeca]: 'Peça em falta',
+    [REPAIR_STATUS.EmReparacao]: 'Continuar reparação',
+    [REPAIR_STATUS.Pronto]: 'Contactar cliente',
+    [REPAIR_STATUS.Entregue]: '—',
+    [REPAIR_STATUS.Cancelado]: '—',
+  } as Record<RepairStatus, string>)[e] ?? '—';
+}
+
+function diasDesde(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+}
+
+function prioridade(iso: string): { label: string; cls: string } {
+  const d = diasDesde(iso);
+  if (d >= 5) return { label: 'Alta', cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' };
+  if (d >= 2) return { label: 'Média', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' };
+  return { label: 'Baixa', cls: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300' };
+}
+
+function tempoDesde(iso: string): string {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  if (h < 1) return 'agora';
+  if (h < 24) return `há ${h}h`;
+  return `há ${Math.floor(h / 24)}d`;
 }
 
 function WeeklyCard({
