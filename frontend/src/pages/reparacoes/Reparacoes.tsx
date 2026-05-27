@@ -60,6 +60,26 @@ const TABS: Array<{ value: RepairStatus | null; label: string }> = [
   { value: 5, label: 'Entregues' },
 ];
 
+// Sprint 398 (Doc 88): tom de cor por estado nos chips de filtro (fiel ao mockup).
+const CHIP_TONE: Record<number, 'blue' | 'amber' | 'green' | 'chip'> = {
+  [-1]: 'blue', // Todas
+  1: 'blue',    // Diagnóstico
+  2: 'amber',   // Aguarda peça
+  4: 'green',   // Reparadas/Prontas
+};
+const CHIP_IDLE: Record<'blue' | 'amber' | 'green' | 'chip', string> = {
+  blue: 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-300',
+  amber: 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300',
+  green: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300',
+  chip: 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700',
+};
+const CHIP_ACTIVE: Record<'blue' | 'amber' | 'green' | 'chip', string> = {
+  blue: 'bg-brand-600 text-white',
+  amber: 'bg-amber-500 text-white',
+  green: 'bg-emerald-600 text-white',
+  chip: 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900',
+};
+
 const KANBAN_COLUMNS: Array<{ estado: RepairStatus; label: string; icon: LucideIcon }> = [
   { estado: 0, label: 'Recebido', icon: Inbox },
   { estado: 1, label: 'Diagnóstico', icon: Stethoscope },
@@ -171,12 +191,43 @@ export default function Reparacoes() {
   const total = list.data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / 20));
 
+  // Sprint 398 (Doc 88): contagens por estado para a barra de métricas (fiel ao mockup).
+  // pageSize:1 → só queremos os totais; barato e em cache.
+  const counts = useQuery({
+    queryKey: ['reparacoes-counts'],
+    queryFn: async () => {
+      const estados: RepairStatus[] = [0, 1, 2, 3, 4, 5];
+      const totais = await Promise.all(
+        estados.map((e) => reparacoesApi.list({ estado: e, pageSize: 1 }).then((p) => [e, p.total] as const)),
+      );
+      const m = new Map<RepairStatus, number>(totais);
+      return {
+        emCurso: (m.get(0) ?? 0) + (m.get(1) ?? 0) + (m.get(2) ?? 0) + (m.get(3) ?? 0) + (m.get(4) ?? 0),
+        diagnostico: m.get(1) ?? 0,
+        entregues: m.get(5) ?? 0,
+      };
+    },
+    staleTime: 30_000,
+    ...liveListOptions,
+  });
+  const semFatura = pagasSemFatura.data?.length ?? 0;
+  const aReceberCents = (pagasSemFatura.data ?? []).reduce(
+    (s, r) => s + ((r as { orcamentoCents?: number }).orcamentoCents ?? 0), 0);
+
+  const METRICS: Array<{ label: string; value: string; color: string }> = [
+    { label: 'EM CURSO', value: String(counts.data?.emCurso ?? 0), color: 'text-zinc-900 dark:text-zinc-100' },
+    { label: 'DIAGNÓSTICO', value: String(counts.data?.diagnostico ?? 0), color: 'text-sky-600 dark:text-sky-400' },
+    { label: 'ENTREGUES', value: String(counts.data?.entregues ?? 0), color: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'SEM FATURA', value: String(semFatura), color: 'text-amber-600 dark:text-amber-400' },
+    { label: 'A RECEBER', value: formatCents(aReceberCents), color: 'text-zinc-900 dark:text-zinc-100' },
+  ];
+
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Reparacoes"
-        description="Entrada, diagnostico, estados e entrega dos equipamentos em loja."
-        meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'reparacao' : 'reparacoes'}</span>}
+        title="Reparações"
+        description="Entrada, diagnóstico, peças, comunicação, faturação e entrega dos equipamentos."
+        meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'reparação' : 'reparações'}</span>}
         actions={
           <>
             <div className="inline-flex rounded-lg border border-zinc-200 bg-white p-0.5 dark:border-zinc-800 dark:bg-zinc-900">
@@ -233,24 +284,32 @@ export default function Reparacoes() {
         }
       />
 
+      {/* Sprint 398 (Doc 88): barra de métricas por estado — fiel ao mockup. */}
+      {view === 'list' && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {METRICS.map((m) => (
+            <div key={m.label} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{m.label}</div>
+              <div className={`mt-1.5 text-2xl font-bold tabular-nums ${m.color}`}>{m.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Chips de filtro por estado, coloridos (mockup) */}
       {view === 'list' && (
         <div className="-mx-4 overflow-x-auto px-4 pb-1">
           <div className="flex gap-2">
             {TABS.map((t) => {
               const active = t.value === estado;
+              const tone = CHIP_TONE[t.value ?? -1] ?? 'chip';
+              const base = active ? CHIP_ACTIVE[tone] : CHIP_IDLE[tone];
               return (
                 <button
                   key={t.label}
                   type="button"
-                  onClick={() => {
-                    setEstado(t.value);
-                    setPage(1);
-                  }}
-                  className={`min-h-10 whitespace-nowrap rounded-full px-3 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
-                    active
-                      ? 'bg-brand-600 text-white'
-                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-                  }`}
+                  onClick={() => { setEstado(t.value); setPage(1); }}
+                  className={`min-h-9 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${base}`}
                 >
                   {t.label}
                 </button>
