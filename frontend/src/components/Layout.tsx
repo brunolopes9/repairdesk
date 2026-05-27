@@ -34,6 +34,7 @@ import {
   SlidersHorizontal,
   UserCog,
   Lock,
+  Boxes,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
@@ -87,6 +88,8 @@ const nav: NavItem[] = [
       { to: '/despesas', label: 'Despesas & custos', icon: Banknote },
     ],
   },
+  // Sprint 386 (Doc 87): vista unificada nova. Stock + Produtos coexistem na transição (Fase 4 substitui).
+  { to: '/catalogo', label: 'Catálogo & Stock', icon: Boxes },
   { to: '/stock', label: 'Stock', icon: PackageSearch },
   { to: '/produtos', label: 'Produtos', icon: Smartphone, adminOnly: true },
   { to: '/precos', label: 'Preços', icon: Tags },
