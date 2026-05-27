@@ -126,6 +126,61 @@ public sealed class AssistantService : IAssistantService
                 },
             },
         },
+        new
+        {
+            name = "search_clientes",
+            description = "Procura clientes por nome, telefone, email ou NIF. Devolve contactos e nota importante. Usar para perguntas sobre um cliente específico.",
+            input_schema = new
+            {
+                type = "object",
+                properties = new
+                {
+                    query = new { type = "string", description = "Texto a procurar (nome, telefone, email ou NIF)" },
+                },
+                required = new[] { "query" },
+            },
+        },
+        new
+        {
+            name = "search_reparacoes",
+            description = "Lista reparações com detalhe (cliente, equipamento, avaria, estado, orçamento/preço final). Filtros opcionais por texto e estado. Usar para 'que reparações...', 'estado da reparação do X'.",
+            input_schema = new
+            {
+                type = "object",
+                properties = new
+                {
+                    query = new { type = "string", description = "Texto a procurar no equipamento, avaria ou nome do cliente" },
+                    estado = new { type = "string", description = "Recebido, Diagnostico, AguardaPeca, EmReparacao, Pronto, Entregue, Cancelado, Orcamento" },
+                    days = new { type = "integer", description = "Só reparações criadas nos últimos N dias (opcional)" },
+                },
+            },
+        },
+        new
+        {
+            name = "search_vendas",
+            description = "Lista vendas recentes (número, data, total, estado, origem, cliente). Para perguntas sobre vendas concretas.",
+            input_schema = new
+            {
+                type = "object",
+                properties = new
+                {
+                    days = new { type = "integer", description = "Janela em dias (default 30)" },
+                },
+            },
+        },
+        new
+        {
+            name = "despesas_report",
+            description = "Total de despesas por categoria num período. Para perguntas sobre custos/despesas.",
+            input_schema = new
+            {
+                type = "object",
+                properties = new
+                {
+                    days = new { type = "integer", description = "Janela em dias (default 30)" },
+                },
+            },
+        },
     };
 
     public async Task<string> RunToolAsync(string name, JsonElement input, CancellationToken ct = default)
@@ -191,6 +246,85 @@ public sealed class AssistantService : IAssistantService
                     total_euros = Math.Round(totalCents / 100.0, 2),
                     iva_euros = Math.Round(ivaCents / 100.0, 2),
                 });
+            }
+            case "search_clientes":
+            {
+                var query = GetString(input, "query")?.Trim();
+                if (string.IsNullOrWhiteSpace(query))
+                    return JsonSerializer.Serialize(new { error = "indica um nome, telefone, email ou NIF" });
+                var clientes = await _db.Clientes.AsNoTracking()
+                    .Where(c => c.Nome.Contains(query)
+                        || (c.Telefone != null && c.Telefone.Contains(query))
+                        || (c.Email != null && c.Email.Contains(query))
+                        || (c.Nif != null && c.Nif.Contains(query)))
+                    .OrderBy(c => c.Nome).Take(20)
+                    .Select(c => new
+                    {
+                        c.Id, c.Nome, c.Telefone, c.Email, c.Nif, c.NotaImportante,
+                        reparacoes = _db.Reparacoes.Count(r => r.ClienteId == c.Id),
+                    })
+                    .ToListAsync(ct);
+                return JsonSerializer.Serialize(new { count = clientes.Count, clientes });
+            }
+            case "search_reparacoes":
+            {
+                var q = _db.Reparacoes.AsNoTracking().AsQueryable();
+                var days = GetInt(input, "days");
+                if (days is { } d)
+                    q = q.Where(r => r.CreatedAt >= DateTime.UtcNow.AddDays(-Math.Clamp(d, 1, 366)));
+                var estadoStr = GetString(input, "estado");
+                if (!string.IsNullOrWhiteSpace(estadoStr) && Enum.TryParse<RepairStatus>(estadoStr, true, out var estado))
+                    q = q.Where(r => r.Estado == estado);
+                var query = GetString(input, "query")?.Trim();
+                if (!string.IsNullOrWhiteSpace(query))
+                    q = q.Where(r => r.Equipamento.Contains(query) || r.Avaria.Contains(query)
+                        || (r.Cliente != null && r.Cliente.Nome.Contains(query)));
+
+                var reps = await q.OrderByDescending(r => r.CreatedAt).Take(20)
+                    .Select(r => new
+                    {
+                        cliente = r.Cliente != null ? r.Cliente.Nome : null,
+                        r.Equipamento,
+                        r.Avaria,
+                        estado = r.Estado.ToString(),
+                        orcamento_euros = r.OrcamentoCents != null ? Math.Round(r.OrcamentoCents.Value / 100.0, 2) : (double?)null,
+                        preco_final_euros = r.PrecoFinalCents != null ? Math.Round(r.PrecoFinalCents.Value / 100.0, 2) : (double?)null,
+                        criada = r.CreatedAt.ToString("yyyy-MM-dd"),
+                    })
+                    .ToListAsync(ct);
+                return JsonSerializer.Serialize(new { count = reps.Count, reparacoes = reps });
+            }
+            case "search_vendas":
+            {
+                var days = GetInt(input, "days") ?? 30;
+                var since = DateTime.UtcNow.AddDays(-Math.Clamp(days, 1, 366));
+                var vendas = await (
+                    from v in _db.Vendas.AsNoTracking().Where(v => v.Data >= since)
+                    join c in _db.Clientes.AsNoTracking() on v.ClienteId equals c.Id into cj
+                    from c in cj.DefaultIfEmpty()
+                    orderby v.Data descending
+                    select new
+                    {
+                        v.Numero,
+                        data = v.Data.ToString("yyyy-MM-dd"),
+                        total_euros = Math.Round(v.TotalCents / 100.0, 2),
+                        estado = v.Status.ToString(),
+                        origem = v.Origem.ToString(),
+                        cliente = c != null ? c.Nome : null,
+                    }).Take(20).ToListAsync(ct);
+                return JsonSerializer.Serialize(new { count = vendas.Count, vendas });
+            }
+            case "despesas_report":
+            {
+                var days = GetInt(input, "days") ?? 30;
+                var since = DateTime.UtcNow.AddDays(-Math.Clamp(days, 1, 366));
+                var porCategoria = await _db.Despesas.AsNoTracking()
+                    .Where(d => d.CreatedAt >= since)
+                    .GroupBy(d => d.Categoria)
+                    .Select(g => new { categoria = g.Key.ToString(), total_euros = Math.Round(g.Sum(x => x.ValorCents) / 100.0, 2), n = g.Count() })
+                    .ToListAsync(ct);
+                var totalEuros = porCategoria.Sum(x => x.total_euros);
+                return JsonSerializer.Serialize(new { periodo_dias = days, total_euros = totalEuros, por_categoria = porCategoria });
             }
             default:
                 return JsonSerializer.Serialize(new { error = $"tool desconhecida: {name}" });
@@ -325,16 +459,18 @@ public sealed class AssistantService : IAssistantService
     private const string SystemPrompt =
         """
         És o assistente interno de uma loja de reparação de telemóveis em Portugal, dentro do
-        software de gestão Mender. Respondes a perguntas do staff sobre o NEGÓCIO DELES: stock,
-        reparações e vendas. Usa as tools para ir buscar dados reais antes de responder — nunca
-        inventes números.
+        software de gestão Mender. Ajudas o staff com QUALQUER pergunta sobre o negócio deles —
+        clientes, reparações, stock/peças, vendas e despesas. Usa as tools para ir buscar dados
+        reais antes de responder — nunca inventes números nem dados.
 
         REGRAS:
         - Responde em português de Portugal, curto e directo. Valores em euros.
-        - Se precisas de dados, chama a tool apropriada. Podes combinar tools.
-        - Só tens acesso de LEITURA. Não consegues criar, alterar nem apagar nada — se te pedirem
-          isso, explica que só consultas informação e que a ação tem de ser feita na app.
-        - Se a pergunta não é sobre stock/reparações/vendas, diz que só ajudas com esses temas.
+        - Usa as tools para responder; podes combinar várias (ex: procurar o cliente e depois as
+          reparações dele). Para perguntas amplas, escolhe a tool mais próxima.
+        - Só tens acesso de LEITURA aos dados desta loja. NÃO consegues criar, alterar, apagar
+          nem mexer em definições/código — se te pedirem uma ação dessas, explica que só consultas
+          informação e que a alteração tem de ser feita por uma pessoa na app.
+        - Dados de clientes são confidenciais desta loja — usa-os só para responder ao staff.
         - Se uma tool devolve 0 resultados, di-lo claramente em vez de inventar.
         """;
 }
