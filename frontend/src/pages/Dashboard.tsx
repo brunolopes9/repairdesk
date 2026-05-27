@@ -29,7 +29,7 @@ import { stockApi } from '../lib/stock/api';
 import { dashboardApi } from '../lib/dashboard/api';
 import { useDashboardKpisHoje } from '../lib/dashboard/hooks';
 import { formatCents, formatDateOnly } from '../lib/money';
-import { EmptyState, PageHeader, Skeleton } from '../components/ui';
+import { EmptyState, PageHeader, Skeleton, KpiCard } from '../components/ui';
 
 type Tone = 'blue' | 'emerald' | 'amber' | 'rose' | 'zinc';
 
@@ -131,36 +131,31 @@ export default function Dashboard() {
           title="O que precisa de movimento agora"
           subtitle="Entrada, cobranca e stock critico. Fiscal fica nos relatorios."
         />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-          <KpiLinkCard
-            to="/reparacoes?estado=Em curso"
-            icon={Wrench}
-            tone="blue"
-            label="Reparacoes em curso"
-            value={kpis.data?.reparacoesEmCurso}
-            suffix="abertas"
-            loading={kpis.isLoading}
-            helper="Abre o kanban para destravar diagnostico, pecas e entrega."
-          />
-          <KpiLinkCard
-            to="/reparacoes?estado=Entregue&pagamento=NaoPago"
-            icon={Euro}
-            tone="emerald"
-            label="Valor a receber hoje"
-            value={formatCents(kpis.data?.valorAReceberCents)}
-            loading={kpis.isLoading}
-            helper="Reparacoes entregues hoje ainda marcadas como nao pagas."
-          />
-          <KpiLinkCard
-            to="/stock?lowStock=1"
-            icon={AlertTriangle}
-            tone={(kpis.data?.stockCriticoCount ?? 0) > 0 ? 'rose' : 'zinc'}
-            label="Stock critico"
-            value={kpis.data?.stockCriticoCount}
-            suffix="pecas"
-            loading={kpis.isLoading}
-            helper="Pecas activas com stock igual ou abaixo do minimo."
-          />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <Link to="/reparacoes" className="block transition hover:-translate-y-0.5">
+            <KpiCard icon={Wrench} tone="brand" label="Reparações em curso"
+              value={String(kpis.data?.reparacoesEmCurso ?? 0)} sub="abertas" />
+          </Link>
+          <Link to="/reparacoes?estado=Entregue&pagamento=NaoPago" className="block transition hover:-translate-y-0.5">
+            <KpiCard icon={Euro} tone="emerald" label="Valor a receber"
+              value={formatCents(kpis.data?.valorAReceberCents)} />
+          </Link>
+          <Link to="/stock?lowStock=1" className="block transition hover:-translate-y-0.5">
+            <KpiCard icon={AlertTriangle} tone={(kpis.data?.stockCriticoCount ?? 0) > 0 ? 'red' : 'zinc'}
+              label="Stock crítico" value={String(kpis.data?.stockCriticoCount ?? 0)} sub="peças" />
+          </Link>
+          <Link to="/reparacoes?estado=Entregue" className="block transition hover:-translate-y-0.5">
+            <KpiCard icon={CheckCircle2} tone="brand" label="Entregues (7d)"
+              value={String(kpis.data?.reparacoesEntregues7d ?? 0)} />
+          </Link>
+          <Link to="/relatorios/negocio" className="block transition hover:-translate-y-0.5">
+            <KpiCard icon={Trophy} tone={(kpis.data?.lucroEstimado7dCents ?? 0) >= 0 ? 'amber' : 'red'}
+              label="Lucro estimado (7d)" value={formatCents(kpis.data?.lucroEstimado7dCents)} />
+          </Link>
+          <Link to="/relatorios/produtividade" className="block transition hover:-translate-y-0.5">
+            <KpiCard icon={Clock3} tone="zinc" label="Tempo médio"
+              value={formatHours(kpis.data?.tempoMedioReparacaoHoras)} />
+          </Link>
         </div>
       </section>
 
@@ -261,53 +256,6 @@ function ZoneHeader({ eyebrow, title, subtitle }: { eyebrow: string; title: stri
         <p className="max-w-2xl text-sm text-zinc-500">{subtitle}</p>
       </div>
     </div>
-  );
-}
-
-function KpiLinkCard({
-  to,
-  icon: Icon,
-  tone,
-  label,
-  value,
-  suffix,
-  helper,
-  loading,
-}: {
-  to: string;
-  icon: LucideIcon;
-  tone: Tone;
-  label: string;
-  value: ReactNode;
-  suffix?: string;
-  helper: string;
-  loading: boolean;
-}) {
-  const cls = toneClass[tone];
-  return (
-    <Link
-      to={to}
-      className={`group flex min-h-44 flex-col justify-between rounded-lg border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-zinc-900 ${cls.border}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className={`grid h-11 w-11 place-items-center rounded-lg ${cls.icon}`}>
-          <Icon size={22} strokeWidth={2} />
-        </div>
-        <ArrowRight size={16} className="text-zinc-400 transition group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
-      </div>
-      <div>
-        <div className="text-sm font-medium text-zinc-500">{label}</div>
-        {loading ? (
-          <Skeleton className="mt-2 h-8 w-28" />
-        ) : (
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">{value ?? 0}</span>
-            {suffix && <span className="text-sm text-zinc-500">{suffix}</span>}
-          </div>
-        )}
-        <p className="mt-2 text-xs leading-5 text-zinc-500">{helper}</p>
-      </div>
-    </Link>
   );
 }
 
