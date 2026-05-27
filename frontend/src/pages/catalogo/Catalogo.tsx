@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Boxes, Cloud, Store, AlertTriangle, FileWarning, Search, ChevronRight, Upload, Plus, Package, PanelRight,
+  Boxes, Cloud, Store, AlertTriangle, FileWarning, Search, ChevronRight, Upload, Plus, Package,
 } from 'lucide-react';
 import { KpiCard } from '../../components/ui';
 import { liveListOptions } from '../../lib/queryOptions';
@@ -36,7 +36,7 @@ export default function Catalogo() {
   const [categoria, setCategoria] = useState('');
   const [marca, setMarca] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [detail, setDetail] = useState<CatalogParent | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const catalog = useQuery({
     queryKey: ['catalog', { tab, q, categoria, marca }],
@@ -46,6 +46,7 @@ export default function Catalogo() {
 
   const parents = catalog.data?.parents ?? [];
   const kpis = catalog.data?.kpis;
+  const selected = parents.find((p) => p.key === selectedKey) ?? parents[0] ?? null;
 
   // Opções de filtro derivadas do que está carregado (suficiente para v1).
   const categorias = useMemo(() => [...new Set(parents.map((p) => p.categoria).filter(Boolean))].sort(), [parents]);
@@ -132,7 +133,8 @@ export default function Catalogo() {
         </label>
       </div>
 
-      {/* Tabela de linhas-pai */}
+      {/* Conteúdo: tabela (esq) + painel de detalhe inline (dir) */}
+      <div className="grid gap-4 xl:grid-cols-[1fr_400px]">
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="overflow-x-auto">
           <table className="min-w-[860px] w-full text-sm">
@@ -168,7 +170,7 @@ export default function Catalogo() {
                 <tr><td colSpan={7} className="p-10 text-center text-sm text-zinc-500">Sem itens para este filtro. <button type="button" onClick={() => { setQ(''); setCategoria(''); setMarca(''); setTab('todos'); }} className="text-brand-600 hover:underline dark:text-brand-400">Limpar filtros</button></td></tr>
               ) : (
                 parents.map((p) => (
-                  <ParentRow key={p.key} parent={p} open={expanded.has(p.key)} onToggle={() => toggle(p.key)} onOpenDetail={() => setDetail(p)} />
+                  <ParentRow key={p.key} parent={p} open={expanded.has(p.key)} selected={selected?.key === p.key} onToggle={() => toggle(p.key)} onSelect={() => setSelectedKey(p.key)} />
                 ))
               )}
             </tbody>
@@ -176,23 +178,33 @@ export default function Catalogo() {
         </div>
         {!catalog.isLoading && parents.length > 0 && (
           <div className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500 dark:border-zinc-800">
-            {parents.length} {parents.length === 1 ? 'linha' : 'linhas'} · clica para expandir as variantes, ou no ícone do painel para ver o detalhe
+            {parents.length} {parents.length === 1 ? 'linha' : 'linhas'} · clica numa linha para ver o detalhe, ou no chevron para expandir as variantes
           </div>
         )}
-      </div>
+        </div>
 
-      {detail && <CatalogDetailPanel parent={detail} onClose={() => setDetail(null)} />}
+        {/* Painel de detalhe inline (persistente) */}
+        {selected ? (
+          <CatalogDetailPanel key={selected.key} parent={selected} inline />
+        ) : (
+          <aside className="hidden items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 xl:flex">
+            Seleciona um produto para ver o detalhe herdado, variantes e ações.
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
 
-function ParentRow({ parent, open, onToggle, onOpenDetail }: { parent: CatalogParent; open: boolean; onToggle: () => void; onOpenDetail: () => void }) {
+function ParentRow({ parent, open, selected, onToggle, onSelect }: { parent: CatalogParent; open: boolean; selected: boolean; onToggle: () => void; onSelect: () => void }) {
   return (
     <>
-      <tr onClick={onToggle} className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-800/40">
+      <tr onClick={onSelect} className={`cursor-pointer border-b border-zinc-100 dark:border-zinc-800/60 ${selected ? 'bg-sky-50 dark:bg-sky-950/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'}`}>
         <td className="px-4 py-2.5">
           <div className="flex items-center gap-2.5">
-            <ChevronRight size={15} className={`flex-none text-zinc-400 transition-transform ${open ? 'rotate-90' : ''}`} />
+            <button type="button" onClick={(e) => { e.stopPropagation(); onToggle(); }} className="grid h-6 w-6 flex-none place-items-center rounded text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800" title={open ? 'Recolher variantes' : 'Expandir variantes'} aria-label="Expandir variantes">
+              <ChevronRight size={15} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+            </button>
             {parent.imageUrl ? (
               <img src={parent.imageUrl} alt="" className="h-9 w-9 flex-none rounded-md object-cover" />
             ) : (
@@ -225,17 +237,7 @@ function ParentRow({ parent, open, onToggle, onOpenDetail }: { parent: CatalogPa
           )}
         </td>
         <td className="px-4 py-2.5 text-right tabular-nums">
-          <div className="flex items-center justify-end gap-2">
-            <span>{parent.margemMediaPct != null ? `${parent.margemMediaPct}%` : '—'}</span>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onOpenDetail(); }}
-              className="grid h-7 w-7 place-items-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-brand-600 dark:hover:bg-zinc-800"
-              title="Abrir detalhe"
-            >
-              <PanelRight size={15} />
-            </button>
-          </div>
+          {parent.margemMediaPct != null ? `${parent.margemMediaPct}%` : '—'}
         </td>
       </tr>
       {open && parent.variants.map((v) => <VariantRow key={`${v.kind}-${v.id}`} v={v} />)}

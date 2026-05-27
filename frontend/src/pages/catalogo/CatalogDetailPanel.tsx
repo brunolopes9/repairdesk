@@ -13,7 +13,7 @@ type DetailTab = 'visao' | 'variantes';
  * pelo produto pai (descrição/specs/imagens do ProductModel) + lista de variantes + ações rápidas.
  * As ações navegam para as páginas existentes (toggle/sync reais = Fase 4).
  */
-export default function CatalogDetailPanel({ parent, onClose }: { parent: CatalogParent; onClose: () => void }) {
+export default function CatalogDetailPanel({ parent, onClose, inline = false }: { parent: CatalogParent; onClose?: () => void; inline?: boolean }) {
   const [tab, setTab] = useState<DetailTab>('visao');
   const qc = useQueryClient();
   // Overrides otimistas do toggle de loja (key = `${kind}-${id}`), até a lista recarregar.
@@ -55,10 +55,10 @@ export default function CatalogDetailPanel({ parent, onClose }: { parent: Catalo
     staleTime: 60_000,
   });
 
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" onClick={onClose} />
-      <aside className="relative flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+  const aside = (
+      <aside className={inline
+        ? 'flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 xl:sticky xl:top-4'
+        : 'relative flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900'}>
         {/* Header */}
         <div className="flex items-start gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
           {parent.imageUrl ? (
@@ -73,7 +73,7 @@ export default function CatalogDetailPanel({ parent, onClose }: { parent: Catalo
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${parent.lojaOnline === 'Publicado' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : parent.lojaOnline === 'Parcial' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>{parent.lojaOnline}</span>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="grid h-9 w-9 flex-none place-items-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"><X size={18} /></button>
+          {onClose && <button type="button" onClick={onClose} className="grid h-9 w-9 flex-none place-items-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"><X size={18} /></button>}
         </div>
 
         {/* Tabs */}
@@ -90,7 +90,7 @@ export default function CatalogDetailPanel({ parent, onClose }: { parent: Catalo
           ))}
         </div>
 
-        <div className="flex-1 space-y-4 p-4">
+        <div className="flex-1 space-y-4 overflow-y-auto p-4">
           {tab === 'visao' ? (
             <VisaoGeral parent={parent} model={modelDetail.data} loadingModel={modelDetail.isLoading} />
           ) : (
@@ -110,6 +110,12 @@ export default function CatalogDetailPanel({ parent, onClose }: { parent: Catalo
           <p className="mt-2 text-[11px] text-zinc-400">Toggles de loja e sincronização real chegam na próxima fase.</p>
         </div>
       </aside>
+  );
+  if (inline) return aside;
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" onClick={onClose} />
+      {aside}
     </div>
   );
 }
