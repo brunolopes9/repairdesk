@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Boxes, Cloud, Store, AlertTriangle, FileWarning, Search, ChevronRight, Upload, Plus, Package,
+  Boxes, Cloud, Store, AlertTriangle, FileWarning, Search, ChevronRight, Upload, Plus, Package, PanelRight,
 } from 'lucide-react';
 import { KpiCard } from '../../components/ui';
 import { liveListOptions } from '../../lib/queryOptions';
 import { formatCents } from '../../lib/money';
 import { catalogApi, type CatalogParent, type CatalogTab, type CatalogVariant } from '../../lib/catalog/api';
+import CatalogDetailPanel from './CatalogDetailPanel';
 
 const TABS: Array<{ key: CatalogTab; label: string }> = [
   { key: 'todos', label: 'Todos' },
@@ -35,6 +36,7 @@ export default function Catalogo() {
   const [categoria, setCategoria] = useState('');
   const [marca, setMarca] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [detail, setDetail] = useState<CatalogParent | null>(null);
 
   const catalog = useQuery({
     queryKey: ['catalog', { tab, q, categoria, marca }],
@@ -148,7 +150,7 @@ export default function Catalogo() {
                 <tr><td colSpan={7} className="p-10 text-center text-sm text-zinc-500">Sem itens para este filtro.</td></tr>
               ) : (
                 parents.map((p) => (
-                  <ParentRow key={p.key} parent={p} open={expanded.has(p.key)} onToggle={() => toggle(p.key)} />
+                  <ParentRow key={p.key} parent={p} open={expanded.has(p.key)} onToggle={() => toggle(p.key)} onOpenDetail={() => setDetail(p)} />
                 ))
               )}
             </tbody>
@@ -156,15 +158,17 @@ export default function Catalogo() {
         </div>
         {!catalog.isLoading && parents.length > 0 && (
           <div className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500 dark:border-zinc-800">
-            {parents.length} {parents.length === 1 ? 'linha' : 'linhas'} · clica numa linha para ver as variantes
+            {parents.length} {parents.length === 1 ? 'linha' : 'linhas'} · clica para expandir as variantes, ou no ícone do painel para ver o detalhe
           </div>
         )}
       </div>
+
+      {detail && <CatalogDetailPanel parent={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }
 
-function ParentRow({ parent, open, onToggle }: { parent: CatalogParent; open: boolean; onToggle: () => void }) {
+function ParentRow({ parent, open, onToggle, onOpenDetail }: { parent: CatalogParent; open: boolean; onToggle: () => void; onOpenDetail: () => void }) {
   return (
     <>
       <tr onClick={onToggle} className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-800/40">
@@ -202,7 +206,19 @@ function ParentRow({ parent, open, onToggle }: { parent: CatalogParent; open: bo
             <span className="text-xs text-zinc-400">—</span>
           )}
         </td>
-        <td className="px-4 py-2.5 text-right tabular-nums">{parent.margemMediaPct != null ? `${parent.margemMediaPct}%` : '—'}</td>
+        <td className="px-4 py-2.5 text-right tabular-nums">
+          <div className="flex items-center justify-end gap-2">
+            <span>{parent.margemMediaPct != null ? `${parent.margemMediaPct}%` : '—'}</span>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onOpenDetail(); }}
+              className="grid h-7 w-7 place-items-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-brand-600 dark:hover:bg-zinc-800"
+              title="Abrir detalhe"
+            >
+              <PanelRight size={15} />
+            </button>
+          </div>
+        </td>
       </tr>
       {open && parent.variants.map((v) => <VariantRow key={`${v.kind}-${v.id}`} v={v} />)}
       {open && parent.variants.length === 0 && (
