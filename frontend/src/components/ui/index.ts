@@ -1,6 +1,9 @@
 export { Breadcrumb } from './Breadcrumb';
 export type { BreadcrumbItem } from './Breadcrumb';
 export { Button } from './Button';
+export { Card, SectionCard } from './Card';
+export { KpiCard } from './KpiCard';
+export type { KpiTone } from './KpiCard';
 export { EmptyState } from './EmptyState';
 export { PageHeader } from './PageHeader';
 export { Popover } from './Popover';

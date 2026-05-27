@@ -1,22 +1,32 @@
 @import "tailwindcss";
 
 @theme {
+  /* Sprint 372: paleta brand completa (sky) para o novo sistema de design. */
   --color-brand-50: #f0f9ff;
+  --color-brand-100: #e0f2fe;
+  --color-brand-200: #bae6fd;
+  --color-brand-300: #7dd3fc;
+  --color-brand-400: #38bdf8;
   --color-brand-500: #0ea5e9;
   --color-brand-600: #0284c7;
   --color-brand-700: #0369a1;
+  --color-brand-800: #075985;
+  --color-brand-900: #0c4a6e;
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Superfície da app — page (cinza muito subtil) vs card (branco). Faz os cards destacar. */
+  --color-surface: #f6f7f9;
+  --color-surface-dark: #0b0d12;
 }
 
 html, body, #root {
   height: 100%;
-  background: white;
-  color: #111;
+  background: var(--color-surface);
+  color: #111827;
   -webkit-font-smoothing: antialiased;
 }
 
 @media (prefers-color-scheme: dark) {
-  html, body { background: #0b0d12; color: #e5e7eb; }
+  html, body { background: var(--color-surface-dark); color: #e5e7eb; }
 }
 
 /* ============================================================
