@@ -66,14 +66,14 @@ const nav: NavItem[] = [
   { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   { to: '/agendamentos', label: 'Agendamentos', icon: CalendarClock },
   { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
-  // Sprint 381: IA nova — "Balcão" (POS+caixa) e "Compras e Operação" (despesas+compras),
-  // como nas referências IDEIAS. Páginas ricas unificadas vêm a seguir; por agora agrupa.
+  // Sprint 383 (Doc 86): "Balcão" unifica POS + Caixa numa página com tabs (/balcao). A regra
+  // "não vendes com caixa fechada" vive na própria POS. Filhos = deep-link para os tabs.
   {
     label: 'Balcão',
     icon: ShoppingCart,
     children: [
-      { to: '/vendas', label: 'Venda rápida', icon: ShoppingCart },
-      { to: '/cash', label: 'Caixa de hoje', icon: Banknote },
+      { to: '/balcao', label: 'Venda rápida', icon: ShoppingCart },
+      { to: '/balcao?tab=caixa', label: 'Caixa de hoje', icon: Banknote },
     ],
   },
   {

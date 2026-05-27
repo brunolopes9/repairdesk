@@ -54,7 +54,7 @@ const paymentLabels: Record<PaymentMethod, string> = {
   99: 'Outro',
 };
 
-export default function Cash() {
+export default function Cash({ embedded = false }: { embedded?: boolean } = {}) {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { hasRole } = useAuth();
@@ -162,11 +162,13 @@ export default function Cash() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title={`Caixa hoje · ${formatDateShort(new Date())}`}
-        description="Abertura, movimentos e fecho diário do dinheiro de balcão."
-        meta={isClosed ? <StatusPill tone="closed">Fechada</StatusPill> : isOpen ? <StatusPill tone="open">Aberta</StatusPill> : undefined}
-      />
+      {!embedded && (
+        <PageHeader
+          title={`Caixa hoje · ${formatDateShort(new Date())}`}
+          description="Abertura, movimentos e fecho diário do dinheiro de balcão."
+          meta={isClosed ? <StatusPill tone="closed">Fechada</StatusPill> : isOpen ? <StatusPill tone="open">Aberta</StatusPill> : undefined}
+        />
+      )}
 
       {today.isLoading && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

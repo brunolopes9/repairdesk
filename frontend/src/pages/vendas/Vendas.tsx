@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, Download, FileText, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound, XCircle, CheckCircle2, History as HistoryIcon } from 'lucide-react';
+import { CreditCard, Download, FileText, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound, XCircle, CheckCircle2, History as HistoryIcon, Lock, Banknote } from 'lucide-react';
 import { downloadFile } from '../../lib/downloadPdf';
 import { toast } from '../../lib/toast';
 import { clientesApi } from '../../lib/clientes/api';
 import type { Cliente } from '../../lib/clientes/types';
-import { formatCents } from '../../lib/money';
+import { formatCents, parseEuros } from '../../lib/money';
+import { cashApi, DAILY_CLOSING_STATUS } from '../../lib/cash/api';
 import { stockApi } from '../../lib/stock/api';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
@@ -51,9 +52,11 @@ const PAYMENT_NAME_TO_VALUE: Record<string, PaymentMethod> = {
   Outro: PAYMENT_METHOD.Outro,
 };
 
-export default function Vendas() {
+export default function Vendas({ embedded = false }: { embedded?: boolean } = {}) {
   const qc = useQueryClient();
   const [q, setQ] = useState('');
+  // Sprint 383: gate da caixa — não se vende com a caixa fechada (Doc 86).
+  const [aberturaCaixa, setAberturaCaixa] = useState('');
   const [clienteQ, setClienteQ] = useState('');
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [novoClienteOpen, setNovoClienteOpen] = useState(false);
@@ -100,6 +103,30 @@ export default function Vendas() {
     queryKey: ['vendas-fornecedores'],
     queryFn: () => vendasApi.fornecedores(),
     staleTime: 5 * 60_000,
+  });
+
+  // Sprint 383: estado da caixa de hoje. Se fechada → bloqueia POS (não emite movimentos órfãos).
+  const caixaHoje = useQuery({
+    queryKey: ['cash', 'today', null],
+    queryFn: () => cashApi.today(null),
+    staleTime: 15_000,
+  });
+  const caixaAberta =
+    caixaHoje.data?.status === DAILY_CLOSING_STATUS.Open ||
+    caixaHoje.data?.status === DAILY_CLOSING_STATUS.Reopened;
+  const caixaBloqueada = caixaHoje.isSuccess && !caixaAberta;
+
+  const abrirCaixa = useMutation({
+    mutationFn: () => {
+      const openingCents = parseEuros(aberturaCaixa) ?? 0;
+      return cashApi.open({ openingCents, locationId: null, notas: null });
+    },
+    onSuccess: () => {
+      toast.success('Caixa aberta', 'Já podes vender hoje.');
+      setAberturaCaixa('');
+      qc.invalidateQueries({ queryKey: ['cash', 'today', null] });
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível abrir a caixa.'),
   });
 
   const totalCents = useMemo(
@@ -364,10 +391,12 @@ export default function Vendas() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Vendas</h1>
-          <p className="text-sm text-zinc-500">POS rapido para acessorios, pecas e equipamentos.</p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Vendas</h1>
+            <p className="text-sm text-zinc-500">POS rapido para acessorios, pecas e equipamentos.</p>
+          </div>
+        )}
         {lastVenda && (
           <div className="flex gap-2">
             <a
@@ -404,6 +433,14 @@ export default function Vendas() {
         )}
       </div>
 
+      {caixaBloqueada ? (
+        <CaixaFechadaGate
+          abertura={aberturaCaixa}
+          onAberturaChange={setAberturaCaixa}
+          loading={abrirCaixa.isPending}
+          onAbrir={() => abrirCaixa.mutate()}
+        />
+      ) : (
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <section className="space-y-3">
           <label className="relative block">
@@ -625,6 +662,7 @@ export default function Vendas() {
           </div>
         </aside>
       </div>
+      )}
 
       {pendingPaymentVenda && paymentMethod === PAYMENT_METHOD.MBWay && (
         <PaymentMBWayModal
@@ -946,6 +984,60 @@ export default function Vendas() {
           setClienteQ('');
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * Sprint 383 (Doc 86): ecrã que substitui a POS quando a caixa do dia está fechada.
+ * Regra de balcão — primeiro contas o fundo, depois vendes. Abre a caixa inline (sem sair).
+ */
+function CaixaFechadaGate({
+  abertura,
+  onAberturaChange,
+  loading,
+  onAbrir,
+}: {
+  abertura: string;
+  onAberturaChange: (value: string) => void;
+  loading: boolean;
+  onAbrir: () => void;
+}) {
+  return (
+    <div className="grid place-items-center rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-14 text-center dark:border-zinc-700 dark:bg-zinc-950">
+      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+        <Lock size={26} />
+      </div>
+      <h2 className="mt-4 text-lg font-semibold">Abre a caixa para vender hoje</h2>
+      <p className="mt-1 max-w-md text-sm text-zinc-500">
+        Conta o fundo inicial antes da primeira venda. Cada venda fica ligada à caixa do dia — assim o fecho/Z-Report bate certo.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onAbrir();
+        }}
+        className="mt-5 flex w-full max-w-sm flex-col gap-2 sm:flex-row sm:items-end"
+      >
+        <label className="grid flex-1 gap-1 text-left text-sm">
+          <span className="font-medium">Fundo de abertura (€)</span>
+          <input
+            value={abertura}
+            onChange={(e) => onAberturaChange(e.target.value)}
+            inputMode="decimal"
+            autoFocus
+            placeholder="0,00"
+            className="min-h-12 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={loading}
+          className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-brand-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
+        >
+          <Banknote size={17} /> {loading ? 'A abrir…' : 'Abrir caixa'}
+        </button>
+      </form>
     </div>
   );
 }
