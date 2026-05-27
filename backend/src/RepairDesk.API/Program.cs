@@ -286,6 +286,8 @@ try
         builder.Services.AddHostedService<PushNotificationWorker>();
         builder.Services.AddHostedService<PushSubscriptionCleanupWorker>();
         builder.Services.AddHostedService<StaffPushWorker>();
+        // Sprint 392 (Doc 84): 4.º gatilho — digest diário de reparações paradas há +N dias.
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.StalledRepairsHostedService>();
     }
 
     // Diagnóstico guiado + Health Score
