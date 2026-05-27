@@ -10,6 +10,7 @@ import {
   Euro,
   PackageSearch,
   ShieldCheck,
+  ShoppingBag,
   Trophy,
   TrendingUp,
   Wrench,
@@ -32,6 +33,7 @@ import { stockApi } from '../lib/stock/api';
 import { dashboardApi } from '../lib/dashboard/api';
 import { useDashboardKpisHoje } from '../lib/dashboard/hooks';
 import { reparacoesApi } from '../lib/reparacoes/api';
+import { vendasApi } from '../lib/vendas/api';
 import { REPAIR_STATUS, STATUS_LABEL, type RepairStatus } from '../lib/reparacoes/types';
 import { liveListOptions } from '../lib/queryOptions';
 import { formatCents, formatDateOnly } from '../lib/money';
@@ -111,6 +113,12 @@ export default function Dashboard() {
     queryFn: () => reparacoesApi.list({ pageSize: 50 }),
     ...liveListOptions,
   });
+
+  const recentVendas = useQuery({
+    queryKey: ['dashboard-recent-vendas'],
+    queryFn: () => vendasApi.list({ pageSize: 10 }),
+    staleTime: 60_000,
+  });
   const filaItems = useMemo(
     () =>
       (fila.data?.items ?? [])
@@ -136,6 +144,21 @@ export default function Dashboard() {
       .map((e) => ({ estado: e, name: STATUS_LABEL[e], value: counts.get(e) ?? 0, color: ESTADO_HEX[e] }));
   }, [fila.data]);
   const totalAtivos = estadoBreakdown.reduce((s, d) => s + d.value, 0);
+
+  // Atividade recente — últimas entradas de reparação + últimas vendas, num só feed.
+  const atividade = useMemo(() => {
+    type Item = { key: string; date: string; kind: 'repair' | 'sale'; title: string; sub: string; value: number; href: string };
+    const reps: Item[] = (fila.data?.items ?? []).map((r) => ({
+      key: `r-${r.id}`, date: r.recebidoEm, kind: 'repair', title: `Reparação #${r.numero}`,
+      sub: [r.equipamento, r.cliente?.nome].filter(Boolean).join(' · '),
+      value: r.precoFinalCents ?? r.orcamentoCents ?? 0, href: `/reparacoes/${r.id}`,
+    }));
+    const vds: Item[] = (recentVendas.data?.items ?? []).map((v) => ({
+      key: `v-${v.id}`, date: v.data, kind: 'sale', title: `Venda #${v.numero}`,
+      sub: v.cliente?.nome ?? 'Cliente final', value: v.totalCents, href: `/vendas/${v.id}`,
+    }));
+    return [...reps, ...vds].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 7);
+  }, [fila.data, recentVendas.data]);
 
   const sparklineData = useMemo(() => {
     const values = kpis.data?.receita7d ?? Array.from({ length: 7 }, () => 0);
@@ -322,9 +345,10 @@ export default function Dashboard() {
         <ZoneHeader
           eyebrow="Pipeline"
           title="Reparações por estado"
-          subtitle="Distribuição das reparações em curso (exclui Entregue e Cancelado)."
+          subtitle="Distribuição das reparações em curso e últimos eventos da loja."
         />
-        <SectionCard>
+        <div className="grid gap-3 xl:grid-cols-[1fr_360px]">
+        <SectionCard title="Reparações por estado">
           {fila.isLoading ? (
             <div className="h-[220px] animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
           ) : totalAtivos === 0 ? (
@@ -360,6 +384,32 @@ export default function Dashboard() {
             </div>
           )}
         </SectionCard>
+
+        <SectionCard title="Atividade recente">
+          {fila.isLoading || recentVendas.isLoading ? (
+            <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />)}</div>
+          ) : atividade.length === 0 ? (
+            <p className="py-6 text-center text-sm text-zinc-500">Sem atividade recente.</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {atividade.map((a) => (
+                <li key={a.key}>
+                  <Link to={a.href} className="flex items-center gap-2.5 rounded-lg px-1.5 py-2 transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                    <span className={`grid h-8 w-8 flex-none place-items-center rounded-full ${a.kind === 'repair' ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'}`}>
+                      {a.kind === 'repair' ? <Wrench size={14} /> : <ShoppingBag size={14} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{a.title}</span>
+                      <span className="block truncate text-[11px] text-zinc-400">{a.sub} · {formatDateOnly(a.date)}</span>
+                    </span>
+                    <span className="flex-none text-xs font-semibold tabular-nums">{formatCents(a.value)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+        </div>
       </section>
 
       <section className="space-y-3">
