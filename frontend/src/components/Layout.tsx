@@ -24,8 +24,6 @@ import {
   Sparkles,
   Building2,
   LogOut,
-  Pin,
-  PinOff,
   Sun,
   Moon,
   Monitor,
@@ -121,21 +119,11 @@ const nav: NavItem[] = [
   },
 ];
 
-const SIDEBAR_PIN_KEY = 'rd.sidebar.pinned';
-
 export default function Layout() {
   const { user, logout, hasRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [hovered, setHovered] = useState(false);
-  const [pinned, setPinned] = useState<boolean>(() => {
-    try { return localStorage.getItem(SIDEBAR_PIN_KEY) === '1'; } catch { return false; }
-  });
   const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
-
-  useEffect(() => {
-    try { localStorage.setItem(SIDEBAR_PIN_KEY, pinned ? '1' : '0'); } catch { /* ignore */ }
-  }, [pinned]);
 
   useEffect(() => {
     setStoredTheme(theme);
@@ -149,7 +137,8 @@ export default function Layout() {
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
   const themeLabel = theme === 'light' ? 'Claro' : theme === 'dark' ? 'Escuro' : 'Sistema';
 
-  const expanded = hovered || pinned;
+  // Sprint 397 (Doc 88): sidebar permanente e larga (como os mockups) — sempre "expandida".
+  const expanded = true;
   // Sprint 368: gating por role. Admin vê tudo; adminOnly só Admin; senão, se houver `roles`
   // tem de ter pelo menos uma; sem `roles` é visível a todos (ex: Dashboard, Clientes).
   const canSee = (item: { adminOnly?: boolean; roles?: string[] }) => {
@@ -202,11 +191,17 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
-        <div className="flex h-14 w-full items-center justify-between gap-3 px-4 sm:pl-20 sm:pr-6">
-          <div className="flex items-center gap-2 font-semibold">
-            <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-600 text-[13px] font-bold text-white">M</span>
-            <span className="hidden text-sm sm:inline">Mender</span>
-          </div>
+        <div className="flex h-14 w-full items-center justify-between gap-3 px-4 sm:pl-[15rem] sm:pr-6">
+          {/* Seletor de loja (esq) — como nos mockups. v1: nome estático + chevron. */}
+          <button
+            type="button"
+            className="flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+            title="Loja"
+          >
+            <Building2 size={15} className="text-zinc-400" />
+            <span className="hidden sm:inline">Loja Principal</span>
+            <ChevronDown size={14} className="text-zinc-400" />
+          </button>
           <div className="flex items-center gap-2">
             {/* Sprint 379: ação primária no topo (como o mockup) */}
             <button
@@ -223,10 +218,10 @@ export default function Layout() {
               onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
               title="Procurar / acções (Ctrl+K)"
               aria-label="Procurar"
-              className="hidden h-9 w-56 items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-400 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 md:flex"
+              className="hidden h-9 w-[26rem] max-w-[34vw] items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-400 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 md:flex"
             >
               <Search size={15} strokeWidth={2} />
-              <span className="flex-1 text-left">Procurar…</span>
+              <span className="flex-1 text-left">Procurar produto, cliente, reparação…</span>
               <kbd className="rounded border border-zinc-200 bg-white px-1 text-[10px] text-zinc-400 dark:border-zinc-700 dark:bg-zinc-950">Ctrl K</kbd>
             </button>
 
@@ -278,7 +273,7 @@ export default function Layout() {
         <ActiveTimerBanner />
       </header>
 
-      <main className="mx-auto max-w-[1600px] px-4 pb-24 pt-6 sm:pl-20 sm:pr-6">
+      <main className="mx-auto max-w-[1600px] px-4 pb-24 pt-6 sm:pl-[15.5rem] sm:pr-6">
         <Outlet />
         <div className="mt-12 border-t border-zinc-200 pt-4 text-center text-[11px] text-zinc-400 dark:border-zinc-800">
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
@@ -324,35 +319,12 @@ export default function Layout() {
         </ul>
       </nav>
 
-      {/* Sidebar (desktop) — comprimida por defeito (w-14), expande no hover (w-56) */}
-      <aside
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        className={`fixed left-0 top-0 z-30 hidden h-screen border-r border-slate-800 bg-slate-900 text-slate-300 transition-[width] duration-200 ease-out sm:flex sm:flex-col ${
-          expanded ? 'w-56 shadow-xl shadow-black/20' : 'w-14'
-        }`}
-      >
-        {/* Logo + pin */}
-        <div className="flex h-14 items-center gap-2 border-b border-slate-800 px-3">
+      {/* Sidebar (desktop) — permanente e larga (w-56), como os mockups (Doc 88) */}
+      <aside className="fixed left-0 top-0 z-30 hidden h-screen w-56 flex-col border-r border-slate-800 bg-slate-900 text-slate-300 sm:flex">
+        {/* Logo */}
+        <div className="flex h-14 items-center gap-2.5 border-b border-slate-800 px-4">
           <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">M</span>
-          <span
-            className={`flex-1 truncate text-sm font-semibold text-white transition-opacity ${
-              expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
-            }`}
-          >
-            Mender
-          </span>
-          {expanded && (
-            <button
-              type="button"
-              onClick={() => setPinned((p) => !p)}
-              className="rounded-md p-1 text-slate-400 transition hover:bg-slate-800 hover:text-white"
-              aria-label={pinned ? 'Desafixar menu' : 'Fixar menu aberto'}
-              title={pinned ? 'Desafixar' : 'Fixar aberto'}
-            >
-              {pinned ? <Pin size={14} strokeWidth={2} /> : <PinOff size={14} strokeWidth={2} />}
-            </button>
-          )}
+          <span className="flex-1 truncate text-base font-semibold tracking-tight text-white">Mender</span>
         </div>
 
         {/* Nav items */}
