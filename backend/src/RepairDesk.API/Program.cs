@@ -369,6 +369,10 @@ try
     // Sprint 359 (Doc 83): templates de modelo.
     builder.Services.AddScoped<IProductModelRepository, RepairDesk.DAL.Persistence.ProductModelRepository>();
 
+    // Sprint 385 (Doc 87): vista unificada "Catálogo & Stock" (read model Product/ProductModel/Part).
+    builder.Services.AddScoped<ICatalogReadRepository, RepairDesk.DAL.Persistence.CatalogReadRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Catalog.ICatalogService, RepairDesk.Services.Catalog.CatalogService>();
+
     // Sprint 303: Payments — providers (Mock + IFTHENPAY) + orquestrador.
     builder.Services.AddScoped<IPaymentRepository, RepairDesk.DAL.Persistence.PaymentRepository>();
     builder.Services.AddSingleton<IPaymentProvider, RepairDesk.Services.Payments.MockPaymentProvider>();
