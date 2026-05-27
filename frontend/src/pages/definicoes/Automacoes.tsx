@@ -1,4 +1,4 @@
-import { Workflow, ExternalLink, Mail, Server, Camera, CheckCircle2, AlertCircle, Copy, RefreshCw, Wrench } from 'lucide-react';
+import { Workflow, ExternalLink, Mail, Server, Camera, CheckCircle2, AlertCircle, Copy, RefreshCw, Wrench, CalendarCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { toast } from '../../lib/toast';
@@ -118,6 +118,34 @@ export default function Automacoes() {
               Configura <code>Frontend:PortalBaseUrl</code> no servidor para gerar o link público. Slug: <code>{intake.slug}</code>
             </p>
           )}
+        </section>
+      )}
+
+      {/* Sprint 389: link público de marcação online (booking). Deriva do mesmo slug do widget. */}
+      {intake?.publicUrl && (
+        <section className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <CalendarCheck size={16} />
+            Marcação online
+          </h2>
+          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+            Partilha este link para os clientes marcarem hora. As marcações aparecem em <strong>Agendamentos</strong> e
+            recebes notificação no telemóvel.
+          </p>
+          {(() => {
+            const bookingUrl = intake.publicUrl!.replace('/pedido/', '/agendar/');
+            return (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="rounded bg-white px-3 py-1.5 text-sm font-mono shadow-sm dark:bg-zinc-900">{bookingUrl}</code>
+                <button type="button" onClick={() => navigator.clipboard?.writeText(bookingUrl)} className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                  <Copy size={12} /> Copiar
+                </button>
+                <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-2 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                  <ExternalLink size={12} /> Abrir
+                </a>
+              </div>
+            );
+          })()}
         </section>
       )}
 

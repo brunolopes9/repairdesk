@@ -48,6 +48,7 @@ const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const PortalCliente = lazy(() => import('./pages/PortalCliente'));
 const PortalGarantia = lazy(() => import('./pages/PortalGarantia'));
 const PedidoReparacao = lazy(() => import('./pages/PedidoReparacao'));
+const Agendar = lazy(() => import('./pages/Agendar'));
 const PedidosOnline = lazy(() => import('./pages/reparacoes/PedidosOnline'));
 const Agendamentos = lazy(() => import('./pages/agendamentos/Agendamentos'));
 const ComprasOperacao = lazy(() => import('./pages/compras/ComprasOperacao'));
@@ -105,6 +106,7 @@ export default function App() {
             <Route path="/r/:slug" element={<PortalCliente />} />
             <Route path="/g/:slug" element={<PortalGarantia />} />
             <Route path="/pedido/:slug" element={<PedidoReparacao />} />
+            <Route path="/agendar/:slug" element={<Agendar />} />
 
             {/* Páginas legais públicas — RGPD compliance */}
             <Route path="/privacidade" element={<PoliticaPrivacidade />} />
