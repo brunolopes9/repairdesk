@@ -97,6 +97,7 @@ O maior desvio NÃO é página-a-página, é a **casca partilhada (Layout)**, qu
 
 ## ✅ TODAS as fases concluídas (S397-403)
 Shell + Reparações + Clientes + Compras + Catálogo + POS-3col live. Dashboard já alinhado.
-Polish: donut "Reparações por estado" ✅ S404 (PieChart no Dashboard, deriva da fila, sem
-queries extra). Sobra opcional: rail "Atividade" no Dashboard; refinamentos pixel adicionais
-à medida que o Bruno aponte desvios concretos por menu.
+Polish ✅ COMPLETO: donut "Reparações por estado" (S404) + rail "Atividade recente" (S405),
+lado a lado no Dashboard. Feed = últimas reparações + últimas vendas. TODO o Doc 88 está feito.
+Daqui para a frente: só refinamentos pixel se o Bruno apontar desvios concretos por menu, ou
+voltar a features (roadmap concorrentes / IMEI auto-detect).
