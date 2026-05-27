@@ -7,6 +7,9 @@ namespace RepairDesk.Services.Catalog;
 public interface ICatalogService
 {
     Task<CatalogListDto> ListAsync(CatalogQuery query, CancellationToken ct = default);
+
+    /// <summary>Sprint 388: liga/desliga a visibilidade na loja de uma variante (Product ou Part).</summary>
+    Task<bool> SetVariantLojaOnlineAsync(string kind, Guid id, bool value, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -18,7 +21,14 @@ public interface ICatalogService
 public sealed class CatalogService : ICatalogService
 {
     private readonly ICatalogReadRepository _repo;
-    public CatalogService(ICatalogReadRepository repo) => _repo = repo;
+    private readonly IProductRepository _products;
+    private readonly IPartRepository _parts;
+    public CatalogService(ICatalogReadRepository repo, IProductRepository products, IPartRepository parts)
+    {
+        _repo = repo;
+        _products = products;
+        _parts = parts;
+    }
 
     public async Task<CatalogListDto> ListAsync(CatalogQuery query, CancellationToken ct = default)
     {
@@ -27,6 +37,29 @@ public sealed class CatalogService : ICatalogService
         var kpis = BuildKpis(data, parents);
         var filtered = ApplyFilters(parents, query);
         return new CatalogListDto(kpis, filtered);
+    }
+
+    public async Task<bool> SetVariantLojaOnlineAsync(string kind, Guid id, bool value, CancellationToken ct = default)
+    {
+        switch (kind)
+        {
+            case "product":
+            {
+                var p = await _products.FindByIdAsync(id, ct) ?? throw new KeyNotFoundException("Produto não encontrado.");
+                p.MostrarLojaOnline = value;
+                await _products.SaveAsync(ct);
+                return value;
+            }
+            case "part":
+            {
+                var p = await _parts.FindByIdAsync(id, ct) ?? throw new KeyNotFoundException("Peça não encontrada.");
+                p.MostrarLojaOnline = value;
+                await _parts.SaveAsync(ct);
+                return value;
+            }
+            default:
+                throw new ArgumentException($"kind inválido: {kind}");
+        }
     }
 
     private static List<CatalogParentDto> BuildParents(CatalogReadData data)

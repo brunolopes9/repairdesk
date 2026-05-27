@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { X, Package, Plus, RefreshCw, Upload, Wand2, Store } from 'lucide-react';
 import { formatCents } from '../../lib/money';
+import { toast } from '../../lib/toast';
 import { productModelsApi, type ProductModelDto } from '../../lib/productModels/api';
-import type { CatalogParent, CatalogVariant } from '../../lib/catalog/api';
+import { catalogApi, type CatalogParent, type CatalogVariant } from '../../lib/catalog/api';
 
 type DetailTab = 'visao' | 'variantes';
 
@@ -14,6 +15,27 @@ type DetailTab = 'visao' | 'variantes';
  */
 export default function CatalogDetailPanel({ parent, onClose }: { parent: CatalogParent; onClose: () => void }) {
   const [tab, setTab] = useState<DetailTab>('visao');
+  const qc = useQueryClient();
+  // Overrides otimistas do toggle de loja (key = `${kind}-${id}`), até a lista recarregar.
+  const [lojaOverride, setLojaOverride] = useState<Record<string, boolean>>({});
+  const [pending, setPending] = useState<Set<string>>(new Set());
+
+  async function toggleLoja(v: CatalogVariant) {
+    const key = `${v.kind}-${v.id}`;
+    const next = !(lojaOverride[key] ?? v.lojaOnline);
+    setLojaOverride((o) => ({ ...o, [key]: next }));
+    setPending((s) => new Set(s).add(key));
+    try {
+      await catalogApi.setLojaOnline(v.kind, v.id, next);
+      qc.invalidateQueries({ queryKey: ['catalog'] });
+      toast.success(next ? 'Publicado na loja' : 'Removido da loja');
+    } catch (err) {
+      setLojaOverride((o) => ({ ...o, [key]: !next })); // reverte
+      toast.fromError(err, 'Não foi possível mudar a visibilidade na loja.');
+    } finally {
+      setPending((s) => { const n = new Set(s); n.delete(key); return n; });
+    }
+  }
 
   const modelDetail = useQuery({
     queryKey: ['product-model', parent.modelId],
@@ -61,7 +83,7 @@ export default function CatalogDetailPanel({ parent, onClose }: { parent: Catalo
           {tab === 'visao' ? (
             <VisaoGeral parent={parent} model={modelDetail.data} loadingModel={modelDetail.isLoading} />
           ) : (
-            <Variantes variants={parent.variants} />
+            <Variantes variants={parent.variants} lojaOverride={lojaOverride} pending={pending} onToggle={toggleLoja} />
           )}
         </div>
 
@@ -149,25 +171,47 @@ function VisaoGeral({ parent, model, loadingModel }: { parent: CatalogParent; mo
   );
 }
 
-function Variantes({ variants }: { variants: CatalogVariant[] }) {
+function Variantes({
+  variants, lojaOverride, pending, onToggle,
+}: {
+  variants: CatalogVariant[];
+  lojaOverride: Record<string, boolean>;
+  pending: Set<string>;
+  onToggle: (v: CatalogVariant) => void;
+}) {
   if (variants.length === 0) return <p className="text-sm italic text-zinc-400">Sem variantes.</p>;
   return (
     <ul className="space-y-2">
       {variants.map((v) => {
         const descr = [v.cor, v.armazenamento, v.grade].filter(Boolean).join(' · ') || v.sku || '—';
+        const key = `${v.kind}-${v.id}`;
+        const loja = lojaOverride[key] ?? v.lojaOnline;
+        const isPending = pending.has(key);
         return (
-          <li key={`${v.kind}-${v.id}`} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <li key={key} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{descr}</div>
                 <div className="truncate text-xs text-zinc-500">{v.sku ?? 'sem SKU'}{v.fornecedor ? ` · ${v.fornecedor}` : ''}</div>
               </div>
-              <span className={`h-2.5 w-2.5 flex-none rounded-full ${v.lojaOnline ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`} title={v.lojaOnline ? 'Na loja' : 'Fora da loja'} />
+              {/* Toggle "loja online" — Sprint 388 */}
+              <button
+                type="button"
+                onClick={() => onToggle(v)}
+                disabled={isPending}
+                role="switch"
+                aria-checked={loja}
+                title={loja ? 'Na loja — clica para esconder' : 'Fora da loja — clica para publicar'}
+                className={`relative inline-flex h-5 w-9 flex-none items-center rounded-full transition disabled:opacity-50 ${loja ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${loja ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
             </div>
             <div className="mt-2 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <span className={`rounded px-1.5 py-0.5 font-medium ${v.tipoStock === 'virtual' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>{v.tipoStock === 'virtual' ? 'Virtual' : 'Físico'}</span>
                 <span className={v.stockCritico ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-zinc-500'}>{v.qtd} un{v.stockCritico ? ' ⚠' : ''}</span>
+                <span className="text-zinc-400">{loja ? 'na loja' : 'oculto'}</span>
               </div>
               <span className="font-medium tabular-nums">{v.precoVendaCents != null ? formatCents(v.precoVendaCents) : '—'}</span>
             </div>

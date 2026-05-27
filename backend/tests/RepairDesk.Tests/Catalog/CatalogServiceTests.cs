@@ -15,7 +15,8 @@ public class CatalogServiceTests
         public Task<CatalogReadData> LoadAsync(CancellationToken ct = default) => Task.FromResult(_data);
     }
 
-    private static CatalogService Build(CatalogReadData data) => new(new StubRepo(data));
+    // ListAsync não toca nos repos de escrita (produtos/peças) — null! é seguro para estes testes de leitura.
+    private static CatalogService Build(CatalogReadData data) => new(new StubRepo(data), null!, null!);
 
     private static CatalogReadData Sample()
     {

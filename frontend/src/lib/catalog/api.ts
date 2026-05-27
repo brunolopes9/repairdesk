@@ -80,4 +80,9 @@ export const catalogApi = {
       })
       .then((r) => r.data);
   },
+  setLojaOnline(kind: 'product' | 'part', id: string, value: boolean) {
+    return api
+      .post<{ lojaOnline: boolean }>(`/catalog/variant/${kind}/${id}/loja-online`, null, { params: { value } })
+      .then((r) => r.data.lojaOnline);
+  },
 };

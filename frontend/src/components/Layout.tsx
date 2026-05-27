@@ -23,7 +23,6 @@ import {
   Workflow,
   Sparkles,
   Building2,
-  Smartphone,
   LogOut,
   Pin,
   PinOff,
@@ -88,10 +87,9 @@ const nav: NavItem[] = [
       { to: '/despesas', label: 'Despesas & custos', icon: Banknote },
     ],
   },
-  // Sprint 386 (Doc 87): vista unificada nova. Stock + Produtos coexistem na transição (Fase 4 substitui).
+  // Sprint 388 (Doc 87): "Catálogo & Stock" substitui Stock + Produtos na nav. As rotas /stock e
+  // /produtos continuam vivas (formulários de edição/criação que o Catálogo invoca), só saíram do menu.
   { to: '/catalogo', label: 'Catálogo & Stock', icon: Boxes },
-  { to: '/stock', label: 'Stock', icon: PackageSearch },
-  { to: '/produtos', label: 'Produtos', icon: Smartphone, adminOnly: true },
   { to: '/precos', label: 'Preços', icon: Tags },
   {
     label: 'Relatorios',

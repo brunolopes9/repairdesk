@@ -33,4 +33,17 @@ public sealed class CatalogController : ControllerBase
     [HttpGet("kpis")]
     public async Task<CatalogKpisDto> Kpis(CancellationToken ct = default)
         => (await _service.ListAsync(new CatalogQuery(), ct)).Kpis;
+
+    /// <summary>Sprint 388: liga/desliga a visibilidade na loja de uma variante (kind = product|part).</summary>
+    [HttpPost("variant/{kind}/{id:guid}/loja-online")]
+    public async Task<IActionResult> SetLojaOnline(string kind, Guid id, [FromQuery] bool value, CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await _service.SetVariantLojaOnlineAsync(kind, id, value, ct);
+            return Ok(new { lojaOnline = result });
+        }
+        catch (KeyNotFoundException e) { return NotFound(new { error = e.Message }); }
+        catch (ArgumentException e) { return BadRequest(new { error = e.Message }); }
+    }
 }
