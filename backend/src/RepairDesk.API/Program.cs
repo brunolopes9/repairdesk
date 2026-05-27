@@ -346,6 +346,8 @@ try
     builder.Services.AddHttpClient<RepairDesk.Services.Products.ICsvColumnDetector, RepairDesk.Services.Products.CsvColumnDetectionService>();
     // Sprint 188: Shop AI Bridge — assistant NL + image search via Anthropic central.
     builder.Services.AddHttpClient<RepairDesk.Services.Shop.IShopAiService, RepairDesk.Services.Shop.ShopAiService>();
+    // Sprint 369: assistente interno read-only (tool-use sobre dados do tenant).
+    builder.Services.AddHttpClient<RepairDesk.API.Assistant.IAssistantService, RepairDesk.API.Assistant.AssistantService>();
     // Sprint 189: pipeline imagens SEO (resize WebP + blur LQIP) — usa IPhotoStorage para R2.
     builder.Services.AddScoped<RepairDesk.Services.Products.IImageOptimizationService, RepairDesk.Services.Products.ImageOptimizationService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();

@@ -35,6 +35,7 @@ import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
 import HealthIndicator from './HealthIndicator';
 import ActiveTimerBanner from './ActiveTimerBanner';
+import { AssistantWidget } from './AssistantWidget';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
 import { repairRequestsApi } from '../lib/repairRequests/api';
 import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Theme } from '../lib/theme';
@@ -238,6 +239,9 @@ export default function Layout() {
 
       {/* Sprint 194: PWA Fase 1 — indicador offline + botão instalar. */}
       <PwaStatus />
+
+      {/* Sprint 369: assistente interno read-only (flutuante). */}
+      <AssistantWidget />
 
       {/* Bottom nav (mobile) */}
       <nav
