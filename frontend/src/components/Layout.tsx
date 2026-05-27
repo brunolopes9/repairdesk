@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ClipboardList,
   CalendarClock,
+  Bell,
   Settings,
   Webhook,
   Workflow,
@@ -182,49 +183,74 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:pl-20">
+        <div className="flex h-14 w-full items-center justify-between gap-3 px-4 sm:pl-20 sm:pr-6">
           <div className="flex items-center gap-2 font-semibold">
-            <span className="text-brand-500">●</span> Mender
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-600 text-[13px] font-bold text-white">M</span>
+            <span className="hidden text-sm sm:inline">Mender</span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            {user && <span className="hidden sm:inline">{user.displayName}</span>}
-            <HealthIndicator />
+          <div className="flex items-center gap-2">
+            {/* Pesquisa global — ocupa espaço como uma barra, estilo SaaS */}
             <button
               type="button"
-              onClick={() => {
-                // Dispara o mesmo atalho que abre o CommandPalette
-                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
-              }}
+              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
               title="Procurar / acções (Ctrl+K)"
               aria-label="Procurar"
-              className="hidden min-h-10 items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-2 text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 sm:flex"
+              className="hidden h-9 w-56 items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-400 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 md:flex"
             >
-              <Search size={12} strokeWidth={2} />
-              <span>Procurar</span>
-              <kbd className="ml-1 rounded border border-zinc-200 bg-white px-1 text-[10px] text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900">Ctrl K</kbd>
+              <Search size={15} strokeWidth={2} />
+              <span className="flex-1 text-left">Procurar…</span>
+              <kbd className="rounded border border-zinc-200 bg-white px-1 text-[10px] text-zinc-400 dark:border-zinc-700 dark:bg-zinc-950">Ctrl K</kbd>
             </button>
+
+            <HealthIndicator />
+
             <button
               type="button"
               onClick={cycleTheme}
               title={`Tema: ${themeLabel} — clica para alternar`}
-              className="grid h-10 w-10 place-items-center rounded-md border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
-              <ThemeIcon size={14} strokeWidth={2} />
+              <ThemeIcon size={17} strokeWidth={2} />
             </button>
+
             <button
               type="button"
-              onClick={handleLogout}
-              className="min-h-10 rounded-md border border-zinc-200 px-3 py-2 text-xs text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              onClick={() => navigate('/pedidos-online')}
+              title="Pedidos online"
+              aria-label="Notificações"
+              className="relative grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
-              Sair
+              <Bell size={17} strokeWidth={2} />
+              {(pedidosPendentes.data ?? 0) > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                  {pedidosPendentes.data}
+                </span>
+              )}
             </button>
+
+            {/* Chip de perfil */}
+            <div className="ml-1 flex items-center gap-2 rounded-lg border border-zinc-200 py-1 pl-1 pr-2 dark:border-zinc-800">
+              <span className="grid h-7 w-7 place-items-center rounded-md bg-brand-100 text-xs font-semibold text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+                {(user?.displayName ?? '?').trim().charAt(0).toUpperCase()}
+              </span>
+              <span className="hidden text-xs font-medium text-zinc-700 dark:text-zinc-200 sm:inline">{user?.displayName}</span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="Sair"
+                aria-label="Sair"
+                className="grid h-6 w-6 place-items-center rounded text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              >
+                <LogOut size={14} strokeWidth={2} />
+              </button>
+            </div>
           </div>
         </div>
         {/* Sprint 351: banner global quando há timer activo. */}
         <ActiveTimerBanner />
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-6 sm:pl-20">
+      <main className="mx-auto max-w-[1600px] px-4 pb-24 pt-6 sm:pl-20 sm:pr-6">
         <Outlet />
         <div className="mt-12 border-t border-zinc-200 pt-4 text-center text-[11px] text-zinc-400 dark:border-zinc-800">
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
