@@ -17,11 +17,26 @@ applyTheme(getStoredTheme());
 
 // Registar service worker (PWA installable + shell cache).
 // Só em produção — em dev (Vite HMR) seria barrigudo.
+//
+// Sprint 378: auto-update agressivo. Antes o SW (Workbox autoUpdate) servia o bundle antigo
+// em cache até TODAS as tabs fecharem — fazia parecer que os deploys "não mudavam nada".
+// Agora: updateViaCache='none' (re-busca sempre o sw.js), update() periódico, e quando o novo
+// SW toma controlo recarrega a página uma vez → versão nova aparece sozinha em ~minuto.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
+      reg.update();
+      setInterval(() => reg.update(), 60_000);
+    } catch {
       /* silently ignore — não bloqueia a app */
-    });
+    }
   });
 }
 

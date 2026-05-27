@@ -10,13 +10,14 @@ const TONE: Record<KpiTone, string> = {
   zinc: 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 };
 
-// Sprint 376: fundo tonal subtil do card (o "mais cores" pedido pelo Bruno) + borda da cor.
+// Sprint 376/378: fundo tonal SÓLIDO do card (o "mais cores" pedido pelo Bruno) + borda da cor.
+// Tom -100 (light) bem visível, não gradiente esbatido.
 const CARD_TONE: Record<KpiTone, string> = {
-  brand: 'border-brand-200/70 bg-gradient-to-br from-brand-50 to-white dark:border-brand-900/40 dark:from-brand-900/15 dark:to-zinc-900',
-  emerald: 'border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-white dark:border-emerald-900/40 dark:from-emerald-900/15 dark:to-zinc-900',
-  amber: 'border-amber-200/70 bg-gradient-to-br from-amber-50 to-white dark:border-amber-900/40 dark:from-amber-900/15 dark:to-zinc-900',
-  red: 'border-red-200/70 bg-gradient-to-br from-red-50 to-white dark:border-red-900/40 dark:from-red-900/15 dark:to-zinc-900',
-  zinc: 'border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-900',
+  brand: 'border-brand-200 bg-brand-50 dark:border-brand-900/50 dark:bg-brand-900/20',
+  emerald: 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20',
+  amber: 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20',
+  red: 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20',
+  zinc: 'border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900',
 };
 
 /**

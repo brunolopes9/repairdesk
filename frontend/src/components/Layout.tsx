@@ -300,15 +300,15 @@ export default function Layout() {
       <aside
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className={`fixed left-0 top-0 z-30 hidden h-screen border-r border-zinc-200 bg-white/95 backdrop-blur transition-[width] duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-950/95 sm:flex sm:flex-col ${
-          expanded ? 'w-56 shadow-xl shadow-black/5' : 'w-14'
+        className={`fixed left-0 top-0 z-30 hidden h-screen border-r border-slate-800 bg-slate-900 text-slate-300 transition-[width] duration-200 ease-out sm:flex sm:flex-col ${
+          expanded ? 'w-56 shadow-xl shadow-black/20' : 'w-14'
         }`}
       >
         {/* Logo + pin */}
-        <div className="flex h-14 items-center gap-2 border-b border-zinc-200 px-3 dark:border-zinc-800">
-          <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-50 text-brand-600 dark:bg-zinc-800">●</span>
+        <div className="flex h-14 items-center gap-2 border-b border-slate-800 px-3">
+          <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">M</span>
           <span
-            className={`flex-1 truncate text-sm font-semibold transition-opacity ${
+            className={`flex-1 truncate text-sm font-semibold text-white transition-opacity ${
               expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           >
@@ -318,7 +318,7 @@ export default function Layout() {
             <button
               type="button"
               onClick={() => setPinned((p) => !p)}
-              className="rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
+              className="rounded-md p-1 text-slate-400 transition hover:bg-slate-800 hover:text-white"
               aria-label={pinned ? 'Desafixar menu' : 'Fixar menu aberto'}
               title={pinned ? 'Desafixar' : 'Fixar aberto'}
             >
@@ -338,8 +338,8 @@ export default function Layout() {
                       // Sprint 240: highlight quando QUALQUER child está activo (suporta dropdowns
                       // genéricos — antes era hardcoded só /relatorios).
                       item.children.some((c) => location.pathname === c.to || location.pathname.startsWith(c.to + '/'))
-                        ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-400'
-                        : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                        ? 'bg-brand-600 text-white shadow-sm'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                     }`}
                     title={item.label}
                   >
@@ -367,8 +367,8 @@ export default function Layout() {
                             className={({ isActive }) =>
                               `flex h-9 items-center gap-2 rounded-lg px-3 text-sm transition ${
                                 isActive
-                                  ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-400'
-                                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                                  ? 'bg-brand-600 text-white shadow-sm'
+                                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                               }`
                             }
                             title={child.label}
@@ -388,8 +388,8 @@ export default function Layout() {
                   className={({ isActive }) =>
                     `group flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition ${
                       isActive
-                        ? 'bg-brand-50 text-brand-700 dark:bg-zinc-800 dark:text-brand-400'
-                        : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                        ? 'bg-brand-600 text-white shadow-sm'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                     }`
                   }
                   title={item.label}
@@ -423,15 +423,15 @@ export default function Layout() {
         {/* Footer: user + sair (visível só quando expandido) */}
         {user && (
           <div
-            className={`border-t border-zinc-200 p-2 transition-opacity dark:border-zinc-800 ${
+            className={`border-t border-slate-800 p-2 transition-opacity ${
               expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           >
-            <div className="px-3 py-1.5 text-xs text-zinc-500 truncate">{user.displayName}</div>
+            <div className="truncate px-3 py-1.5 text-xs text-slate-400">{user.displayName}</div>
             <button
               type="button"
               onClick={handleLogout}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
             >
               <LogOut size={16} strokeWidth={1.75} aria-hidden />
               <span>Sair</span>
