@@ -34,6 +34,7 @@ public class PartService : IPartService
     private readonly IValidator<CreatePartMovimentoRequest> _movimentoValidator;
     private readonly IWebhookPublisher _webhooks;
     private readonly ITenantContext _tenant;
+    private readonly RepairDesk.Services.Push.IStaffPushQueue _staffPush;
 
     public PartService(
         IPartRepository repo,
@@ -42,7 +43,8 @@ public class PartService : IPartService
         IValidator<UpdatePartRequest> updateValidator,
         IValidator<CreatePartMovimentoRequest> movimentoValidator,
         IWebhookPublisher webhooks,
-        ITenantContext tenant)
+        ITenantContext tenant,
+        RepairDesk.Services.Push.IStaffPushQueue staffPush)
     {
         _repo = repo;
         _reparacoes = reparacoes;
@@ -51,6 +53,7 @@ public class PartService : IPartService
         _webhooks = webhooks;
         _tenant = tenant;
         _movimentoValidator = movimentoValidator;
+        _staffPush = staffPush;
     }
 
     public async Task<PagedResult<PartDto>> SearchAsync(string? query, PartCategoria? categoria, string? marca, bool lowStockOnly, int page, int pageSize, CancellationToken ct = default)
@@ -172,6 +175,19 @@ public class PartService : IPartService
     private async Task PublishCatalogEventAsync(string eventType, Part part, CancellationToken ct)
     {
         if (_tenant.TenantId is not { } tenantId) return;
+
+        // Sprint 367: stock baixo também avisa o staff por push (aqui, num único sítio que
+        // cobre os 3 call sites de detecção). Tag por peça → re-notifica se voltar a baixar.
+        if (eventType == WebhookEvents.PartsStockBaixo)
+        {
+            await _staffPush.EnqueueAsync(new RepairDesk.Services.Push.StaffPushJob(
+                tenantId,
+                "Stock baixo",
+                $"{part.Nome} — restam {part.QtdStock}",
+                "/stock",
+                $"stock-{part.Id}"), ct);
+        }
+
         await _webhooks.PublishAsync(tenantId, eventType, new
         {
             partId = part.Id,

@@ -283,6 +283,7 @@ public class ExternalCheckoutService : IExternalCheckoutService
     private readonly IReparacaoRepository _reparacaoRepo;
     private readonly IProductRepository _products;
     private readonly ITenantRepository _tenants;
+    private readonly RepairDesk.Services.Push.IStaffPushQueue _staffPush;
 
     public ExternalCheckoutService(
         IClienteService clientes,
@@ -295,8 +296,10 @@ public class ExternalCheckoutService : IExternalCheckoutService
         IVendaRepository vendaRepo,
         IReparacaoRepository reparacaoRepo,
         IProductRepository products,
-        ITenantRepository tenants)
+        ITenantRepository tenants,
+        RepairDesk.Services.Push.IStaffPushQueue staffPush)
     {
+        _staffPush = staffPush;
         _clientes = clientes;
         _vendas = vendas;
         _garantias = garantias;
@@ -563,6 +566,18 @@ public class ExternalCheckoutService : IExternalCheckoutService
             },
             _tenant.TenantId,
             ct: ct);
+
+        // Sprint 367: avisa o staff de venda online nova (push). Só origem online — vendas
+        // de balcão não fazem sentido notificar (o staff está lá a fazê-las).
+        if (_tenant.TenantId is { } pushTenant && paga.Venda.Origem == VendaOrigem.Online)
+        {
+            await _staffPush.EnqueueAsync(new RepairDesk.Services.Push.StaffPushJob(
+                pushTenant,
+                "Nova venda online",
+                $"{clienteResp.Cliente.Nome} — {paga.Venda.TotalCents / 100.0:0.00}€",
+                "/vendas",
+                $"venda-{paga.Venda.Id}"), ct);
+        }
 
         // Sprint 127: per-item garantia em dias (loja precisa para /conta/garantias).
         var tenantEntity = _tenant.TenantId is { } tid ? await _tenants.FindByIdAsync(tid, ct) : null;
