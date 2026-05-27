@@ -80,6 +80,7 @@ const nav: NavItem[] = [
     label: 'Compras e Operação',
     icon: Receipt,
     children: [
+      { to: '/compras-operacao', label: 'Visão geral', icon: LayoutDashboard },
       { to: '/compras', label: 'Inbox de faturas', icon: Receipt },
       { to: '/despesas', label: 'Despesas & custos', icon: Banknote },
     ],
