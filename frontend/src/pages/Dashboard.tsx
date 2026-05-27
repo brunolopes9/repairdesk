@@ -284,20 +284,20 @@ function WeeklyCard({
   return (
     <Link
       to={to}
-      className={`group flex min-h-36 flex-col rounded-lg border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-zinc-900 ${cls.border}`}
+      className="group flex min-h-36 flex-col rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm shadow-black/[0.02] transition hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className={`inline-flex items-center gap-2 rounded-md px-2.5 py-1 text-xs font-medium ${cls.soft}`}>
-          <Icon size={14} strokeWidth={2} />
-          {label}
-        </div>
-        <ArrowRight size={15} className="text-zinc-400 transition group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:group-hover:text-zinc-200" />
+        <span className={`grid h-9 w-9 flex-none place-items-center rounded-lg ${cls.icon}`}>
+          <Icon size={18} strokeWidth={2} />
+        </span>
+        <ArrowRight size={15} className="text-zinc-300 transition group-hover:translate-x-0.5 group-hover:text-zinc-600 dark:text-zinc-600 dark:group-hover:text-zinc-300" />
       </div>
+      <p className="mt-3 text-xs font-medium text-zinc-500">{label}</p>
       {loading ? (
-        <Skeleton className="mt-5 h-7 w-24" />
+        <Skeleton className="mt-1 h-7 w-24" />
       ) : (
-        <div className="mt-4 flex items-baseline gap-2">
-          <span className="text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">{value ?? 0}</span>
+        <div className="mt-0.5 flex items-baseline gap-2">
+          <span className="text-2xl font-semibold tabular-nums tracking-tight text-zinc-950 dark:text-zinc-50">{value ?? 0}</span>
           {suffix && <span className="text-xs text-zinc-500">{suffix}</span>}
         </div>
       )}
