@@ -20,6 +20,9 @@ import {
   AreaChart,
   Bar,
   BarChart,
+  Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -74,6 +77,18 @@ const toneClass: Record<Tone, { border: string; icon: string; soft: string; text
   },
 };
 
+// Cores (hex) por estado de reparação — para o donut do pipeline. Roxo do diagnóstico = token design.
+const ESTADO_HEX: Record<RepairStatus, string> = {
+  0: '#2563eb', // Recebido
+  1: '#6941c6', // Diagnóstico
+  2: '#d97706', // Aguarda peça
+  3: '#0891b2', // Em reparação
+  4: '#059669', // Reparado
+  5: '#52525b', // Entregue
+  6: '#9f1239', // Cancelado
+  7: '#7c3aed', // Orçamento
+};
+
 export default function Dashboard() {
   const hojeIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const kpis = useDashboardKpisHoje(hojeIso);
@@ -104,6 +119,23 @@ export default function Dashboard() {
         .slice(0, 8),
     [fila.data],
   );
+
+  // Donut "reparações por estado" — pipeline atual (ativas), derivado da mesma fila (sem queries extra).
+  const estadoBreakdown = useMemo(() => {
+    const ativos = (fila.data?.items ?? []).filter(
+      (r) => r.estado !== REPAIR_STATUS.Entregue && r.estado !== REPAIR_STATUS.Cancelado,
+    );
+    const counts = new Map<RepairStatus, number>();
+    for (const r of ativos) counts.set(r.estado, (counts.get(r.estado) ?? 0) + 1);
+    const ordem: RepairStatus[] = [
+      REPAIR_STATUS.Orcamento, REPAIR_STATUS.Recebido, REPAIR_STATUS.Diagnostico,
+      REPAIR_STATUS.AguardaPeca, REPAIR_STATUS.EmReparacao, REPAIR_STATUS.Pronto,
+    ];
+    return ordem
+      .filter((e) => (counts.get(e) ?? 0) > 0)
+      .map((e) => ({ estado: e, name: STATUS_LABEL[e], value: counts.get(e) ?? 0, color: ESTADO_HEX[e] }));
+  }, [fila.data]);
+  const totalAtivos = estadoBreakdown.reduce((s, d) => s + d.value, 0);
 
   const sparklineData = useMemo(() => {
     const values = kpis.data?.receita7d ?? Array.from({ length: 7 }, () => 0);
@@ -284,6 +316,50 @@ export default function Dashboard() {
             helper="Da ficha criada ate Entregue, nos ultimos 7 dias."
           />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <ZoneHeader
+          eyebrow="Pipeline"
+          title="Reparações por estado"
+          subtitle="Distribuição das reparações em curso (exclui Entregue e Cancelado)."
+        />
+        <SectionCard>
+          {fila.isLoading ? (
+            <div className="h-[220px] animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+          ) : totalAtivos === 0 ? (
+            <EmptyState icon={Wrench} title="Sem reparações em curso" description="Quando entrarem equipamentos, vês aqui a distribuição por estado." />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-[220px_1fr] sm:items-center">
+              <div className="relative h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={estadoBreakdown} dataKey="value" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={2} stroke="none">
+                      {estadoBreakdown.map((d) => <Cell key={d.estado} fill={d.color} />)}
+                    </Pie>
+                    <Tooltip formatter={(v, n) => [`${v} reparações`, String(n)]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold tabular-nums">{totalAtivos}</span>
+                  <span className="text-[11px] text-zinc-500">em curso</span>
+                </div>
+              </div>
+              <ul className="space-y-1.5">
+                {estadoBreakdown.map((d) => (
+                  <li key={d.estado}>
+                    <Link to="/reparacoes" className="flex items-center gap-2.5 rounded-md px-1 py-1 text-sm transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                      <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ backgroundColor: d.color }} />
+                      <span className="flex-1">{d.name}</span>
+                      <span className="tabular-nums font-medium">{d.value}</span>
+                      <span className="w-12 text-right text-xs text-zinc-400">{Math.round((d.value / totalAtivos) * 100)}%</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </SectionCard>
       </section>
 
       <section className="space-y-3">
