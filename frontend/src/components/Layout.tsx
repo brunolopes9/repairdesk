@@ -66,10 +66,24 @@ const nav: NavItem[] = [
   { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   { to: '/agendamentos', label: 'Agendamentos', icon: CalendarClock },
   { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
-  { to: '/despesas', label: 'Despesas', icon: Receipt },
-  { to: '/compras', label: 'Compras', icon: ShoppingCart },
-  { to: '/cash', label: 'Caixa', icon: Banknote },
-  { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
+  // Sprint 381: IA nova — "Balcão" (POS+caixa) e "Compras e Operação" (despesas+compras),
+  // como nas referências IDEIAS. Páginas ricas unificadas vêm a seguir; por agora agrupa.
+  {
+    label: 'Balcão',
+    icon: ShoppingCart,
+    children: [
+      { to: '/vendas', label: 'Venda rápida', icon: ShoppingCart },
+      { to: '/cash', label: 'Caixa de hoje', icon: Banknote },
+    ],
+  },
+  {
+    label: 'Compras e Operação',
+    icon: Receipt,
+    children: [
+      { to: '/compras', label: 'Inbox de faturas', icon: Receipt },
+      { to: '/despesas', label: 'Despesas & custos', icon: Banknote },
+    ],
+  },
   { to: '/stock', label: 'Stock', icon: PackageSearch },
   { to: '/produtos', label: 'Produtos', icon: Smartphone, adminOnly: true },
   { to: '/precos', label: 'Preços', icon: Tags },
