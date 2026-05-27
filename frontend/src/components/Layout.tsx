@@ -17,6 +17,7 @@ import {
   ClipboardList,
   CalendarClock,
   Bell,
+  Plus,
   Settings,
   Webhook,
   Workflow,
@@ -189,6 +190,15 @@ export default function Layout() {
             <span className="hidden text-sm sm:inline">Mender</span>
           </div>
           <div className="flex items-center gap-2">
+            {/* Sprint 379: ação primária no topo (como o mockup) */}
+            <button
+              type="button"
+              onClick={() => navigate('/reparacoes?new=1')}
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700"
+            >
+              <Plus size={16} strokeWidth={2.5} />
+              <span className="hidden sm:inline">Nova reparação</span>
+            </button>
             {/* Pesquisa global — ocupa espaço como uma barra, estilo SaaS */}
             <button
               type="button"
