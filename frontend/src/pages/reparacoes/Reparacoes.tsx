@@ -46,7 +46,7 @@ import {
   type Reparacao,
   type RepairStatus,
 } from '../../lib/reparacoes/types';
-import { formatCents, formatDate } from '../../lib/money';
+import { formatCents } from '../../lib/money';
 import { displayPhone } from '../../lib/phone/formatter';
 
 const TABS: Array<{ value: RepairStatus | null; label: string }> = [
@@ -106,6 +106,7 @@ export default function Reparacoes() {
   const [importOpen, setImportOpen] = useState(false);
   const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [selectedId, setSelectedId] = useState<string | null>(null); // Sprint 399: inspector
 
   const pagasSemFatura = useQuery({
     queryKey: ['reparacoes-pagas-sem-fatura'],
@@ -222,6 +223,9 @@ export default function Reparacoes() {
     { label: 'A RECEBER', value: formatCents(aReceberCents), color: 'text-zinc-900 dark:text-zinc-100' },
   ];
 
+  // Reparação selecionada para o inspector (default: primeira da lista).
+  const selected = items.find((r) => r.id === selectedId) ?? items[0] ?? null;
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -334,41 +338,147 @@ export default function Reparacoes() {
       </div>
 
       {view === 'list' ? (
-        <>
-          <ul className="space-y-2">
-            {list.isLoading && Array.from({ length: 4 }).map((_, index) => <SkeletonCard key={index} />)}
-            {items.map((r) => (
-              <ReparacaoCard
-                key={r.id}
-                r={r}
-                onClick={() => navigate(`/reparacoes/${r.id}`)}
-                onDelete={() => setConfirmDelete(r)}
-              />
-            ))}
-            {items.length === 0 && !list.isLoading && (
-              <li>
-                <EmptyState
-                  icon={search ? Search : Wrench}
-                  title={search ? 'Nenhuma reparacao encontrada' : 'Ainda nao ha reparacoes'}
-                  description={search ? 'Ajusta a pesquisa ou muda o filtro de estado.' : 'Cria a primeira ficha de entrada para acompanhar o equipamento ate a entrega.'}
-                  action={!search ? <Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>Criar reparacao</Button> : undefined}
-                />
-              </li>
-            )}
-          </ul>
-
-          {lastPage > 1 && (
-            <div className="flex items-center justify-between gap-3 text-xs text-zinc-500">
-              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
-                ← Anterior
-              </button>
-              <span>{page} / {lastPage}</span>
-              <button disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">
-                Seguinte →
-              </button>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
+          {/* Coluna esquerda: tabela "Fila" + cards operacionais */}
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                <h2 className="text-sm font-semibold">Fila de reparações</h2>
+                <span className="text-xs text-zinc-500">{total} {total === 1 ? 'reparação' : 'reparações'}</span>
+              </div>
+              {list.isLoading ? (
+                <div className="space-y-2 p-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}</div>
+              ) : items.length === 0 ? (
+                <div className="p-8">
+                  <EmptyState
+                    icon={search ? Search : Wrench}
+                    title={search ? 'Nenhuma reparação encontrada' : 'Ainda não há reparações'}
+                    description={search ? 'Ajusta a pesquisa ou muda o filtro de estado.' : 'Cria a primeira ficha de entrada para acompanhar o equipamento até à entrega.'}
+                    action={!search ? <Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>Criar reparação</Button> : undefined}
+                  />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead className="border-b border-zinc-200 text-[11px] uppercase tracking-wide text-zinc-500 dark:border-zinc-800">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold">Nº</th>
+                        <th className="px-3 py-2 text-left font-semibold">Equipamento</th>
+                        <th className="px-3 py-2 text-left font-semibold">Cliente</th>
+                        <th className="px-3 py-2 text-center font-semibold">Estado</th>
+                        <th className="px-3 py-2 text-right font-semibold">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((r) => {
+                        const cli = r.cliente as { nome?: string; telefone?: string } | null;
+                        const sel = selected?.id === r.id;
+                        return (
+                          <tr
+                            key={r.id}
+                            onClick={() => setSelectedId(r.id)}
+                            className={`cursor-pointer border-b border-zinc-100 last:border-0 dark:border-zinc-800/60 ${sel ? 'bg-sky-50 dark:bg-sky-950/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'}`}
+                          >
+                            <td className="px-3 py-2.5 font-mono text-xs text-zinc-500">#{r.numero}</td>
+                            <td className="px-3 py-2.5">
+                              <div className="font-medium">{r.equipamento}</div>
+                              <div className="max-w-[220px] truncate text-xs text-zinc-500">{r.avaria}</div>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <div className="max-w-[160px] truncate">{cli?.nome ?? '—'}</div>
+                              <div className="text-xs text-zinc-500">{cli?.telefone ? displayPhone(cli.telefone) : ''}</div>
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[r.estado]}`}>{STATUS_LABEL[r.estado]}</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-medium tabular-nums">{formatCents(r.precoFinalCents ?? r.orcamentoCents ?? 0)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {lastPage > 1 && (
+                <div className="flex items-center justify-between gap-3 border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500 dark:border-zinc-800">
+                  <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-md px-2 py-1 disabled:opacity-40">← Anterior</button>
+                  <span>{page} / {lastPage}</span>
+                  <button disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} className="rounded-md px-2 py-1 disabled:opacity-40">Seguinte →</button>
+                </div>
+              )}
             </div>
-          )}
-        </>
+
+            {/* Cards operacionais (mockup): Alertas · Hoje · Ações rápidas */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <h3 className="text-sm font-semibold">Alertas</h3>
+                <div className={`mt-2 rounded-lg px-3 py-2 text-xs font-medium ${semFatura > 0 ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-zinc-50 text-zinc-500 dark:bg-zinc-950'}`}>
+                  {semFatura > 0 ? `${semFatura} reparação(ões) paga(s) sem fatura` : 'Sem alertas — tudo em dia ✓'}
+                </div>
+              </div>
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <h3 className="text-sm font-semibold">Resumo</h3>
+                <dl className="mt-2 space-y-1.5 text-xs">
+                  <div className="flex justify-between"><dt className="text-zinc-500">Em curso</dt><dd className="font-medium tabular-nums">{counts.data?.emCurso ?? 0}</dd></div>
+                  <div className="flex justify-between"><dt className="text-zinc-500">Entregues</dt><dd className="font-medium tabular-nums">{counts.data?.entregues ?? 0}</dd></div>
+                  <div className="flex justify-between"><dt className="text-zinc-500">A receber</dt><dd className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">{formatCents(aReceberCents)}</dd></div>
+                </dl>
+              </div>
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <h3 className="text-sm font-semibold">Ações rápidas</h3>
+                <div className="mt-2 flex flex-col gap-2">
+                  <button type="button" onClick={() => setCreateOpen(true)} className="flex items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700"><Plus size={14} /> Nova reparação</button>
+                  <button type="button" onClick={() => setImportOpen(true)} className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800">Importar CSV</button>
+                  {semFatura > 0 && <button type="button" onClick={() => setPagasSemFaturaOpen(true)} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-900/40 dark:text-amber-300">Emitir faturas pendentes</button>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Inspector (mockup): reparação selecionada */}
+          <aside className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            {!selected ? (
+              <div className="p-8 text-center text-sm text-zinc-500">Seleciona uma reparação à esquerda.</div>
+            ) : (
+              <div>
+                <div className="rounded-t-xl bg-slate-900 p-4 text-white">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">Reparação selecionada</div>
+                  <div className="mt-0.5 flex items-center justify-between gap-2">
+                    <div className="truncate text-base font-semibold">#{selected.numero} · {selected.equipamento}</div>
+                    <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[selected.estado]}`}>{STATUS_LABEL[selected.estado]}</span>
+                  </div>
+                </div>
+                <div className="space-y-4 p-4">
+                  {(() => { const cli = selected.cliente as { nome?: string; telefone?: string } | null; return (
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Cliente</div>
+                      <div className="mt-0.5 font-medium">{cli?.nome ?? '—'}</div>
+                      {cli?.telefone && <div className="text-sm text-zinc-500">{displayPhone(cli.telefone)}</div>}
+                      {cli?.telefone && (
+                        <div className="mt-2 flex gap-2">
+                          <a href={`https://wa.me/${cli.telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">WhatsApp</a>
+                          <a href={`tel:${cli.telefone}`} className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-700">Ligar</a>
+                        </div>
+                      )}
+                    </div>
+                  ); })()}
+                  {selected.avaria && (
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Avaria</div>
+                      <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">{selected.avaria}</p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg border border-zinc-200 p-2.5 text-center dark:border-zinc-800"><div className="text-[10px] uppercase text-zinc-500">Orçamento</div><div className="mt-0.5 text-sm font-bold tabular-nums">{formatCents(selected.orcamentoCents ?? 0)}</div></div>
+                    <div className="rounded-lg border border-zinc-200 p-2.5 text-center dark:border-zinc-800"><div className="text-[10px] uppercase text-zinc-500">Peças</div><div className="mt-0.5 text-sm font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCents(selected.custoPecasCents)}</div></div>
+                    <div className="rounded-lg border border-zinc-200 p-2.5 text-center dark:border-zinc-800"><div className="text-[10px] uppercase text-zinc-500">Lucro</div><div className="mt-0.5 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCents(selected.lucroCents)}</div></div>
+                  </div>
+                  <button type="button" onClick={() => navigate(`/reparacoes/${selected.id}`)} className="w-full rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-brand-700">Abrir ficha completa</button>
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
       ) : (
         <KanbanBoard
           data={kanban.data}
@@ -528,39 +638,6 @@ export default function Reparacoes() {
         )}
       </Modal>
     </div>
-  );
-}
-
-function ReparacaoCard({ r, onClick, onDelete }: { r: Reparacao; onClick: () => void; onDelete: () => void }) {
-  return (
-    <li className="group relative rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <button type="button" onClick={onClick} className="flex w-full flex-col gap-1 p-4 pr-12 text-left">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-mono text-zinc-500">#{r.numero}</span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[r.estado]}`}>
-            {STATUS_LABEL[r.estado]}
-          </span>
-        </div>
-        <div className="font-medium">{r.equipamento}</div>
-        <div className="text-xs text-zinc-500">
-          {r.cliente.nome}{r.cliente.telefone && ` · ${displayPhone(r.cliente.telefone)}`}
-        </div>
-        <div className="text-xs text-zinc-500 line-clamp-1">{r.avaria}</div>
-        <div className="mt-1 flex items-center justify-between text-xs">
-          <span className="text-zinc-500">{formatDate(r.recebidoEm)}</span>
-          <span className="font-medium">{formatCents(r.precoFinalCents ?? r.orcamentoCents)}</span>
-        </div>
-      </button>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="absolute right-2 top-2 grid h-10 w-10 place-items-center rounded-md text-zinc-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
-        aria-label="Apagar reparação"
-        title="Apagar"
-      >
-        ✕
-      </button>
-    </li>
   );
 }
 
