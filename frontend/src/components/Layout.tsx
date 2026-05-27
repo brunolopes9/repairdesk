@@ -33,6 +33,7 @@ import {
   Search,
   SlidersHorizontal,
   UserCog,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
@@ -74,6 +75,7 @@ const nav: NavItem[] = [
     children: [
       { to: '/balcao', label: 'Venda rápida', icon: ShoppingCart },
       { to: '/balcao?tab=caixa', label: 'Caixa de hoje', icon: Banknote },
+      { to: '/balcao?tab=fecho', label: 'Fecho & Z-Reports', icon: Lock },
     ],
   },
   {

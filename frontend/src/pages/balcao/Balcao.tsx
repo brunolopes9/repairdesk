@@ -1,17 +1,19 @@
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ShoppingCart, Wallet } from 'lucide-react';
+import { ShoppingCart, Wallet, Lock } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { cashApi, DAILY_CLOSING_STATUS } from '../../lib/cash/api';
 
 const Vendas = lazy(() => import('../vendas/Vendas'));
 const Cash = lazy(() => import('../cash/Cash'));
+const FechoZReports = lazy(() => import('./FechoZReports'));
 
-type TabKey = 'venda' | 'caixa';
+type TabKey = 'venda' | 'caixa' | 'fecho';
 
 const TABS: Array<{ key: TabKey; label: string; icon: typeof ShoppingCart }> = [
   { key: 'venda', label: 'Venda rápida', icon: ShoppingCart },
   { key: 'caixa', label: 'Caixa de hoje', icon: Wallet },
+  { key: 'fecho', label: 'Fecho & Z-Reports', icon: Lock },
 ];
 
 /**
@@ -22,7 +24,8 @@ const TABS: Array<{ key: TabKey; label: string; icon: typeof ShoppingCart }> = [
  */
 export default function Balcao() {
   const [params, setParams] = useSearchParams();
-  const tab: TabKey = params.get('tab') === 'caixa' ? 'caixa' : 'venda';
+  const tabParam = params.get('tab');
+  const tab: TabKey = tabParam === 'caixa' ? 'caixa' : tabParam === 'fecho' ? 'fecho' : 'venda';
 
   const caixaHoje = useQuery({
     queryKey: ['cash', 'today', null],
@@ -77,7 +80,7 @@ export default function Balcao() {
       </div>
 
       <Suspense fallback={<div className="py-10 text-center text-sm text-zinc-500">A carregar…</div>}>
-        {tab === 'venda' ? <Vendas embedded /> : <Cash embedded />}
+        {tab === 'venda' ? <Vendas embedded /> : tab === 'caixa' ? <Cash embedded /> : <FechoZReports />}
       </Suspense>
     </div>
   );
