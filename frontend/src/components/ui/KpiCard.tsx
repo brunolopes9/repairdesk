@@ -10,15 +10,7 @@ const TONE: Record<KpiTone, string> = {
   zinc: 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 };
 
-// Sprint 376/378: fundo tonal SÓLIDO do card (o "mais cores" pedido pelo Bruno) + borda da cor.
-// Tom -100 (light) bem visível, não gradiente esbatido.
-const CARD_TONE: Record<KpiTone, string> = {
-  brand: 'border-brand-200 bg-brand-50 dark:border-brand-900/50 dark:bg-brand-900/20',
-  emerald: 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20',
-  amber: 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20',
-  red: 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20',
-  zinc: 'border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900',
-};
+// Sprint 380: cards BRANCOS como nas IDEIAS — a cor vem do ícone tonal + sidebar navy + deltas.
 
 /**
  * Sprint 372: cartão KPI do novo dashboard — ícone tonal + label + valor grande (tabular) +
@@ -42,7 +34,7 @@ export function KpiCard({
   tone?: KpiTone;
 }) {
   return (
-    <div className={`rounded-xl border p-4 shadow-sm shadow-black/[0.02] ${CARD_TONE[tone]}`}>
+    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-start justify-between gap-2">
         <span className={`grid h-9 w-9 flex-none place-items-center rounded-lg ${TONE[tone]}`}>
           <Icon size={18} strokeWidth={2} />
