@@ -1,7 +1,8 @@
-import { Workflow, ExternalLink, Mail, Server, Camera, CheckCircle2, AlertCircle, Copy, RefreshCw, Wrench, CalendarCheck } from 'lucide-react';
+import { Workflow, ExternalLink, Mail, Server, Camera, CheckCircle2, AlertCircle, Copy, RefreshCw, Wrench, CalendarCheck, Smartphone } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { toast } from '../../lib/toast';
+import { tacDbApi } from '../../lib/imeiLookup';
 
 /**
  * Sprint 165: doc page para configurar automações (n8n + ingest IMAP/SFTP).
@@ -148,6 +149,9 @@ export default function Automacoes() {
           })()}
         </section>
       )}
+
+      {/* Sprint 390: base TAC para auto-detetar modelo a partir do IMEI. */}
+      <TacDbCard />
 
       {/* Sprint 173: email forwarding ingest per-tenant. */}
       {ingestEmail && (
@@ -332,5 +336,54 @@ function WorkflowCard({
         </ol>
       )}
     </div>
+  );
+}
+
+/**
+ * Sprint 390 (Doc 04): card admin para importar a base TAC (auto-detetar modelo do IMEI) e ver
+ * quantas entradas estão carregadas. Importa um CSV "tac;marca;modelo" (dump aberto Osmocom/MoazEb).
+ */
+function TacDbCard() {
+  const [count, setCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    tacDbApi.status().then((s) => setCount(s.count)).catch(() => { /* não-admin ou erro: ignora */ });
+  }, []);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    try {
+      const res = await tacDbApi.import(file);
+      setCount(res.count);
+      toast.success(`Base TAC importada — ${res.count} modelos`);
+    } catch (err) {
+      toast.fromError(err, 'Não foi possível importar a base TAC.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-violet-200 bg-violet-50/30 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
+      <h2 className="flex items-center gap-2 text-sm font-semibold">
+        <Smartphone size={16} />
+        Auto-detetar modelo por IMEI (base TAC)
+        {count != null && <span className="rounded bg-violet-600 px-2 py-0.5 text-[10px] uppercase text-white">{count} modelos</span>}
+      </h2>
+      <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+        Ao escrever um IMEI na venda, o Mender deteta a marca e modelo automaticamente — offline, sem custos.
+        Importa uma vez um <strong>dump aberto TAC</strong> em CSV <code>tac;marca;modelo</code>
+        {' '}(<a className="underline" href="http://tacdb.osmocom.org/" target="_blank" rel="noopener noreferrer">Osmocom CC-BY-SA</a>
+        {' '}ou <a className="underline" href="https://github.com/MoazEb/tac-database" target="_blank" rel="noopener noreferrer">MoazEb</a>).
+      </p>
+      <label className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+        <ExternalLink size={12} /> {busy ? 'A importar…' : 'Importar CSV TAC'}
+        <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} disabled={busy} />
+      </label>
+    </section>
   );
 }

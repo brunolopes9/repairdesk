@@ -373,6 +373,13 @@ try
     builder.Services.AddScoped<ICatalogReadRepository, RepairDesk.DAL.Persistence.CatalogReadRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Catalog.ICatalogService, RepairDesk.Services.Catalog.CatalogService>();
 
+    // Sprint 390 (Doc 04): lookup TAC→modelo offline. Base num JSON em disco (mountar volume em prod
+    // para sobreviver a redeploys; override via TacDb:Path). Importada pelo admin a partir de dump aberto.
+    var tacDbPath = builder.Configuration["TacDb:Path"]
+        ?? Path.Combine(builder.Environment.ContentRootPath, "Data", "tac-db.json");
+    builder.Services.AddSingleton<RepairDesk.Services.Imei.ITacLookupService>(
+        _ => new RepairDesk.Services.Imei.TacLookupService(tacDbPath));
+
     // Sprint 303: Payments — providers (Mock + IFTHENPAY) + orquestrador.
     builder.Services.AddScoped<IPaymentRepository, RepairDesk.DAL.Persistence.PaymentRepository>();
     builder.Services.AddSingleton<IPaymentProvider, RepairDesk.Services.Payments.MockPaymentProvider>();

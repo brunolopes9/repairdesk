@@ -12,6 +12,7 @@ import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import { PART_CATEGORIA_REQUER_IMEI, type Part } from '../../lib/stock/types';
 import { isValidImei, normalizeImei } from '../../lib/imei';
+import { imeiLookup } from '../../lib/imeiLookup';
 import { Link } from 'react-router-dom';
 import { vendasApi, type VendaImeiLookup, type VendaReparacaoRelacionada } from '../../lib/vendas/api';
 import { STATUS_LABEL, STATUS_COLOR } from '../../lib/reparacoes/types';
@@ -362,6 +363,8 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
 
   // Debounced IMEI duplicate lookup (warning, não bloqueia).
   const [imeiWarnings, setImeiWarnings] = useState<Record<string, VendaImeiLookup | null>>({});
+  // Sprint 390: deteção marca+modelo via TAC (auto-detect). Confirma que o IMEI bate com o produto.
+  const [tacInfo, setTacInfo] = useState<Record<string, { brand: string | null; model: string | null }>>({});
   useEffect(() => {
     const handles: number[] = [];
     cart.forEach((line) => {
@@ -381,6 +384,12 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
           setImeiWarnings((w) => ({ ...w, [line.part.id]: hit }));
         } catch {
           /* silencio — não bloqueia operação */
+        }
+        try {
+          const tac = await imeiLookup(normalizeImei(imei));
+          if (tac.found) setTacInfo((t) => ({ ...t, [line.part.id]: { brand: tac.brand, model: tac.model } }));
+        } catch {
+          /* base TAC vazia ou erro — silencioso */
         }
       }, 400);
       handles.push(h);
@@ -536,6 +545,11 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
                     />
                     {line.imei && !isValidImei(line.imei) && (
                       <div className="text-[10px] text-red-600">IMEI inválido (Luhn falhou).</div>
+                    )}
+                    {tacInfo[line.part.id] && (line.imei && isValidImei(line.imei)) && (
+                      <div className="rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+                        📱 Detetado: <strong>{[tacInfo[line.part.id].brand, tacInfo[line.part.id].model].filter(Boolean).join(' ')}</strong>
+                      </div>
                     )}
                     {imeiWarnings[line.part.id] && (
                       <div className="rounded border border-orange-300 bg-orange-50 px-2 py-1.5 text-[10px] text-orange-900 dark:border-orange-700 dark:bg-orange-950/40 dark:text-orange-200">
