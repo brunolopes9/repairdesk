@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, Package, Plus, RefreshCw, Upload, Wand2, Store } from 'lucide-react';
-import { formatCents } from '../../lib/money';
+import { X, Package, Plus, RefreshCw, Upload, Wand2, Store, Pencil, Check } from 'lucide-react';
+import { formatCents, parseEuros } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { productModelsApi, type ProductModelDto } from '../../lib/productModels/api';
 import { catalogApi, type CatalogParent, type CatalogVariant } from '../../lib/catalog/api';
@@ -34,6 +34,17 @@ export default function CatalogDetailPanel({ parent, onClose }: { parent: Catalo
       toast.fromError(err, 'Não foi possível mudar a visibilidade na loja.');
     } finally {
       setPending((s) => { const n = new Set(s); n.delete(key); return n; });
+    }
+  }
+
+  async function saveFields(v: CatalogVariant, priceCents: number | undefined, stockQuantity: number | undefined) {
+    try {
+      await catalogApi.updateProductFields(v.id, { priceCents, stockQuantity });
+      qc.invalidateQueries({ queryKey: ['catalog'] });
+      toast.success('Variante atualizada');
+    } catch (err) {
+      toast.fromError(err, 'Não foi possível guardar.');
+      throw err;
     }
   }
 
@@ -83,7 +94,7 @@ export default function CatalogDetailPanel({ parent, onClose }: { parent: Catalo
           {tab === 'visao' ? (
             <VisaoGeral parent={parent} model={modelDetail.data} loadingModel={modelDetail.isLoading} />
           ) : (
-            <Variantes variants={parent.variants} lojaOverride={lojaOverride} pending={pending} onToggle={toggleLoja} />
+            <Variantes variants={parent.variants} lojaOverride={lojaOverride} pending={pending} onToggle={toggleLoja} onSaveFields={saveFields} />
           )}
         </div>
 
@@ -172,53 +183,117 @@ function VisaoGeral({ parent, model, loadingModel }: { parent: CatalogParent; mo
 }
 
 function Variantes({
-  variants, lojaOverride, pending, onToggle,
+  variants, lojaOverride, pending, onToggle, onSaveFields,
 }: {
   variants: CatalogVariant[];
   lojaOverride: Record<string, boolean>;
   pending: Set<string>;
   onToggle: (v: CatalogVariant) => void;
+  onSaveFields: (v: CatalogVariant, priceCents: number | undefined, stockQuantity: number | undefined) => Promise<void>;
 }) {
   if (variants.length === 0) return <p className="text-sm italic text-zinc-400">Sem variantes.</p>;
   return (
     <ul className="space-y-2">
       {variants.map((v) => {
-        const descr = [v.cor, v.armazenamento, v.grade].filter(Boolean).join(' · ') || v.sku || '—';
         const key = `${v.kind}-${v.id}`;
-        const loja = lojaOverride[key] ?? v.lojaOnline;
-        const isPending = pending.has(key);
         return (
-          <li key={key} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{descr}</div>
-                <div className="truncate text-xs text-zinc-500">{v.sku ?? 'sem SKU'}{v.fornecedor ? ` · ${v.fornecedor}` : ''}</div>
-              </div>
-              {/* Toggle "loja online" — Sprint 388 */}
-              <button
-                type="button"
-                onClick={() => onToggle(v)}
-                disabled={isPending}
-                role="switch"
-                aria-checked={loja}
-                title={loja ? 'Na loja — clica para esconder' : 'Fora da loja — clica para publicar'}
-                className={`relative inline-flex h-5 w-9 flex-none items-center rounded-full transition disabled:opacity-50 ${loja ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${loja ? 'translate-x-4' : 'translate-x-0.5'}`} />
-              </button>
-            </div>
-            <div className="mt-2 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <span className={`rounded px-1.5 py-0.5 font-medium ${v.tipoStock === 'virtual' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>{v.tipoStock === 'virtual' ? 'Virtual' : 'Físico'}</span>
-                <span className={v.stockCritico ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-zinc-500'}>{v.qtd} un{v.stockCritico ? ' ⚠' : ''}</span>
-                <span className="text-zinc-400">{loja ? 'na loja' : 'oculto'}</span>
-              </div>
-              <span className="font-medium tabular-nums">{v.precoVendaCents != null ? formatCents(v.precoVendaCents) : '—'}</span>
-            </div>
-          </li>
+          <VarianteItem
+            key={key}
+            v={v}
+            loja={lojaOverride[key] ?? v.lojaOnline}
+            isPending={pending.has(key)}
+            onToggle={() => onToggle(v)}
+            onSaveFields={onSaveFields}
+          />
         );
       })}
     </ul>
+  );
+}
+
+function VarianteItem({
+  v, loja, isPending, onToggle, onSaveFields,
+}: {
+  v: CatalogVariant;
+  loja: boolean;
+  isPending: boolean;
+  onToggle: () => void;
+  onSaveFields: (v: CatalogVariant, priceCents: number | undefined, stockQuantity: number | undefined) => Promise<void>;
+}) {
+  const descr = [v.cor, v.armazenamento, v.grade].filter(Boolean).join(' · ') || v.sku || '—';
+  const editavel = v.kind === 'product'; // peças geram-se pelo ledger de stock, não aqui
+  const [editing, setEditing] = useState(false);
+  const [preco, setPreco] = useState('');
+  const [qtd, setQtd] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  function abrir() {
+    setPreco(v.precoVendaCents != null ? (v.precoVendaCents / 100).toFixed(2).replace('.', ',') : '');
+    setQtd(String(v.qtd));
+    setEditing(true);
+  }
+
+  async function guardar() {
+    setSaving(true);
+    try {
+      const priceCents = preco.trim() ? parseEuros(preco) ?? undefined : undefined;
+      const stockQuantity = qtd.trim() ? Math.max(0, Math.trunc(Number(qtd.replace(',', '.')))) : undefined;
+      await onSaveFields(v, priceCents, Number.isFinite(stockQuantity!) ? stockQuantity : undefined);
+      setEditing(false);
+    } catch { /* toast tratado no handler */ }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <li className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium">{descr}</div>
+          <div className="truncate text-xs text-zinc-500">{v.sku ?? 'sem SKU'}{v.fornecedor ? ` · ${v.fornecedor}` : ''}</div>
+        </div>
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={isPending}
+          role="switch"
+          aria-checked={loja}
+          title={loja ? 'Na loja — clica para esconder' : 'Fora da loja — clica para publicar'}
+          className={`relative inline-flex h-5 w-9 flex-none items-center rounded-full transition disabled:opacity-50 ${loja ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+        >
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${loja ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        </button>
+      </div>
+
+      {editing ? (
+        <div className="mt-2 flex items-end gap-2">
+          <label className="grid gap-0.5 text-[11px] text-zinc-500">
+            Preço (€)
+            <input value={preco} onChange={(e) => setPreco(e.target.value)} inputMode="decimal" className="h-8 w-24 rounded border border-zinc-300 px-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+          </label>
+          <label className="grid gap-0.5 text-[11px] text-zinc-500">
+            Stock
+            <input value={qtd} onChange={(e) => setQtd(e.target.value)} inputMode="numeric" className="h-8 w-20 rounded border border-zinc-300 px-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+          </label>
+          <button type="button" onClick={guardar} disabled={saving} className="flex h-8 items-center gap-1 rounded-lg bg-brand-600 px-2.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"><Check size={13} /> {saving ? '…' : 'Guardar'}</button>
+          <button type="button" onClick={() => setEditing(false)} className="grid h-8 w-8 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"><X size={14} /></button>
+        </div>
+      ) : (
+        <div className="mt-2 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className={`rounded px-1.5 py-0.5 font-medium ${v.tipoStock === 'virtual' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>{v.tipoStock === 'virtual' ? 'Virtual' : 'Físico'}</span>
+            <span className={v.stockCritico ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-zinc-500'}>{v.qtd} un{v.stockCritico ? ' ⚠' : ''}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium tabular-nums">{v.precoVendaCents != null ? formatCents(v.precoVendaCents) : '—'}</span>
+            {editavel ? (
+              <button type="button" onClick={abrir} title="Editar preço/stock" className="grid h-6 w-6 place-items-center rounded text-zinc-400 hover:bg-zinc-100 hover:text-brand-600 dark:hover:bg-zinc-800"><Pencil size={12} /></button>
+            ) : (
+              <span className="text-[10px] text-zinc-400" title="O stock de peças gere-se na página Stock (com movimentos)">via Stock</span>
+            )}
+          </div>
+        </div>
+      )}
+    </li>
   );
 }
 

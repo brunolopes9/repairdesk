@@ -85,4 +85,7 @@ export const catalogApi = {
       .post<{ lojaOnline: boolean }>(`/catalog/variant/${kind}/${id}/loja-online`, null, { params: { value } })
       .then((r) => r.data.lojaOnline);
   },
+  updateProductFields(id: string, fields: { priceCents?: number; stockQuantity?: number }) {
+    return api.post<{ ok: boolean }>(`/catalog/variant/product/${id}/fields`, fields).then((r) => r.data);
+  },
 };

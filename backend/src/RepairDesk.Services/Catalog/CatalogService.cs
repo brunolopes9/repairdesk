@@ -10,6 +10,12 @@ public interface ICatalogService
 
     /// <summary>Sprint 388: liga/desliga a visibilidade na loja de uma variante (Product ou Part).</summary>
     Task<bool> SetVariantLojaOnlineAsync(string kind, Guid id, bool value, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 395: edita preço de venda e/ou stock de uma variante de RETAIL (Product). Peças (Part)
+    /// não são editadas aqui — o stock de peças passa pelo ledger de PartMovimento (página Stock).
+    /// </summary>
+    Task UpdateProductFieldsAsync(Guid id, int? priceCents, int? stockQuantity, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -60,6 +66,14 @@ public sealed class CatalogService : ICatalogService
             default:
                 throw new ArgumentException($"kind inválido: {kind}");
         }
+    }
+
+    public async Task UpdateProductFieldsAsync(Guid id, int? priceCents, int? stockQuantity, CancellationToken ct = default)
+    {
+        var p = await _products.FindByIdAsync(id, ct) ?? throw new KeyNotFoundException("Produto não encontrado.");
+        if (priceCents is >= 0) p.PriceCents = priceCents.Value;
+        if (stockQuantity is >= 0) p.StockQuantity = stockQuantity.Value;
+        await _products.SaveAsync(ct);
     }
 
     private static List<CatalogParentDto> BuildParents(CatalogReadData data)

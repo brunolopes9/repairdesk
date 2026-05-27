@@ -46,4 +46,18 @@ public sealed class CatalogController : ControllerBase
         catch (KeyNotFoundException e) { return NotFound(new { error = e.Message }); }
         catch (ArgumentException e) { return BadRequest(new { error = e.Message }); }
     }
+
+    public sealed record UpdateVariantFieldsRequest(int? PriceCents, int? StockQuantity);
+
+    /// <summary>Sprint 395: edita preço/stock de uma variante de retail (Product) direto no catálogo.</summary>
+    [HttpPost("variant/product/{id:guid}/fields")]
+    public async Task<IActionResult> UpdateProductFields(Guid id, [FromBody] UpdateVariantFieldsRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            await _service.UpdateProductFieldsAsync(id, req.PriceCents, req.StockQuantity, ct);
+            return Ok(new { ok = true });
+        }
+        catch (KeyNotFoundException e) { return NotFound(new { error = e.Message }); }
+    }
 }
