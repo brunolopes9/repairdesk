@@ -349,7 +349,13 @@ export default function ReparacaoDetalhe() {
   const remove = useMutation({
     mutationFn: () => reparacoesApi.remove(id!),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['reparacoes'] });
+      // refetchType:'all' força refrescar mesmo as listas inativas (estamos no detalhe),
+      // senão a reparação apagada ficava na lista até F5. Cobre lista, kanban e contadores.
+      qc.removeQueries({ queryKey: ['reparacao', id] });
+      qc.invalidateQueries({ queryKey: ['reparacoes'], refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: ['reparacoes-kanban'], refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: ['reparacoes-counts'], refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: ['reparacoes-pagas-sem-fatura'], refetchType: 'all' });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       navigate('/reparacoes');
     },
