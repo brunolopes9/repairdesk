@@ -6,6 +6,7 @@ import { stockApi } from '../../lib/stock/api';
 import { toast } from '../../lib/toast';
 import { formatCents } from '../../lib/money';
 import { useConfirm } from '../../components/ConfirmDialog';
+import { BackButton } from '../../components/ui';
 
 /**
  * Sprint 353: gestão de kits de peças. Admin define um conjunto pré-definido
@@ -40,6 +41,7 @@ export default function PartKitsPage() {
 
   return (
     <div className="space-y-4">
+      <BackButton to="/definicoes" label="Voltar a Definições" />
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Kits de peças</h1>

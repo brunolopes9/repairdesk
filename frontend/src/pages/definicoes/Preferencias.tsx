@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, CheckCircle2, Eye, Loader2, MessageCircle, RotateCcw, ShoppingCart, Wrench } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import { SkeletonCard } from '../../components/ui';
+import { BackButton, SkeletonCard } from '../../components/ui';
 import { StaffPushToggle } from '../../components/StaffPushToggle';
 import { toast } from '../../lib/toast';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
@@ -193,6 +193,7 @@ export default function Preferencias() {
 
   return (
     <div className="space-y-5">
+      <BackButton to="/definicoes" label="Voltar a Definições" />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Preferências da loja</h1>

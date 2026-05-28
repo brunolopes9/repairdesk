@@ -5,6 +5,7 @@ import { toast } from '../../lib/toast';
 import { tacDbApi } from '../../lib/imeiLookup';
 import { downloadFile } from '../../lib/downloadPdf';
 import { ShieldAlert } from 'lucide-react';
+import { BackButton } from '../../components/ui';
 
 /**
  * Sprint 165: doc page para configurar automações (n8n + ingest IMAP/SFTP).
@@ -84,6 +85,7 @@ export default function Automacoes() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
+      <BackButton to="/definicoes" label="Voltar a Definições" />
       <header className="space-y-2">
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <Workflow size={24} strokeWidth={2} />

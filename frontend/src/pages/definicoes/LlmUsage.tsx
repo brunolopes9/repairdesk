@@ -3,6 +3,7 @@ import { Sparkles, FileText, Camera, AlertCircle, Key, ExternalLink, CheckCircle
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import { toast } from '../../lib/toast';
+import { BackButton } from '../../components/ui';
 
 /**
  * Sprint 167a: dashboard de uso LLM Anthropic. Bruno vê:
@@ -116,6 +117,7 @@ export default function LlmUsage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
+      <BackButton to="/definicoes" label="Voltar a Definições" />
       <header className="space-y-2">
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <Sparkles size={24} strokeWidth={2} />

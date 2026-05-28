@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Copy, History, Plus, RefreshCw, ShieldCheck, Trash2, Webhook } from 'lucide-react';
 import Modal from '../../components/Modal';
 import JsonViewer from '../../components/JsonViewer';
-import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
+import { BackButton, Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import { webhooksApi, type CreateWebhookSubscriptionResponse, type WebhookDelivery, type WebhookSubscription } from '../../lib/webhooks/api';
 import { formatDate } from '../../lib/money';
@@ -94,6 +94,7 @@ export default function Webhooks() {
 
   return (
     <div className="space-y-5">
+      <BackButton to="/definicoes" label="Voltar a Definições" />
       <PageHeader
         title="Webhooks"
         description="Recebe eventos do Mender no teu servidor (loja online, automações). Cada delivery é assinada com HMAC-SHA256 para verificares autenticidade."

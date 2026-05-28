@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, CheckCircle2, Mail, Phone, Plus, Trash2, XCircle } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { Button, EmptyState, PageHeader, SkeletonRow } from '../../components/ui';
+import { BackButton, Button, EmptyState, PageHeader, SkeletonRow } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import { fornecedoresApi, type Fornecedor, type FornecedorWriteRequest } from '../../lib/fornecedores/api';
 
@@ -60,6 +60,7 @@ export default function Fornecedores() {
 
   return (
     <div className="space-y-5">
+      <BackButton to="/definicoes" label="Voltar a Definições" />
       <PageHeader
         title="Fornecedores"
         description="Fornecedores B2B (Molano, Tudo4Mobile, etc) com contactos RMA e garantia padrão. Usados em encomendas e compras de peças."

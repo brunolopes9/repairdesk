@@ -4,7 +4,7 @@ import { Shield, UserCog } from 'lucide-react';
 import { toast } from '../../lib/toast';
 import { usersApi } from '../../lib/users/api';
 import { APP_ROLES, ROLE_DESCRIPTION, ROLE_LABEL, type UserListItem } from '../../lib/users/types';
-import { PageHeader, SkeletonTable, Button } from '../../components/ui';
+import { BackButton, PageHeader, SkeletonTable, Button } from '../../components/ui';
 
 export default function UsersDefinicoes() {
   const qc = useQueryClient();
@@ -17,6 +17,7 @@ export default function UsersDefinicoes() {
 
   return (
     <div className="space-y-4">
+      <BackButton to="/definicoes" label="Voltar a Definições" />
       <PageHeader
         title="Utilizadores"
         description="Gestão de roles dos utilizadores do tenant. Sprint 311 (Doc 72 Fase D)."
