@@ -223,8 +223,57 @@ export default function Reparacoes() {
     { label: 'A RECEBER', value: formatCents(aReceberCents), color: 'text-zinc-900 dark:text-zinc-100' },
   ];
 
-  // Reparação selecionada para o inspector (default: primeira da lista).
-  const selected = items.find((r) => r.id === selectedId) ?? items[0] ?? null;
+  // Pool p/ o inspector: na lista = items; no kanban = items achatados das 5 colunas.
+  // Permite ver o inspector em ambos os modos (fiel ao IDEIAS 2.png).
+  const kanbanFlat: Reparacao[] = kanban.data ? Array.from(kanban.data.values()).flat() : [];
+  const inspectorPool = view === 'kanban' && kanbanFlat.length > 0 ? kanbanFlat : items;
+  const selected = inspectorPool.find((r) => r.id === selectedId) ?? inspectorPool[0] ?? null;
+
+  // Inspector extraído para variável: reutilizado nos modos lista E kanban.
+  const inspectorAside = (
+    <aside className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      {!selected ? (
+        <div className="p-8 text-center text-sm text-zinc-500">Seleciona uma reparação.</div>
+      ) : (
+        <div>
+          <div className="rounded-t-xl bg-slate-900 p-4 text-white">
+            <div className="text-[10px] uppercase tracking-wide text-slate-400">Reparação selecionada</div>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <div className="truncate text-base font-semibold">#{selected.numero} · {selected.equipamento}</div>
+              <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[selected.estado]}`}>{STATUS_LABEL[selected.estado]}</span>
+            </div>
+          </div>
+          <div className="space-y-4 p-4">
+            {(() => { const cli = selected.cliente as { nome?: string; telefone?: string } | null; return (
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Cliente</div>
+                <div className="mt-0.5 font-medium">{cli?.nome ?? '—'}</div>
+                {cli?.telefone && <div className="text-sm text-zinc-500">{displayPhone(cli.telefone)}</div>}
+                {cli?.telefone && (
+                  <div className="mt-2 flex gap-2">
+                    <a href={`https://wa.me/${cli.telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">WhatsApp</a>
+                    <a href={`tel:${cli.telefone}`} className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-700">Ligar</a>
+                  </div>
+                )}
+              </div>
+            ); })()}
+            {selected.avaria && (
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Avaria</div>
+                <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">{selected.avaria}</p>
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border border-zinc-200 p-2.5 text-center dark:border-zinc-800"><div className="text-[10px] uppercase text-zinc-500">Orçamento</div><div className="mt-0.5 text-sm font-bold tabular-nums">{formatCents(selected.orcamentoCents ?? 0)}</div></div>
+              <div className="rounded-lg border border-zinc-200 p-2.5 text-center dark:border-zinc-800"><div className="text-[10px] uppercase text-zinc-500">Peças</div><div className="mt-0.5 text-sm font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCents(selected.custoPecasCents)}</div></div>
+              <div className="rounded-lg border border-zinc-200 p-2.5 text-center dark:border-zinc-800"><div className="text-[10px] uppercase text-zinc-500">Lucro</div><div className="mt-0.5 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCents(selected.lucroCents)}</div></div>
+            </div>
+            <button type="button" onClick={() => navigate(`/reparacoes/${selected.id}`)} className="w-full rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-brand-700">Abrir ficha completa</button>
+          </div>
+        </div>
+      )}
+    </aside>
+  );
 
   return (
     <div className="space-y-4">
@@ -435,59 +484,22 @@ export default function Reparacoes() {
             </div>
           </div>
 
-          {/* Inspector (mockup): reparação selecionada */}
-          <aside className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            {!selected ? (
-              <div className="p-8 text-center text-sm text-zinc-500">Seleciona uma reparação à esquerda.</div>
-            ) : (
-              <div>
-                <div className="rounded-t-xl bg-slate-900 p-4 text-white">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">Reparação selecionada</div>
-                  <div className="mt-0.5 flex items-center justify-between gap-2">
-                    <div className="truncate text-base font-semibold">#{selected.numero} · {selected.equipamento}</div>
-                    <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[selected.estado]}`}>{STATUS_LABEL[selected.estado]}</span>
-                  </div>
-                </div>
-                <div className="space-y-4 p-4">
-                  {(() => { const cli = selected.cliente as { nome?: string; telefone?: string } | null; return (
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Cliente</div>
-                      <div className="mt-0.5 font-medium">{cli?.nome ?? '—'}</div>
-                      {cli?.telefone && <div className="text-sm text-zinc-500">{displayPhone(cli.telefone)}</div>}
-                      {cli?.telefone && (
-                        <div className="mt-2 flex gap-2">
-                          <a href={`https://wa.me/${cli.telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">WhatsApp</a>
-                          <a href={`tel:${cli.telefone}`} className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-700">Ligar</a>
-                        </div>
-                      )}
-                    </div>
-                  ); })()}
-                  {selected.avaria && (
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Avaria</div>
-                      <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">{selected.avaria}</p>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-lg border border-zinc-200 p-2.5 text-center dark:border-zinc-800"><div className="text-[10px] uppercase text-zinc-500">Orçamento</div><div className="mt-0.5 text-sm font-bold tabular-nums">{formatCents(selected.orcamentoCents ?? 0)}</div></div>
-                    <div className="rounded-lg border border-zinc-200 p-2.5 text-center dark:border-zinc-800"><div className="text-[10px] uppercase text-zinc-500">Peças</div><div className="mt-0.5 text-sm font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCents(selected.custoPecasCents)}</div></div>
-                    <div className="rounded-lg border border-zinc-200 p-2.5 text-center dark:border-zinc-800"><div className="text-[10px] uppercase text-zinc-500">Lucro</div><div className="mt-0.5 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCents(selected.lucroCents)}</div></div>
-                  </div>
-                  <button type="button" onClick={() => navigate(`/reparacoes/${selected.id}`)} className="w-full rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-brand-700">Abrir ficha completa</button>
-                </div>
-              </div>
-            )}
-          </aside>
+          {/* Inspector (mockup): reparação selecionada — extraído acima */}
+          {inspectorAside}
         </div>
       ) : (
-        <KanbanBoard
-          data={kanban.data}
-          loading={kanban.isLoading}
-          onMove={(id, to) => changeEstado.mutate({ id, estado: to })}
-          onCardClick={(id) => navigate(`/reparacoes/${id}`)}
-          pending={changeEstado.isPending}
-          staleDaysThreshold={preferences.data?.communication.staleDaysThreshold ?? 7}
-        />
+        // Kanban + inspector lado a lado (fiel ao IDEIAS 2.png)
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
+          <KanbanBoard
+            data={kanban.data}
+            loading={kanban.isLoading}
+            onMove={(id, to) => changeEstado.mutate({ id, estado: to })}
+            onCardClick={(id) => setSelectedId(id)}
+            pending={changeEstado.isPending}
+            staleDaysThreshold={preferences.data?.communication.staleDaysThreshold ?? 7}
+          />
+          {inspectorAside}
+        </div>
       )}
 
       <CreateReparacaoModal
