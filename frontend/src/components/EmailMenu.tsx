@@ -54,7 +54,7 @@ export default function EmailMenu({ email, vars, estado, staleDays, showAll = fa
     try {
       const { subject, body } = template.build(vars);
       const url = mailtoLink(email, subject, body);
-      window.location.href = url;
+      window.location.assign(url);
       setOpen(false);
       setPreview(null);
     } catch (err) {
