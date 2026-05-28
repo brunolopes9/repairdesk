@@ -104,7 +104,9 @@ export default function Reparacoes() {
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Reparacao | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(false);
+  // Sprint 414: ?openPagasSemFatura=1 abre o modal de bulk-emit ao chegar via "Alertas importantes" do Dashboard.
+  const initialPagasOpen = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('openPagasSemFatura') === '1';
+  const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(initialPagasOpen);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null); // Sprint 399: inspector
 
