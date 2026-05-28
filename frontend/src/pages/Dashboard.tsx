@@ -119,6 +119,13 @@ export default function Dashboard() {
     queryFn: () => vendasApi.list({ pageSize: 10 }),
     staleTime: 60_000,
   });
+
+  // Sprint 410: faturas pendentes (reparações pagas sem fatura Moloni) — alimenta "Alertas importantes".
+  const pagasSemFatura = useQuery({
+    queryKey: ['dashboard-pagas-sem-fatura'],
+    queryFn: () => reparacoesApi.listPagasSemFatura(100),
+    staleTime: 60_000,
+  });
   const filaItems = useMemo(
     () =>
       (fila.data?.items ?? [])
@@ -347,7 +354,7 @@ export default function Dashboard() {
           title="Reparações por estado"
           subtitle="Distribuição das reparações em curso e últimos eventos da loja."
         />
-        <div className="grid gap-3 xl:grid-cols-[1fr_360px]">
+        <div className="grid gap-3 xl:grid-cols-[1fr_320px_280px]">
         <SectionCard title="Reparações por estado">
           {fila.isLoading ? (
             <div className="h-[220px] animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
@@ -408,6 +415,55 @@ export default function Dashboard() {
               ))}
             </ul>
           )}
+        </SectionCard>
+
+        <SectionCard title="Alertas importantes">
+          {garantias.isLoading || reabastecer.isLoading || pagasSemFatura.isLoading ? (
+            <p className="text-sm text-zinc-400">A carregar…</p>
+          ) : (() => {
+            const expiramGar = garantias.data?.expiramEm30Dias ?? 0;
+            const stockCritico = kpis.data?.stockCriticoCount ?? 0;
+            const faturasPend = pagasSemFatura.data?.length ?? 0;
+            const totalAlertas = expiramGar + stockCritico + faturasPend;
+            if (totalAlertas === 0) return <p className="py-6 text-center text-sm text-zinc-500">Sem alertas — tudo em dia ✓</p>;
+            return (
+              <ul className="space-y-2">
+                {expiramGar > 0 && (
+                  <li>
+                    <Link to="/reparacoes" className="flex items-center gap-2.5 rounded-lg bg-amber-50 px-2.5 py-2 text-sm transition hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300"><ShieldCheck size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-amber-900 dark:text-amber-100">{expiramGar} garantia{expiramGar === 1 ? '' : 's'} a expirar</span>
+                        <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Próximos 30 dias</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {stockCritico > 0 && (
+                  <li>
+                    <Link to="/stock" className="flex items-center gap-2.5 rounded-lg bg-rose-50 px-2.5 py-2 text-sm transition hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300"><AlertTriangle size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-rose-900 dark:text-rose-100">{stockCritico} peça{stockCritico === 1 ? '' : 's'} em stock crítico</span>
+                        <span className="block text-[11px] text-rose-700/80 dark:text-rose-300/80">Repor antes que falte na bancada</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {faturasPend > 0 && (
+                  <li>
+                    <Link to="/reparacoes" className="flex items-center gap-2.5 rounded-lg bg-amber-50 px-2.5 py-2 text-sm transition hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300"><Euro size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-amber-900 dark:text-amber-100">{faturasPend} reparação{faturasPend === 1 ? '' : 'ões'} paga{faturasPend === 1 ? '' : 's'} sem fatura</span>
+                        <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Emitir no Moloni para fechar</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            );
+          })()}
         </SectionCard>
         </div>
       </section>
