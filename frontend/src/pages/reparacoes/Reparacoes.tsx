@@ -60,6 +60,22 @@ const TABS: Array<{ value: RepairStatus | null; label: string }> = [
   { value: 5, label: 'Entregues' },
 ];
 
+// Sprint 417 (Doc 90 Tier 2): separa orçamentos/em-curso/histórico em buckets visuais.
+// Resolve a queixa do Bruno de ter tudo ao monte em /reparacoes quando começa a ter volume.
+type Bucket = 'orcamentos' | 'emcurso' | 'historico';
+const BUCKETS: Array<{ key: Bucket; label: string; estados: RepairStatus[] }> = [
+  { key: 'orcamentos', label: 'Orçamentos', estados: [7] },
+  { key: 'emcurso', label: 'Em curso', estados: [0, 1, 2, 3, 4] },
+  { key: 'historico', label: 'Histórico', estados: [5, 6] },
+];
+function tabsForBucket(b: Bucket): typeof TABS {
+  const allowed = BUCKETS.find((x) => x.key === b)!.estados;
+  return [
+    { value: null, label: b === 'historico' ? 'Todos' : 'Todas' },
+    ...TABS.filter((t) => t.value !== null && allowed.includes(t.value)),
+  ];
+}
+
 // Sprint 398 (Doc 88): tom de cor por estado nos chips de filtro (fiel ao mockup).
 const CHIP_TONE: Record<number, 'blue' | 'amber' | 'green' | 'chip'> = {
   [-1]: 'blue', // Todas
@@ -98,7 +114,9 @@ export default function Reparacoes() {
   const [view, setView] = useState<ViewMode>(() => {
     try { return (localStorage.getItem(VIEW_KEY) as ViewMode) || 'list'; } catch { return 'list'; }
   });
+  const [bucket, setBucket] = useState<Bucket>('emcurso');
   const [estado, setEstado] = useState<RepairStatus | null>(null);
+  function setBucketTo(b: Bucket) { setBucket(b); setEstado(null); setPage(1); }
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
@@ -190,7 +208,11 @@ export default function Reparacoes() {
     ...liveListOptions,
   });
 
-  const items = list.data?.items ?? [];
+  const rawItems = list.data?.items ?? [];
+  // Sprint 417: quando o utilizador não escolheu estado específico, filtramos client-side
+  // pelos estados do bucket activo. Mantém compat com toda a UI que usa `items`.
+  const allowedBucketEstados = BUCKETS.find((b) => b.key === bucket)!.estados;
+  const items = estado != null ? rawItems : rawItems.filter((r) => allowedBucketEstados.includes(r.estado));
   const total = list.data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / 20));
 
@@ -199,7 +221,7 @@ export default function Reparacoes() {
   const counts = useQuery({
     queryKey: ['reparacoes-counts'],
     queryFn: async () => {
-      const estados: RepairStatus[] = [0, 1, 2, 3, 4, 5];
+      const estados: RepairStatus[] = [0, 1, 2, 3, 4, 5, 6, 7];
       const totais = await Promise.all(
         estados.map((e) => reparacoesApi.list({ estado: e, pageSize: 1 }).then((p) => [e, p.total] as const)),
       );
@@ -208,6 +230,9 @@ export default function Reparacoes() {
         emCurso: (m.get(0) ?? 0) + (m.get(1) ?? 0) + (m.get(2) ?? 0) + (m.get(3) ?? 0) + (m.get(4) ?? 0),
         diagnostico: m.get(1) ?? 0,
         entregues: m.get(5) ?? 0,
+        orcamentos: m.get(7) ?? 0,
+        historico: (m.get(5) ?? 0) + (m.get(6) ?? 0),
+        byEstado: m,
       };
     },
     staleTime: 30_000,
@@ -351,11 +376,42 @@ export default function Reparacoes() {
         </div>
       )}
 
-      {/* Chips de filtro por estado, coloridos (mockup) */}
+      {/* Sprint 417: 3 abas — Orçamentos · Em curso · Histórico — separam pipeline comercial vs trabalho vs arquivo */}
+      {view === 'list' && (
+        <div className="border-b border-zinc-200 dark:border-zinc-800">
+          <div className="flex gap-1">
+            {BUCKETS.map((b) => {
+              const countBucket = b.key === 'orcamentos'
+                ? (counts.data?.orcamentos ?? 0)
+                : b.key === 'emcurso'
+                  ? (counts.data?.emCurso ?? 0)
+                  : (counts.data?.historico ?? 0);
+              const active = bucket === b.key;
+              return (
+                <button
+                  key={b.key}
+                  type="button"
+                  onClick={() => setBucketTo(b.key)}
+                  className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
+                    active
+                      ? 'border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-300'
+                      : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  {b.label}
+                  <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'}`}>{countBucket}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Chips de filtro por estado, coloridos (mockup) — filtrados ao bucket activo */}
       {view === 'list' && (
         <div className="-mx-4 overflow-x-auto px-4 pb-1">
           <div className="flex gap-2">
-            {TABS.map((t) => {
+            {tabsForBucket(bucket).map((t) => {
               const active = t.value === estado;
               const tone = CHIP_TONE[t.value ?? -1] ?? 'chip';
               const base = active ? CHIP_ACTIVE[tone] : CHIP_IDLE[tone];
