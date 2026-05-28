@@ -126,6 +126,18 @@ export default function Dashboard() {
     queryFn: () => reparacoesApi.listPagasSemFatura(100),
     staleTime: 60_000,
   });
+
+  // Sprint 412 (IDEIAS 1): receita por categoria — donut com dados reais do backend (mês corrente).
+  const dashboardCurrent = useQuery({
+    queryKey: ['dashboard-current'],
+    queryFn: () => dashboardApi.current(),
+    staleTime: 5 * 60_000,
+  });
+  const RECEITA_HEX = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#c73535', '#52525b'];
+  const receitaData = (dashboardCurrent.data?.receitaPorCategoria ?? []).map((c, i) => ({
+    name: c.label, value: c.totalCents, color: RECEITA_HEX[i % RECEITA_HEX.length],
+  }));
+  const receitaTotal = receitaData.reduce((s, d) => s + d.value, 0);
   const filaItems = useMemo(
     () =>
       (fila.data?.items ?? [])
@@ -354,7 +366,42 @@ export default function Dashboard() {
           title="Reparações por estado"
           subtitle="Distribuição das reparações em curso e últimos eventos da loja."
         />
-        <div className="grid gap-3 xl:grid-cols-[1fr_320px_280px]">
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+        <SectionCard title="Receita por categoria">
+          {dashboardCurrent.isLoading ? (
+            <div className="h-[220px] animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+          ) : receitaTotal === 0 ? (
+            <EmptyState icon={Euro} title="Sem receita este mês" description="Quando entrar a primeira reparação paga ou venda, aparece aqui a distribuição." />
+          ) : (
+            <div className="space-y-3">
+              <div className="relative h-[180px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={receitaData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={75} paddingAngle={2} stroke="none">
+                      {receitaData.map((d) => <Cell key={d.name} fill={d.color} />)}
+                    </Pie>
+                    <Tooltip formatter={(v, n) => [formatCents(Number(v)), String(n)]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-lg font-bold tabular-nums">{formatCents(receitaTotal)}</span>
+                  <span className="text-[10px] text-zinc-500">mês corrente</span>
+                </div>
+              </div>
+              <ul className="space-y-1">
+                {receitaData.map((d) => (
+                  <li key={d.name} className="flex items-center gap-2 text-xs">
+                    <span className="h-2 w-2 flex-none rounded-full" style={{ backgroundColor: d.color }} />
+                    <span className="flex-1 truncate">{d.name}</span>
+                    <span className="tabular-nums font-medium">{formatCents(d.value)}</span>
+                    <span className="w-10 text-right text-zinc-400">{Math.round((d.value / receitaTotal) * 100)}%</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </SectionCard>
+
         <SectionCard title="Reparações por estado">
           {fila.isLoading ? (
             <div className="h-[220px] animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
