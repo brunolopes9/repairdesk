@@ -26,6 +26,7 @@ export default function Stock() {
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState<PartCategoria | null>(null);
   const [marca, setMarca] = useState<string | null>(null);
+  const [fornecedor, setFornecedor] = useState<string | null>(null);
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
@@ -49,6 +50,14 @@ export default function Stock() {
     staleTime: 60_000,
   });
 
+  // Sprint 408: filtro Fornecedor (lista canónica registada em Definições > Fornecedores).
+  // Backend stockApi.list ainda não tem filtro fornecedor, por isso filtramos client-side.
+  const fornecedores = useQuery({
+    queryKey: ['fornecedores'],
+    queryFn: () => fornecedoresApi.list(),
+    staleTime: 60_000,
+  });
+
   const remove = useMutation({
     mutationFn: (part: Part) => stockApi.remove(part.id),
     onSuccess: () => {
@@ -68,8 +77,10 @@ export default function Stock() {
   const items = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const totalStockCents = items.reduce((sum, p) => sum + p.valorTotalStockCents, 0);
-  const lowCount = items.filter((p) => p.stockBaixo).length;
+  // displayItems = items + filtro client-side de fornecedor (limitado à página atual).
+  const displayItems = fornecedor ? items.filter((p) => p.fornecedor === fornecedor) : items;
+  const totalStockCents = displayItems.reduce((sum, p) => sum + p.valorTotalStockCents, 0);
+  const lowCount = displayItems.filter((p) => p.stockBaixo).length;
 
   return (
     <div className="space-y-4">
@@ -154,6 +165,15 @@ export default function Stock() {
             <option value="">Todas marcas</option>
             {marcas.data?.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
+          <select
+            value={fornecedor ?? ''}
+            onChange={(e) => { setFornecedor(e.target.value || null); setPage(1); }}
+            className={inputCls}
+            title="Filtrar por fornecedor (client-side, nesta página)"
+          >
+            <option value="">Todos fornecedores</option>
+            {fornecedores.data?.map((f) => <option key={f.id} value={f.name}>{f.name}</option>)}
+          </select>
           <label className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
             <input
               type="checkbox"
@@ -181,7 +201,7 @@ export default function Stock() {
       )}
 
       {list.isLoading ? (
-        <SkeletonTable columns={9} rows={8} minWidth="min-w-[920px]" />
+        <SkeletonTable columns={10} rows={8} minWidth="min-w-[920px]" />
       ) : (
       <section className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <table className="min-w-[920px] text-sm">
@@ -190,6 +210,7 @@ export default function Stock() {
               <th className="px-3 py-2">SKU</th>
               <th className="px-3 py-2">Peça</th>
               <th className="px-3 py-2">Marca / Modelo</th>
+              <th className="px-3 py-2">Fornecedor</th>
               <th className="px-3 py-2 text-right">Stock</th>
               <th className="px-3 py-2 text-right">Mín.</th>
               <th className="px-3 py-2 text-right">Custo</th>
@@ -199,7 +220,7 @@ export default function Stock() {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {items.map((part) => (
+            {displayItems.map((part) => (
               <tr key={part.id} className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${!part.activo ? 'opacity-50' : ''}`}>
                 <td className="px-3 py-2 font-mono text-xs text-zinc-500">{part.sku ?? '—'}</td>
                 <td className="px-3 py-2">
@@ -216,6 +237,7 @@ export default function Stock() {
                   <div>{part.marca ?? '—'}</div>
                   <div className="text-xs text-zinc-500">{part.modelo ?? '—'}</div>
                 </td>
+                <td className="px-3 py-2 text-zinc-600 dark:text-zinc-300">{part.fornecedor ?? <span className="text-zinc-300 dark:text-zinc-600">—</span>}</td>
                 <td className={`px-3 py-2 text-right font-semibold tabular-nums ${part.stockBaixo ? 'text-amber-700 dark:text-amber-300' : ''}`}>{part.qtdStock}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-zinc-500">{part.qtdMinima}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCents(part.custoUnitarioCents)}</td>
@@ -239,10 +261,10 @@ export default function Stock() {
                 </td>
               </tr>
             ))}
-            {items.length === 0 && !list.isLoading && (
+            {displayItems.length === 0 && !list.isLoading && (
               <tr>
-                <td colSpan={9} className="px-3 py-2">
-                  {search || categoria != null || marca || lowStockOnly ? (
+                <td colSpan={10} className="px-3 py-2">
+                  {search || categoria != null || marca || fornecedor || lowStockOnly ? (
                     <EmptyState
                       icon={Search}
                       title="Sem peças para estes filtros"
