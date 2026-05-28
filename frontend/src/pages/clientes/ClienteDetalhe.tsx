@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Download, Mail, MessageCircle, Pencil, Phone, ShieldAlert } from 'lucide-react';
 import { displayPhone } from '../../lib/phone/formatter';
 import Modal from '../../components/Modal';
-import { Breadcrumb, Button, SkeletonCard } from '../../components/ui';
+import { BackButton, Breadcrumb, Button, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { STATUS_COLOR, STATUS_LABEL, type Reparacao } from '../../lib/reparacoes/types';
@@ -146,6 +146,7 @@ export default function ClienteDetalhe() {
 
   return (
     <div className="space-y-5">
+      <BackButton to="/clientes" label="Voltar a Clientes" />
       <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <Breadcrumb
           items={[

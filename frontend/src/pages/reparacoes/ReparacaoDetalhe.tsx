@@ -16,7 +16,7 @@ import EquipmentFieldsForm, {
 import FotosReparacao from '../../components/FotosReparacao';
 import Modal from '../../components/Modal';
 import WhatsAppMenu from '../../components/WhatsAppMenu';
-import { Breadcrumb, SkeletonCard } from '../../components/ui';
+import { BackButton, Breadcrumb, SkeletonCard } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import { displayPhone } from '../../lib/phone/formatter';
@@ -477,6 +477,7 @@ export default function ReparacaoDetalhe() {
 
   return (
     <div className="space-y-5">
+      <BackButton to="/reparacoes" label="Voltar a Reparações" />
       <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <Breadcrumb
           items={[

@@ -7,7 +7,7 @@ import { isAxiosError } from 'axios';
 import DespesasImputadas from '../../components/DespesasImputadas';
 import Modal from '../../components/Modal';
 import WhatsAppMenu from '../../components/WhatsAppMenu';
-import { Breadcrumb, SkeletonCard } from '../../components/ui';
+import { BackButton, Breadcrumb, SkeletonCard } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { templatesForTrabalhoStatus } from '../../lib/whatsapp/templates';
@@ -257,6 +257,7 @@ export default function TrabalhoDetalhe() {
 
   return (
     <div className="space-y-5">
+      <BackButton to="/trabalhos" label="Voltar a Trabalhos" />
       <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <Breadcrumb
           items={[
