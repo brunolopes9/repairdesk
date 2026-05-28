@@ -488,7 +488,7 @@ export default function Dashboard() {
                 )}
                 {stockCritico > 0 && (
                   <li>
-                    <Link to="/stock" className="flex items-center gap-2.5 rounded-lg bg-rose-50 px-2.5 py-2 text-sm transition hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/60">
+                    <Link to="/stock?lowStockOnly=1" className="flex items-center gap-2.5 rounded-lg bg-rose-50 px-2.5 py-2 text-sm transition hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/60">
                       <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300"><AlertTriangle size={14} /></span>
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium text-rose-900 dark:text-rose-100">{stockCritico} peça{stockCritico === 1 ? '' : 's'} em stock crítico</span>

@@ -23,11 +23,13 @@ const PAGE_SIZE = 50;
 
 export default function Stock() {
   const qc = useQueryClient();
+  // Sprint 413: lê ?lowStockOnly=1 da URL para o atalho "Stock crítico" do Dashboard alertas pré-filtrar.
+  const initialLowStock = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('lowStockOnly') === '1';
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState<PartCategoria | null>(null);
   const [marca, setMarca] = useState<string | null>(null);
   const [fornecedor, setFornecedor] = useState<string | null>(null);
-  const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [lowStockOnly, setLowStockOnly] = useState(initialLowStock);
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [pdfTextSnippet, setPdfTextSnippet] = useState<string | null>(null);
