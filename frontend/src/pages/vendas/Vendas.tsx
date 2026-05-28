@@ -63,6 +63,8 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
   const [novoClienteOpen, setNovoClienteOpen] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PAYMENT_METHOD.MBWay);
+  // Sprint 411 (IDEIAS 3): valor recebido em dinheiro → calcula troco. Só visível com Dinheiro.
+  const [recebidoCents, setRecebidoCents] = useState(0);
   const [lastVenda, setLastVenda] = useState<Venda | null>(null);
   // Sprint 303 Fase D: venda pendente de cobrança via IFTHENPAY (criada no backend
   // mas ainda não marcada paga — aguarda webhook ou polling). null = sem modal aberto.
@@ -655,6 +657,33 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
                 </button>
               ))}
             </div>
+            {paymentMethod === PAYMENT_METHOD.Dinheiro && (
+              <div className="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-900/60">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="recebido" className="text-xs text-zinc-500">Recebido</label>
+                  <input
+                    id="recebido"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    inputMode="decimal"
+                    value={recebidoCents > 0 ? (recebidoCents / 100).toFixed(2) : ''}
+                    onChange={(e) => {
+                      const euros = parseFloat(e.target.value.replace(',', '.'));
+                      setRecebidoCents(Number.isFinite(euros) && euros > 0 ? Math.round(euros * 100) : 0);
+                    }}
+                    placeholder="0,00"
+                    className="h-8 w-28 rounded border border-zinc-300 bg-white px-2 text-right text-sm tabular-nums focus:border-brand-500 focus:ring-1 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950"
+                  />
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <span className="text-xs text-zinc-500">Troco</span>
+                  <span className={`text-sm font-semibold tabular-nums ${recebidoCents === 0 ? 'text-zinc-400' : recebidoCents >= totalCents ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {recebidoCents === 0 ? '—' : recebidoCents >= totalCents ? formatCents(recebidoCents - totalCents) : `falta ${formatCents(totalCents - recebidoCents)}`}
+                  </span>
+                </div>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => cobrar.mutate()}
