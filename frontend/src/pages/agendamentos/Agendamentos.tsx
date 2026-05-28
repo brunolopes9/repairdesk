@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, Plus, X } from 'lucide-react';
+import { CalendarClock, ChevronLeft, ChevronRight, List, Plus, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { toast } from '../../lib/toast';
 import { liveListOptions } from '../../lib/queryOptions';
@@ -32,17 +32,47 @@ function hhmm(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Sprint 418: helpers para vista calendário semanal.
+function startOfWeek(d: Date): Date {
+  const dt = new Date(d);
+  dt.setHours(0, 0, 0, 0);
+  const wd = dt.getDay(); // 0=Dom, 1=Seg
+  const diff = wd === 0 ? -6 : 1 - wd;
+  dt.setDate(dt.getDate() + diff);
+  return dt;
+}
+function addDays(d: Date, n: number): Date {
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() + n);
+  return dt;
+}
+const HOURS = Array.from({ length: 11 }, (_, i) => i + 9); // 9h–19h
+const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function Agendamentos() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [prefilledAt, setPrefilledAt] = useState<string | null>(null);
+  const [view, setView] = useState<'week' | 'list'>('week');
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
 
   const range = useMemo(() => {
+    if (view === 'week') {
+      const from = weekStart;
+      const to = addDays(weekStart, 7);
+      return { from: from.toISOString(), to: to.toISOString() };
+    }
     const from = new Date();
     from.setHours(0, 0, 0, 0);
     const to = new Date(from);
     to.setDate(to.getDate() + 30);
     return { from: from.toISOString(), to: to.toISOString() };
-  }, []);
+  }, [view, weekStart]);
 
   const list = useQuery({
     queryKey: ['appointments', range.from, range.to],
@@ -66,23 +96,55 @@ export default function Agendamentos() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Agendamentos</h1>
-          <p className="text-sm text-zinc-500">Próximos 30 dias. Marca horas para os clientes deixarem equipamentos.</p>
+          <p className="text-sm text-zinc-500">
+            {view === 'week'
+              ? 'Semana visual — clica num slot livre para marcar, ou no cartão para mudar estado.'
+              : 'Próximos 30 dias. Marca horas para os clientes deixarem equipamentos.'}
+          </p>
         </div>
-        <Button type="button" onClick={() => setShowForm(true)} leftIcon={<Plus size={16} />}>Novo</Button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border border-zinc-200 bg-white p-0.5 dark:border-zinc-800 dark:bg-zinc-900">
+            <button type="button" onClick={() => setView('week')}
+              className={`inline-flex min-h-9 items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition ${view === 'week' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500'}`}>
+              <CalendarClock size={14} /> Semana
+            </button>
+            <button type="button" onClick={() => setView('list')}
+              className={`inline-flex min-h-9 items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition ${view === 'list' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500'}`}>
+              <List size={14} /> Lista
+            </button>
+          </div>
+          <Button type="button" onClick={() => { setPrefilledAt(null); setShowForm(true); }} leftIcon={<Plus size={16} />}>Novo</Button>
+        </div>
       </div>
 
-      {list.isLoading && <p className="text-sm text-zinc-500">A carregar…</p>}
-      {!list.isLoading && grouped.length === 0 && (
+      {view === 'week' && (
+        <WeekGrid
+          weekStart={weekStart}
+          onPrev={() => setWeekStart((s) => addDays(s, -7))}
+          onNext={() => setWeekStart((s) => addDays(s, 7))}
+          onToday={() => setWeekStart(startOfWeek(new Date()))}
+          appointments={list.data ?? []}
+          loading={list.isLoading}
+          onSlotClick={(iso) => { setPrefilledAt(iso); setShowForm(true); }}
+          onCardClick={(a) => {
+            const next = NEXT_STATUS[a.status]?.[0];
+            if (next) statusMut.mutate({ id: a.id, status: next });
+          }}
+        />
+      )}
+
+      {view === 'list' && list.isLoading && <p className="text-sm text-zinc-500">A carregar…</p>}
+      {view === 'list' && !list.isLoading && grouped.length === 0 && (
         <div className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
           <CalendarClock className="mx-auto mb-2 text-zinc-400" size={28} />
           Sem agendamentos nos próximos 30 dias.
         </div>
       )}
 
-      {grouped.map(([day, items]) => (
+      {view === 'list' && grouped.map(([day, items]) => (
         <div key={day}>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">{day}</h2>
           <div className="space-y-2">
@@ -123,14 +185,121 @@ export default function Agendamentos() {
         </div>
       ))}
 
-      {showForm && <NovoAgendamentoModal onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); qc.invalidateQueries({ queryKey: ['appointments'] }); }} />}
+      {showForm && <NovoAgendamentoModal initialIso={prefilledAt} onClose={() => { setShowForm(false); setPrefilledAt(null); }} onSaved={() => { setShowForm(false); setPrefilledAt(null); qc.invalidateQueries({ queryKey: ['appointments'] }); }} />}
     </div>
   );
 }
 
-function NovoAgendamentoModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+// Sprint 418: vista calendário semanal (grelha 7d × slots horários 9-19).
+function WeekGrid({
+  weekStart, onPrev, onNext, onToday, appointments, loading, onSlotClick, onCardClick,
+}: {
+  weekStart: Date;
+  onPrev: () => void;
+  onNext: () => void;
+  onToday: () => void;
+  appointments: Appointment[];
+  loading: boolean;
+  onSlotClick: (iso: string) => void;
+  onCardClick: (a: Appointment) => void;
+}) {
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const weekEnd = addDays(weekStart, 6);
+  const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+  const label = sameMonth
+    ? `${weekStart.getDate()} – ${weekEnd.getDate()} ${weekEnd.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}`
+    : `${weekStart.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })} – ${weekEnd.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+
+  // Index: para cada (dayIndex, hour) qual o appointment colocado (primeiro encontrado).
+  const slotMap = useMemo(() => {
+    const m = new Map<string, Appointment[]>();
+    for (const a of appointments) {
+      const dt = new Date(a.scheduledAt);
+      const di = (dt.getDay() + 6) % 7; // 0=Seg
+      const k = `${di}-${dt.getHours()}`;
+      (m.get(k) ?? m.set(k, []).get(k)!).push(a);
+    }
+    return m;
+  }, [appointments]);
+
+  const todayKey = new Date().toDateString();
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      {/* Header: nav semanal */}
+      <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={onPrev} className="grid h-8 w-8 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" title="Semana anterior" aria-label="Semana anterior">
+            <ChevronLeft size={16} />
+          </button>
+          <button type="button" onClick={onToday} className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">Hoje</button>
+          <button type="button" onClick={onNext} className="grid h-8 w-8 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" title="Semana seguinte" aria-label="Semana seguinte">
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        <div className="text-sm font-semibold capitalize">{label}</div>
+        <span className="text-xs text-zinc-500">{appointments.length} {appointments.length === 1 ? 'agendamento' : 'agendamentos'}</span>
+      </div>
+
+      {/* Grelha */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[840px]">
+          {/* Linha dos dias */}
+          <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-zinc-200 dark:border-zinc-800">
+            <div />
+            {days.map((d, i) => {
+              const isToday = d.toDateString() === todayKey;
+              return (
+                <div key={i} className={`border-l border-zinc-200 px-2 py-2 text-center text-xs dark:border-zinc-800 ${isToday ? 'bg-brand-50 dark:bg-brand-950/30' : ''}`}>
+                  <div className="font-semibold uppercase tracking-wider text-zinc-500">{WEEKDAYS[i]}</div>
+                  <div className={`mt-0.5 text-base ${isToday ? 'font-bold text-brand-700 dark:text-brand-300' : 'text-zinc-700 dark:text-zinc-300'}`}>{d.getDate()}</div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Slots */}
+          {HOURS.map((h) => (
+            <div key={h} className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-zinc-100 dark:border-zinc-800/50">
+              <div className="px-2 py-1 text-right text-[10px] text-zinc-400">{String(h).padStart(2, '0')}:00</div>
+              {days.map((d, di) => {
+                const apps = slotMap.get(`${di}-${h}`) ?? [];
+                const slotDate = new Date(d);
+                slotDate.setHours(h, 0, 0, 0);
+                return (
+                  <div
+                    key={di}
+                    className="relative min-h-[56px] cursor-pointer border-l border-zinc-100 transition hover:bg-brand-50/40 dark:border-zinc-800/50 dark:hover:bg-brand-950/20"
+                    onClick={(e) => { if (e.target === e.currentTarget) onSlotClick(slotDate.toISOString()); }}
+                  >
+                    {apps.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onCardClick(a); }}
+                        title={`${a.nome} · ${hhmm(a.scheduledAt)} · ${a.durationMin}min — clica para avançar estado`}
+                        className={`m-0.5 flex w-[calc(100%-4px)] flex-col items-start rounded-md px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:shadow ${STATUS_STYLE[a.status]}`}
+                      >
+                        <span className="truncate font-semibold w-full">{hhmm(a.scheduledAt)} {a.nome}</span>
+                        {a.equipamento && <span className="truncate text-[10px] opacity-75 w-full">{a.equipamento}</span>}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {loading && <div className="border-t border-zinc-100 px-3 py-2 text-center text-xs text-zinc-400 dark:border-zinc-800">A carregar…</div>}
+    </div>
+  );
+}
+
+function NovoAgendamentoModal({ onClose, onSaved, initialIso }: { onClose: () => void; onSaved: () => void; initialIso?: string | null }) {
+  const initLocal = initialIso ? toLocalInput(initialIso) : '';
   const [form, setForm] = useState<CreateAppointmentRequest>({ nome: '', scheduledAt: '', durationMin: 30 });
-  const [localDt, setLocalDt] = useState('');
+  const [localDt, setLocalDt] = useState(initLocal);
 
   const create = useMutation({
     mutationFn: () => {
