@@ -115,3 +115,46 @@ se a B2Brouter é que emite legalmente. Possíveis respostas:
 > Bruno não precisa de fazer nada agora. A arquitectura está certa. Quando o Miguel
 > responder, anexamos aqui. Quando entrarem clientes B2G/UE, adicionamos B2Brouter como
 > provider. Auto-certificação é problema do Mender-SaaS-de-€10k/mês, não do Mender-de-hoje.
+
+---
+
+## ✅ RESPOSTA DO MIGUEL (RO App, 28-05-2026) — CONFIRMADO
+
+Miguel respondeu à pergunta enviada. Texto verbatim:
+
+> *"Atualmente, nem nós nem a B2Brouter temos uma certificação completa de Portugal, então
+> não cobrimos todo o fluxo, já que em Portugal funciona um pouco diferente de outros
+> países e, em vez de enviar a fatura para a agência tributária após a criação, primeiro
+> é preciso obter o ATCUD e, em seguida, o faturamento eletrônico é enviado via Peppol ou
+> e-mail, basicamente.*
+>
+> *Para clientes de Portugal, têm que usar um software adicional para obter esse número
+> ATCUD, e a nossa integração de faturamento eletrônico cobre apenas o envio via Peppol
+> por enquanto. Infelizmente, essa é uma limitação da B2Brouter. Só poderemos cobrir essa
+> parte da criação de faturas depois que eles a implementarem do lado deles, mas, por
+> enquanto, não há um cronograma exato."*
+
+### O que isto valida (a nosso favor)
+1. **A análise do Doc 89 estava 100% certa.** As 3 camadas separadas, B2Brouter como
+   Camada C apenas. O Miguel chamou "fluxo PT" a exactamente o que chamámos Camada A.
+2. **RoApp não cobre PT.** Cliente PT que use RoApp **TEM** de ter outro software
+   certificado para o ATCUD/emissão. Exactamente como Mender + Moloni.
+3. **B2Brouter está limitada a Peppol-delivery.** Sem timeline para acrescentarem a
+   parte Camada A (ATCUD + assinatura de série + SAF-T). Não esperar por eles.
+4. **Mender + Moloni em B2C-PT é vantagem competitiva real**, não duplicação do RoApp.
+   Vendamos isto: "ERP completo para oficinas PT, **com** compliance fiscal nativa".
+
+### Decisão arquitectural (confirmada, sem mudanças)
+- Manter `IBillingProvider` com Moloni como provider principal.
+- **Não** auto-certificar Mender agora.
+- **Não** integrar B2Brouter como provider hoje (cobre só Camada C — irrelevante p/ B2C-PT).
+- **Considerar** B2BrouterProvider só se/quando aparecerem clientes B2G ou cross-border UE,
+  e como **complemento** ao Moloni (não substituto).
+
+### Hook de marketing
+- Para clientes PT: *"Software de gestão de oficina que **inclui** faturação certificada
+  AT (via Moloni). Não precisas de aplicação extra para o ATCUD."*
+- Para qualquer concorrente internacional (RoApp/Repairshopr/etc.): *"Funciona em PT
+  out-of-the-box. Eles não."*
+
+Ver [[90-Analise-RoApp]] para análise competitiva completa.
