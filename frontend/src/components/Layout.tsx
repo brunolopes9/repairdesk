@@ -1,6 +1,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import DefinicoesSubNav from './DefinicoesSubNav';
 import {
   LayoutDashboard,
   Users,
@@ -274,7 +275,14 @@ export default function Layout() {
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 pb-24 pt-6 sm:pl-[15.5rem] sm:pr-6">
-        <Outlet />
+        {location.pathname.startsWith('/definicoes') ? (
+          <div className="flex gap-6">
+            <div className="hidden md:block"><DefinicoesSubNav /></div>
+            <div className="min-w-0 flex-1"><Outlet /></div>
+          </div>
+        ) : (
+          <Outlet />
+        )}
         <div className="mt-12 border-t border-zinc-200 pt-4 text-center text-[11px] text-zinc-400 dark:border-zinc-800">
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
             <span>© {new Date().getFullYear()} LopesTech</span>
