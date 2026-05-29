@@ -30,7 +30,10 @@ const Cash = lazy(() => import('./pages/cash/Cash'));
 const Stock = lazy(() => import('./pages/stock/Stock'));
 const Vendas = lazy(() => import('./pages/vendas/Vendas'));
 const Auditoria = lazy(() => import('./pages/auditoria/Auditoria'));
+const Inventario = lazy(() => import('./pages/inventario/Inventario'));
+const Tarefas = lazy(() => import('./pages/tarefas/Tarefas'));
 const Definicoes = lazy(() => import('./pages/definicoes/Definicoes'));
+const Perfil = lazy(() => import('./pages/definicoes/Perfil'));
 const Preferencias = lazy(() => import('./pages/definicoes/Preferencias'));
 const Webhooks = lazy(() => import('./pages/definicoes/Webhooks'));
 const Fornecedores = lazy(() => import('./pages/definicoes/Fornecedores'));
@@ -161,8 +164,11 @@ export default function App() {
               <Route path="/compras-operacao" element={<ComprasOperacao />} />
               <Route path="/balcao" element={<Balcao />} />
               <Route path="/catalogo" element={<Catalogo />} />
+              <Route path="/inventario" element={<Inventario />} />
+              <Route path="/tarefas" element={<Tarefas />} />
               <Route path="/auditoria" element={<Auditoria />} />
               <Route path="/definicoes" element={<Definicoes />} />
+              <Route path="/definicoes/perfil" element={<Perfil />} />
               <Route path="/definicoes/preferencias" element={<Preferencias />} />
               <Route path="/definicoes/webhooks" element={<Webhooks />} />
               <Route path="/definicoes/fornecedores" element={<Fornecedores />} />

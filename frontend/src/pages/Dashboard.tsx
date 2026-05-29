@@ -5,9 +5,12 @@ import {
   AlertTriangle,
   ArrowRight,
   Boxes,
+  CalendarClock,
   CheckCircle2,
+  ClipboardList,
   Clock3,
   Euro,
+  ListTodo,
   PackageSearch,
   ShieldCheck,
   ShoppingBag,
@@ -35,6 +38,8 @@ import { useDashboardKpisHoje } from '../lib/dashboard/hooks';
 import { reparacoesApi } from '../lib/reparacoes/api';
 import { vendasApi } from '../lib/vendas/api';
 import { REPAIR_STATUS, STATUS_LABEL, type RepairStatus } from '../lib/reparacoes/types';
+import { internalTasksApi } from '../lib/internalTasks/api';
+import { InternalTaskStatus, type InternalTask } from '../lib/internalTasks/types';
 import { liveListOptions } from '../lib/queryOptions';
 import { formatCents, formatDateOnly } from '../lib/money';
 import { EmptyState, PageHeader, Skeleton, KpiCard, SectionCard } from '../components/ui';
@@ -133,6 +138,28 @@ export default function Dashboard() {
     queryFn: () => dashboardApi.current(),
     staleTime: 5 * 60_000,
   });
+
+  // Sprint 423 (Doc 90): tarefas pendentes para widget.
+  const tarefasPendentes = useQuery({
+    queryKey: ['dashboard-tarefas-pendentes'],
+    queryFn: () => internalTasksApi.list({ status: InternalTaskStatus.Pendente }),
+    staleTime: 60_000,
+  });
+
+  // Sprint 423 (Doc 90): reparações com ETA esta semana — filtra client-side da fila.
+  const reparacoesEtaSemana = useMemo(() => {
+    const items = fila.data?.items ?? [];
+    const now = new Date();
+    const limite = new Date(now);
+    limite.setDate(limite.getDate() + 7);
+    return items
+      .filter((r) => r.previstoEntregueEm && r.estado !== REPAIR_STATUS.Entregue && r.estado !== REPAIR_STATUS.Cancelado)
+      .filter((r) => {
+        const eta = new Date(r.previstoEntregueEm!);
+        return eta <= limite; // inclui atrasadas (eta < now) e até +7 dias
+      })
+      .sort((a, b) => new Date(a.previstoEntregueEm!).getTime() - new Date(b.previstoEntregueEm!).getTime());
+  }, [fila.data]);
   const RECEITA_HEX = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#c73535', '#52525b'];
   const receitaData = (dashboardCurrent.data?.receitaPorCategoria ?? []).map((c, i) => ({
     name: c.label, value: c.totalCents, color: RECEITA_HEX[i % RECEITA_HEX.length],
@@ -515,6 +542,19 @@ export default function Dashboard() {
         </div>
       </section>
 
+      {/* Sprint 423 (Doc 90): widgets pessoais — o que está marcado para os próximos dias. */}
+      <section className="space-y-3">
+        <ZoneHeader
+          eyebrow="Para hoje"
+          title="O teu dia, num só sítio"
+          subtitle="Reparações com ETA esta semana e tarefas internas pendentes."
+        />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <ReparacoesEtaWidget loading={fila.isLoading} items={reparacoesEtaSemana} />
+          <TarefasPendentesWidget loading={tarefasPendentes.isLoading} items={tarefasPendentes.data ?? []} />
+        </div>
+      </section>
+
       <section className="space-y-3">
         <ZoneHeader
           eyebrow="Alertas + Top"
@@ -835,6 +875,117 @@ function TopPecasWidget({
             ))}
           </ul>
         </>
+      )}
+    </Panel>
+  );
+}
+
+// Sprint 423: widget de reparações com ETA esta semana (colhe S419).
+function ReparacoesEtaWidget({
+  loading,
+  items,
+}: {
+  loading: boolean;
+  items: Array<{ id: string; numero: number; equipamento: string; cliente: { nome: string }; previstoEntregueEm: string | null; estado: RepairStatus }>;
+}) {
+  const hojeStart = new Date(); hojeStart.setHours(0, 0, 0, 0);
+  const hojeEnd = new Date(hojeStart); hojeEnd.setDate(hojeEnd.getDate() + 1);
+  const hoje = items.filter((r) => {
+    const t = new Date(r.previstoEntregueEm!).getTime();
+    return t >= hojeStart.getTime() && t < hojeEnd.getTime();
+  }).length;
+  const atrasadas = items.filter((r) => new Date(r.previstoEntregueEm!) < hojeStart).length;
+  const tone: Tone = atrasadas > 0 ? 'rose' : hoje > 0 ? 'amber' : 'zinc';
+  return (
+    <Panel
+      to="/agendamentos"
+      icon={CalendarClock}
+      tone={tone}
+      title="Reparações com ETA"
+      value={loading ? null : `${items.length}`}
+      meta={atrasadas > 0 ? `${atrasadas} atrasada${atrasadas === 1 ? '' : 's'}` : hoje > 0 ? `${hoje} hoje` : 'próximos 7 dias'}
+    >
+      {loading ? (
+        <PanelSkeleton />
+      ) : items.length === 0 ? (
+        <EmptyState compact icon={CalendarClock} title="Sem ETA marcado" description="Define data prevista na reparação para ver aqui." />
+      ) : (
+        <ul className="mt-3 divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+          {items.slice(0, 4).map((r) => {
+            const eta = new Date(r.previstoEntregueEm!);
+            const atrasada = eta < hojeStart;
+            const ehHoje = eta >= hojeStart && eta < hojeEnd;
+            return (
+              <li key={r.id} className="py-2">
+                <Link to={`/reparacoes/${r.id}`} className="block rounded-md px-1 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-medium">#{r.numero} {r.equipamento}</span>
+                    <span className={atrasada ? 'text-rose-600 dark:text-rose-400' : ehHoje ? 'text-amber-700 dark:text-amber-300' : 'text-zinc-500'}>
+                      {eta.toLocaleString('pt-PT', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="truncate text-xs text-zinc-500">
+                    {r.cliente.nome} · {STATUS_LABEL[r.estado]}
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+// Sprint 423: widget de tarefas pendentes (colhe S422).
+function TarefasPendentesWidget({
+  loading,
+  items,
+}: {
+  loading: boolean;
+  items: InternalTask[];
+}) {
+  const agora = Date.now();
+  const atrasadas = items.filter((t) => t.dueAt && new Date(t.dueAt).getTime() < agora).length;
+  const tone: Tone = atrasadas > 0 ? 'rose' : items.length > 0 ? 'amber' : 'zinc';
+  return (
+    <Panel
+      to="/tarefas"
+      icon={ListTodo}
+      tone={tone}
+      title="Tarefas pendentes"
+      value={loading ? null : `${items.length}`}
+      meta={atrasadas > 0 ? `${atrasadas} atrasada${atrasadas === 1 ? '' : 's'}` : 'todas a tempo'}
+    >
+      {loading ? (
+        <PanelSkeleton />
+      ) : items.length === 0 ? (
+        <EmptyState compact icon={ClipboardList} title="Lista limpa" description="Sem tarefas internas pendentes." />
+      ) : (
+        <ul className="mt-3 divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+          {items.slice(0, 4).map((t) => {
+            const atrasada = !!t.dueAt && new Date(t.dueAt).getTime() < agora;
+            return (
+              <li key={t.id} className="py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">{t.title}</span>
+                  {t.dueAt && (
+                    <span className={atrasada ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-500'}>
+                      {new Date(t.dueAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })}
+                    </span>
+                  )}
+                </div>
+                {(t.assignedToDisplayName || t.reparacaoNumero) && (
+                  <div className="truncate text-xs text-zinc-500">
+                    {t.assignedToDisplayName && <>@{t.assignedToDisplayName}</>}
+                    {t.assignedToDisplayName && t.reparacaoNumero && ' · '}
+                    {t.reparacaoNumero && <>Reparação #{t.reparacaoNumero}</>}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </Panel>
   );

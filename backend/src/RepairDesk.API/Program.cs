@@ -352,6 +352,12 @@ try
     builder.Services.AddHttpClient<RepairDesk.API.Assistant.IAssistantService, RepairDesk.API.Assistant.AssistantService>();
     // Sprint 371: agendamentos (booking).
     builder.Services.AddScoped<IAppointmentRepository, RepairDesk.DAL.Persistence.AppointmentRepository>();
+    // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
+    builder.Services.AddScoped<IStockTakeRepository, RepairDesk.DAL.Persistence.StockTakeRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.StockTakes.IStockTakeService, RepairDesk.Services.StockTakes.StockTakeService>();
+    // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
+    builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.InternalTasks.IInternalTaskService, RepairDesk.Services.InternalTasks.InternalTaskService>();
     builder.Services.AddScoped<RepairDesk.Services.Appointments.IAppointmentService, RepairDesk.Services.Appointments.AppointmentService>();
     // Sprint 189: pipeline imagens SEO (resize WebP + blur LQIP) — usa IPhotoStorage para R2.
     builder.Services.AddScoped<RepairDesk.Services.Products.IImageOptimizationService, RepairDesk.Services.Products.ImageOptimizationService>();

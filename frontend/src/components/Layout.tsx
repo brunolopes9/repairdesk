@@ -65,6 +65,8 @@ const nav: NavItem[] = [
   { to: '/reparacoes', label: 'Reparações', icon: Wrench },
   { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   { to: '/agendamentos', label: 'Agendamentos', icon: CalendarClock },
+  // Sprint 422 (Doc 90 Tier 2 #7): TODO list interna.
+  { to: '/tarefas', label: 'Tarefas', icon: ClipboardList },
   { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
   // Sprint 383 (Doc 86): "Balcão" unifica POS + Caixa numa página com tabs (/balcao). A regra
   // "não vendes com caixa fechada" vive na própria POS. Filhos = deep-link para os tabs.
@@ -89,6 +91,8 @@ const nav: NavItem[] = [
   // Sprint 388 (Doc 87): "Catálogo & Stock" substitui Stock + Produtos na nav. As rotas /stock e
   // /produtos continuam vivas (formulários de edição/criação que o Catálogo invoca), só saíram do menu.
   { to: '/catalogo', label: 'Catálogo & Stock', icon: Boxes },
+  // Sprint 421 (Doc 90): inventário físico — só admin.
+  { to: '/inventario', label: 'Inventário', icon: ClipboardList, adminOnly: true },
   { to: '/precos', label: 'Preços', icon: Tags },
   {
     label: 'Relatorios',

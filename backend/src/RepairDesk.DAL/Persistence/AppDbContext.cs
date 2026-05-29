@@ -85,6 +85,11 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 359 (Doc 83): templates de modelo (conteúdo partilhado por variantes).
     public DbSet<ProductModel> ProductModels => Set<ProductModel>();
     public DbSet<ProductModelImage> ProductModelImages => Set<ProductModelImage>();
+    // Sprint 421 (Doc 90 Tier 1 #3): inventário físico — sessão + linhas contadas.
+    public DbSet<StockTake> StockTakes => Set<StockTake>();
+    public DbSet<StockTakeItem> StockTakeItems => Set<StockTakeItem>();
+    // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas (TODO list por utilizador).
+    public DbSet<InternalTask> InternalTasks => Set<InternalTask>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
