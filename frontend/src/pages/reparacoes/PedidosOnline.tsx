@@ -14,7 +14,7 @@ import {
   type RepairRequestOrigem,
 } from '../../lib/repairRequests/api';
 import { toast } from '../../lib/toast';
-import { useConfirm } from '../../components/ConfirmDialog';
+import Modal from '../../components/Modal';
 import { formatDate } from '../../lib/money';
 import { liveListOptions } from '../../lib/queryOptions';
 import { displayPhone } from '../../lib/phone/formatter';
@@ -26,10 +26,10 @@ import { displayPhone } from '../../lib/phone/formatter';
 export default function PedidosOnline() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const confirm = useConfirm();
   const [filtro, setFiltro] = useState<RepairRequestEstado>(REPAIR_REQUEST_ESTADO.Pendente);
   // Sprint 438: filtro adicional por canal de entrada. "all" mostra todos.
   const [origemFiltro, setOrigemFiltro] = useState<RepairRequestOrigem | 'all'>('all');
+  const [slaFilter, setSlaFilter] = useState<'all' | 'overdue'>('all');
 
   const list = useQuery({
     queryKey: ['repair-requests', filtro],
@@ -90,6 +90,8 @@ export default function PedidosOnline() {
 
   // Sprint 439: criar pedido manual para leads offline.
   const [showNovo, setShowNovo] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<RepairRequestDto | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
   const novoMut = useMutation({
     mutationFn: repairRequestsApi.createManual,
     onSuccess: () => {
@@ -101,18 +103,22 @@ export default function PedidosOnline() {
     onError: (err) => toast.fromError(err, 'Erro a registar pedido.'),
   });
 
-  async function askRejeitar(id: string) {
-    // Sprint 436: prompt para motivo. Curto, sem modal custom — confirm + prompt nativos
-    // bastam para uma acção de fluxo. O motivo fica visível no histórico.
-    const ok = await confirm({
-      title: 'Rejeitar pedido',
-      description: 'Marcar este pedido como rejeitado? Não cria reparação. Podes adicionar um motivo curto a seguir.',
-      confirmLabel: 'Rejeitar',
-      destructive: true,
-    });
-    if (!ok) return;
-    const motivo = window.prompt('Motivo da rejeição (opcional):', '') ?? undefined;
-    rejeitarMut.mutate({ id, motivo: motivo?.trim() || undefined });
+  function askRejeitar(request: RepairRequestDto) {
+    setRejectTarget(request);
+    setRejectReason('');
+  }
+
+  function closeRejectModal() {
+    setRejectTarget(null);
+    setRejectReason('');
+  }
+
+  function submitReject() {
+    if (!rejectTarget) return;
+    rejeitarMut.mutate(
+      { id: rejectTarget.id, motivo: rejectReason.trim() || undefined },
+      { onSuccess: closeRejectModal },
+    );
   }
 
   const tabs: { label: string; value: RepairRequestEstado }[] = [
@@ -124,6 +130,9 @@ export default function PedidosOnline() {
     pendentes: (allRequests.data ?? []).filter((r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente).length,
     convertidos: (allRequests.data ?? []).filter((r) => r.estado === REPAIR_REQUEST_ESTADO.Convertido).length,
     rejeitados: (allRequests.data ?? []).filter((r) => r.estado === REPAIR_REQUEST_ESTADO.Rejeitado).length,
+    atrasados: (allRequests.data ?? []).filter(
+      (r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente && isOverdueRequest(r),
+    ).length,
     urgentes: (allRequests.data ?? []).filter(
       (r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente && r.prioridade === REPAIR_REQUEST_PRIORIDADE.Urgente,
     ).length,
@@ -146,6 +155,9 @@ export default function PedidosOnline() {
   let rows = (list.data ?? []).slice();
   if (origemFiltro !== 'all') {
     rows = rows.filter((r) => r.origem === origemFiltro);
+  }
+  if (filtro === REPAIR_REQUEST_ESTADO.Pendente && slaFilter === 'overdue') {
+    rows = rows.filter(isOverdueRequest);
   }
   if (filtro === REPAIR_REQUEST_ESTADO.Pendente) {
     rows.sort((a, b) => {
@@ -177,7 +189,59 @@ export default function PedidosOnline() {
         />
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Modal
+        open={!!rejectTarget}
+        title="Rejeitar pedido"
+        onClose={closeRejectModal}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeRejectModal}
+              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={submitReject}
+              disabled={rejeitarMut.isPending}
+              className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+            >
+              {rejeitarMut.isPending ? 'A rejeitar...' : 'Rejeitar pedido'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Este pedido fica arquivado como rejeitado e nao cria reparacao nem orcamento.
+          </p>
+          {rejectTarget && (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950/50">
+              <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                {rejectTarget.nome} · {rejectTarget.equipamento}
+              </div>
+              <div className="mt-0.5 line-clamp-2 text-xs text-zinc-500">{rejectTarget.descricao}</div>
+            </div>
+          )}
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Motivo interno (opcional)
+            </span>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={4}
+              maxLength={500}
+              placeholder="Ex.: duplicado, cliente ja resolveu, spam, sem contacto valido..."
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          </label>
+        </div>
+      </Modal>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           icon={Inbox}
           label="Por tratar"
@@ -191,6 +255,13 @@ export default function PedidosOnline() {
           value={counts.convertidos}
           tone="emerald"
           helper="Ja viraram reparacao."
+        />
+        <SummaryCard
+          icon={AlertTriangle}
+          label="Atrasados"
+          value={counts.atrasados}
+          tone="rose"
+          helper="Pendentes ha mais de 48h."
         />
         <SummaryCard
           icon={X}
@@ -220,13 +291,32 @@ export default function PedidosOnline() {
         <div className="flex gap-1">
           {tabs.map((t) => (
             <button
-              key={t.value} type="button" onClick={() => setFiltro(t.value)}
+              key={t.value}
+              type="button"
+              onClick={() => {
+                setFiltro(t.value);
+                if (t.value !== REPAIR_REQUEST_ESTADO.Pendente) setSlaFilter('all');
+              }}
               className={`px-3 py-1.5 text-sm ${filtro === t.value ? 'border-b-2 border-brand-600 font-medium text-brand-700 dark:text-brand-400' : 'text-zinc-500'}`}
             >
               {t.label}
             </button>
           ))}
         </div>
+        {filtro === REPAIR_REQUEST_ESTADO.Pendente && (
+          <button
+            type="button"
+            onClick={() => setSlaFilter((value) => (value === 'overdue' ? 'all' : 'overdue'))}
+            className={`mb-1 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition ${
+              slaFilter === 'overdue'
+                ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300'
+                : 'border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <AlertTriangle size={12} />
+            Atrasados 48h ({counts.atrasados})
+          </button>
+        )}
         <label className="flex items-center gap-1.5 pb-1 text-[11px] text-zinc-500">
           Canal
           <select
@@ -260,7 +350,7 @@ export default function PedidosOnline() {
         {list.isLoading && <p className="text-sm text-zinc-500">A carregar…</p>}
         {rows.length === 0 && !list.isLoading && (
           <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
-            Sem pedidos nesta categoria.
+            {slaFilter === 'overdue' ? 'Sem pedidos atrasados neste momento.' : 'Sem pedidos nesta categoria.'}
           </div>
         )}
         {rows.map((r) => (
@@ -271,7 +361,7 @@ export default function PedidosOnline() {
             isSavingTriagem={triagemMut.isPending}
             onConverterReparacao={() => converterMut.mutate(r.id)}
             onConverterTrabalho={() => converterTrabMut.mutate(r.id)}
-            onRejeitar={() => askRejeitar(r.id)}
+            onRejeitar={() => askRejeitar(r)}
             onSaveTriagem={(notas, prioridade) =>
               triagemMut.mutate({ id: r.id, notasInternas: notas, prioridade })
             }
@@ -584,6 +674,12 @@ function prioridadeBorder(prioridade: RepairRequestPrioridade): string {
   return 'border-zinc-200 dark:border-zinc-700';
 }
 
+function isOverdueRequest(request: RepairRequestDto): boolean {
+  const createdAt = new Date(request.createdAt).getTime();
+  if (!Number.isFinite(createdAt)) return false;
+  return Date.now() - createdAt >= 48 * 60 * 60 * 1000;
+}
+
 function LeadContactActions({ request }: { request: RepairRequestDto }) {
   const waPhone = whatsappPhone(request.telefone);
   const subject = `Pedido de reparacao - ${request.equipamento}`;
@@ -643,11 +739,12 @@ function SummaryCard({
   label: string;
   value: number;
   helper: string;
-  tone: 'amber' | 'emerald' | 'zinc';
+  tone: 'amber' | 'emerald' | 'rose' | 'zinc';
 }) {
   const toneClass = {
     amber: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300',
+    rose: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300',
     zinc: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300',
   }[tone];
 

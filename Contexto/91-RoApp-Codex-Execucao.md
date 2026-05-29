@@ -53,6 +53,22 @@ Implementacao:
 Validacao:
 - `npm.cmd run build` em `frontend`
 
+### Pedidos online: UX de rejeicao + SLA 48h
+
+Objetivo ROAPP adaptado: fazer a inbox comportar-se como uma fila operacional,
+com menos prompts nativos e mais foco no que esta a envelhecer.
+
+Implementacao:
+- Rejeitar pedido usa modal proprio com contexto do pedido e motivo interno
+  opcional, em vez de `window.prompt`.
+- `/pedidos-online` mostra contador "Atrasados" para pedidos pendentes ha mais
+  de 48h.
+- Tab Pendentes ganhou filtro rapido "Atrasados 48h" para limpar follow-ups
+  antigos antes que leads arrefecam.
+
+Validacao:
+- `npm.cmd run build` em `frontend`
+
 ## Implementado depois pelo Claude (S436-S442)
 
 Seguimento direto da sugestao do Codex: transformar /pedidos-online em
