@@ -38,7 +38,9 @@ public sealed record UpdateReparacaoRequest(
     PaymentStatus EstadoPagamento,
     Guid? ClienteId = null,
     Guid? EquipmentFieldTemplateId = null,
-    IReadOnlyList<SetEquipmentFieldValueRequest>? Fields = null);
+    IReadOnlyList<SetEquipmentFieldValueRequest>? Fields = null,
+    /// <summary>Sprint 419: ETA de entrega para o calendário interno.</summary>
+    DateTime? PrevistoEntregueEm = null);
 
 public sealed record ChangeEstadoRequest(RepairStatus Estado, string? Notas);
 
@@ -92,7 +94,9 @@ public sealed record ReparacaoDto(
     Guid? AssignedToUserId = null,
     string? AssignedToDisplayName = null,
     /// <summary>Sprint 346: tags categóricas atribuídas (Urgente, Em garantia, etc).</summary>
-    IReadOnlyList<TagSummaryDto>? Tags = null);
+    IReadOnlyList<TagSummaryDto>? Tags = null,
+    /// <summary>Sprint 419: ETA de entrega para o calendário (null = sem ETA).</summary>
+    DateTime? PrevistoEntregueEm = null);
 
 public sealed record ReparacaoDetalhadaDto(
     ReparacaoDto Reparacao,

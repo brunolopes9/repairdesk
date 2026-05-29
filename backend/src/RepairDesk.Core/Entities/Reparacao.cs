@@ -24,6 +24,13 @@ public class Reparacao : BaseEntity, ITenantEntity
 
     public DateTime? EntregueEm { get; set; }
 
+    /// <summary>
+    /// Sprint 419: data/hora previstas de entrega ao cliente. Permite organizar reparações
+    /// no calendário interno (caso típico: "telemóvel entrou hoje, peça vem em 2 dias,
+    /// previsto entregar quinta 14h"). Nullable — só preenchido quando há ETA real.
+    /// </summary>
+    public DateTime? PrevistoEntregueEm { get; set; }
+
     public int? OrcamentoCents { get; set; }
     public bool OrcamentoAprovado { get; set; }
 

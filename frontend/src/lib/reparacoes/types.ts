@@ -139,6 +139,8 @@ export interface Reparacao {
   assignedToDisplayName: string | null;
   /** Sprint 346: tags categóricas atribuídas. */
   tags: Array<{ id: string; nome: string; corHex: string }>;
+  /** Sprint 419: ETA de entrega (calendário). Null = sem ETA marcada. */
+  previstoEntregueEm: string | null;
 }
 
 export interface ReparacaoDetalhada {
@@ -190,6 +192,8 @@ export interface UpdateReparacaoForm {
   estadoPagamento: PaymentStatus;
   equipmentFieldTemplateId?: string | null;
   fields?: SetEquipmentFieldValue[] | null;
+  /** Sprint 419: ETA de entrega (ISO). null = limpar. */
+  previstoEntregueEm?: string | null;
 }
 
 export type ReparacoesPage = PagedResult<Reparacao>;

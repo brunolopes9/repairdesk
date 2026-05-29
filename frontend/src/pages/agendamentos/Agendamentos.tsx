@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, ChevronLeft, ChevronRight, List, Plus, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { CalendarClock, ChevronLeft, ChevronRight, List, Plus, Wrench, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { toast } from '../../lib/toast';
 import { liveListOptions } from '../../lib/queryOptions';
@@ -11,6 +12,12 @@ import {
   type AppointmentStatus,
   type CreateAppointmentRequest,
 } from '../../lib/appointments/api';
+import { reparacoesApi } from '../../lib/reparacoes/api';
+import type { Reparacao } from '../../lib/reparacoes/types';
+
+// Sprint 419: estados em curso (0=Recebido, 1=Diagnóstico, 2=AguardaPeça, 3=EmReparação, 4=Pronto).
+// Reparações nestes estados com previstoEntregueEm aparecem como overlay no calendário.
+const REPAIR_OVERLAY_STATES: number[] = [0, 1, 2, 3, 4];
 
 const STATUS_STYLE: Record<AppointmentStatus, string> = {
   Agendado: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
@@ -56,6 +63,7 @@ function toLocalInput(iso: string): string {
 
 export default function Agendamentos() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [prefilledAt, setPrefilledAt] = useState<string | null>(null);
   const [view, setView] = useState<'week' | 'list'>('week');
@@ -79,6 +87,24 @@ export default function Agendamentos() {
     queryFn: () => appointmentsApi.list(range.from, range.to),
     ...liveListOptions,
   });
+
+  // Sprint 419: overlay de reparações com ETA. Carrega só estados em-curso e filtra client-side por range visível.
+  const reparacoesList = useQuery({
+    queryKey: ['reparacoes', 'overlay-eta'],
+    queryFn: () => reparacoesApi.list({ pageSize: 100 }),
+    staleTime: 30_000,
+  });
+  const reparacoesEta = useMemo<Reparacao[]>(() => {
+    const all = reparacoesList.data?.items ?? [];
+    const fromMs = new Date(range.from).getTime();
+    const toMs = new Date(range.to).getTime();
+    return all.filter((r) => {
+      if (!r.previstoEntregueEm) return false;
+      if (!REPAIR_OVERLAY_STATES.includes(r.estado)) return false;
+      const t = new Date(r.previstoEntregueEm).getTime();
+      return t >= fromMs && t < toMs;
+    });
+  }, [reparacoesList.data, range.from, range.to]);
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: AppointmentStatus }) => appointmentsApi.updateStatus(id, status),
@@ -127,12 +153,14 @@ export default function Agendamentos() {
           onNext={() => setWeekStart((s) => addDays(s, 7))}
           onToday={() => setWeekStart(startOfWeek(new Date()))}
           appointments={list.data ?? []}
+          reparacoesEta={reparacoesEta}
           loading={list.isLoading}
           onSlotClick={(iso) => { setPrefilledAt(iso); setShowForm(true); }}
           onCardClick={(a) => {
             const next = NEXT_STATUS[a.status]?.[0];
             if (next) statusMut.mutate({ id: a.id, status: next });
           }}
+          onRepairClick={(r) => navigate(`/reparacoes/${r.id}`)}
         />
       )}
 
@@ -192,16 +220,18 @@ export default function Agendamentos() {
 
 // Sprint 418: vista calendário semanal (grelha 7d × slots horários 9-19).
 function WeekGrid({
-  weekStart, onPrev, onNext, onToday, appointments, loading, onSlotClick, onCardClick,
+  weekStart, onPrev, onNext, onToday, appointments, reparacoesEta, loading, onSlotClick, onCardClick, onRepairClick,
 }: {
   weekStart: Date;
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
   appointments: Appointment[];
+  reparacoesEta: Reparacao[];
   loading: boolean;
   onSlotClick: (iso: string) => void;
   onCardClick: (a: Appointment) => void;
+  onRepairClick: (r: Reparacao) => void;
 }) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const weekEnd = addDays(weekStart, 6);
@@ -222,6 +252,19 @@ function WeekGrid({
     return m;
   }, [appointments]);
 
+  // Sprint 419: index reparações com ETA por slot (mesma estrutura).
+  const repairSlotMap = useMemo(() => {
+    const m = new Map<string, Reparacao[]>();
+    for (const r of reparacoesEta) {
+      if (!r.previstoEntregueEm) continue;
+      const dt = new Date(r.previstoEntregueEm);
+      const di = (dt.getDay() + 6) % 7;
+      const k = `${di}-${dt.getHours()}`;
+      (m.get(k) ?? m.set(k, []).get(k)!).push(r);
+    }
+    return m;
+  }, [reparacoesEta]);
+
   const todayKey = new Date().toDateString();
 
   return (
@@ -238,7 +281,14 @@ function WeekGrid({
           </button>
         </div>
         <div className="text-sm font-semibold capitalize">{label}</div>
-        <span className="text-xs text-zinc-500">{appointments.length} {appointments.length === 1 ? 'agendamento' : 'agendamentos'}</span>
+        <div className="flex items-center gap-3 text-xs text-zinc-500">
+          <span>{appointments.length} {appointments.length === 1 ? 'agendamento' : 'agendamentos'}</span>
+          {reparacoesEta.length > 0 && (
+            <span className="inline-flex items-center gap-1 text-orange-700 dark:text-orange-300">
+              <Wrench size={11} /> {reparacoesEta.length} reparaç{reparacoesEta.length === 1 ? 'ão' : 'ões'} com ETA
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Grelha */}
@@ -263,6 +313,7 @@ function WeekGrid({
               <div className="px-2 py-1 text-right text-[10px] text-zinc-400">{String(h).padStart(2, '0')}:00</div>
               {days.map((d, di) => {
                 const apps = slotMap.get(`${di}-${h}`) ?? [];
+                const reps = repairSlotMap.get(`${di}-${h}`) ?? [];
                 const slotDate = new Date(d);
                 slotDate.setHours(h, 0, 0, 0);
                 return (
@@ -281,6 +332,19 @@ function WeekGrid({
                       >
                         <span className="truncate font-semibold w-full">{hhmm(a.scheduledAt)} {a.nome}</span>
                         {a.equipamento && <span className="truncate text-[10px] opacity-75 w-full">{a.equipamento}</span>}
+                      </button>
+                    ))}
+                    {/* Sprint 419: overlay reparações com ETA — cor distinta (laranja), ícone chave-de-fendas. */}
+                    {reps.map((r) => (
+                      <button
+                        key={`r-${r.id}`}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onRepairClick(r); }}
+                        title={`Reparação #${r.numero} · ${r.cliente.nome} · ${r.equipamento} — ETA ${hhmm(r.previstoEntregueEm!)}`}
+                        className="m-0.5 flex w-[calc(100%-4px)] items-center gap-1 rounded-md border border-dashed border-orange-400 bg-orange-50 px-1.5 py-1 text-left text-[11px] leading-tight text-orange-800 shadow-sm transition hover:shadow dark:border-orange-500/60 dark:bg-orange-950/40 dark:text-orange-300"
+                      >
+                        <Wrench size={11} className="flex-none" />
+                        <span className="truncate font-semibold">#{r.numero} {r.cliente.nome}</span>
                       </button>
                     ))}
                   </div>

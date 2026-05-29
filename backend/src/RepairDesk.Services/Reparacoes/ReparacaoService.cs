@@ -460,6 +460,7 @@ public class ReparacaoService : IReparacaoService
         rep.HorasGastas = req.HorasGastas;
         rep.Notas = req.Notas?.Trim();
         rep.EstadoPagamento = req.EstadoPagamento;
+        rep.PrevistoEntregueEm = req.PrevistoEntregueEm;
 
         await _repo.SaveAsync(ct);
         IReadOnlyList<EquipmentFieldValueDto>? fields = null;
@@ -1139,6 +1140,7 @@ public class ReparacaoService : IReparacaoService
             r.TagAssignments
                 .Where(a => a.ReparacaoTag is not null)
                 .Select(a => new TagSummaryDto(a.ReparacaoTag!.Id, a.ReparacaoTag.Nome, a.ReparacaoTag.CorHex))
-                .ToList());
+                .ToList(),
+            r.PrevistoEntregueEm);
     }
 }

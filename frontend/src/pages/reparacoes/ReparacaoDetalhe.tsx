@@ -88,6 +88,8 @@ export default function ReparacaoDetalhe() {
   const [precoFinal, setPrecoFinal] = useState('');
   const [pago, setPago] = useState(false);
   const [notas, setNotas] = useState('');
+  // Sprint 419: ETA prevista (format YYYY-MM-DDTHH:mm para input datetime-local) ou ''.
+  const [previstoEntregueEm, setPrevistoEntregueEm] = useState('');
   const [historicoModal, setHistoricoModal] = useState(false);
   const [estadoNotas, setEstadoNotas] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +127,16 @@ export default function ReparacaoDetalhe() {
     setPrecoFinal(r.precoFinalCents != null ? (r.precoFinalCents / 100).toFixed(2) : '');
     setPago(r.estadoPagamento === PAYMENT_STATUS.Pago);
     setNotas(r.notas ?? '');
+    // Sprint 419: hidratar ETA em formato local datetime-local (sem segundos/timezone).
+    if (r.previstoEntregueEm) {
+      const dt = new Date(r.previstoEntregueEm);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      setPrevistoEntregueEm(
+        `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`,
+      );
+    } else {
+      setPrevistoEntregueEm('');
+    }
     setFieldTemplateId(r.equipmentFieldTemplateId ?? null);
     setFieldValues(Object.fromEntries((r.fields ?? []).map((field) => [field.fieldDefinitionId, field.value ?? ''])));
     hydratedRef.current = true;
@@ -171,6 +183,8 @@ export default function ReparacaoDetalhe() {
         horasGastas: 0,
         notas: notas.trim() || null,
         estadoPagamento: pago ? PAYMENT_STATUS.Pago : PAYMENT_STATUS.NaoPago,
+        // Sprint 419: input datetime-local devolve string local; converter para ISO.
+        previstoEntregueEm: previstoEntregueEm ? new Date(previstoEntregueEm).toISOString() : null,
       });
     },
     onSuccess: () => {
@@ -302,6 +316,7 @@ export default function ReparacaoDetalhe() {
         horasGastas: 0,
         notas: r.notas,
         estadoPagamento: pagamento,
+        previstoEntregueEm: r.previstoEntregueEm,
       })
       .then(() => {
         changeEstado.mutate(5);
@@ -337,6 +352,7 @@ export default function ReparacaoDetalhe() {
         horasGastas: 0,
         notas: r.notas,
         estadoPagamento: r.estadoPagamento,
+        previstoEntregueEm: r.previstoEntregueEm,
       });
     },
     onSuccess: () => {
@@ -876,6 +892,30 @@ export default function ReparacaoDetalhe() {
             className={inputCls + ' resize-none'}
             placeholder="Lembretes, contactos com cliente, etc."
           />
+        </Field>
+        {/* Sprint 419: ETA prevista para entregar. Aparece no calendário /agendamentos. */}
+        <Field label="Previsto entregar (ETA)">
+          <div className="flex items-center gap-2">
+            <input
+              disabled={isFrozen}
+              type="datetime-local"
+              value={previstoEntregueEm}
+              onChange={(e) => setPrevistoEntregueEm(e.target.value)}
+              className={inputCls}
+            />
+            {previstoEntregueEm && !isFrozen && (
+              <button
+                type="button"
+                onClick={() => setPrevistoEntregueEm('')}
+                className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Ex.: peça chega em 2 dias → prevê entrega quinta 14h. Aparece em <em>Agendamentos</em>.
+          </p>
         </Field>
       </section>
 
@@ -1597,6 +1637,7 @@ function VendaOrigemBanner({
         estadoPagamento: PAYMENT_STATUS.Pago,
         equipmentFieldTemplateId: current.reparacao.equipmentFieldTemplateId ?? null,
         fields: null,
+        previstoEntregueEm: current.reparacao.previstoEntregueEm,
       });
     },
     onSuccess: () => {
