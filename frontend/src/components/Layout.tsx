@@ -144,6 +144,32 @@ export default function Layout() {
 
   // Sprint 397 (Doc 88): sidebar permanente e larga (como os mockups) — sempre "expandida".
   const expanded = true;
+
+  // Sprint 444 (Bruno feedback): sub-menus colapsáveis por click. Antes Balcão/Compras/
+  // Definições estavam SEMPRE abertos e ocupavam imensa altura. Agora cada parent é
+  // colapsável independentemente e a preferência persiste em localStorage. Auto-expande
+  // qualquer parent cujo child é a rota actual (para navegação revelar contexto).
+  const NAV_OPEN_KEY = 'rd.nav.openParents.v1';
+  const [openParents, setOpenParents] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(NAV_OPEN_KEY);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* ignore */ }
+    // Default: tudo colapsado. Mais arrumado.
+    return new Set();
+  });
+  function toggleParent(label: string) {
+    setOpenParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      try { localStorage.setItem(NAV_OPEN_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      return next;
+    });
+  }
+  // Auto-expande quando a rota actual está dentro deste parent (não persiste — temporário).
+  function isParentActive(item: { children?: { to: string }[] }) {
+    return !!item.children?.some((c) => location.pathname === c.to || location.pathname.startsWith(c.to + '/'));
+  }
   // Sprint 368: gating por role. Admin vê tudo; adminOnly só Admin; senão, se houver `roles`
   // tem de ter pelo menos uma; sem `roles` é visível a todos (ex: Dashboard, Clientes).
   const canSee = (item: { adminOnly?: boolean; roles?: string[] }) => {
@@ -343,57 +369,64 @@ export default function Layout() {
         <ul className="flex-1 space-y-1 p-2">
           {visibleNav.map((item) => (
             <li key={item.to ?? item.label}>
-              {item.children ? (
-                <div>
-                  <div
-                    className={`group flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition ${
-                      // Sprint 240: highlight quando QUALQUER child está activo (suporta dropdowns
-                      // genéricos — antes era hardcoded só /relatorios).
-                      item.children.some((c) => location.pathname === c.to || location.pathname.startsWith(c.to + '/'))
-                        ? 'bg-brand-600 text-white shadow-sm'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                    }`}
-                    title={item.label}
-                  >
-                    <item.icon size={20} strokeWidth={1.75} aria-hidden />
-                    <span
-                      className={`flex-1 truncate transition-opacity duration-150 ${
-                        expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+              {item.children ? (() => {
+                // Sprint 444: parent é "aberto" se o user marcou OU se algum child é a rota actual.
+                const activeChild = isParentActive(item);
+                const isOpen = openParents.has(item.label) || activeChild;
+                return (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => toggleParent(item.label)}
+                      className={`group flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm transition ${
+                        // Sprint 240: highlight quando QUALQUER child está activo.
+                        activeChild
+                          ? 'bg-brand-600 text-white shadow-sm'
+                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                       }`}
+                      title={item.label}
+                      aria-expanded={isOpen}
                     >
-                      {item.label}
-                    </span>
-                    <ChevronDown
-                      size={14}
-                      strokeWidth={1.75}
-                      className={`transition-opacity ${expanded ? 'opacity-70' : 'opacity-0'}`}
-                      aria-hidden
-                    />
+                      <item.icon size={20} strokeWidth={1.75} aria-hidden />
+                      <span
+                        className={`flex-1 truncate text-left transition-opacity duration-150 ${
+                          expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                      <ChevronDown
+                        size={14}
+                        strokeWidth={1.75}
+                        className={`transition-transform ${expanded ? 'opacity-70' : 'opacity-0'} ${isOpen ? 'rotate-0' : '-rotate-90'}`}
+                        aria-hidden
+                      />
+                    </button>
+                    {expanded && isOpen && (
+                      <ul className="mt-1 space-y-1 pl-8">
+                        {item.children.filter(canSee).map((child) => (
+                          <li key={child.to}>
+                            <NavLink
+                              to={child.to}
+                              className={({ isActive }) =>
+                                `flex h-9 items-center gap-2 rounded-lg px-3 text-sm transition ${
+                                  isActive
+                                    ? 'bg-brand-600 text-white shadow-sm'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                }`
+                              }
+                              title={child.label}
+                            >
+                              <child.icon size={16} strokeWidth={1.75} aria-hidden />
+                              <span className="truncate">{child.label}</span>
+                            </NavLink>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                  {expanded && (
-                    <ul className="mt-1 space-y-1 pl-8">
-                      {item.children.filter(canSee).map((child) => (
-                        <li key={child.to}>
-                          <NavLink
-                            to={child.to}
-                            className={({ isActive }) =>
-                              `flex h-9 items-center gap-2 rounded-lg px-3 text-sm transition ${
-                                isActive
-                                  ? 'bg-brand-600 text-white shadow-sm'
-                                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                              }`
-                            }
-                            title={child.label}
-                          >
-                            <child.icon size={16} strokeWidth={1.75} aria-hidden />
-                            <span className="truncate">{child.label}</span>
-                          </NavLink>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ) : item.to ? (
+                );
+              })() : item.to ? (
                 <NavLink
                   to={item.to}
                   end={item.to === '/'}
