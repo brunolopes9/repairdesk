@@ -129,15 +129,27 @@ public class CalendarFeedApiTests : IClassFixture<RepairDeskApiFactory>
         var repDto = await rep.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var repId = repDto!["id"].ToString()!;
 
-        // Define ETA na reparação (S419 PUT eta endpoint, ou via update genérico).
-        // Tentamos via endpoint dedicado primeiro; se não existir, fallback PUT detail.
+        // Define ETA via PUT genérico /api/reparacoes/{id} (campo PrevistoEntregueEm
+        // foi adicionado em S419). O update overwrites todos os campos — copiamos
+        // os mínimos obrigatórios da reparação criada.
         var eta = DateTime.UtcNow.AddDays(2).Date.AddHours(14);
-        var etaResp = await admin.PutAsJsonAsync($"/api/reparacoes/{repId}/eta", new { PrevistoEntregueEm = eta });
-        if (!etaResp.IsSuccessStatusCode)
+        var etaResp = await admin.PutAsJsonAsync($"/api/reparacoes/{repId}", new
         {
-            // Skip silenciosamente se o endpoint não estiver disponível neste ambiente.
-            return;
-        }
+            Equipamento = $"Samsung A52 {marker}",
+            Avaria = "Não liga",
+            Imei = (string?)null,
+            Diagnostico = (string?)null,
+            OrcamentoCents = (int?)null,
+            OrcamentoAprovado = false,
+            PrecoFinalCents = (int?)null,
+            CustoPecasCents = 0,
+            HorasGastas = 0m,
+            Notas = (string?)null,
+            EstadoPagamento = 0,
+            ClienteId = clienteId,
+            PrevistoEntregueEm = eta,
+        });
+        etaResp.EnsureSuccessStatusCode();
 
         // Buscar feed.
         var feed = (await admin.GetFromJsonAsync<FeedInfo>("/api/automacoes/calendar-feed"))!;
