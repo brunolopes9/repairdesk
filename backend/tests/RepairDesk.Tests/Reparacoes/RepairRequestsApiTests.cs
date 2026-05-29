@@ -210,6 +210,26 @@ public class RepairRequestsApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Rejeitar_GuardaMotivo_E_MarcaRejeitado()
+    {
+        var admin = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var marker = Guid.NewGuid().ToString("N")[..8];
+        var pedido = await CreateManualPedidoAsync(admin, marker, equipamento: "iPad Air");
+
+        var resp = await admin.PostAsJsonAsync($"/api/repair-requests/{pedido.Id}/rejeitar",
+            new { Motivo = "Cliente desistiu — preço acima do esperado" });
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var rejeitado = (await resp.Content.ReadFromJsonAsync<RequestDto>())!;
+        rejeitado.Estado.Should().Be(2); // Rejeitado
+        rejeitado.MotivoRejeicao.Should().Contain("desistiu");
+
+        // Segunda tentativa devolve Conflict — pedido já tratado.
+        var again = await admin.PostAsJsonAsync($"/api/repair-requests/{pedido.Id}/rejeitar",
+            new { Motivo = "spam" });
+        again.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task Sprint439_Manual_SemContacto_400()
     {
         var admin = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
