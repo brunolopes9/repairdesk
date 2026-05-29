@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:e2b25a1db5a03933 -->
+<!-- roles-matrix-snapshot:d115e549260ec748 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -51,6 +51,12 @@ testes e esta matriz com snapshot.
 | AuthController | `PUT /api/auth/me` (DisplayName + PhoneNumber próprios) | `Authenticated` |
 | StockTakesController | `GET/POST /api/stock-takes*` (inventário físico mexe stock real) | `Admin` |
 | InternalTasksController | `GET/POST/PUT/DELETE /api/internal-tasks*` (TODO list por staff) | `Authenticated` |
+| **Sprint 435-439 (Doc 91) — catálogo serviços + inbox pedidos online** | | |
+| ServiceItemsController | `GET /api/service-items` | `Authenticated` |
+| ServiceItemsController | `POST/PUT/DELETE /api/service-items*` (catálogo mão-de-obra) | `Admin` |
+| RepairRequestsController | `PUT /{id}/triagem` (notas internas + prioridade) | `Authenticated` |
+| RepairRequestsController | `POST /{id}/converter-em-trabalho` (cria orçamento) | `Authenticated` |
+| RepairRequestsController | `POST /manual` (registar lead offline) | `Authenticated` |
 
 ## Sprint 311 — Roles granulares (Tech / Cashier / ReadOnly)
 
