@@ -52,8 +52,8 @@ testes e esta matriz com snapshot.
 | StockTakesController | `GET/POST /api/stock-takes*` (inventário físico mexe stock real) | `Admin` |
 | InternalTasksController | `GET/POST/PUT/DELETE /api/internal-tasks*` (TODO list por staff) | `Authenticated` |
 | **Sprint 435-439 (Doc 91) — catálogo serviços + inbox pedidos online** | | |
-| ServiceItemsController | `GET /api/service-items` | `Authenticated` |
-| ServiceItemsController | `POST/PUT/DELETE /api/service-items*` (catálogo mão-de-obra) | `Admin` |
+| ServiceItemsController | `GET /api/services` | `Authenticated` |
+| ServiceItemsController | `POST/PUT/DELETE /api/services*` (catálogo mão-de-obra) | `Admin` |
 | RepairRequestsController | `PUT /{id}/triagem` (notas internas + prioridade) | `Authenticated` |
 | RepairRequestsController | `POST /{id}/converter-em-trabalho` (cria orçamento) | `Authenticated` |
 | RepairRequestsController | `POST /manual` (registar lead offline) | `Authenticated` |
