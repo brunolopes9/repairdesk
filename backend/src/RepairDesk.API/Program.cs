@@ -290,6 +290,8 @@ try
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.StalledRepairsHostedService>();
         // Sprint 428 (Doc 90 cross-feature): digest diário de tarefas internas atrasadas.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueTasksHostedService>();
+        // Sprint 430 (Doc 90 §7.2 Automated overdue reminders): digest diário de cobranças em atraso.
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueInvoicesHostedService>();
     }
 
     // Diagnóstico guiado + Health Score
