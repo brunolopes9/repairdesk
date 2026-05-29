@@ -8,6 +8,17 @@ export const REPAIR_REQUEST_ESTADO = {
 
 export type RepairRequestEstado = (typeof REPAIR_REQUEST_ESTADO)[keyof typeof REPAIR_REQUEST_ESTADO];
 
+// Sprint 436 (Doc 91 follow-up): prioridade para triagem da inbox de pedidos.
+export const REPAIR_REQUEST_PRIORIDADE = {
+  Baixa: 0,
+  Normal: 1,
+  Alta: 2,
+  Urgente: 3,
+} as const;
+
+export type RepairRequestPrioridade =
+  (typeof REPAIR_REQUEST_PRIORIDADE)[keyof typeof REPAIR_REQUEST_PRIORIDADE];
+
 export interface RepairRequestDto {
   id: string;
   nome: string;
@@ -19,6 +30,8 @@ export interface RepairRequestDto {
   reparacaoId: string | null;
   motivoRejeicao: string | null;
   createdAt: string;
+  notasInternas: string | null;
+  prioridade: RepairRequestPrioridade;
 }
 
 export const repairRequestsApi = {
@@ -34,5 +47,8 @@ export const repairRequestsApi = {
   },
   rejeitar(id: string, motivo?: string) {
     return api.post<RepairRequestDto>(`/repair-requests/${id}/rejeitar`, { motivo: motivo ?? null }).then((r) => r.data);
+  },
+  updateTriagem(id: string, body: { notasInternas: string | null; prioridade: RepairRequestPrioridade }) {
+    return api.put<RepairRequestDto>(`/repair-requests/${id}/triagem`, body).then((r) => r.data);
   },
 };

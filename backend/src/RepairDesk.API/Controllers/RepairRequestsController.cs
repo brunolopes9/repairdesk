@@ -42,7 +42,27 @@ public sealed class RepairRequestsController : ControllerBase
     public sealed record RequestDto(
         Guid Id, string Nome, string? Email, string? Telefone, string Equipamento,
         string Descricao, RepairRequestEstado Estado, Guid? ReparacaoId,
-        string? MotivoRejeicao, DateTime CreatedAt);
+        string? MotivoRejeicao, DateTime CreatedAt,
+        // Sprint 436 (Doc 91 follow-up Codex): triagem.
+        string? NotasInternas, RepairRequestPrioridade Prioridade);
+
+    public sealed record UpdateTriagemRequest(string? NotasInternas, RepairRequestPrioridade Prioridade);
+
+    [HttpPut("{id:guid}/triagem")]
+    public async Task<ActionResult<RequestDto>> AtualizarTriagem(Guid id, [FromBody] UpdateTriagemRequest body, CancellationToken ct)
+    {
+        var req = await _repo.FindByIdAsync(id, ct);
+        if (req is null) return NotFound();
+
+        var notas = string.IsNullOrWhiteSpace(body.NotasInternas) ? null : body.NotasInternas.Trim();
+        if (notas is { Length: > 2000 })
+            return BadRequest(new { code = "notas_too_long", message = "Notas até 2000 chars." });
+
+        req.NotasInternas = notas;
+        req.Prioridade = body.Prioridade;
+        await _repo.SaveAsync(ct);
+        return Ok(MapDto(req));
+    }
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<RequestDto>>> List([FromQuery] RepairRequestEstado? estado, CancellationToken ct)
@@ -106,5 +126,6 @@ public sealed class RepairRequestsController : ControllerBase
 
     private static RequestDto MapDto(Core.Entities.RepairRequest r) =>
         new(r.Id, r.Nome, r.Email, r.Telefone, r.Equipamento, r.Descricao,
-            r.Estado, r.ReparacaoId, r.MotivoRejeicao, r.CreatedAt);
+            r.Estado, r.ReparacaoId, r.MotivoRejeicao, r.CreatedAt,
+            r.NotasInternas, r.Prioridade);
 }

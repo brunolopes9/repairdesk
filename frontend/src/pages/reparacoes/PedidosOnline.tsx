@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, CheckCircle2, Inbox, Mail, MessageCircle, Phone, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Flag, Inbox, Mail, MessageCircle, Phone, Save, StickyNote, X } from 'lucide-react';
 import {
   repairRequestsApi,
   REPAIR_REQUEST_ESTADO,
+  REPAIR_REQUEST_PRIORIDADE,
   type RepairRequestDto,
   type RepairRequestEstado,
+  type RepairRequestPrioridade,
 } from '../../lib/repairRequests/api';
 import { toast } from '../../lib/toast';
 import { useConfirm } from '../../components/ConfirmDialog';
@@ -48,7 +50,8 @@ export default function PedidosOnline() {
   });
 
   const rejeitarMut = useMutation({
-    mutationFn: (id: string) => repairRequestsApi.rejeitar(id),
+    mutationFn: ({ id, motivo }: { id: string; motivo?: string }) =>
+      repairRequestsApi.rejeitar(id, motivo),
     onSuccess: () => {
       toast.success('Pedido rejeitado.');
       qc.invalidateQueries({ queryKey: ['repair-requests'] });
@@ -57,14 +60,28 @@ export default function PedidosOnline() {
     onError: (err) => toast.fromError(err, 'Erro a rejeitar pedido.'),
   });
 
+  const triagemMut = useMutation({
+    mutationFn: (vars: { id: string; notasInternas: string | null; prioridade: RepairRequestPrioridade }) =>
+      repairRequestsApi.updateTriagem(vars.id, { notasInternas: vars.notasInternas, prioridade: vars.prioridade }),
+    onSuccess: () => {
+      toast.success('Triagem guardada.');
+      qc.invalidateQueries({ queryKey: ['repair-requests'] });
+    },
+    onError: (err) => toast.fromError(err, 'Erro a guardar triagem.'),
+  });
+
   async function askRejeitar(id: string) {
+    // Sprint 436: prompt para motivo. Curto, sem modal custom — confirm + prompt nativos
+    // bastam para uma acção de fluxo. O motivo fica visível no histórico.
     const ok = await confirm({
       title: 'Rejeitar pedido',
-      description: 'Marcar este pedido como rejeitado? Não cria reparação.',
+      description: 'Marcar este pedido como rejeitado? Não cria reparação. Podes adicionar um motivo curto a seguir.',
       confirmLabel: 'Rejeitar',
       destructive: true,
     });
-    if (ok) rejeitarMut.mutate(id);
+    if (!ok) return;
+    const motivo = window.prompt('Motivo da rejeição (opcional):', '') ?? undefined;
+    rejeitarMut.mutate({ id, motivo: motivo?.trim() || undefined });
   }
 
   const tabs: { label: string; value: RepairRequestEstado }[] = [
@@ -76,7 +93,20 @@ export default function PedidosOnline() {
     pendentes: (allRequests.data ?? []).filter((r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente).length,
     convertidos: (allRequests.data ?? []).filter((r) => r.estado === REPAIR_REQUEST_ESTADO.Convertido).length,
     rejeitados: (allRequests.data ?? []).filter((r) => r.estado === REPAIR_REQUEST_ESTADO.Rejeitado).length,
+    urgentes: (allRequests.data ?? []).filter(
+      (r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente && r.prioridade === REPAIR_REQUEST_PRIORIDADE.Urgente,
+    ).length,
   };
+
+  // Pendentes ordenam por prioridade desc, depois mais antigos primeiro (SLA implícito).
+  // Outras tabs mantém ordem natural (server already sorted by date).
+  const rows = (list.data ?? []).slice();
+  if (filtro === REPAIR_REQUEST_ESTADO.Pendente) {
+    rows.sort((a, b) => {
+      if (a.prioridade !== b.prioridade) return b.prioridade - a.prioridade;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -120,58 +150,182 @@ export default function PedidosOnline() {
         ))}
       </div>
 
+      {filtro === REPAIR_REQUEST_ESTADO.Pendente && counts.urgentes > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
+          <AlertTriangle size={14} className="flex-none" />
+          <span>
+            {counts.urgentes === 1
+              ? '1 pedido marcado como Urgente — trata primeiro.'
+              : `${counts.urgentes} pedidos marcados como Urgentes — trata primeiro.`}
+          </span>
+        </div>
+      )}
+
       <div className="grid gap-2">
         {list.isLoading && <p className="text-sm text-zinc-500">A carregar…</p>}
-        {list.data?.length === 0 && (
+        {rows.length === 0 && !list.isLoading && (
           <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
             Sem pedidos nesta categoria.
           </div>
         )}
-        {(list.data ?? []).map((r) => (
-          <div key={r.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-medium">{r.nome} · <span className="font-normal text-zinc-600 dark:text-zinc-400">{r.equipamento}</span></div>
-                <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-zinc-500">
-                  {r.telefone && <span className="inline-flex items-center gap-1"><Phone size={10} /> {displayPhone(r.telefone)}</span>}
-                  {r.email && <span className="inline-flex items-center gap-1"><Mail size={10} /> {r.email}</span>}
-                  <span>{formatDate(r.createdAt)}</span>
-                </div>
-                <p className="mt-1.5 whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300">{r.descricao}</p>
-                {r.motivoRejeicao && <p className="mt-1 text-xs italic text-rose-600">Rejeitado: {r.motivoRejeicao}</p>}
-                <LeadContactActions request={r} />
-              </div>
-              {r.estado === REPAIR_REQUEST_ESTADO.Pendente && (
-                <div className="flex shrink-0 flex-col gap-1">
-                  <button
-                    type="button" disabled={converterMut.isPending}
-                    onClick={() => converterMut.mutate(r.id)}
-                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    Converter <ArrowRight size={12} />
-                  </button>
-                  <button
-                    type="button" onClick={() => askRejeitar(r.id)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                  >
-                    <X size={12} /> Rejeitar
-                  </button>
-                </div>
-              )}
-              {r.estado === REPAIR_REQUEST_ESTADO.Convertido && r.reparacaoId && (
-                <button
-                  type="button" onClick={() => navigate(`/reparacoes/${r.reparacaoId}`)}
-                  className="shrink-0 text-xs text-brand-600 hover:underline"
-                >
-                  Ver reparação →
-                </button>
-              )}
-            </div>
-          </div>
+        {rows.map((r) => (
+          <PedidoCard
+            key={r.id}
+            request={r}
+            isConverting={converterMut.isPending}
+            isSavingTriagem={triagemMut.isPending}
+            onConverter={() => converterMut.mutate(r.id)}
+            onRejeitar={() => askRejeitar(r.id)}
+            onSaveTriagem={(notas, prioridade) =>
+              triagemMut.mutate({ id: r.id, notasInternas: notas, prioridade })
+            }
+            onAbrirReparacao={(repId) => navigate(`/reparacoes/${repId}`)}
+          />
         ))}
       </div>
     </div>
   );
+}
+
+/**
+ * Sprint 436: card individual com triagem inline (prioridade + notas).
+ * Componente próprio para isolar local state do form, evitar re-render do mundo
+ * sempre que se escreve uma nota.
+ */
+function PedidoCard({
+  request,
+  isConverting,
+  isSavingTriagem,
+  onConverter,
+  onRejeitar,
+  onSaveTriagem,
+  onAbrirReparacao,
+}: {
+  request: RepairRequestDto;
+  isConverting: boolean;
+  isSavingTriagem: boolean;
+  onConverter: () => void;
+  onRejeitar: () => void;
+  onSaveTriagem: (notas: string | null, prioridade: RepairRequestPrioridade) => void;
+  onAbrirReparacao: (repId: string) => void;
+}) {
+  const [notas, setNotas] = useState(request.notasInternas ?? '');
+  const [prioridade, setPrioridade] = useState<RepairRequestPrioridade>(request.prioridade);
+  const isPendente = request.estado === REPAIR_REQUEST_ESTADO.Pendente;
+  const dirty = (notas.trim() || null) !== (request.notasInternas ?? null) || prioridade !== request.prioridade;
+
+  const borderTone = prioridadeBorder(request.prioridade);
+
+  return (
+    <div className={`rounded-lg border bg-white p-3 dark:bg-zinc-900 ${borderTone}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="font-medium">
+              {request.nome} · <span className="font-normal text-zinc-600 dark:text-zinc-400">{request.equipamento}</span>
+            </div>
+            {isPendente && <PrioridadeBadge prioridade={request.prioridade} />}
+          </div>
+          <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-zinc-500">
+            {request.telefone && <span className="inline-flex items-center gap-1"><Phone size={10} /> {displayPhone(request.telefone)}</span>}
+            {request.email && <span className="inline-flex items-center gap-1"><Mail size={10} /> {request.email}</span>}
+            <span>{formatDate(request.createdAt)}</span>
+          </div>
+          <p className="mt-1.5 whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300">{request.descricao}</p>
+          {request.motivoRejeicao && <p className="mt-1 text-xs italic text-rose-600">Rejeitado: {request.motivoRejeicao}</p>}
+          {!isPendente && request.notasInternas && (
+            <p className="mt-1 inline-flex items-start gap-1 text-xs text-zinc-500">
+              <StickyNote size={11} className="mt-0.5 flex-none" />
+              <span className="whitespace-pre-line">{request.notasInternas}</span>
+            </p>
+          )}
+          <LeadContactActions request={request} />
+        </div>
+        {isPendente && (
+          <div className="flex shrink-0 flex-col gap-1">
+            <button
+              type="button" disabled={isConverting}
+              onClick={onConverter}
+              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              Converter <ArrowRight size={12} />
+            </button>
+            <button
+              type="button" onClick={onRejeitar}
+              className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            >
+              <X size={12} /> Rejeitar
+            </button>
+          </div>
+        )}
+        {!isPendente && request.reparacaoId && (
+          <button
+            type="button" onClick={() => onAbrirReparacao(request.reparacaoId!)}
+            className="shrink-0 text-xs text-brand-600 hover:underline"
+          >
+            Ver reparação →
+          </button>
+        )}
+      </div>
+
+      {isPendente && (
+        <div className="mt-3 grid gap-2 border-t border-zinc-100 pt-2 dark:border-zinc-800 sm:grid-cols-[160px_1fr_auto]">
+          <label className="flex items-center gap-1.5 text-xs">
+            <Flag size={12} className="text-zinc-400" />
+            <select
+              value={prioridade}
+              onChange={(e) => setPrioridade(Number(e.target.value) as RepairRequestPrioridade)}
+              className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <option value={REPAIR_REQUEST_PRIORIDADE.Baixa}>Baixa</option>
+              <option value={REPAIR_REQUEST_PRIORIDADE.Normal}>Normal</option>
+              <option value={REPAIR_REQUEST_PRIORIDADE.Alta}>Alta</option>
+              <option value={REPAIR_REQUEST_PRIORIDADE.Urgente}>Urgente</option>
+            </select>
+          </label>
+          <textarea
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            placeholder="Notas internas (cliente já ligou, espera confirmação, etc.) — não visíveis ao cliente"
+            rows={2}
+            maxLength={2000}
+            className="w-full rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          <button
+            type="button"
+            disabled={!dirty || isSavingTriagem}
+            onClick={() => onSaveTriagem(notas.trim() ? notas.trim() : null, prioridade)}
+            className="inline-flex items-center justify-center gap-1 self-start rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-40 dark:border-brand-900/60 dark:bg-brand-950/30 dark:text-brand-300"
+          >
+            <Save size={12} /> Guardar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PrioridadeBadge({ prioridade }: { prioridade: RepairRequestPrioridade }) {
+  if (prioridade === REPAIR_REQUEST_PRIORIDADE.Normal) return null;
+  const map: Record<number, { label: string; cls: string }> = {
+    [REPAIR_REQUEST_PRIORIDADE.Baixa]: { label: 'Baixa', cls: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+    [REPAIR_REQUEST_PRIORIDADE.Alta]: { label: 'Alta', cls: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300' },
+    [REPAIR_REQUEST_PRIORIDADE.Urgente]: { label: 'Urgente', cls: 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300' },
+  };
+  const tone = map[prioridade];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${tone.cls}`}>
+      <Flag size={9} /> {tone.label}
+    </span>
+  );
+}
+
+function prioridadeBorder(prioridade: RepairRequestPrioridade): string {
+  if (prioridade === REPAIR_REQUEST_PRIORIDADE.Urgente)
+    return 'border-rose-300 dark:border-rose-900/60';
+  if (prioridade === REPAIR_REQUEST_PRIORIDADE.Alta)
+    return 'border-amber-300 dark:border-amber-900/60';
+  return 'border-zinc-200 dark:border-zinc-700';
 }
 
 function LeadContactActions({ request }: { request: RepairRequestDto }) {

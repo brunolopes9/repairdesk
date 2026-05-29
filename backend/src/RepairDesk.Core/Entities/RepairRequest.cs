@@ -29,4 +29,13 @@ public class RepairRequest : BaseEntity, ITenantEntity
 
     /// <summary>IP de origem (truncado) — anti-abuso, não PII forte.</summary>
     public string? SourceIp { get; set; }
+
+    /// <summary>
+    /// Sprint 436 (Doc 91 follow-up Codex): notas internas do staff durante triagem.
+    /// Não visíveis ao cliente. Útil para "cliente já ligou", "espera confirmação preço", etc.
+    /// </summary>
+    public string? NotasInternas { get; set; }
+
+    /// <summary>Sprint 436: prioridade na inbox (default Normal). Para triagem visual.</summary>
+    public RepairRequestPrioridade Prioridade { get; set; } = RepairRequestPrioridade.Normal;
 }
