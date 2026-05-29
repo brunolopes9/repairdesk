@@ -65,6 +65,13 @@ public class Tenant : BaseEntity
     // NULL = widget desactivado. Gerado on-demand em Definições.
     public string? IntakeSlug { get; set; }
 
+    /// <summary>
+    /// Sprint 443 (Doc 91 follow-up): token público para subscrição .ics em
+    /// Google Calendar / Apple Calendar / Outlook. NULL = feed não emitido.
+    /// Gerado on-demand em /agendamentos. Pode ser rotated para invalidar acesso.
+    /// </summary>
+    public string? CalendarFeedToken { get; set; }
+
     // Sprint 175: retention policy por tipo de SupplierInvoiceImport.
     // Defaults conservadores PT (CIRS art. 123 obriga arquivo fiscal 10 anos).
     // Cron diário às 3h apaga PDFs raw + soft-delete entity quando expira.
