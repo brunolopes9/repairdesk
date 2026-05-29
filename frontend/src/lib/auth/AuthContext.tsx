@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import axios from 'axios';
 import { api } from '../api';
 import { clearAccessToken, setAccessToken } from './token';
-import type { AuthResponse, ChangePasswordRequest, LoginRequest, UserInfo } from './types';
+import type { AuthResponse, ChangePasswordRequest, LoginRequest, UpdateMeRequest, UserInfo } from './types';
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
 
@@ -14,6 +14,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: (req: LoginRequest) => Promise<void>;
   changePassword: (req: ChangePasswordRequest) => Promise<void>;
+  updateMe: (req: UpdateMeRequest) => Promise<UserInfo>;
   logout: () => Promise<void>;
   hasRole: (role: string) => boolean;
 }
@@ -71,6 +72,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [setAuth],
   );
 
+  // Sprint 420: actualizar perfil próprio (sem reemitir tokens — só refresca user).
+  const updateMe = useCallback(async (req: UpdateMeRequest) => {
+    const { data } = await api.put<UserInfo>('/auth/me', req);
+    setState((s) => ({ ...s, user: data }));
+    return data;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout');
@@ -87,8 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, changePassword, logout, hasRole }),
-    [state, login, changePassword, logout, hasRole],
+    () => ({ ...state, login, changePassword, updateMe, logout, hasRole }),
+    [state, login, changePassword, updateMe, logout, hasRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

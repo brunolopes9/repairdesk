@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
-  Building2, SlidersHorizontal, Webhook, Truck, Boxes, Workflow, Sparkles, Users,
+  Building2, SlidersHorizontal, Webhook, Truck, Boxes, Workflow, Sparkles, Users, UserCircle,
 } from 'lucide-react';
 
 /**
@@ -10,6 +10,7 @@ import {
  */
 const ITEMS = [
   { to: '/definicoes', label: 'Geral', icon: Building2, end: true },
+  { to: '/definicoes/perfil', label: 'O meu perfil', icon: UserCircle },
   { to: '/definicoes/preferencias', label: 'Preferências', icon: SlidersHorizontal },
   { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook },
   { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Truck },

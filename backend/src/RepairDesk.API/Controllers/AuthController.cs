@@ -166,6 +166,48 @@ public class AuthController : ControllerBase
         return Ok(ToUserInfo(user, roles));
     }
 
+    /// <summary>Sprint 420: editar perfil próprio (DisplayName + PhoneNumber).</summary>
+    [HttpPut("me")]
+    [Authorize]
+    public async Task<ActionResult<UserInfo>> UpdateMe([FromBody] UpdateMeRequest req, CancellationToken ct)
+    {
+        var user = await _users.GetUserAsync(User);
+        if (user is null || !user.IsActive) return Unauthorized(new { code = "user_inactive" });
+
+        var displayName = req.DisplayName?.Trim() ?? string.Empty;
+        if (displayName.Length is 0 or > 100)
+            return BadRequest(new { code = "displayname_invalid" });
+
+        var phone = string.IsNullOrWhiteSpace(req.PhoneNumber) ? null : req.PhoneNumber.Trim();
+        if (phone is not null && phone.Length > 30)
+            return BadRequest(new { code = "phone_invalid" });
+
+        user.DisplayName = displayName;
+        user.PhoneNumber = phone;
+
+        var result = await _users.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            return BadRequest(new
+            {
+                code = "update_failed",
+                errors = result.Errors.Select(e => e.Code).ToList()
+            });
+        }
+
+        await _audit.LogAsync(
+            AuditAction.Update,
+            "AppUser",
+            user.Id,
+            new { displayName = user.DisplayName, phoneNumber = user.PhoneNumber },
+            user.TenantId,
+            user.Id,
+            ct);
+
+        var roles = await _users.GetRolesAsync(user);
+        return Ok(ToUserInfo(user, roles));
+    }
+
     private async Task<ActionResult<AuthResponse>> IssueTokensAsync(AppUser user, string? ip, CancellationToken ct)
     {
         var (plaintext, _) = await _refresh.IssueAsync(user, ip, ct);
@@ -211,5 +253,5 @@ public class AuthController : ControllerBase
     }
 
     private static UserInfo ToUserInfo(AppUser user, IEnumerable<string> roles)
-        => new(user.Id, user.Email!, user.DisplayName, user.TenantId, roles.ToList(), user.RequireChangePasswordOnNextLogin);
+        => new(user.Id, user.Email!, user.DisplayName, user.TenantId, roles.ToList(), user.RequireChangePasswordOnNextLogin, user.PhoneNumber);
 }

@@ -5,6 +5,14 @@ export interface UserInfo {
   tenantId: string;
   roles: string[];
   requireChangePasswordOnNextLogin: boolean;
+  /** Sprint 420: telefone do utilizador (opcional). */
+  phoneNumber: string | null;
+}
+
+/** Sprint 420: payload PUT /api/auth/me. */
+export interface UpdateMeRequest {
+  displayName: string;
+  phoneNumber: string | null;
 }
 
 export interface AuthResponse {
