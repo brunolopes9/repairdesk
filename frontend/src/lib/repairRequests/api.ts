@@ -78,4 +78,16 @@ export const repairRequestsApi = {
   updateTriagem(id: string, body: { notasInternas: string | null; prioridade: RepairRequestPrioridade }) {
     return api.put<RepairRequestDto>(`/repair-requests/${id}/triagem`, body).then((r) => r.data);
   },
+  createManual(body: {
+    nome: string;
+    telefone: string | null;
+    email: string | null;
+    equipamento: string;
+    descricao: string;
+    origem: RepairRequestOrigem;
+    prioridade?: RepairRequestPrioridade;
+    notasInternas?: string | null;
+  }) {
+    return api.post<RepairRequestDto>('/repair-requests/manual', body).then((r) => r.data);
+  },
 };

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, FileText, Flag, Inbox, Mail, MessageCircle, Phone, Save, StickyNote, Wrench, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileText, Flag, Inbox, Mail, MessageCircle, Phone, Plus, Save, StickyNote, Wrench, X } from 'lucide-react';
 import {
   repairRequestsApi,
   REPAIR_REQUEST_ESTADO,
@@ -88,6 +88,19 @@ export default function PedidosOnline() {
     onError: (err) => toast.fromError(err, 'Erro a guardar triagem.'),
   });
 
+  // Sprint 439: criar pedido manual para leads offline.
+  const [showNovo, setShowNovo] = useState(false);
+  const novoMut = useMutation({
+    mutationFn: repairRequestsApi.createManual,
+    onSuccess: () => {
+      toast.success('Pedido registado.');
+      setShowNovo(false);
+      qc.invalidateQueries({ queryKey: ['repair-requests'] });
+      qc.invalidateQueries({ queryKey: ['repair-requests-count'] });
+    },
+    onError: (err) => toast.fromError(err, 'Erro a registar pedido.'),
+  });
+
   async function askRejeitar(id: string) {
     // Sprint 436: prompt para motivo. Curto, sem modal custom — confirm + prompt nativos
     // bastam para uma acção de fluxo. O motivo fica visível no histórico.
@@ -131,10 +144,26 @@ export default function PedidosOnline() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-xl font-semibold">Pedidos online</h1>
-        <p className="text-sm text-zinc-500">Pedidos de reparação submetidos pelos clientes através do widget no website.</p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Pedidos online</h1>
+          <p className="text-sm text-zinc-500">Inbox unificada: widget público, telefone, email, balcão.</p>
+        </div>
+        <button
+          type="button" onClick={() => setShowNovo(true)}
+          className="inline-flex items-center gap-1.5 self-start rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+        >
+          <Plus size={14} /> Novo pedido
+        </button>
       </header>
+
+      {showNovo && (
+        <NovoPedidoModal
+          isSaving={novoMut.isPending}
+          onClose={() => setShowNovo(false)}
+          onSave={(payload) => novoMut.mutate(payload)}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard
@@ -380,6 +409,143 @@ function PrioridadeBadge({ prioridade }: { prioridade: RepairRequestPrioridade }
     <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${tone.cls}`}>
       <Flag size={9} /> {tone.label}
     </span>
+  );
+}
+
+/**
+ * Sprint 439: modal simples para staff registar lead que entrou por canal
+ * offline (telefone, balcão). Mantém o mesmo modelo de RepairRequest — depois
+ * o pedido aparece na inbox e segue o mesmo fluxo de triagem/conversão.
+ */
+function NovoPedidoModal({
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  onClose: () => void;
+  onSave: (payload: {
+    nome: string;
+    telefone: string | null;
+    email: string | null;
+    equipamento: string;
+    descricao: string;
+    origem: RepairRequestOrigem;
+    prioridade?: RepairRequestPrioridade;
+    notasInternas?: string | null;
+  }) => void;
+  isSaving: boolean;
+}) {
+  const [nome, setNome] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [email, setEmail] = useState('');
+  const [equipamento, setEquipamento] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [origem, setOrigem] = useState<RepairRequestOrigem>(REPAIR_REQUEST_ORIGEM.Telefone);
+  const [prioridade, setPrioridade] = useState<RepairRequestPrioridade>(REPAIR_REQUEST_PRIORIDADE.Normal);
+  const [notas, setNotas] = useState('');
+
+  const valid =
+    nome.trim().length >= 2 &&
+    equipamento.trim().length >= 2 &&
+    descricao.trim().length >= 5 &&
+    (telefone.trim().length > 0 || email.trim().length > 0);
+
+  function handleSave() {
+    if (!valid) return;
+    onSave({
+      nome: nome.trim(),
+      telefone: telefone.trim() || null,
+      email: email.trim() || null,
+      equipamento: equipamento.trim(),
+      descricao: descricao.trim(),
+      origem,
+      prioridade,
+      notasInternas: notas.trim() ? notas.trim() : null,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-800 dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Novo pedido (offline)</h2>
+            <p className="text-xs text-zinc-500">Lead recebido por telefone, balcão ou outro canal.</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="grid gap-2.5">
+          <Field label="Nome">
+            <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} className={inputCls} placeholder="Ex.: João Silva" />
+          </Field>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <Field label="Telefone">
+              <input value={telefone} onChange={(e) => setTelefone(e.target.value)} maxLength={32} className={inputCls} placeholder="912 345 678" />
+            </Field>
+            <Field label="Email">
+              <input value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} className={inputCls} placeholder="joao@email.pt" type="email" />
+            </Field>
+          </div>
+          <Field label="Equipamento">
+            <input value={equipamento} onChange={(e) => setEquipamento(e.target.value)} maxLength={120} className={inputCls} placeholder="Ex.: iPhone 13" />
+          </Field>
+          <Field label="Descrição / avaria">
+            <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} maxLength={2000} rows={3} className={inputCls} placeholder="Ex.: ecrã partido, quer estimativa antes de trazer" />
+          </Field>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <Field label="Canal">
+              <select value={origem} onChange={(e) => setOrigem(Number(e.target.value) as RepairRequestOrigem)} className={inputCls}>
+                <option value={REPAIR_REQUEST_ORIGEM.Telefone}>Telefone</option>
+                <option value={REPAIR_REQUEST_ORIGEM.Email}>Email</option>
+                <option value={REPAIR_REQUEST_ORIGEM.WhatsApp}>WhatsApp</option>
+                <option value={REPAIR_REQUEST_ORIGEM.BalcaoFisico}>Balcão</option>
+                <option value={REPAIR_REQUEST_ORIGEM.Outro}>Outro</option>
+              </select>
+            </Field>
+            <Field label="Prioridade">
+              <select value={prioridade} onChange={(e) => setPrioridade(Number(e.target.value) as RepairRequestPrioridade)} className={inputCls}>
+                <option value={REPAIR_REQUEST_PRIORIDADE.Baixa}>Baixa</option>
+                <option value={REPAIR_REQUEST_PRIORIDADE.Normal}>Normal</option>
+                <option value={REPAIR_REQUEST_PRIORIDADE.Alta}>Alta</option>
+                <option value={REPAIR_REQUEST_PRIORIDADE.Urgente}>Urgente</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Notas internas (opcional)">
+            <textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={2000} rows={2} className={inputCls} placeholder="Ex.: cliente vai trazer amanhã ao final do dia" />
+          </Field>
+        </div>
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!valid || isSaving}
+            className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {isSaving ? 'A guardar…' : 'Registar pedido'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const inputCls =
+  'w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900';
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-0.5 block text-[11px] font-medium text-zinc-600 dark:text-zinc-400">{label}</span>
+      {children}
+    </label>
   );
 }
 

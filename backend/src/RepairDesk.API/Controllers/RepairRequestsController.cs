@@ -152,6 +152,70 @@ public sealed class RepairRequestsController : ControllerBase
         return Ok(MapDto(req));
     }
 
+    /// <summary>
+    /// Sprint 439 (Doc 91 follow-up): cria um pedido manualmente — para leads que
+    /// chegam por telefone, balcão, etc., e o staff quer ter na mesma inbox.
+    /// Estado inicial = Pendente; staff pode depois converter ou rejeitar como
+    /// qualquer outro pedido.
+    /// </summary>
+    public sealed record CreateManualRequest(
+        string Nome,
+        string? Telefone,
+        string? Email,
+        string Equipamento,
+        string Descricao,
+        RepairRequestOrigem Origem,
+        RepairRequestPrioridade? Prioridade,
+        string? NotasInternas);
+
+    [HttpPost("manual")]
+    public async Task<ActionResult<RequestDto>> CreateManual([FromBody] CreateManualRequest body, CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            return Forbid();
+
+        var nome = body.Nome?.Trim() ?? "";
+        var equipamento = body.Equipamento?.Trim() ?? "";
+        var descricao = body.Descricao?.Trim() ?? "";
+        var telefone = string.IsNullOrWhiteSpace(body.Telefone) ? null : body.Telefone.Trim();
+        var email = string.IsNullOrWhiteSpace(body.Email) ? null : body.Email.Trim();
+        var notas = string.IsNullOrWhiteSpace(body.NotasInternas) ? null : body.NotasInternas.Trim();
+
+        if (nome.Length < 2 || nome.Length > 120)
+            return BadRequest(new { code = "nome_invalido", message = "Nome 2-120 chars." });
+        if (equipamento.Length < 2 || equipamento.Length > 120)
+            return BadRequest(new { code = "equipamento_invalido", message = "Equipamento 2-120 chars." });
+        if (descricao.Length < 5 || descricao.Length > 2000)
+            return BadRequest(new { code = "descricao_invalida", message = "Descrição 5-2000 chars." });
+        if (telefone is null && email is null)
+            return BadRequest(new { code = "contacto_obrigatorio", message = "Pelo menos telefone ou email." });
+        // Widget só pode vir do endpoint público — staff a registar manualmente
+        // tem de indicar canal real (telefone, email, etc.).
+        if (body.Origem == RepairRequestOrigem.Widget)
+            return BadRequest(new { code = "origem_invalida", message = "Para pedidos manuais escolhe um canal (telefone, email, etc.)." });
+        if (notas is { Length: > 2000 })
+            return BadRequest(new { code = "notas_too_long", message = "Notas até 2000 chars." });
+
+        var req = new Core.Entities.RepairRequest
+        {
+            TenantId = tenantId,
+            Nome = nome,
+            Telefone = telefone,
+            Email = email,
+            Equipamento = equipamento,
+            Descricao = descricao,
+            Estado = RepairRequestEstado.Pendente,
+            Origem = body.Origem,
+            Prioridade = body.Prioridade ?? RepairRequestPrioridade.Normal,
+            NotasInternas = notas,
+        };
+        await _repo.AddAsync(req, ct);
+
+        await _audit.LogAsync(AuditAction.Create, "RepairRequest", req.Id, new { Manual = true, Origem = body.Origem }, tenantId, _user.UserId, ct);
+
+        return Ok(MapDto(req));
+    }
+
     public sealed record RejeitarRequest(string? Motivo);
 
     [HttpPost("{id:guid}/rejeitar")]
