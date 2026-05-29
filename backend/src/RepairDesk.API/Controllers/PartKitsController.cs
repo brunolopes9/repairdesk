@@ -28,9 +28,27 @@ public sealed class PartKitsController : ControllerBase
     }
 
     public sealed record KitItemDto(Guid PartId, string PartNome, string? PartSku, int Quantidade, int CustoUnitarioCents);
-    public sealed record KitDto(Guid Id, string Nome, string? Descricao, IReadOnlyList<KitItemDto> Items, int CustoTotalCents);
+    public sealed record KitDto(
+        Guid Id,
+        string Nome,
+        string? Descricao,
+        IReadOnlyList<KitItemDto> Items,
+        int CustoTotalCents,
+        // Sprint 433 (Doc 90 §7.3 Bundles): labor + preço fixo do bundle.
+        int MaoDeObraCents,
+        string? MaoDeObraDescricao,
+        int? PrecoFinalCents,
+        /// <summary>Preço efectivo: PrecoFinalCents quando definido, senão CustoTotalCents + MaoDeObraCents.</summary>
+        int PrecoEfectivoCents);
     public sealed record KitItemInput(Guid PartId, int Quantidade);
-    public sealed record CreateOrUpdateKitRequest(string Nome, string? Descricao, IReadOnlyList<KitItemInput> Items);
+    public sealed record CreateOrUpdateKitRequest(
+        string Nome,
+        string? Descricao,
+        IReadOnlyList<KitItemInput> Items,
+        // Sprint 433: campos opcionais para bundle pricing.
+        int MaoDeObraCents = 0,
+        string? MaoDeObraDescricao = null,
+        int? PrecoFinalCents = null);
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<KitDto>>> List(CancellationToken ct)
@@ -66,6 +84,9 @@ public sealed class PartKitsController : ControllerBase
             TenantId = tenantId,
             Nome = nome,
             Descricao = string.IsNullOrWhiteSpace(req.Descricao) ? null : req.Descricao.Trim(),
+            MaoDeObraCents = Math.Max(0, req.MaoDeObraCents),
+            MaoDeObraDescricao = string.IsNullOrWhiteSpace(req.MaoDeObraDescricao) ? null : req.MaoDeObraDescricao.Trim(),
+            PrecoFinalCents = req.PrecoFinalCents.HasValue && req.PrecoFinalCents.Value >= 0 ? req.PrecoFinalCents : null,
             Items = req.Items
                 .Where(i => i.Quantidade > 0)
                 .Select(i => new PartKitItem
@@ -94,6 +115,10 @@ public sealed class PartKitsController : ControllerBase
 
         kit.Nome = nome;
         kit.Descricao = string.IsNullOrWhiteSpace(req.Descricao) ? null : req.Descricao.Trim();
+        // Sprint 433: actualizar campos bundle.
+        kit.MaoDeObraCents = Math.Max(0, req.MaoDeObraCents);
+        kit.MaoDeObraDescricao = string.IsNullOrWhiteSpace(req.MaoDeObraDescricao) ? null : req.MaoDeObraDescricao.Trim();
+        kit.PrecoFinalCents = req.PrecoFinalCents.HasValue && req.PrecoFinalCents.Value >= 0 ? req.PrecoFinalCents : null;
         kit.Items.Clear();
         foreach (var i in req.Items.Where(x => x.Quantidade > 0))
         {
@@ -170,6 +195,10 @@ public sealed class PartKitsController : ControllerBase
                 i.Part.CustoUnitarioCents))
             .ToList();
         var custoTotal = items.Sum(i => i.Quantidade * i.CustoUnitarioCents);
-        return new KitDto(kit.Id, kit.Nome, kit.Descricao, items, custoTotal);
+        // Sprint 433: preço efectivo = PrecoFinalCents override ou custoTotal + mãoDeObra.
+        var precoEfectivo = kit.PrecoFinalCents ?? (custoTotal + kit.MaoDeObraCents);
+        return new KitDto(
+            kit.Id, kit.Nome, kit.Descricao, items, custoTotal,
+            kit.MaoDeObraCents, kit.MaoDeObraDescricao, kit.PrecoFinalCents, precoEfectivo);
     }
 }

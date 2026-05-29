@@ -14,6 +14,12 @@ export interface KitDto {
   descricao: string | null;
   items: KitItemDto[];
   custoTotalCents: number;
+  // Sprint 433: bundle pricing.
+  maoDeObraCents: number;
+  maoDeObraDescricao: string | null;
+  precoFinalCents: number | null;
+  /** Custo total + mão-de-obra OU precoFinalCents quando definido. */
+  precoEfectivoCents: number;
 }
 
 export interface KitItemInput {
@@ -39,10 +45,27 @@ export const partKitsApi = {
   get(id: string) {
     return api.get<KitDto>(`/part-kits/${id}`).then((r) => r.data);
   },
-  create(payload: { nome: string; descricao?: string | null; items: KitItemInput[] }) {
+  create(payload: {
+    nome: string;
+    descricao?: string | null;
+    items: KitItemInput[];
+    maoDeObraCents?: number;
+    maoDeObraDescricao?: string | null;
+    precoFinalCents?: number | null;
+  }) {
     return api.post<KitDto>('/part-kits', payload).then((r) => r.data);
   },
-  update(id: string, payload: { nome: string; descricao?: string | null; items: KitItemInput[] }) {
+  update(
+    id: string,
+    payload: {
+      nome: string;
+      descricao?: string | null;
+      items: KitItemInput[];
+      maoDeObraCents?: number;
+      maoDeObraDescricao?: string | null;
+      precoFinalCents?: number | null;
+    },
+  ) {
     return api.put<KitDto>(`/part-kits/${id}`, payload).then((r) => r.data);
   },
   delete(id: string) {

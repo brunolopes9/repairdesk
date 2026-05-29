@@ -81,7 +81,13 @@ export default function PartKitsPage() {
                 <div className="font-medium">{kit.nome}</div>
                 {kit.descricao && <div className="text-xs text-zinc-500">{kit.descricao}</div>}
                 <div className="mt-1 text-[11px] text-zinc-500">
-                  {kit.items.length} peças · custo total {formatCents(kit.custoTotalCents)}
+                  {kit.items.length} peças · custo {formatCents(kit.custoTotalCents)}
+                  {kit.maoDeObraCents > 0 && <> · mão-de-obra {formatCents(kit.maoDeObraCents)}</>}
+                  {' · '}
+                  <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                    cliente {formatCents(kit.precoEfectivoCents)}
+                    {kit.precoFinalCents != null && <> (fixo)</>}
+                  </span>
                 </div>
               </div>
               <div className="flex gap-1">
@@ -122,6 +128,14 @@ function KitForm({ initial, onClose, onSaved }: FormProps) {
     initial?.items.map((i) => ({ partId: i.partId, quantidade: i.quantidade })) ?? []
   );
   const [partQuery, setPartQuery] = useState('');
+  // Sprint 433 (Doc 90 §7.3 Bundles): bundle pricing fields (em euros para o input UX).
+  const [maoDeObraEuro, setMaoDeObraEuro] = useState(
+    initial?.maoDeObraCents ? (initial.maoDeObraCents / 100).toFixed(2) : '',
+  );
+  const [maoDeObraDesc, setMaoDeObraDesc] = useState(initial?.maoDeObraDescricao ?? '');
+  const [precoFinalEuro, setPrecoFinalEuro] = useState(
+    initial?.precoFinalCents != null ? (initial.precoFinalCents / 100).toFixed(2) : '',
+  );
 
   const partsQuery = useQuery({
     queryKey: ['stock-search', partQuery],
@@ -131,7 +145,17 @@ function KitForm({ initial, onClose, onSaved }: FormProps) {
 
   const saveMut = useMutation({
     mutationFn: () => {
-      const payload = { nome: nome.trim(), descricao: descricao.trim() || null, items };
+      // Parse euros → cents (S433 bundle pricing).
+      const moc = Math.round((Number(maoDeObraEuro.replace(',', '.')) || 0) * 100);
+      const pfe = precoFinalEuro.trim() === '' ? null : Math.round((Number(precoFinalEuro.replace(',', '.')) || 0) * 100);
+      const payload = {
+        nome: nome.trim(),
+        descricao: descricao.trim() || null,
+        items,
+        maoDeObraCents: moc,
+        maoDeObraDescricao: maoDeObraDesc.trim() || null,
+        precoFinalCents: pfe,
+      };
       return initial ? partKitsApi.update(initial.id, payload) : partKitsApi.create(payload);
     },
     onSuccess: () => {
@@ -183,6 +207,44 @@ function KitForm({ initial, onClose, onSaved }: FormProps) {
           onChange={(e) => setDescricao(e.target.value)}
           className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
         />
+
+        {/* Sprint 433 (Doc 90 §7.3): Bundle pricing — mão-de-obra + preço fixo cliente. */}
+        <details className="rounded border border-dashed border-zinc-300 px-2 py-1.5 dark:border-zinc-700">
+          <summary className="cursor-pointer text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Bundle pricing (opcional) — mão-de-obra + preço cliente
+          </summary>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <label className="block text-xs">
+              <span className="mb-0.5 block text-zinc-500">Mão-de-obra (€)</span>
+              <input
+                inputMode="decimal" placeholder="0,00" value={maoDeObraEuro}
+                onChange={(e) => setMaoDeObraEuro(e.target.value)}
+                className="w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+              />
+            </label>
+            <label className="block text-xs sm:col-span-2">
+              <span className="mb-0.5 block text-zinc-500">Descrição da mão-de-obra</span>
+              <input
+                type="text" placeholder="ex: Troca ecrã + teste"
+                value={maoDeObraDesc}
+                onChange={(e) => setMaoDeObraDesc(e.target.value)}
+                className="w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="mb-0.5 block text-zinc-500">Preço fixo cliente (€)</span>
+              <input
+                inputMode="decimal" placeholder="(soma se vazio)"
+                value={precoFinalEuro}
+                onChange={(e) => setPrecoFinalEuro(e.target.value)}
+                className="w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+              />
+            </label>
+            <p className="text-[11px] text-zinc-500 sm:col-span-2 sm:self-end">
+              Vazio = custo das peças + mão-de-obra. Definido = preço comercial fechado (margem implícita).
+            </p>
+          </div>
+        </details>
 
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Adicionar peças</label>
