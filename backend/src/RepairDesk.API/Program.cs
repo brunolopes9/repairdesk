@@ -288,6 +288,8 @@ try
         builder.Services.AddHostedService<StaffPushWorker>();
         // Sprint 392 (Doc 84): 4.º gatilho — digest diário de reparações paradas há +N dias.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.StalledRepairsHostedService>();
+        // Sprint 428 (Doc 90 cross-feature): digest diário de tarefas internas atrasadas.
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueTasksHostedService>();
     }
 
     // Diagnóstico guiado + Health Score
