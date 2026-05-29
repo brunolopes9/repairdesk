@@ -214,7 +214,7 @@ export default function Agendamentos() {
           <div className="flex items-center gap-2">
             <Rss size={14} className="text-brand-600" />
             Subscrever em Google Calendar / Apple Calendar
-            <span className="text-[11px] font-normal text-zinc-500">— refresca automaticamente, ao contrário do "Exportar" que é uma fotografia.</span>
+            <span className="text-[11px] font-normal text-zinc-500">— inclui agendamentos + reparações com ETA. Refresca automaticamente.</span>
           </div>
         </summary>
         <div className="space-y-3 border-t border-zinc-100 px-3 py-3 text-sm dark:border-zinc-800">

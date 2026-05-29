@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using RepairDesk.Core.Enums;
 using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Appointments;
 
@@ -65,7 +66,23 @@ public sealed class PublicCalendarFeedController : ControllerBase
             .OrderBy(a => a.ScheduledAt)
             .ToListAsync(ct);
 
-        var bytes = IcsBuilder.BuildCalendar(items, calendarName: $"Mender — {tenant.Name}");
+        // Sprint 446: incluir reparações em curso com PrevistoEntregueEm dentro da janela.
+        // Filtro de estado: tudo excepto Cancelado (já não é relevante) e Orçamento (rascunho).
+        // Entregue continua a aparecer se o ETA original cair na janela — mostra histórico
+        // recente sem inflacionar muito. Include Cliente para nome+telefone na DESCRIPTION.
+        var reparacoesComEta = await _db.Reparacoes
+            .IgnoreQueryFilters()
+            .Include(r => r.Cliente)
+            .Where(r => r.TenantId == tenant.Id
+                     && r.PrevistoEntregueEm != null
+                     && r.PrevistoEntregueEm >= fromUtc
+                     && r.PrevistoEntregueEm < toUtc
+                     && r.Estado != RepairStatus.Cancelado
+                     && r.Estado != RepairStatus.Orcamento)
+            .OrderBy(r => r.PrevistoEntregueEm)
+            .ToListAsync(ct);
+
+        var bytes = IcsBuilder.BuildCalendar(items, reparacoesComEta, calendarName: $"Mender — {tenant.Name}");
         // Cache-Control curto: clientes calendário (Google) cachiam ~12h; deixamos
         // refresh mais frequente para reflectir mudanças do staff dentro do dia.
         Response.Headers["Cache-Control"] = "public, max-age=900"; // 15 minutos
