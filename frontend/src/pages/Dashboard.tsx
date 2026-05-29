@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Clock3,
   Euro,
+  Inbox,
   ListTodo,
   PackageSearch,
   ShieldCheck,
@@ -175,6 +176,15 @@ export default function Dashboard() {
   }, [tarefasPendentes.data]);
   const cobrancasEmAtrasoCount =
     (alertasQuery.data?.reparacoesNaoPagas?.length ?? 0) + (alertasQuery.data?.trabalhosNaoPagos?.length ?? 0);
+  // Sprint 441: reparações em Pronto há +READY_DAYS (cliente não veio buscar).
+  // Alinhado com cron ReadyForPickup:Days (default 5). Conta apenas a partir da fila atual.
+  const READY_DAYS = 5;
+  const porLevantarCount = useMemo(() => {
+    const cutoff = Date.now() - READY_DAYS * 86_400_000;
+    return (fila.data?.items ?? []).filter(
+      (r) => r.estado === REPAIR_STATUS.Pronto && new Date(r.estadoSince).getTime() < cutoff,
+    ).length;
+  }, [fila.data]);
   const cashflowData = useMemo(() => {
     return (cashflow.data?.days ?? []).map((d) => ({
       label: new Date(d.date).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' }),
@@ -546,7 +556,7 @@ export default function Dashboard() {
             const faturasPend = pagasSemFatura.data?.length ?? 0;
             // Sprint 431: novos sinais (alinhados com os crons S392/S428/S430).
             const totalAlertas = expiramGar + stockCritico + faturasPend
-              + reparacoesParadasCount + tarefasAtrasadasCount + cobrancasEmAtrasoCount;
+              + reparacoesParadasCount + tarefasAtrasadasCount + cobrancasEmAtrasoCount + porLevantarCount;
             if (totalAlertas === 0) return <p className="py-6 text-center text-sm text-zinc-500">Sem alertas — tudo em dia ✓</p>;
             return (
               <ul className="space-y-2">
@@ -615,6 +625,18 @@ export default function Dashboard() {
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium text-amber-900 dark:text-amber-100">{cobrancasEmAtrasoCount} cobrança{cobrancasEmAtrasoCount === 1 ? '' : 's'} em atraso</span>
                         <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Entregue / Concluído mas por pagar</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {/* Sprint 441: sinais do cron ReadyForPickup — prontas há +N dias por levantar. */}
+                {porLevantarCount > 0 && (
+                  <li>
+                    <Link to="/reparacoes?estado=4" className="flex items-center gap-2.5 rounded-lg bg-amber-50 px-2.5 py-2 text-sm transition hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300"><Inbox size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-amber-900 dark:text-amber-100">{porLevantarCount} pronta{porLevantarCount === 1 ? '' : 's'} há +{READY_DAYS}d por levantar</span>
+                        <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Cliente ainda não veio buscar — voltar a contactar</span>
                       </span>
                     </Link>
                   </li>
