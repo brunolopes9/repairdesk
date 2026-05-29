@@ -20,6 +20,19 @@ export interface ClienteForm {
   notaImportante?: string | null;
 }
 
+export interface ClienteEquipamento {
+  nome: string;
+  imei: string | null;
+  primeiroRegistoEm: string;
+  ultimoRegistoEm: string;
+  reparacoesCount: number;
+  vendasCount: number;
+  ultimaReparacaoId: string | null;
+  ultimaReparacaoNumero: number | null;
+  ultimaVendaId: string | null;
+  ultimaVendaNumero: number | null;
+}
+
 export interface AtNifLookup {
   nif: string;
   nome: string;

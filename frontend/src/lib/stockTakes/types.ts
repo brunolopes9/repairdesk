@@ -1,10 +1,12 @@
 // Sprint 421: tipos do inventário físico (StockTake).
 
-export enum StockTakeStatus {
-  Aberto = 0,
-  Concluido = 1,
-  Cancelado = 2,
-}
+export const StockTakeStatus = {
+  Aberto: 0,
+  Concluido: 1,
+  Cancelado: 2,
+} as const;
+
+export type StockTakeStatus = (typeof StockTakeStatus)[keyof typeof StockTakeStatus];
 
 export interface StockTakeItem {
   id: string;

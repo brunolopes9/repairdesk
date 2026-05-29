@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { AtNifLookup, Cliente, ClienteForm, PagedResult } from './types';
+import type { AtNifLookup, Cliente, ClienteEquipamento, ClienteForm, PagedResult } from './types';
 
 export const clientesApi = {
   list(query: string, page = 1, pageSize = 20) {
@@ -9,6 +9,9 @@ export const clientesApi = {
   },
   get(id: string) {
     return api.get<Cliente>(`/clientes/${id}`).then((r) => r.data);
+  },
+  equipamentos(id: string, take = 20) {
+    return api.get<ClienteEquipamento[]>(`/clientes/${id}/equipamentos`, { params: { take } }).then((r) => r.data);
   },
   create(payload: ClienteForm) {
     return api.post<Cliente>('/clientes', payload).then((r) => r.data);

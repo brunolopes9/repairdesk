@@ -273,6 +273,74 @@ Moloni. RoApp = ERP genérico **sem** compliance PT. Em PT-B2C, ganhas.
 
 ---
 
+## 7. Bónus do `features.txt` (site roapp.io)
+
+Análise do features.txt (6841 linhas de copy do site, lido por grep).
+
+### 7.1 Integrações canónicas RoApp (lista oficial deles)
+- **Pagamentos:** SumUp · Square (com Tap-to-Pay) · Mollie · Stripe
+- **Contabilidade:** Xero · QuickBooks (2-way sync)
+- **Telefonia:** Twilio Voice (calls online com transcrição AI)
+- **SMS:** Twilio · SMSAPI
+- **Chats:** WhatsApp Business · Facebook Messenger · Instagram Direct · Viber · Telegram
+- **Marketing:** Google Contacts · Mailchimp-like
+- **No-code:** Zapier · Make · próprios Webhooks
+- **Email:** 2-way Gmail (coming soon) · 2-way Outlook (coming soon)
+- **E-invoicing:** B2Brouter (Peppol delivery — sem cobertura PT confirmada pelo Miguel)
+
+**Comparação Mender:** temos Moloni nativo (PT) + InvoiceXpress (planeado). Não temos
+pagamentos online próprios — para o ecommerce bridge confiamos no IFTHENPAY (MBWay +
+Multibanco PT) já integrado (S303). Falta SumUp/Square para Tap-to-Pay físico. Para
+chats omnichannel, falta tudo (Tier 3).
+
+### 7.2 Roadmap PÚBLICO do RoApp ("coming soon") — oportunidades para nós ficarmos à frente
+
+| Feature "coming soon" do RoApp | Estado Mender | Oportunidade |
+|---|---|---|
+| **Engineer time on the job** | ✅ JÁ temos (Time Tracker S349) | **Estamos à frente.** Vender isto. |
+| **Recurring service contracts** | ❌ não temos | Tier 4 (irrelevante p/ B2C oficina) |
+| **Automated overdue reminders** | ❌ não temos | **Tier 2 valioso** — cron que envia email/SMS para faturas vencidas há X dias |
+| **GPS / route view** | ❌ não temos | Skip (field service, não oficina) |
+| **Custom checklists** | ⚠️ parcial (campos personalizados S193) | **Tier 2** — formalizar como checklist por tipo de reparação (ex.: diagnóstico iPhone 15 → 5 itens fixos a marcar) |
+| **Deposits/prepayments p/ no-show** | ❌ não temos | Tier 3 — sinal antes de booking confirmado (anti-no-show) |
+| **Message templates auto-replies** | ⚠️ parcial (Email 1-click S348 tem templates) | Estender ao WhatsApp quando chegar |
+| **Customer segments** | ❌ não temos | Tier 3 — segmentação para campanhas |
+| **2-way Gmail/Outlook** | ❌ não temos | Tier 4 (IMAP forward para fornecedores já cobre o caso de uso real) |
+| **Tap-to-pay / mobile wallets** | ❌ não temos | Tier 3 — SumUp Tap-to-Pay no Android |
+
+### 7.3 Features RoApp descobertas só no features.txt
+- **Bin Locations:** sub-stock por prateleira/gaveta dentro de cada warehouse. Útil para
+  oficinas com muitas peças (cada peça tem `Warehouse > Bin A1`). Mender hoje tem só
+  `Part.localArmazenamento` (texto livre). **Tier 2 considerar.**
+- **Roster Management:** escalonamento de turnos de funcionários (semanal). Tier 4 — só
+  com equipa.
+- **AI tools deles:**
+  - Call/voice transcription (Whisper-style). Nós não temos calls.
+  - Product recognition by image (foto → nome+descrição+background removal). **Tier 3
+    interessante** — usar Claude Vision como já fazemos para alt-text.
+  - AI-assisted CSV imports (Excel → estrutura detectada). **Nós já fazemos isto com
+    fuzzy SKU matching (S157)** e Claude Haiku parser (S163).
+  - Suggested replies in chats. Só com chats omnichannel ligados.
+- **Refurbished Devices flow:** registar device refurbished → vendê-lo. Mender já tem
+  via `Product.Origin = Refurbished` (S197) + IMEI tracking.
+- **Customer-facing booking 24/7:** já temos (S389 Repair Request Widget S354).
+- **Multi-location:** RoApp permite gerir várias lojas. Mender hoje é mono-tenant
+  multi-location parcial (já temos `Location` em vários sítios). Formalizar quando o
+  Bruno abrir 2ª loja.
+
+### 7.4 Lições estratégicas finais
+1. **A nossa stack PT é defensável** — Miguel confirmou que B2Brouter não cobre PT. Toda
+   a parte AT/Moloni/ATCUD é nossa.
+2. **RoApp tem mais larga, nós temos mais profunda.** Não tentar igualar largura. Manter
+   a profundidade vertical (telemóveis + AT + Moloni + DL 84/2021 + Garantia 3 anos + IMEI).
+3. **Algumas features deles ainda nem existem** (estão "coming soon"). Implementar antes
+   deles em PT = positioning de "ERP mais completo para oficinas PT".
+4. **A integração com no-code (Zapier/Make/Webhooks)** é importante para SaaS. Mender já
+   tem Webhooks (S101-104) e está bem aqui. Adicionar conector Zapier oficial seria um
+   selo nice-to-have para o site comercial.
+
+---
+
 ## Ligação a outros docs
 
 - [[89-Billing-Compliance]] — agora **confirmado pelo Miguel** (ver update).

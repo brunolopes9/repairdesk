@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Download, Mail, MessageCircle, Pencil, Phone, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Download, Mail, MessageCircle, Pencil, Phone, ShieldAlert, ShoppingBag, Smartphone, Wrench } from 'lucide-react';
 import { displayPhone } from '../../lib/phone/formatter';
 import Modal from '../../components/Modal';
 import { BackButton, Breadcrumb, Button, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
+import type { ClienteEquipamento } from '../../lib/clientes/types';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { STATUS_COLOR, STATUS_LABEL, type Reparacao } from '../../lib/reparacoes/types';
 import { trabalhosApi } from '../../lib/trabalhos/api';
@@ -47,6 +48,12 @@ export default function ClienteDetalhe() {
   const vendas = useQuery({
     queryKey: ['cliente-vendas', id],
     queryFn: () => vendasApi.list({ clienteId: id, pageSize: 100 }),
+    enabled: !!id,
+  });
+
+  const equipamentos = useQuery({
+    queryKey: ['cliente-equipamentos', id],
+    queryFn: () => clientesApi.equipamentos(id!, 20),
     enabled: !!id,
   });
 
@@ -117,6 +124,7 @@ export default function ClienteDetalhe() {
   const reps = reparacoes.data?.items ?? [];
   const trabs = trabalhos.data?.items ?? [];
   const vds = vendas.data?.items ?? [];
+  const eqs = equipamentos.data ?? [];
   const hardDeleteExpected = `APAGAR ${c.nome}`;
   const canHardDelete = hardDeleteConfirm === hardDeleteExpected;
 
@@ -216,6 +224,30 @@ export default function ClienteDetalhe() {
         <Kpi label="Lucro gerado" value={formatCents(lucroTotal)} tone={lucroTotal >= 0 ? 'emerald' : 'red'} />
         <Kpi label="Em curso" value={String(abertosCount)} tone={abertosCount > 0 ? 'amber' : undefined} />
         <Kpi label="Última visita" value={ultimaVisita ? formatDateOnly(ultimaVisita) : '—'} />
+      </section>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Smartphone size={16} strokeWidth={2} className="text-brand-600" />
+              Equipamentos <span className="text-zinc-500">- {eqs.length}</span>
+            </h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Historico derivado de reparacoes e vendas com equipamento ou IMEI.
+            </p>
+          </div>
+          {equipamentos.isFetching && <span className="text-xs text-zinc-400">A atualizar...</span>}
+        </div>
+        {eqs.length === 0 ? (
+          <div className="mt-3 rounded-lg border border-dashed border-zinc-200 px-3 py-6 text-center text-sm text-zinc-500 dark:border-zinc-800">
+            Ainda nao ha equipamentos associados. Quando criares uma reparacao ou venda com IMEI, aparece aqui.
+          </div>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+            {eqs.map((eq) => <EquipamentoCard key={`${eq.imei ?? eq.nome}-${eq.ultimoRegistoEm}`} eq={eq} />)}
+          </div>
+        )}
       </section>
 
       {/* RGPD */}
@@ -427,6 +459,52 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'eme
       <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
       <div className={`mt-1 text-lg font-semibold ${toneCls}`}>{value}</div>
     </div>
+  );
+}
+
+function EquipamentoCard({ eq }: { eq: ClienteEquipamento }) {
+  return (
+    <article className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="truncate font-medium">{eq.nome}</h3>
+          {eq.imei ? (
+            <div className="mt-1 font-mono text-xs text-zinc-500">IMEI {eq.imei}</div>
+          ) : (
+            <div className="mt-1 text-xs text-zinc-400">Sem IMEI registado</div>
+          )}
+        </div>
+        <div className="shrink-0 rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+          {formatDateOnly(eq.ultimoRegistoEm)}
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+          <Wrench size={12} strokeWidth={2} /> {eq.reparacoesCount} repara{eq.reparacoesCount === 1 ? 'cao' : 'coes'}
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+          <ShoppingBag size={12} strokeWidth={2} /> {eq.vendasCount} venda{eq.vendasCount === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        {eq.ultimaReparacaoId && (
+          <Link
+            to={`/reparacoes/${eq.ultimaReparacaoId}`}
+            className="rounded-md border border-zinc-200 px-2 py-1 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            Reparacao #{eq.ultimaReparacaoNumero}
+          </Link>
+        )}
+        {eq.ultimaVendaId && (
+          <Link
+            to={`/vendas/${eq.ultimaVendaId}`}
+            className="rounded-md border border-zinc-200 px-2 py-1 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            Venda #{eq.ultimaVendaNumero}
+          </Link>
+        )}
+      </div>
+    </article>
   );
 }
 

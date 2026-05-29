@@ -1,10 +1,12 @@
 // Sprint 422: tarefas internas (TODO list).
 
-export enum InternalTaskStatus {
-  Pendente = 0,
-  Concluida = 1,
-  Cancelada = 2,
-}
+export const InternalTaskStatus = {
+  Pendente: 0,
+  Concluida: 1,
+  Cancelada: 2,
+} as const;
+
+export type InternalTaskStatus = (typeof InternalTaskStatus)[keyof typeof InternalTaskStatus];
 
 export interface InternalTask {
   id: string;

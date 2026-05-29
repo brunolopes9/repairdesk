@@ -10,6 +10,7 @@ public interface IClienteService
 {
     Task<PagedResult<ClienteDto>> SearchAsync(string? query, int page, int pageSize, CancellationToken ct = default);
     Task<ClienteDto> GetAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<ClienteEquipamentoDto>> ListEquipamentosAsync(Guid id, int take, CancellationToken ct = default);
     Task<ClienteDto> CreateAsync(CreateClienteRequest req, CancellationToken ct = default);
     Task<ClienteDto> UpdateAsync(Guid id, UpdateClienteRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
@@ -48,6 +49,26 @@ public class ClienteService : IClienteService
     {
         var cliente = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Cliente", id);
         return ToDto(cliente);
+    }
+
+    public async Task<IReadOnlyList<ClienteEquipamentoDto>> ListEquipamentosAsync(
+        Guid id,
+        int take,
+        CancellationToken ct = default)
+    {
+        _ = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Cliente", id);
+        var rows = await _repo.ListEquipamentosAsync(id, take, ct);
+        return rows.Select(x => new ClienteEquipamentoDto(
+            x.Nome,
+            x.Imei,
+            x.PrimeiroRegistoEm,
+            x.UltimoRegistoEm,
+            x.ReparacoesCount,
+            x.VendasCount,
+            x.UltimaReparacaoId,
+            x.UltimaReparacaoNumero,
+            x.UltimaVendaId,
+            x.UltimaVendaNumero)).ToList();
     }
 
     public async Task<ClienteDto> CreateAsync(CreateClienteRequest req, CancellationToken ct = default)

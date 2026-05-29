@@ -31,6 +31,18 @@ public sealed class AppointmentsController : ControllerBase
         return Ok(await _service.ListAsync(fromUtc, toUtc, st, ct));
     }
 
+    /// <summary>Exporta agendamentos para Google/Apple/Outlook via ficheiro iCalendar.</summary>
+    [HttpGet("export.ics")]
+    public async Task<IActionResult> ExportIcs(
+        [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? status, CancellationToken ct)
+    {
+        var fromUtc = (from ?? DateTime.UtcNow.Date).ToUniversalTime();
+        var toUtc = (to ?? fromUtc.AddDays(30)).ToUniversalTime();
+        AppointmentStatus? st = Enum.TryParse<AppointmentStatus>(status, true, out var s) ? s : null;
+        var export = await _service.ExportIcsAsync(fromUtc, toUtc, st, ct);
+        return File(export.Content, "text/calendar; charset=utf-8", export.Filename);
+    }
+
     [HttpPost]
     public async Task<ActionResult<AppointmentDto>> Create([FromBody] CreateAppointmentRequest req, CancellationToken ct)
         => Ok(await _service.CreateAsync(req, AppointmentSource.Balcao, ct));

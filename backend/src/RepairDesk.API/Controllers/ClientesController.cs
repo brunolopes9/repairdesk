@@ -29,6 +29,13 @@ public class ClientesController : ControllerBase
     [HttpGet("{id:guid}")]
     public Task<ClienteDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
 
+    [HttpGet("{id:guid}/equipamentos")]
+    public Task<IReadOnlyList<ClienteEquipamentoDto>> Equipamentos(
+        Guid id,
+        [FromQuery] int take = 20,
+        CancellationToken ct = default)
+        => _service.ListEquipamentosAsync(id, take, ct);
+
     [HttpPost]
     public async Task<ActionResult<ClienteDto>> Create([FromBody] CreateClienteRequest req, CancellationToken ct)
     {

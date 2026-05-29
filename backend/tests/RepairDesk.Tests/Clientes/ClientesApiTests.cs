@@ -5,6 +5,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Services.Clientes;
+using RepairDesk.Services.Reparacoes;
 using RepairDesk.Tests.Auth;
 
 namespace RepairDesk.Tests.Clientes;
@@ -123,6 +124,33 @@ public class ClientesApiTests : IClassFixture<RepairDeskApiFactory>
 
         var get = await client.GetAsync($"/api/clientes/{created.Id}");
         get.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Equipamentos_ReturnsDevicesFromReparacoes()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var suffix = Guid.NewGuid().ToString("N")[..6];
+        var telefone = "919" + Random.Shared.Next(100000, 999999);
+        var cliente = await CreateAsync(client, new CreateClienteRequest($"Cliente Equip {suffix}", telefone, null, null, null));
+
+        var createRepair = await client.PostAsJsonAsync("/api/reparacoes",
+            new CreateReparacaoRequest(cliente.Id, "iPhone 13 Pro", "Nao liga", "359123456789012", 12000, null));
+        createRepair.EnsureSuccessStatusCode();
+
+        var equipamentos = await client.GetFromJsonAsync<IReadOnlyList<ClienteEquipamentoDto>>(
+            $"/api/clientes/{cliente.Id}/equipamentos");
+
+        equipamentos.Should().NotBeNull();
+        equipamentos.Should().ContainSingle();
+        var equipamento = equipamentos![0];
+        equipamento.Nome.Should().Be("iPhone 13 Pro");
+        equipamento.Imei.Should().Be("359123456789012");
+        equipamento.ReparacoesCount.Should().Be(1);
+        equipamento.VendasCount.Should().Be(0);
+        equipamento.UltimaReparacaoId.Should().NotBeNull();
+        equipamento.UltimaReparacaoNumero.Should().BeGreaterThan(0);
+        equipamento.UltimaVendaId.Should().BeNull();
     }
 
     [Fact]

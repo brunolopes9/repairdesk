@@ -28,6 +28,18 @@ public sealed record ClienteDto(
     /// <summary>Sprint 355: alerta destacado.</summary>
     string? NotaImportante = null);
 
+public sealed record ClienteEquipamentoDto(
+    string Nome,
+    string? Imei,
+    DateTime PrimeiroRegistoEm,
+    DateTime UltimoRegistoEm,
+    int ReparacoesCount,
+    int VendasCount,
+    Guid? UltimaReparacaoId,
+    int? UltimaReparacaoNumero,
+    Guid? UltimaVendaId,
+    int? UltimaVendaNumero);
+
 public sealed record PagedResult<T>(
     IReadOnlyList<T> Items,
     int Page,

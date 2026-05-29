@@ -650,7 +650,7 @@ export default function Dashboard() {
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}€`} width={50} />
                 <Tooltip
-                  formatter={(value: number, name) => [`${value.toFixed(2)}€`, name]}
+                  formatter={(value, name) => [`${Number(value ?? 0).toFixed(2)}€`, String(name)]}
                   labelStyle={{ fontWeight: 600 }}
                 />
                 <Area type="monotone" dataKey="receita" name="Receita" stroke="#059669" strokeWidth={2} fill="url(#cf-receita)" dot={false} />

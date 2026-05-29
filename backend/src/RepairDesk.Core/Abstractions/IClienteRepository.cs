@@ -2,9 +2,22 @@ using RepairDesk.Core.Entities;
 
 namespace RepairDesk.Core.Abstractions;
 
+public sealed record ClienteEquipamentoRow(
+    string Nome,
+    string? Imei,
+    DateTime PrimeiroRegistoEm,
+    DateTime UltimoRegistoEm,
+    int ReparacoesCount,
+    int VendasCount,
+    Guid? UltimaReparacaoId,
+    int? UltimaReparacaoNumero,
+    Guid? UltimaVendaId,
+    int? UltimaVendaNumero);
+
 public interface IClienteRepository
 {
     Task<Cliente?> FindByIdAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<ClienteEquipamentoRow>> ListEquipamentosAsync(Guid clienteId, int take, CancellationToken ct = default);
     Task<bool> NifExistsAsync(string nif, Guid? exceptId = null, CancellationToken ct = default);
     Task<Cliente?> FindByNifAsync(string nif, CancellationToken ct = default);
     Task<Cliente?> FindByTelefoneAsync(string telefoneNormalizado, CancellationToken ct = default);

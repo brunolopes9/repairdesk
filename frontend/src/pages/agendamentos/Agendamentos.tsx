@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { CalendarClock, ChevronLeft, ChevronRight, List, Plus, Wrench, X } from 'lucide-react';
+import { CalendarClock, ChevronLeft, ChevronRight, Download, List, Plus, Wrench, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { toast } from '../../lib/toast';
 import { liveListOptions } from '../../lib/queryOptions';
+import { downloadFile } from '../../lib/downloadPdf';
 import {
   appointmentsApi,
   APPOINTMENT_STATUS_LABEL,
@@ -111,6 +112,16 @@ export default function Agendamentos() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['appointments'] }); },
   });
 
+  const exportCalendar = useMutation({
+    mutationFn: () => {
+      const from = range.from.slice(0, 10);
+      const to = range.to.slice(0, 10);
+      return downloadFile(appointmentsApi.exportIcsPath(range.from, range.to), `mender-agendamentos_${from}_${to}.ics`);
+    },
+    onSuccess: () => toast.success('Calendario exportado. Importa o ficheiro no Google, Apple ou Outlook.'),
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Erro ao exportar calendario.'),
+  });
+
   const grouped = useMemo(() => {
     const map = new Map<string, Appointment[]>();
     for (const a of list.data ?? []) {
@@ -142,6 +153,16 @@ export default function Agendamentos() {
               <List size={14} /> Lista
             </button>
           </div>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={exportCalendar.isPending}
+            onClick={() => exportCalendar.mutate()}
+            leftIcon={<Download size={15} />}
+            title="Exportar intervalo visivel para Google Calendar, Apple Calendar ou Outlook"
+          >
+            Exportar calendario
+          </Button>
           <Button type="button" onClick={() => { setPrefilledAt(null); setShowForm(true); }} leftIcon={<Plus size={16} />}>Novo</Button>
         </div>
       </div>

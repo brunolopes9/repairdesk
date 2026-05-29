@@ -30,6 +30,7 @@ import EquipmentFieldsForm, {
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
+import type { ClienteEquipamento } from '../../lib/clientes/types';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import NovoClienteModal from '../../components/NovoClienteModal';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
@@ -582,6 +583,8 @@ export default function Reparacoes() {
         onClose={() => setCreateOpen(false)}
         onCreated={(rep) => {
           qc.invalidateQueries({ queryKey: ['reparacoes'] });
+          qc.invalidateQueries({ queryKey: ['cliente-equipamentos'] });
+          qc.invalidateQueries({ queryKey: ['cliente', rep.cliente.id] });
           setCreateOpen(false);
           navigate(`/reparacoes/${rep.id}`);
         }}
@@ -783,6 +786,15 @@ function CreateReparacaoModal({
     placeholderData: keepPreviousData,
   });
 
+  const equipamentosCliente = useQuery({
+    queryKey: ['cliente-equipamentos', clienteId, 'nova-reparacao'],
+    queryFn: () => clientesApi.equipamentos(clienteId!, 6),
+    enabled: open && !!clienteId,
+    staleTime: 60_000,
+  });
+  const equipamentosRecentes = clienteId ? (equipamentosCliente.data ?? []) : [];
+  const selectedCliente = clientes.data?.items.find((c) => c.id === clienteId) ?? null;
+
   const templates = useQuery({
     queryKey: ['equipment-field-templates-active'],
     queryFn: () => equipmentFieldTemplatesApi.active(),
@@ -837,6 +849,11 @@ function CreateReparacaoModal({
     setFieldValues(nextTemplate ? initEquipmentFieldValues(nextTemplate) : {});
   }
 
+  function aplicarEquipamentoCliente(eq: ClienteEquipamento) {
+    setEquipamento(eq.nome);
+    if (eq.imei) setImei(eq.imei);
+  }
+
   return (
     <Modal
       open={open}
@@ -878,7 +895,7 @@ function CreateReparacaoModal({
           <label className="text-xs font-medium uppercase tracking-wide text-zinc-500">Cliente *</label>
           {clienteId ? (
             <div className="flex items-center justify-between rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-              {clientes.data?.items.find((c) => c.id === clienteId)?.nome ?? 'Selecionado'}
+              {selectedCliente?.nome ?? 'Selecionado'}
               <button type="button" onClick={() => setClienteId(null)} className="text-xs text-zinc-500">trocar</button>
             </div>
           ) : (
@@ -917,6 +934,38 @@ function CreateReparacaoModal({
             </>
           )}
         </div>
+
+        {clienteId && equipamentosRecentes.length > 0 && (
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Equipamentos recentes</div>
+                <div className="text-xs text-zinc-500">Escolhe um para preencher equipamento e IMEI automaticamente.</div>
+              </div>
+              {equipamentosCliente.isFetching && (
+                <span className="text-[11px] text-zinc-400">A atualizar...</span>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {equipamentosRecentes.map((eq) => (
+                <button
+                  key={`${eq.nome}-${eq.imei ?? 'sem-imei'}`}
+                  type="button"
+                  onClick={() => aplicarEquipamentoCliente(eq)}
+                  className="min-h-11 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition hover:border-brand-300 hover:bg-brand-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-brand-700 dark:hover:bg-brand-950/30"
+                >
+                  <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">{eq.nome}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-zinc-500">
+                    {eq.imei && <span className="font-mono">{eq.imei}</span>}
+                    <span>{eq.reparacoesCount} rep.</span>
+                    {eq.vendasCount > 0 && <span>{eq.vendasCount} venda(s)</span>}
+                    <span>{new Date(eq.ultimoRegistoEm).toLocaleDateString('pt-PT')}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <Field label="Equipamento" required>
           <input

@@ -9,7 +9,19 @@ Sidebar agrupa (dropdowns), mantendo as páginas existentes como filhos:
 - **Compras e Operação** → Inbox de faturas (/compras) · Despesas & custos (/despesas)
 Páginas ricas unificadas = próximos sprints (abaixo).
 
-## Balcão (unificar /vendas POS + /cash) — próximo
+## ✅ Sprint 382 (feito): "Compras e Operação" — página /compras-operacao
+Hub com 4 KPIs reais (inbox count/valor, despesas mês, lançamentos) + Inbox de faturas
+(supplier-invoices/pending) + Ações rápidas/Alertas/Resumo. Tabs dedicados (Compras aprovadas,
+Recorrentes, Export como secções próprias) = polish futuro.
+
+## ✅ Sprint 383 (feito): "Balcão" — página /balcao
+Casca com tabs **Venda rápida | Caixa de hoje**, reaproveitando `<Vendas embedded/>` e
+`<Cash embedded/>` (sem reescrever a POS de 1000 linhas). Pill de estado da caixa no topo.
+**GATE implementado**: a POS bloqueia venda se a caixa do dia estiver fechada → ecrã "Abre a
+caixa para vender hoje" com abertura inline. Vive em Vendas.tsx → vale em /balcao e /vendas.
+Falta (polish): separar Movimentos e Fecho/Z-Report em tabs próprios (hoje estão dentro de Cash).
+
+## Balcão (unificar /vendas POS + /cash) — spec original
 Layout da ref: tabs **Venda rápida · Caixa de hoje · Movimentos · Fecho/Z-Report**.
 - **Venda rápida**: grelha de produtos (esq) + carrinho (centro: itens, cliente, total grande,
   métodos de pagamento, botão verde **Cobrar**) + painel direito **Caixa de hoje** (saldos por

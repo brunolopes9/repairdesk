@@ -34,6 +34,15 @@ public class AppointmentApiTests : IClassFixture<RepairDeskApiFactory>
         var list = await client.GetFromJsonAsync<List<AppointmentDto>>($"/api/appointments?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}");
         list.Should().Contain(a => a.Id == dto.Id);
 
+        var ics = await client.GetAsync($"/api/appointments/export.ics?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}");
+        ics.StatusCode.Should().Be(HttpStatusCode.OK);
+        ics.Content.Headers.ContentType!.MediaType.Should().Be("text/calendar");
+        var calendar = await ics.Content.ReadAsStringAsync();
+        calendar.Should().Contain("BEGIN:VCALENDAR");
+        calendar.Should().Contain("BEGIN:VEVENT");
+        calendar.Should().Contain("Maria Teste");
+        calendar.Should().Contain("iPhone 13");
+
         var patch = await client.PatchAsJsonAsync($"/api/appointments/{dto.Id}/status", new UpdateAppointmentStatusRequest("Confirmado"));
         patch.StatusCode.Should().Be(HttpStatusCode.OK);
         var updated = (await patch.Content.ReadFromJsonAsync<AppointmentDto>())!;

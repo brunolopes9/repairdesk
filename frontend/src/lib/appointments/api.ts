@@ -41,6 +41,10 @@ export const appointmentsApi = {
       .get<Appointment[]>('/appointments', { params: { from: fromIso, to: toIso } })
       .then((r) => r.data);
   },
+  exportIcsPath(fromIso: string, toIso: string) {
+    const q = new URLSearchParams({ from: fromIso, to: toIso });
+    return `/appointments/export.ics?${q.toString()}`;
+  },
   create(req: CreateAppointmentRequest) {
     return api.post<Appointment>('/appointments', req).then((r) => r.data);
   },
