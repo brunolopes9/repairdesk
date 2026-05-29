@@ -480,6 +480,18 @@ export default function Reparacoes() {
                       {items.map((r) => {
                         const cli = r.cliente as { nome?: string; telefone?: string } | null;
                         const sel = selected?.id === r.id;
+                        // Sprint 432 (Doc 90 cross-feature S419): badge ETA quando previsto entregar hoje ou atrasada.
+                        let etaBadge: { label: string; cls: string } | null = null;
+                        if (r.previstoEntregueEm && r.estado !== 5 && r.estado !== 6) {
+                          const eta = new Date(r.previstoEntregueEm);
+                          const today = new Date(); today.setHours(0, 0, 0, 0);
+                          const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+                          if (eta < today) {
+                            etaBadge = { label: 'Atrasada', cls: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300' };
+                          } else if (eta < tomorrow) {
+                            etaBadge = { label: 'Hoje', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' };
+                          }
+                        }
                         return (
                           <tr
                             key={r.id}
@@ -488,7 +500,12 @@ export default function Reparacoes() {
                           >
                             <td className="px-3 py-2.5 font-mono text-xs text-zinc-500">#{r.numero}</td>
                             <td className="px-3 py-2.5">
-                              <div className="font-medium">{r.equipamento}</div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium">{r.equipamento}</span>
+                                {etaBadge && (
+                                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${etaBadge.cls}`}>{etaBadge.label}</span>
+                                )}
+                              </div>
                               <div className="max-w-[220px] truncate text-xs text-zinc-500">{r.avaria}</div>
                             </td>
                             <td className="px-3 py-2.5">
