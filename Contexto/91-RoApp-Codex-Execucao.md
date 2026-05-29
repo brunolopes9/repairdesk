@@ -53,6 +53,35 @@ Implementacao:
 Validacao:
 - `npm.cmd run build` em `frontend`
 
+## Implementado depois pelo Claude (S436-S442)
+
+Seguimento direto da sugestao do Codex: transformar /pedidos-online em
+inbox/funil real. Stack contig em main `dev`:
+
+- **S436** triagem inline: NotasInternas + Prioridade (Baixa/Normal/Alta/Urgente).
+  PUT /repair-requests/{id}/triagem. Pendentes ordenam por prioridade desc.
+- **S437** segundo caminho de conversao: POST /converter-em-trabalho. Cria
+  Trabalho (status=Orcamento) em vez de Reparacao. Botoes "Reparacao" vs
+  "Orcamento" no card. Para cliente que so quer estimativa.
+- **S438** Origem enum: Widget (default)/Telefone/Email/WhatsApp/Balcao/Outro.
+  Filtro dropdown na inbox. Badge inline "via Telefone".
+- **S439** manual create: POST /repair-requests/manual + modal "+ Novo pedido"
+  no header. Permite registar leads offline (telefone, balcao). Origem != Widget
+  obrigatorio (esse e exclusivo do endpoint publico anonimo).
+- **S440** tests para S436-S439: 6 novos (triagem, converter-em-trabalho,
+  manual create, validacoes). 496/496 verde. Roles matrix snapshot
+  actualizada (d115e549260ec748).
+- **S441** cron ReadyForPickupHostedService: deteta reparacoes Estado=Pronto
+  com EstadoSince > 5 dias (cliente nao veio buscar). Digest staff push +
+  alerta no Dashboard. Pattern S392/S428/S430.
+- **S442** breakdown "Por canal · 30d" no header da inbox. Faz S438 ganhar
+  valor analitico sem backend extra (deriva de dados ja carregados).
+
+Inbox agora cobre o funil completo: lead chega (widget OU manual) -> triagem
+(prioridade + notas) -> converter em Reparacao OU Orcamento, ou rejeitar com
+motivo. Origem permite identificar canais que rendem; cron alerta quando
+clientes nao vem buscar.
+
 ## Proximas features ROAPP que valem a pena
 
 1. Inbox omnicanal
