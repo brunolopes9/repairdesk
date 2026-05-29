@@ -46,4 +46,11 @@ public class RepairRequest : BaseEntity, ITenantEntity
 
     /// <summary>Sprint 436: prioridade na inbox (default Normal). Para triagem visual.</summary>
     public RepairRequestPrioridade Prioridade { get; set; } = RepairRequestPrioridade.Normal;
+
+    /// <summary>
+    /// Sprint 438 (Doc 91 follow-up): canal de entrada. Widget é o default
+    /// (pedidos vindos do widget público). Outros valores são usados quando
+    /// o staff regista manualmente um lead que veio por telefone, email, etc.
+    /// </summary>
+    public RepairRequestOrigem Origem { get; set; } = RepairRequestOrigem.Widget;
 }

@@ -50,7 +50,9 @@ public sealed class RepairRequestsController : ControllerBase
         // Sprint 436 (Doc 91 follow-up Codex): triagem.
         string? NotasInternas, RepairRequestPrioridade Prioridade,
         // Sprint 437 (Doc 91 follow-up Codex): segundo caminho de conversão.
-        Guid? TrabalhoId);
+        Guid? TrabalhoId,
+        // Sprint 438 (Doc 91 follow-up Codex): canal de entrada.
+        RepairRequestOrigem Origem);
 
     public sealed record UpdateTriagemRequest(string? NotasInternas, RepairRequestPrioridade Prioridade);
 
@@ -170,5 +172,5 @@ public sealed class RepairRequestsController : ControllerBase
     private static RequestDto MapDto(Core.Entities.RepairRequest r) =>
         new(r.Id, r.Nome, r.Email, r.Telefone, r.Equipamento, r.Descricao,
             r.Estado, r.ReparacaoId, r.MotivoRejeicao, r.CreatedAt,
-            r.NotasInternas, r.Prioridade, r.TrabalhoId);
+            r.NotasInternas, r.Prioridade, r.TrabalhoId, r.Origem);
 }

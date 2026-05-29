@@ -6,9 +6,12 @@ import {
   repairRequestsApi,
   REPAIR_REQUEST_ESTADO,
   REPAIR_REQUEST_PRIORIDADE,
+  REPAIR_REQUEST_ORIGEM,
+  REPAIR_REQUEST_ORIGEM_LABEL,
   type RepairRequestDto,
   type RepairRequestEstado,
   type RepairRequestPrioridade,
+  type RepairRequestOrigem,
 } from '../../lib/repairRequests/api';
 import { toast } from '../../lib/toast';
 import { useConfirm } from '../../components/ConfirmDialog';
@@ -25,6 +28,8 @@ export default function PedidosOnline() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [filtro, setFiltro] = useState<RepairRequestEstado>(REPAIR_REQUEST_ESTADO.Pendente);
+  // Sprint 438: filtro adicional por canal de entrada. "all" mostra todos.
+  const [origemFiltro, setOrigemFiltro] = useState<RepairRequestOrigem | 'all'>('all');
 
   const list = useQuery({
     queryKey: ['repair-requests', filtro],
@@ -113,7 +118,10 @@ export default function PedidosOnline() {
 
   // Pendentes ordenam por prioridade desc, depois mais antigos primeiro (SLA implícito).
   // Outras tabs mantém ordem natural (server already sorted by date).
-  const rows = (list.data ?? []).slice();
+  let rows = (list.data ?? []).slice();
+  if (origemFiltro !== 'all') {
+    rows = rows.filter((r) => r.origem === origemFiltro);
+  }
   if (filtro === REPAIR_REQUEST_ESTADO.Pendente) {
     rows.sort((a, b) => {
       if (a.prioridade !== b.prioridade) return b.prioridade - a.prioridade;
@@ -152,15 +160,33 @@ export default function PedidosOnline() {
         />
       </div>
 
-      <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
-        {tabs.map((t) => (
-          <button
-            key={t.value} type="button" onClick={() => setFiltro(t.value)}
-            className={`px-3 py-1.5 text-sm ${filtro === t.value ? 'border-b-2 border-brand-600 font-medium text-brand-700 dark:text-brand-400' : 'text-zinc-500'}`}
+      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex gap-1">
+          {tabs.map((t) => (
+            <button
+              key={t.value} type="button" onClick={() => setFiltro(t.value)}
+              className={`px-3 py-1.5 text-sm ${filtro === t.value ? 'border-b-2 border-brand-600 font-medium text-brand-700 dark:text-brand-400' : 'text-zinc-500'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <label className="flex items-center gap-1.5 pb-1 text-[11px] text-zinc-500">
+          Canal
+          <select
+            value={origemFiltro}
+            onChange={(e) => setOrigemFiltro(e.target.value === 'all' ? 'all' : (Number(e.target.value) as RepairRequestOrigem))}
+            className="rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           >
-            {t.label}
-          </button>
-        ))}
+            <option value="all">Todos</option>
+            <option value={REPAIR_REQUEST_ORIGEM.Widget}>Widget</option>
+            <option value={REPAIR_REQUEST_ORIGEM.Telefone}>Telefone</option>
+            <option value={REPAIR_REQUEST_ORIGEM.Email}>Email</option>
+            <option value={REPAIR_REQUEST_ORIGEM.WhatsApp}>WhatsApp</option>
+            <option value={REPAIR_REQUEST_ORIGEM.BalcaoFisico}>Balcão</option>
+            <option value={REPAIR_REQUEST_ORIGEM.Outro}>Outro</option>
+          </select>
+        </label>
       </div>
 
       {filtro === REPAIR_REQUEST_ESTADO.Pendente && counts.urgentes > 0 && (
@@ -249,6 +275,7 @@ function PedidoCard({
             {request.telefone && <span className="inline-flex items-center gap-1"><Phone size={10} /> {displayPhone(request.telefone)}</span>}
             {request.email && <span className="inline-flex items-center gap-1"><Mail size={10} /> {request.email}</span>}
             <span>{formatDate(request.createdAt)}</span>
+            <span className="text-zinc-400">via {REPAIR_REQUEST_ORIGEM_LABEL[request.origem]}</span>
           </div>
           <p className="mt-1.5 whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300">{request.descricao}</p>
           {request.motivoRejeicao && <p className="mt-1 text-xs italic text-rose-600">Rejeitado: {request.motivoRejeicao}</p>}

@@ -19,6 +19,28 @@ export const REPAIR_REQUEST_PRIORIDADE = {
 export type RepairRequestPrioridade =
   (typeof REPAIR_REQUEST_PRIORIDADE)[keyof typeof REPAIR_REQUEST_PRIORIDADE];
 
+// Sprint 438 (Doc 91 follow-up): canal de entrada do pedido.
+export const REPAIR_REQUEST_ORIGEM = {
+  Widget: 0,
+  Telefone: 1,
+  Email: 2,
+  WhatsApp: 3,
+  BalcaoFisico: 4,
+  Outro: 5,
+} as const;
+
+export type RepairRequestOrigem =
+  (typeof REPAIR_REQUEST_ORIGEM)[keyof typeof REPAIR_REQUEST_ORIGEM];
+
+export const REPAIR_REQUEST_ORIGEM_LABEL: Record<RepairRequestOrigem, string> = {
+  [REPAIR_REQUEST_ORIGEM.Widget]: 'Widget',
+  [REPAIR_REQUEST_ORIGEM.Telefone]: 'Telefone',
+  [REPAIR_REQUEST_ORIGEM.Email]: 'Email',
+  [REPAIR_REQUEST_ORIGEM.WhatsApp]: 'WhatsApp',
+  [REPAIR_REQUEST_ORIGEM.BalcaoFisico]: 'Balcão',
+  [REPAIR_REQUEST_ORIGEM.Outro]: 'Outro',
+};
+
 export interface RepairRequestDto {
   id: string;
   nome: string;
@@ -33,6 +55,7 @@ export interface RepairRequestDto {
   notasInternas: string | null;
   prioridade: RepairRequestPrioridade;
   trabalhoId: string | null;
+  origem: RepairRequestOrigem;
 }
 
 export const repairRequestsApi = {
