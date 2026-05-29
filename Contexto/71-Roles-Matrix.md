@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:27ad7cc47f9bd180 -->
+<!-- roles-matrix-snapshot:e2b25a1db5a03933 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -47,6 +47,10 @@ testes e esta matriz com snapshot.
 | **Sprint 344 (Doc 83 Pillar 3) — assinaturas digitais** | | |
 | SignaturesController | `GET/POST /api/reparacoes/{id}/signatures` | `Authenticated` |
 | SignaturesController | `DELETE /{signatureId}` | `Admin` |
+| **Sprint 420-422 (Doc 90) — perfil próprio, inventário, tarefas internas** | | |
+| AuthController | `PUT /api/auth/me` (DisplayName + PhoneNumber próprios) | `Authenticated` |
+| StockTakesController | `GET/POST /api/stock-takes*` (inventário físico mexe stock real) | `Admin` |
+| InternalTasksController | `GET/POST/PUT/DELETE /api/internal-tasks*` (TODO list por staff) | `Authenticated` |
 
 ## Sprint 311 — Roles granulares (Tech / Cashier / ReadOnly)
 
