@@ -20,9 +20,17 @@ public class RepairRequest : BaseEntity, ITenantEntity
 
     public RepairRequestEstado Estado { get; set; } = RepairRequestEstado.Pendente;
 
-    /// <summary>Quando convertido, aponta para a reparação criada.</summary>
+    /// <summary>Quando convertido em reparação, aponta para a Reparacao criada.</summary>
     public Guid? ReparacaoId { get; set; }
     public Reparacao? Reparacao { get; set; }
+
+    /// <summary>
+    /// Sprint 437 (Doc 91 follow-up): quando convertido em orçamento (em vez de
+    /// reparação), aponta para o Trabalho criado. Mutuamente exclusivo com
+    /// ReparacaoId na prática — staff escolhe um caminho ou outro.
+    /// </summary>
+    public Guid? TrabalhoId { get; set; }
+    public Trabalho? Trabalho { get; set; }
 
     /// <summary>Motivo da rejeição (opcional) — para histórico interno.</summary>
     public string? MotivoRejeicao { get; set; }

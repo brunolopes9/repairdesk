@@ -32,6 +32,7 @@ export interface RepairRequestDto {
   createdAt: string;
   notasInternas: string | null;
   prioridade: RepairRequestPrioridade;
+  trabalhoId: string | null;
 }
 
 export const repairRequestsApi = {
@@ -44,6 +45,9 @@ export const repairRequestsApi = {
   },
   converter(id: string) {
     return api.post<RepairRequestDto>(`/repair-requests/${id}/converter`, {}).then((r) => r.data);
+  },
+  converterEmTrabalho(id: string) {
+    return api.post<RepairRequestDto>(`/repair-requests/${id}/converter-em-trabalho`, {}).then((r) => r.data);
   },
   rejeitar(id: string, motivo?: string) {
     return api.post<RepairRequestDto>(`/repair-requests/${id}/rejeitar`, { motivo: motivo ?? null }).then((r) => r.data);

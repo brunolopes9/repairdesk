@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRight, CheckCircle2, Flag, Inbox, Mail, MessageCircle, Phone, Save, StickyNote, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileText, Flag, Inbox, Mail, MessageCircle, Phone, Save, StickyNote, Wrench, X } from 'lucide-react';
 import {
   repairRequestsApi,
   REPAIR_REQUEST_ESTADO,
@@ -47,6 +47,19 @@ export default function PedidosOnline() {
       if (req.reparacaoId) navigate(`/reparacoes/${req.reparacaoId}`);
     },
     onError: (err) => toast.fromError(err, 'Erro a converter pedido.'),
+  });
+
+  // Sprint 437: segundo caminho — quando o cliente só quer estimativa, criamos
+  // um Trabalho (status Orçamento) em vez de uma Reparacao física.
+  const converterTrabMut = useMutation({
+    mutationFn: (id: string) => repairRequestsApi.converterEmTrabalho(id),
+    onSuccess: (req) => {
+      toast.success('Pedido convertido em orçamento.');
+      qc.invalidateQueries({ queryKey: ['repair-requests'] });
+      qc.invalidateQueries({ queryKey: ['repair-requests-count'] });
+      if (req.trabalhoId) navigate(`/trabalhos/${req.trabalhoId}`);
+    },
+    onError: (err) => toast.fromError(err, 'Erro a converter em orçamento.'),
   });
 
   const rejeitarMut = useMutation({
@@ -172,14 +185,16 @@ export default function PedidosOnline() {
           <PedidoCard
             key={r.id}
             request={r}
-            isConverting={converterMut.isPending}
+            isConverting={converterMut.isPending || converterTrabMut.isPending}
             isSavingTriagem={triagemMut.isPending}
-            onConverter={() => converterMut.mutate(r.id)}
+            onConverterReparacao={() => converterMut.mutate(r.id)}
+            onConverterTrabalho={() => converterTrabMut.mutate(r.id)}
             onRejeitar={() => askRejeitar(r.id)}
             onSaveTriagem={(notas, prioridade) =>
               triagemMut.mutate({ id: r.id, notasInternas: notas, prioridade })
             }
             onAbrirReparacao={(repId) => navigate(`/reparacoes/${repId}`)}
+            onAbrirTrabalho={(trabId) => navigate(`/trabalhos/${trabId}`)}
           />
         ))}
       </div>
@@ -196,18 +211,22 @@ function PedidoCard({
   request,
   isConverting,
   isSavingTriagem,
-  onConverter,
+  onConverterReparacao,
+  onConverterTrabalho,
   onRejeitar,
   onSaveTriagem,
   onAbrirReparacao,
+  onAbrirTrabalho,
 }: {
   request: RepairRequestDto;
   isConverting: boolean;
   isSavingTriagem: boolean;
-  onConverter: () => void;
+  onConverterReparacao: () => void;
+  onConverterTrabalho: () => void;
   onRejeitar: () => void;
   onSaveTriagem: (notas: string | null, prioridade: RepairRequestPrioridade) => void;
   onAbrirReparacao: (repId: string) => void;
+  onAbrirTrabalho: (trabId: string) => void;
 }) {
   const [notas, setNotas] = useState(request.notasInternas ?? '');
   const [prioridade, setPrioridade] = useState<RepairRequestPrioridade>(request.prioridade);
@@ -245,10 +264,19 @@ function PedidoCard({
           <div className="flex shrink-0 flex-col gap-1">
             <button
               type="button" disabled={isConverting}
-              onClick={onConverter}
+              onClick={onConverterReparacao}
+              title="Cliente vai trazer o equipamento — abrir reparação"
               className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
             >
-              Converter <ArrowRight size={12} />
+              <Wrench size={12} /> Reparação
+            </button>
+            <button
+              type="button" disabled={isConverting}
+              onClick={onConverterTrabalho}
+              title="Cliente só quer estimativa — abrir orçamento"
+              className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-50 dark:border-brand-900/60 dark:bg-brand-950/30 dark:text-brand-300"
+            >
+              <FileText size={12} /> Orçamento
             </button>
             <button
               type="button" onClick={onRejeitar}
@@ -264,6 +292,14 @@ function PedidoCard({
             className="shrink-0 text-xs text-brand-600 hover:underline"
           >
             Ver reparação →
+          </button>
+        )}
+        {!isPendente && !request.reparacaoId && request.trabalhoId && (
+          <button
+            type="button" onClick={() => onAbrirTrabalho(request.trabalhoId!)}
+            className="shrink-0 text-xs text-brand-600 hover:underline"
+          >
+            Ver orçamento →
           </button>
         )}
       </div>
