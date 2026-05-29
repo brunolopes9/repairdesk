@@ -82,6 +82,23 @@ Inbox agora cobre o funil completo: lead chega (widget OU manual) -> triagem
 motivo. Origem permite identificar canais que rendem; cron alerta quando
 clientes nao vem buscar.
 
+### Calendar v2 + UX menu (S443-S447)
+
+- **S443** Calendar feed token + endpoints + UI (subscricao Google/Apple Cal).
+  Tenant.CalendarFeedToken (32 chars rotavel), GET /api/automacoes/calendar-feed
+  + POST regenerate (Admin), GET /api/public/calendar-feed/{token}.ics
+  (AllowAnonymous, rate-limited). Subscricao refresca sozinha (~12h Google,
+  ~5min Apple).
+- **S444** Sidebar submenus colapsaveis (localStorage rd.nav.openParents.v1).
+  Bruno feedback: "Balcao tinha 3 submenus sempre abertos a ocupar espaco".
+- **S445** Fix critico do menu: /stock e /produtos estavam orfaos desde S388
+  (saíram do menu mas Bruno precisava de aceder direto). Solução: parent
+  "Catálogo & Stock" colapsável com Visão geral + Stock + Produtos + Contagens
+  físicas (Inventário renomeado para distinguir de Stock).
+- **S446** Calendar feed inclui reparações com PrevistoEntregueEm — Bruno
+  passa a ver no Google Cal agendamentos + telemóveis a entregar juntos.
+- **S447** 6 tests para calendar feed (502/502 verde).
+
 ## Proximas features ROAPP que valem a pena
 
 1. Inbox omnicanal
