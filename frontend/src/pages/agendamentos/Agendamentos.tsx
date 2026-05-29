@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { CalendarClock, ChevronLeft, ChevronRight, Download, List, Plus, Wrench, X } from 'lucide-react';
+import { CalendarClock, ChevronLeft, ChevronRight, Copy, Download, List, Plus, RefreshCw, Rss, Wrench, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { toast } from '../../lib/toast';
 import { liveListOptions } from '../../lib/queryOptions';
 import { downloadFile } from '../../lib/downloadPdf';
+import { api } from '../../lib/api';
 import {
   appointmentsApi,
   APPOINTMENT_STATUS_LABEL,
@@ -89,6 +90,42 @@ export default function Agendamentos() {
     ...liveListOptions,
   });
 
+  // Sprint 443 (Doc 91 ponto 3): subscrição calendar feed. Lazy — só lê quando user abre a secção.
+  const [feedOpen, setFeedOpen] = useState(false);
+  const feed = useQuery({
+    queryKey: ['calendar-feed'],
+    queryFn: () => api.get<{ token: string; publicPath: string }>('/automacoes/calendar-feed').then((r) => r.data),
+    enabled: feedOpen,
+    staleTime: 60_000,
+  });
+  const qcInst = useQueryClient();
+  const regenerateFeed = useMutation({
+    mutationFn: () => api.post<{ token: string; publicPath: string }>('/automacoes/calendar-feed/regenerate').then((r) => r.data),
+    onSuccess: (d) => {
+      qcInst.setQueryData(['calendar-feed'], d);
+      toast.success('Token rotacionado — atualiza a subscrição no calendário.');
+    },
+    onError: (err) => toast.fromError(err, 'Erro a rotacionar token.'),
+  });
+  function feedFullUrl(): string {
+    if (!feed.data) return '';
+    // Webcal:// força Google/Apple Calendar a subscrever em vez de descarregar.
+    const origin = window.location.origin.replace(/^http/, 'webcal');
+    return `${origin}${feed.data.publicPath}`;
+  }
+  function feedHttpsUrl(): string {
+    if (!feed.data) return '';
+    return `${window.location.origin}${feed.data.publicPath}`;
+  }
+  async function copyFeed() {
+    try {
+      await navigator.clipboard.writeText(feedFullUrl());
+      toast.success('URL copiado.');
+    } catch {
+      toast.error('Não consegui copiar — selecciona manualmente.');
+    }
+  }
+
   // Sprint 419: overlay de reparações com ETA. Carrega só estados em-curso e filtra client-side por range visível.
   const reparacoesList = useQuery({
     queryKey: ['reparacoes', 'overlay-eta'],
@@ -166,6 +203,68 @@ export default function Agendamentos() {
           <Button type="button" onClick={() => { setPrefilledAt(null); setShowForm(true); }} leftIcon={<Plus size={16} />}>Novo</Button>
         </div>
       </div>
+
+      {/* Sprint 443: subscrição calendar feed (Google/Apple Calendar) — refresca automaticamente. */}
+      <details
+        open={feedOpen}
+        onToggle={(e) => setFeedOpen((e.target as HTMLDetailsElement).open)}
+        className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
+      >
+        <summary className="cursor-pointer list-none px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          <div className="flex items-center gap-2">
+            <Rss size={14} className="text-brand-600" />
+            Subscrever em Google Calendar / Apple Calendar
+            <span className="text-[11px] font-normal text-zinc-500">— refresca automaticamente, ao contrário do "Exportar" que é uma fotografia.</span>
+          </div>
+        </summary>
+        <div className="space-y-3 border-t border-zinc-100 px-3 py-3 text-sm dark:border-zinc-800">
+          {feed.isLoading && <p className="text-zinc-500">A carregar URL...</p>}
+          {feed.data && (
+            <>
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-zinc-500">URL de subscrição</label>
+                <div className="flex gap-2">
+                  <input
+                    readOnly
+                    value={feedFullUrl()}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="flex-1 rounded border border-zinc-300 bg-zinc-50 px-2 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-800"
+                  />
+                  <button
+                    type="button" onClick={copyFeed}
+                    className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                  >
+                    <Copy size={12} /> Copiar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => regenerateFeed.mutate()}
+                    disabled={regenerateFeed.isPending}
+                    title="Rotaciona o token (cancela acesso ao URL anterior)"
+                    className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
+                  >
+                    <RefreshCw size={12} /> Rotacionar
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  URL <code>webcal://</code> abre direto no Google/Apple Calendar. Alternativa <code>https://</code>:{' '}
+                  <code className="break-all">{feedHttpsUrl()}</code>
+                </p>
+              </div>
+              <div className="rounded border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-[11px] text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                <strong>Google Calendar:</strong> "Outros calendários" → "+" → "A partir de URL" → cola o URL.
+                <br />
+                <strong>Apple Calendar (Mac):</strong> Ficheiro → "Nova Subscrição de Calendário" → cola o URL.
+                <br />
+                <strong>iPhone:</strong> Definições → Calendário → Contas → "+ Adicionar conta" → Outra → "Adicionar Calendário Subscrito" → cola o URL.
+              </div>
+            </>
+          )}
+          {feed.isError && (
+            <p className="text-xs text-rose-600">Erro a carregar URL. Tenta novamente.</p>
+          )}
+        </div>
+      </details>
 
       {view === 'week' && (
         <WeekGrid

@@ -128,6 +128,56 @@ public class AutomacoesController : ControllerBase
         return Ok(new { slug = tenant.IntakeSlug, publicUrl = string.IsNullOrEmpty(baseUrl) ? null : $"{baseUrl}/pedido/{tenant.IntakeSlug}" });
     }
 
+    /// <summary>
+    /// Sprint 443 (Doc 91 ponto 3): devolve o URL .ics público para o tenant subscrever
+    /// em Google/Apple Calendar. Gera CalendarFeedToken na 1ª chamada (lazy).
+    /// </summary>
+    [HttpGet("calendar-feed")]
+    public async Task<IActionResult> GetCalendarFeed(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId) return Unauthorized();
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(tenant.CalendarFeedToken))
+        {
+            tenant.CalendarFeedToken = GenerateCalendarFeedToken();
+            await _db.SaveChangesAsync(ct);
+        }
+
+        return Ok(new
+        {
+            token = tenant.CalendarFeedToken,
+            // URL relativo — frontend prefixa origin actual. Permite funcionar atrás de
+            // qualquer reverse proxy sem depender de config no backend.
+            publicPath = $"/api/public/calendar-feed/{tenant.CalendarFeedToken}.ics",
+        });
+    }
+
+    /// <summary>Sprint 443: rotaciona o token (caso o user partilhou em sítio errado).</summary>
+    [HttpPost("calendar-feed/regenerate")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> RegenerateCalendarFeed(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId) return Unauthorized();
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null) return NotFound();
+        tenant.CalendarFeedToken = GenerateCalendarFeedToken();
+        await _db.SaveChangesAsync(ct);
+        return Ok(new
+        {
+            token = tenant.CalendarFeedToken,
+            publicPath = $"/api/public/calendar-feed/{tenant.CalendarFeedToken}.ics",
+        });
+    }
+
+    /// <summary>
+    /// Token URL-safe 32 chars hex (~128 bits de entropia). Não precisa de ser amigável
+    /// ao olho — vai estar dentro da URL do calendário. Suficientemente longo para que
+    /// não seja adivinhável por brute-force.
+    /// </summary>
+    private static string GenerateCalendarFeedToken() => Guid.NewGuid().ToString("N");
+
     private async Task<string> GenerateUniqueIntakeSlugAsync(string baseName, CancellationToken ct)
     {
         var baseSlug = Slugify(baseName);
