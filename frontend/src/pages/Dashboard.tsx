@@ -152,6 +152,29 @@ export default function Dashboard() {
     queryFn: () => dashboardApi.cashflow(30),
     staleTime: 5 * 60_000,
   });
+
+  // Sprint 431 (Doc 90): contagens dos crons S392 + S428 + S430 para "Alertas importantes".
+  const alertasQuery = useQuery({
+    queryKey: ['dashboard-alertas-v2'],
+    queryFn: () => dashboardApi.alertas(),
+    staleTime: 60_000,
+  });
+  const STALLED_DAYS = 5; // alinhado com S392 default StalledRepairs:Days
+  const reparacoesParadasCount = useMemo(() => {
+    const cutoff = Date.now() - STALLED_DAYS * 86_400_000;
+    return (fila.data?.items ?? []).filter(
+      (r) =>
+        r.estado !== REPAIR_STATUS.Entregue &&
+        r.estado !== REPAIR_STATUS.Cancelado &&
+        new Date(r.estadoSince).getTime() < cutoff,
+    ).length;
+  }, [fila.data]);
+  const tarefasAtrasadasCount = useMemo(() => {
+    const now = Date.now();
+    return (tarefasPendentes.data ?? []).filter((t) => t.dueAt && new Date(t.dueAt).getTime() < now).length;
+  }, [tarefasPendentes.data]);
+  const cobrancasEmAtrasoCount =
+    (alertasQuery.data?.reparacoesNaoPagas?.length ?? 0) + (alertasQuery.data?.trabalhosNaoPagos?.length ?? 0);
   const cashflowData = useMemo(() => {
     return (cashflow.data?.days ?? []).map((d) => ({
       label: new Date(d.date).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' }),
@@ -521,7 +544,9 @@ export default function Dashboard() {
             const expiramGar = garantias.data?.expiramEm30Dias ?? 0;
             const stockCritico = kpis.data?.stockCriticoCount ?? 0;
             const faturasPend = pagasSemFatura.data?.length ?? 0;
-            const totalAlertas = expiramGar + stockCritico + faturasPend;
+            // Sprint 431: novos sinais (alinhados com os crons S392/S428/S430).
+            const totalAlertas = expiramGar + stockCritico + faturasPend
+              + reparacoesParadasCount + tarefasAtrasadasCount + cobrancasEmAtrasoCount;
             if (totalAlertas === 0) return <p className="py-6 text-center text-sm text-zinc-500">Sem alertas — tudo em dia ✓</p>;
             return (
               <ul className="space-y-2">
@@ -554,6 +579,42 @@ export default function Dashboard() {
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium text-amber-900 dark:text-amber-100">{faturasPend} reparação{faturasPend === 1 ? '' : 'ões'} paga{faturasPend === 1 ? '' : 's'} sem fatura</span>
                         <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Emitir no Moloni para fechar</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {/* Sprint 431 (Doc 90): sinais do cron S392 — reparações paradas. */}
+                {reparacoesParadasCount > 0 && (
+                  <li>
+                    <Link to="/reparacoes" className="flex items-center gap-2.5 rounded-lg bg-rose-50 px-2.5 py-2 text-sm transition hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300"><Clock3 size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-rose-900 dark:text-rose-100">{reparacoesParadasCount} reparaç{reparacoesParadasCount === 1 ? 'ão parada' : 'ões paradas'} há +{STALLED_DAYS}d</span>
+                        <span className="block text-[11px] text-rose-700/80 dark:text-rose-300/80">Sem mudar de estado — investigar bloqueios</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {/* Sprint 431 (Doc 90): sinais do cron S428 — tarefas atrasadas. */}
+                {tarefasAtrasadasCount > 0 && (
+                  <li>
+                    <Link to="/tarefas" className="flex items-center gap-2.5 rounded-lg bg-amber-50 px-2.5 py-2 text-sm transition hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300"><ListTodo size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-amber-900 dark:text-amber-100">{tarefasAtrasadasCount} tarefa{tarefasAtrasadasCount === 1 ? '' : 's'} atrasada{tarefasAtrasadasCount === 1 ? '' : 's'}</span>
+                        <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Prazo passou — concluir ou re-agendar</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {/* Sprint 431 (Doc 90): sinais do cron S430 — cobranças em atraso. */}
+                {cobrancasEmAtrasoCount > 0 && (
+                  <li>
+                    <Link to="/reparacoes" className="flex items-center gap-2.5 rounded-lg bg-amber-50 px-2.5 py-2 text-sm transition hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300"><Euro size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-amber-900 dark:text-amber-100">{cobrancasEmAtrasoCount} cobrança{cobrancasEmAtrasoCount === 1 ? '' : 's'} em atraso</span>
+                        <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Entregue / Concluído mas por pagar</span>
                       </span>
                     </Link>
                   </li>
