@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, FileText, Flag, Inbox, Mail, MessageCircle, Phone, Plus, Save, StickyNote, Wrench, X } from 'lucide-react';
@@ -129,6 +129,18 @@ export default function PedidosOnline() {
     ).length,
   };
 
+  // Sprint 442: breakdown por canal nos últimos 30d — derivado de dados já carregados.
+  // Mostra ao Bruno qual canal traz mais leads e onde investir esforço de marketing.
+  const origemBreakdown = useMemo(() => {
+    const cutoff = Date.now() - 30 * 86_400_000;
+    const recents = (allRequests.data ?? []).filter((r) => new Date(r.createdAt).getTime() >= cutoff);
+    const map = new Map<RepairRequestOrigem, number>();
+    for (const r of recents) map.set(r.origem, (map.get(r.origem) ?? 0) + 1);
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([origem, count]) => ({ origem, count }));
+  }, [allRequests.data]);
+
   // Pendentes ordenam por prioridade desc, depois mais antigos primeiro (SLA implícito).
   // Outras tabs mantém ordem natural (server already sorted by date).
   let rows = (list.data ?? []).slice();
@@ -188,6 +200,21 @@ export default function PedidosOnline() {
           helper="Ruido, spam ou sem seguimento."
         />
       </div>
+
+      {origemBreakdown.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-900">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Por canal · 30d</span>
+          {origemBreakdown.map(({ origem, count }) => (
+            <span
+              key={origem}
+              className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 dark:border-zinc-700 dark:bg-zinc-800/60"
+            >
+              <span className="font-medium text-zinc-700 dark:text-zinc-200">{REPAIR_REQUEST_ORIGEM_LABEL[origem]}</span>
+              <span className="tabular-nums text-zinc-500">{count}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end justify-between gap-2 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex gap-1">
