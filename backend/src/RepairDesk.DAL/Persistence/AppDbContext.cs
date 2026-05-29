@@ -90,6 +90,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<StockTakeItem> StockTakeItems => Set<StockTakeItem>();
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas (TODO list por utilizador).
     public DbSet<InternalTask> InternalTasks => Set<InternalTask>();
+    // Sprint 435 (Doc 90 screenshot Services): catálogo de mão-de-obra/serviços.
+    public DbSet<ServiceItem> ServiceItems => Set<ServiceItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

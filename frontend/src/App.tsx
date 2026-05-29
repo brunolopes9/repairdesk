@@ -34,6 +34,7 @@ const Inventario = lazy(() => import('./pages/inventario/Inventario'));
 const Tarefas = lazy(() => import('./pages/tarefas/Tarefas'));
 const Definicoes = lazy(() => import('./pages/definicoes/Definicoes'));
 const Perfil = lazy(() => import('./pages/definicoes/Perfil'));
+const Servicos = lazy(() => import('./pages/definicoes/Servicos'));
 const Preferencias = lazy(() => import('./pages/definicoes/Preferencias'));
 const Webhooks = lazy(() => import('./pages/definicoes/Webhooks'));
 const Fornecedores = lazy(() => import('./pages/definicoes/Fornecedores'));
@@ -169,6 +170,7 @@ export default function App() {
               <Route path="/auditoria" element={<Auditoria />} />
               <Route path="/definicoes" element={<Definicoes />} />
               <Route path="/definicoes/perfil" element={<Perfil />} />
+              <Route path="/definicoes/servicos" element={<Servicos />} />
               <Route path="/definicoes/preferencias" element={<Preferencias />} />
               <Route path="/definicoes/webhooks" element={<Webhooks />} />
               <Route path="/definicoes/fornecedores" element={<Fornecedores />} />
