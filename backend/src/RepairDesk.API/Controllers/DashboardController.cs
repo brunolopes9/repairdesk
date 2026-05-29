@@ -52,6 +52,11 @@ public class DashboardController : ControllerBase
     public Task<TendenciaResponse> GetTendencia([FromQuery] int meses = 6, CancellationToken ct = default)
         => _service.GetTendenciaAsync(meses, ct);
 
+    /// <summary>Sprint 429 (Doc 88 IDEIAS 1): cash flow diário para gráfico Dashboard. Default 30 dias, max 90.</summary>
+    [HttpGet("cashflow")]
+    public Task<CashflowResponse> GetCashflow([FromQuery] int days = 30, CancellationToken ct = default)
+        => _service.GetCashflowAsync(days, ct);
+
     [HttpGet("top-reparacoes")]
     public Task<TopReparacoesResponse> GetTopReparacoes(
         [FromQuery] DateTime? from,

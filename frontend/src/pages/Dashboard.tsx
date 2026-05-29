@@ -146,6 +146,29 @@ export default function Dashboard() {
     staleTime: 60_000,
   });
 
+  // Sprint 429 (Doc 88 IDEIAS 1): cash flow diário 30d.
+  const cashflow = useQuery({
+    queryKey: ['dashboard-cashflow-30d'],
+    queryFn: () => dashboardApi.cashflow(30),
+    staleTime: 5 * 60_000,
+  });
+  const cashflowData = useMemo(() => {
+    return (cashflow.data?.days ?? []).map((d) => ({
+      label: new Date(d.date).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' }),
+      receita: d.receitaCents / 100,
+      despesa: d.despesaCents / 100,
+      net: d.netCents / 100,
+    }));
+  }, [cashflow.data]);
+  const cashflowTotal = useMemo(() => {
+    const days = cashflow.data?.days ?? [];
+    return {
+      receita: days.reduce((s, d) => s + d.receitaCents, 0),
+      despesa: days.reduce((s, d) => s + d.despesaCents, 0),
+      net: days.reduce((s, d) => s + d.netCents, 0),
+    };
+  }, [cashflow.data]);
+
   // Sprint 423 (Doc 90): reparações com ETA esta semana — filtra client-side da fila.
   const reparacoesEtaSemana = useMemo(() => {
     const items = fila.data?.items ?? [];
@@ -539,6 +562,41 @@ export default function Dashboard() {
             );
           })()}
         </SectionCard>
+        </div>
+      </section>
+
+      {/* Sprint 429 (Doc 88 IDEIAS 1 + Doc 90 §3): cash flow 30 dias — pulso financeiro real. */}
+      <section className="space-y-3">
+        <ZoneHeader
+          eyebrow="Fluxo de caixa"
+          title="Receita vs despesa dos últimos 30 dias"
+          subtitle={`Total: receita ${formatCents(cashflowTotal.receita)} · despesa ${formatCents(cashflowTotal.despesa)} · net ${formatCents(cashflowTotal.net)}.`}
+        />
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={cashflowData} margin={{ left: 0, right: 8, top: 6, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="cf-receita" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#059669" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#059669" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="cf-despesa" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#dc2626" stopOpacity={0.30} />
+                    <stop offset="100%" stopColor="#dc2626" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}€`} width={50} />
+                <Tooltip
+                  formatter={(value: number, name) => [`${value.toFixed(2)}€`, name]}
+                  labelStyle={{ fontWeight: 600 }}
+                />
+                <Area type="monotone" dataKey="receita" name="Receita" stroke="#059669" strokeWidth={2} fill="url(#cf-receita)" dot={false} />
+                <Area type="monotone" dataKey="despesa" name="Despesa" stroke="#dc2626" strokeWidth={2} fill="url(#cf-despesa)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </section>
 

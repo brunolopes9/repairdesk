@@ -9,6 +9,8 @@ public interface IDashboardRepository
     Task<FinanceiroSnapshot> GetFinanceiroAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     Task<AlertasSnapshot> GetAlertasAsync(CancellationToken ct = default);
     Task<IReadOnlyList<MesFinanceiroRow>> GetTendenciaAsync(int mesesAtras, CancellationToken ct = default);
+    /// <summary>Sprint 429: receita vs despesa por dia para gráfico cash flow.</summary>
+    Task<IReadOnlyList<CashflowDayRow>> GetCashflowAsync(int days, CancellationToken ct = default);
     Task<IReadOnlyList<ReparacaoTopRow>> GetTopReparacoesAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default);
     Task<int> GetReparacoesCountAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     Task<ReparacoesEmGarantiaSnapshot> GetReparacoesEmGarantiaAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default);
@@ -94,6 +96,12 @@ public sealed record MesFinanceiroRow(
     int ReceitaCents,
     int CustoCents,
     int LucroCents);
+
+/// <summary>Sprint 429: linha do gráfico cash flow — receita + despesa do dia.</summary>
+public sealed record CashflowDayRow(
+    DateTime Date,
+    int ReceitaCents,
+    int DespesaCents);
 
 public sealed record ReparacaoTopRow(
     Guid Id,

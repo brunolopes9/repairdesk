@@ -94,6 +94,20 @@ public sealed record MesFinanceiro(
     int CustoCents,
     int LucroCents);
 
+/// <summary>Sprint 429 (Doc 88 IDEIAS 1 + Doc 90 secção 3): série diária de cash flow para gráfico Dashboard.</summary>
+public sealed record CashflowResponse(IReadOnlyList<CashflowDay> Days);
+
+/// <summary>
+/// Cash in vs cash out por dia. Receita = Reparações/Trabalhos pagos no dia (PrecoFinal)
+/// + Vendas pagas no dia. Despesa = todas as Despesas com Data nesse dia (overhead + COGS).
+/// Net = Receita - Despesa.
+/// </summary>
+public sealed record CashflowDay(
+    DateTime Date,
+    int ReceitaCents,
+    int DespesaCents,
+    int NetCents);
+
 public sealed record TopReparacoesResponse(
     IReadOnlyList<ReparacaoTop> Items);
 

@@ -10,6 +10,8 @@ public interface IDashboardService
     Task<FinanceiroResponse> GetFinanceiroRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     Task<AlertasResponse> GetAlertasAsync(CancellationToken ct = default);
     Task<TendenciaResponse> GetTendenciaAsync(int meses, CancellationToken ct = default);
+    /// <summary>Sprint 429: série diária de cash flow para gráfico Dashboard.</summary>
+    Task<CashflowResponse> GetCashflowAsync(int days, CancellationToken ct = default);
     Task<TopReparacoesResponse> GetTopReparacoesAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default);
     Task<TopReparacoesResponse> GetTopReparacoesCurrentMonthAsync(int limit, CancellationToken ct = default);
     Task<AvaliacoesDashboardResponse> GetAvaliacoesAsync(CancellationToken ct = default);
@@ -138,6 +140,13 @@ public class DashboardService : IDashboardService
         var rows = await _repo.GetTendenciaAsync(meses, ct);
         return new TendenciaResponse(
             rows.Select(r => new MesFinanceiro(r.Ano, r.Mes, r.ReceitaCents, r.CustoCents, r.LucroCents)).ToList());
+    }
+
+    public async Task<CashflowResponse> GetCashflowAsync(int days, CancellationToken ct = default)
+    {
+        var rows = await _repo.GetCashflowAsync(days, ct);
+        return new CashflowResponse(
+            rows.Select(r => new CashflowDay(r.Date, r.ReceitaCents, r.DespesaCents, r.ReceitaCents - r.DespesaCents)).ToList());
     }
 
     public async Task<TopReparacoesResponse> GetTopReparacoesAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default)

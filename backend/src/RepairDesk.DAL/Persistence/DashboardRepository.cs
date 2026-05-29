@@ -571,6 +571,60 @@ public class DashboardRepository : IDashboardRepository
         return result;
     }
 
+    // Sprint 429 (Doc 88 IDEIAS 1): cash flow diário N dias. Receita = vendas+reparações+trabalhos
+    // pagos no dia. Despesa = TODAS as Despesas com Data nesse dia (overhead + COGS) — não filtra
+    // por reparação como o Tendencia, porque cash flow é cash in/out real.
+    public async Task<IReadOnlyList<CashflowDayRow>> GetCashflowAsync(int days, CancellationToken ct = default)
+    {
+        days = Math.Clamp(days, 7, 90);
+
+        var hoje = DateTime.UtcNow.Date;
+        var fim = hoje.AddDays(1); // inclusivo hoje
+        var inicio = fim.AddDays(-days);
+
+        var reparacoesPagas = await _db.Reparacoes
+            .Where(r => r.EntregueEm != null && r.EntregueEm >= inicio && r.EntregueEm < fim
+                        && (r.EstadoPagamento == PaymentStatus.Pago || r.EstadoPagamento == PaymentStatus.PagoParcial))
+            .Select(r => new { Data = r.EntregueEm!.Value, Cents = r.PrecoFinalCents ?? r.OrcamentoCents ?? 0 })
+            .ToListAsync(ct);
+
+        var trabalhosPagos = await _db.Trabalhos
+            .Where(t => t.Status == TrabalhoStatus.Concluido
+                        && t.DataConclusao != null && t.DataConclusao >= inicio && t.DataConclusao < fim
+                        && (t.EstadoPagamento == PaymentStatus.Pago || t.EstadoPagamento == PaymentStatus.PagoParcial))
+            .Select(t => new { Data = t.DataConclusao!.Value, Cents = t.PrecoFinalCents ?? t.OrcamentoCents ?? 0 })
+            .ToListAsync(ct);
+
+        var vendaItensPagos = await _db.VendaItems
+            .AsNoTracking()
+            .Where(i => i.Venda != null && i.Venda.Status == VendaStatus.Paga
+                        && i.Venda.Data >= inicio && i.Venda.Data < fim)
+            .Select(i => new
+            {
+                Data = i.Venda!.Data,
+                Cents = Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents),
+            })
+            .ToListAsync(ct);
+
+        var despesas = await _db.Despesas
+            .Where(d => d.Data >= inicio && d.Data < fim)
+            .Select(d => new { Data = d.Data, Cents = d.ValorCents })
+            .ToListAsync(ct);
+
+        var result = new List<CashflowDayRow>(days);
+        for (int i = 0; i < days; i++)
+        {
+            var bucketStart = inicio.AddDays(i);
+            var bucketEnd = bucketStart.AddDays(1);
+            var receita = reparacoesPagas.Where(r => r.Data >= bucketStart && r.Data < bucketEnd).Sum(r => r.Cents)
+                        + trabalhosPagos.Where(t => t.Data >= bucketStart && t.Data < bucketEnd).Sum(t => t.Cents)
+                        + vendaItensPagos.Where(v => v.Data >= bucketStart && v.Data < bucketEnd).Sum(v => v.Cents);
+            var despesa = despesas.Where(d => d.Data >= bucketStart && d.Data < bucketEnd).Sum(d => d.Cents);
+            result.Add(new CashflowDayRow(bucketStart, receita, despesa));
+        }
+        return result;
+    }
+
     public async Task<IReadOnlyList<ReparacaoTopRow>> GetTopReparacoesAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default)
     {
         if (limit < 1) limit = 5;

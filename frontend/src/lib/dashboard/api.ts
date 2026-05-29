@@ -116,6 +116,10 @@ export const dashboardApi = {
   tendencia(meses = 6) {
     return api.get<TendenciaResponse>('/dashboard/tendencia', { params: { meses } }).then((r) => r.data);
   },
+  // Sprint 429: cash flow chart Dashboard (Doc 88 IDEIAS 1).
+  cashflow(days = 30) {
+    return api.get<CashflowResponse>('/dashboard/cashflow', { params: { days } }).then((r) => r.data);
+  },
   topReparacoesCurrent(limit = 5) {
     return api.get<TopReparacoesResponse>('/dashboard/top-reparacoes', { params: { limit } }).then((r) => r.data);
   },
@@ -245,6 +249,18 @@ export interface MesFinanceiro {
 
 export interface TendenciaResponse {
   meses: MesFinanceiro[];
+}
+
+// Sprint 429: cash flow diário Dashboard.
+export interface CashflowDay {
+  date: string;
+  receitaCents: number;
+  despesaCents: number;
+  netCents: number;
+}
+
+export interface CashflowResponse {
+  days: CashflowDay[];
 }
 
 export interface ReparacaoTop {
