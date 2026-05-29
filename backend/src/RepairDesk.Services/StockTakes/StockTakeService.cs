@@ -43,6 +43,8 @@ public interface IStockTakeService
     Task<StockTakeItemDto> CountItemAsync(Guid stockTakeId, Guid partId, int qtdContada, CancellationToken ct = default);
     Task<StockTakeDto> CloseAsync(Guid stockTakeId, string? notas, CancellationToken ct = default);
     Task<StockTakeDto> CancelAsync(Guid stockTakeId, CancellationToken ct = default);
+    /// <summary>Sprint 434: export CSV de um inventário (qualquer estado). Útil para contabilista.</summary>
+    Task<byte[]> ExportCsvAsync(Guid stockTakeId, CancellationToken ct = default);
 }
 
 public sealed class StockTakeService : IStockTakeService
@@ -193,6 +195,32 @@ public sealed class StockTakeService : IStockTakeService
             new { closed = true, ajustes }, st.TenantId, uid, ct);
 
         return ToDto(st, includeItems: true);
+    }
+
+    public async Task<byte[]> ExportCsvAsync(Guid stockTakeId, CancellationToken ct = default)
+    {
+        var st = await _repo.FindByIdAsync(stockTakeId, includeItems: true, ct)
+                 ?? throw new NotFoundException("StockTake", stockTakeId);
+
+        var csv = new RepairDesk.Common.Helpers.CsvBuilder();
+        csv.Row("sku", "nome", "marca", "modelo", "localizacao", "qtd_sistema", "qtd_contada", "diferenca", "contado_em");
+
+        foreach (var item in st.Items.OrderBy(i => i.Part?.Nome))
+        {
+            var diff = item.QtdContada.HasValue ? (item.QtdContada.Value - item.QtdSistema).ToString() : "";
+            csv.Row(
+                item.Part?.Sku ?? "",
+                item.Part?.Nome ?? "(?)",
+                item.Part?.Marca ?? "",
+                item.Part?.Modelo ?? "",
+                item.Part?.LocalArmazenamento ?? "",
+                item.QtdSistema.ToString(),
+                item.QtdContada?.ToString() ?? "",
+                diff,
+                item.ContadoEm?.ToString("yyyy-MM-dd HH:mm:ss") ?? "");
+        }
+
+        return csv.ToUtf8WithBom();
     }
 
     public async Task<StockTakeDto> CancelAsync(Guid stockTakeId, CancellationToken ct = default)

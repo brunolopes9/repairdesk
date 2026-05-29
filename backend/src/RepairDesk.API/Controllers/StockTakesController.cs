@@ -52,4 +52,12 @@ public sealed class StockTakesController : ControllerBase
     [HttpPost("{id:guid}/cancel")]
     public async Task<ActionResult<StockTakeDto>> Cancel(Guid id, CancellationToken ct)
         => Ok(await _service.CancelAsync(id, ct));
+
+    /// <summary>Sprint 434: export CSV do inventário — útil para contabilista ou reconciliação manual.</summary>
+    [HttpGet("{id:guid}/export.csv")]
+    public async Task<IActionResult> ExportCsv(Guid id, CancellationToken ct)
+    {
+        var bytes = await _service.ExportCsvAsync(id, ct);
+        return File(bytes, "text/csv; charset=utf-8", $"inventario_{id:N}.csv");
+    }
 }

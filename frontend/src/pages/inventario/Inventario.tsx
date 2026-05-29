@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, ClipboardList, Loader2, Play, Search, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardList, Download, Loader2, Play, Search, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { toast } from '../../lib/toast';
 import { apiErrorMessage } from '../../lib/errors';
+import { downloadFile } from '../../lib/downloadPdf';
 import { stockTakesApi } from '../../lib/stockTakes/api';
-import { StockTakeStatus, type StockTake, type StockTakeItem } from '../../lib/stockTakes/types';
+import type { StockTake, StockTakeItem } from '../../lib/stockTakes/types';
 
 /**
  * Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
@@ -140,6 +141,18 @@ function StockTakeBoard({
           </p>
         </div>
         <div className="flex gap-2">
+          {/* Sprint 434: export CSV — para contabilista / arquivo. */}
+          <Button
+            variant="secondary"
+            leftIcon={<Download size={15} />}
+            onClick={() =>
+              downloadFile(stockTakesApi.exportCsvPath(stockTake.id), `inventario_${stockTake.id.slice(0, 8)}.csv`)
+                .then(() => toast.success('CSV exportado.'))
+                .catch((e) => toast.error(e instanceof Error ? e.message : 'Erro ao exportar.'))
+            }
+          >
+            Exportar CSV
+          </Button>
           <Button
             variant="secondary"
             onClick={async () => {
