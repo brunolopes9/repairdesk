@@ -33,6 +33,8 @@ import {
   UserCog,
   Lock,
   Boxes,
+  Package,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
@@ -88,11 +90,20 @@ const nav: NavItem[] = [
       { to: '/despesas', label: 'Despesas & custos', icon: Banknote },
     ],
   },
-  // Sprint 388 (Doc 87): "Catálogo & Stock" substitui Stock + Produtos na nav. As rotas /stock e
-  // /produtos continuam vivas (formulários de edição/criação que o Catálogo invoca), só saíram do menu.
-  { to: '/catalogo', label: 'Catálogo & Stock', icon: Boxes },
-  // Sprint 421 (Doc 90): inventário físico — só admin.
-  { to: '/inventario', label: 'Inventário', icon: ClipboardList, adminOnly: true },
+  // Sprint 445 (Bruno feedback): juntar Catálogo + Stock + Produtos + Inventário num parent
+  // colapsável único. Antes /stock e /produtos não tinham entry no menu (Sprint 388 escondeu-os
+  // dentro do Catálogo, mas Bruno precisa de aceder direto). Agora ficam tudo aqui dentro.
+  {
+    label: 'Catálogo & Stock',
+    icon: Boxes,
+    children: [
+      { to: '/catalogo', label: 'Visão geral', icon: LayoutDashboard },
+      { to: '/stock', label: 'Stock (peças)', icon: Boxes },
+      { to: '/produtos', label: 'Produtos (retail)', icon: Package },
+      // Sprint 421 (Doc 90): inventário físico = contagem para validar stock. Só admin.
+      { to: '/inventario', label: 'Contagens físicas', icon: ClipboardCheck, adminOnly: true },
+    ],
+  },
   { to: '/precos', label: 'Preços', icon: Tags },
   {
     label: 'Relatorios',
