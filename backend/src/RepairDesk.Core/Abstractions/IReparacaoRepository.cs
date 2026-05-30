@@ -17,7 +17,8 @@ public interface IReparacaoRepository
         Guid? clienteId,
         int page,
         int pageSize,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        DeviceCategory? categoria = null);
     /// <summary>Procura reparações com IMEI normalizado igual (excluindo opcionalmente uma reparação específica).</summary>
     Task<IReadOnlyList<Reparacao>> SearchByImeiAsync(string imeiNormalizado, Guid? excludeId, CancellationToken ct = default);
     /// <summary>Lista reparações pagas (EstadoPagamento.Pago) que ainda não têm fatura emitida.</summary>

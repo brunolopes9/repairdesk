@@ -17,7 +17,7 @@ namespace RepairDesk.Services.Reparacoes;
 
 public interface IReparacaoService
 {
-    Task<PagedResult<ReparacaoDto>> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<ReparacaoDto>> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default, DeviceCategory? categoria = null);
     Task<IReadOnlyList<ReparacaoDto>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default);
     Task<ReparacaoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> EmitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default);
@@ -108,11 +108,12 @@ public class ReparacaoService : IReparacaoService
     }
 
     public async Task<PagedResult<ReparacaoDto>> SearchAsync(
-        string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
+        string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default,
+        DeviceCategory? categoria = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var (items, total) = await _repo.SearchAsync(query, estado, clienteId, page, pageSize, ct);
+        var (items, total) = await _repo.SearchAsync(query, estado, clienteId, page, pageSize, ct, categoria);
         var dtos = new List<ReparacaoDto>(items.Count);
         foreach (var r in items)
         {

@@ -61,12 +61,15 @@ public class ReparacaoRepository : IReparacaoRepository
     }
 
     public async Task<(IReadOnlyList<Reparacao> Items, int Total)> SearchAsync(
-        string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
+        string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default,
+        DeviceCategory? categoria = null)
     {
         var q = _db.Reparacoes.AsNoTracking().Include(r => r.Cliente).AsQueryable();
 
         if (estado is not null) q = q.Where(r => r.Estado == estado.Value);
         if (clienteId is not null) q = q.Where(r => r.ClienteId == clienteId.Value);
+        // Sprint 476: filter por DeviceCategory (vem do S475).
+        if (categoria is not null) q = q.Where(r => r.Categoria == categoria.Value);
 
         if (!string.IsNullOrWhiteSpace(query))
         {

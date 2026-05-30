@@ -31,10 +31,11 @@ public class ReparacoesController : ControllerBase
         [FromQuery] string? q,
         [FromQuery] RepairStatus? estado,
         [FromQuery] Guid? clienteId,
+        [FromQuery] DeviceCategory? categoria,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
-        => _service.SearchAsync(q, estado, clienteId, page, pageSize, ct);
+        => _service.SearchAsync(q, estado, clienteId, page, pageSize, ct, categoria);
 
     [HttpGet("pagas-sem-fatura")]
     public Task<IReadOnlyList<ReparacaoDto>> PagasSemFatura([FromQuery] int limit = 100, CancellationToken ct = default)
