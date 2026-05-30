@@ -1,0 +1,295 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1152" viewBox="0 0 2048 1152">
+  <defs>
+    <filter id="s1" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#101828" flood-opacity=".08"/>
+    </filter>
+    <filter id="s2" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="22" flood-color="#101828" flood-opacity=".14"/>
+    </filter>
+    <style>
+      .font{font-family:Inter,Segoe UI,Arial,sans-serif}
+      .bg{fill:#f7f5f1}
+      .ink{fill:#111827}
+      .muted{fill:#667085}
+      .soft{fill:#f3f1eb}
+      .white{fill:#fffdf8}
+      .line{stroke:#dedbd2;stroke-width:1}
+      .nav{fill:#0f1d2d}
+      .blue{fill:#2f80d1}
+      .blueText{fill:#1f6fb8}
+      .green{fill:#16a36a}
+      .greenBg{fill:#e8f8ef}
+      .amber{fill:#b7791f}
+      .amberBg{fill:#fff6df}
+      .red{fill:#c73535}
+      .redBg{fill:#ffe9e9}
+      .h1{font-size:32px;font-weight:780}
+      .h2{font-size:20px;font-weight:760}
+      .body{font-size:15px}
+      .small{font-size:13px}
+      .tiny{font-size:11px}
+      .label{font-size:11px;font-weight:760;letter-spacing:.05em}
+    </style>
+  </defs>
+
+  <rect width="2048" height="1152" class="bg"/>
+
+  <!-- Left navigation -->
+  <rect x="0" y="0" width="256" height="1152" fill="#fffdf8" stroke="#dedbd2"/>
+  <rect x="0" y="0" width="72" height="1152" class="nav"/>
+  <rect x="18" y="22" width="36" height="36" rx="10" class="blue"/>
+  <text x="36" y="46" text-anchor="middle" class="font" font-size="16" font-weight="800" fill="#fff">M</text>
+  <rect x="102" y="24" width="38" height="38" rx="11" class="blue"/>
+  <text x="121" y="49" text-anchor="middle" class="font" font-size="17" font-weight="800" fill="#fff">M</text>
+  <text x="150" y="49" class="font ink" font-size="18" font-weight="760">Mender</text>
+
+  <g class="font" font-size="15" fill="#475467">
+    <rect x="10" y="122" width="52" height="52" rx="12" fill="#17263a"/>
+    <text x="36" y="154" text-anchor="middle" font-size="22" fill="#b8c5d6">▦</text>
+    <text x="96" y="154">Dashboard</text>
+    <text x="36" y="222" text-anchor="middle" font-size="21" fill="#b8c5d6">☉</text><text x="96" y="222">Clientes</text>
+    <rect x="10" y="250" width="52" height="52" rx="12" fill="#2f80d1"/>
+    <text x="36" y="283" text-anchor="middle" font-size="22" fill="#fff">⌕</text><text x="96" y="283" fill="#111827" font-weight="760">Reparacoes</text>
+    <text x="36" y="352" text-anchor="middle" font-size="21" fill="#b8c5d6">▣</text><text x="96" y="352">Trabalhos</text>
+    <text x="36" y="414" text-anchor="middle" font-size="21" fill="#b8c5d6">€</text><text x="96" y="414">Compras e Operacao</text>
+    <text x="36" y="476" text-anchor="middle" font-size="21" fill="#b8c5d6">▰</text><text x="96" y="476">Balcao</text>
+    <text x="36" y="538" text-anchor="middle" font-size="21" fill="#b8c5d6">◇</text><text x="96" y="538">Catalogo &amp; Stock</text>
+    <text x="36" y="600" text-anchor="middle" font-size="21" fill="#b8c5d6">#</text><text x="96" y="600">Precos</text>
+    <text x="36" y="662" text-anchor="middle" font-size="21" fill="#b8c5d6">▤</text><text x="96" y="662">Relatorios</text>
+    <text x="36" y="724" text-anchor="middle" font-size="21" fill="#b8c5d6">⚙</text><text x="96" y="724">Definicoes</text>
+  </g>
+
+  <!-- Top bar -->
+  <rect x="256" y="0" width="1792" height="76" fill="#fffdf8" stroke="#dedbd2"/>
+  <rect x="1088" y="16" width="188" height="44" rx="9" class="blue" filter="url(#s1)"/>
+  <text x="1182" y="44" text-anchor="middle" class="font" font-size="16" font-weight="760" fill="#fff">+ Nova reparacao</text>
+  <rect x="1290" y="16" width="300" height="44" rx="9" fill="#fff" stroke="#dedbd2"/>
+  <text x="1320" y="44" class="font muted" font-size="15">Procurar...</text>
+  <rect x="1514" y="25" width="58" height="24" rx="6" fill="#f3f1eb" stroke="#dedbd2"/>
+  <text x="1543" y="41" text-anchor="middle" class="font muted" font-size="12">Ctrl K</text>
+  <rect x="1604" y="16" width="88" height="44" rx="9" fill="#fff" stroke="#dedbd2"/>
+  <circle cx="1627" cy="38" r="6" class="green"/>
+  <text x="1650" y="43" class="font muted" font-size="14">OK</text>
+  <circle cx="1734" cy="38" r="17" fill="#f3f1eb"/>
+  <text x="1734" y="44" text-anchor="middle" class="font muted" font-size="16">🔔</text>
+  <rect x="1810" y="16" width="188" height="44" rx="9" fill="#fff" stroke="#dedbd2"/>
+  <rect x="1824" y="23" width="30" height="30" rx="8" fill="#e7f2ff"/>
+  <text x="1839" y="44" text-anchor="middle" class="font blueText" font-size="15" font-weight="760">B</text>
+  <text x="1866" y="43" class="font ink" font-size="15" font-weight="650">Bruno Lopes</text>
+
+  <!-- Page -->
+  <g transform="translate(304 112)">
+    <text x="0" y="0" class="font h1 ink">Reparacoes</text>
+    <text x="0" y="32" class="font body muted">Entrada, diagnostico, pecas, comunicacao, faturacao e entrega num so fluxo.</text>
+
+    <!-- Top actions -->
+    <g transform="translate(1156 -10)">
+      <rect x="0" y="0" width="112" height="42" rx="9" fill="#fff" stroke="#dedbd2"/>
+      <text x="56" y="27" text-anchor="middle" class="font small ink" font-weight="760">Lista</text>
+      <rect x="118" y="0" width="118" height="42" rx="9" fill="#0f1d2d"/>
+      <text x="177" y="27" text-anchor="middle" class="font small" fill="#fff" font-weight="760">Kanban</text>
+      <rect x="250" y="0" width="168" height="42" rx="9" class="amberBg" stroke="#f0c36a"/>
+      <text x="334" y="27" text-anchor="middle" class="font small amber" font-weight="760">3 sem fatura</text>
+      <rect x="432" y="0" width="104" height="42" rx="9" fill="#fff" stroke="#dedbd2"/>
+      <text x="484" y="27" text-anchor="middle" class="font small ink" font-weight="760">Exportar</text>
+      <rect x="548" y="0" width="92" height="42" rx="9" class="blue"/>
+      <text x="594" y="27" text-anchor="middle" class="font small" fill="#fff" font-weight="760">+ Nova</text>
+    </g>
+
+    <!-- Metrics -->
+    <g transform="translate(0 68)">
+      <g>
+        <rect width="206" height="88" rx="12" fill="#fff" stroke="#dedbd2" filter="url(#s1)"/>
+        <text x="16" y="28" class="font label muted">EM CURSO</text>
+        <text x="16" y="62" class="font" font-size="28" font-weight="800" fill="#111827">18</text>
+      </g>
+      <g transform="translate(220 0)">
+        <rect width="206" height="88" rx="12" fill="#fff" stroke="#dedbd2"/>
+        <text x="16" y="28" class="font label muted">AGUARDAM PECA</text>
+        <text x="16" y="62" class="font" font-size="28" font-weight="800" fill="#b7791f">6</text>
+      </g>
+      <g transform="translate(440 0)">
+        <rect width="206" height="88" rx="12" fill="#fff" stroke="#dedbd2"/>
+        <text x="16" y="28" class="font label muted">PRONTAS</text>
+        <text x="16" y="62" class="font" font-size="28" font-weight="800" fill="#16a36a">5</text>
+      </g>
+      <g transform="translate(660 0)">
+        <rect width="206" height="88" rx="12" fill="#fff" stroke="#dedbd2"/>
+        <text x="16" y="28" class="font label muted">A RECEBER</text>
+        <text x="16" y="62" class="font" font-size="26" font-weight="800" fill="#111827">1.248 €</text>
+      </g>
+      <g transform="translate(880 0)">
+        <rect width="206" height="88" rx="12" fill="#fff" stroke="#dedbd2"/>
+        <text x="16" y="28" class="font label muted">TEMPO MEDIO</text>
+        <text x="16" y="62" class="font" font-size="26" font-weight="800" fill="#111827">2.4 dias</text>
+      </g>
+    </g>
+
+    <!-- Filters -->
+    <g transform="translate(0 180)">
+      <rect width="1700" height="68" rx="12" fill="#fffdf8" stroke="#dedbd2"/>
+      <rect x="18" y="15" width="520" height="38" rx="9" fill="#fff" stroke="#dedbd2"/>
+      <text x="44" y="40" class="font muted" font-size="14">Equipamento, IMEI, cliente, telefone...</text>
+      <g class="font small" font-weight="760">
+        <rect x="560" y="16" width="80" height="36" rx="18" class="blue"/><text x="600" y="39" text-anchor="middle" fill="#fff">Todas</text>
+        <rect x="650" y="16" width="94" height="36" rx="18" class="soft"/><text x="697" y="39" text-anchor="middle" fill="#475467">Recebido</text>
+        <rect x="754" y="16" width="110" height="36" rx="18" class="soft"/><text x="809" y="39" text-anchor="middle" fill="#475467">Diagnostico</text>
+        <rect x="874" y="16" width="120" height="36" rx="18" class="amberBg"/><text x="934" y="39" text-anchor="middle" class="amber">Aguarda peca</text>
+        <rect x="1004" y="16" width="122" height="36" rx="18" class="soft"/><text x="1065" y="39" text-anchor="middle" fill="#475467">Em reparacao</text>
+        <rect x="1136" y="16" width="94" height="36" rx="18" class="greenBg"/><text x="1183" y="39" text-anchor="middle" class="green">Prontas</text>
+        <rect x="1240" y="16" width="100" height="36" rx="18" class="redBg"/><text x="1290" y="39" text-anchor="middle" class="red">Atrasadas</text>
+      </g>
+    </g>
+
+    <!-- Main board -->
+    <g transform="translate(0 276)">
+      <rect width="1130" height="718" rx="14" fill="#fffdf8" stroke="#dedbd2"/>
+      <text x="22" y="34" class="font h2 ink">Fila da oficina</text>
+      <text x="152" y="34" class="font body muted">arrasta, filtra ou abre o detalhe</text>
+
+      <g transform="translate(18 58)">
+        <!-- Column 1 -->
+        <g>
+          <rect width="208" height="614" rx="12" fill="#f9f8f4" stroke="#dedbd2"/>
+          <text x="16" y="28" class="font small ink" font-weight="760">Recebido</text>
+          <circle cx="184" cy="24" r="13" fill="#e9e7e0"/>
+          <text x="184" y="29" text-anchor="middle" class="font tiny muted" font-weight="760">4</text>
+          <rect x="12" y="52" width="184" height="114" rx="10" fill="#fff" stroke="#dedbd2" filter="url(#s1)"/>
+          <text x="24" y="78" class="font tiny muted">#186</text>
+          <text x="24" y="100" class="font small ink" font-weight="760">iPhone 11</text>
+          <text x="24" y="122" class="font tiny muted">Camara traseira</text>
+          <text x="24" y="148" class="font tiny muted">Ricardo Silva · 10:12</text>
+        </g>
+        <!-- Column 2 -->
+        <g transform="translate(222 0)">
+          <rect width="208" height="614" rx="12" fill="#f9f8f4" stroke="#dedbd2"/>
+          <text x="16" y="28" class="font small ink" font-weight="760">Diagnostico</text>
+          <circle cx="184" cy="24" r="13" fill="#e9e7e0"/>
+          <text x="184" y="29" text-anchor="middle" class="font tiny muted" font-weight="760">3</text>
+          <rect x="12" y="52" width="184" height="136" rx="10" fill="#fff" stroke="#2f80d1" filter="url(#s1)"/>
+          <text x="24" y="78" class="font tiny muted">#184</text>
+          <text x="24" y="100" class="font small ink" font-weight="760">iPhone 13 Pro Max</text>
+          <text x="24" y="122" class="font tiny muted">Ecra partido</text>
+          <rect x="24" y="136" width="78" height="22" rx="11" class="amberBg"/>
+          <text x="63" y="151" text-anchor="middle" class="font tiny amber" font-weight="760">SLA 3h</text>
+          <text x="24" y="176" class="font tiny muted">Ana Martins · 189,90 €</text>
+        </g>
+        <!-- Column 3 -->
+        <g transform="translate(444 0)">
+          <rect width="208" height="614" rx="12" fill="#f9f8f4" stroke="#dedbd2"/>
+          <text x="16" y="28" class="font small ink" font-weight="760">Aguarda peca</text>
+          <circle cx="184" cy="24" r="13" fill="#e9e7e0"/>
+          <text x="184" y="29" text-anchor="middle" class="font tiny muted" font-weight="760">6</text>
+          <rect x="12" y="52" width="184" height="142" rx="10" fill="#fffbeb" stroke="#f0c36a" filter="url(#s1)"/>
+          <text x="24" y="78" class="font tiny muted">#183</text>
+          <text x="24" y="100" class="font small ink" font-weight="760">Samsung A52</text>
+          <text x="24" y="122" class="font tiny muted">Nao carrega</text>
+          <rect x="24" y="136" width="112" height="22" rx="11" fill="#fff0c2"/>
+          <text x="80" y="151" text-anchor="middle" class="font tiny amber" font-weight="760">Charge board</text>
+          <text x="24" y="178" class="font tiny muted">Tudo4Mobile · hoje</text>
+        </g>
+        <!-- Column 4 -->
+        <g transform="translate(666 0)">
+          <rect width="208" height="614" rx="12" fill="#f9f8f4" stroke="#dedbd2"/>
+          <text x="16" y="28" class="font small ink" font-weight="760">Em reparacao</text>
+          <circle cx="184" cy="24" r="13" fill="#e9e7e0"/>
+          <text x="184" y="29" text-anchor="middle" class="font tiny muted" font-weight="760">5</text>
+          <rect x="12" y="52" width="184" height="126" rx="10" fill="#fff" stroke="#dedbd2" filter="url(#s1)"/>
+          <text x="24" y="78" class="font tiny muted">#181</text>
+          <text x="24" y="100" class="font small ink" font-weight="760">iPad 10</text>
+          <text x="24" y="122" class="font tiny muted">Touch + frame</text>
+          <rect x="24" y="136" width="76" height="22" rx="11" fill="#e7f2ff"/>
+          <text x="62" y="151" text-anchor="middle" class="font tiny blueText" font-weight="760">Joao</text>
+        </g>
+        <!-- Column 5 -->
+        <g transform="translate(888 0)">
+          <rect width="208" height="614" rx="12" fill="#f9f8f4" stroke="#dedbd2"/>
+          <text x="16" y="28" class="font small ink" font-weight="760">Prontas</text>
+          <circle cx="184" cy="24" r="13" fill="#e9e7e0"/>
+          <text x="184" y="29" text-anchor="middle" class="font tiny muted" font-weight="760">5</text>
+          <rect x="12" y="52" width="184" height="126" rx="10" fill="#ecfdf3" stroke="#9ee6bf" filter="url(#s1)"/>
+          <text x="24" y="78" class="font tiny muted">#180</text>
+          <text x="24" y="100" class="font small ink" font-weight="760">iPhone 12</text>
+          <text x="24" y="122" class="font tiny muted">Bateria nova</text>
+          <rect x="24" y="136" width="72" height="22" rx="11" fill="#dcfce7"/>
+          <text x="60" y="151" text-anchor="middle" class="font tiny green" font-weight="760">Pago</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Inspector -->
+    <g transform="translate(1160 276)">
+      <rect width="540" height="718" rx="16" fill="#fffdf8" stroke="#dedbd2" filter="url(#s2)"/>
+      <rect width="540" height="74" rx="16" class="nav"/>
+      <text x="24" y="30" class="font tiny" fill="#b8c5d6">REPARACAO SELECIONADA</text>
+      <text x="24" y="56" class="font" font-size="20" font-weight="780" fill="#fff">#184 · iPhone 13 Pro Max</text>
+      <rect x="400" y="22" width="116" height="32" rx="16" class="amberBg"/>
+      <text x="458" y="43" text-anchor="middle" class="font tiny amber" font-weight="760">Aguarda peca</text>
+
+      <g transform="translate(24 104)">
+        <text class="font label muted" x="0" y="0">CLIENTE</text>
+        <text x="0" y="28" class="font h2 ink">Ana Martins</text>
+        <text x="0" y="52" class="font small muted">933 938 716 · ana@email.pt</text>
+        <rect x="0" y="70" width="82" height="34" rx="8" class="green"/>
+        <text x="41" y="92" text-anchor="middle" class="font tiny" fill="#fff" font-weight="760">WhatsApp</text>
+        <rect x="90" y="70" width="62" height="34" rx="8" class="blue"/>
+        <text x="121" y="92" text-anchor="middle" class="font tiny" fill="#fff" font-weight="760">Ligar</text>
+        <rect x="160" y="70" width="70" height="34" rx="8" fill="#f3f1eb"/>
+        <text x="195" y="92" text-anchor="middle" class="font tiny muted" font-weight="760">Email</text>
+      </g>
+
+      <g transform="translate(24 242)">
+        <rect width="492" height="92" rx="12" fill="#f9f8f4" stroke="#dedbd2"/>
+        <text x="16" y="28" class="font label muted">PROXIMA ACAO</text>
+        <text x="16" y="58" class="font h2 ink">Encomendar ecra compatível</text>
+        <rect x="330" y="22" width="138" height="48" rx="9" class="blue"/>
+        <text x="399" y="52" text-anchor="middle" class="font small" fill="#fff" font-weight="760">Avancar estado</text>
+      </g>
+
+      <g transform="translate(24 358)">
+        <rect width="150" height="72" rx="10" fill="#fff" stroke="#dedbd2"/>
+        <text x="14" y="25" class="font label muted">ORCAMENTO</text>
+        <text x="14" y="52" class="font" font-size="20" font-weight="800" fill="#111827">189,90 €</text>
+        <rect x="170" width="150" height="72" rx="10" fill="#fff" stroke="#dedbd2"/>
+        <text x="184" y="25" class="font label muted">CUSTOS</text>
+        <text x="184" y="52" class="font" font-size="20" font-weight="800" fill="#b7791f">54,20 €</text>
+        <rect x="340" width="150" height="72" rx="10" fill="#fff" stroke="#dedbd2"/>
+        <text x="354" y="25" class="font label muted">LUCRO</text>
+        <text x="354" y="52" class="font" font-size="20" font-weight="800" fill="#16a36a">95,70 €</text>
+      </g>
+
+      <g transform="translate(24 458)">
+        <rect width="492" height="42" rx="10" fill="#f3f1eb"/>
+        <rect x="5" y="5" width="88" height="32" rx="8" fill="#fff"/>
+        <text x="49" y="26" text-anchor="middle" class="font tiny ink" font-weight="760">Resumo</text>
+        <text x="114" y="26" class="font tiny muted">Diagnostico</text>
+        <text x="212" y="26" class="font tiny muted">Pecas</text>
+        <text x="276" y="26" class="font tiny muted">Fotos</text>
+        <text x="340" y="26" class="font tiny muted">Timeline</text>
+        <text x="420" y="26" class="font tiny muted">Docs</text>
+      </g>
+
+      <g transform="translate(24 534)">
+        <text x="0" y="0" class="font h2 ink">Checklist</text>
+        <rect x="0" y="22" width="492" height="42" rx="8" fill="#ecfdf3"/>
+        <circle cx="20" cy="43" r="6" class="green"/>
+        <text x="40" y="48" class="font small ink">Fotos antes tiradas</text>
+        <rect x="0" y="72" width="492" height="42" rx="8" class="amberBg"/>
+        <circle cx="20" cy="93" r="6" class="amber"/>
+        <text x="40" y="98" class="font small ink">Peca ainda por encomendar</text>
+        <rect x="0" y="122" width="492" height="42" rx="8" fill="#fff" stroke="#dedbd2"/>
+        <circle cx="20" cy="143" r="6" fill="#98a2b3"/>
+        <text x="40" y="148" class="font small ink">Cliente aguarda orçamento final</text>
+      </g>
+
+      <g transform="translate(24 670)">
+        <rect width="126" height="38" rx="9" class="blue"/>
+        <text x="63" y="24" text-anchor="middle" class="font tiny" fill="#fff" font-weight="760">Emitir fatura</text>
+        <rect x="138" width="112" height="38" rx="9" class="greenBg"/>
+        <text x="194" y="24" text-anchor="middle" class="font tiny green" font-weight="760">Entregar</text>
+        <rect x="262" width="118" height="38" rx="9" fill="#f3f1eb"/>
+        <text x="321" y="24" text-anchor="middle" class="font tiny muted" font-weight="760">Portal cliente</text>
+      </g>
+    </g>
+  </g>
+</svg>

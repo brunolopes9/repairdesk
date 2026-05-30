@@ -174,6 +174,10 @@ export const publicPortalApi = {
       .post<AvaliacaoSubmittedDto>(`/public/repair/${slug}/avaliacao`, { score, comentario, publicarTestemunho })
       .then((r) => r.data);
   },
+  /** Sprint 480: cliente envia mensagem ao staff via portal. Cria comunicação Inbound. */
+  submeterMensagem(slug: string, texto: string) {
+    return httpPublic.post<void>(`/public/repair/${slug}/mensagem`, { texto }).then((r) => r.data);
+  },
   getGarantia(slug: string) {
     return httpPublic.get<PublicGarantiaDto>(`/public/warranty/${slug}`).then((r) => r.data);
   },

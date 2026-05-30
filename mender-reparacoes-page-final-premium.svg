@@ -1,0 +1,301 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <filter id="shadow-sm" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#0f172a" flood-opacity=".08"/>
+    </filter>
+    <filter id="shadow-lg" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0f172a" flood-opacity=".16"/>
+    </filter>
+    <style>
+      .font{font-family:Inter,Segoe UI,Arial,sans-serif}
+      .bg{fill:#f6f4ef}
+      .surface{fill:#fffdf8}
+      .card{fill:#fff;stroke:#dedbd2;stroke-width:1}
+      .muted{fill:#667085}
+      .text{fill:#111827}
+      .line{stroke:#dedbd2;stroke-width:1}
+      .nav{fill:#0e1b2a}
+      .blue{fill:#2f80d1}
+      .blueSoft{fill:#e7f2ff}
+      .blueText{fill:#1f6fb8}
+      .green{fill:#16a36a}
+      .greenSoft{fill:#e8f8ef}
+      .amber{fill:#b7791f}
+      .amberSoft{fill:#fff5da}
+      .red{fill:#c73535}
+      .redSoft{fill:#ffe9e9}
+      .chip{fill:#f1f0ea}
+      .h1{font-size:30px;font-weight:780}
+      .h2{font-size:19px;font-weight:760}
+      .body{font-size:15px}
+      .small{font-size:13px}
+      .tiny{font-size:11px}
+      .label{font-size:11px;font-weight:760;letter-spacing:.05em}
+    </style>
+  </defs>
+
+  <rect width="1920" height="1080" class="bg"/>
+
+  <!-- Sidebar -->
+  <rect x="0" y="0" width="72" height="1080" class="nav"/>
+  <rect x="16" y="18" width="40" height="40" rx="12" class="blue"/>
+  <text x="36" y="44" text-anchor="middle" class="font" font-size="17" font-weight="800" fill="#fff">M</text>
+  <g class="font" text-anchor="middle" font-size="21" fill="#b8c5d6">
+    <text x="36" y="142">▦</text>
+    <text x="36" y="204">☉</text>
+    <rect x="10" y="232" width="52" height="52" rx="12" class="blue"/>
+    <text x="36" y="265" fill="#fff">⌕</text>
+    <text x="36" y="328">⏱</text>
+    <text x="36" y="390">▣</text>
+    <text x="36" y="452">€</text>
+    <text x="36" y="514">▰</text>
+    <text x="36" y="576">◇</text>
+    <text x="36" y="638">#</text>
+    <text x="36" y="700">▤</text>
+    <text x="36" y="762">⚙</text>
+  </g>
+
+  <!-- Top bar -->
+  <rect x="72" y="0" width="1848" height="74" class="surface" stroke="#dedbd2"/>
+  <rect x="102" y="18" width="38" height="38" rx="11" class="blue"/>
+  <text x="121" y="43" text-anchor="middle" class="font" font-size="17" font-weight="800" fill="#fff">M</text>
+  <text x="152" y="43" class="font text" font-size="18" font-weight="760">Mender</text>
+  <rect x="1030" y="16" width="188" height="44" rx="9" class="blue" filter="url(#shadow-sm)"/>
+  <text x="1124" y="44" text-anchor="middle" class="font" font-size="16" font-weight="760" fill="#fff">+ Nova reparação</text>
+  <rect x="1232" y="16" width="300" height="44" rx="9" fill="#fff" stroke="#dedbd2"/>
+  <text x="1262" y="44" class="font muted" font-size="15">Procurar...</text>
+  <rect x="1456" y="25" width="58" height="24" rx="6" fill="#f3f1eb" stroke="#dedbd2"/>
+  <text x="1485" y="41" text-anchor="middle" class="font muted" font-size="12">Ctrl K</text>
+  <rect x="1544" y="16" width="86" height="44" rx="9" fill="#fff" stroke="#dedbd2"/>
+  <circle cx="1566" cy="38" r="6" class="green"/>
+  <text x="1588" y="43" class="font muted" font-size="14">OK</text>
+  <text x="1674" y="45" text-anchor="middle" class="font muted" font-size="20">🔔</text>
+  <rect x="1720" y="16" width="184" height="44" rx="9" fill="#fff" stroke="#dedbd2"/>
+  <rect x="1734" y="23" width="30" height="30" rx="8" class="blueSoft"/>
+  <text x="1749" y="44" text-anchor="middle" class="font blueText" font-size="15" font-weight="760">B</text>
+  <text x="1776" y="43" class="font text" font-size="15" font-weight="650">Bruno Lopes</text>
+
+  <!-- Main -->
+  <g transform="translate(102 112)">
+    <text x="0" y="0" class="font h1 text">Reparações</text>
+    <text x="0" y="31" class="font body muted">Entrada, diagnóstico, peças, comunicação, faturação e entrega dos equipamentos.</text>
+
+    <!-- Header action group -->
+    <g transform="translate(1100 -10)">
+      <rect x="0" y="0" width="104" height="42" rx="9" fill="#fff" stroke="#dedbd2"/>
+      <text x="52" y="27" text-anchor="middle" class="font small text" font-weight="760">Lista</text>
+      <rect x="108" y="0" width="114" height="42" rx="9" fill="#f1f0ea"/>
+      <text x="165" y="27" text-anchor="middle" class="font small muted" font-weight="760">Kanban</text>
+      <rect x="236" y="0" width="162" height="42" rx="9" class="amberSoft" stroke="#f0c36a"/>
+      <text x="317" y="27" text-anchor="middle" class="font small amber" font-weight="760">1 pendente fatura</text>
+      <rect x="412" y="0" width="102" height="42" rx="9" fill="#fff" stroke="#dedbd2"/>
+      <text x="463" y="27" text-anchor="middle" class="font small text" font-weight="760">Exportar</text>
+      <rect x="526" y="0" width="96" height="42" rx="9" class="blue"/>
+      <text x="574" y="27" text-anchor="middle" class="font small" fill="#fff" font-weight="760">+ Nova</text>
+    </g>
+
+    <!-- Metrics -->
+    <g transform="translate(0 62)">
+      <g>
+        <rect width="190" height="82" rx="12" class="card" filter="url(#shadow-sm)"/>
+        <text x="16" y="26" class="font label muted">EM CURSO</text>
+        <text x="16" y="58" class="font" font-size="26" font-weight="800" fill="#111827">2</text>
+      </g>
+      <g transform="translate(204 0)">
+        <rect width="190" height="82" rx="12" class="card"/>
+        <text x="16" y="26" class="font label muted">DIAGNÓSTICO</text>
+        <text x="16" y="58" class="font" font-size="26" font-weight="800" fill="#2f80d1">1</text>
+      </g>
+      <g transform="translate(408 0)">
+        <rect width="190" height="82" rx="12" class="card"/>
+        <text x="16" y="26" class="font label muted">ENTREGUES</text>
+        <text x="16" y="58" class="font" font-size="26" font-weight="800" fill="#16a36a">1</text>
+      </g>
+      <g transform="translate(612 0)">
+        <rect width="190" height="82" rx="12" class="card"/>
+        <text x="16" y="26" class="font label muted">SEM FATURA</text>
+        <text x="16" y="58" class="font" font-size="26" font-weight="800" fill="#b7791f">1</text>
+      </g>
+      <g transform="translate(816 0)">
+        <rect width="190" height="82" rx="12" class="card"/>
+        <text x="16" y="26" class="font label muted">A RECEBER</text>
+        <text x="16" y="58" class="font" font-size="24" font-weight="800" fill="#111827">0,00 €</text>
+      </g>
+    </g>
+
+    <!-- Filters -->
+    <g transform="translate(0 170)">
+      <rect width="1816" height="112" rx="14" class="surface" stroke="#dedbd2"/>
+      <rect x="18" y="18" width="660" height="42" rx="9" fill="#fff" stroke="#dedbd2"/>
+      <text x="48" y="45" class="font muted" font-size="15">Pesquisar equipamento, IMEI, cliente, telefone...</text>
+      <g class="font small" font-weight="760">
+        <rect x="18" y="72" width="82" height="30" rx="15" class="blue"/>
+        <text x="59" y="92" text-anchor="middle" fill="#fff">Todas</text>
+        <rect x="110" y="72" width="106" height="30" rx="15" class="chip"/>
+        <text x="163" y="92" text-anchor="middle" class="muted">Orçamentos</text>
+        <rect x="226" y="72" width="98" height="30" rx="15" class="chip"/>
+        <text x="275" y="92" text-anchor="middle" class="muted">Recebidas</text>
+        <rect x="334" y="72" width="110" height="30" rx="15" class="blueSoft"/>
+        <text x="389" y="92" text-anchor="middle" class="blueText">Diagnóstico</text>
+        <rect x="454" y="72" width="118" height="30" rx="15" class="amberSoft"/>
+        <text x="513" y="92" text-anchor="middle" class="amber">Aguarda peça</text>
+        <rect x="582" y="72" width="126" height="30" rx="15" class="chip"/>
+        <text x="645" y="92" text-anchor="middle" class="muted">Em reparação</text>
+        <rect x="718" y="72" width="96" height="30" rx="15" class="greenSoft"/>
+        <text x="766" y="92" text-anchor="middle" class="green">Prontas</text>
+        <rect x="824" y="72" width="104" height="30" rx="15" class="redSoft"/>
+        <text x="876" y="92" text-anchor="middle" class="red">Atrasadas</text>
+      </g>
+    </g>
+
+    <!-- Content: list + inspector -->
+    <g transform="translate(0 308)">
+      <!-- List panel -->
+      <rect width="1078" height="642" rx="14" class="surface" stroke="#dedbd2"/>
+      <text x="22" y="36" class="font h2 text">Fila de reparações</text>
+      <text x="172" y="36" class="font body muted">2 reparações</text>
+      <line x1="0" y1="60" x2="1078" y2="60" class="line"/>
+
+      <!-- Table header -->
+      <text x="24" y="92" class="font label muted">Nº</text>
+      <text x="92" y="92" class="font label muted">EQUIPAMENTO</text>
+      <text x="360" y="92" class="font label muted">CLIENTE</text>
+      <text x="640" y="92" class="font label muted">ESTADO</text>
+      <text x="790" y="92" class="font label muted">PRÓXIMA AÇÃO</text>
+      <text x="1016" y="92" class="font label muted" text-anchor="end">VALOR</text>
+      <line x1="0" y1="108" x2="1078" y2="108" class="line"/>
+
+      <!-- Row selected -->
+      <rect x="14" y="122" width="1050" height="118" rx="12" fill="#f0f7ff" stroke="#9dccff"/>
+      <text x="24" y="154" class="font small muted">#9</text>
+      <text x="92" y="154" class="font" font-size="17" font-weight="760" fill="#111827">iPhone 13 Pro Max</text>
+      <text x="92" y="180" class="font small muted">Ecrã partido · IMEI por confirmar</text>
+      <text x="360" y="154" class="font small text" font-weight="650">BRUNO MIGUEL MARTINS</text>
+      <text x="360" y="180" class="font small muted">933 938 716 · LopesTech</text>
+      <rect x="640" y="137" width="106" height="28" rx="14" fill="#eee7ff"/>
+      <text x="693" y="156" text-anchor="middle" class="font tiny" fill="#6941c6" font-weight="760">Diagnóstico</text>
+      <text x="790" y="154" class="font small text" font-weight="650">Concluir diagnóstico</text>
+      <text x="790" y="180" class="font tiny amber">fatura pendente se pago</text>
+      <text x="1016" y="158" text-anchor="end" class="font small text" font-weight="760">0,00 €</text>
+      <rect x="92" y="198" width="86" height="24" rx="12" class="blueSoft"/>
+      <text x="135" y="214" text-anchor="middle" class="font tiny blueText" font-weight="760">WhatsApp</text>
+      <rect x="186" y="198" width="62" height="24" rx="12" class="greenSoft"/>
+      <text x="217" y="214" text-anchor="middle" class="font tiny green" font-weight="760">Ligar</text>
+
+      <!-- Row -->
+      <rect x="14" y="252" width="1050" height="108" rx="12" fill="#fff" stroke="#dedbd2"/>
+      <text x="24" y="284" class="font small muted">#8</text>
+      <text x="92" y="284" class="font" font-size="17" font-weight="760" fill="#111827">Samsung A52</text>
+      <text x="92" y="310" class="font small muted">Não carrega · sem serial</text>
+      <text x="360" y="284" class="font small text" font-weight="650">BRUNO MIGUEL MARTINS</text>
+      <text x="360" y="310" class="font small muted">933 938 716 · LopesTech</text>
+      <rect x="640" y="267" width="82" height="28" rx="14" class="red"/>
+      <text x="681" y="286" text-anchor="middle" class="font tiny" fill="#fff" font-weight="760">Entregue</text>
+      <text x="790" y="284" class="font small text" font-weight="650">Arquivada</text>
+      <text x="790" y="310" class="font tiny muted">recibo entregue</text>
+      <text x="1016" y="288" text-anchor="end" class="font small text" font-weight="760">0,00 €</text>
+
+      <!-- Operational cards bottom -->
+      <g transform="translate(16 394)">
+        <rect width="330" height="210" rx="12" fill="#fff" stroke="#dedbd2"/>
+        <text x="18" y="32" class="font h2 text">Alertas</text>
+        <rect x="18" y="54" width="294" height="44" rx="9" class="amberSoft"/>
+        <text x="34" y="81" class="font small amber" font-weight="760">1 reparação paga sem fatura</text>
+        <rect x="18" y="108" width="294" height="44" rx="9" fill="#fff"/>
+        <text x="34" y="135" class="font small muted">0 aguardam peça há +3 dias</text>
+        <rect x="18" y="162" width="294" height="32" rx="8" fill="#f3f1eb"/>
+        <text x="165" y="183" text-anchor="middle" class="font tiny muted" font-weight="760">Ver tarefas críticas</text>
+      </g>
+      <g transform="translate(366 394)">
+        <rect width="330" height="210" rx="12" fill="#fff" stroke="#dedbd2"/>
+        <text x="18" y="32" class="font h2 text">Hoje</text>
+        <text x="18" y="70" class="font small muted">Entradas</text><text x="292" y="70" text-anchor="end" class="font small text" font-weight="760">1</text>
+        <text x="18" y="104" class="font small muted">Entregas</text><text x="292" y="104" text-anchor="end" class="font small text" font-weight="760">1</text>
+        <text x="18" y="138" class="font small muted">Orçamentos enviados</text><text x="292" y="138" text-anchor="end" class="font small text" font-weight="760">0</text>
+        <text x="18" y="172" class="font small muted">Valor recebido</text><text x="292" y="172" text-anchor="end" class="font small green" font-weight="760">0,00 €</text>
+      </g>
+      <g transform="translate(716 394)">
+        <rect width="330" height="210" rx="12" fill="#fff" stroke="#dedbd2"/>
+        <text x="18" y="32" class="font h2 text">Ações rápidas</text>
+        <rect x="18" y="54" width="294" height="38" rx="9" class="blue"/>
+        <text x="165" y="78" text-anchor="middle" class="font small" fill="#fff" font-weight="760">+ Nova reparação</text>
+        <rect x="18" y="102" width="294" height="38" rx="9" fill="#fff" stroke="#dedbd2"/>
+        <text x="165" y="126" text-anchor="middle" class="font small text" font-weight="760">Importar CSV</text>
+        <rect x="18" y="150" width="294" height="38" rx="9" fill="#fff" stroke="#dedbd2"/>
+        <text x="165" y="174" text-anchor="middle" class="font small text" font-weight="760">Emitir faturas pendentes</text>
+      </g>
+
+      <!-- Inspector -->
+      <g transform="translate(1104 0)">
+        <rect width="612" height="642" rx="16" class="surface" stroke="#dedbd2" filter="url(#shadow-lg)"/>
+        <rect width="612" height="70" rx="16" class="nav"/>
+        <text x="24" y="29" class="font tiny" fill="#b8c5d6">REPARAÇÃO SELECIONADA</text>
+        <text x="24" y="54" class="font" font-size="20" font-weight="780" fill="#fff">#9 · iPhone 13 Pro Max</text>
+        <rect x="474" y="20" width="112" height="32" rx="16" fill="#eee7ff"/>
+        <text x="530" y="41" text-anchor="middle" class="font tiny" fill="#6941c6" font-weight="760">Diagnóstico</text>
+
+        <g transform="translate(24 98)">
+          <text x="0" y="0" class="font label muted">CLIENTE</text>
+          <text x="0" y="28" class="font h2 text">Bruno Miguel Martins</text>
+          <text x="0" y="52" class="font small muted">933 938 716 · contacto@lopestech.pt</text>
+          <rect x="0" y="70" width="86" height="34" rx="8" class="green"/>
+          <text x="43" y="92" text-anchor="middle" class="font tiny" fill="#fff" font-weight="760">WhatsApp</text>
+          <rect x="96" y="70" width="66" height="34" rx="8" class="blue"/>
+          <text x="129" y="92" text-anchor="middle" class="font tiny" fill="#fff" font-weight="760">Ligar</text>
+          <rect x="172" y="70" width="74" height="34" rx="8" fill="#f3f1eb"/>
+          <text x="209" y="92" text-anchor="middle" class="font tiny muted" font-weight="760">Email</text>
+        </g>
+
+        <g transform="translate(24 228)">
+          <rect width="564" height="84" rx="12" fill="#f9f8f4" stroke="#dedbd2"/>
+          <text x="16" y="27" class="font label muted">PRÓXIMA AÇÃO</text>
+          <text x="16" y="56" class="font h2 text">Concluir diagnóstico técnico</text>
+          <rect x="396" y="18" width="144" height="48" rx="9" class="blue"/>
+          <text x="468" y="48" text-anchor="middle" class="font small" fill="#fff" font-weight="760">Avançar estado</text>
+        </g>
+
+        <g transform="translate(24 338)">
+          <rect width="170" height="72" rx="10" fill="#fff" stroke="#dedbd2"/>
+          <text x="14" y="25" class="font label muted">ORÇAMENTO</text>
+          <text x="14" y="52" class="font" font-size="20" font-weight="800" fill="#111827">0,00 €</text>
+          <rect x="196" width="170" height="72" rx="10" fill="#fff" stroke="#dedbd2"/>
+          <text x="210" y="25" class="font label muted">PEÇAS</text>
+          <text x="210" y="52" class="font" font-size="20" font-weight="800" fill="#b7791f">0,00 €</text>
+          <rect x="392" width="170" height="72" rx="10" fill="#fff" stroke="#dedbd2"/>
+          <text x="406" y="25" class="font label muted">LUCRO</text>
+          <text x="406" y="52" class="font" font-size="20" font-weight="800" fill="#16a36a">0,00 €</text>
+        </g>
+
+        <g transform="translate(24 436)">
+          <rect width="564" height="42" rx="10" fill="#f3f1eb"/>
+          <rect x="5" y="5" width="88" height="32" rx="8" fill="#fff"/>
+          <text x="49" y="26" text-anchor="middle" class="font tiny text" font-weight="760">Resumo</text>
+          <text x="116" y="26" class="font tiny muted">Diagnóstico</text>
+          <text x="218" y="26" class="font tiny muted">Peças</text>
+          <text x="282" y="26" class="font tiny muted">Fotos</text>
+          <text x="348" y="26" class="font tiny muted">Timeline</text>
+          <text x="430" y="26" class="font tiny muted">Docs</text>
+        </g>
+
+        <g transform="translate(24 506)">
+          <text x="0" y="0" class="font h2 text">Checklist</text>
+          <rect x="0" y="22" width="564" height="36" rx="8" fill="#fff" stroke="#dedbd2"/>
+          <circle cx="20" cy="40" r="6" fill="#98a2b3"/>
+          <text x="40" y="45" class="font small text">Registar fotos antes</text>
+          <rect x="0" y="66" width="564" height="36" rx="8" class="amberSoft"/>
+          <circle cx="20" cy="84" r="6" class="amber"/>
+          <text x="40" y="89" class="font small text">Preencher diagnóstico</text>
+        </g>
+
+        <g transform="translate(24 588)">
+          <rect width="126" height="38" rx="9" class="blue"/>
+          <text x="63" y="24" text-anchor="middle" class="font tiny" fill="#fff" font-weight="760">Emitir fatura</text>
+          <rect x="138" width="112" height="38" rx="9" class="greenSoft"/>
+          <text x="194" y="24" text-anchor="middle" class="font tiny green" font-weight="760">Entregar</text>
+          <rect x="262" width="122" height="38" rx="9" fill="#f3f1eb"/>
+          <text x="323" y="24" text-anchor="middle" class="font tiny muted" font-weight="760">Portal cliente</text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,282 @@
+<svg width="2048" height="1152" viewBox="0 0 2048 1152" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#0F172A" flood-opacity="0.10"/>
+    </filter>
+    <filter id="tinyShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="8" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #F7F8FA; }
+      .nav { fill: #0D172A; }
+      .panel { fill: #FFFFFF; stroke: #E2E8F0; stroke-width: 1; }
+      .panelSoft { fill: #FFFFFF; stroke: #E7EAF0; stroke-width: 1; }
+      .muted { fill: #667085; font-family: Inter, Segoe UI, Arial, sans-serif; }
+      .text { fill: #111827; font-family: Inter, Segoe UI, Arial, sans-serif; }
+      .strong { fill: #0B1220; font-family: Inter, Segoe UI, Arial, sans-serif; font-weight: 700; }
+      .label { fill: #7A8190; font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; }
+      .chipText { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 14px; font-weight: 650; }
+      .small { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 13px; }
+      .mono { font-family: Consolas, Menlo, monospace; }
+      .blue { fill: #2E7EC8; }
+      .green { fill: #2F9F74; }
+      .amber { fill: #B76B00; }
+      .red { fill: #C6284B; }
+      .line { stroke: #E2E8F0; stroke-width: 1; }
+      .dash { stroke: #D8DEE8; stroke-width: 1; stroke-dasharray: 5 5; }
+    </style>
+  </defs>
+
+  <rect width="2048" height="1152" class="bg"/>
+
+  <!-- Left navigation -->
+  <rect x="0" y="0" width="72" height="1152" class="nav"/>
+  <rect x="14" y="18" width="44" height="44" rx="12" fill="#2F80C7"/>
+  <text x="36" y="47" text-anchor="middle" class="strong" font-size="19" fill="#FFFFFF">M</text>
+  <g opacity="0.72" stroke="#CBD5E1" stroke-width="2.2" stroke-linecap="round">
+    <rect x="25" y="96" width="9" height="9" rx="2"/><rect x="41" y="96" width="9" height="9" rx="2"/>
+    <rect x="25" y="112" width="9" height="9" rx="2"/><rect x="41" y="112" width="9" height="9" rx="2"/>
+    <path d="M24 190c5-9 18-9 24 0M21 205c3-12 30-12 34 0M31 179a6 6 0 1 0 0-12 6 6 0 0 0 0 12M47 179a6 6 0 1 0 0-12 6 6 0 0 0 0 12"/>
+  </g>
+  <rect x="10" y="246" width="52" height="52" rx="12" fill="#2E7EC8"/>
+  <path d="M46 260l-8 8 6 6 8-8c2 8-6 17-14 13l-18 18-6-6 18-18c-4-8 5-16 14-13z" fill="#FFFFFF"/>
+  <g opacity="0.72" stroke="#CBD5E1" stroke-width="2.2" stroke-linecap="round">
+    <path d="M26 342h20M24 358h24M26 374h20"/>
+    <rect x="22" y="430" width="28" height="25" rx="5"/>
+    <path d="M25 540l22 11-22 11-11-6v-10l11-6zM47 551v12M25 562v12"/>
+    <rect x="27" y="653" width="18" height="28" rx="4"/>
+    <path d="M22 775h28v31H22zM29 767h14M29 787h14M29 797h14"/>
+  </g>
+
+  <!-- Top bar -->
+  <rect x="72" y="0" width="1976" height="80" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <rect x="104" y="24" width="36" height="36" rx="10" fill="#2F80C7"/>
+  <text x="122" y="48" text-anchor="middle" class="strong" font-size="16" fill="#FFFFFF">M</text>
+  <text x="154" y="48" class="strong" font-size="20">Mender</text>
+  <rect x="1114" y="19" width="178" height="42" rx="9" fill="#2E7EC8" filter="url(#tinyShadow)"/>
+  <text x="1142" y="46" fill="#FFFFFF" font-family="Inter, Segoe UI, Arial" font-size="16" font-weight="700">+ Nova reparação</text>
+  <rect x="1312" y="18" width="300" height="44" rx="10" fill="#FFFFFF" stroke="#E0E4EA"/>
+  <circle cx="1336" cy="40" r="7" stroke="#98A2B3" stroke-width="2"/>
+  <path d="M1342 46l8 8" stroke="#98A2B3" stroke-width="2" stroke-linecap="round"/>
+  <text x="1360" y="47" class="muted" font-size="17">Procurar...</text>
+  <rect x="1536" y="28" width="48" height="22" rx="6" fill="#F5F7FA" stroke="#D8DEE8"/>
+  <text x="1547" y="44" class="muted mono" font-size="13">Ctrl K</text>
+  <rect x="1626" y="18" width="88" height="44" rx="10" fill="#FFFFFF" stroke="#E0E4EA"/>
+  <circle cx="1645" cy="40" r="6" fill="#36B37E"/>
+  <text x="1661" y="46" class="muted" font-size="15">OK</text>
+  <text x="1748" y="46" class="muted" font-size="22">▱</text>
+  <text x="1810" y="47" class="muted" font-size="23">⌁</text>
+  <rect x="1860" y="18" width="170" height="44" rx="12" fill="#FFFFFF" stroke="#E0E4EA"/>
+  <rect x="1872" y="26" width="28" height="28" rx="8" fill="#E8F2FF"/>
+  <text x="1886" y="46" text-anchor="middle" fill="#2E7EC8" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="800">B</text>
+  <text x="1914" y="46" class="strong" font-size="15">Bruno Lopes</text>
+
+  <!-- Page content -->
+  <g transform="translate(104,118)">
+    <text class="strong" font-size="31">Reparações</text>
+    <text x="178" y="0" class="muted" font-size="18">24 em aberto</text>
+    <text y="34" class="muted" font-size="17">Entrada, diagnóstico, peças, comunicação com cliente, faturação e entrega no mesmo cockpit.</text>
+
+    <!-- top actions -->
+    <rect x="1186" y="-6" width="92" height="44" rx="10" fill="#FFFFFF" stroke="#DDE3EA"/>
+    <text x="1211" y="22" class="text" font-size="15" font-weight="650">Lista</text>
+    <rect x="1282" y="-6" width="96" height="44" rx="10" fill="#EEF5FF" stroke="#9CCBFF"/>
+    <text x="1305" y="22" fill="#185A9D" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="750">Kanban</text>
+    <rect x="1394" y="-6" width="178" height="44" rx="10" fill="#FFF7E8" stroke="#F2C572"/>
+    <text x="1414" y="22" fill="#A15C00" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="750">1 pendente fatura</text>
+    <rect x="1588" y="-6" width="112" height="44" rx="10" fill="#FFFFFF" stroke="#DDE3EA"/>
+    <text x="1612" y="22" class="text" font-size="15" font-weight="650">Exportar</text>
+    <rect x="1714" y="-6" width="108" height="44" rx="10" fill="#2E7EC8" filter="url(#tinyShadow)"/>
+    <text x="1742" y="22" fill="#FFFFFF" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="750">+ Nova</text>
+
+    <!-- KPI cards -->
+    <g transform="translate(0,72)">
+      <rect width="1840" height="112" rx="16" fill="#FFFFFF" stroke="#E5EAF0"/>
+      <g transform="translate(18,18)">
+        <rect width="286" height="76" rx="12" fill="#F8FBFF" stroke="#DDEEFF"/>
+        <text x="18" y="25" class="label">EM CURSO</text><text x="18" y="58" class="strong" font-size="27">8</text>
+        <text x="58" y="58" class="muted" font-size="15">reparações ativas</text>
+      </g>
+      <g transform="translate(322,18)">
+        <rect width="286" height="76" rx="12" fill="#FFFBF2" stroke="#F6D99B"/>
+        <text x="18" y="25" class="label">AGUARDA PEÇA</text><text x="18" y="58" class="strong" font-size="27">3</text>
+        <text x="58" y="58" class="muted" font-size="15">com encomenda pendente</text>
+      </g>
+      <g transform="translate(626,18)">
+        <rect width="286" height="76" rx="12" fill="#F2FBF7" stroke="#B7E4CE"/>
+        <text x="18" y="25" class="label">PRONTAS PARA ENTREGA</text><text x="18" y="58" class="strong" font-size="27">5</text>
+        <text x="58" y="58" class="muted" font-size="15">clientes a avisar</text>
+      </g>
+      <g transform="translate(930,18)">
+        <rect width="286" height="76" rx="12" fill="#FFF4F5" stroke="#F7C9D2"/>
+        <text x="18" y="25" class="label">SEM FATURA</text><text x="18" y="58" class="strong" font-size="27">1</text>
+        <text x="58" y="58" class="muted" font-size="15">paga, falta emitir</text>
+      </g>
+      <g transform="translate(1234,18)">
+        <rect width="286" height="76" rx="12" fill="#F8FBFF" stroke="#DDEEFF"/>
+        <text x="18" y="25" class="label">A RECEBER</text><text x="18" y="58" class="strong" font-size="27">740,00 €</text>
+      </g>
+      <g transform="translate(1538,18)">
+        <rect width="284" height="76" rx="12" fill="#FFFFFF" stroke="#E5EAF0"/>
+        <text x="18" y="25" class="label">TEMPO MÉDIO</text><text x="18" y="58" class="strong" font-size="27">1.8 dias</text>
+      </g>
+    </g>
+
+    <!-- Search and filters -->
+    <g transform="translate(0,214)">
+      <rect width="1840" height="58" rx="14" fill="#FFFFFF" stroke="#E0E5EC"/>
+      <circle cx="28" cy="29" r="8" stroke="#98A2B3" stroke-width="2"/>
+      <path d="M35 36l9 9" stroke="#98A2B3" stroke-width="2" stroke-linecap="round"/>
+      <text x="58" y="36" class="muted" font-size="17">Pesquisar por equipamento, IMEI, cliente, telefone, etiqueta...</text>
+    </g>
+    <g transform="translate(0,292)">
+      <rect width="76" height="36" rx="18" fill="#2E7EC8"/><text x="21" y="24" fill="#FFFFFF" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="750">Todas</text>
+      <rect x="88" width="126" height="36" rx="18" fill="#FFFFFF" stroke="#E2E8F0"/><text x="110" y="24" class="muted" font-size="14" font-weight="650">Orçamentos</text>
+      <rect x="226" width="116" height="36" rx="18" fill="#FFFFFF" stroke="#E2E8F0"/><text x="249" y="24" class="muted" font-size="14" font-weight="650">Recebidas</text>
+      <rect x="354" width="124" height="36" rx="18" fill="#EDE7FF" stroke="#C9B6FF"/><text x="376" y="24" fill="#5B3EC8" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="750">Diagnóstico</text>
+      <rect x="490" width="132" height="36" rx="18" fill="#FFF7E8" stroke="#F1D096"/><text x="512" y="24" fill="#A15C00" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="750">Aguarda peça</text>
+      <rect x="634" width="136" height="36" rx="18" fill="#FFFFFF" stroke="#E2E8F0"/><text x="655" y="24" class="muted" font-size="14" font-weight="650">Em reparação</text>
+      <rect x="782" width="108" height="36" rx="18" fill="#FFFFFF" stroke="#E2E8F0"/><text x="806" y="24" class="muted" font-size="14" font-weight="650">Reparadas</text>
+      <rect x="902" width="106" height="36" rx="18" fill="#FFFFFF" stroke="#E2E8F0"/><text x="929" y="24" class="muted" font-size="14" font-weight="650">Entregues</text>
+      <rect x="1604" width="236" height="36" rx="18" fill="#F2FBF7" stroke="#B7E4CE"/>
+      <text x="1624" y="24" fill="#27745A" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="750">Mostrar só o que precisa ação</text>
+    </g>
+
+    <!-- Main split -->
+    <g transform="translate(0,352)">
+      <!-- List -->
+      <rect width="1210" height="612" rx="16" class="panel" filter="url(#softShadow)"/>
+      <text x="22" y="36" class="strong" font-size="19">Lista operacional</text>
+      <text x="178" y="36" class="muted" font-size="15">ordenada por urgência e próximo passo</text>
+      <line x1="0" y1="58" x2="1210" y2="58" class="line"/>
+
+      <g transform="translate(20,78)">
+        <rect width="1170" height="96" rx="12" fill="#F8FBFF" stroke="#9CCBFF"/>
+        <rect x="0" width="5" height="96" rx="2.5" fill="#2E7EC8"/>
+        <text x="22" y="25" class="muted small">#184</text>
+        <text x="22" y="54" class="strong" font-size="19">iPhone 13 Pro Max · ecrã partido</text>
+        <text x="22" y="78" class="muted" font-size="14">Ana Martins · 912 445 008 · recebido hoje 10:12</text>
+        <rect x="478" y="18" width="104" height="28" rx="14" fill="#EDE7FF"/>
+        <text x="496" y="37" fill="#5B3EC8" font-family="Inter, Segoe UI, Arial" font-size="13" font-weight="750">Diagnóstico</text>
+        <rect x="594" y="18" width="94" height="28" rx="14" fill="#FFF4F5"/>
+        <text x="614" y="37" fill="#C6284B" font-family="Inter, Segoe UI, Arial" font-size="13" font-weight="750">Urgente</text>
+        <text x="478" y="73" class="muted" font-size="14">Técnico: João · SLA 4h</text>
+        <text x="812" y="35" class="label">PRÓXIMO PASSO</text>
+        <text x="812" y="63" class="strong" font-size="17">Confirmar orçamento</text>
+        <text x="1078" y="39" class="strong" font-size="18">189,00 €</text>
+        <text x="1060" y="68" class="green small">margem 82 €</text>
+      </g>
+
+      <g transform="translate(20,188)">
+        <rect width="1170" height="86" rx="12" fill="#FFFFFF" stroke="#E6EAF0"/>
+        <text x="22" y="25" class="muted small">#183</text>
+        <text x="22" y="52" class="strong" font-size="18">Samsung A52 · não carrega</text>
+        <text x="22" y="75" class="muted" font-size="14">Miguel Sousa · 934 211 880 · ontem 17:20</text>
+        <rect x="478" y="16" width="122" height="28" rx="14" fill="#FFF7E8"/>
+        <text x="497" y="35" fill="#A15C00" font-family="Inter, Segoe UI, Arial" font-size="13" font-weight="750">Aguarda peça</text>
+        <text x="478" y="68" class="muted" font-size="14">Charge board encomendada</text>
+        <text x="812" y="34" class="strong" font-size="16">Adicionar tracking</text>
+        <text x="1088" y="38" class="strong" font-size="18">74,00 €</text>
+      </g>
+
+      <g transform="translate(20,288)">
+        <rect width="1170" height="86" rx="12" fill="#FFFFFF" stroke="#E6EAF0"/>
+        <text x="22" y="25" class="muted small">#182</text>
+        <text x="22" y="52" class="strong" font-size="18">iPad 10 · trocar vidro</text>
+        <text x="22" y="75" class="muted" font-size="14">Rita Almeida · 916 822 107 · 26/05 15:05</text>
+        <rect x="478" y="16" width="122" height="28" rx="14" fill="#EAFBF4"/>
+        <text x="502" y="35" fill="#27745A" font-family="Inter, Segoe UI, Arial" font-size="13" font-weight="750">Reparado</text>
+        <rect x="612" y="16" width="96" height="28" rx="14" fill="#FFF4F5"/>
+        <text x="628" y="35" fill="#C6284B" font-family="Inter, Segoe UI, Arial" font-size="13" font-weight="750">Sem fatura</text>
+        <text x="812" y="34" class="strong" font-size="16">Avisar cliente</text>
+        <text x="1078" y="38" class="strong" font-size="18">120,00 €</text>
+      </g>
+
+      <g transform="translate(20,388)">
+        <rect width="1170" height="86" rx="12" fill="#FFFFFF" stroke="#E6EAF0"/>
+        <text x="22" y="25" class="muted small">#181</text>
+        <text x="22" y="52" class="strong" font-size="18">iPhone 12 · bateria fraca</text>
+        <text x="22" y="75" class="muted" font-size="14">Pedro Costa · 936 102 320 · 25/05 12:44</text>
+        <rect x="478" y="16" width="132" height="28" rx="14" fill="#EAFBF4"/>
+        <text x="500" y="35" fill="#27745A" font-family="Inter, Segoe UI, Arial" font-size="13" font-weight="750">Entregue</text>
+        <text x="812" y="34" class="strong" font-size="16">Garantia ativa</text>
+        <text x="1088" y="38" class="strong" font-size="18">65,00 €</text>
+      </g>
+
+      <g transform="translate(20,498)">
+        <rect width="1170" height="84" rx="12" fill="#FBFCFE" stroke="#E6EAF0" stroke-dasharray="6 6"/>
+        <text x="438" y="48" class="muted" font-size="16">Arrasta uma reparação para mudar estado ou abre o detalhe à direita.</text>
+      </g>
+
+      <!-- Inspector -->
+      <g transform="translate(1240,0)">
+        <rect width="600" height="612" rx="16" class="panel" filter="url(#softShadow)"/>
+        <rect width="600" height="86" rx="16" fill="#0F2742"/>
+        <text x="24" y="34" fill="#B8D7FF" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="700">REPARAÇÃO SELECIONADA</text>
+        <text x="24" y="66" fill="#FFFFFF" font-family="Inter, Segoe UI, Arial" font-size="25" font-weight="800">#184 · iPhone 13 Pro Max</text>
+        <rect x="430" y="22" width="146" height="42" rx="10" fill="#2E7EC8"/>
+        <text x="463" y="49" fill="#FFFFFF" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="750">Abrir ficha</text>
+
+        <g transform="translate(24,112)">
+          <text class="label">CLIENTE</text>
+          <text y="30" class="strong" font-size="19">Ana Martins</text>
+          <text y="55" class="muted" font-size="15">912 445 008 · ana@email.pt</text>
+          <rect y="74" width="78" height="34" rx="9" fill="#EAFBF4" stroke="#B7E4CE"/>
+          <text x="20" y="96" fill="#27745A" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="750">Ligar</text>
+          <rect x="88" y="74" width="112" height="34" rx="9" fill="#EAFBF4" stroke="#B7E4CE"/>
+          <text x="107" y="96" fill="#27745A" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="750">WhatsApp</text>
+          <rect x="210" y="74" width="92" height="34" rx="9" fill="#EEF5FF" stroke="#BBD8F5"/>
+          <text x="235" y="96" fill="#185A9D" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="750">Email</text>
+        </g>
+
+        <g transform="translate(24,248)">
+          <text class="label">FLUXO</text>
+          <circle cx="20" cy="42" r="8" fill="#36B37E"/><line x1="32" y1="42" x2="112" y2="42" stroke="#36B37E" stroke-width="3"/>
+          <circle cx="124" cy="42" r="8" fill="#36B37E"/><line x1="136" y1="42" x2="216" y2="42" stroke="#36B37E" stroke-width="3"/>
+          <circle cx="228" cy="42" r="8" fill="#2E7EC8"/><line x1="240" y1="42" x2="320" y2="42" stroke="#CBD5E1" stroke-width="3"/>
+          <circle cx="332" cy="42" r="8" fill="#CBD5E1"/><line x1="344" y1="42" x2="424" y2="42" stroke="#CBD5E1" stroke-width="3"/>
+          <circle cx="436" cy="42" r="8" fill="#CBD5E1"/>
+          <text x="0" y="78" class="small" fill="#27745A">Recebido</text>
+          <text x="100" y="78" class="small" fill="#27745A">Triagem</text>
+          <text x="194" y="78" class="small" fill="#185A9D" font-weight="700">Diagnóstico</text>
+          <text x="302" y="78" class="muted small">Reparar</text>
+          <text x="410" y="78" class="muted small">Entregar</text>
+        </g>
+
+        <g transform="translate(24,366)">
+          <rect width="552" height="72" rx="12" fill="#FFF7E8" stroke="#F1D096"/>
+          <text x="18" y="28" fill="#A15C00" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="800">PRÓXIMA AÇÃO</text>
+          <text x="18" y="54" class="strong" font-size="17">Enviar orçamento por WhatsApp e aguardar aprovação.</text>
+        </g>
+
+        <g transform="translate(24,462)">
+          <rect width="260" height="98" rx="12" fill="#F8FAFC" stroke="#E5EAF0"/>
+          <text x="16" y="26" class="label">PREÇO & LUCRO</text>
+          <text x="16" y="62" class="strong" font-size="25">189,00 €</text>
+          <text x="134" y="62" class="green" font-size="16" font-weight="750">+82,00 €</text>
+          <rect x="292" width="260" height="98" rx="12" fill="#F8FAFC" stroke="#E5EAF0"/>
+          <text x="308" y="26" class="label">CHECKLIST</text>
+          <text x="308" y="56" class="text" font-size="15">□ Fotos antes</text>
+          <text x="430" y="56" class="text" font-size="15">□ IMEI</text>
+          <text x="308" y="80" class="text" font-size="15">□ Assinatura entrada</text>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- Mobile preview overlay -->
+  <g transform="translate(1518,862)" filter="url(#softShadow)">
+    <rect width="344" height="242" rx="26" fill="#0F172A"/>
+    <rect x="14" y="18" width="316" height="206" rx="20" fill="#F8FAFC"/>
+    <text x="34" y="50" class="strong" font-size="18">Reparações</text>
+    <rect x="34" y="68" width="276" height="38" rx="10" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="50" y="92" class="muted" font-size="13">Pesquisar...</text>
+    <rect x="34" y="120" width="276" height="58" rx="12" fill="#FFFFFF" stroke="#9CCBFF"/>
+    <text x="50" y="143" class="strong" font-size="14">#184 iPhone 13 Pro Max</text>
+    <text x="50" y="164" class="muted" font-size="12">Ana · Diagnóstico · 189,00 €</text>
+    <rect x="34" y="188" width="134" height="26" rx="8" fill="#2E7EC8"/>
+    <text x="63" y="206" fill="#FFFFFF" font-family="Inter, Segoe UI, Arial" font-size="12" font-weight="700">Abrir ficha</text>
+    <rect x="178" y="188" width="132" height="26" rx="8" fill="#EAFBF4" stroke="#B7E4CE"/>
+    <text x="214" y="206" fill="#27745A" font-family="Inter, Segoe UI, Arial" font-size="12" font-weight="700">WhatsApp</text>
+  </g>
+</svg>

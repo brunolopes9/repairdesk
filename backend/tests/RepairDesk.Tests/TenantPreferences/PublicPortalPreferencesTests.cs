@@ -118,7 +118,9 @@ public class PublicPortalPreferencesTests
             new ReparacaoFotoRepository(db),
             new EquipmentFieldService(new EquipmentFieldRepository(db), reparacoes, tenantContext),
             new VendaRepository(db),
-            new FakeTenantPreferencesService(prefs));
+            new FakeTenantPreferencesService(prefs),
+            new ReparacaoComunicacaoRepository(db),
+            new RepairDesk.Services.Push.StaffPushQueue());
     }
 
     private static AppDbContext NewDb(Guid tenantId)

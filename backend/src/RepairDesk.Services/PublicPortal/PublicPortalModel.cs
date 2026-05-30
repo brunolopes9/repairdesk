@@ -102,6 +102,9 @@ public static class PublicEstadoMapper
 
 public sealed record AprovarOrcamentoRequest(bool Aceitar);
 
+/// <summary>Sprint 480: payload do cliente para enviar uma mensagem ao staff via portal público.</summary>
+public sealed record SubmitMensagemRequest(string Texto);
+
 public sealed record PublicGarantiaDto(
     string Slug,
     string EquipamentoPublico,

@@ -4,6 +4,7 @@ using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.EquipmentFields;
+using RepairDesk.Services.Push;
 using RepairDesk.Services.TenantPreferences;
 
 namespace RepairDesk.Services.PublicPortal;
@@ -14,6 +15,8 @@ public interface IPublicPortalService
     Task<PublicRepairDto> AprovarOrcamentoAsync(string slug, bool aceitar, CancellationToken ct = default);
     Task<PublicGarantiaDto> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default);
     Task<AvaliacaoSubmittedDto> SubmeterAvaliacaoAsync(string repairSlug, int score, string? comentario, bool publicarTestemunho, CancellationToken ct = default);
+    /// <summary>Sprint 480: cliente escreve do portal público. Cria comunicação Inbound + push staff.</summary>
+    Task SubmeterMensagemAsync(string slug, string texto, CancellationToken ct = default);
 }
 
 public class PublicPortalService : IPublicPortalService
@@ -27,6 +30,8 @@ public class PublicPortalService : IPublicPortalService
     private readonly IEquipmentFieldService _equipmentFields;
     private readonly IVendaRepository _vendas;
     private readonly ITenantPreferencesService _preferences;
+    private readonly IReparacaoComunicacaoRepository _comunicacoes;
+    private readonly IStaffPushQueue _push;
 
     public PublicPortalService(
         IReparacaoRepository repo,
@@ -37,7 +42,9 @@ public class PublicPortalService : IPublicPortalService
         IReparacaoFotoRepository fotos,
         IEquipmentFieldService equipmentFields,
         IVendaRepository vendas,
-        ITenantPreferencesService preferences)
+        ITenantPreferencesService preferences,
+        IReparacaoComunicacaoRepository comunicacoes,
+        IStaffPushQueue push)
     {
         _repo = repo;
         _tenants = tenants;
@@ -48,6 +55,8 @@ public class PublicPortalService : IPublicPortalService
         _equipmentFields = equipmentFields;
         _vendas = vendas;
         _preferences = preferences;
+        _comunicacoes = comunicacoes;
+        _push = push;
     }
 
     public async Task<PublicGarantiaDto> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default)
@@ -229,6 +238,52 @@ public class PublicPortalService : IPublicPortalService
         var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
         var cobertura = await ResolveCoberturaGarantiaAsync(rep, ct);
         return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura, prefs.Portal);
+    }
+
+    public async Task SubmeterMensagemAsync(string slug, string texto, CancellationToken ct = default)
+    {
+        // Sprint 480: cliente envia mensagem via portal. Cria comunicação Inbound + push staff.
+        // CreatedByUserId = Guid.Empty é sentinela "portal cliente" — UI distingue pelo tipo PortalCliente.
+        var trimmed = (texto ?? string.Empty).Trim();
+        if (trimmed.Length is < 1 or > 2000)
+            throw new ValidationException("texto_invalido", "Mensagem obrigatória (1 a 2000 caracteres).");
+
+        if (string.IsNullOrWhiteSpace(slug) || slug.Length > 32)
+            throw new NotFoundException("Reparacao", slug ?? "");
+
+        var rep = await _repo.FindByPublicSlugWithTimelineAsync(slug, ct)
+            ?? throw new NotFoundException("Reparacao", slug);
+
+        // Compliance: não aceitar mensagens em reparações arquivadas (> 2 anos) — alinhado com GetBySlug.
+        if (rep.RecebidoEm() < DateTime.UtcNow.AddYears(-2))
+            throw new NotFoundException("Reparacao", slug);
+
+        // Reparações em estado terminal (Entregue/Cancelado) não recebem nova conversa.
+        if (rep.Estado is RepairStatus.Entregue or RepairStatus.Cancelado)
+            throw new ConflictException("estado_fechado", "Esta reparação já foi fechada. Contacte-nos pelo telefone ou WhatsApp da loja.");
+
+        var entry = new ReparacaoComunicacao
+        {
+            Id = Guid.NewGuid(),
+            TenantId = rep.TenantId,
+            ReparacaoId = rep.Id,
+            ClienteId = rep.ClienteId,
+            Tipo = ComunicacaoTipo.PortalCliente,
+            Direcao = ComunicacaoDirecao.Inbound,
+            Texto = trimmed,
+            CreatedByUserId = Guid.Empty,
+        };
+        await _comunicacoes.AddAsync(entry, ct);
+        await _comunicacoes.SaveAsync(ct);
+
+        var nome = rep.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente";
+        var preview = trimmed.Length > 80 ? trimmed[..80] + "…" : trimmed;
+        await _push.EnqueueAsync(new StaffPushJob(
+            rep.TenantId,
+            $"💬 {nome} respondeu no portal",
+            preview,
+            $"/reparacoes/{rep.Id}",
+            $"portal-msg-{rep.Id}"), ct);
     }
 
     private static PublicRepairDto ToDto(

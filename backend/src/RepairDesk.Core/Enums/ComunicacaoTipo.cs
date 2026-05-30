@@ -10,6 +10,8 @@ public enum ComunicacaoTipo
     Sms = 4,
     /// <summary>Cliente passou no balcão presencialmente.</summary>
     Visita = 5,
+    /// <summary>Sprint 480: cliente escreveu pela página pública /r/{slug}. Sempre Inbound.</summary>
+    PortalCliente = 6,
 }
 
 /// <summary>Sprint 452: direção da comunicação.</summary>

@@ -38,6 +38,18 @@ public class PublicPortalController : ControllerBase
     [HttpPost("{slug}/avaliacao")]
     public Task<AvaliacaoSubmittedDto> SubmeterAvaliacao(string slug, [FromBody] SubmitAvaliacaoRequest req, CancellationToken ct)
         => _service.SubmeterAvaliacaoAsync(slug, req.Score, req.Comentario, req.PublicarTestemunho, ct);
+
+    /// <summary>
+    /// Sprint 480: cliente envia mensagem ao staff a partir do portal público. Cria uma
+    /// <c>ReparacaoComunicacao</c> Inbound (tipo PortalCliente) e enfileira um push para o staff.
+    /// Rate-limit `public-portal` (60/min) já cobre flood.
+    /// </summary>
+    [HttpPost("{slug}/mensagem")]
+    public async Task<IActionResult> SubmeterMensagem(string slug, [FromBody] SubmitMensagemRequest req, CancellationToken ct)
+    {
+        await _service.SubmeterMensagemAsync(slug, req.Texto, ct);
+        return NoContent();
+    }
 }
 
 /// <summary>

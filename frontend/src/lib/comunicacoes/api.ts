@@ -8,6 +8,7 @@ export const ComunicacaoTipo = {
   Email: 3,
   Sms: 4,
   Visita: 5,
+  PortalCliente: 6,
 } as const;
 export type ComunicacaoTipo = (typeof ComunicacaoTipo)[keyof typeof ComunicacaoTipo];
 
@@ -51,6 +52,7 @@ export const COMUNICACAO_TIPO_LABEL: Record<ComunicacaoTipo, string> = {
   [ComunicacaoTipo.Email]: 'Email',
   [ComunicacaoTipo.Sms]: 'SMS',
   [ComunicacaoTipo.Visita]: 'Visita',
+  [ComunicacaoTipo.PortalCliente]: 'Portal',
 };
 
 export const COMUNICACAO_DIRECAO_LABEL: Record<ComunicacaoDirecao, string> = {

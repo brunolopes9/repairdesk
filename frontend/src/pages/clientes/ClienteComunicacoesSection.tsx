@@ -24,6 +24,8 @@ const TIPO_ICON: Record<ComunicacaoTipo, typeof MessageCircle> = {
   [ComunicacaoTipo.Email]: Mail,
   [ComunicacaoTipo.Sms]: MessageSquare,
   [ComunicacaoTipo.Visita]: MapPin,
+  // Sprint 480.
+  [ComunicacaoTipo.PortalCliente]: MessageCircle,
 };
 
 const TIPO_COR: Record<ComunicacaoTipo, string> = {
@@ -33,6 +35,7 @@ const TIPO_COR: Record<ComunicacaoTipo, string> = {
   [ComunicacaoTipo.Email]: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
   [ComunicacaoTipo.Sms]: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
   [ComunicacaoTipo.Visita]: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300',
+  [ComunicacaoTipo.PortalCliente]: 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300',
 };
 
 export function ClienteComunicacoesSection({ clienteId }: { clienteId: string }) {

@@ -180,6 +180,11 @@ export default function PortalCliente() {
           <AvaliacaoCard slug={data.slug} />
         )}
 
+        {/* Sprint 480: cliente fala com staff sem sair para WhatsApp/email. */}
+        {data.estado !== PUBLIC_ESTADO.Entregue && data.estado !== PUBLIC_ESTADO.Cancelado && (
+          <MensagemCard slug={data.slug} />
+        )}
+
         <ContactoLoja loja={data.loja} mensagemBase={`Olá! Sou ${data.clientePrimeiroNome}, queria saber novidades sobre o ${data.equipamentoPublico}.`} />
 
         <footer className="mt-10 space-y-1 text-center text-[11px] text-zinc-400">
@@ -630,6 +635,79 @@ function HealthScoreCard({ score, destaques }: { score: number; destaques: strin
         </div>
       )}
     </section>
+  );
+}
+
+function MensagemCard({ slug }: { slug: string }) {
+  const [texto, setTexto] = useState('');
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: () => publicPortalApi.submeterMensagem(slug, texto.trim()),
+    onSuccess: () => {
+      setDone(true);
+      setTexto('');
+    },
+    onError: (e) => {
+      const status = isAxiosError(e) ? e.response?.status : undefined;
+      if (status === 409) {
+        setError('Esta reparação já foi fechada. Contacta-nos pelo telefone ou WhatsApp da loja.');
+      } else if (status === 429) {
+        setError('Demasiados pedidos. Tenta novamente daqui a um minuto.');
+      } else {
+        setError('Não foi possível enviar a mensagem. Tenta novamente.');
+      }
+    },
+  });
+
+  if (done) {
+    return (
+      <Card titulo="Mensagem enviada" icon={Check} tone="emerald">
+        <p className="text-sm text-zinc-700 dark:text-zinc-300">
+          Recebemos a tua mensagem. A loja vai responder em breve — podes voltar a esta página para acompanhar.
+        </p>
+        <button
+          type="button"
+          onClick={() => setDone(false)}
+          className="mt-3 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-300"
+        >
+          Enviar outra mensagem
+        </button>
+      </Card>
+    );
+  }
+
+  const trimmedLen = texto.trim().length;
+  const podeEnviar = trimmedLen >= 1 && trimmedLen <= 2000 && !mut.isPending;
+
+  return (
+    <Card titulo="Tens uma pergunta?" icon={MessageCircle}>
+      <p className="text-xs text-zinc-500">Escreve à loja sem sair daqui. Ficará registado nesta reparação.</p>
+      <textarea
+        rows={3}
+        value={texto}
+        onChange={(e) => {
+          setTexto(e.target.value);
+          if (error) setError(null);
+        }}
+        maxLength={2000}
+        placeholder="Ex.: Posso passar amanhã às 17h para levantar?"
+        className="mt-3 w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+      />
+      <div className="mt-1 flex items-center justify-between text-[11px] text-zinc-400">
+        <span>{trimmedLen}/2000</span>
+      </div>
+      {error && <div className="mt-2 text-xs text-rose-600">{error}</div>}
+      <button
+        type="button"
+        disabled={!podeEnviar}
+        onClick={() => mut.mutate()}
+        className="mt-3 w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
+      >
+        {mut.isPending ? 'A enviar…' : 'Enviar à loja'}
+      </button>
+    </Card>
   );
 }
 
