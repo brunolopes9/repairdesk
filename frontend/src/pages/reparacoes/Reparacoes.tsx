@@ -540,6 +540,12 @@ export default function Reparacoes() {
                             <td className="px-3 py-2.5">
                               <div className="flex items-center gap-1.5">
                                 <span className="font-medium">{r.equipamento}</span>
+                                {/* Sprint 479: chip categoria visivel na lista. */}
+                                {r.categoria != null && (
+                                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                                    {DEVICE_CATEGORY_LABEL[r.categoria]}
+                                  </span>
+                                )}
                                 {etaBadge && (
                                   <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${etaBadge.cls}`}>{etaBadge.label}</span>
                                 )}
@@ -1405,7 +1411,15 @@ function KanbanBoard({
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 truncate font-medium">{r.equipamento}</div>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="truncate font-medium">{r.equipamento}</span>
+                        {/* Sprint 479: chip categoria (S475) visivel no card kanban. */}
+                        {r.categoria != null && (
+                          <span className="flex-none rounded bg-sky-100 px-1 py-0.5 text-[9px] font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                            {DEVICE_CATEGORY_LABEL[r.categoria]}
+                          </span>
+                        )}
+                      </div>
                       <div className="truncate text-[11px] text-zinc-500">{r.cliente.nome}</div>
                       {(r.precoFinalCents ?? r.orcamentoCents) != null && (
                         <div className="mt-1 flex flex-wrap items-center justify-between gap-1">
