@@ -12,6 +12,7 @@ import {
   Euro,
   Inbox,
   ListTodo,
+  MessageCircle,
   PackageSearch,
   ShieldCheck,
   ShoppingBag,
@@ -160,6 +161,13 @@ export default function Dashboard() {
     queryFn: () => dashboardApi.alertas(),
     staleTime: 60_000,
   });
+  // Sprint 460 (Doc 91 follow-up): reparações em estado comunicável sem outbound (cron S458).
+  const avisosPendentesQuery = useQuery({
+    queryKey: ['dashboard-avisos-pendentes'],
+    queryFn: () => dashboardApi.avisosPendentes(8, 20),
+    staleTime: 60_000,
+  });
+  const avisosPendentesCount = avisosPendentesQuery.data?.totalCount ?? 0;
   const STALLED_DAYS = 5; // alinhado com S392 default StalledRepairs:Days
   const reparacoesParadasCount = useMemo(() => {
     const cutoff = Date.now() - STALLED_DAYS * 86_400_000;
@@ -556,7 +564,8 @@ export default function Dashboard() {
             const faturasPend = pagasSemFatura.data?.length ?? 0;
             // Sprint 431: novos sinais (alinhados com os crons S392/S428/S430).
             const totalAlertas = expiramGar + stockCritico + faturasPend
-              + reparacoesParadasCount + tarefasAtrasadasCount + cobrancasEmAtrasoCount + porLevantarCount;
+              + reparacoesParadasCount + tarefasAtrasadasCount + cobrancasEmAtrasoCount + porLevantarCount
+              + avisosPendentesCount;
             if (totalAlertas === 0) return <p className="py-6 text-center text-sm text-zinc-500">Sem alertas — tudo em dia ✓</p>;
             return (
               <ul className="space-y-2">
@@ -625,6 +634,18 @@ export default function Dashboard() {
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium text-amber-900 dark:text-amber-100">{cobrancasEmAtrasoCount} cobrança{cobrancasEmAtrasoCount === 1 ? '' : 's'} em atraso</span>
                         <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Entregue / Concluído mas por pagar</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {/* Sprint 460 (Doc 91): clientes em D/AP/P sem outbound — chamada à ação para CTAs S456/S457. */}
+                {avisosPendentesCount > 0 && (
+                  <li>
+                    <Link to="/reparacoes" className="flex items-center gap-2.5 rounded-lg bg-sky-50 px-2.5 py-2 text-sm transition hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300"><MessageCircle size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-sky-900 dark:text-sky-100">{avisosPendentesCount} cliente{avisosPendentesCount === 1 ? '' : 's'} a avisar</span>
+                        <span className="block text-[11px] text-sky-700/80 dark:text-sky-300/80">Diagnóstico / Aguarda peça / Pronto sem comunicação enviada</span>
                       </span>
                     </Link>
                   </li>

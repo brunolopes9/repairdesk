@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using RepairDesk.Core.Enums;
+using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Dashboard;
 
 namespace RepairDesk.API.Controllers;
@@ -44,6 +47,50 @@ public class DashboardController : ControllerBase
 
     [HttpGet("alertas")]
     public Task<AlertasResponse> GetAlertas(CancellationToken ct) => _service.GetAlertasAsync(ct);
+
+    /// <summary>
+    /// Sprint 460 (Doc 91 follow-up): reparações em estado comunicável há > N horas sem
+    /// comunicação Outbound desde a mudança. Mesma lógica do cron S458 — mas devolve a
+    /// lista ao Dashboard em vez de só um push. Bruno clica num item → vai ao detalhe →
+    /// usa CTA "Avisar X" (S456/S457) → fecha o loop.
+    /// </summary>
+    [HttpGet("avisos-pendentes")]
+    public async Task<AvisosPendentesResponse> GetAvisosPendentes(
+        [FromQuery] int horas = 8,
+        [FromQuery] int limit = 20,
+        [FromServices] AppDbContext db = null!,
+        CancellationToken ct = default)
+    {
+        var horasLimite = Math.Clamp(horas, 1, 168);
+        var pageSize = Math.Clamp(limit, 1, 50);
+        var cutoff = DateTime.UtcNow.AddHours(-horasLimite);
+        var estadosComunicaveis = new[] { RepairStatus.Diagnostico, RepairStatus.AguardaPeca, RepairStatus.Pronto };
+
+        var baseQ = db.Reparacoes
+            .AsNoTracking()
+            .Where(r => estadosComunicaveis.Contains(r.Estado) && r.EstadoSince < cutoff)
+            .Where(r => !db.ReparacaoComunicacoes
+                .Where(c => c.ReparacaoId == r.Id && c.Direcao == ComunicacaoDirecao.Outbound)
+                .Any(c => c.CreatedAt >= r.EstadoSince));
+
+        var total = await baseQ.CountAsync(ct);
+        var now = DateTime.UtcNow;
+        var items = await baseQ
+            .OrderBy(r => r.EstadoSince) // mais antigas primeiro — pior caso fica visível
+            .Take(pageSize)
+            .Select(r => new AvisoPendenteItem(
+                r.Id,
+                r.Numero,
+                (int)r.Estado,
+                r.Equipamento,
+                r.Cliente!.Nome,
+                r.Cliente!.Telefone,
+                r.EstadoSince,
+                (int)(now - r.EstadoSince).TotalHours))
+            .ToListAsync(ct);
+
+        return new AvisosPendentesResponse(items, total, horasLimite);
+    }
 
     [HttpGet("avaliacoes")]
     public Task<AvaliacoesDashboardResponse> GetAvaliacoes(CancellationToken ct) => _service.GetAvaliacoesAsync(ct);

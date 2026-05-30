@@ -113,6 +113,12 @@ export const dashboardApi = {
   alertas() {
     return api.get<AlertasResponse>('/dashboard/alertas').then((r) => r.data);
   },
+  // Sprint 460 (Doc 91 follow-up): reparações em estado comunicável sem outbound.
+  avisosPendentes(horas = 8, limit = 20) {
+    return api
+      .get<AvisosPendentesResponse>('/dashboard/avisos-pendentes', { params: { horas, limit } })
+      .then((r) => r.data);
+  },
   tendencia(meses = 6) {
     return api.get<TendenciaResponse>('/dashboard/tendencia', { params: { meses } }).then((r) => r.data);
   },
@@ -237,6 +243,23 @@ export interface AlertasResponse {
   despesasOrfas: DespesaOrfa[];
   totalPorCobrarCents: number;
   totalDespesasOrfasCents: number;
+}
+
+// Sprint 460: reparações em estado comunicável sem outbound.
+export interface AvisoPendenteItem {
+  reparacaoId: string;
+  numero: number;
+  estado: number;
+  equipamento: string;
+  clienteNome: string | null;
+  clienteTelefone: string | null;
+  estadoSince: string;
+  horasEmEstado: number;
+}
+export interface AvisosPendentesResponse {
+  items: AvisoPendenteItem[];
+  totalCount: number;
+  horasLimite: number;
 }
 
 export interface MesFinanceiro {

@@ -57,6 +57,26 @@ public sealed record ItemPorCobrar(
     int ValorCents,
     DateTime? ConcluidoEm);
 
+public sealed record AvisosPendentesResponse(
+    IReadOnlyList<AvisoPendenteItem> Items,
+    int TotalCount,
+    int HorasLimite);
+
+/// <summary>
+/// Sprint 460: reparação em estado comunicável (Diagnóstico/AguardaPeça/Pronto) há > N horas
+/// sem comunicação Outbound desde a mudança de estado. Espelha a lógica do cron S458 mas
+/// expõe ao frontend para widget Dashboard.
+/// </summary>
+public sealed record AvisoPendenteItem(
+    Guid ReparacaoId,
+    int Numero,
+    int Estado,
+    string Equipamento,
+    string? ClienteNome,
+    string? ClienteTelefone,
+    DateTime EstadoSince,
+    int HorasEmEstado);
+
 public sealed record DespesaOrfa(
     Guid Id,
     string Descricao,
