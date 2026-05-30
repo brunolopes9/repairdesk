@@ -7,6 +7,7 @@ import Modal from '../../components/Modal';
 import { BackButton, Breadcrumb, Button, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
 import type { ClienteEquipamento } from '../../lib/clientes/types';
+import { devicesApi } from '../../lib/devices/api';
 import { ClienteComunicacoesSection } from './ClienteComunicacoesSection';
 import { ClienteDevicesSection } from './ClienteDevicesSection';
 import { reparacoesApi } from '../../lib/reparacoes/api';
@@ -57,6 +58,22 @@ export default function ClienteDetalhe() {
     queryKey: ['cliente-equipamentos', id],
     queryFn: () => clientesApi.equipamentos(id!, 20),
     enabled: !!id,
+  });
+
+  // Sprint 470: count Devices ativos para KPI no header.
+  const devicesAtivos = useQuery({
+    queryKey: ['cliente-devices-count', id],
+    queryFn: () => devicesApi.listByCliente(id!, false),
+    enabled: !!id,
+    staleTime: 60_000,
+  });
+
+  // Sprint 470: count Comunicações nos últimos 30 dias para KPI no header.
+  const comunicacoesRecentes = useQuery({
+    queryKey: ['cliente-comunicacoes-count', id],
+    queryFn: () => clientesApi.comunicacoes(id!, 100),
+    enabled: !!id,
+    staleTime: 60_000,
   });
 
   const [editOpen, setEditOpen] = useState(false);
@@ -220,12 +237,25 @@ export default function ClienteDetalhe() {
         )}
       </header>
 
-      {/* KPIs */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPIs — Sprint 470: 6 KPIs (de 4 para 6, adiciona Devices + Comunicações 30d) */}
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Kpi label="Total gasto" value={formatCents(totalGasto)} tone="emerald" />
         <Kpi label="Lucro gerado" value={formatCents(lucroTotal)} tone={lucroTotal >= 0 ? 'emerald' : 'red'} />
         <Kpi label="Em curso" value={String(abertosCount)} tone={abertosCount > 0 ? 'amber' : undefined} />
         <Kpi label="Última visita" value={ultimaVisita ? formatDateOnly(ultimaVisita) : '—'} />
+        <Kpi
+          label="Equipamentos"
+          value={String((devicesAtivos.data ?? []).length)}
+          tone={(devicesAtivos.data ?? []).length > 0 ? 'emerald' : undefined}
+        />
+        <Kpi
+          label="Contactos (30d)"
+          value={String(((comunicacoesRecentes.data ?? []).filter((c) => {
+            const since = new Date();
+            since.setDate(since.getDate() - 30);
+            return new Date(c.createdAt) >= since;
+          })).length)}
+        />
       </section>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
