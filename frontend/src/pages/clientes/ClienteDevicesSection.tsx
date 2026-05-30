@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Smartphone, Plus, Edit2, Archive, ArchiveRestore, Trash2, Shield, ShieldOff } from 'lucide-react';
+import { Smartphone, Plus, Edit2, Archive, ArchiveRestore, Trash2, Shield, ShieldOff, Wrench } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button } from '../../components/ui/Button';
 import { toast } from '../../lib/toast';
 import { apiErrorMessage } from '../../lib/errors';
 import { devicesApi, type Device, type CreateDeviceForm, type UpdateDeviceForm } from '../../lib/devices/api';
+import { reparacoesApi } from '../../lib/reparacoes/api';
 
 /**
  * Sprint 462 (Doc 90 Tier 2 #6 — UI do asset registry): gestão de equipamentos
@@ -146,6 +148,15 @@ function DeviceCard({ device, onEdit, onDelete }: { device: Device; onEdit: () =
     ? new Date(device.garantiaFabricanteUntil) >= new Date()
     : false;
 
+  // Sprint 472: histórico de reparações deste Device via lookup IMEI (reuso S65).
+  // Devolve count e items mais recentes. Só ativo se há IMEI.
+  const historico = useQuery({
+    queryKey: ['device-reparacoes-historico', device.id, device.imei],
+    queryFn: () => reparacoesApi.historicoImei(device.imei!),
+    enabled: !!device.imei,
+    staleTime: 60_000,
+  });
+
   return (
     <div className={`rounded-lg border p-3 text-sm ${device.arquivado ? 'border-zinc-200 bg-zinc-50 opacity-70 dark:border-zinc-800 dark:bg-zinc-950/40' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
       <div className="flex items-start justify-between gap-2">
@@ -205,6 +216,23 @@ function DeviceCard({ device, onEdit, onDelete }: { device: Device; onEdit: () =
         <p className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 px-2 py-1.5 text-[11px] text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
           {device.notas}
         </p>
+      )}
+      {/* Sprint 472: histórico reparações deste Device (count + link). */}
+      {historico.data && historico.data.total > 0 && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded bg-brand-50 px-2 py-1.5 text-[11px] text-brand-800 dark:bg-brand-950/30 dark:text-brand-200">
+          <span className="inline-flex items-center gap-1">
+            <Wrench size={11} />
+            <strong>{historico.data.total}</strong> reparaç{historico.data.total === 1 ? 'ão' : 'ões'} com este IMEI
+          </span>
+          {historico.data.items.length > 0 && (
+            <Link
+              to={`/reparacoes/${historico.data.items[0].id}`}
+              className="text-brand-700 hover:underline dark:text-brand-300"
+            >
+              ver última →
+            </Link>
+          )}
+        </div>
       )}
     </div>
   );
