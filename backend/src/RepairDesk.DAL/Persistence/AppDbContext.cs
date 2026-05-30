@@ -94,6 +94,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<ServiceItem> ServiceItems => Set<ServiceItem>();
     // Sprint 452 (Doc 91 ponto 1): registo de comunicações com cliente por reparação.
     public DbSet<ReparacaoComunicacao> ReparacaoComunicacoes => Set<ReparacaoComunicacao>();
+    // Sprint 461 (Doc 90 Tier 2 #6): asset registry — equipamentos persistentes do cliente.
+    public DbSet<Device> Devices => Set<Device>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

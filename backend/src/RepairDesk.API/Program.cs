@@ -374,6 +374,9 @@ try
     // Sprint 452 (Doc 91 ponto 1): Conversas omnicanal v1 — registo de comunicações por reparação.
     builder.Services.AddScoped<IReparacaoComunicacaoRepository, RepairDesk.DAL.Persistence.ReparacaoComunicacaoRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Comunicacoes.IReparacaoComunicacaoService, RepairDesk.Services.Comunicacoes.ReparacaoComunicacaoService>();
+    // Sprint 461 (Doc 90 Tier 2 #6 — Asset registry): equipamentos persistentes do cliente.
+    builder.Services.AddScoped<IDeviceRepository, RepairDesk.DAL.Persistence.DeviceRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Devices.IDeviceService, RepairDesk.Services.Devices.DeviceService>();
     builder.Services.AddScoped<RepairDesk.Services.Appointments.IAppointmentService, RepairDesk.Services.Appointments.AppointmentService>();
     // Sprint 189: pipeline imagens SEO (resize WebP + blur LQIP) — usa IPhotoStorage para R2.
     builder.Services.AddScoped<RepairDesk.Services.Products.IImageOptimizationService, RepairDesk.Services.Products.ImageOptimizationService>();

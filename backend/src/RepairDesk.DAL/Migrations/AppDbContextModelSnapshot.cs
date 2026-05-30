@@ -2504,6 +2504,56 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("Reparacoes", (string)null);
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoComunicacao", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Direcao")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ReparacaoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReparacaoId");
+
+                    b.ToTable("ReparacaoComunicacoes");
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoEstadoLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4435,6 +4485,17 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Cliente");
 
                     b.Navigation("EquipmentFieldTemplate");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoComunicacao", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
+                        .WithMany()
+                        .HasForeignKey("ReparacaoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Reparacao");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoEstadoLog", b =>
