@@ -1075,9 +1075,13 @@ export default function ReparacaoDetalhe() {
         reparacaoEquipamento={r.equipamento}
       />
 
-      {/* Sprint 452 (Doc 91 ponto 1): registo manual de comunicações com cliente. */}
+      {/* Sprint 452 (Doc 91 ponto 1) + Sprint 456 (Avisar pronto CTA): comunicações com cliente. */}
       <ReparacaoComunicacoesSection
         reparacaoId={r.id}
+        reparacaoNumero={r.numero}
+        reparacaoEstado={r.estado}
+        reparacaoEquipamento={r.equipamento}
+        clienteNome={r.cliente.nome}
         clienteTelefone={r.cliente.telefone}
       />
 
