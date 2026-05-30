@@ -50,11 +50,34 @@ export interface UpdateDeviceForm {
   arquivado: boolean;
 }
 
+/**
+ * Sprint 464: lookup por IMEI devolvido pelo endpoint /devices/by-imei/{imei}.
+ * Não inclui campos sensíveis tipo Notas — só o suficiente para sugerir cliente
+ * num modal de nova reparação.
+ */
+export interface DeviceByImei {
+  id: string;
+  clienteId: string;
+  clienteNome: string;
+  tipo: string;
+  marca: string | null;
+  modelo: string | null;
+  apelido: string | null;
+  cor: string | null;
+  arquivado: boolean;
+}
+
 export const devicesApi = {
   listByCliente(clienteId: string, incluirArquivados = false) {
     return api
       .get<Device[]>('/devices', { params: { clienteId, incluirArquivados } })
       .then((r) => r.data);
+  },
+  /** Sprint 464: lookup por IMEI. Backend devolve 204 quando inexistente → mapeamos para null. */
+  byImei(imei: string): Promise<DeviceByImei | null> {
+    return api.get<DeviceByImei>(`/devices/by-imei/${encodeURIComponent(imei)}`)
+      .then((r) => (r.status === 204 ? null : r.data || null))
+      .catch(() => null);
   },
   get(id: string) {
     return api.get<Device>(`/devices/${id}`).then((r) => r.data);

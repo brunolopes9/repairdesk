@@ -36,6 +36,7 @@ import NovoClienteModal from '../../components/NovoClienteModal';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { vendasApi } from '../../lib/vendas/api';
+import { devicesApi } from '../../lib/devices/api';
 import { liveListOptions } from '../../lib/queryOptions';
 import { garantiasApi } from '../../lib/garantias/api';
 import { precosApi, type PriceTableEntry } from '../../lib/precos/api';
@@ -771,6 +772,15 @@ function CreateReparacaoModal({
     staleTime: 60_000,
   });
 
+  // Sprint 465: Device pré-existente com este IMEI (asset registry S461). Se existe, sugere
+  // pré-preenchimento do cliente sem ter que vir do histórico/venda.
+  const devicePorImei = useQuery({
+    queryKey: ['device-por-imei', imeiNormalizado],
+    queryFn: () => devicesApi.byImei(imeiNormalizado),
+    enabled: open && imeiNormalizado.length >= 8,
+    staleTime: 60_000,
+  });
+
   // Se foi vendido aqui, busca garantia da venda (pode estar activa ainda).
   const garantiaVenda = useQuery({
     queryKey: ['garantia-venda-por-imei', vendaImei.data?.vendaId],
@@ -1022,6 +1032,38 @@ function CreateReparacaoModal({
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+              {/* Sprint 465: Device pré-existente com este IMEI (S461 asset registry). Aparece
+                  só quando NÃO foi vendido aqui (vendaImei.data dá fluxo melhor). Reduz fricção
+                  para clientes recorrentes — IMEI já registado liga ao cliente certo. */}
+              {devicePorImei.data && !vendaImei.data && (
+                <div className="rounded-lg border border-sky-300 bg-sky-50 p-2 text-sky-800 dark:border-sky-800/60 dark:bg-sky-950/30 dark:text-sky-200">
+                  <div className="flex items-start gap-1.5">
+                    <span className="mt-0.5 text-sky-600 dark:text-sky-300">📱</span>
+                    <span>
+                      Este IMEI pertence ao <strong>{devicePorImei.data.apelido || [devicePorImei.data.marca, devicePorImei.data.modelo].filter(Boolean).join(' ') || devicePorImei.data.tipo}</strong>
+                      {' '}de <strong>{devicePorImei.data.clienteNome}</strong>.
+                      {devicePorImei.data.arquivado && <span className="ml-1 rounded bg-zinc-200 px-1 py-0.5 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Arquivado</span>}
+                    </span>
+                  </div>
+                  {clienteId !== devicePorImei.data.clienteId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClienteId(devicePorImei.data!.clienteId);
+                        setClienteSearch(devicePorImei.data!.clienteNome);
+                        if (!equipamento.trim()) {
+                          const parts = [devicePorImei.data!.marca, devicePorImei.data!.modelo].filter(Boolean).join(' ');
+                          if (parts) setEquipamento(parts);
+                          else setEquipamento(devicePorImei.data!.tipo);
+                        }
+                      }}
+                      className="mt-2 inline-flex items-center gap-1 rounded-md bg-sky-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-sky-700"
+                    >
+                      Usar este cliente
+                    </button>
+                  )}
                 </div>
               )}
               {vendaImei.data && (
