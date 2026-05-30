@@ -92,6 +92,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<InternalTask> InternalTasks => Set<InternalTask>();
     // Sprint 435 (Doc 90 screenshot Services): catálogo de mão-de-obra/serviços.
     public DbSet<ServiceItem> ServiceItems => Set<ServiceItem>();
+    // Sprint 452 (Doc 91 ponto 1): registo de comunicações com cliente por reparação.
+    public DbSet<ReparacaoComunicacao> ReparacaoComunicacoes => Set<ReparacaoComunicacao>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

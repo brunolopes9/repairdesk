@@ -28,6 +28,7 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import AssignTecnicoModal from '../../components/reparacoes/AssignTecnicoModal';
 import ReparacaoTagsEditor from '../../components/reparacoes/ReparacaoTagsEditor';
 import { ReparacaoTarefasSection } from './ReparacaoTarefasSection';
+import { ReparacaoComunicacoesSection } from './ReparacaoComunicacoesSection';
 import SignaturePadModal from '../../components/signatures/SignaturePadModal';
 import EmailMenu from '../../components/EmailMenu';
 import ReparacaoTimer from '../../components/reparacoes/ReparacaoTimer';
@@ -1072,6 +1073,12 @@ export default function ReparacaoDetalhe() {
         reparacaoId={r.id}
         reparacaoNumero={r.numero}
         reparacaoEquipamento={r.equipamento}
+      />
+
+      {/* Sprint 452 (Doc 91 ponto 1): registo manual de comunicações com cliente. */}
+      <ReparacaoComunicacoesSection
+        reparacaoId={r.id}
+        clienteTelefone={r.cliente.telefone}
       />
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">

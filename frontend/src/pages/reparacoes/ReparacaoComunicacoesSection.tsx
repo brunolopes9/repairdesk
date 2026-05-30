@@ -1,0 +1,269 @@
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { MessageCircle, Phone, Mail, MessageSquare, StickyNote, MapPin, Plus, Trash2, ArrowDownLeft, ArrowUpRight, FileText } from 'lucide-react';
+import { Button } from '../../components/ui/Button';
+import { toast } from '../../lib/toast';
+import { apiErrorMessage } from '../../lib/errors';
+import {
+  comunicacoesApi,
+  ComunicacaoDirecao,
+  ComunicacaoTipo,
+  COMUNICACAO_DIRECAO_LABEL,
+  COMUNICACAO_TIPO_LABEL,
+  type ReparacaoComunicacao,
+} from '../../lib/comunicacoes/api';
+
+/**
+ * Sprint 452 (Doc 91 ponto 1 — Conversas omnicanal v1).
+ *
+ * Caso típico: cliente liga a perguntar "está pronta?". Staff regista a chamada
+ * (tipo=Telefone, direção=Recebida, texto="cliente perguntou estado") para deixar
+ * rasto. Próxima vez que alguém abrir a reparação vê que já houve contacto e o
+ * que se disse — sem precisar de procurar no WhatsApp ou esperar pela memória.
+ *
+ * Form inline: tipo + direção + texto. Lista cronológica reversa com ícone+chip.
+ */
+const TIPO_ICON: Record<ComunicacaoTipo, typeof MessageCircle> = {
+  [ComunicacaoTipo.Nota]: StickyNote,
+  [ComunicacaoTipo.Telefone]: Phone,
+  [ComunicacaoTipo.WhatsApp]: MessageCircle,
+  [ComunicacaoTipo.Email]: Mail,
+  [ComunicacaoTipo.Sms]: MessageSquare,
+  [ComunicacaoTipo.Visita]: MapPin,
+};
+
+const TIPO_COR: Record<ComunicacaoTipo, string> = {
+  [ComunicacaoTipo.Nota]: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  [ComunicacaoTipo.Telefone]: 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
+  [ComunicacaoTipo.WhatsApp]: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+  [ComunicacaoTipo.Email]: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
+  [ComunicacaoTipo.Sms]: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+  [ComunicacaoTipo.Visita]: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300',
+};
+
+export function ReparacaoComunicacoesSection({
+  reparacaoId,
+  clienteTelefone,
+}: {
+  reparacaoId: string;
+  clienteTelefone?: string | null;
+}) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [tipo, setTipo] = useState<ComunicacaoTipo>(ComunicacaoTipo.Telefone);
+  const [direcao, setDirecao] = useState<ComunicacaoDirecao>(ComunicacaoDirecao.Inbound);
+  const [texto, setTexto] = useState('');
+
+  const list = useQuery({
+    queryKey: ['comunicacoes', reparacaoId],
+    queryFn: () => comunicacoesApi.list(reparacaoId),
+    staleTime: 30_000,
+  });
+
+  const create = useMutation({
+    mutationFn: () => {
+      const t = texto.trim();
+      if (t.length < 1) throw new Error('Texto obrigatório.');
+      return comunicacoesApi.create(reparacaoId, { tipo, direcao, texto: t });
+    },
+    onSuccess: () => {
+      setTexto('');
+      setOpen(false);
+      qc.invalidateQueries({ queryKey: ['comunicacoes', reparacaoId] });
+      toast.success('Registado.');
+    },
+    onError: (err) => toast.error(apiErrorMessage(err) || 'Erro ao registar.'),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => comunicacoesApi.remove(reparacaoId, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['comunicacoes', reparacaoId] }),
+    onError: (err) => toast.error(apiErrorMessage(err) || 'Erro ao apagar.'),
+  });
+
+  const items = list.data ?? [];
+
+  // WhatsApp link rápido (número PT normalizado 351). Útil porque é o canal #1 de comunicação no balcão.
+  const waNumber = clienteTelefone ? normalizeWaNumber(clienteTelefone) : null;
+  const waLink = waNumber ? `https://wa.me/${waNumber}` : null;
+
+  return (
+    <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <MessageCircle size={16} /> Comunicações
+          {items.length > 0 && (
+            <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              {items.length}
+            </span>
+          )}
+        </h2>
+        <div className="flex items-center gap-1.5">
+          {waLink && (
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+              title="Abrir WhatsApp do cliente"
+            >
+              <MessageCircle size={12} /> WhatsApp
+            </a>
+          )}
+          {!open && (
+            <Button size="sm" onClick={() => setOpen(true)} leftIcon={<Plus size={14} />}>
+              Registar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {open && (
+        <form
+          className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950"
+          onSubmit={(e) => { e.preventDefault(); create.mutate(); }}
+        >
+          <div className="flex flex-wrap gap-2">
+            <Select
+              label="Canal"
+              value={tipo}
+              onChange={(v) => setTipo(v as ComunicacaoTipo)}
+              options={[
+                ComunicacaoTipo.Telefone,
+                ComunicacaoTipo.WhatsApp,
+                ComunicacaoTipo.Email,
+                ComunicacaoTipo.Sms,
+                ComunicacaoTipo.Visita,
+                ComunicacaoTipo.Nota,
+              ].map((t) => ({ value: t, label: COMUNICACAO_TIPO_LABEL[t] }))}
+            />
+            <Select
+              label="Direção"
+              value={direcao}
+              onChange={(v) => setDirecao(v as ComunicacaoDirecao)}
+              options={[
+                { value: ComunicacaoDirecao.Inbound, label: 'Recebida (cliente → nós)' },
+                { value: ComunicacaoDirecao.Outbound, label: 'Enviada (nós → cliente)' },
+                { value: ComunicacaoDirecao.Interna, label: 'Nota interna (sem cliente)' },
+              ]}
+            />
+          </div>
+          <textarea
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+            placeholder="O que foi falado / enviado / acordado…"
+            rows={3}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            autoFocus
+            maxLength={2000}
+          />
+          <div className="flex items-center justify-end gap-2">
+            <button type="button" onClick={() => { setOpen(false); setTexto(''); }} className="rounded-md px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+              Cancelar
+            </button>
+            <Button type="submit" size="sm" loading={create.isPending} disabled={texto.trim().length < 1}>
+              Guardar
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {items.length === 0 && !list.isLoading && !open && (
+        <p className="flex items-start gap-2 text-xs text-zinc-500">
+          <FileText size={12} className="mt-0.5 flex-none" />
+          <span>Sem registos. Cada vez que falares com o cliente sobre esta reparação (telefone, WhatsApp, email) regista aqui — fica rasto para a próxima.</span>
+        </p>
+      )}
+
+      {items.length > 0 && (
+        <ul className="space-y-2">
+          {items.map((c) => (
+            <ComunicacaoRow key={c.id} entry={c} onDelete={() => remove.mutate(c.id)} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ComunicacaoRow({
+  entry,
+  onDelete,
+}: {
+  entry: ReparacaoComunicacao;
+  onDelete: () => void;
+}) {
+  const Icon = TIPO_ICON[entry.tipo];
+  const isInbound = entry.direcao === ComunicacaoDirecao.Inbound;
+  const isInterna = entry.direcao === ComunicacaoDirecao.Interna;
+  return (
+    <li className="rounded-lg border border-zinc-100 bg-zinc-50/50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+      <div className="flex items-start gap-2.5">
+        <span className={`mt-0.5 inline-flex h-7 w-7 flex-none items-center justify-center rounded-full ${TIPO_COR[entry.tipo]}`}>
+          <Icon size={14} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="mb-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-500">
+            <span className="font-semibold text-zinc-700 dark:text-zinc-300">{COMUNICACAO_TIPO_LABEL[entry.tipo]}</span>
+            {!isInterna && (
+              <span className="inline-flex items-center gap-0.5 text-zinc-500">
+                {isInbound ? <ArrowDownLeft size={11} /> : <ArrowUpRight size={11} />}
+                {COMUNICACAO_DIRECAO_LABEL[entry.direcao]}
+              </span>
+            )}
+            {isInterna && <span className="rounded bg-zinc-200 px-1 py-0.5 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Nota</span>}
+            <span>·</span>
+            <span>{new Date(entry.createdAt).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}</span>
+          </div>
+          <p className="whitespace-pre-wrap break-words">{entry.texto}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="flex-none text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400"
+          title="Apagar"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  options: Array<{ value: number; label: string }>;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs">
+      <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** Normaliza um telefone PT para `wa.me/351XXXXXXXXX`. Aceita "+351 9X X XX XX" etc. */
+function normalizeWaNumber(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('351')) return digits;
+  if (digits.length === 9 && digits[0] === '9') return `351${digits}`;
+  return digits;
+}
