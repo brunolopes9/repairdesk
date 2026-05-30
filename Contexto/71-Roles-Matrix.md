@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:98e7d5e509afb712 -->
+<!-- roles-matrix-snapshot:9f1bcd453518eb13 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -20,7 +20,9 @@ testes e esta matriz com snapshot.
 | BackupsController | `GET/POST /api/backups*` | `Admin` |
 | AuthController | `POST /api/auth/login`, `POST /api/auth/refresh` | `Anonymous` |
 | AuthController | `POST /api/auth/logout`, `POST /api/auth/change-password`, `GET /api/auth/me` | `Authenticated` |
-| ClientesController | CRUD/export base | `Authenticated`; hard-delete `Admin` |
+| ClientesController | CRUD/export base + `GET /{id}/comunicacoes` (S453) | `Authenticated`; hard-delete `Admin` |
+| ReparacaoComunicacoesController (S452) | `GET/POST/DELETE /api/reparacoes/{id}/comunicacoes` | `Authenticated` |
+| ReparacoesController | `GET /{id}/entrada.pdf` (S450), `GET /{id}/entrega.pdf` (S451) | `Authenticated` |
 | PublicPortalController / PublicWarrantyController | `GET/POST /api/public/*` | `Anonymous` + rate limit `public-portal` |
 | RelatoriosController | `GET /api/relatorios/*` (inclui Sprint 187 taxa-defeito-fornecedor) | `Authenticated` |
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |
