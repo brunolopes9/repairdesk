@@ -18,6 +18,14 @@ public class Reparacao : BaseEntity, ITenantEntity
     public string? Imei { get; set; }
     public required string Avaria { get; set; }
     public string? Diagnostico { get; set; }
+    /// <summary>
+    /// Sprint 474 (Bruno braindump Sergio A15): estado FÍSICO do equipamento quando recebido
+    /// no balcão. Distinto de Diagnostico (que é o que técnico descobre DEPOIS).
+    /// Tipicamente: "Ecrã rachado canto inferior direito · pequena mossa traseira · sem
+    /// acessórios". Usado no comprovativo de entrada (S450) — fixa a inconsistência
+    /// anterior que mostrava Diagnostico como estado físico inicial.
+    /// </summary>
+    public string? EstadoFisicoInicial { get; set; }
 
     public RepairStatus Estado { get; set; } = RepairStatus.Recebido;
     public DateTime EstadoSince { get; set; } = DateTime.UtcNow;

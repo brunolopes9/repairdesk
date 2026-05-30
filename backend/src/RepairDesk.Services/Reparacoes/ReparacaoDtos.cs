@@ -22,7 +22,9 @@ public sealed record CreateReparacaoRequest(
     string? Notas,
     RepairStatus? EstadoInicial = null,
     Guid? EquipmentFieldTemplateId = null,
-    IReadOnlyList<SetEquipmentFieldValueRequest>? Fields = null);
+    IReadOnlyList<SetEquipmentFieldValueRequest>? Fields = null,
+    /// <summary>Sprint 474: estado físico inicial (rachado, riscado, sem acessórios, etc). Distinto de Diagnostico (depois).</summary>
+    string? EstadoFisicoInicial = null);
 
 public sealed record UpdateReparacaoRequest(
     string Equipamento,
@@ -40,7 +42,9 @@ public sealed record UpdateReparacaoRequest(
     Guid? EquipmentFieldTemplateId = null,
     IReadOnlyList<SetEquipmentFieldValueRequest>? Fields = null,
     /// <summary>Sprint 419: ETA de entrega para o calendário interno.</summary>
-    DateTime? PrevistoEntregueEm = null);
+    DateTime? PrevistoEntregueEm = null,
+    /// <summary>Sprint 474: estado físico inicial observado na recepção (separado de Diagnostico).</summary>
+    string? EstadoFisicoInicial = null);
 
 public sealed record ChangeEstadoRequest(RepairStatus Estado, string? Notas);
 
@@ -96,7 +100,9 @@ public sealed record ReparacaoDto(
     /// <summary>Sprint 346: tags categóricas atribuídas (Urgente, Em garantia, etc).</summary>
     IReadOnlyList<TagSummaryDto>? Tags = null,
     /// <summary>Sprint 419: ETA de entrega para o calendário (null = sem ETA).</summary>
-    DateTime? PrevistoEntregueEm = null);
+    DateTime? PrevistoEntregueEm = null,
+    /// <summary>Sprint 474: estado físico inicial observado na recepção (riscos, mossas, acessórios).</summary>
+    string? EstadoFisicoInicial = null);
 
 public sealed record ReparacaoDetalhadaDto(
     ReparacaoDto Reparacao,

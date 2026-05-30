@@ -746,6 +746,8 @@ function CreateReparacaoModal({
   const [novoClienteOpen, setNovoClienteOpen] = useState(false);
   const [equipamento, setEquipamento] = useState('');
   const [avaria, setAvaria] = useState('');
+  // Sprint 474: estado físico inicial (separado de Diagnostico = depois).
+  const [estadoFisicoInicial, setEstadoFisicoInicial] = useState('');
   const [imei, setImei] = useState('');
   const [orcamento, setOrcamento] = useState('');
   const [comoOrcamento, setComoOrcamento] = useState(false);
@@ -842,6 +844,7 @@ function CreateReparacaoModal({
         estadoInicial: comoOrcamento ? 7 : null,
         equipmentFieldTemplateId: selectedTemplate?.id ?? null,
         fields: selectedTemplate ? buildEquipmentFieldValues(selectedTemplate, fieldValues) : null,
+        estadoFisicoInicial: estadoFisicoInicial.trim() || null,
       }),
     onSuccess: (rep) => {
       reset();
@@ -860,6 +863,7 @@ function CreateReparacaoModal({
     setClienteId(null);
     setEquipamento('');
     setAvaria('');
+    setEstadoFisicoInicial('');
     setImei('');
     setOrcamento('');
     setComoOrcamento(false);
@@ -1038,6 +1042,17 @@ function CreateReparacaoModal({
             rows={3}
             value={avaria}
             onChange={(e) => setAvaria(e.target.value)}
+            className={inputCls + ' resize-none'}
+          />
+        </Field>
+        {/* Sprint 474 (Bruno braindump): estado físico inicial — entra no PDF de
+            comprovativo de entrada (S450). Distinto de "Diagnóstico" (depois). */}
+        <Field label="Estado físico ao receber (opcional)">
+          <textarea
+            rows={2}
+            value={estadoFisicoInicial}
+            onChange={(e) => setEstadoFisicoInicial(e.target.value)}
+            placeholder="ex: ecrã rachado canto inferior · pequena mossa traseira · sem carregador"
             className={inputCls + ' resize-none'}
           />
         </Field>

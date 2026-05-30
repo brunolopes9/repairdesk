@@ -412,6 +412,7 @@ public class ReparacaoService : IReparacaoService
             // Copia orçamento → preço final por default (utilizador pode editar)
             PrecoFinalCents = req.OrcamentoCents,
             Notas = req.Notas?.Trim(),
+            EstadoFisicoInicial = string.IsNullOrWhiteSpace(req.EstadoFisicoInicial) ? null : req.EstadoFisicoInicial.Trim(),
             Estado = estadoInicial,
             EstadoSince = now,
             PublicSlug = PublicSlugGenerator.New(),
@@ -461,6 +462,9 @@ public class ReparacaoService : IReparacaoService
         rep.Notas = req.Notas?.Trim();
         rep.EstadoPagamento = req.EstadoPagamento;
         rep.PrevistoEntregueEm = req.PrevistoEntregueEm;
+        // Sprint 474: estado físico inicial (separado de Diagnostico).
+        if (req.EstadoFisicoInicial is not null)
+            rep.EstadoFisicoInicial = string.IsNullOrWhiteSpace(req.EstadoFisicoInicial) ? null : req.EstadoFisicoInicial.Trim();
 
         await _repo.SaveAsync(ct);
         IReadOnlyList<EquipmentFieldValueDto>? fields = null;
@@ -1141,6 +1145,7 @@ public class ReparacaoService : IReparacaoService
                 .Where(a => a.ReparacaoTag is not null)
                 .Select(a => new TagSummaryDto(a.ReparacaoTag!.Id, a.ReparacaoTag.Nome, a.ReparacaoTag.CorHex))
                 .ToList(),
-            r.PrevistoEntregueEm);
+            r.PrevistoEntregueEm,
+            r.EstadoFisicoInicial);
     }
 }

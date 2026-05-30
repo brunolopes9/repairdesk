@@ -141,6 +141,8 @@ export interface Reparacao {
   tags: Array<{ id: string; nome: string; corHex: string }>;
   /** Sprint 419: ETA de entrega (calendário). Null = sem ETA marcada. */
   previstoEntregueEm: string | null;
+  /** Sprint 474: estado físico ao receber (rachado/riscado/sem acessórios). Distinto de diagnostico. */
+  estadoFisicoInicial: string | null;
 }
 
 export interface ReparacaoDetalhada {
@@ -175,6 +177,8 @@ export interface CreateReparacaoForm {
   estadoInicial?: RepairStatus | null;
   equipmentFieldTemplateId?: string | null;
   fields?: SetEquipmentFieldValue[] | null;
+  /** Sprint 474: estado físico observado na recepção. */
+  estadoFisicoInicial?: string | null;
 }
 
 export interface UpdateReparacaoForm {
@@ -194,6 +198,8 @@ export interface UpdateReparacaoForm {
   fields?: SetEquipmentFieldValue[] | null;
   /** Sprint 419: ETA de entrega (ISO). null = limpar. */
   previstoEntregueEm?: string | null;
+  /** Sprint 474: estado físico inicial observado na recepção. */
+  estadoFisicoInicial?: string | null;
 }
 
 export type ReparacoesPage = PagedResult<Reparacao>;

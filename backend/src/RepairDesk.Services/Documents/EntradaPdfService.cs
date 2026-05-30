@@ -88,9 +88,10 @@ public sealed class EntradaPdfService : IEntradaPdfService
             Equipamento: rep.Equipamento,
             Imei: rep.Imei,
             Avaria: rep.Avaria,
-            // Sprint 450: estado físico não tem campo dedicado ainda — usa Diagnostico
-            // (na entrada é tipicamente "telemovel apresenta-se com ecra rachado" etc).
-            EstadoFisico: rep.Diagnostico,
+            // Sprint 474: usa EstadoFisicoInicial dedicado (estado FÍSICO ao receber, distinto
+            // do Diagnostico que é o que técnico descobre depois). Fallback para Diagnostico
+            // em reparações antigas sem EstadoFisicoInicial preenchido.
+            EstadoFisico: rep.EstadoFisicoInicial ?? rep.Diagnostico,
             RecebidoPor: null, // futuro: capturar User.DisplayName no Create
             CamposEquipamento: camposEquipamento.Count > 0 ? camposEquipamento : null,
             TermosLoja: tenant?.TermosCondicoes,
