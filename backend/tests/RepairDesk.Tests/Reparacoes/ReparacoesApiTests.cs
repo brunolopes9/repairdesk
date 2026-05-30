@@ -302,4 +302,58 @@ public class ReparacoesApiTests : IClassFixture<RepairDeskApiFactory>
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<ReparacaoDto>())!;
     }
+
+    // ====== Sprint 478 — Tests para S474 (EstadoFisicoInicial) + S475/S476 (Categoria + filter) ======
+
+    [Fact]
+    public async Task Create_ComEstadoFisicoInicial_E_Categoria_PersistemNoDto()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var cliente = await CreateCliente(client, "Cli-S474");
+
+        var resp = await client.PostAsJsonAsync("/api/reparacoes",
+            new CreateReparacaoRequest(
+                cliente.Id, "iPhone 13", "Ecrã partido",
+                Imei: null, OrcamentoCents: null, Notas: null,
+                EstadoInicial: null, EquipmentFieldTemplateId: null, Fields: null,
+                EstadoFisicoInicial: "Ecrã rachado canto inferior · sem carregador",
+                Categoria: DeviceCategory.Smartphone));
+        resp.EnsureSuccessStatusCode();
+        var dto = (await resp.Content.ReadFromJsonAsync<ReparacaoDto>())!;
+        dto.EstadoFisicoInicial.Should().Be("Ecrã rachado canto inferior · sem carregador");
+        dto.Categoria.Should().Be(DeviceCategory.Smartphone);
+    }
+
+    [Fact]
+    public async Task Search_FilterPorCategoria_DevolveSoMatching()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var cliente = await CreateCliente(client, "Cli-S476-cat");
+
+        // Cria 3 reparações: 2 Smartphone, 1 Tablet.
+        var marker = Guid.NewGuid().ToString("N")[..6];
+        async Task<Guid> CreateCat(DeviceCategory cat, string eq)
+        {
+            var r = await client.PostAsJsonAsync("/api/reparacoes",
+                new CreateReparacaoRequest(cliente.Id, $"{eq} {marker}", "avaria",
+                    null, null, null, null, null, null, null, cat));
+            r.EnsureSuccessStatusCode();
+            return (await r.Content.ReadFromJsonAsync<ReparacaoDto>())!.Id;
+        }
+        var s1 = await CreateCat(DeviceCategory.Smartphone, "iPhone");
+        var s2 = await CreateCat(DeviceCategory.Smartphone, "Galaxy");
+        var t1 = await CreateCat(DeviceCategory.Tablet, "iPad");
+
+        // GET com filter categoria=Smartphone (0) deve incluir s1+s2, não t1.
+        var resp = await client.GetFromJsonAsync<PagedResult<ReparacaoDto>>(
+            $"/api/reparacoes?categoria=0&pageSize=50");
+        resp!.Items.Select(r => r.Id).Should().Contain(new[] { s1, s2 });
+        resp.Items.Should().NotContain(r => r.Id == t1, "Tablet não deve aparecer no filter Smartphone");
+
+        // GET com filter categoria=Tablet (1) deve só ter t1 da nossa amostra.
+        var respTablet = await client.GetFromJsonAsync<PagedResult<ReparacaoDto>>(
+            $"/api/reparacoes?categoria=1&pageSize=50");
+        respTablet!.Items.Should().Contain(r => r.Id == t1);
+        respTablet.Items.Should().NotContain(r => r.Id == s1 || r.Id == s2);
+    }
 }

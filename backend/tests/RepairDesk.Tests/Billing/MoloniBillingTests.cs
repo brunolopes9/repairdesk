@@ -315,7 +315,7 @@ public class MoloniBillingTests
         public Task<Reparacao?> FindByIdWithTimelineAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Reparacao?>(reparacao);
         public Task<Reparacao?> FindByPublicSlugWithTimelineAsync(string slug, CancellationToken ct = default) => Task.FromResult<Reparacao?>(null);
         public Task CreateWithNextNumeroAsync(Reparacao reparacao, Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task<(IReadOnlyList<Reparacao> Items, int Total)> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
+        public Task<(IReadOnlyList<Reparacao> Items, int Total)> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default, DeviceCategory? categoria = null)
             => Task.FromResult(((IReadOnlyList<Reparacao>)Array.Empty<Reparacao>(), 0));
         public Task<IReadOnlyList<Reparacao>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default)
             => Task.FromResult((IReadOnlyList<Reparacao>)Array.Empty<Reparacao>());
