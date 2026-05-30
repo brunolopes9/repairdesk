@@ -96,22 +96,21 @@ export function ReparacaoComunicacoesSection({
   const waNumber = clienteTelefone ? normalizeWaNumber(clienteTelefone) : null;
   const waLink = waNumber ? `https://wa.me/${waNumber}` : null;
 
-  // Sprint 456 (Doc 91 follow-up): CTA "Avisar pronto" quando estado=Pronto.
-  // Reduz fricção do fluxo mais comum no balcão: equipamento fica pronto → técnico
-  // tem de avisar o cliente. Click abre WhatsApp pré-preenchido + regista comunicação
-  // outbound automaticamente, fechando o loop S452.
-  const isPronto = reparacaoEstado === 4;
-  const avisoMsg = isPronto && waNumber
-    ? buildAvisoProntoMessage({ clienteNome, equipamento: reparacaoEquipamento, numero: reparacaoNumero })
+  // Sprint 456+457 (Doc 91 follow-up): CTA contextual "Avisar cliente" por estado.
+  // Estados cobertos: 1 (Diagnóstico) — pedir confirmação, 2 (AguardaPeça) — peça
+  // encomendada, 4 (Pronto) — levantar. Click abre WhatsApp pré-preenchido + regista
+  // comunicação outbound automaticamente, fechando o loop S452.
+  const aviso = reparacaoEstado != null && waNumber
+    ? buildAvisoPorEstado(reparacaoEstado, { clienteNome, equipamento: reparacaoEquipamento, numero: reparacaoNumero })
     : null;
-  const waAvisoLink = avisoMsg && waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(avisoMsg)}` : null;
+  const waAvisoLink = aviso && waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(aviso.mensagem)}` : null;
 
-  const avisarPronto = useMutation({
+  const avisarCliente = useMutation({
     mutationFn: () =>
       comunicacoesApi.create(reparacaoId, {
         tipo: ComunicacaoTipo.WhatsApp,
         direcao: ComunicacaoDirecao.Outbound,
-        texto: `Avisei cliente via WhatsApp que está pronto para levantar.${avisoMsg ? `\n\n[Mensagem enviada]\n${avisoMsg}` : ''}`,
+        texto: aviso ? `${aviso.notaLog}\n\n[Mensagem enviada]\n${aviso.mensagem}` : 'Avisei via WhatsApp.',
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['comunicacoes', reparacaoId] });
@@ -132,17 +131,17 @@ export function ReparacaoComunicacoesSection({
           )}
         </h2>
         <div className="flex items-center gap-1.5">
-          {/* Sprint 456: CTA "Avisar pronto" — só visible quando estado=Pronto e há telefone. */}
-          {waAvisoLink && (
+          {/* Sprint 456+457: CTA contextual por estado (Diagnóstico/AguardaPeça/Pronto). */}
+          {waAvisoLink && aviso && (
             <a
               href={waAvisoLink}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => avisarPronto.mutate()}
-              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
-              title="Abrir WhatsApp com mensagem pré-feita e registar como Outbound"
+              onClick={() => avisarCliente.mutate()}
+              className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-semibold text-white ${aviso.cor}`}
+              title={`Abrir WhatsApp com "${aviso.label}" pré-feito e registar como Outbound`}
             >
-              <Send size={12} /> Avisar pronto
+              <Send size={12} /> {aviso.label}
             </a>
           )}
           {waLink && !waAvisoLink && (
@@ -306,15 +305,49 @@ function Select({
 }
 
 /**
- * Sprint 456: mensagem default "está pronto para levantar". Tom direto, PT-PT,
- * com placeholders. Não inclui horário (varia por loja); cliente pode editar
- * no WhatsApp antes de enviar — abrir com `?text=` no wa.me pré-preenche, não envia.
+ * Sprint 456+457: mensagens default por estado. Tom direto, pt-PT, sem horário
+ * (varia por loja — cliente pode editar no WhatsApp antes de enviar; wa.me/?text=
+ * pré-preenche apenas).
+ *
+ * Estados cobertos:
+ *   1 — Diagnóstico: técnico terminou avaliação, aguarda decisão do cliente
+ *   2 — AguardaPeça: peça encomendada, prazo estimado
+ *   4 — Pronto: cliente pode levantar
+ *
+ * Devolve null para estados sem CTA específico.
  */
-function buildAvisoProntoMessage(opts: { clienteNome?: string; equipamento?: string; numero?: number }): string {
+function buildAvisoPorEstado(
+  estado: number,
+  opts: { clienteNome?: string; equipamento?: string; numero?: number },
+): { mensagem: string; label: string; cor: string; notaLog: string } | null {
   const saudacao = opts.clienteNome ? `Olá ${opts.clienteNome.split(' ')[0]}` : 'Olá';
   const equipamento = opts.equipamento ? ` do seu ${opts.equipamento}` : '';
   const ref = opts.numero != null ? ` (Ref. R-${String(opts.numero).padStart(5, '0')})` : '';
-  return `${saudacao}, a reparação${equipamento} está pronta para levantar${ref}. Aguardamos a sua visita à loja. Obrigado!`;
+  switch (estado) {
+    case 1: // Diagnóstico
+      return {
+        mensagem: `${saudacao}, terminámos o diagnóstico${equipamento}${ref}. Vamos enviar o orçamento em breve para aprovação. Obrigado!`,
+        label: 'Avisar diagnóstico',
+        cor: 'bg-sky-600 hover:bg-sky-700',
+        notaLog: 'Avisei cliente via WhatsApp que o diagnóstico está concluído.',
+      };
+    case 2: // AguardaPeça
+      return {
+        mensagem: `${saudacao}, a peça${equipamento ? ' para a sua reparação' : ''} foi encomendada${ref}. Estimativa de chegada: 3 a 5 dias úteis. Damos novidades assim que receber. Obrigado pela paciência!`,
+        label: 'Avisar peça',
+        cor: 'bg-amber-600 hover:bg-amber-700',
+        notaLog: 'Avisei cliente via WhatsApp que a peça foi encomendada.',
+      };
+    case 4: // Pronto
+      return {
+        mensagem: `${saudacao}, a reparação${equipamento} está pronta para levantar${ref}. Aguardamos a sua visita à loja. Obrigado!`,
+        label: 'Avisar pronto',
+        cor: 'bg-emerald-600 hover:bg-emerald-700',
+        notaLog: 'Avisei cliente via WhatsApp que a reparação está pronta para levantar.',
+      };
+    default:
+      return null;
+  }
 }
 
 /** Normaliza um telefone PT para `wa.me/351XXXXXXXXX`. Aceita "+351 9X X XX XX" etc. */
