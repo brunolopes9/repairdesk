@@ -69,6 +69,39 @@ Implementacao:
 Validacao:
 - `npm.cmd run build` em `frontend`
 
+### Pedidos online: follow-up/deadlines de leads
+
+Objetivo ROAPP copiado/adaptado: "lead deadlines" para nao deixar pedidos
+ficarem esquecidos depois de uma chamada, WhatsApp ou email.
+
+Implementacao:
+- `RepairRequest.FollowUpAt` + migration `Sprint448_RepairRequestFollowUpAt`.
+- `PUT /api/repair-requests/{id}/triagem` guarda notas, prioridade e data de
+  follow-up na mesma acao.
+- `POST /api/repair-requests/manual` tambem aceita follow-up no momento em que
+  o staff regista o lead offline.
+- Ao converter em reparacao/trabalho ou rejeitar, o follow-up e limpo.
+- `/pedidos-online` mostra card "Follow-up", badge no pedido, campo
+  `datetime-local` na triagem inline e filtro rapido para follow-ups vencidos.
+
+Validacao:
+- `dotnet test backend/tests/RepairDesk.Tests/RepairDesk.Tests.csproj --filter RepairRequestsApiTests`
+- `npm.cmd run build` em `frontend`
+
+### Pedidos online: pesquisa por contacto/equipamento
+
+Objetivo ROAPP copiado/adaptado: encontrar leads por telefone/nome rapidamente,
+sem depender da pesquisa global.
+
+Implementacao:
+- `/pedidos-online` ganhou pesquisa local por nome, telefone, email,
+  equipamento, avaria e canal.
+- A pesquisa normaliza acentos e tambem compara apenas digitos no telefone, para
+  encontrar `933 938 716` mesmo se o staff escrever `933938716`.
+
+Validacao:
+- `npm.cmd run build` em `frontend`
+
 ## Implementado depois pelo Claude (S436-S442)
 
 Seguimento direto da sugestao do Codex: transformar /pedidos-online em

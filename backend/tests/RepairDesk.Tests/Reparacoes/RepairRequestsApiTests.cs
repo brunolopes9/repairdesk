@@ -22,10 +22,10 @@ public class RepairRequestsApiTests : IClassFixture<RepairDeskApiFactory>
     private sealed record RequestDto(
         Guid Id, string Nome, string? Email, string? Telefone, string Equipamento,
         string Descricao, int Estado, Guid? ReparacaoId, string? MotivoRejeicao, DateTime CreatedAt,
-        string? NotasInternas, int Prioridade, Guid? TrabalhoId, int Origem);
+        string? NotasInternas, int Prioridade, DateTime? FollowUpAt, Guid? TrabalhoId, int Origem);
     // Sprint 436+438+439 payloads para os tests.
-    private sealed record TriagemRequest(string? NotasInternas, int Prioridade);
-    private sealed record ManualRequest(string Nome, string? Telefone, string? Email, string Equipamento, string Descricao, int Origem, int? Prioridade, string? NotasInternas);
+    private sealed record TriagemRequest(string? NotasInternas, int Prioridade, DateTime? FollowUpAt = null);
+    private sealed record ManualRequest(string Nome, string? Telefone, string? Email, string Equipamento, string Descricao, int Origem, int? Prioridade, string? NotasInternas, DateTime? FollowUpAt = null);
 
     [Fact]
     public async Task Submit_Valido_CriaPedido_AdminVePendente()
@@ -158,6 +158,24 @@ public class RepairRequestsApiTests : IClassFixture<RepairDeskApiFactory>
         var resp = await admin.PutAsJsonAsync($"/api/repair-requests/{pedido.Id}/triagem",
             new TriagemRequest(notasLongas, 1));
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Sprint448_Triagem_GuardaFollowUpAt()
+    {
+        var admin = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var marker = Guid.NewGuid().ToString("N")[..8];
+        var pedido = await CreateManualPedidoAsync(admin, marker, equipamento: "iPhone 15");
+        var now = DateTime.UtcNow;
+        var followUpAt = now.AddHours(4).AddTicks(-(now.Ticks % TimeSpan.TicksPerSecond));
+
+        var resp = await admin.PutAsJsonAsync($"/api/repair-requests/{pedido.Id}/triagem",
+            new TriagemRequest("voltar a ligar depois do almoco", Prioridade: 2, FollowUpAt: followUpAt));
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var atualizado = (await resp.Content.ReadFromJsonAsync<RequestDto>())!;
+        atualizado.FollowUpAt.Should().NotBeNull();
+        atualizado.FollowUpAt!.Value.Should().BeCloseTo(followUpAt, TimeSpan.FromSeconds(2));
     }
 
     [Fact]

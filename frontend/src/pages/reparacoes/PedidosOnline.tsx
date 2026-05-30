@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, FileText, Flag, Inbox, Mail, MessageCircle, Phone, Plus, Save, StickyNote, Wrench, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CheckCircle2, FileText, Flag, Inbox, Mail, MessageCircle, Phone, Plus, Save, Search, StickyNote, Wrench, X } from 'lucide-react';
 import {
   repairRequestsApi,
   REPAIR_REQUEST_ESTADO,
@@ -29,7 +29,8 @@ export default function PedidosOnline() {
   const [filtro, setFiltro] = useState<RepairRequestEstado>(REPAIR_REQUEST_ESTADO.Pendente);
   // Sprint 438: filtro adicional por canal de entrada. "all" mostra todos.
   const [origemFiltro, setOrigemFiltro] = useState<RepairRequestOrigem | 'all'>('all');
-  const [slaFilter, setSlaFilter] = useState<'all' | 'overdue'>('all');
+  const [slaFilter, setSlaFilter] = useState<'all' | 'overdue' | 'followup'>('all');
+  const [search, setSearch] = useState('');
 
   const list = useQuery({
     queryKey: ['repair-requests', filtro],
@@ -79,8 +80,8 @@ export default function PedidosOnline() {
   });
 
   const triagemMut = useMutation({
-    mutationFn: (vars: { id: string; notasInternas: string | null; prioridade: RepairRequestPrioridade }) =>
-      repairRequestsApi.updateTriagem(vars.id, { notasInternas: vars.notasInternas, prioridade: vars.prioridade }),
+    mutationFn: (vars: { id: string; notasInternas: string | null; prioridade: RepairRequestPrioridade; followUpAt: string | null }) =>
+      repairRequestsApi.updateTriagem(vars.id, { notasInternas: vars.notasInternas, prioridade: vars.prioridade, followUpAt: vars.followUpAt }),
     onSuccess: () => {
       toast.success('Triagem guardada.');
       qc.invalidateQueries({ queryKey: ['repair-requests'] });
@@ -133,6 +134,9 @@ export default function PedidosOnline() {
     atrasados: (allRequests.data ?? []).filter(
       (r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente && isOverdueRequest(r),
     ).length,
+    followUps: (allRequests.data ?? []).filter(
+      (r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente && isFollowUpDue(r),
+    ).length,
     urgentes: (allRequests.data ?? []).filter(
       (r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente && r.prioridade === REPAIR_REQUEST_PRIORIDADE.Urgente,
     ).length,
@@ -156,8 +160,14 @@ export default function PedidosOnline() {
   if (origemFiltro !== 'all') {
     rows = rows.filter((r) => r.origem === origemFiltro);
   }
+  if (search.trim()) {
+    rows = rows.filter((r) => matchesRequestSearch(r, search));
+  }
   if (filtro === REPAIR_REQUEST_ESTADO.Pendente && slaFilter === 'overdue') {
     rows = rows.filter(isOverdueRequest);
+  }
+  if (filtro === REPAIR_REQUEST_ESTADO.Pendente && slaFilter === 'followup') {
+    rows = rows.filter(isFollowUpDue);
   }
   if (filtro === REPAIR_REQUEST_ESTADO.Pendente) {
     rows.sort((a, b) => {
@@ -241,7 +251,7 @@ export default function PedidosOnline() {
         </div>
       </Modal>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <SummaryCard
           icon={Inbox}
           label="Por tratar"
@@ -262,6 +272,13 @@ export default function PedidosOnline() {
           value={counts.atrasados}
           tone="rose"
           helper="Pendentes ha mais de 48h."
+        />
+        <SummaryCard
+          icon={CalendarClock}
+          label="Follow-up"
+          value={counts.followUps}
+          tone="sky"
+          helper="Voltar a contactar agora."
         />
         <SummaryCard
           icon={X}
@@ -286,6 +303,26 @@ export default function PedidosOnline() {
           ))}
         </div>
       )}
+
+      <div className="relative">
+        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Pesquisar lead por nome, telefone, email, equipamento ou avaria..."
+          className="h-11 w-full rounded-xl border border-zinc-300 bg-white pl-9 pr-10 text-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:ring-brand-950"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            title="Limpar pesquisa"
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-end justify-between gap-2 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex gap-1">
@@ -315,6 +352,20 @@ export default function PedidosOnline() {
           >
             <AlertTriangle size={12} />
             Atrasados 48h ({counts.atrasados})
+          </button>
+        )}
+        {filtro === REPAIR_REQUEST_ESTADO.Pendente && (
+          <button
+            type="button"
+            onClick={() => setSlaFilter((value) => (value === 'followup' ? 'all' : 'followup'))}
+            className={`mb-1 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition ${
+              slaFilter === 'followup'
+                ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300'
+                : 'border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <CalendarClock size={12} />
+            Follow-up ({counts.followUps})
           </button>
         )}
         <label className="flex items-center gap-1.5 pb-1 text-[11px] text-zinc-500">
@@ -350,7 +401,13 @@ export default function PedidosOnline() {
         {list.isLoading && <p className="text-sm text-zinc-500">A carregar…</p>}
         {rows.length === 0 && !list.isLoading && (
           <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
-            {slaFilter === 'overdue' ? 'Sem pedidos atrasados neste momento.' : 'Sem pedidos nesta categoria.'}
+            {slaFilter === 'overdue'
+              ? 'Sem pedidos atrasados neste momento.'
+              : slaFilter === 'followup'
+                ? 'Sem follow-ups vencidos neste momento.'
+                : search.trim()
+                  ? 'Sem pedidos para essa pesquisa.'
+                : 'Sem pedidos nesta categoria.'}
           </div>
         )}
         {rows.map((r) => (
@@ -362,8 +419,8 @@ export default function PedidosOnline() {
             onConverterReparacao={() => converterMut.mutate(r.id)}
             onConverterTrabalho={() => converterTrabMut.mutate(r.id)}
             onRejeitar={() => askRejeitar(r)}
-            onSaveTriagem={(notas, prioridade) =>
-              triagemMut.mutate({ id: r.id, notasInternas: notas, prioridade })
+            onSaveTriagem={(notas, prioridade, followUpAt) =>
+              triagemMut.mutate({ id: r.id, notasInternas: notas, prioridade, followUpAt })
             }
             onAbrirReparacao={(repId) => navigate(`/reparacoes/${repId}`)}
             onAbrirTrabalho={(trabId) => navigate(`/trabalhos/${trabId}`)}
@@ -396,14 +453,18 @@ function PedidoCard({
   onConverterReparacao: () => void;
   onConverterTrabalho: () => void;
   onRejeitar: () => void;
-  onSaveTriagem: (notas: string | null, prioridade: RepairRequestPrioridade) => void;
+  onSaveTriagem: (notas: string | null, prioridade: RepairRequestPrioridade, followUpAt: string | null) => void;
   onAbrirReparacao: (repId: string) => void;
   onAbrirTrabalho: (trabId: string) => void;
 }) {
   const [notas, setNotas] = useState(request.notasInternas ?? '');
   const [prioridade, setPrioridade] = useState<RepairRequestPrioridade>(request.prioridade);
+  const [followUpLocal, setFollowUpLocal] = useState(toDateTimeLocalValue(request.followUpAt));
   const isPendente = request.estado === REPAIR_REQUEST_ESTADO.Pendente;
-  const dirty = (notas.trim() || null) !== (request.notasInternas ?? null) || prioridade !== request.prioridade;
+  const dirty =
+    (notas.trim() || null) !== (request.notasInternas ?? null) ||
+    prioridade !== request.prioridade ||
+    followUpLocal !== toDateTimeLocalValue(request.followUpAt);
 
   const borderTone = prioridadeBorder(request.prioridade);
 
@@ -422,6 +483,15 @@ function PedidoCard({
             {request.email && <span className="inline-flex items-center gap-1"><Mail size={10} /> {request.email}</span>}
             <span>{formatDate(request.createdAt)}</span>
             <span className="text-zinc-400">via {REPAIR_REQUEST_ORIGEM_LABEL[request.origem]}</span>
+            {request.followUpAt && (
+              <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 ${
+                isFollowUpDue(request)
+                  ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300'
+                  : 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800'
+              }`}>
+                <CalendarClock size={10} /> Follow-up {formatDate(request.followUpAt)}
+              </span>
+            )}
           </div>
           <p className="mt-1.5 whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300">{request.descricao}</p>
           {request.motivoRejeicao && <p className="mt-1 text-xs italic text-rose-600">Rejeitado: {request.motivoRejeicao}</p>}
@@ -478,7 +548,7 @@ function PedidoCard({
       </div>
 
       {isPendente && (
-        <div className="mt-3 grid gap-2 border-t border-zinc-100 pt-2 dark:border-zinc-800 sm:grid-cols-[160px_1fr_auto]">
+        <div className="mt-3 grid gap-2 border-t border-zinc-100 pt-2 dark:border-zinc-800 sm:grid-cols-[160px_220px_1fr_auto]">
           <label className="flex items-center gap-1.5 text-xs">
             <Flag size={12} className="text-zinc-400" />
             <select
@@ -492,6 +562,16 @@ function PedidoCard({
               <option value={REPAIR_REQUEST_PRIORIDADE.Urgente}>Urgente</option>
             </select>
           </label>
+          <label className="flex items-center gap-1.5 text-xs">
+            <CalendarClock size={12} className="text-zinc-400" />
+            <input
+              type="datetime-local"
+              value={followUpLocal}
+              onChange={(e) => setFollowUpLocal(e.target.value)}
+              className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              title="Quando voltar a contactar este lead"
+            />
+          </label>
           <textarea
             value={notas}
             onChange={(e) => setNotas(e.target.value)}
@@ -503,7 +583,7 @@ function PedidoCard({
           <button
             type="button"
             disabled={!dirty || isSavingTriagem}
-            onClick={() => onSaveTriagem(notas.trim() ? notas.trim() : null, prioridade)}
+            onClick={() => onSaveTriagem(notas.trim() ? notas.trim() : null, prioridade, fromDateTimeLocalValue(followUpLocal))}
             className="inline-flex items-center justify-center gap-1 self-start rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-40 dark:border-brand-900/60 dark:bg-brand-950/30 dark:text-brand-300"
           >
             <Save size={12} /> Guardar
@@ -549,6 +629,7 @@ function NovoPedidoModal({
     origem: RepairRequestOrigem;
     prioridade?: RepairRequestPrioridade;
     notasInternas?: string | null;
+    followUpAt?: string | null;
   }) => void;
   isSaving: boolean;
 }) {
@@ -559,6 +640,7 @@ function NovoPedidoModal({
   const [descricao, setDescricao] = useState('');
   const [origem, setOrigem] = useState<RepairRequestOrigem>(REPAIR_REQUEST_ORIGEM.Telefone);
   const [prioridade, setPrioridade] = useState<RepairRequestPrioridade>(REPAIR_REQUEST_PRIORIDADE.Normal);
+  const [followUpLocal, setFollowUpLocal] = useState('');
   const [notas, setNotas] = useState('');
 
   const valid =
@@ -578,6 +660,7 @@ function NovoPedidoModal({
       origem,
       prioridade,
       notasInternas: notas.trim() ? notas.trim() : null,
+      followUpAt: fromDateTimeLocalValue(followUpLocal),
     });
   }
 
@@ -612,7 +695,7 @@ function NovoPedidoModal({
           <Field label="Descrição / avaria">
             <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} maxLength={2000} rows={3} className={inputCls} placeholder="Ex.: ecrã partido, quer estimativa antes de trazer" />
           </Field>
-          <div className="grid gap-2.5 sm:grid-cols-2">
+          <div className="grid gap-2.5 sm:grid-cols-3">
             <Field label="Canal">
               <select value={origem} onChange={(e) => setOrigem(Number(e.target.value) as RepairRequestOrigem)} className={inputCls}>
                 <option value={REPAIR_REQUEST_ORIGEM.Telefone}>Telefone</option>
@@ -629,6 +712,14 @@ function NovoPedidoModal({
                 <option value={REPAIR_REQUEST_PRIORIDADE.Alta}>Alta</option>
                 <option value={REPAIR_REQUEST_PRIORIDADE.Urgente}>Urgente</option>
               </select>
+            </Field>
+            <Field label="Follow-up">
+              <input
+                type="datetime-local"
+                value={followUpLocal}
+                onChange={(e) => setFollowUpLocal(e.target.value)}
+                className={inputCls}
+              />
             </Field>
           </div>
           <Field label="Notas internas (opcional)">
@@ -678,6 +769,62 @@ function isOverdueRequest(request: RepairRequestDto): boolean {
   const createdAt = new Date(request.createdAt).getTime();
   if (!Number.isFinite(createdAt)) return false;
   return Date.now() - createdAt >= 48 * 60 * 60 * 1000;
+}
+
+/**
+ * Sprint 448 (Codex parallel): pedido tem follow-up marcado e já passou da data.
+ * Permite filtrar leads que o staff prometeu voltar a contactar mas ainda não o fez.
+ */
+function isFollowUpDue(request: RepairRequestDto): boolean {
+  if (!request.followUpAt) return false;
+  const t = new Date(request.followUpAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  return t <= Date.now();
+}
+
+function toDateTimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function fromDateTimeLocalValue(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function matchesRequestSearch(request: RepairRequestDto, rawQuery: string): boolean {
+  const query = normalizeSearch(rawQuery);
+  if (!query) return true;
+  const queryDigits = onlyDigits(rawQuery);
+  const phoneDigits = onlyDigits(request.telefone ?? '');
+  const fields = [
+    request.nome,
+    request.email ?? '',
+    request.telefone ?? '',
+    request.equipamento,
+    request.descricao,
+    REPAIR_REQUEST_ORIGEM_LABEL[request.origem],
+  ];
+
+  return fields.some((field) => normalizeSearch(field).includes(query)) ||
+    (queryDigits.length >= 3 && phoneDigits.includes(queryDigits));
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .toLocaleLowerCase('pt-PT')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function onlyDigits(value: string): string {
+  return value.replace(/\D/g, '');
 }
 
 function LeadContactActions({ request }: { request: RepairRequestDto }) {
@@ -739,12 +886,13 @@ function SummaryCard({
   label: string;
   value: number;
   helper: string;
-  tone: 'amber' | 'emerald' | 'rose' | 'zinc';
+  tone: 'amber' | 'emerald' | 'rose' | 'sky' | 'zinc';
 }) {
   const toneClass = {
     amber: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300',
     rose: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300',
+    sky: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300',
     zinc: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300',
   }[tone];
 
