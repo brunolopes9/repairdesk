@@ -27,6 +27,17 @@ public sealed class DevicesController : ControllerBase
     [HttpGet("{id:guid}")]
     public Task<DeviceDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
 
+    /// <summary>
+    /// Sprint 464: lookup leve por IMEI (para "Nova reparação" sugerir Device + cliente existentes).
+    /// 204 NoContent quando não há match (semântica de "ainda não conhecido" em vez de erro).
+    /// </summary>
+    [HttpGet("by-imei/{imei}")]
+    public async Task<ActionResult<DeviceByImeiDto>> ByImei(string imei, CancellationToken ct)
+    {
+        var d = await _service.FindByImeiAsync(imei, ct);
+        return d is null ? NoContent() : Ok(d);
+    }
+
     [HttpPost]
     public async Task<ActionResult<DeviceDto>> Create([FromBody] CreateDeviceRequest req, CancellationToken ct)
     {

@@ -47,10 +47,28 @@ public sealed record UpdateDeviceRequest(
     string? Notas,
     bool Arquivado);
 
+/// <summary>
+/// Sprint 464: lookup-by-IMEI devolve o Device + dados do cliente para o frontend mostrar
+/// "Este IMEI pertence a {Apelido} de {Cliente}" sem ter que fazer 2 calls.
+/// Null = não há Device com esse IMEI (não é erro — é o caso comum em reparação nova).
+/// </summary>
+public sealed record DeviceByImeiDto(
+    Guid Id,
+    Guid ClienteId,
+    string ClienteNome,
+    string Tipo,
+    string? Marca,
+    string? Modelo,
+    string? Apelido,
+    string? Cor,
+    bool Arquivado);
+
 public interface IDeviceService
 {
     Task<IReadOnlyList<DeviceDto>> ListByClienteAsync(Guid clienteId, bool incluirArquivados, CancellationToken ct = default);
     Task<DeviceDto> GetAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Sprint 464: lookup leve por IMEI normalizado. Devolve null se não existe.</summary>
+    Task<DeviceByImeiDto?> FindByImeiAsync(string imei, CancellationToken ct = default);
     Task<DeviceDto> CreateAsync(CreateDeviceRequest req, CancellationToken ct = default);
     Task<DeviceDto> UpdateAsync(Guid id, UpdateDeviceRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
@@ -88,6 +106,20 @@ public sealed class DeviceService : IDeviceService
     {
         var d = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Device", id);
         return ToDto(d);
+    }
+
+    public async Task<DeviceByImeiDto?> FindByImeiAsync(string imei, CancellationToken ct = default)
+    {
+        var norm = NormalizeImei(imei);
+        if (norm is null) return null;
+        var device = await _repo.FindByImeiAsync(norm, ct);
+        if (device is null) return null;
+        // Filter global garante tenant. Mas o ClienteNome precisa de fetch — usamos FindByIdAsync.
+        var cliente = await _clientes.FindByIdAsync(device.ClienteId, ct);
+        if (cliente is null) return null; // edge case: cliente apagado mas device órfão; trata como não existe.
+        return new DeviceByImeiDto(
+            device.Id, device.ClienteId, cliente.Nome, device.Tipo,
+            device.Marca, device.Modelo, device.Apelido, device.Cor, device.Arquivado);
     }
 
     public async Task<DeviceDto> CreateAsync(CreateDeviceRequest req, CancellationToken ct = default)

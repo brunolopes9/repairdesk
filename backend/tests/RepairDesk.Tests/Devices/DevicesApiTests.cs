@@ -134,6 +134,40 @@ public class DevicesApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task ByImei_DeviceExiste_DevolveCliente()
+    {
+        // Sprint 464: lookup-by-IMEI usado pelo modal "Nova reparação".
+        var client = await NewAuthedClientAsync();
+        var cliente = await CreateClienteAsync(client);
+        var imei = "358" + Guid.NewGuid().ToString("N").Substring(0, 12).ToUpperInvariant()
+            .Replace('A','1').Replace('B','2').Replace('C','3').Replace('D','4').Replace('E','5').Replace('F','6');
+
+        var post = await client.PostAsJsonAsync("/api/devices",
+            new CreateDeviceReq(cliente.Id, "Telemóvel", Apelido: "do João", Imei: imei));
+        post.EnsureSuccessStatusCode();
+
+        var resp = await client.GetAsync($"/api/devices/by-imei/{imei}");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var dto = await resp.Content.ReadFromJsonAsync<DeviceByImeiDto>();
+        dto!.ClienteId.Should().Be(cliente.Id);
+        dto.ClienteNome.Should().Be(cliente.Nome);
+        dto.Apelido.Should().Be("do João");
+    }
+
+    [Fact]
+    public async Task ByImei_NaoExiste_204()
+    {
+        // Caso comum em reparação nova: IMEI ainda não conhecido.
+        var client = await NewAuthedClientAsync();
+        var resp = await client.GetAsync("/api/devices/by-imei/999888777666555");
+        resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    private sealed record DeviceByImeiDto(
+        Guid Id, Guid ClienteId, string ClienteNome, string Tipo,
+        string? Marca, string? Modelo, string? Apelido, string? Cor, bool Arquivado);
+
+    [Fact]
     public async Task TenantIsolation_DeviceTenantA_NaoApareceEmB()
     {
         var adminA = await NewAuthedClientAsync(RepairDeskApiFactory.AdminEmail);
