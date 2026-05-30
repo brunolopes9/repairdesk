@@ -12,6 +12,8 @@ import {
   COMUNICACAO_TIPO_LABEL,
   type ReparacaoComunicacao,
 } from '../../lib/comunicacoes/api';
+import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
+import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 
 /**
  * Sprint 452 (Doc 91 ponto 1 — Conversas omnicanal v1).
@@ -96,12 +98,31 @@ export function ReparacaoComunicacoesSection({
   const waNumber = clienteTelefone ? normalizeWaNumber(clienteTelefone) : null;
   const waLink = waNumber ? `https://wa.me/${waNumber}` : null;
 
+  // Sprint 459: usa os templates configurados em /definicoes (TenantPreferences.Communication.TemplatesByState)
+  // em vez de mensagens hardcoded. Bruno editou um template? — passa a usar. Fallback para defaults pt-PT do S456/S457.
+  // Os queries são staleTime longo: prefs e tenant mudam pouco, não vale a pena refetch agressivo.
+  const prefs = useQuery({
+    queryKey: ['tenant-preferences'],
+    queryFn: () => tenantPreferencesApi.get(),
+    staleTime: 5 * 60_000,
+  });
+  const tenant = useQuery({
+    queryKey: ['tenant-settings'],
+    queryFn: () => tenantSettingsApi.getMine(),
+    staleTime: 5 * 60_000,
+  });
+
   // Sprint 456+457 (Doc 91 follow-up): CTA contextual "Avisar cliente" por estado.
-  // Estados cobertos: 1 (Diagnóstico) — pedir confirmação, 2 (AguardaPeça) — peça
-  // encomendada, 4 (Pronto) — levantar. Click abre WhatsApp pré-preenchido + regista
-  // comunicação outbound automaticamente, fechando o loop S452.
+  // Estados cobertos: 1 (Diagnóstico), 2 (AguardaPeça), 4 (Pronto). Click abre WhatsApp
+  // pré-preenchido + regista comunicação outbound automaticamente, fechando o loop S452.
   const aviso = reparacaoEstado != null && waNumber
-    ? buildAvisoPorEstado(reparacaoEstado, { clienteNome, equipamento: reparacaoEquipamento, numero: reparacaoNumero })
+    ? buildAvisoPorEstado(reparacaoEstado, {
+        clienteNome,
+        equipamento: reparacaoEquipamento,
+        numero: reparacaoNumero,
+        lojaNome: tenant.data?.name,
+        templateTexto: getTemplateTexto(prefs.data?.communication.templatesByState, reparacaoEstado),
+      })
     : null;
   const waAvisoLink = aviso && waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(aviso.mensagem)}` : null;
 
@@ -305,50 +326,99 @@ function Select({
 }
 
 /**
- * Sprint 456+457: mensagens default por estado. Tom direto, pt-PT, sem horário
- * (varia por loja — cliente pode editar no WhatsApp antes de enviar; wa.me/?text=
- * pré-preenche apenas).
+ * Sprint 456+457+459: mensagens por estado.
  *
- * Estados cobertos:
- *   1 — Diagnóstico: técnico terminou avaliação, aguarda decisão do cliente
- *   2 — AguardaPeça: peça encomendada, prazo estimado
- *   4 — Pronto: cliente pode levantar
+ * Estratégia S459: se houver template configurado em /definicoes
+ * (TenantPreferences.Communication.TemplatesByState) e estiver enabled, USA-O.
+ * Senão fallback para o default hardcoded (Sprint 456/457).
+ *
+ * Em ambos os casos substitui placeholders {{cliente_nome}}, {{equipamento}},
+ * {{loja_nome}}. Outros placeholders (valor, prazo, peca_nome, horario) ficam
+ * preservados literais para o Bruno editar no WhatsApp antes de enviar.
  *
  * Devolve null para estados sem CTA específico.
  */
 function buildAvisoPorEstado(
   estado: number,
-  opts: { clienteNome?: string; equipamento?: string; numero?: number },
+  opts: { clienteNome?: string; equipamento?: string; numero?: number; lojaNome?: string; templateTexto?: string | null },
 ): { mensagem: string; label: string; cor: string; notaLog: string } | null {
-  const saudacao = opts.clienteNome ? `Olá ${opts.clienteNome.split(' ')[0]}` : 'Olá';
-  const equipamento = opts.equipamento ? ` do seu ${opts.equipamento}` : '';
-  const ref = opts.numero != null ? ` (Ref. R-${String(opts.numero).padStart(5, '0')})` : '';
-  switch (estado) {
-    case 1: // Diagnóstico
-      return {
-        mensagem: `${saudacao}, terminámos o diagnóstico${equipamento}${ref}. Vamos enviar o orçamento em breve para aprovação. Obrigado!`,
-        label: 'Avisar diagnóstico',
-        cor: 'bg-sky-600 hover:bg-sky-700',
-        notaLog: 'Avisei cliente via WhatsApp que o diagnóstico está concluído.',
-      };
-    case 2: // AguardaPeça
-      return {
-        mensagem: `${saudacao}, a peça${equipamento ? ' para a sua reparação' : ''} foi encomendada${ref}. Estimativa de chegada: 3 a 5 dias úteis. Damos novidades assim que receber. Obrigado pela paciência!`,
-        label: 'Avisar peça',
-        cor: 'bg-amber-600 hover:bg-amber-700',
-        notaLog: 'Avisei cliente via WhatsApp que a peça foi encomendada.',
-      };
-    case 4: // Pronto
-      return {
-        mensagem: `${saudacao}, a reparação${equipamento} está pronta para levantar${ref}. Aguardamos a sua visita à loja. Obrigado!`,
-        label: 'Avisar pronto',
-        cor: 'bg-emerald-600 hover:bg-emerald-700',
-        notaLog: 'Avisei cliente via WhatsApp que a reparação está pronta para levantar.',
-      };
-    default:
-      return null;
-  }
+  const meta = STATE_AVISO_META[estado];
+  if (!meta) return null;
+
+  // S459: template do tenant tem prioridade.
+  const base = opts.templateTexto && opts.templateTexto.trim().length > 0
+    ? opts.templateTexto
+    : meta.defaultTemplate(opts.numero);
+
+  const mensagem = applyPlaceholders(base, {
+    clienteNome: opts.clienteNome,
+    equipamento: opts.equipamento,
+    lojaNome: opts.lojaNome,
+  });
+
+  return { mensagem, label: meta.label, cor: meta.cor, notaLog: meta.notaLog };
 }
+
+/**
+ * Sprint 459: substitui {{cliente_nome}}, {{equipamento}}, {{loja_nome}} num template.
+ * Outros placeholders ({{valor}}, {{prazo_estimado}}, {{peca_nome}}, etc) ficam intactos —
+ * o staff edita-os no WhatsApp antes de enviar (wa.me/?text= só pré-preenche).
+ */
+function applyPlaceholders(template: string, opts: { clienteNome?: string; equipamento?: string; lojaNome?: string }): string {
+  return template
+    .replace(/\{\{\s*cliente_nome\s*\}\}/gi, opts.clienteNome?.split(' ')[0] ?? 'cliente')
+    .replace(/\{\{\s*equipamento\s*\}\}/gi, opts.equipamento ?? 'equipamento')
+    .replace(/\{\{\s*loja_nome\s*\}\}/gi, opts.lojaNome ?? 'loja');
+}
+
+/** Sprint 459: meta por estado — label/cor para o botão, notaLog para o histórico, default template. */
+const STATE_AVISO_META: Record<number, { label: string; cor: string; notaLog: string; defaultTemplate: (numero?: number) => string }> = {
+  1: {
+    label: 'Avisar diagnóstico',
+    cor: 'bg-sky-600 hover:bg-sky-700',
+    notaLog: 'Avisei cliente via WhatsApp que o diagnóstico está concluído.',
+    defaultTemplate: (n) => `Olá {{cliente_nome}}, terminámos o diagnóstico do seu {{equipamento}}${refSuffix(n)}. Vamos enviar o orçamento em breve para aprovação. Obrigado!`,
+  },
+  2: {
+    label: 'Avisar peça',
+    cor: 'bg-amber-600 hover:bg-amber-700',
+    notaLog: 'Avisei cliente via WhatsApp que a peça foi encomendada.',
+    defaultTemplate: (n) => `Olá {{cliente_nome}}, a peça para a reparação do seu {{equipamento}} foi encomendada${refSuffix(n)}. Estimativa de chegada: 3 a 5 dias úteis. Damos novidades assim que receber. Obrigado pela paciência!`,
+  },
+  4: {
+    label: 'Avisar pronto',
+    cor: 'bg-emerald-600 hover:bg-emerald-700',
+    notaLog: 'Avisei cliente via WhatsApp que a reparação está pronta para levantar.',
+    defaultTemplate: (n) => `Olá {{cliente_nome}}, a reparação do seu {{equipamento}} está pronta para levantar na {{loja_nome}}${refSuffix(n)}. Aguardamos a sua visita. Obrigado!`,
+  },
+};
+
+function refSuffix(numero?: number): string {
+  return numero != null ? ` (Ref. R-${String(numero).padStart(5, '0')})` : '';
+}
+
+/** Sprint 459: lookup do texto de template para o estado da reparação. Devolve null se não enabled ou não existe. */
+function getTemplateTexto(
+  templates: Record<string, { enabled: boolean; texto: string }> | undefined,
+  estado: number,
+): string | null {
+  if (!templates) return null;
+  const key = STATE_KEY_BY_INT[estado];
+  if (!key) return null;
+  const t = templates[key];
+  return t && t.enabled ? t.texto : null;
+}
+
+const STATE_KEY_BY_INT: Record<number, string> = {
+  0: 'Recebido',
+  1: 'Diagnostico',
+  2: 'AguardaPeca',
+  3: 'EmReparacao',
+  4: 'Pronto',
+  5: 'Entregue',
+  6: 'Cancelado',
+  7: 'Orcamento',
+};
 
 /** Normaliza um telefone PT para `wa.me/351XXXXXXXXX`. Aceita "+351 9X X XX XX" etc. */
 function normalizeWaNumber(raw: string): string | null {
