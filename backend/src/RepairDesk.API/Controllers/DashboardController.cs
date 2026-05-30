@@ -49,6 +49,50 @@ public class DashboardController : ControllerBase
     public Task<AlertasResponse> GetAlertas(CancellationToken ct) => _service.GetAlertasAsync(ct);
 
     /// <summary>
+    /// Sprint 467 (Doc 90 Tier 2 #6 extensão): Devices com GarantiaFabricanteUntil
+    /// entre hoje e hoje+N dias (default 30). Permite ao Bruno contactar o cliente
+    /// para oferecer "garantia loja" antes do fabricante acabar — oportunidade de
+    /// cross-sell. Ignora arquivados.
+    /// </summary>
+    [HttpGet("devices-garantia-a-expirar")]
+    public async Task<DevicesGarantiaAExpirarResponse> GetDevicesGarantiaAExpirar(
+        [FromQuery] int days = 30,
+        [FromQuery] int limit = 30,
+        [FromServices] AppDbContext db = null!,
+        CancellationToken ct = default)
+    {
+        var janela = Math.Clamp(days, 1, 365);
+        var pageSize = Math.Clamp(limit, 1, 100);
+        var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
+        var cutoff = hoje.AddDays(janela);
+
+        var baseQ = db.Devices
+            .AsNoTracking()
+            .Where(d => !d.Arquivado
+                && d.GarantiaFabricanteUntil != null
+                && d.GarantiaFabricanteUntil >= hoje
+                && d.GarantiaFabricanteUntil <= cutoff);
+
+        var total = await baseQ.CountAsync(ct);
+        var items = await baseQ
+            .OrderBy(d => d.GarantiaFabricanteUntil)
+            .Take(pageSize)
+            .Select(d => new DeviceGarantiaItem(
+                d.Id,
+                d.ClienteId,
+                d.Cliente!.Nome,
+                d.Tipo,
+                d.Marca,
+                d.Modelo,
+                d.Apelido,
+                d.Imei,
+                d.GarantiaFabricanteUntil!.Value))
+            .ToListAsync(ct);
+
+        return new DevicesGarantiaAExpirarResponse(items, total, janela);
+    }
+
+    /// <summary>
     /// Sprint 460 (Doc 91 follow-up): reparações em estado comunicável há > N horas sem
     /// comunicação Outbound desde a mudança. Mesma lógica do cron S458 — mas devolve a
     /// lista ao Dashboard em vez de só um push. Bruno clica num item → vai ao detalhe →

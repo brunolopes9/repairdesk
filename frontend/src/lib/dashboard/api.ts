@@ -119,6 +119,12 @@ export const dashboardApi = {
       .get<AvisosPendentesResponse>('/dashboard/avisos-pendentes', { params: { horas, limit } })
       .then((r) => r.data);
   },
+  // Sprint 467: Devices com garantia fabricante a expirar (oportunidade cross-sell).
+  devicesGarantiaAExpirar(days = 30, limit = 30) {
+    return api
+      .get<DevicesGarantiaAExpirarResponse>('/dashboard/devices-garantia-a-expirar', { params: { days, limit } })
+      .then((r) => r.data);
+  },
   tendencia(meses = 6) {
     return api.get<TendenciaResponse>('/dashboard/tendencia', { params: { meses } }).then((r) => r.data);
   },
@@ -260,6 +266,24 @@ export interface AvisosPendentesResponse {
   items: AvisoPendenteItem[];
   totalCount: number;
   horasLimite: number;
+}
+
+// Sprint 467: devices com garantia fabricante a expirar.
+export interface DeviceGarantiaItem {
+  deviceId: string;
+  clienteId: string;
+  clienteNome: string;
+  tipo: string;
+  marca: string | null;
+  modelo: string | null;
+  apelido: string | null;
+  imei: string | null;
+  garantiaFabricanteUntil: string; // ISO date "yyyy-MM-dd"
+}
+export interface DevicesGarantiaAExpirarResponse {
+  items: DeviceGarantiaItem[];
+  totalCount: number;
+  diasJanela: number;
 }
 
 export interface MesFinanceiro {

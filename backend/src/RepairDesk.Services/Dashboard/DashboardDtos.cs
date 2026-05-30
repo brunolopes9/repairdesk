@@ -62,6 +62,23 @@ public sealed record AvisosPendentesResponse(
     int TotalCount,
     int HorasLimite);
 
+/// <summary>Sprint 467: Devices com garantia do fabricante a expirar nos próximos N dias.</summary>
+public sealed record DevicesGarantiaAExpirarResponse(
+    IReadOnlyList<DeviceGarantiaItem> Items,
+    int TotalCount,
+    int DiasJanela);
+
+public sealed record DeviceGarantiaItem(
+    Guid DeviceId,
+    Guid ClienteId,
+    string ClienteNome,
+    string Tipo,
+    string? Marca,
+    string? Modelo,
+    string? Apelido,
+    string? Imei,
+    DateOnly GarantiaFabricanteUntil);
+
 /// <summary>
 /// Sprint 460: reparação em estado comunicável (Diagnóstico/AguardaPeça/Pronto) há > N horas
 /// sem comunicação Outbound desde a mudança de estado. Espelha a lógica do cron S458 mas

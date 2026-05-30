@@ -168,6 +168,13 @@ export default function Dashboard() {
     staleTime: 60_000,
   });
   const avisosPendentesCount = avisosPendentesQuery.data?.totalCount ?? 0;
+  // Sprint 467: Devices com garantia fabricante a expirar (cross-sell oportunidade).
+  const garantiaFabricanteQuery = useQuery({
+    queryKey: ['dashboard-devices-garantia-expirar'],
+    queryFn: () => dashboardApi.devicesGarantiaAExpirar(30, 30),
+    staleTime: 5 * 60_000,
+  });
+  const garantiaFabricanteCount = garantiaFabricanteQuery.data?.totalCount ?? 0;
   const STALLED_DAYS = 5; // alinhado com S392 default StalledRepairs:Days
   const reparacoesParadasCount = useMemo(() => {
     const cutoff = Date.now() - STALLED_DAYS * 86_400_000;
@@ -565,7 +572,7 @@ export default function Dashboard() {
             // Sprint 431: novos sinais (alinhados com os crons S392/S428/S430).
             const totalAlertas = expiramGar + stockCritico + faturasPend
               + reparacoesParadasCount + tarefasAtrasadasCount + cobrancasEmAtrasoCount + porLevantarCount
-              + avisosPendentesCount;
+              + avisosPendentesCount + garantiaFabricanteCount;
             if (totalAlertas === 0) return <p className="py-6 text-center text-sm text-zinc-500">Sem alertas — tudo em dia ✓</p>;
             return (
               <ul className="space-y-2">
@@ -634,6 +641,18 @@ export default function Dashboard() {
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium text-amber-900 dark:text-amber-100">{cobrancasEmAtrasoCount} cobrança{cobrancasEmAtrasoCount === 1 ? '' : 's'} em atraso</span>
                         <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Entregue / Concluído mas por pagar</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {/* Sprint 467: Devices com garantia fabricante a expirar — oportunidade cross-sell. */}
+                {garantiaFabricanteCount > 0 && (
+                  <li>
+                    <Link to="/clientes" className="flex items-center gap-2.5 rounded-lg bg-purple-50 px-2.5 py-2 text-sm transition hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300"><ShieldCheck size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-purple-900 dark:text-purple-100">{garantiaFabricanteCount} garantia{garantiaFabricanteCount === 1 ? '' : 's'} fabricante a expirar (30d)</span>
+                        <span className="block text-[11px] text-purple-700/80 dark:text-purple-300/80">Oferecer garantia loja antes do fabricante acabar</span>
                       </span>
                     </Link>
                   </li>
