@@ -803,6 +803,21 @@ function CreateReparacaoModal({
     staleTime: 60_000,
   });
   const equipamentosRecentes = clienteId ? (equipamentosCliente.data ?? []) : [];
+
+  // Sprint 469: Devices registados do cliente (asset registry S461). Mostra-os como
+  // botões de quick-fill ao lado dos equipamentos derived — distinguíveis por badge
+  // "Registado" e por terem nome/apelido em vez de descrição genérica.
+  const devicesCliente = useQuery({
+    queryKey: ['cliente-devices', clienteId, 'nova-reparacao'],
+    queryFn: () => devicesApi.listByCliente(clienteId!, false),
+    enabled: open && !!clienteId,
+    staleTime: 60_000,
+  });
+  const devicesRegistados = clienteId ? (devicesCliente.data ?? []) : [];
+  // Dedupe contra equipamentosRecentes por IMEI — se Device já tem IMEI que está em
+  // equipamentos derived, mostra só Device (mais rico, tem apelido).
+  const imeisDosDevices = new Set(devicesRegistados.map((d) => d.imei).filter(Boolean) as string[]);
+  const equipamentosDerivedSemDevice = equipamentosRecentes.filter((eq) => !eq.imei || !imeisDosDevices.has(eq.imei));
   const selectedCliente = clientes.data?.items.find((c) => c.id === clienteId) ?? null;
 
   const templates = useQuery({
@@ -945,19 +960,45 @@ function CreateReparacaoModal({
           )}
         </div>
 
-        {clienteId && equipamentosRecentes.length > 0 && (
+        {clienteId && (devicesRegistados.length > 0 || equipamentosDerivedSemDevice.length > 0) && (
           <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Equipamentos recentes</div>
-                <div className="text-xs text-zinc-500">Escolhe um para preencher equipamento e IMEI automaticamente.</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Equipamentos do cliente</div>
+                <div className="text-xs text-zinc-500">Escolhe um para preencher equipamento e IMEI. Registados (S461) primeiro, depois derivados de reparações/vendas.</div>
               </div>
-              {equipamentosCliente.isFetching && (
+              {(equipamentosCliente.isFetching || devicesCliente.isFetching) && (
                 <span className="text-[11px] text-zinc-400">A atualizar...</span>
               )}
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {equipamentosRecentes.map((eq) => (
+              {/* Sprint 469: Devices registados primeiro — info mais rica (apelido, garantia). */}
+              {devicesRegistados.map((d) => {
+                const nome = [d.marca, d.modelo].filter(Boolean).join(' ') || d.tipo;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => {
+                      setEquipamento(nome);
+                      if (d.imei) setImei(d.imei);
+                    }}
+                    className="min-h-11 rounded-lg border border-sky-200 bg-sky-50/50 px-3 py-2 text-left text-sm transition hover:border-sky-400 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:border-sky-900/40 dark:bg-sky-950/20 dark:hover:border-sky-700 dark:hover:bg-sky-950/40"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{nome}</span>
+                      <span className="rounded bg-sky-100 px-1 py-0.5 text-[9px] font-semibold text-sky-700 dark:bg-sky-900/60 dark:text-sky-300">REGISTADO</span>
+                    </div>
+                    {d.apelido && <div className="text-[11px] text-zinc-500">"{d.apelido}"</div>}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-zinc-500">
+                      {d.imei && <span className="font-mono">{d.imei}</span>}
+                      {d.cor && <span>· {d.cor}</span>}
+                    </div>
+                  </button>
+                );
+              })}
+              {/* Derived (sem Device match) a seguir. */}
+              {equipamentosDerivedSemDevice.map((eq) => (
                 <button
                   key={`${eq.nome}-${eq.imei ?? 'sem-imei'}`}
                   type="button"
