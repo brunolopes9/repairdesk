@@ -298,6 +298,9 @@ try
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueInvoicesHostedService>();
         // Sprint 441 (Doc 91 follow-up): digest diário de reparações Pronto há +N dias sem ser levantadas.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ReadyForPickupHostedService>();
+        // Sprint 458 (Doc 91 ponto 3 — lembretes): digest diário de reparações em estado
+        // comunicável há > 8h sem comunicação Outbound. Fecha o loop com os CTAs S456/S457.
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.ClienteNotificarPendingHostedService>();
     }
 
     // Diagnóstico guiado + Health Score
