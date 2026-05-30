@@ -29,6 +29,7 @@ import AssignTecnicoModal from '../../components/reparacoes/AssignTecnicoModal';
 import ReparacaoTagsEditor from '../../components/reparacoes/ReparacaoTagsEditor';
 import { ReparacaoTarefasSection } from './ReparacaoTarefasSection';
 import { ReparacaoComunicacoesSection } from './ReparacaoComunicacoesSection';
+import { ReparacaoOtherDevicesSection } from './ReparacaoOtherDevicesSection';
 import SignaturePadModal from '../../components/signatures/SignaturePadModal';
 import EmailMenu from '../../components/EmailMenu';
 import ReparacaoTimer from '../../components/reparacoes/ReparacaoTimer';
@@ -1074,6 +1075,9 @@ export default function ReparacaoDetalhe() {
         reparacaoNumero={r.numero}
         reparacaoEquipamento={r.equipamento}
       />
+
+      {/* Sprint 466: outros Devices registados do cliente (cross-rep contexto). */}
+      <ReparacaoOtherDevicesSection clienteId={r.cliente.id} reparacaoImei={r.imei} />
 
       {/* Sprint 452 (Doc 91 ponto 1) + Sprint 456 (Avisar pronto CTA): comunicações com cliente. */}
       <ReparacaoComunicacoesSection
