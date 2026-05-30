@@ -301,6 +301,9 @@ try
         // Sprint 458 (Doc 91 ponto 3 — lembretes): digest diário de reparações em estado
         // comunicável há > 8h sem comunicação Outbound. Fecha o loop com os CTAs S456/S457.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ClienteNotificarPendingHostedService>();
+        // Sprint 468 (Doc 90 Tier 2 #6 — cross-sell): digest Devices em fim de garantia
+        // fabricante (próximos N dias). Combina com widget S467 no Dashboard.
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.DeviceGarantiaFabricanteExpiryHostedService>();
     }
 
     // Diagnóstico guiado + Health Score
