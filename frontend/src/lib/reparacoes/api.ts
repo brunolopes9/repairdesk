@@ -10,13 +10,14 @@ import type {
 import type { EquipmentFieldValue, SetEquipmentFieldValue } from '../equipmentFields/types';
 
 export const reparacoesApi = {
-  list(filters: { q?: string; estado?: RepairStatus | null; clienteId?: string; page?: number; pageSize?: number } = {}) {
+  list(filters: { q?: string; estado?: RepairStatus | null; clienteId?: string; categoria?: number | null; page?: number; pageSize?: number } = {}) {
     return api
       .get<ReparacoesPage>('/reparacoes', {
         params: {
           q: filters.q || undefined,
           estado: filters.estado ?? undefined,
           clienteId: filters.clienteId || undefined,
+          categoria: filters.categoria ?? undefined, // Sprint 477: DeviceCategory filter
           page: filters.page ?? 1,
           pageSize: filters.pageSize ?? 20,
         },

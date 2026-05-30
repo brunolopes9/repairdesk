@@ -120,6 +120,8 @@ export default function Reparacoes() {
   });
   const [bucket, setBucket] = useState<Bucket>('emcurso');
   const [estado, setEstado] = useState<RepairStatus | null>(null);
+  // Sprint 477: filter por categoria (DeviceCategory) — null = todas.
+  const [categoriaFiltro, setCategoriaFiltro] = useState<number | null>(null);
   function setBucketTo(b: Bucket) { setBucket(b); setEstado(null); setPage(1); }
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -185,21 +187,21 @@ export default function Reparacoes() {
     },
   });
 
-  // List view: paginação. Kanban: queries por coluna (até 50 cada).
+  // List view: paginação. Kanban: queries por coluna (até 50 cada). Sprint 477: filter categoria.
   const list = useQuery({
-    queryKey: ['reparacoes', estado, search, page],
-    queryFn: () => reparacoesApi.list({ q: search, estado, page, pageSize: 20 }),
+    queryKey: ['reparacoes', estado, search, page, categoriaFiltro],
+    queryFn: () => reparacoesApi.list({ q: search, estado, categoria: categoriaFiltro, page, pageSize: 20 }),
     placeholderData: keepPreviousData,
     enabled: view === 'list',
     ...liveListOptions,
   });
 
   const kanban = useQuery({
-    queryKey: ['reparacoes-kanban', search],
+    queryKey: ['reparacoes-kanban', search, categoriaFiltro],
     queryFn: async () => {
       const pages = await Promise.all(
         KANBAN_COLUMNS.map((c) =>
-          reparacoesApi.list({ q: search, estado: c.estado, pageSize: 50 }).then((p) => ({ estado: c.estado, items: p.items })),
+          reparacoesApi.list({ q: search, estado: c.estado, categoria: categoriaFiltro, pageSize: 50 }).then((p) => ({ estado: c.estado, items: p.items })),
         ),
       );
       const map = new Map<RepairStatus, Reparacao[]>();
@@ -433,6 +435,38 @@ export default function Reparacoes() {
           </div>
         </div>
       )}
+
+      {/* Sprint 477: chips de filtro por categoria (DeviceCategory do S475). Aparece em list e kanban. */}
+      <div className="-mx-4 overflow-x-auto px-4 pb-1">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-zinc-500">Tipo:</span>
+          {[
+            { value: null, label: 'Todos' },
+            { value: DEVICE_CATEGORY.Smartphone, label: DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Smartphone] },
+            { value: DEVICE_CATEGORY.Tablet, label: DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Tablet] },
+            { value: DEVICE_CATEGORY.Laptop, label: DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Laptop] },
+            { value: DEVICE_CATEGORY.Smartwatch, label: DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Smartwatch] },
+            { value: DEVICE_CATEGORY.Consola, label: DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Consola] },
+            { value: DEVICE_CATEGORY.Outro, label: DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Outro] },
+          ].map((c) => {
+            const active = categoriaFiltro === c.value;
+            return (
+              <button
+                key={c.label}
+                type="button"
+                onClick={() => { setCategoriaFiltro(c.value); setPage(1); }}
+                className={`min-h-8 whitespace-nowrap rounded-full px-2.5 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
+                  active
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                }`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="relative">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
