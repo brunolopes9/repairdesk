@@ -256,6 +256,8 @@ try
     builder.Services.AddScoped<IVendaPdfService, VendaPdfService>();
     // Sprint 450 (Doc 91 ponto 4): comprovativo de entrada de equipamento.
     builder.Services.AddScoped<IEntradaPdfService, EntradaPdfService>();
+    // Sprint 451 (Doc 91 ponto 4 — par de S450): recibo de entrega.
+    builder.Services.AddScoped<IEntregaPdfService, EntregaPdfService>();
 
     // Tenant settings
     builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();

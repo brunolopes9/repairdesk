@@ -631,6 +631,15 @@ export default function ReparacaoDetalhe() {
           >
             <Printer size={11} /> Comprovativo entrada
           </button>
+          {/* Sprint 451 (Doc 91 ponto 4): recibo de entrega A4 (par de S450) — útil quando cliente vem buscar. */}
+          <button
+            type="button"
+            onClick={() => openPdfInNewTab(`/reparacoes/${r.id}/entrega.pdf`).catch((e) => toast.error(e instanceof Error ? e.message : 'Erro a gerar recibo.'))}
+            className="inline-flex items-center gap-1 rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            title="Recibo de entrega A4 — cliente assina quando levanta o equipamento"
+          >
+            <Printer size={11} /> Recibo entrega
+          </button>
         </div>
 
         {/* Sprint 343: técnico atribuído (Admin pode editar). */}

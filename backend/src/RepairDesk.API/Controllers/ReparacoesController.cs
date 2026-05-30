@@ -104,6 +104,14 @@ public class ReparacoesController : ControllerBase
         return File(pdf, "application/pdf", filename);
     }
 
+    /// <summary>Sprint 451 (Doc 91 ponto 4 — par de S450): PDF "Recibo de entrega" quando o cliente vem buscar o equipamento.</summary>
+    [HttpGet("{id:guid}/entrega.pdf")]
+    public async Task<IActionResult> EntregaPdf(Guid id, [FromServices] IEntregaPdfService entrega, CancellationToken ct)
+    {
+        var (pdf, filename) = await entrega.ForReparacaoAsync(id, ct);
+        return File(pdf, "application/pdf", filename);
+    }
+
     [HttpPost("{id:guid}/emitir-fatura")]
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
         => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);
