@@ -168,6 +168,67 @@ clientes nao vem buscar.
    - Entrada de equipamento, recibo de entrega, etiquetas, termos de garantia.
    - ROAPP e forte nisto; Mender pode ganhar por ter Moloni/AT/RGPD melhor.
 
+## Sessão 2026-05-30 — Loops Comunicações + Devices (S450-S473, 25 sprints)
+
+Dois loops completos sobre a fundação do Doc 91:
+
+### Loop A — Comunicações cliente (Doc 91 ponto 1, S452-S460 + S471)
+- **S450/S451** PDFs Comprovativo entrada + Recibo entrega (ponto 4)
+- **S452** Entity `ReparacaoComunicacao` (Tipo Nota/Telefone/WhatsApp/Email/SMS/Visita
+  + Direção Inbound/Outbound/Interna + Texto) com endpoint nested
+  `/api/reparacoes/{id}/comunicacoes`
+- **S453** Vista agregada `/api/clientes/{id}/comunicacoes` + secção na ficha cliente
+- **S454** (Codex paralelo) Follow-up date + pesquisa local em PedidosOnline
+- **S455** 6 tests (CRUD + tenant isolation + validação)
+- **S456/S457** CTAs WhatsApp contextuais por estado (Diag azul, AP âmbar, Pronto verde):
+  click abre `wa.me/?text=` pré-preenchido + cria Outbound automaticamente
+- **S458** Cron `ClienteNotificarPendingHostedService` (24h, 8h threshold): push
+  staff quando reparações em estado comunicável sem Outbound desde EstadoSince
+- **S459** CTAs usam templates do tenant (`TenantPreferences.Communication.
+  TemplatesByState` — S398) em vez de hardcoded. Placeholders substituídos
+- **S460** Widget Dashboard "X clientes a avisar" (reuso lógica S458)
+- **S471** Email CTA (par do WhatsApp via `mailto:`) usando mesmo template
+
+### Loop B — Device asset registry (Doc 90 Tier 2 #6, S461-S473 sem 470)
+- **S461** Entity `Device` persistente: TenantId+ClienteId+Tipo+Marca/Modelo+
+  Apelido+IMEI+Serial+Cor+DataAquisicao+GarantiaFabricanteUntil+Arquivado.
+  IMEI único per-tenant. CRUD endpoint
+- **S462** UI gestão na ficha cliente (grid cards, modal create/edit, badge
+  Shield ✓/✗ por validade)
+- **S463** 9 tests (CRUD + IMEI duplicado 422 + cliente 404 + tenant isolation)
+- **S464** Endpoint `GET /api/devices/by-imei/{imei}` (204 inexistente, 200 com
+  ClienteNome) para auto-link
+- **S465** Banner azul no modal Nova reparação: "Este IMEI é do {Apelido} de
+  {Cliente}" + botão pré-preenche cliente
+- **S466** Secção "Outros equipamentos do cliente" no ReparacaoDetalhe
+- **S467** Widget Dashboard purple "X garantias fabricante a expirar (30d)" —
+  cross-sell oportunidade (vender garantia loja antes da fabricante acabar)
+- **S468** Cron `DeviceGarantiaFabricanteExpiryHostedService` + 3 tests endpoint
+- **S469** Devices REGISTADOS aparecem primeiro no autocomplete do modal
+  (dedupe por IMEI vs derived de reparações/vendas)
+- **S470** 6 KPIs no header cliente (era 4): + Equipamentos + Contactos 30d
+- **S472** Footer brand no DeviceCard: "🔧 N reparações com este IMEI" + link
+  "ver última" (reuso S65 historicoImei)
+- **S473** Banner azul "Registar este equipamento" no ReparacaoDetalhe quando
+  IMEI não tem Device match. Heurística marca/modelo do equipamento
+
+**Link bidireccional Reparação↔Device descobrível em 5 sítios:** ficha cliente
+(gestão), detalhe reparação (outros equipamentos + registar), modal Nova
+reparação (banner IMEI + autocomplete), Dashboard (cross-sell garantia).
+
+### Saúde técnica
+- **535/535 tests verde** (528 pré + S455:6 + S463:9 + S468:3)
+- Frontend build verde em todos os commits
+- Roles matrix snapshot atualizado 3× (9f1bcd → d0397b → 63b91bc9 → 9f36bdc7 →
+  e703c47b por DeviceController, by-imei, devices-garantia-a-expirar)
+- Patterns reusados: HostedService cron (5× now: S392/S428/S441/S458/S468),
+  audit log, IClassFixture EF + Bearer
+
+### Pendente próximo
+- Push origin (94+ commits ahead — Bruno aguarda confirmação)
+- Vitest setup frontend (testes UI) — futuro
+- Doc 90 Tier 3 (Chats omnichannel real, AI replies) — fora scope hoje
+
 ## Guardrails
 
 - Nao copiar ROAPP horizontal demais. Mender deve continuar vertical para lojas/reparacao em Portugal.
