@@ -15,6 +15,12 @@ public class Reparacao : BaseEntity, ITenantEntity
     public EquipmentFieldTemplate? EquipmentFieldTemplate { get; set; }
 
     public required string Equipamento { get; set; }
+    /// <summary>
+    /// Sprint 475 (Bruno braindump): categoria estruturada do equipamento (vs texto livre
+    /// Equipamento). Nullable para back-compat com reparações antigas. Reusa o enum
+    /// DeviceCategory já usado em PriceTable/Diagnostico/EquipmentFieldTemplate.
+    /// </summary>
+    public DeviceCategory? Categoria { get; set; }
     public string? Imei { get; set; }
     public required string Avaria { get; set; }
     public string? Diagnostico { get; set; }

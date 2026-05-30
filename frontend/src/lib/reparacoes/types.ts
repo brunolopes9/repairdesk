@@ -143,6 +143,8 @@ export interface Reparacao {
   previstoEntregueEm: string | null;
   /** Sprint 474: estado físico ao receber (rachado/riscado/sem acessórios). Distinto de diagnostico. */
   estadoFisicoInicial: string | null;
+  /** Sprint 475: categoria estruturada (DeviceCategory enum 0-5/99). Null = não classificado. */
+  categoria: number | null;
 }
 
 export interface ReparacaoDetalhada {
@@ -179,6 +181,8 @@ export interface CreateReparacaoForm {
   fields?: SetEquipmentFieldValue[] | null;
   /** Sprint 474: estado físico observado na recepção. */
   estadoFisicoInicial?: string | null;
+  /** Sprint 475: categoria estruturada (DeviceCategory). */
+  categoria?: number | null;
 }
 
 export interface UpdateReparacaoForm {
@@ -200,6 +204,29 @@ export interface UpdateReparacaoForm {
   previstoEntregueEm?: string | null;
   /** Sprint 474: estado físico inicial observado na recepção. */
   estadoFisicoInicial?: string | null;
+  /** Sprint 475: categoria estruturada (DeviceCategory). */
+  categoria?: number | null;
 }
+
+/** Sprint 475: DeviceCategory enum (alinhado com backend). */
+export const DEVICE_CATEGORY = {
+  Smartphone: 0,
+  Tablet: 1,
+  Laptop: 2,
+  Desktop: 3,
+  Smartwatch: 4,
+  Consola: 5,
+  Outro: 99,
+} as const;
+
+export const DEVICE_CATEGORY_LABEL: Record<number, string> = {
+  0: 'Telemóvel',
+  1: 'Tablet',
+  2: 'Portátil',
+  3: 'Desktop',
+  4: 'Smartwatch',
+  5: 'Consola',
+  99: 'Outro',
+};
 
 export type ReparacoesPage = PagedResult<Reparacao>;

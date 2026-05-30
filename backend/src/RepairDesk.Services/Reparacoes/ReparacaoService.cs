@@ -413,6 +413,7 @@ public class ReparacaoService : IReparacaoService
             PrecoFinalCents = req.OrcamentoCents,
             Notas = req.Notas?.Trim(),
             EstadoFisicoInicial = string.IsNullOrWhiteSpace(req.EstadoFisicoInicial) ? null : req.EstadoFisicoInicial.Trim(),
+            Categoria = req.Categoria, // Sprint 475
             Estado = estadoInicial,
             EstadoSince = now,
             PublicSlug = PublicSlugGenerator.New(),
@@ -465,6 +466,8 @@ public class ReparacaoService : IReparacaoService
         // Sprint 474: estado físico inicial (separado de Diagnostico).
         if (req.EstadoFisicoInicial is not null)
             rep.EstadoFisicoInicial = string.IsNullOrWhiteSpace(req.EstadoFisicoInicial) ? null : req.EstadoFisicoInicial.Trim();
+        // Sprint 475: categoria estruturada (overwrite mesmo se null — permite limpar).
+        rep.Categoria = req.Categoria;
 
         await _repo.SaveAsync(ct);
         IReadOnlyList<EquipmentFieldValueDto>? fields = null;
@@ -1146,6 +1149,7 @@ public class ReparacaoService : IReparacaoService
                 .Select(a => new TagSummaryDto(a.ReparacaoTag!.Id, a.ReparacaoTag.Nome, a.ReparacaoTag.CorHex))
                 .ToList(),
             r.PrevistoEntregueEm,
-            r.EstadoFisicoInicial);
+            r.EstadoFisicoInicial,
+            r.Categoria);
     }
 }

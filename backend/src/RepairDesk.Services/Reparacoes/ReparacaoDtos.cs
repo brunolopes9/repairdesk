@@ -24,7 +24,9 @@ public sealed record CreateReparacaoRequest(
     Guid? EquipmentFieldTemplateId = null,
     IReadOnlyList<SetEquipmentFieldValueRequest>? Fields = null,
     /// <summary>Sprint 474: estado físico inicial (rachado, riscado, sem acessórios, etc). Distinto de Diagnostico (depois).</summary>
-    string? EstadoFisicoInicial = null);
+    string? EstadoFisicoInicial = null,
+    /// <summary>Sprint 475: categoria estruturada (DeviceCategory enum) — Smartphone/Tablet/Laptop/etc.</summary>
+    DeviceCategory? Categoria = null);
 
 public sealed record UpdateReparacaoRequest(
     string Equipamento,
@@ -44,7 +46,9 @@ public sealed record UpdateReparacaoRequest(
     /// <summary>Sprint 419: ETA de entrega para o calendário interno.</summary>
     DateTime? PrevistoEntregueEm = null,
     /// <summary>Sprint 474: estado físico inicial observado na recepção (separado de Diagnostico).</summary>
-    string? EstadoFisicoInicial = null);
+    string? EstadoFisicoInicial = null,
+    /// <summary>Sprint 475: categoria estruturada (DeviceCategory).</summary>
+    DeviceCategory? Categoria = null);
 
 public sealed record ChangeEstadoRequest(RepairStatus Estado, string? Notas);
 
@@ -102,7 +106,9 @@ public sealed record ReparacaoDto(
     /// <summary>Sprint 419: ETA de entrega para o calendário (null = sem ETA).</summary>
     DateTime? PrevistoEntregueEm = null,
     /// <summary>Sprint 474: estado físico inicial observado na recepção (riscos, mossas, acessórios).</summary>
-    string? EstadoFisicoInicial = null);
+    string? EstadoFisicoInicial = null,
+    /// <summary>Sprint 475: categoria estruturada (DeviceCategory) — null se não classificado.</summary>
+    DeviceCategory? Categoria = null);
 
 public sealed record ReparacaoDetalhadaDto(
     ReparacaoDto Reparacao,

@@ -45,6 +45,8 @@ import { downloadFile } from '../../lib/downloadPdf';
 import {
   STATUS_LABEL,
   STATUS_COLOR,
+  DEVICE_CATEGORY,
+  DEVICE_CATEGORY_LABEL,
   type Reparacao,
   type RepairStatus,
 } from '../../lib/reparacoes/types';
@@ -748,6 +750,8 @@ function CreateReparacaoModal({
   const [avaria, setAvaria] = useState('');
   // Sprint 474: estado físico inicial (separado de Diagnostico = depois).
   const [estadoFisicoInicial, setEstadoFisicoInicial] = useState('');
+  // Sprint 475: categoria DeviceCategory (null = não classificado).
+  const [categoria, setCategoria] = useState<number | null>(null);
   const [imei, setImei] = useState('');
   const [orcamento, setOrcamento] = useState('');
   const [comoOrcamento, setComoOrcamento] = useState(false);
@@ -845,6 +849,7 @@ function CreateReparacaoModal({
         equipmentFieldTemplateId: selectedTemplate?.id ?? null,
         fields: selectedTemplate ? buildEquipmentFieldValues(selectedTemplate, fieldValues) : null,
         estadoFisicoInicial: estadoFisicoInicial.trim() || null,
+        categoria,
       }),
     onSuccess: (rep) => {
       reset();
@@ -864,6 +869,7 @@ function CreateReparacaoModal({
     setEquipamento('');
     setAvaria('');
     setEstadoFisicoInicial('');
+    setCategoria(null);
     setImei('');
     setOrcamento('');
     setComoOrcamento(false);
@@ -1022,6 +1028,23 @@ function CreateReparacaoModal({
           </div>
         )}
 
+        {/* Sprint 475: categoria DeviceCategory antes do equipamento (texto livre). */}
+        <Field label="Categoria (opcional)">
+          <select
+            value={categoria ?? ''}
+            onChange={(e) => setCategoria(e.target.value === '' ? null : Number(e.target.value))}
+            className={inputCls}
+          >
+            <option value="">— Não classificado —</option>
+            <option value={DEVICE_CATEGORY.Smartphone}>{DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Smartphone]}</option>
+            <option value={DEVICE_CATEGORY.Tablet}>{DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Tablet]}</option>
+            <option value={DEVICE_CATEGORY.Laptop}>{DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Laptop]}</option>
+            <option value={DEVICE_CATEGORY.Desktop}>{DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Desktop]}</option>
+            <option value={DEVICE_CATEGORY.Smartwatch}>{DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Smartwatch]}</option>
+            <option value={DEVICE_CATEGORY.Consola}>{DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Consola]}</option>
+            <option value={DEVICE_CATEGORY.Outro}>{DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Outro]}</option>
+          </select>
+        </Field>
         <Field label="Equipamento" required>
           <input
             value={equipamento}
