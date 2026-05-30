@@ -23,6 +23,8 @@ public sealed record CreateComunicacaoRequest(
 public interface IReparacaoComunicacaoService
 {
     Task<IReadOnlyList<ReparacaoComunicacaoDto>> ListAsync(Guid reparacaoId, CancellationToken ct = default);
+    /// <summary>Sprint 453: histórico cliente — todas as comunicações em todas as reparações deste cliente.</summary>
+    Task<IReadOnlyList<ReparacaoComunicacaoDto>> ListByClienteAsync(Guid clienteId, int take, CancellationToken ct = default);
     Task<ReparacaoComunicacaoDto> CreateAsync(Guid reparacaoId, CreateComunicacaoRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
@@ -54,6 +56,14 @@ public sealed class ReparacaoComunicacaoService : IReparacaoComunicacaoService
         // Confirma que a reparação pertence ao tenant (filter global já valida; FindByIdAsync devolve null se não pertence).
         _ = await _reparacoes.FindByIdAsync(reparacaoId, ct) ?? throw new NotFoundException("Reparacao", reparacaoId);
         var list = await _repo.ListByReparacaoAsync(reparacaoId, ct);
+        return list.Select(ToDto).ToList();
+    }
+
+    public async Task<IReadOnlyList<ReparacaoComunicacaoDto>> ListByClienteAsync(Guid clienteId, int take, CancellationToken ct = default)
+    {
+        // Tenant isolation: o IClienteRepository tem global query filter por tenant; FindByIdAsync devolve null cross-tenant.
+        // Sem necessidade de ler o cliente — basta filter via clienteId no repo (que também tem filtro global).
+        var list = await _repo.ListByClienteAsync(clienteId, take, ct);
         return list.Select(ToDto).ToList();
     }
 

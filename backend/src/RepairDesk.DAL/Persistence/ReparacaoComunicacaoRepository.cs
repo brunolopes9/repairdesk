@@ -17,6 +17,14 @@ public class ReparacaoComunicacaoRepository : IReparacaoComunicacaoRepository
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<ReparacaoComunicacao>> ListByClienteAsync(Guid clienteId, int take, CancellationToken ct = default)
+        => await _db.ReparacaoComunicacoes
+            .AsNoTracking()
+            .Where(c => c.ClienteId == clienteId)
+            .OrderByDescending(c => c.CreatedAt)
+            .Take(Math.Clamp(take, 1, 500))
+            .ToListAsync(ct);
+
     public Task<ReparacaoComunicacao?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.ReparacaoComunicacoes.FirstOrDefaultAsync(c => c.Id == id, ct);
 

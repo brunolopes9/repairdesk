@@ -7,6 +7,7 @@ import Modal from '../../components/Modal';
 import { BackButton, Breadcrumb, Button, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
 import type { ClienteEquipamento } from '../../lib/clientes/types';
+import { ClienteComunicacoesSection } from './ClienteComunicacoesSection';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { STATUS_COLOR, STATUS_LABEL, type Reparacao } from '../../lib/reparacoes/types';
 import { trabalhosApi } from '../../lib/trabalhos/api';
@@ -249,6 +250,9 @@ export default function ClienteDetalhe() {
           </div>
         )}
       </section>
+
+      {/* Sprint 453 (extensão eixo cliente do S452): histórico de comunicações agregado. */}
+      <ClienteComunicacoesSection clienteId={c.id} />
 
       {/* RGPD */}
       <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">

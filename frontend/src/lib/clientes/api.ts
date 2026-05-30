@@ -1,5 +1,6 @@
 import { api } from '../api';
 import type { AtNifLookup, Cliente, ClienteEquipamento, ClienteForm, PagedResult } from './types';
+import type { ReparacaoComunicacao } from '../comunicacoes/api';
 
 export const clientesApi = {
   list(query: string, page = 1, pageSize = 20) {
@@ -12,6 +13,10 @@ export const clientesApi = {
   },
   equipamentos(id: string, take = 20) {
     return api.get<ClienteEquipamento[]>(`/clientes/${id}/equipamentos`, { params: { take } }).then((r) => r.data);
+  },
+  // Sprint 453: histórico de comunicações com este cliente (todas as reparações).
+  comunicacoes(id: string, take = 50) {
+    return api.get<ReparacaoComunicacao[]>(`/clientes/${id}/comunicacoes`, { params: { take } }).then((r) => r.data);
   },
   create(payload: ClienteForm) {
     return api.post<Cliente>('/clientes', payload).then((r) => r.data);

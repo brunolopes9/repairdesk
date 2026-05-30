@@ -36,6 +36,19 @@ public class ClientesController : ControllerBase
         CancellationToken ct = default)
         => _service.ListEquipamentosAsync(id, take, ct);
 
+    /// <summary>
+    /// Sprint 453: histórico de comunicações com este cliente (todas as reparações).
+    /// Eixo cliente da feature S452. Útil para ver "o que se passou com este cliente
+    /// nos últimos N contactos" sem ter que abrir cada reparação.
+    /// </summary>
+    [HttpGet("{id:guid}/comunicacoes")]
+    public async Task<ActionResult<IReadOnlyList<RepairDesk.Services.Comunicacoes.ReparacaoComunicacaoDto>>> Comunicacoes(
+        Guid id,
+        [FromQuery] int take = 50,
+        [FromServices] RepairDesk.Services.Comunicacoes.IReparacaoComunicacaoService comunicacoes = null!,
+        CancellationToken ct = default)
+        => Ok(await comunicacoes.ListByClienteAsync(id, take, ct));
+
     [HttpPost]
     public async Task<ActionResult<ClienteDto>> Create([FromBody] CreateClienteRequest req, CancellationToken ct)
     {
