@@ -49,12 +49,13 @@ public sealed class RepairRequestsController : ControllerBase
         string? MotivoRejeicao, DateTime CreatedAt,
         // Sprint 436 (Doc 91 follow-up Codex): triagem.
         string? NotasInternas, RepairRequestPrioridade Prioridade,
+        DateTime? FollowUpAt,
         // Sprint 437 (Doc 91 follow-up Codex): segundo caminho de conversão.
         Guid? TrabalhoId,
         // Sprint 438 (Doc 91 follow-up Codex): canal de entrada.
         RepairRequestOrigem Origem);
 
-    public sealed record UpdateTriagemRequest(string? NotasInternas, RepairRequestPrioridade Prioridade);
+    public sealed record UpdateTriagemRequest(string? NotasInternas, RepairRequestPrioridade Prioridade, DateTime? FollowUpAt);
 
     [HttpPut("{id:guid}/triagem")]
     public async Task<ActionResult<RequestDto>> AtualizarTriagem(Guid id, [FromBody] UpdateTriagemRequest body, CancellationToken ct)
@@ -66,8 +67,13 @@ public sealed class RepairRequestsController : ControllerBase
         if (notas is { Length: > 2000 })
             return BadRequest(new { code = "notas_too_long", message = "Notas até 2000 chars." });
 
+        var followUpAt = NormalizeFollowUpAt(body.FollowUpAt);
+        if (followUpAt is not null && followUpAt > DateTime.UtcNow.AddYears(2))
+            return BadRequest(new { code = "follow_up_too_far", message = "Follow-up ate 2 anos no futuro." });
+
         req.NotasInternas = notas;
         req.Prioridade = body.Prioridade;
+        req.FollowUpAt = followUpAt;
         await _repo.SaveAsync(ct);
         return Ok(MapDto(req));
     }
@@ -107,6 +113,7 @@ public sealed class RepairRequestsController : ControllerBase
 
         req.Estado = RepairRequestEstado.Convertido;
         req.ReparacaoId = rep.Id;
+        req.FollowUpAt = null;
         await _repo.SaveAsync(ct);
 
         if (_tenant.TenantId is { } tid)
@@ -144,6 +151,7 @@ public sealed class RepairRequestsController : ControllerBase
 
         req.Estado = RepairRequestEstado.Convertido;
         req.TrabalhoId = trabalho.Id;
+        req.FollowUpAt = null;
         await _repo.SaveAsync(ct);
 
         if (_tenant.TenantId is { } tid)
@@ -166,7 +174,8 @@ public sealed class RepairRequestsController : ControllerBase
         string Descricao,
         RepairRequestOrigem Origem,
         RepairRequestPrioridade? Prioridade,
-        string? NotasInternas);
+        string? NotasInternas,
+        DateTime? FollowUpAt);
 
     [HttpPost("manual")]
     public async Task<ActionResult<RequestDto>> CreateManual([FromBody] CreateManualRequest body, CancellationToken ct)
@@ -196,6 +205,10 @@ public sealed class RepairRequestsController : ControllerBase
         if (notas is { Length: > 2000 })
             return BadRequest(new { code = "notas_too_long", message = "Notas até 2000 chars." });
 
+        var followUpAt = NormalizeFollowUpAt(body.FollowUpAt);
+        if (followUpAt is not null && followUpAt > DateTime.UtcNow.AddYears(2))
+            return BadRequest(new { code = "follow_up_too_far", message = "Follow-up ate 2 anos no futuro." });
+
         var req = new Core.Entities.RepairRequest
         {
             TenantId = tenantId,
@@ -208,6 +221,7 @@ public sealed class RepairRequestsController : ControllerBase
             Origem = body.Origem,
             Prioridade = body.Prioridade ?? RepairRequestPrioridade.Normal,
             NotasInternas = notas,
+            FollowUpAt = followUpAt,
         };
         await _repo.AddAsync(req, ct);
 
@@ -233,8 +247,23 @@ public sealed class RepairRequestsController : ControllerBase
         return Ok(MapDto(req));
     }
 
+    /// <summary>
+    /// Sprint 448 (Codex parallel): normaliza FollowUpAt — converte para UTC e trata
+    /// DateTime.MinValue/default como null. Aceita Local/UTC/Unspecified do JSON.
+    /// </summary>
+    private static DateTime? NormalizeFollowUpAt(DateTime? value)
+    {
+        if (value is not { } v || v == default) return null;
+        return v.Kind switch
+        {
+            DateTimeKind.Utc => v,
+            DateTimeKind.Local => v.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(v, DateTimeKind.Utc),
+        };
+    }
+
     private static RequestDto MapDto(Core.Entities.RepairRequest r) =>
         new(r.Id, r.Nome, r.Email, r.Telefone, r.Equipamento, r.Descricao,
             r.Estado, r.ReparacaoId, r.MotivoRejeicao, r.CreatedAt,
-            r.NotasInternas, r.Prioridade, r.TrabalhoId, r.Origem);
+            r.NotasInternas, r.Prioridade, r.FollowUpAt, r.TrabalhoId, r.Origem);
 }

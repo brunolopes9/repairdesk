@@ -48,6 +48,12 @@ public class RepairRequest : BaseEntity, ITenantEntity
     public RepairRequestPrioridade Prioridade { get; set; } = RepairRequestPrioridade.Normal;
 
     /// <summary>
+    /// Sprint 448 (ROAPP lead deadlines): data/hora em que o staff deve voltar
+    /// a contactar este lead. NULL = sem follow-up marcado.
+    /// </summary>
+    public DateTime? FollowUpAt { get; set; }
+
+    /// <summary>
     /// Sprint 438 (Doc 91 follow-up): canal de entrada. Widget é o default
     /// (pedidos vindos do widget público). Outros valores são usados quando
     /// o staff regista manualmente um lead que veio por telefone, email, etc.
