@@ -1076,8 +1076,8 @@ export default function ReparacaoDetalhe() {
         reparacaoEquipamento={r.equipamento}
       />
 
-      {/* Sprint 466: outros Devices registados do cliente (cross-rep contexto). */}
-      <ReparacaoOtherDevicesSection clienteId={r.cliente.id} reparacaoImei={r.imei} />
+      {/* Sprint 466 + 473: outros Devices registados + CTA registar quando IMEI desconhecido. */}
+      <ReparacaoOtherDevicesSection clienteId={r.cliente.id} reparacaoImei={r.imei} reparacaoEquipamento={r.equipamento} />
 
       {/* Sprint 452 (Doc 91 ponto 1) + Sprint 456 (Avisar pronto CTA): comunicações com cliente. */}
       <ReparacaoComunicacoesSection
