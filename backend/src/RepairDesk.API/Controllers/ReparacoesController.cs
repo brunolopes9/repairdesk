@@ -96,6 +96,14 @@ public class ReparacoesController : ControllerBase
         return File(pdf, "application/pdf", filename);
     }
 
+    /// <summary>Sprint 450 (Doc 91 ponto 4): PDF "Comprovativo de entrada" para o cliente assinar quando deixa o equipamento.</summary>
+    [HttpGet("{id:guid}/entrada.pdf")]
+    public async Task<IActionResult> EntradaPdf(Guid id, [FromServices] IEntradaPdfService entrada, CancellationToken ct)
+    {
+        var (pdf, filename) = await entrada.ForReparacaoAsync(id, ct);
+        return File(pdf, "application/pdf", filename);
+    }
+
     [HttpPost("{id:guid}/emitir-fatura")]
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
         => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);

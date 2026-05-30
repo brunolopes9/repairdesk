@@ -622,6 +622,15 @@ export default function ReparacaoDetalhe() {
           >
             <Printer size={11} /> Etiqueta
           </button>
+          {/* Sprint 450 (Doc 91 ponto 4): comprovativo de entrada A4 para o cliente assinar. */}
+          <button
+            type="button"
+            onClick={() => openPdfInNewTab(`/reparacoes/${r.id}/entrada.pdf`).catch((e) => toast.error(e instanceof Error ? e.message : 'Erro a gerar comprovativo.'))}
+            className="inline-flex items-center gap-1 rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            title="Comprovativo de entrada A4 para o cliente assinar"
+          >
+            <Printer size={11} /> Comprovativo entrada
+          </button>
         </div>
 
         {/* Sprint 343: técnico atribuído (Admin pode editar). */}

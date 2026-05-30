@@ -254,6 +254,8 @@ try
     // causava 500 'No service for ILabelPdfService' no GET /label.pdf.
     builder.Services.AddScoped<ILabelPdfService, LabelPdfService>();
     builder.Services.AddScoped<IVendaPdfService, VendaPdfService>();
+    // Sprint 450 (Doc 91 ponto 4): comprovativo de entrada de equipamento.
+    builder.Services.AddScoped<IEntradaPdfService, EntradaPdfService>();
 
     // Tenant settings
     builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();
