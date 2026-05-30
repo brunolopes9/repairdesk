@@ -8,6 +8,7 @@ import { BackButton, Breadcrumb, Button, SkeletonCard } from '../../components/u
 import { clientesApi } from '../../lib/clientes/api';
 import type { ClienteEquipamento } from '../../lib/clientes/types';
 import { ClienteComunicacoesSection } from './ClienteComunicacoesSection';
+import { ClienteDevicesSection } from './ClienteDevicesSection';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { STATUS_COLOR, STATUS_LABEL, type Reparacao } from '../../lib/reparacoes/types';
 import { trabalhosApi } from '../../lib/trabalhos/api';
@@ -250,6 +251,9 @@ export default function ClienteDetalhe() {
           </div>
         )}
       </section>
+
+      {/* Sprint 462 (Doc 90 Tier 2 #6): gestão persistente de equipamentos do cliente. */}
+      <ClienteDevicesSection clienteId={c.id} />
 
       {/* Sprint 453 (extensão eixo cliente do S452): histórico de comunicações agregado. */}
       <ClienteComunicacoesSection clienteId={c.id} />
