@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MessageCircle, Phone, Mail, MessageSquare, StickyNote, MapPin, Plus, Trash2, ArrowDownLeft, ArrowUpRight, FileText, Send } from 'lucide-react';
+import { MessageCircle, Phone, Mail, MessageSquare, StickyNote, MapPin, Plus, Trash2, ArrowDownLeft, ArrowUpRight, FileText, Send } from 'lucide-react'; // Mail importado para CTA Email S471
 import { Button } from '../../components/ui/Button';
 import { toast } from '../../lib/toast';
 import { apiErrorMessage } from '../../lib/errors';
@@ -50,6 +50,7 @@ export function ReparacaoComunicacoesSection({
   reparacaoEquipamento,
   clienteNome,
   clienteTelefone,
+  clienteEmail,
 }: {
   reparacaoId: string;
   reparacaoNumero?: number;
@@ -58,6 +59,7 @@ export function ReparacaoComunicacoesSection({
   reparacaoEquipamento?: string;
   clienteNome?: string;
   clienteTelefone?: string | null;
+  clienteEmail?: string | null;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -140,6 +142,32 @@ export function ReparacaoComunicacoesSection({
     onError: (err) => toast.error(apiErrorMessage(err) || 'Erro a registar aviso.'),
   });
 
+  // Sprint 471: par CTA Email do CTA WhatsApp. Útil para clientes que preferem email
+  // ou quando não há telefone. Usa mesmo aviso da reparação (mensagem por estado).
+  const subjectByEstado: Record<number, string> = {
+    1: `Diagnóstico concluído${reparacaoNumero ? ` — Ref. R-${String(reparacaoNumero).padStart(5, '0')}` : ''}`,
+    2: `Peça encomendada${reparacaoNumero ? ` — Ref. R-${String(reparacaoNumero).padStart(5, '0')}` : ''}`,
+    4: `Reparação pronta para levantar${reparacaoNumero ? ` — Ref. R-${String(reparacaoNumero).padStart(5, '0')}` : ''}`,
+  };
+  const emailSubject = reparacaoEstado != null ? subjectByEstado[reparacaoEstado] : undefined;
+  const mailtoLink = clienteEmail && aviso && emailSubject
+    ? `mailto:${clienteEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(aviso.mensagem)}`
+    : null;
+
+  const avisarClienteEmail = useMutation({
+    mutationFn: () =>
+      comunicacoesApi.create(reparacaoId, {
+        tipo: ComunicacaoTipo.Email,
+        direcao: ComunicacaoDirecao.Outbound,
+        texto: aviso ? `${aviso.notaLog.replace('via WhatsApp', 'via Email')}\n\n[Assunto] ${emailSubject}\n[Mensagem]\n${aviso.mensagem}` : 'Avisei via email.',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['comunicacoes', reparacaoId] });
+      toast.success('Aviso registado.', 'Abriu o cliente de email com a mensagem pré-feita.');
+    },
+    onError: (err) => toast.error(apiErrorMessage(err) || 'Erro a registar aviso.'),
+  });
+
   return (
     <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-between gap-2">
@@ -163,6 +191,17 @@ export function ReparacaoComunicacoesSection({
               title={`Abrir WhatsApp com "${aviso.label}" pré-feito e registar como Outbound`}
             >
               <Send size={12} /> {aviso.label}
+            </a>
+          )}
+          {/* Sprint 471: par Email — só visible quando há email + estado comunicável. */}
+          {mailtoLink && aviso && (
+            <a
+              href={mailtoLink}
+              onClick={() => avisarClienteEmail.mutate()}
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-300 px-2 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800/60 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+              title="Abrir cliente de email com mensagem pré-feita e registar como Outbound"
+            >
+              <Mail size={12} /> Email
             </a>
           )}
           {waLink && !waAvisoLink && (
