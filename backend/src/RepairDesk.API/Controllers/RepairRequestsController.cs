@@ -243,6 +243,7 @@ public sealed class RepairRequestsController : ControllerBase
 
         req.Estado = RepairRequestEstado.Rejeitado;
         req.MotivoRejeicao = string.IsNullOrWhiteSpace(body?.Motivo) ? null : body!.Motivo.Trim();
+        req.FollowUpAt = null;
         await _repo.SaveAsync(ct);
         return Ok(MapDto(req));
     }

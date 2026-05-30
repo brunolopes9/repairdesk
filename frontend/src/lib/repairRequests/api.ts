@@ -54,6 +54,7 @@ export interface RepairRequestDto {
   createdAt: string;
   notasInternas: string | null;
   prioridade: RepairRequestPrioridade;
+  followUpAt: string | null;
   trabalhoId: string | null;
   origem: RepairRequestOrigem;
 }
@@ -75,7 +76,7 @@ export const repairRequestsApi = {
   rejeitar(id: string, motivo?: string) {
     return api.post<RepairRequestDto>(`/repair-requests/${id}/rejeitar`, { motivo: motivo ?? null }).then((r) => r.data);
   },
-  updateTriagem(id: string, body: { notasInternas: string | null; prioridade: RepairRequestPrioridade }) {
+  updateTriagem(id: string, body: { notasInternas: string | null; prioridade: RepairRequestPrioridade; followUpAt?: string | null }) {
     return api.put<RepairRequestDto>(`/repair-requests/${id}/triagem`, body).then((r) => r.data);
   },
   createManual(body: {
@@ -87,6 +88,7 @@ export const repairRequestsApi = {
     origem: RepairRequestOrigem;
     prioridade?: RepairRequestPrioridade;
     notasInternas?: string | null;
+    followUpAt?: string | null;
   }) {
     return api.post<RepairRequestDto>('/repair-requests/manual', body).then((r) => r.data);
   },
