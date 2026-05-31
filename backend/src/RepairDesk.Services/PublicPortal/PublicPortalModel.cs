@@ -37,7 +37,9 @@ public sealed record PublicRepairDto(
     /// <summary>Sprint 88: cobertura por garantia de venda anterior, quando IMEI bate.</summary>
     PublicCoberturaGarantia? CoberturaGarantia,
     /// <summary>Sprint 482: fio de conversa do portal (mensagens do cliente + respostas do staff).</summary>
-    IReadOnlyList<PublicConversaMsg> Conversa);
+    IReadOnlyList<PublicConversaMsg> Conversa,
+    /// <summary>Sprint 487: previsão de entrega (ETA) — só exposta enquanto a reparação está em curso.</summary>
+    DateTime? PrevistoEntregueEm = null);
 
 /// <summary>
 /// Sprint 482: uma mensagem do fio de conversa do portal. Só expõe comunicações do tipo

@@ -94,6 +94,8 @@ export interface PublicRepairDto {
   coberturaGarantia: PublicCoberturaGarantia | null;
   /** Sprint 482: fio de conversa do portal (cliente + respostas do staff). */
   conversa: PublicConversaMsg[];
+  /** Sprint 487: previsão de entrega (ETA) — null quando já entregue/cancelado/pronto. */
+  previstoEntregueEm: string | null;
 }
 
 export interface PublicConversaMsg {

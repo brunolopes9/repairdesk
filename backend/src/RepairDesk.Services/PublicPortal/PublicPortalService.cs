@@ -374,7 +374,12 @@ public class PublicPortalService : IPublicPortalService
                 .Select(c => new PublicEquipmentFieldDto(c.Label, c.Value, c.Ordem))
                 .ToList(),
             CoberturaGarantia: portal.MostrarGarantia ? cobertura : null,
-            Conversa: conversa);
+            Conversa: conversa,
+            // Sprint 487: ETA só faz sentido enquanto está em curso. Em Pronto/Entregue/Cancelado
+            // a previsão deixa de ser útil (já chegou ao fim) e pode confundir.
+            PrevistoEntregueEm: rep.Estado is RepairStatus.Entregue or RepairStatus.Cancelado or RepairStatus.Pronto
+                ? null
+                : rep.PrevistoEntregueEm);
     }
 }
 

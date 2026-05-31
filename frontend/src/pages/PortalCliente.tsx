@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Bell,
   BellOff,
+  CalendarClock,
   Check,
   CheckCircle2,
   Frown,
@@ -296,6 +297,16 @@ function EstadoCard({ data }: { data: PublicRepairDto }) {
         <div className="mt-3 text-sm">
           <span className="text-zinc-500">Valor a pagar no levantamento: </span>
           <span className="font-semibold">{formatCents(data.precoFinalCents)}</span>
+        </div>
+      )}
+      {/* Sprint 487: previsão de entrega (ETA) enquanto a reparação está em curso. */}
+      {data.previstoEntregueEm && (
+        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-sm dark:bg-zinc-900/60">
+          <CalendarClock size={14} strokeWidth={2} className="text-zinc-500" />
+          <span className="text-zinc-600 dark:text-zinc-300">Previsão de entrega:</span>
+          <span className="font-semibold">
+            {new Date(data.previstoEntregueEm).toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' })}
+          </span>
         </div>
       )}
     </section>
