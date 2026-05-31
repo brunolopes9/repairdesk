@@ -90,6 +90,8 @@ public sealed class ClienteNotificarPendingHostedService : BackgroundService
         var pendentes = await db.Reparacoes
             .IgnoreQueryFilters()
             .Where(r => EstadosComunicaveis.Contains(r.Estado) && r.EstadoSince < cutoff)
+            // Sprint 488: não nudgear contacto de clientes que pediram NaoContactar (RGPD, S479).
+            .Where(r => r.Cliente == null || !r.Cliente.NaoContactar)
             .Where(r => !db.ReparacaoComunicacoes
                 .Where(c => c.ReparacaoId == r.Id && c.Direcao == ComunicacaoDirecao.Outbound)
                 .Any(c => c.CreatedAt >= r.EstadoSince))

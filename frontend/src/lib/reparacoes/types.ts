@@ -87,6 +87,9 @@ export interface ClienteResumo {
   email?: string | null;
   /** Sprint 355: alerta curto destacado (banner). */
   notaImportante?: string | null;
+  /** Sprint 488: consentimento RGPD (S479/Codex) — superfícies de comunicação respeitam. */
+  naoContactar?: boolean;
+  contactoPreferido?: string | null;
 }
 
 export interface EstadoLog {

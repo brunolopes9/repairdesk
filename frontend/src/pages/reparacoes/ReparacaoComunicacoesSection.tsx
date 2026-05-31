@@ -54,6 +54,8 @@ export function ReparacaoComunicacoesSection({
   clienteNome,
   clienteTelefone,
   clienteEmail,
+  clienteNaoContactar,
+  clienteContactoPreferido,
 }: {
   reparacaoId: string;
   reparacaoNumero?: number;
@@ -63,6 +65,9 @@ export function ReparacaoComunicacoesSection({
   clienteNome?: string;
   clienteTelefone?: string | null;
   clienteEmail?: string | null;
+  /** Sprint 488: consentimento RGPD (S479). Quando true, esconde CTAs proativos de contacto. */
+  clienteNaoContactar?: boolean;
+  clienteContactoPreferido?: string | null;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -190,8 +195,20 @@ export function ReparacaoComunicacoesSection({
           )}
         </h2>
         <div className="flex items-center gap-1.5">
+          {/* Sprint 488: cliente pediu para não ser contactado (RGPD, S479) — esconde CTAs proativos. */}
+          {clienteNaoContactar && (
+            <span title="O cliente pediu para não ser contactado (RGPD)" className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+              🚫 Não contactar
+            </span>
+          )}
+          {/* Sprint 488: canal preferido do cliente (S479) — dica para o staff escolher por onde contactar. */}
+          {!clienteNaoContactar && clienteContactoPreferido && (
+            <span title="Canal de contacto preferido pelo cliente" className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              Prefere: {clienteContactoPreferido}
+            </span>
+          )}
           {/* Sprint 456+457: CTA contextual por estado (Diagnóstico/AguardaPeça/Pronto). */}
-          {waAvisoLink && aviso && (
+          {!clienteNaoContactar && waAvisoLink && aviso && (
             <a
               href={waAvisoLink}
               target="_blank"
@@ -204,7 +221,7 @@ export function ReparacaoComunicacoesSection({
             </a>
           )}
           {/* Sprint 471: par Email — só visible quando há email + estado comunicável. */}
-          {mailtoLink && aviso && (
+          {!clienteNaoContactar && mailtoLink && aviso && (
             <a
               href={mailtoLink}
               onClick={() => avisarClienteEmail.mutate()}
@@ -214,7 +231,7 @@ export function ReparacaoComunicacoesSection({
               <Mail size={12} /> Email
             </a>
           )}
-          {waLink && !waAvisoLink && (
+          {!clienteNaoContactar && waLink && !waAvisoLink && (
             <a
               href={waLink}
               target="_blank"

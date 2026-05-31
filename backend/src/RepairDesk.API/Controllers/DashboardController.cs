@@ -113,6 +113,8 @@ public class DashboardController : ControllerBase
         var baseQ = db.Reparacoes
             .AsNoTracking()
             .Where(r => estadosComunicaveis.Contains(r.Estado) && r.EstadoSince < cutoff)
+            // Sprint 488: excluir clientes NaoContactar (RGPD, S479) — não devem aparecer como "a avisar".
+            .Where(r => r.Cliente!.NaoContactar == false)
             .Where(r => !db.ReparacaoComunicacoes
                 .Where(c => c.ReparacaoId == r.Id && c.Direcao == ComunicacaoDirecao.Outbound)
                 .Any(c => c.CreatedAt >= r.EstadoSince));

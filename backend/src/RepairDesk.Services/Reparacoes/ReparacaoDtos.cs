@@ -52,8 +52,10 @@ public sealed record UpdateReparacaoRequest(
 
 public sealed record ChangeEstadoRequest(RepairStatus Estado, string? Notas);
 
-/// <summary>Sprint 348: <c>Email</c> para Send 1-click. Sprint 355: <c>NotaImportante</c> para banner de alerta.</summary>
-public sealed record ClienteResumo(Guid Id, string Nome, string Telefone, string? Nif = null, string? Email = null, string? NotaImportante = null);
+/// <summary>Sprint 348: <c>Email</c> para Send 1-click. Sprint 355: <c>NotaImportante</c> para banner de alerta.
+/// Sprint 488: <c>NaoContactar</c>/<c>ContactoPreferido</c> (consentimento RGPD da S479/Codex) — as
+/// superfícies de comunicação respeitam: escondem CTAs de contacto quando NaoContactar e destacam o canal preferido.</summary>
+public sealed record ClienteResumo(Guid Id, string Nome, string Telefone, string? Nif = null, string? Email = null, string? NotaImportante = null, bool NaoContactar = false, string? ContactoPreferido = null);
 
 public sealed record EstadoLogDto(
     Guid Id,

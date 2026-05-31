@@ -65,6 +65,26 @@ public class ReparacoesApiTests : IClassFixture<RepairDeskApiFactory>
         detail.Timeline.Last().EstadoTo.Should().Be(RepairStatus.Entregue);
     }
 
+    // Sprint 488: o detalhe da reparação carrega as flags de consentimento do cliente (S479)
+    // para que as superfícies de comunicação respeitem NaoContactar / canal preferido.
+    [Fact]
+    public async Task Detail_IncludesClienteConsentFlags()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var phone = "9" + Random.Shared.Next(10000000, 99999999).ToString();
+        var clResp = await client.PostAsJsonAsync("/api/clientes",
+            new CreateClienteRequest("Cli-NaoContactar", phone, null, null, null,
+                ContactoPreferido: "WhatsApp", NaoContactar: true));
+        clResp.EnsureSuccessStatusCode();
+        var cliente = (await clResp.Content.ReadFromJsonAsync<ClienteDto>())!;
+
+        var rep = await Create(client, cliente.Id, "iPhone 13", "Ecrã partido");
+
+        var detail = await client.GetFromJsonAsync<ReparacaoDetalhadaDto>($"/api/reparacoes/{rep.Id}");
+        detail!.Reparacao.Cliente.NaoContactar.Should().BeTrue();
+        detail.Reparacao.Cliente.ContactoPreferido.Should().Be("WhatsApp");
+    }
+
     [Fact]
     public async Task ChangeEstado_ToEntregue_AutoMarksPago()
     {
