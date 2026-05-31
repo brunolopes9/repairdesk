@@ -136,6 +136,74 @@ public class DashboardController : ControllerBase
         return new AvisosPendentesResponse(items, total, horasLimite);
     }
 
+    /// <summary>
+    /// Sprint 483 (Doc 91): reparações cuja última mensagem no portal foi do cliente
+    /// (Inbound PortalCliente) sem resposta Outbound posterior. Fecha o loop S480/S482 —
+    /// o cliente escreveu e está à espera. Bruno clica → detalhe → "Responder no portal".
+    /// </summary>
+    [HttpGet("mensagens-por-responder")]
+    public async Task<MensagensPorResponderResponse> GetMensagensPorResponder(
+        [FromQuery] int limit = 20,
+        [FromServices] AppDbContext db = null!,
+        CancellationToken ct = default)
+    {
+        var pageSize = Math.Clamp(limit, 1, 50);
+
+        // Reparações com pelo menos uma mensagem Inbound do portal, sem nenhuma resposta
+        // Outbound do portal igual ou posterior à última Inbound (i.e. cliente falou por último).
+        var baseQ = db.Reparacoes
+            .AsNoTracking()
+            .Where(r => db.ReparacaoComunicacoes.Any(c =>
+                c.ReparacaoId == r.Id
+                && c.Tipo == ComunicacaoTipo.PortalCliente
+                && c.Direcao == ComunicacaoDirecao.Inbound))
+            .Where(r => !db.ReparacaoComunicacoes.Any(o =>
+                o.ReparacaoId == r.Id
+                && o.Tipo == ComunicacaoTipo.PortalCliente
+                && o.Direcao == ComunicacaoDirecao.Outbound
+                && o.CreatedAt >= db.ReparacaoComunicacoes
+                    .Where(i => i.ReparacaoId == r.Id
+                        && i.Tipo == ComunicacaoTipo.PortalCliente
+                        && i.Direcao == ComunicacaoDirecao.Inbound)
+                    .Max(i => i.CreatedAt)));
+
+        var total = await baseQ.CountAsync(ct);
+        var now = DateTime.UtcNow;
+        var items = await baseQ
+            .Select(r => new
+            {
+                r.Id,
+                r.Numero,
+                Estado = (int)r.Estado,
+                r.Equipamento,
+                ClienteNome = r.Cliente!.Nome,
+                Ultima = db.ReparacaoComunicacoes
+                    .Where(i => i.ReparacaoId == r.Id
+                        && i.Tipo == ComunicacaoTipo.PortalCliente
+                        && i.Direcao == ComunicacaoDirecao.Inbound)
+                    .OrderByDescending(i => i.CreatedAt)
+                    .Select(i => new { i.Texto, i.CreatedAt })
+                    .First(),
+            })
+            .OrderBy(x => x.Ultima.CreatedAt) // mais antigas à espera primeiro
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var result = items
+            .Select(x => new MensagemPorResponderItem(
+                x.Id,
+                x.Numero,
+                x.Estado,
+                x.Equipamento,
+                x.ClienteNome,
+                x.Ultima.Texto.Length > 120 ? x.Ultima.Texto[..120] + "…" : x.Ultima.Texto,
+                x.Ultima.CreatedAt,
+                (int)(now - x.Ultima.CreatedAt).TotalHours))
+            .ToList();
+
+        return new MensagensPorResponderResponse(result, total);
+    }
+
     [HttpGet("avaliacoes")]
     public Task<AvaliacoesDashboardResponse> GetAvaliacoes(CancellationToken ct) => _service.GetAvaliacoesAsync(ct);
 

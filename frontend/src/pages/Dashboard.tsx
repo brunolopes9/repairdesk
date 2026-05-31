@@ -175,6 +175,13 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
   });
   const garantiaFabricanteCount = garantiaFabricanteQuery.data?.totalCount ?? 0;
+  // Sprint 483 (Doc 91): mensagens de clientes no portal por responder (fecha loop S480/S482).
+  const mensagensPorResponderQuery = useQuery({
+    queryKey: ['dashboard-mensagens-por-responder'],
+    queryFn: () => dashboardApi.mensagensPorResponder(20),
+    staleTime: 60_000,
+  });
+  const mensagensPorResponderCount = mensagensPorResponderQuery.data?.totalCount ?? 0;
   const STALLED_DAYS = 5; // alinhado com S392 default StalledRepairs:Days
   const reparacoesParadasCount = useMemo(() => {
     const cutoff = Date.now() - STALLED_DAYS * 86_400_000;
@@ -572,7 +579,7 @@ export default function Dashboard() {
             // Sprint 431: novos sinais (alinhados com os crons S392/S428/S430).
             const totalAlertas = expiramGar + stockCritico + faturasPend
               + reparacoesParadasCount + tarefasAtrasadasCount + cobrancasEmAtrasoCount + porLevantarCount
-              + avisosPendentesCount + garantiaFabricanteCount;
+              + avisosPendentesCount + garantiaFabricanteCount + mensagensPorResponderCount;
             if (totalAlertas === 0) return <p className="py-6 text-center text-sm text-zinc-500">Sem alertas — tudo em dia ✓</p>;
             return (
               <ul className="space-y-2">
@@ -653,6 +660,18 @@ export default function Dashboard() {
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium text-purple-900 dark:text-purple-100">{garantiaFabricanteCount} garantia{garantiaFabricanteCount === 1 ? '' : 's'} fabricante a expirar (30d)</span>
                         <span className="block text-[11px] text-purple-700/80 dark:text-purple-300/80">Oferecer garantia loja antes do fabricante acabar</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {/* Sprint 483 (Doc 91): cliente escreveu no portal e está à espera de resposta. */}
+                {mensagensPorResponderCount > 0 && (
+                  <li>
+                    <Link to="/reparacoes" className="flex items-center gap-2.5 rounded-lg bg-rose-50 px-2.5 py-2 text-sm transition hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/60">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300"><MessageCircle size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-rose-900 dark:text-rose-100">{mensagensPorResponderCount} mensagem{mensagensPorResponderCount === 1 ? '' : 'ns'} de cliente por responder</span>
+                        <span className="block text-[11px] text-rose-700/80 dark:text-rose-300/80">Escreveram no portal e estão à espera — responder no detalhe</span>
                       </span>
                     </Link>
                   </li>

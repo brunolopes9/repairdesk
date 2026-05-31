@@ -94,6 +94,25 @@ public sealed record AvisoPendenteItem(
     DateTime EstadoSince,
     int HorasEmEstado);
 
+/// <summary>
+/// Sprint 483 (Doc 91): reparação cuja última mensagem no portal foi do cliente (Inbound
+/// PortalCliente) e o staff ainda não respondeu pelo portal. Fecha o loop S480/S482 —
+/// Bruno vê de relance quem está à espera de resposta.
+/// </summary>
+public sealed record MensagensPorResponderResponse(
+    IReadOnlyList<MensagemPorResponderItem> Items,
+    int TotalCount);
+
+public sealed record MensagemPorResponderItem(
+    Guid ReparacaoId,
+    int Numero,
+    int Estado,
+    string Equipamento,
+    string? ClienteNome,
+    string UltimaMensagem,
+    DateTime Em,
+    int HorasEspera);
+
 public sealed record DespesaOrfa(
     Guid Id,
     string Descricao,

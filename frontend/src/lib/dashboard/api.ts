@@ -125,6 +125,12 @@ export const dashboardApi = {
       .get<DevicesGarantiaAExpirarResponse>('/dashboard/devices-garantia-a-expirar', { params: { days, limit } })
       .then((r) => r.data);
   },
+  // Sprint 483 (Doc 91): mensagens de clientes no portal por responder.
+  mensagensPorResponder(limit = 20) {
+    return api
+      .get<MensagensPorResponderResponse>('/dashboard/mensagens-por-responder', { params: { limit } })
+      .then((r) => r.data);
+  },
   tendencia(meses = 6) {
     return api.get<TendenciaResponse>('/dashboard/tendencia', { params: { meses } }).then((r) => r.data);
   },
@@ -284,6 +290,22 @@ export interface DevicesGarantiaAExpirarResponse {
   items: DeviceGarantiaItem[];
   totalCount: number;
   diasJanela: number;
+}
+
+// Sprint 483: mensagens de clientes no portal por responder.
+export interface MensagemPorResponderItem {
+  reparacaoId: string;
+  numero: number;
+  estado: number;
+  equipamento: string;
+  clienteNome: string | null;
+  ultimaMensagem: string;
+  em: string;
+  horasEspera: number;
+}
+export interface MensagensPorResponderResponse {
+  items: MensagemPorResponderItem[];
+  totalCount: number;
 }
 
 export interface MesFinanceiro {
