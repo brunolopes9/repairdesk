@@ -35,6 +35,7 @@ import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import NovoClienteModal from '../../components/NovoClienteModal';
 import { equipmentFieldTemplatesApi } from '../../lib/equipmentFields/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
+import { dashboardApi } from '../../lib/dashboard/api';
 import { vendasApi } from '../../lib/vendas/api';
 import { devicesApi } from '../../lib/devices/api';
 import { liveListOptions } from '../../lib/queryOptions';
@@ -213,6 +214,15 @@ export default function Reparacoes() {
     staleTime: 15_000,
     ...liveListOptions,
   });
+
+  // Sprint 484 (Doc 91): ids de reparações com mensagem de cliente por responder (reusa
+  // endpoint S483). Renderiza badge 💬 no card/linha — leva o sinal do Dashboard ao board.
+  const mensagensPorResponder = useQuery({
+    queryKey: ['reparacoes-mensagens-por-responder'],
+    queryFn: () => dashboardApi.mensagensPorResponder(50),
+    staleTime: 30_000,
+  });
+  const idsPorResponder = new Set((mensagensPorResponder.data?.items ?? []).map((m) => m.reparacaoId));
 
   const rawItems = list.data?.items ?? [];
   // Sprint 417: quando o utilizador não escolheu estado específico, filtramos client-side
@@ -546,6 +556,12 @@ export default function Reparacoes() {
                                     {DEVICE_CATEGORY_LABEL[r.categoria]}
                                   </span>
                                 )}
+                                {/* Sprint 484: mensagem de cliente por responder (S483). */}
+                                {idsPorResponder.has(r.id) && (
+                                  <span title="Mensagem de cliente por responder" className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                                    💬 Responder
+                                  </span>
+                                )}
                                 {etaBadge && (
                                   <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${etaBadge.cls}`}>{etaBadge.label}</span>
                                 )}
@@ -616,6 +632,7 @@ export default function Reparacoes() {
             onCardClick={(id) => setSelectedId(id)}
             pending={changeEstado.isPending}
             staleDaysThreshold={preferences.data?.communication.staleDaysThreshold ?? 7}
+            idsPorResponder={idsPorResponder}
           />
           {inspectorAside}
         </div>
@@ -1335,6 +1352,7 @@ function KanbanBoard({
   onCardClick,
   pending,
   staleDaysThreshold,
+  idsPorResponder,
 }: {
   data: Map<RepairStatus, Reparacao[]> | undefined;
   loading: boolean;
@@ -1342,6 +1360,7 @@ function KanbanBoard({
   onCardClick: (id: string) => void;
   pending: boolean;
   staleDaysThreshold: number;
+  idsPorResponder: Set<string>;
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragFrom, setDragFrom] = useState<RepairStatus | null>(null);
@@ -1417,6 +1436,12 @@ function KanbanBoard({
                         {r.categoria != null && (
                           <span className="flex-none rounded bg-sky-100 px-1 py-0.5 text-[9px] font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
                             {DEVICE_CATEGORY_LABEL[r.categoria]}
+                          </span>
+                        )}
+                        {/* Sprint 484: cliente escreveu no portal e está à espera (S483). */}
+                        {idsPorResponder.has(r.id) && (
+                          <span title="Mensagem de cliente por responder" className="flex-none rounded bg-rose-100 px-1 py-0.5 text-[9px] font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                            💬 Responder
                           </span>
                         )}
                       </div>
