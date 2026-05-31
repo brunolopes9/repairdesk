@@ -137,6 +137,46 @@ public class PublicPortalPreferencesTests
         await act.Should().ThrowAsync<RepairDesk.Core.Exceptions.NotFoundException>();
     }
 
+    [Fact]
+    public async Task GetBySlugAsync_ExpoeConversaPortalCliente_NaoNotasInternas()
+    {
+        // Sprint 482: o fio de conversa do portal só expõe Tipo=PortalCliente.
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+
+        // Mensagem do cliente (Inbound, PortalCliente) — deve aparecer.
+        await service_SubmeterMensagem(db, tenantId, rep.PublicSlug!, "Quando fica pronto?");
+        // Resposta staff (Outbound, PortalCliente) — deve aparecer.
+        db.ReparacaoComunicacoes.Add(new ReparacaoComunicacao
+        {
+            TenantId = tenantId, ReparacaoId = rep.Id, ClienteId = rep.ClienteId,
+            Tipo = ComunicacaoTipo.PortalCliente, Direcao = ComunicacaoDirecao.Outbound,
+            Texto = "Amanhã ao fim do dia.", CreatedByUserId = Guid.NewGuid(),
+        });
+        // Nota interna de telefone — NÃO deve aparecer no portal.
+        db.ReparacaoComunicacoes.Add(new ReparacaoComunicacao
+        {
+            TenantId = tenantId, ReparacaoId = rep.Id, ClienteId = rep.ClienteId,
+            Tipo = ComunicacaoTipo.Telefone, Direcao = ComunicacaoDirecao.Interna,
+            Texto = "Cliente parece chato, cobrar adiantado.", CreatedByUserId = Guid.NewGuid(),
+        });
+        await db.SaveChangesAsync();
+
+        var service = NewService(db, tenantId, TenantPreferencesDefaults.Create());
+        var dto = await service.GetBySlugAsync(rep.PublicSlug!);
+
+        dto.Conversa.Should().HaveCount(2);
+        dto.Conversa[0].Texto.Should().Be("Quando fica pronto?");
+        dto.Conversa[0].DeStaff.Should().BeFalse();
+        dto.Conversa[1].Texto.Should().Be("Amanhã ao fim do dia.");
+        dto.Conversa[1].DeStaff.Should().BeTrue();
+        dto.Conversa.Should().NotContain(m => m.Texto.Contains("cobrar adiantado"));
+    }
+
+    private static Task service_SubmeterMensagem(AppDbContext db, Guid tenantId, string slug, string texto)
+        => NewService(db, tenantId, TenantPreferencesDefaults.Create()).SubmeterMensagemAsync(slug, texto);
+
     private static async Task<Reparacao> SeedRepairAsync(AppDbContext db, Guid tenantId)
     {
         var tenant = new Tenant { Id = tenantId, Name = "LopesTech" };

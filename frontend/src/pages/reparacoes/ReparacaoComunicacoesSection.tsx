@@ -218,6 +218,18 @@ export function ReparacaoComunicacoesSection({
               <MessageCircle size={12} /> WhatsApp
             </a>
           )}
+          {/* Sprint 482: responder ao cliente no portal. Pré-define canal=Portal + Enviada,
+              que o cliente vê no fio de conversa em /r/{slug}. */}
+          {!open && (
+            <button
+              type="button"
+              onClick={() => { setTipo(ComunicacaoTipo.PortalCliente); setDirecao(ComunicacaoDirecao.Outbound); setOpen(true); }}
+              className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-300 dark:hover:bg-rose-950/30"
+              title="Escrever uma resposta visível para o cliente no portal público"
+            >
+              <MessageCircle size={12} /> Responder no portal
+            </button>
+          )}
           {!open && (
             <Button size="sm" onClick={() => setOpen(true)} leftIcon={<Plus size={14} />}>
               Registar
@@ -243,6 +255,7 @@ export function ReparacaoComunicacoesSection({
                 ComunicacaoTipo.Sms,
                 ComunicacaoTipo.Visita,
                 ComunicacaoTipo.Nota,
+                ComunicacaoTipo.PortalCliente,
               ].map((t) => ({ value: t, label: COMUNICACAO_TIPO_LABEL[t] }))}
             />
             <Select

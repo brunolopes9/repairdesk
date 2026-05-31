@@ -180,10 +180,14 @@ export default function PortalCliente() {
           <AvaliacaoCard slug={data.slug} />
         )}
 
-        {/* Sprint 480: cliente fala com staff sem sair para WhatsApp/email. */}
-        {data.estado !== PUBLIC_ESTADO.Entregue && data.estado !== PUBLIC_ESTADO.Cancelado && (
-          <MensagemCard slug={data.slug} />
-        )}
+        {/* Sprint 480/482: conversa bidireccional. Input só quando aberta; fio sempre
+            que houver mensagens (cliente vê respostas mesmo após entrega). */}
+        {(() => {
+          const aberta = data.estado !== PUBLIC_ESTADO.Entregue && data.estado !== PUBLIC_ESTADO.Cancelado;
+          return (aberta || data.conversa.length > 0) ? (
+            <MensagemCard slug={data.slug} conversa={data.conversa} podeEnviar={aberta} />
+          ) : null;
+        })()}
 
         <ContactoLoja loja={data.loja} mensagemBase={`Olá! Sou ${data.clientePrimeiroNome}, queria saber novidades sobre o ${data.equipamentoPublico}.`} />
 
@@ -638,16 +642,25 @@ function HealthScoreCard({ score, destaques }: { score: number; destaques: strin
   );
 }
 
-function MensagemCard({ slug }: { slug: string }) {
+function MensagemCard({
+  slug,
+  conversa,
+  podeEnviar: canSend,
+}: {
+  slug: string;
+  conversa: import('../lib/publicPortal/api').PublicConversaMsg[];
+  podeEnviar: boolean;
+}) {
+  const qc = useQueryClient();
   const [texto, setTexto] = useState('');
-  const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mut = useMutation({
     mutationFn: () => publicPortalApi.submeterMensagem(slug, texto.trim()),
     onSuccess: () => {
-      setDone(true);
       setTexto('');
+      // Refresca o fio para a mensagem aparecer logo (optimismo via refetch — barato no portal).
+      qc.invalidateQueries({ queryKey: ['public-repair', slug] });
     },
     onError: (e) => {
       const status = isAxiosError(e) ? e.response?.status : undefined;
@@ -661,52 +674,62 @@ function MensagemCard({ slug }: { slug: string }) {
     },
   });
 
-  if (done) {
-    return (
-      <Card titulo="Mensagem enviada" icon={Check} tone="emerald">
-        <p className="text-sm text-zinc-700 dark:text-zinc-300">
-          Recebemos a tua mensagem. A loja vai responder em breve — podes voltar a esta página para acompanhar.
-        </p>
-        <button
-          type="button"
-          onClick={() => setDone(false)}
-          className="mt-3 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-300"
-        >
-          Enviar outra mensagem
-        </button>
-      </Card>
-    );
-  }
-
   const trimmedLen = texto.trim().length;
-  const podeEnviar = trimmedLen >= 1 && trimmedLen <= 2000 && !mut.isPending;
+  const podeSubmeter = canSend && trimmedLen >= 1 && trimmedLen <= 2000 && !mut.isPending;
 
   return (
-    <Card titulo="Tens uma pergunta?" icon={MessageCircle}>
-      <p className="text-xs text-zinc-500">Escreve à loja sem sair daqui. Ficará registado nesta reparação.</p>
-      <textarea
-        rows={3}
-        value={texto}
-        onChange={(e) => {
-          setTexto(e.target.value);
-          if (error) setError(null);
-        }}
-        maxLength={2000}
-        placeholder="Ex.: Posso passar amanhã às 17h para levantar?"
-        className="mt-3 w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-      />
-      <div className="mt-1 flex items-center justify-between text-[11px] text-zinc-400">
-        <span>{trimmedLen}/2000</span>
-      </div>
-      {error && <div className="mt-2 text-xs text-rose-600">{error}</div>}
-      <button
-        type="button"
-        disabled={!podeEnviar}
-        onClick={() => mut.mutate()}
-        className="mt-3 w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
-      >
-        {mut.isPending ? 'A enviar…' : 'Enviar à loja'}
-      </button>
+    <Card titulo="Conversa com a loja" icon={MessageCircle}>
+      {conversa.length > 0 ? (
+        <ul className="mb-3 space-y-2">
+          {conversa.map((m, i) => (
+            <li key={i} className={`flex ${m.deStaff ? 'justify-start' : 'justify-end'}`}>
+              <div
+                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                  m.deStaff
+                    ? 'rounded-bl-sm bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100'
+                    : 'rounded-br-sm bg-brand-600 text-white'
+                }`}
+              >
+                <div className="whitespace-pre-wrap break-words">{m.texto}</div>
+                <div className={`mt-0.5 text-[10px] ${m.deStaff ? 'text-zinc-400' : 'text-white/70'}`}>
+                  {m.deStaff ? 'Loja' : 'Tu'} · {new Date(m.em).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' })}{' '}
+                  {new Date(m.em).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-zinc-500">Escreve à loja sem sair daqui. Ficará registado nesta reparação.</p>
+      )}
+
+      {canSend ? (
+        <>
+          <textarea
+            rows={2}
+            value={texto}
+            onChange={(e) => {
+              setTexto(e.target.value);
+              if (error) setError(null);
+            }}
+            maxLength={2000}
+            placeholder="Escreve a tua mensagem…"
+            className="w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          />
+          <div className="mt-1 text-right text-[11px] text-zinc-400">{trimmedLen}/2000</div>
+          {error && <div className="mt-1 text-xs text-rose-600">{error}</div>}
+          <button
+            type="button"
+            disabled={!podeSubmeter}
+            onClick={() => mut.mutate()}
+            className="mt-2 w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
+          >
+            {mut.isPending ? 'A enviar…' : 'Enviar à loja'}
+          </button>
+        </>
+      ) : (
+        <p className="text-xs text-zinc-400">Esta reparação já foi fechada — a conversa fica disponível para consulta.</p>
+      )}
     </Card>
   );
 }

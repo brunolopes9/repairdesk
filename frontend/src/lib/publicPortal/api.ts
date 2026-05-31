@@ -92,6 +92,14 @@ export interface PublicRepairDto {
   camposEquipamento: PublicEquipmentFieldDto[];
   /** Sprint 88: cobertura por garantia de venda anterior, quando aplicável. */
   coberturaGarantia: PublicCoberturaGarantia | null;
+  /** Sprint 482: fio de conversa do portal (cliente + respostas do staff). */
+  conversa: PublicConversaMsg[];
+}
+
+export interface PublicConversaMsg {
+  deStaff: boolean;
+  texto: string;
+  em: string;
 }
 
 export interface PublicCoberturaGarantia {

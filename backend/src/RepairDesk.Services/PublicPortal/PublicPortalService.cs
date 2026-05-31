@@ -181,7 +181,25 @@ public class PublicPortalService : IPublicPortalService
         var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
         var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
         var cobertura = await ResolveCoberturaGarantiaAsync(rep, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura, prefs.Portal);
+        var conversa = await LoadConversaAsync(rep.Id, ct);
+        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura, prefs.Portal, conversa);
+    }
+
+    /// <summary>
+    /// Sprint 482: fio de conversa do portal. Só comunicações tipo PortalCliente — cliente
+    /// (Inbound) + respostas do staff (Outbound). Cronológico ascendente (chat-style).
+    /// </summary>
+    private async Task<IReadOnlyList<PublicConversaMsg>> LoadConversaAsync(Guid reparacaoId, CancellationToken ct)
+    {
+        var all = await _comunicacoes.ListByReparacaoAsync(reparacaoId, ct);
+        return all
+            .Where(c => c.Tipo == ComunicacaoTipo.PortalCliente)
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new PublicConversaMsg(
+                DeStaff: c.Direcao == ComunicacaoDirecao.Outbound,
+                Texto: c.Texto,
+                Em: c.CreatedAt))
+            .ToList();
     }
 
     /// <summary>
@@ -237,7 +255,8 @@ public class PublicPortalService : IPublicPortalService
         var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
         var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
         var cobertura = await ResolveCoberturaGarantiaAsync(rep, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura, prefs.Portal);
+        var conversa = await LoadConversaAsync(rep.Id, ct);
+        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura, prefs.Portal, conversa);
     }
 
     public async Task SubmeterMensagemAsync(string slug, string texto, CancellationToken ct = default)
@@ -295,7 +314,8 @@ public class PublicPortalService : IPublicPortalService
         IReadOnlyList<ReparacaoFoto> fotos,
         IReadOnlyList<EquipmentFieldValueDto> campos,
         PublicCoberturaGarantia? cobertura,
-        PortalPrefs portal)
+        PortalPrefs portal,
+        IReadOnlyList<PublicConversaMsg> conversa)
     {
         var primeiroNome = rep.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente";
         var loja = new PublicLoja(
@@ -353,7 +373,8 @@ public class PublicPortalService : IPublicPortalService
                 .Where(c => !string.IsNullOrWhiteSpace(c.Value))
                 .Select(c => new PublicEquipmentFieldDto(c.Label, c.Value, c.Ordem))
                 .ToList(),
-            CoberturaGarantia: portal.MostrarGarantia ? cobertura : null);
+            CoberturaGarantia: portal.MostrarGarantia ? cobertura : null,
+            Conversa: conversa);
     }
 }
 

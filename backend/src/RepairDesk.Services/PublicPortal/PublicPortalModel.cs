@@ -35,7 +35,19 @@ public sealed record PublicRepairDto(
     IReadOnlyList<PublicFotoDto> Fotos,
     IReadOnlyList<PublicEquipmentFieldDto> CamposEquipamento,
     /// <summary>Sprint 88: cobertura por garantia de venda anterior, quando IMEI bate.</summary>
-    PublicCoberturaGarantia? CoberturaGarantia);
+    PublicCoberturaGarantia? CoberturaGarantia,
+    /// <summary>Sprint 482: fio de conversa do portal (mensagens do cliente + respostas do staff).</summary>
+    IReadOnlyList<PublicConversaMsg> Conversa);
+
+/// <summary>
+/// Sprint 482: uma mensagem do fio de conversa do portal. Só expõe comunicações do tipo
+/// PortalCliente (cliente escreveu OU staff respondeu pelo portal) — nunca notas internas,
+/// logs de telefone ou WhatsApp privados.
+/// </summary>
+public sealed record PublicConversaMsg(
+    bool DeStaff,
+    string Texto,
+    DateTime Em);
 
 /// <summary>
 /// Indicação ao cliente de que esta reparação está coberta pela garantia da venda original.
