@@ -220,12 +220,17 @@ export function ReparacaoComunicacoesSection({
               <Send size={12} /> {aviso.label}
             </a>
           )}
-          {/* Sprint 471: par Email — só visible quando há email + estado comunicável. */}
+          {/* Sprint 471: par Email — só visible quando há email + estado comunicável.
+              Sprint 489: se o cliente prefere Email (S479), promove a primário (filled) e order-first. */}
           {!clienteNaoContactar && mailtoLink && aviso && (
             <a
               href={mailtoLink}
               onClick={() => avisarClienteEmail.mutate()}
-              className="inline-flex items-center gap-1 rounded-md border border-indigo-300 px-2 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800/60 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ${
+                (clienteContactoPreferido ?? '').toLowerCase() === 'email'
+                  ? 'order-first bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'border border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800/60 dark:text-indigo-300 dark:hover:bg-indigo-950/30'
+              }`}
               title="Abrir cliente de email com mensagem pré-feita e registar como Outbound"
             >
               <Mail size={12} /> Email
