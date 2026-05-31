@@ -71,6 +71,72 @@ public class PublicPortalPreferencesTests
             .Where(e => e.Code == "orcamento_aprovacao_desactivada");
     }
 
+    // Sprint 480: mensagens enviadas pelo cliente via portal público.
+
+    [Fact]
+    public async Task SubmeterMensagemAsync_CriaComunicacaoInboundPortalCliente()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        var service = NewService(db, tenantId, TenantPreferencesDefaults.Create());
+
+        await service.SubmeterMensagemAsync(rep.PublicSlug!, "Posso passar amanhã às 17h?");
+
+        var saved = await db.ReparacaoComunicacoes.SingleAsync();
+        saved.ReparacaoId.Should().Be(rep.Id);
+        saved.ClienteId.Should().Be(rep.ClienteId);
+        saved.Tipo.Should().Be(ComunicacaoTipo.PortalCliente);
+        saved.Direcao.Should().Be(ComunicacaoDirecao.Inbound);
+        saved.Texto.Should().Be("Posso passar amanhã às 17h?");
+        // Sentinela "anónimo portal" — sem user identificado.
+        saved.CreatedByUserId.Should().Be(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task SubmeterMensagemAsync_TextoVazio_ThrowsValidation()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        var service = NewService(db, tenantId, TenantPreferencesDefaults.Create());
+
+        var act = () => service.SubmeterMensagemAsync(rep.PublicSlug!, "   ");
+
+        await act.Should().ThrowAsync<RepairDesk.Core.Exceptions.ValidationException>()
+            .Where(e => e.Code == "texto_invalido");
+    }
+
+    [Fact]
+    public async Task SubmeterMensagemAsync_ReparacaoEntregue_ThrowsConflict()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        rep.Estado = RepairStatus.Entregue;
+        rep.EntregueEm = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        var service = NewService(db, tenantId, TenantPreferencesDefaults.Create());
+
+        var act = () => service.SubmeterMensagemAsync(rep.PublicSlug!, "Olá!");
+
+        await act.Should().ThrowAsync<RepairDesk.Core.Exceptions.ConflictException>()
+            .Where(e => e.Code == "estado_fechado");
+    }
+
+    [Fact]
+    public async Task SubmeterMensagemAsync_SlugInexistente_ThrowsNotFound()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        _ = await SeedRepairAsync(db, tenantId);
+        var service = NewService(db, tenantId, TenantPreferencesDefaults.Create());
+
+        var act = () => service.SubmeterMensagemAsync("naoexiste", "olá");
+
+        await act.Should().ThrowAsync<RepairDesk.Core.Exceptions.NotFoundException>();
+    }
+
     private static async Task<Reparacao> SeedRepairAsync(AppDbContext db, Guid tenantId)
     {
         var tenant = new Tenant { Id = tenantId, Name = "LopesTech" };
