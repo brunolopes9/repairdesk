@@ -6,7 +6,10 @@ public sealed record CreateClienteRequest(
     string? Email,
     string? Nif,
     string? Notas,
-    string? NotaImportante = null);
+    string? NotaImportante = null,
+    string? ContactoPreferido = null,
+    bool AceitaMarketing = false,
+    bool NaoContactar = false);
 
 public sealed record UpdateClienteRequest(
     string Nome,
@@ -14,7 +17,10 @@ public sealed record UpdateClienteRequest(
     string? Email,
     string? Nif,
     string? Notas,
-    string? NotaImportante = null);
+    string? NotaImportante = null,
+    string? ContactoPreferido = null,
+    bool AceitaMarketing = false,
+    bool NaoContactar = false);
 
 public sealed record ClienteDto(
     Guid Id,
@@ -26,7 +32,11 @@ public sealed record ClienteDto(
     DateTime CreatedAt,
     DateTime? UpdatedAt,
     /// <summary>Sprint 355: alerta destacado.</summary>
-    string? NotaImportante = null);
+    string? NotaImportante = null,
+    /// <summary>Sprint 479: canal preferido para contacto.</summary>
+    string? ContactoPreferido = null,
+    bool AceitaMarketing = false,
+    bool NaoContactar = false);
 
 public sealed record ClienteEquipamentoDto(
     string Nome,

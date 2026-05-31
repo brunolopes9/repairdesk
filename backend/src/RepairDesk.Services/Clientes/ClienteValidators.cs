@@ -17,6 +17,11 @@ public sealed class CreateClienteValidator : AbstractValidator<CreateClienteRequ
             .WithMessage("NIF inválido — verifica os 9 dígitos e o check-digit.")
             .When(x => !string.IsNullOrWhiteSpace(x.Nif));
         RuleFor(x => x.Notas).MaximumLength(2000);
+        RuleFor(x => x.NotaImportante).MaximumLength(120);
+        RuleFor(x => x.ContactoPreferido)
+            .Must(ClienteContactPreferences.IsValidChannel)
+            .WithMessage("Canal preferido inválido. Usa Telefone, WhatsApp, Email ou Sms.")
+            .When(x => !string.IsNullOrWhiteSpace(x.ContactoPreferido));
     }
 }
 
@@ -34,5 +39,10 @@ public sealed class UpdateClienteValidator : AbstractValidator<UpdateClienteRequ
             .WithMessage("NIF inválido — verifica os 9 dígitos e o check-digit.")
             .When(x => !string.IsNullOrWhiteSpace(x.Nif));
         RuleFor(x => x.Notas).MaximumLength(2000);
+        RuleFor(x => x.NotaImportante).MaximumLength(120);
+        RuleFor(x => x.ContactoPreferido)
+            .Must(ClienteContactPreferences.IsValidChannel)
+            .WithMessage("Canal preferido inválido. Usa Telefone, WhatsApp, Email ou Sms.")
+            .When(x => !string.IsNullOrWhiteSpace(x.ContactoPreferido));
     }
 }

@@ -111,6 +111,45 @@ public class ClientesApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task ContactPreferences_CreateUpdate_PersistemNoDto()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+
+        var created = await CreateAsync(client, new CreateClienteRequest(
+            "Cliente Preferencias",
+            "912123123",
+            "pref@example.com",
+            null,
+            null,
+            null,
+            "whatsapp",
+            AceitaMarketing: true,
+            NaoContactar: false));
+
+        created.ContactoPreferido.Should().Be("WhatsApp");
+        created.AceitaMarketing.Should().BeTrue();
+        created.NaoContactar.Should().BeFalse();
+
+        var update = await client.PutAsJsonAsync($"/api/clientes/{created.Id}",
+            new UpdateClienteRequest(
+                "Cliente Preferencias",
+                "912123123",
+                "pref@example.com",
+                null,
+                null,
+                null,
+                "Email",
+                AceitaMarketing: true,
+                NaoContactar: true));
+
+        update.StatusCode.Should().Be(HttpStatusCode.OK);
+        var dto = await update.Content.ReadFromJsonAsync<ClienteDto>();
+        dto!.ContactoPreferido.Should().Be("Email");
+        dto.AceitaMarketing.Should().BeFalse();
+        dto.NaoContactar.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Delete_HidesFromList()
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);

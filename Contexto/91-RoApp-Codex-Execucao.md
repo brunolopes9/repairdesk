@@ -229,6 +229,25 @@ reparação (banner IMEI + autocomplete), Dashboard (cross-sell garantia).
 - Vitest setup frontend (testes UI) — futuro
 - Doc 90 Tier 3 (Chats omnichannel real, AI replies) — fora scope hoje
 
+## Sessão 2026-05-31 — Clientes: preferências de contacto e consentimento (S479)
+
+Feature ROAPP-inspired implementada pelo Codex para preparar CRM/omnichannel sem
+fazer integrações falsas:
+
+- **S479** `Cliente` ganhou `ContactoPreferido` (`Telefone`, `WhatsApp`, `Email`,
+  `Sms`), `AceitaMarketing` e `NaoContactar`.
+- API cria/edita/lista/exporta/importa CSV estes campos. `NaoContactar=true`
+  força `AceitaMarketing=false`.
+- UI Clientes: formulário com seleção de canal preferido + consentimento, KPIs
+  "Marketing OK" e "Não contactar", filtros rápidos, badges na lista, inspector
+  e ficha do cliente.
+- Migration `Sprint479_ClienteContactPreferencesAndReparacaoCategoria` adiciona
+  estes campos em `Clientes` e também materializa `Reparacoes.Categoria`, que já
+  existia no modelo mas estava pendente no snapshot/migration drift de S475.
+- Teste novo `ContactPreferences_CreateUpdate_PersistemNoDto`.
+- Validação: `dotnet test` backend **536/536 verde** + `npm run build` frontend
+  verde.
+
 ## Guardrails
 
 - Nao copiar ROAPP horizontal demais. Mender deve continuar vertical para lojas/reparacao em Portugal.

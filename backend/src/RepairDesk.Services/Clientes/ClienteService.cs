@@ -85,6 +85,9 @@ public class ClienteService : IClienteService
             Nif = req.Nif?.Trim(),
             Notas = req.Notas?.Trim(),
             NotaImportante = string.IsNullOrWhiteSpace(req.NotaImportante) ? null : req.NotaImportante.Trim(),
+            ContactoPreferido = ClienteContactPreferences.NormalizeChannel(req.ContactoPreferido),
+            AceitaMarketing = !req.NaoContactar && req.AceitaMarketing,
+            NaoContactar = req.NaoContactar,
         };
         await _repo.AddAsync(cliente, ct);
         await _repo.SaveAsync(ct);
@@ -104,6 +107,9 @@ public class ClienteService : IClienteService
         cliente.Nif = req.Nif?.Trim();
         cliente.Notas = req.Notas?.Trim();
         cliente.NotaImportante = string.IsNullOrWhiteSpace(req.NotaImportante) ? null : req.NotaImportante.Trim();
+        cliente.ContactoPreferido = ClienteContactPreferences.NormalizeChannel(req.ContactoPreferido);
+        cliente.AceitaMarketing = !req.NaoContactar && req.AceitaMarketing;
+        cliente.NaoContactar = req.NaoContactar;
         await _repo.SaveAsync(ct);
         return ToDto(cliente);
     }
@@ -149,8 +155,11 @@ public class ClienteService : IClienteService
         var idxEmail = Array.IndexOf(header, "email");
         var idxNif = Array.IndexOf(header, "nif");
         var idxNotas = Array.IndexOf(header, "notas");
+        var idxContactoPreferido = Array.IndexOf(header, "contactopreferido");
+        var idxAceitaMarketing = Array.IndexOf(header, "aceitamarketing");
+        var idxNaoContactar = Array.IndexOf(header, "naocontactar");
         if (idxNome < 0)
-            throw new RepairDesk.Core.Exceptions.ValidationException("csv_falta_coluna", "Coluna obrigatória 'nome' não encontrada no header. Aceito: nome,telefone,email,nif,notas");
+            throw new RepairDesk.Core.Exceptions.ValidationException("csv_falta_coluna", "Coluna obrigatória 'nome' não encontrada no header. Aceito: nome,telefone,email,nif,notas,contactopreferido,aceitamarketing,naocontactar");
 
         var erros = new List<ImportError>();
         var criados = new List<ClienteDto>();
@@ -172,6 +181,9 @@ public class ClienteService : IClienteService
             var email = Get(idxEmail);
             var nif = Get(idxNif);
             var notas = Get(idxNotas);
+            var contactoPreferido = Get(idxContactoPreferido);
+            var aceitaMarketing = ClienteContactPreferences.ParseCsvBool(Get(idxAceitaMarketing));
+            var naoContactar = ClienteContactPreferences.ParseCsvBool(Get(idxNaoContactar));
 
             // Dedupe por NIF: se já existe, ignorar (não duplicar)
             if (!string.IsNullOrWhiteSpace(nif) && await _repo.NifExistsAsync(nif, null, ct))
@@ -182,7 +194,7 @@ public class ClienteService : IClienteService
 
             try
             {
-                var req = new CreateClienteRequest(nome, telefone, email, nif, notas);
+                var req = new CreateClienteRequest(nome, telefone, email, nif, notas, null, contactoPreferido, aceitaMarketing, naoContactar);
                 await _createValidator.ValidateAndThrowAsync(req, ct);
                 var cliente = new Cliente
                 {
@@ -191,6 +203,9 @@ public class ClienteService : IClienteService
                     Email = string.IsNullOrWhiteSpace(email) ? null : email,
                     Nif = string.IsNullOrWhiteSpace(nif) ? null : nif,
                     Notas = string.IsNullOrWhiteSpace(notas) ? null : notas,
+                    ContactoPreferido = ClienteContactPreferences.NormalizeChannel(contactoPreferido),
+                    AceitaMarketing = !naoContactar && aceitaMarketing,
+                    NaoContactar = naoContactar,
                 };
                 await _repo.AddAsync(cliente, ct);
                 await _repo.SaveAsync(ct);
@@ -220,10 +235,10 @@ public class ClienteService : IClienteService
     {
         var rows = await _repo.ExportAllAsync(ct);
         var csv = new CsvBuilder();
-        csv.Row("nome", "telefone", "email", "nif", "notas", "criadoem");
+        csv.Row("nome", "telefone", "email", "nif", "notas", "contactopreferido", "aceitamarketing", "naocontactar", "criadoem");
         foreach (var c in rows)
         {
-            csv.Row(c.Nome, c.Telefone, c.Email, c.Nif, c.Notas, c.CreatedAt);
+            csv.Row(c.Nome, c.Telefone, c.Email, c.Nif, c.Notas, c.ContactoPreferido, c.AceitaMarketing, c.NaoContactar, c.CreatedAt);
         }
         return csv.ToUtf8WithBom();
     }
@@ -232,5 +247,17 @@ public class ClienteService : IClienteService
         new(raw.Where(c => !char.IsWhiteSpace(c)).ToArray());
 
     private static ClienteDto ToDto(Cliente c) =>
-        new(c.Id, c.Nome, c.Telefone, c.Email, c.Nif, c.Notas, c.CreatedAt, c.UpdatedAt, c.NotaImportante);
+        new(
+            c.Id,
+            c.Nome,
+            c.Telefone,
+            c.Email,
+            c.Nif,
+            c.Notas,
+            c.CreatedAt,
+            c.UpdatedAt,
+            c.NotaImportante,
+            c.ContactoPreferido,
+            c.AceitaMarketing,
+            c.NaoContactar);
 }

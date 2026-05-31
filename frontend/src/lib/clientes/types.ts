@@ -9,6 +9,9 @@ export interface Cliente {
   updatedAt: string | null;
   /** Sprint 355: alerta curto destacado. */
   notaImportante?: string | null;
+  contactoPreferido?: 'Telefone' | 'WhatsApp' | 'Email' | 'Sms' | null;
+  aceitaMarketing?: boolean;
+  naoContactar?: boolean;
 }
 
 export interface ClienteForm {
@@ -18,6 +21,9 @@ export interface ClienteForm {
   nif: string | null;
   notas: string | null;
   notaImportante?: string | null;
+  contactoPreferido?: 'Telefone' | 'WhatsApp' | 'Email' | 'Sms' | null;
+  aceitaMarketing?: boolean;
+  naoContactar?: boolean;
 }
 
 export interface ClienteEquipamento {

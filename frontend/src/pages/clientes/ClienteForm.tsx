@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { isAxiosError } from 'axios';
-import { AlertTriangle, Building2, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, Ban, Building2, CheckCircle2, Loader2, Mail, MessageCircle, Phone, Send } from 'lucide-react';
 import { clientesApi } from '../../lib/clientes/api';
 import type { AtNifLookup, Cliente, ClienteForm } from '../../lib/clientes/types';
 import { validateNif } from '../../lib/nif/validator';
@@ -35,6 +35,9 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
   const [nif, setNif] = useState('');
   const [notas, setNotas] = useState('');
   const [notaImportante, setNotaImportante] = useState('');
+  const [contactoPreferido, setContactoPreferido] = useState<ClienteForm['contactoPreferido']>(null);
+  const [aceitaMarketing, setAceitaMarketing] = useState(false);
+  const [naoContactar, setNaoContactar] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [generic, setGeneric] = useState<string | null>(null);
   const [atLookup, setAtLookup] = useState<AtLookupState>({ status: 'idle' });
@@ -46,6 +49,9 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
     setNif(initial?.nif ?? '');
     setNotas(initial?.notas ?? '');
     setNotaImportante(initial?.notaImportante ?? '');
+    setContactoPreferido(initial?.contactoPreferido ?? null);
+    setAceitaMarketing(Boolean(initial?.aceitaMarketing));
+    setNaoContactar(Boolean(initial?.naoContactar));
     setErrors({});
     setGeneric(null);
     setAtLookup({ status: 'idle' });
@@ -94,6 +100,9 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
         nif: nif.trim() || null,
         notas: notas.trim() || null,
         notaImportante: notaImportante.trim() || null,
+        contactoPreferido: contactoPreferido ?? null,
+        aceitaMarketing: naoContactar ? false : aceitaMarketing,
+        naoContactar,
       });
     } catch (err) {
       if (isAxiosError(err)) {
@@ -140,6 +149,73 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
           className={inputCls}
         />
       </Field>
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/70">
+        <div className="mb-3 flex items-start gap-2">
+          <Send size={15} className="mt-0.5 text-brand-600" />
+          <div>
+            <div className="text-sm font-semibold">Preferências de contacto</div>
+            <p className="text-xs text-zinc-500">Ajuda a equipa a escolher o canal certo antes de enviar mensagens.</p>
+          </div>
+        </div>
+        <Field label="Canal preferido" errors={errors.contactoPreferido}>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <ChannelButton
+              active={contactoPreferido === 'Telefone'}
+              icon={<Phone size={14} />}
+              label="Telefone"
+              onClick={() => setContactoPreferido(contactoPreferido === 'Telefone' ? null : 'Telefone')}
+            />
+            <ChannelButton
+              active={contactoPreferido === 'WhatsApp'}
+              icon={<MessageCircle size={14} />}
+              label="WhatsApp"
+              onClick={() => setContactoPreferido(contactoPreferido === 'WhatsApp' ? null : 'WhatsApp')}
+            />
+            <ChannelButton
+              active={contactoPreferido === 'Email'}
+              icon={<Mail size={14} />}
+              label="Email"
+              onClick={() => setContactoPreferido(contactoPreferido === 'Email' ? null : 'Email')}
+            />
+            <ChannelButton
+              active={contactoPreferido === 'Sms'}
+              icon={<Send size={14} />}
+              label="SMS"
+              onClick={() => setContactoPreferido(contactoPreferido === 'Sms' ? null : 'Sms')}
+            />
+          </div>
+        </Field>
+        <div className="mt-3 space-y-2">
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <input
+              type="checkbox"
+              checked={aceitaMarketing}
+              disabled={naoContactar}
+              onChange={(e) => setAceitaMarketing(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-brand-600 focus:ring-brand-500"
+            />
+            <span>
+              <span className="block font-medium">Aceita campanhas e novidades</span>
+              <span className="block text-xs text-zinc-500">Promoções, lembretes comerciais e novidades da loja.</span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <input
+              type="checkbox"
+              checked={naoContactar}
+              onChange={(e) => {
+                setNaoContactar(e.target.checked);
+                if (e.target.checked) setAceitaMarketing(false);
+              }}
+              className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500"
+            />
+            <span>
+              <span className="flex items-center gap-1 font-medium"><Ban size={13} /> Não contactar</span>
+              <span className="block text-xs text-zinc-500">Sinaliza que contactos não essenciais devem ser evitados.</span>
+            </span>
+          </label>
+        </div>
+      </div>
       <Field label="NIF (9 dígitos)" errors={errors.nif}>
         <input
           inputMode="numeric"
@@ -201,6 +277,33 @@ function Field({
         <p className="text-xs text-red-600 dark:text-red-400">{errors.join(' ')}</p>
       )}
     </div>
+  );
+}
+
+function ChannelButton({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition ${
+        active
+          ? 'border-brand-500 bg-brand-50 text-brand-700 ring-2 ring-brand-100 dark:bg-brand-950/30 dark:text-brand-300 dark:ring-brand-900/50'
+          : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900'
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

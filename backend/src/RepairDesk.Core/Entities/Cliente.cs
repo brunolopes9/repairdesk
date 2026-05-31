@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using RepairDesk.Core.Abstractions;
 
 namespace RepairDesk.Core.Entities;
@@ -17,4 +18,17 @@ public class Cliente : BaseEntity, ITenantEntity
     /// "Cliente difícil"). Diferente de Notas (texto longo de contexto).
     /// </summary>
     public string? NotaImportante { get; set; }
+
+    /// <summary>
+    /// Canal que o cliente prefere para contactos operacionais.
+    /// Valores aceites pela API: Telefone, WhatsApp, Email, Sms.
+    /// </summary>
+    [MaxLength(20)]
+    public string? ContactoPreferido { get; set; }
+
+    /// <summary>Consentimento/opt-in para campanhas e comunicacoes comerciais.</summary>
+    public bool AceitaMarketing { get; set; }
+
+    /// <summary>Bloqueia contactos não essenciais quando o cliente pede para não ser contactado.</summary>
+    public bool NaoContactar { get; set; }
 }

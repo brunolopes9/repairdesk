@@ -4,11 +4,13 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tansta
 import {
   AlertTriangle,
   AtSign,
+  Ban,
   ChevronRight,
   Download,
   FileText,
   FolderUp,
   Mail,
+  Megaphone,
   MessageCircle,
   Pencil,
   Phone,
@@ -56,12 +58,14 @@ function avatarTone(name: string): string {
   return AVATAR_TONES[h % AVATAR_TONES.length];
 }
 
-type FilterKey = 'all' | 'nif' | 'email' | 'nophone';
+type FilterKey = 'all' | 'nif' | 'email' | 'nophone' | 'marketing' | 'blocked';
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'all', label: 'Todos' },
   { key: 'nif', label: 'Com NIF' },
   { key: 'email', label: 'Com email' },
   { key: 'nophone', label: 'Sem telefone' },
+  { key: 'marketing', label: 'Marketing OK' },
+  { key: 'blocked', label: 'Não contactar' },
 ];
 
 export default function Clientes() {
@@ -121,6 +125,8 @@ export default function Clientes() {
     if (filter === 'nif') return !!c.nif;
     if (filter === 'email') return !!c.email;
     if (filter === 'nophone') return !c.telefone;
+    if (filter === 'marketing') return !!c.aceitaMarketing;
+    if (filter === 'blocked') return !!c.naoContactar;
     return true;
   });
 
@@ -134,6 +140,8 @@ export default function Clientes() {
   }).length;
   const comNif = items.filter((c) => !!c.nif).length;
   const comEmail = items.filter((c) => !!c.email).length;
+  const marketingOk = items.filter((c) => !!c.aceitaMarketing).length;
+  const naoContactarCount = items.filter((c) => !!c.naoContactar).length;
 
   return (
     <div className="space-y-4">
@@ -169,11 +177,13 @@ export default function Clientes() {
       />
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <KpiTile icon={<Users size={18} />} tone="sky" label="Total clientes" value={String(total)} />
         <KpiTile icon={<UserPlus size={18} />} tone="emerald" label="Novos este mês" value={String(novosEsteMes)} />
         <KpiTile icon={<FileText size={18} />} tone="violet" label="Com NIF" value={String(comNif)} />
         <KpiTile icon={<AtSign size={18} />} tone="amber" label="Com email" value={String(comEmail)} />
+        <KpiTile icon={<Megaphone size={18} />} tone="emerald" label="Marketing OK" value={String(marketingOk)} />
+        <KpiTile icon={<Ban size={18} />} tone="amber" label="Não contactar" value={String(naoContactarCount)} />
       </div>
 
       {/* Pesquisa + chips de filtro */}
@@ -276,6 +286,23 @@ export default function Clientes() {
                             {c.telefone ? displayPhone(c.telefone) : <em className="opacity-60">sem telefone</em>}
                           </div>
                           {c.email && <div className="truncate text-[11px] text-zinc-400">{c.email}</div>}
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {c.contactoPreferido && (
+                              <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                                Pref. {c.contactoPreferido}
+                              </span>
+                            )}
+                            {c.aceitaMarketing && (
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                Marketing OK
+                              </span>
+                            )}
+                            {c.naoContactar && (
+                              <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                                Não contactar
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           {c.nif ? (
@@ -511,9 +538,17 @@ function ClienteInspector({
             <div className="mt-1 flex flex-wrap gap-1 text-[11px]">
               {cliente.nif && <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">NIF {cliente.nif}</span>}
               {abertos > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">{abertos} em curso</span>}
+              {cliente.contactoPreferido && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">Pref. {cliente.contactoPreferido}</span>}
+              {cliente.aceitaMarketing && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">Marketing OK</span>}
             </div>
           </div>
         </div>
+        {cliente.naoContactar && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950/40 dark:text-red-200">
+            <Ban size={13} className="mt-0.5 shrink-0" />
+            <span>Cliente marcado como Não contactar. Evita mensagens não essenciais.</span>
+          </div>
+        )}
         {cliente.notaImportante && (
           <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
@@ -739,6 +774,7 @@ function ImportCsvModal({
             <div className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
               <p className="font-medium text-zinc-700 dark:text-zinc-300">Formato esperado:</p>
               <p className="mt-1">Header obrigatório: <code className="font-mono">nome,telefone,email,nif,notas</code></p>
+              <p className="mt-1">Opcionais: <code className="font-mono">contactopreferido,aceitamarketing,naocontactar</code></p>
               <p className="mt-1">Aceito separador <code>,</code>, <code>;</code> ou tab. Vindo de Excel? Guarda como <strong>CSV UTF-8</strong>. Dedupe automático por NIF.</p>
             </div>
 

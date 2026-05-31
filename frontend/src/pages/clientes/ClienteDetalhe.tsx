@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Download, Mail, MessageCircle, Pencil, Phone, ShieldAlert, ShoppingBag, Smartphone, Wrench } from 'lucide-react';
+import { AlertTriangle, Ban, Download, Mail, Megaphone, MessageCircle, Pencil, Phone, Send, ShieldAlert, ShoppingBag, Smartphone, Wrench } from 'lucide-react';
 import { displayPhone } from '../../lib/phone/formatter';
 import Modal from '../../components/Modal';
 import { BackButton, Breadcrumb, Button, SkeletonCard } from '../../components/ui';
@@ -216,6 +216,23 @@ export default function ClienteDetalhe() {
           )}
           {c.email && <div className="flex items-center gap-1.5"><Mail size={13} strokeWidth={2} className="text-zinc-400" /> {c.email}</div>}
           {c.nif && <div>NIF {c.nif}</div>}
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {c.contactoPreferido && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+              <Send size={12} /> Prefere {c.contactoPreferido}
+            </span>
+          )}
+          {c.aceitaMarketing && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <Megaphone size={12} /> Marketing OK
+            </span>
+          )}
+          {c.naoContactar && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
+              <Ban size={12} /> Não contactar
+            </span>
+          )}
         </div>
         {cleanPhone && (
           <div className="flex flex-wrap gap-2">
