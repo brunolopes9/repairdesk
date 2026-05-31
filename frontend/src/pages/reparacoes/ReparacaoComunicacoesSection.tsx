@@ -99,6 +99,13 @@ export function ReparacaoComunicacoesSection({
 
   const items = list.data ?? [];
 
+  // Sprint 485 (Doc 91): cliente escreveu pelo portal e aguarda resposta? — a última mensagem
+  // PortalCliente é Inbound sem Outbound posterior. Mostra banner no topo (par do badge S484
+  // no board) para que, ao abrir a reparação, o staff veja logo que tem de responder.
+  const portalMsgs = items.filter((c) => c.tipo === ComunicacaoTipo.PortalCliente);
+  const ultimaPortal = portalMsgs[0]; // items vêm desc por createdAt (repo OrderByDescending)
+  const clienteAguardaResposta = ultimaPortal?.direcao === ComunicacaoDirecao.Inbound;
+
   // WhatsApp link rápido (número PT normalizado 351). Útil porque é o canal #1 de comunicação no balcão.
   const waNumber = clienteTelefone ? normalizeWaNumber(clienteTelefone) : null;
   const waLink = waNumber ? `https://wa.me/${waNumber}` : null;
@@ -237,6 +244,22 @@ export function ReparacaoComunicacoesSection({
           )}
         </div>
       </div>
+
+      {/* Sprint 485 (Doc 91): cliente escreveu pelo portal e aguarda resposta — banner + CTA. */}
+      {clienteAguardaResposta && !open && (
+        <button
+          type="button"
+          onClick={() => { setTipo(ComunicacaoTipo.PortalCliente); setDirecao(ComunicacaoDirecao.Outbound); setOpen(true); }}
+          className="flex w-full items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-left transition hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:hover:bg-rose-950/50"
+        >
+          <MessageCircle size={16} className="mt-0.5 flex-none text-rose-600 dark:text-rose-400" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-rose-900 dark:text-rose-100">O cliente escreveu pelo portal e aguarda resposta</span>
+            <span className="mt-0.5 block truncate text-xs text-rose-700/80 dark:text-rose-300/80">“{ultimaPortal.texto}”</span>
+            <span className="mt-0.5 block text-[11px] font-medium text-rose-700 dark:text-rose-300">Clica para responder no portal →</span>
+          </span>
+        </button>
+      )}
 
       {open && (
         <form
