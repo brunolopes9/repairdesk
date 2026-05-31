@@ -254,6 +254,20 @@ export default function Reparacoes() {
     staleTime: 30_000,
     ...liveListOptions,
   });
+  // Sprint 486: contagem por categoria (S475) para os chips de filtro. pageSize:1 → só o total.
+  // Respeita o estado activo para o número refletir o que está visível no bucket.
+  const categoriaCounts = useQuery({
+    queryKey: ['reparacoes-categoria-counts', estado],
+    queryFn: async () => {
+      const cats = [0, 1, 2, 4, 5, 99]; // os mesmos chips visíveis (sem Desktop=3)
+      const totais = await Promise.all(
+        cats.map((c) => reparacoesApi.list({ estado, categoria: c, pageSize: 1 }).then((p) => [c, p.total] as const)),
+      );
+      return new Map<number, number>(totais);
+    },
+    staleTime: 30_000,
+    ...liveListOptions,
+  });
   const semFatura = pagasSemFatura.data?.length ?? 0;
   const aReceberCents = (pagasSemFatura.data ?? []).reduce(
     (s, r) => s + ((r as { orcamentoCents?: number }).orcamentoCents ?? 0), 0);
@@ -460,6 +474,8 @@ export default function Reparacoes() {
             { value: DEVICE_CATEGORY.Outro, label: DEVICE_CATEGORY_LABEL[DEVICE_CATEGORY.Outro] },
           ].map((c) => {
             const active = categoriaFiltro === c.value;
+            // Sprint 486: contagem por categoria ao lado do label (null = "Todos", sem número).
+            const count = c.value == null ? null : categoriaCounts.data?.get(c.value) ?? null;
             return (
               <button
                 key={c.label}
@@ -472,6 +488,9 @@ export default function Reparacoes() {
                 }`}
               >
                 {c.label}
+                {count != null && count > 0 && (
+                  <span className={`ml-1 tabular-nums ${active ? 'text-white/80' : 'text-zinc-400'}`}>{count}</span>
+                )}
               </button>
             );
           })}
