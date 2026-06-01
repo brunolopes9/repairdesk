@@ -359,7 +359,7 @@ public class VendaServiceTests
     private sealed class FakeBillingProvider : IBillingProvider
     {
         public int EmitVendaCalls { get; private set; }
-        public Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
+        public Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, CancellationToken ct = default)
             => throw new NotSupportedException();
         public Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
             => throw new NotSupportedException();

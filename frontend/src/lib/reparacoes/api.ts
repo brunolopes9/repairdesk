@@ -43,7 +43,10 @@ export const reparacoesApi = {
   assign(id: string, userId: string | null) {
     return api.put<Reparacao>(`/reparacoes/${id}/assign`, { userId }).then((r) => r.data);
   },
-  emitirFatura(id: string, payload: { vatPercent?: number | null; paymentMethod?: string | null } = {}) {
+  emitirFatura(
+    id: string,
+    payload: { vatPercent?: number | null; paymentMethod?: string | null; discriminarMaoObra?: boolean } = {},
+  ) {
     return api.post<InvoiceDto>(`/reparacoes/${id}/emitir-fatura`, payload).then((r) => r.data);
   },
   anularFatura(id: string) {

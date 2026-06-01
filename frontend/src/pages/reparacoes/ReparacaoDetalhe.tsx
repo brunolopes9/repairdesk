@@ -122,6 +122,8 @@ export default function ReparacaoDetalhe() {
   const [emitLookup, setEmitLookup] = useState<import('../../lib/clientes/types').AtNifLookup | null>(null);
   const [emitLookupErr, setEmitLookupErr] = useState<string | null>(null);
   const [emitLookupPending, setEmitLookupPending] = useState(false);
+  // Sprint 501: discriminar peças+mão-de-obra (default) ou linha única (esconde margem ao cliente).
+  const [emitDiscriminar, setEmitDiscriminar] = useState(true);
   // Sprint 141: modal rápido para adicionar telefone ao cliente quando ainda não tem.
   const [telefoneOpen, setTelefoneOpen] = useState(false);
   const [telefoneInput, setTelefoneInput] = useState('');
@@ -391,7 +393,7 @@ export default function ReparacaoDetalhe() {
   });
 
   const emitirFatura = useMutation({
-    mutationFn: () => reparacoesApi.emitirFatura(id!),
+    mutationFn: () => reparacoesApi.emitirFatura(id!, { discriminarMaoObra: emitDiscriminar }),
     onSuccess: (invoice) => {
       qc.invalidateQueries({ queryKey: ['reparacao', id] });
       toast.success(`Fatura ${invoice.number} emitida`, invoice.pdfUrl ? 'PDF disponível na ficha.' : undefined);
@@ -1344,6 +1346,24 @@ export default function ReparacaoDetalhe() {
             </div>
             {billing.data?.sandboxMode && <div className="mt-1 text-xs text-amber-600">⚠️ MODO SANDBOX — fatura de teste</div>}
           </div>
+
+          {/* Sprint 501: discriminar peças+mão-de-obra na fatura, ou linha única (esconde a margem). */}
+          <label className="flex cursor-pointer items-start gap-2 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+            <input
+              type="checkbox"
+              checked={emitDiscriminar}
+              onChange={(e) => setEmitDiscriminar(e.target.checked)}
+              className="mt-0.5"
+            />
+            <div>
+              <div className="font-medium">Discriminar peças e mão-de-obra</div>
+              <div className="text-xs text-zinc-500">
+                {emitDiscriminar
+                  ? 'A fatura mostra cada peça + uma linha "Mão-de-obra".'
+                  : `Uma linha única: "${(r.diagnostico?.trim() || r.avaria?.trim() || `Reparação ${r.equipamento}`).slice(0, 60)}" + total. Não revela a margem ao cliente.`}
+              </div>
+            </div>
+          </label>
 
           <fieldset className="space-y-2">
             <legend className="text-xs font-semibold uppercase text-zinc-500">Tipo de documento</legend>

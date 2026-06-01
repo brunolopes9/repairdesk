@@ -33,8 +33,11 @@ public sealed class InvoiceXpressBillingProvider : IBillingProvider
         _invoiceXpress = invoiceXpress;
     }
 
-    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
+    // Sprint 501: aceita discriminarMaoObra para paridade de interface; o InvoiceXpress já
+    // emite uma linha única (não discrimina peças), por isso o flag não altera o comportamento aqui.
+    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, CancellationToken ct = default)
     {
+        _ = discriminarMaoObra;
         var reparacao = await _reparacoes.FindByIdWithTimelineAsync(reparacaoId, ct)
             ?? throw new NotFoundException("Reparacao", reparacaoId);
 

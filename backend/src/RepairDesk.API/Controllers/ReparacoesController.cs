@@ -115,7 +115,7 @@ public class ReparacoesController : ControllerBase
 
     [HttpPost("{id:guid}/emitir-fatura")]
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
-        => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);
+        => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, req?.DiscriminarMaoObra ?? true, ct);
 
     [HttpPost("{id:guid}/emitir-orcamento-moloni")]
     public Task<ReparacaoDto> EmitirOrcamentoMoloni(Guid id, CancellationToken ct)
@@ -151,7 +151,7 @@ public class ReparacoesController : ControllerBase
         {
             try
             {
-                var invoice = await _billing.EmitReparacaoInvoiceAsync(id, null, null, ct);
+                var invoice = await _billing.EmitReparacaoInvoiceAsync(id, null, null, ct: ct);
                 results.Add(new BulkEmitResult(id, true, invoice.Number, null));
             }
             catch (Exception ex)

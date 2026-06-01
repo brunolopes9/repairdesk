@@ -19,8 +19,8 @@ public sealed class TenantBillingProvider : IBillingProvider
         _factory = factory;
     }
 
-    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
-        => await (await ResolveAsync(ct)).EmitReparacaoInvoiceAsync(reparacaoId, vatPercent, paymentMethod, ct);
+    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, CancellationToken ct = default)
+        => await (await ResolveAsync(ct)).EmitReparacaoInvoiceAsync(reparacaoId, vatPercent, paymentMethod, discriminarMaoObra, ct);
 
     public async Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
         => await (await ResolveAsync(ct)).EmitTrabalhoInvoiceAsync(trabalhoId, vatPercent, paymentMethod, ct);

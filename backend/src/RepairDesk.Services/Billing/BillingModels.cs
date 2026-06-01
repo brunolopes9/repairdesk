@@ -75,7 +75,12 @@ public sealed record MoloniAutoDiscoverResultDto(
 
 public sealed record MoloniOAuthStartDto(string AuthorizationUrl, DateTime ExpiresAt);
 
-public sealed record EmitInvoiceRequest(decimal? VatPercent, string? PaymentMethod);
+/// <summary>
+/// Sprint 501: <c>DiscriminarMaoObra</c> controla, por emissão, se a fatura Moloni detalha
+/// peças + linha de mão-de-obra (true, default) ou se sai como linha única com a descrição do
+/// serviço + total (false) — para clientes a quem não se quer revelar a margem.
+/// </summary>
+public sealed record EmitInvoiceRequest(decimal? VatPercent, string? PaymentMethod, bool DiscriminarMaoObra = true);
 
 public sealed record InvoiceDto(string Number, string? PdfUrl, DateTime EmittedAt);
 

@@ -7,7 +7,7 @@ namespace RepairDesk.Services.Billing;
 
 public interface IBillingProvider
 {
-    Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default);
+    Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, CancellationToken ct = default);
     Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default);
     Task<InvoiceDto> EmitVendaInvoiceAsync(Guid vendaId, CancellationToken ct = default);
     Task<Stream> GetPdfStreamAsync(string invoiceId, CancellationToken ct = default);
@@ -44,7 +44,7 @@ public class MoloniBillingProvider : IBillingProvider
         _parts = parts;
     }
 
-    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
+    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, CancellationToken ct = default)
     {
         var reparacao = await _reparacoes.FindByIdWithTimelineAsync(reparacaoId, ct)
             ?? throw new NotFoundException("Reparacao", reparacaoId);
@@ -60,7 +60,22 @@ public class MoloniBillingProvider : IBillingProvider
         var effectiveVat = ResolveVatPercent(tenant, vatPercent);
 
         // Sprint 136: discrimina peças do stock + mão-de-obra na fatura. Fallback null se não há peças.
-        var lines = await BuildBillingItemsAsync(reparacao, amount, effectiveVat, ct);
+        // Sprint 501: quando discriminarMaoObra=false, força UMA linha (descrição do serviço + total),
+        // sem revelar peças/margem ao cliente. Descrição = diagnóstico (ex: "Substituição de ecrã e
+        // bateria - iPhone 13"), com fallback à avaria/equipamento.
+        IReadOnlyList<MoloniInvoiceDraftItem>? lines;
+        if (discriminarMaoObra)
+        {
+            lines = await BuildBillingItemsAsync(reparacao, amount, effectiveVat, ct);
+        }
+        else
+        {
+            var nome = !string.IsNullOrWhiteSpace(reparacao.Diagnostico) ? reparacao.Diagnostico!.Trim()
+                : !string.IsNullOrWhiteSpace(reparacao.Avaria) ? reparacao.Avaria.Trim()
+                : $"Reparação {reparacao.Equipamento}";
+            if (nome.Length > 80) nome = nome[..79].TrimEnd() + "…";
+            lines = new[] { new MoloniInvoiceDraftItem(nome, null, 1, amount, 0, effectiveVat) };
+        }
 
         var result = await _moloni.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
             customerId,
