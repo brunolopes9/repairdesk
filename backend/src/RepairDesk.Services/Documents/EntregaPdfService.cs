@@ -131,6 +131,8 @@ public sealed class EntregaPdfService : IEntregaPdfService
             Cliente: clienteData,
             Equipamento: rep.Equipamento,
             Imei: rep.Imei,
+            // Sprint 491: tipo/categoria (S475) com label pt-PT partilhado (DeviceCategoryLabels).
+            Tipo: DeviceCategoryLabels.PtLabel(rep.Categoria),
             Diagnostico: rep.Diagnostico,
             ResumoIntervencao: rep.Notas ?? rep.Avaria,
             Linhas: linhas,

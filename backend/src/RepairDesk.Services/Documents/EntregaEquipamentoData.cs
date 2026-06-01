@@ -12,6 +12,8 @@ public sealed record EntregaEquipamentoData(
     OrcamentoCliente Cliente,
     string Equipamento,
     string? Imei,
+    /// <summary>Sprint 491: categoria do equipamento (DeviceCategory S475) já com label pt-PT. Opcional.</summary>
+    string? Tipo,
     string? Diagnostico,
     string ResumoIntervencao,
     IReadOnlyList<OrcamentoLinha> Linhas,
