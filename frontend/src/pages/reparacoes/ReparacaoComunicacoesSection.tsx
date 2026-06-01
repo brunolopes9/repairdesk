@@ -56,6 +56,7 @@ export function ReparacaoComunicacoesSection({
   clienteEmail,
   clienteNaoContactar,
   clienteContactoPreferido,
+  publicSlug,
 }: {
   reparacaoId: string;
   reparacaoNumero?: number;
@@ -68,6 +69,8 @@ export function ReparacaoComunicacoesSection({
   /** Sprint 488: consentimento RGPD (S479). Quando true, esconde CTAs proativos de contacto. */
   clienteNaoContactar?: boolean;
   clienteContactoPreferido?: string | null;
+  /** Sprint 497: slug do portal (/r/{slug}) — usado no placeholder {{portal_link}} dos avisos. */
+  publicSlug?: string | null;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -132,6 +135,8 @@ export function ReparacaoComunicacoesSection({
   // Sprint 456+457 (Doc 91 follow-up): CTA contextual "Avisar cliente" por estado.
   // Estados cobertos: 1 (Diagnóstico), 2 (AguardaPeça), 4 (Pronto). Click abre WhatsApp
   // pré-preenchido + regista comunicação outbound automaticamente, fechando o loop S452.
+  // Sprint 497: link do portal para o placeholder {{portal_link}} (acompanhar + pagar online).
+  const portalUrl = publicSlug ? `${window.location.origin}/r/${publicSlug}` : undefined;
   const aviso = reparacaoEstado != null && waNumber
     ? buildAvisoPorEstado(reparacaoEstado, {
         clienteNome,
@@ -139,6 +144,7 @@ export function ReparacaoComunicacoesSection({
         numero: reparacaoNumero,
         lojaNome: tenant.data?.name,
         templateTexto: getTemplateTexto(prefs.data?.communication.templatesByState, reparacaoEstado),
+        portalUrl,
       })
     : null;
   const waAvisoLink = aviso && waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(aviso.mensagem)}` : null;
@@ -440,7 +446,7 @@ function Select({
  */
 function buildAvisoPorEstado(
   estado: number,
-  opts: { clienteNome?: string; equipamento?: string; numero?: number; lojaNome?: string; templateTexto?: string | null },
+  opts: { clienteNome?: string; equipamento?: string; numero?: number; lojaNome?: string; templateTexto?: string | null; portalUrl?: string },
 ): { mensagem: string; label: string; cor: string; notaLog: string } | null {
   const meta = STATE_AVISO_META[estado];
   if (!meta) return null;
@@ -454,6 +460,7 @@ function buildAvisoPorEstado(
     clienteNome: opts.clienteNome,
     equipamento: opts.equipamento,
     lojaNome: opts.lojaNome,
+    portalUrl: opts.portalUrl,
   });
 
   return { mensagem, label: meta.label, cor: meta.cor, notaLog: meta.notaLog };
@@ -461,14 +468,21 @@ function buildAvisoPorEstado(
 
 /**
  * Sprint 459: substitui {{cliente_nome}}, {{equipamento}}, {{loja_nome}} num template.
+ * Sprint 497: + {{portal_link}} (URL do portal /r/{slug} — acompanhar estado + pagar online).
  * Outros placeholders ({{valor}}, {{prazo_estimado}}, {{peca_nome}}, etc) ficam intactos —
  * o staff edita-os no WhatsApp antes de enviar (wa.me/?text= só pré-preenche).
  */
-function applyPlaceholders(template: string, opts: { clienteNome?: string; equipamento?: string; lojaNome?: string }): string {
+function applyPlaceholders(
+  template: string,
+  opts: { clienteNome?: string; equipamento?: string; lojaNome?: string; portalUrl?: string },
+): string {
   return template
     .replace(/\{\{\s*cliente_nome\s*\}\}/gi, opts.clienteNome?.split(' ')[0] ?? 'cliente')
     .replace(/\{\{\s*equipamento\s*\}\}/gi, opts.equipamento ?? 'equipamento')
-    .replace(/\{\{\s*loja_nome\s*\}\}/gi, opts.lojaNome ?? 'loja');
+    .replace(/\{\{\s*loja_nome\s*\}\}/gi, opts.lojaNome ?? 'loja')
+    // Substitui só o token (preserva a redação à volta — default ou custom do tenant).
+    // portalUrl é virtualmente sempre presente (slug garantido, S229); '' é fallback teórico.
+    .replace(/\{\{\s*portal_link\s*\}\}/gi, opts.portalUrl ?? '');
 }
 
 /** Sprint 459: meta por estado — label/cor para o botão, notaLog para o histórico, default template. */
@@ -489,7 +503,7 @@ const STATE_AVISO_META: Record<number, { label: string; cor: string; notaLog: st
     label: 'Avisar pronto',
     cor: 'bg-emerald-600 hover:bg-emerald-700',
     notaLog: 'Avisei cliente via WhatsApp que a reparação está pronta para levantar.',
-    defaultTemplate: (n) => `Olá {{cliente_nome}}, a reparação do seu {{equipamento}} está pronta para levantar na {{loja_nome}}${refSuffix(n)}. Aguardamos a sua visita. Obrigado!`,
+    defaultTemplate: (n) => `Olá {{cliente_nome}}, a reparação do seu {{equipamento}} está pronta para levantar na {{loja_nome}}${refSuffix(n)}. Aguardamos a sua visita. Obrigado!\n\n📲 Acompanhe e pague online: {{portal_link}}`,
   },
 };
 
