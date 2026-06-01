@@ -11,4 +11,8 @@ export const paymentsApi = {
   listByVenda(vendaId: string) {
     return api.get<PaymentDto[]>(`/payments/by-venda/${vendaId}`).then((r) => r.data);
   },
+  /** Sprint 496: pagamentos de uma reparação (proveniência MBWay no admin). */
+  listByReparacao(reparacaoId: string) {
+    return api.get<PaymentDto[]>(`/payments/by-reparacao/${reparacaoId}`).then((r) => r.data);
+  },
 };

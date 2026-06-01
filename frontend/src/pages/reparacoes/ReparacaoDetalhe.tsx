@@ -47,6 +47,8 @@ import {
   type RepairStatus,
 } from '../../lib/reparacoes/types';
 import { formatCents, formatDate, parseEuros } from '../../lib/money';
+import { paymentsApi } from '../../lib/payments/api';
+import { PAYMENT_PROVIDER } from '../../lib/payments/types';
 
 export default function ReparacaoDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -82,6 +84,14 @@ export default function ReparacaoDetalhe() {
     queryFn: () => equipmentFieldTemplatesApi.active(),
     enabled: !!id,
     staleTime: 60_000,
+  });
+
+  // Sprint 496: pagamentos online (MBWay) desta reparação — proveniência no admin.
+  const pagamentos = useQuery({
+    queryKey: ['reparacao-payments', id],
+    queryFn: () => paymentsApi.listByReparacao(id!),
+    enabled: !!id,
+    staleTime: 30_000,
   });
 
   const [equipamento, setEquipamento] = useState('');
@@ -1067,6 +1077,35 @@ export default function ReparacaoDetalhe() {
         ) : (
           <p className="text-xs text-zinc-500">Pagamento marcado quando a reparação estiver Reparada ou Entregue.</p>
         )}
+        {/* Sprint 496: proveniência de pagamento online (MBWay via portal). Read-only. */}
+        {(() => {
+          const online = (pagamentos.data ?? []).filter((p) => p.provider === PAYMENT_PROVIDER.Ifthenpay);
+          const pago = online.find((p) => p.status === PAYMENT_STATUS.Pago);
+          const pendente = online.find(
+            (p) =>
+              p.status === PAYMENT_STATUS.NaoPago &&
+              p.providerRef &&
+              (!p.expiresAt || new Date(p.expiresAt) > new Date()),
+          );
+          const metodo = (m: number) => (m === 2 ? 'MBWay' : m === 1 ? 'Multibanco' : 'online');
+          if (pago) {
+            return (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+                💳 Pago online por {metodo(pago.method)}
+                {pago.confirmedAt && <span className="font-normal opacity-80">· {formatDate(pago.confirmedAt)}</span>}
+                <span className="font-normal opacity-80">· {formatCents(pago.amountCents)}</span>
+              </div>
+            );
+          }
+          if (pendente) {
+            return (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                ⏳ {metodo(pendente.method)} enviado ao cliente — a aguardar confirmação
+              </div>
+            );
+          }
+          return null;
+        })()}
       </section>
 
       {/* Sprint 424: tarefas internas ligadas a esta reparação (S422 + cross-feature). */}

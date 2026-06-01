@@ -36,6 +36,7 @@ public sealed class PaymentsController : ControllerBase
     public sealed record PaymentDto(
         Guid Id,
         Guid? VendaId,
+        Guid? ReparacaoId,
         PaymentMethod Method,
         PaymentProvider Provider,
         int AmountCents,
@@ -65,7 +66,7 @@ public sealed class PaymentsController : ControllerBase
         var payment = await _service.InitiateAsync(initiation, req.Provider, ct);
 
         return Ok(new PaymentDto(
-            payment.Id, payment.VendaId, payment.Method, payment.Provider,
+            payment.Id, payment.VendaId, payment.ReparacaoId, payment.Method, payment.Provider,
             payment.AmountCents, payment.Status, payment.ProviderRef, payment.ExternalId,
             payment.CreatedAt, payment.ConfirmedAt, payment.ExpiresAt, payment.FailureReason));
     }
@@ -75,17 +76,25 @@ public sealed class PaymentsController : ControllerBase
     {
         var p = await _service.GetAsync(id, ct);
         if (p is null) return NotFound();
-        return Ok(new PaymentDto(
-            p.Id, p.VendaId, p.Method, p.Provider, p.AmountCents, p.Status,
-            p.ProviderRef, p.ExternalId, p.CreatedAt, p.ConfirmedAt, p.ExpiresAt, p.FailureReason));
+        return Ok(ToDto(p));
     }
 
     [HttpGet("by-venda/{vendaId:guid}")]
     public async Task<ActionResult<IReadOnlyList<PaymentDto>>> ListByVenda(Guid vendaId, CancellationToken ct)
     {
         var list = await _service.GetByVendaAsync(vendaId, ct);
-        return Ok(list.Select(p => new PaymentDto(
-            p.Id, p.VendaId, p.Method, p.Provider, p.AmountCents, p.Status,
-            p.ProviderRef, p.ExternalId, p.CreatedAt, p.ConfirmedAt, p.ExpiresAt, p.FailureReason)).ToList());
+        return Ok(list.Select(ToDto).ToList());
     }
+
+    /// <summary>Sprint 496: pagamentos de uma reparação (proveniência MBWay no admin).</summary>
+    [HttpGet("by-reparacao/{reparacaoId:guid}")]
+    public async Task<ActionResult<IReadOnlyList<PaymentDto>>> ListByReparacao(Guid reparacaoId, CancellationToken ct)
+    {
+        var list = await _service.GetByReparacaoAsync(reparacaoId, ct);
+        return Ok(list.Select(ToDto).ToList());
+    }
+
+    private static PaymentDto ToDto(RepairDesk.Core.Entities.Payment p) => new(
+        p.Id, p.VendaId, p.ReparacaoId, p.Method, p.Provider, p.AmountCents, p.Status,
+        p.ProviderRef, p.ExternalId, p.CreatedAt, p.ConfirmedAt, p.ExpiresAt, p.FailureReason);
 }

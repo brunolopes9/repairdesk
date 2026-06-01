@@ -23,7 +23,9 @@ export type PaymentStatus = (typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS]
 
 export interface PaymentDto {
   id: string;
-  vendaId: string;
+  vendaId: string | null;
+  /** Sprint 496: pagamento de reparação (portal MBWay) — exclusivo com vendaId. */
+  reparacaoId: string | null;
   method: PaymentMethod;
   provider: PaymentProvider;
   amountCents: number;
