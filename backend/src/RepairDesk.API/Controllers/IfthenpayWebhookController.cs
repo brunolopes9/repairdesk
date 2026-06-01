@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RepairDesk.API.Cash;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Payments;
@@ -20,12 +21,14 @@ namespace RepairDesk.API.Controllers;
 public sealed class IfthenpayWebhookController : ControllerBase
 {
     private readonly IPaymentService _payments;
+    private readonly ICashService _cash;
     private readonly IfthenpayOptions _options;
     private readonly ILogger<IfthenpayWebhookController> _logger;
 
-    public IfthenpayWebhookController(IPaymentService payments, IfthenpayOptions options, ILogger<IfthenpayWebhookController> logger)
+    public IfthenpayWebhookController(IPaymentService payments, ICashService cash, IfthenpayOptions options, ILogger<IfthenpayWebhookController> logger)
     {
         _payments = payments;
+        _cash = cash;
         _options = options;
         _logger = logger;
     }
@@ -69,8 +72,23 @@ public sealed class IfthenpayWebhookController : ControllerBase
 
         try
         {
-            await _payments.ApplyStatusUpdateAsync(providerRef, snapshot, ct);
+            var payment = await _payments.ApplyStatusUpdateAsync(providerRef, snapshot, ct);
             _logger.LogInformation("IfthenpayWebhookApplied providerRef={ProviderRef} status={Status}", providerRef, status);
+
+            // Sprint 498: pagamento online de reparação entra na caixa/Z-report (bucket MBWay/MB,
+            // nunca a gaveta). Best-effort: a reparação já está paga (fonte de verdade); não
+            // falhamos o webhook por causa da caixa — log estruturado para reconciliação.
+            if (paid && payment.Status == PaymentStatus.Pago && payment.ReparacaoId is { } repId)
+            {
+                try
+                {
+                    await _cash.RecordReparacaoPaymentAsync(payment.TenantId, repId, payment.AmountCents, payment.Method, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "CashRegisterFailed reparacaoId={ReparacaoId} providerRef={ProviderRef}", repId, providerRef);
+                }
+            }
             return Ok();
         }
         catch (InvalidOperationException ex)

@@ -107,34 +107,7 @@ public sealed class CashService : ICashService
         if (string.IsNullOrWhiteSpace(req.Descricao))
             throw new ValidationException("missing_descricao", "Descrição obrigatória.");
 
-        var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
-        var closing = await _db.DailyClosings
-            .FirstOrDefaultAsync(c => c.Date == today && c.LocationId == req.LocationId && c.Status == DailyClosingStatus.Open, ct);
-
-        // Auto-open: se ninguém abriu caixa hoje, abrir com opening=0 (operador pode corrigir
-        // editando depois — mas é melhor registar movimentos do que perder).
-        if (closing is null)
-        {
-            closing = new DailyClosing
-            {
-                TenantId = _tenant.TenantId!.Value,
-                LocationId = req.LocationId,
-                Date = today,
-                Status = DailyClosingStatus.Open,
-                OpeningCents = 0,
-                ExpectedClosingCents = 0,
-                OpenedAt = _clock.GetUtcNow().UtcDateTime,
-                OpenedByUserId = CurrentUserId(),
-                Notas = "Auto-aberta no primeiro movimento.",
-            };
-            _db.DailyClosings.Add(closing);
-            try { await _db.SaveChangesAsync(ct); }
-            catch (DbUpdateException)
-            {
-                // Outra thread abriu primeiro — recarregar
-                closing = await _db.DailyClosings.FirstAsync(c => c.Date == today && c.LocationId == req.LocationId, ct);
-            }
-        }
+        var closing = await GetOrCreateOpenClosingAsync(_tenant.TenantId!.Value, req.LocationId, ct);
 
         var movement = new CashMovement
         {
@@ -151,30 +124,46 @@ public sealed class CashService : ICashService
             RecordedByUserId = CurrentUserId(),
         };
         _db.CashMovements.Add(movement);
-
-        // Update totals do closing — separar por método e por entrada/saída de DINHEIRO.
-        var signedAmount = IsExit(req.Type) ? -req.AmountCents : req.AmountCents;
-        switch (req.PaymentMethod)
-        {
-            case PaymentMethod.Dinheiro:
-                if (signedAmount > 0) closing.CashEntriesCents += signedAmount;
-                else closing.CashExitsCents += -signedAmount;
-                closing.ExpectedClosingCents += signedAmount;
-                break;
-            case PaymentMethod.MBWay:
-                closing.MbwayCents += signedAmount;
-                break;
-            case PaymentMethod.Multibanco:
-                closing.MultibancoCents += signedAmount;
-                break;
-            default:
-                closing.OtherCents += signedAmount;
-                break;
-        }
+        ApplyMovementToTotals(closing, req.Type, req.PaymentMethod, req.AmountCents);
         closing.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
         await _db.SaveChangesAsync(ct);
 
         return ToMovementDto(movement);
+    }
+
+    /// <summary>
+    /// Sprint 498: regista um pagamento online de reparação na caixa, SEM depender do
+    /// contexto HTTP (chamado pelo webhook IFTHENPAY, que é anónimo). Escopo explícito por
+    /// <paramref name="tenantId"/> — o filtro global de tenant fica aberto quando não há
+    /// contexto. MBWay/MB caem no bucket próprio do Z-report (não na gaveta de dinheiro).
+    /// Idempotente: webhook pode reentregar — só regista um movimento por reparação.
+    /// </summary>
+    public async Task RecordReparacaoPaymentAsync(Guid tenantId, Guid reparacaoId, int amountCents, PaymentMethod method, CancellationToken ct = default)
+    {
+        if (amountCents <= 0) return;
+
+        var already = await _db.CashMovements.AnyAsync(
+            m => m.TenantId == tenantId && m.ReparacaoId == reparacaoId && m.Type == CashMovementType.PagamentoCliente, ct);
+        if (already) return;
+
+        var closing = await GetOrCreateOpenClosingAsync(tenantId, null, ct);
+        var movement = new CashMovement
+        {
+            TenantId = tenantId,
+            LocationId = null,
+            DailyClosingId = closing.Id,
+            Type = CashMovementType.PagamentoCliente,
+            PaymentMethod = method,
+            AmountCents = amountCents,
+            Descricao = "Pagamento online da reparação (portal)",
+            ReparacaoId = reparacaoId,
+            OccurredAt = _clock.GetUtcNow().UtcDateTime,
+            RecordedByUserId = null,
+        };
+        _db.CashMovements.Add(movement);
+        ApplyMovementToTotals(closing, CashMovementType.PagamentoCliente, method, amountCents);
+        closing.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task<IReadOnlyList<DailyClosingDto>> ListRecentAsync(int take, Guid? locationId, CancellationToken ct = default)
@@ -220,6 +209,65 @@ public sealed class CashService : ICashService
 
     private static bool IsExit(CashMovementType type) =>
         type is CashMovementType.Sangria or CashMovementType.DespesaCaixa or CashMovementType.Troco;
+
+    /// <summary>
+    /// Devolve o fecho aberto de hoje para (tenant, location), auto-abrindo com opening=0 se
+    /// nenhum existe. Escopo explícito por tenantId — funciona com OU sem contexto HTTP
+    /// (o filtro global de tenant é permissivo quando não há contexto). Race no índice unique
+    /// (Tenant, Location, Date) → recarrega.
+    /// </summary>
+    private async Task<DailyClosing> GetOrCreateOpenClosingAsync(Guid tenantId, Guid? locationId, CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
+        var closing = await _db.DailyClosings.FirstOrDefaultAsync(
+            c => c.TenantId == tenantId && c.Date == today && c.LocationId == locationId && c.Status == DailyClosingStatus.Open, ct);
+        if (closing is not null) return closing;
+
+        closing = new DailyClosing
+        {
+            TenantId = tenantId,
+            LocationId = locationId,
+            Date = today,
+            Status = DailyClosingStatus.Open,
+            OpeningCents = 0,
+            ExpectedClosingCents = 0,
+            OpenedAt = _clock.GetUtcNow().UtcDateTime,
+            OpenedByUserId = CurrentUserId(),
+            Notas = "Auto-aberta no primeiro movimento.",
+        };
+        _db.DailyClosings.Add(closing);
+        try { await _db.SaveChangesAsync(ct); }
+        catch (DbUpdateException)
+        {
+            closing = await _db.DailyClosings.FirstAsync(
+                c => c.TenantId == tenantId && c.Date == today && c.LocationId == locationId, ct);
+        }
+        return closing;
+    }
+
+    /// <summary>Aplica o movimento aos totais do fecho — dinheiro mexe a gaveta + esperado;
+    /// MBWay/MB/cartão caem no bucket próprio. Sinal vem do Type (saídas negativas).</summary>
+    private static void ApplyMovementToTotals(DailyClosing closing, CashMovementType type, PaymentMethod method, int amountCents)
+    {
+        var signedAmount = IsExit(type) ? -amountCents : amountCents;
+        switch (method)
+        {
+            case PaymentMethod.Dinheiro:
+                if (signedAmount > 0) closing.CashEntriesCents += signedAmount;
+                else closing.CashExitsCents += -signedAmount;
+                closing.ExpectedClosingCents += signedAmount;
+                break;
+            case PaymentMethod.MBWay:
+                closing.MbwayCents += signedAmount;
+                break;
+            case PaymentMethod.Multibanco:
+                closing.MultibancoCents += signedAmount;
+                break;
+            default:
+                closing.OtherCents += signedAmount;
+                break;
+        }
+    }
 
     private async Task<DailyClosingDto> BuildDtoAsync(Guid id, CancellationToken ct)
     {

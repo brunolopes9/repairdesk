@@ -1,3 +1,5 @@
+using RepairDesk.Core.Enums;
+
 namespace RepairDesk.API.Cash;
 
 /// <summary>
@@ -34,6 +36,12 @@ public interface ICashService
     /// se dia ainda não foi aberto (opening=0).
     /// </summary>
     Task<CashMovementDto> RecordMovementAsync(RecordMovementRequest req, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 498: regista pagamento online de reparação na caixa sem contexto HTTP
+    /// (webhook IFTHENPAY). Idempotente por reparação. MBWay/MB no bucket próprio do Z-report.
+    /// </summary>
+    Task RecordReparacaoPaymentAsync(Guid tenantId, Guid reparacaoId, int amountCents, PaymentMethod method, CancellationToken ct = default);
 
     /// <summary>Lista N últimos fechos para tabela histórica.</summary>
     Task<IReadOnlyList<DailyClosingDto>> ListRecentAsync(int take, Guid? locationId, CancellationToken ct = default);
