@@ -1,6 +1,7 @@
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
+using RepairDesk.Services.Push;
 
 namespace RepairDesk.Services.Payments;
 
@@ -28,12 +29,14 @@ public sealed class PaymentService : IPaymentService
     private readonly IPaymentRepository _repo;
     private readonly IReadOnlyDictionary<PaymentProvider, IPaymentProvider> _providers;
     private readonly IReparacaoRepository _reparacoes;
+    private readonly IStaffPushQueue _push;
 
-    public PaymentService(IPaymentRepository repo, IEnumerable<IPaymentProvider> providers, IReparacaoRepository reparacoes)
+    public PaymentService(IPaymentRepository repo, IEnumerable<IPaymentProvider> providers, IReparacaoRepository reparacoes, IStaffPushQueue push)
     {
         _repo = repo;
         _providers = providers.ToDictionary(p => p.Provider);
         _reparacoes = reparacoes;
+        _push = push;
     }
 
     public async Task<Payment> InitiateAsync(PaymentInitiationRequest request, PaymentProvider provider, CancellationToken ct = default)
@@ -106,6 +109,17 @@ public sealed class PaymentService : IPaymentService
             {
                 rep.EstadoPagamento = PaymentStatus.Pago;
                 await _reparacoes.SaveAsync(ct);
+
+                // Sprint 495: fecha o ciclo operacional — a loja é notificada quando o
+                // dinheiro entra (mirror do push "iniciado" do portal). Tag distinta para
+                // não ser substituída pela notificação de iniciação.
+                var metodo = payment.Method == PaymentMethod.MBWay ? "MBWay" : "Multibanco";
+                await _push.EnqueueAsync(new StaffPushJob(
+                    rep.TenantId,
+                    "✅ Pagamento recebido",
+                    $"Reparação #{rep.Numero:D5} · {payment.AmountCents / 100m:F2}€ pago por {metodo}",
+                    $"/reparacoes/{rep.Id}",
+                    $"pay-ok-{rep.Id}"), ct);
             }
         }
         return payment;

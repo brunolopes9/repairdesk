@@ -225,16 +225,50 @@ public class PublicPortalPreferencesTests
         });
         await db.SaveChangesAsync();
 
+        var push = new CapturingPushQueue();
         var payments = new RepairDesk.Services.Payments.PaymentService(
             new PaymentRepository(db),
             Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(),
-            new ReparacaoRepository(db));
+            new ReparacaoRepository(db),
+            push);
 
         await payments.ApplyStatusUpdateAsync("req-abc-123",
             new RepairDesk.Core.Abstractions.PaymentStatusSnapshot(PaymentStatus.Pago, DateTime.UtcNow, null));
 
         var fresh = await new ReparacaoRepository(db).FindByIdAsync(rep.Id);
         fresh!.EstadoPagamento.Should().Be(PaymentStatus.Pago);
+
+        // Sprint 495: a loja é notificada quando o dinheiro entra.
+        push.Jobs.Should().ContainSingle()
+            .Which.Should().Match<RepairDesk.Services.Push.StaffPushJob>(j =>
+                j.TenantId == tenantId && j.Body.Contains("120") && j.Body.Contains("MBWay"));
+    }
+
+    [Fact]
+    public async Task PaymentService_ConfirmaPagamento_Idempotente_NaoDuplicaPush()
+    {
+        // Webhook reentregue: segunda confirmação não marca de novo nem duplica push.
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        db.Payments.Add(new RepairDesk.Core.Entities.Payment
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, ReparacaoId = rep.Id,
+            Method = PaymentMethod.MBWay, Provider = PaymentProvider.Ifthenpay,
+            AmountCents = 12000, Status = PaymentStatus.NaoPago, ProviderRef = "req-dup",
+        });
+        await db.SaveChangesAsync();
+
+        var push = new CapturingPushQueue();
+        var payments = new RepairDesk.Services.Payments.PaymentService(
+            new PaymentRepository(db), Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(),
+            new ReparacaoRepository(db), push);
+
+        var snap = new RepairDesk.Core.Abstractions.PaymentStatusSnapshot(PaymentStatus.Pago, DateTime.UtcNow, null);
+        await payments.ApplyStatusUpdateAsync("req-dup", snap);
+        await payments.ApplyStatusUpdateAsync("req-dup", snap);
+
+        push.Jobs.Should().HaveCount(1);
     }
 
     [Fact]
@@ -319,7 +353,7 @@ public class PublicPortalPreferencesTests
             new FakeTenantPreferencesService(prefs),
             new ReparacaoComunicacaoRepository(db),
             new RepairDesk.Services.Push.StaffPushQueue(),
-            new RepairDesk.Services.Payments.PaymentService(new PaymentRepository(db), Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(), reparacoes),
+            new RepairDesk.Services.Payments.PaymentService(new PaymentRepository(db), Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(), reparacoes, new RepairDesk.Services.Push.StaffPushQueue()),
             new RepairDesk.Services.Payments.Ifthenpay.IfthenpayOptions());
     }
 
@@ -335,6 +369,19 @@ public class PublicPortalPreferencesTests
     {
         public Guid? TenantId { get; } = tenantId;
         public bool HasTenant => true;
+    }
+
+    // Sprint 495: captura pushes enfileirados para asserção em testes.
+    private sealed class CapturingPushQueue : RepairDesk.Services.Push.IStaffPushQueue
+    {
+        public List<RepairDesk.Services.Push.StaffPushJob> Jobs { get; } = [];
+        public ValueTask EnqueueAsync(RepairDesk.Services.Push.StaffPushJob job, CancellationToken ct = default)
+        {
+            Jobs.Add(job);
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask<RepairDesk.Services.Push.StaffPushJob> DequeueAsync(CancellationToken ct = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class FakeTenantPreferencesService(TenantPreferencesRoot prefs) : ITenantPreferencesService
