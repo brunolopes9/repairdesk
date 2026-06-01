@@ -810,6 +810,21 @@ export default function Reparacoes() {
   );
 }
 
+// Sprint 492: mapeia Device.Tipo (texto livre pt-PT, S461) → DeviceCategory (S475) para
+// auto-classificar a reparação ao preencher a partir de um equipamento registado. Heurística
+// por substring (case-insensitive, sem depender de acentos). Devolve null se não reconhecer.
+function tipoToCategoria(tipo?: string | null): number | null {
+  const t = (tipo ?? '').trim().toLowerCase();
+  if (!t) return null;
+  if (t.includes('telem') || t.includes('smartphone') || t.includes('phone') || t.includes('iphone')) return DEVICE_CATEGORY.Smartphone;
+  if (t.includes('tablet') || t.includes('ipad')) return DEVICE_CATEGORY.Tablet;
+  if (t.includes('port') || t.includes('laptop') || t.includes('macbook') || t.includes('notebook')) return DEVICE_CATEGORY.Laptop;
+  if (t.includes('desktop') || t.includes('torre') || t.includes('imac')) return DEVICE_CATEGORY.Desktop;
+  if (t.includes('watch') || t.includes('relog') || t.includes('relóg')) return DEVICE_CATEGORY.Smartwatch;
+  if (t.includes('consola') || t.includes('console') || t.includes('playstation') || t.includes('xbox') || t.includes('nintendo')) return DEVICE_CATEGORY.Consola;
+  return null;
+}
+
 function CreateReparacaoModal({
   open,
   onClose,
@@ -1068,6 +1083,9 @@ function CreateReparacaoModal({
                     onClick={() => {
                       setEquipamento(nome);
                       if (d.imei) setImei(d.imei);
+                      // Sprint 492: adopta a categoria do equipamento registado (S461 Tipo → S475 Categoria).
+                      const c = tipoToCategoria(d.tipo);
+                      if (c != null) setCategoria(c);
                     }}
                     className="min-h-11 rounded-lg border border-sky-200 bg-sky-50/50 px-3 py-2 text-left text-sm transition hover:border-sky-400 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:border-sky-900/40 dark:bg-sky-950/20 dark:hover:border-sky-700 dark:hover:bg-sky-950/40"
                   >
@@ -1212,6 +1230,11 @@ function CreateReparacaoModal({
                           const parts = [devicePorImei.data!.marca, devicePorImei.data!.modelo].filter(Boolean).join(' ');
                           if (parts) setEquipamento(parts);
                           else setEquipamento(devicePorImei.data!.tipo);
+                        }
+                        // Sprint 492: adopta categoria do device por IMEI, sem clobberar escolha manual.
+                        if (categoria == null) {
+                          const c = tipoToCategoria(devicePorImei.data!.tipo);
+                          if (c != null) setCategoria(c);
                         }
                       }}
                       className="mt-2 inline-flex items-center gap-1 rounded-md bg-sky-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-sky-700"
