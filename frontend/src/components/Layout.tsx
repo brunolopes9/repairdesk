@@ -384,8 +384,10 @@ export default function Layout() {
           <span className="flex-1 truncate text-base font-semibold tracking-tight text-white">Mender</span>
         </div>
 
-        {/* Nav items */}
-        <ul className="flex-1 space-y-1 p-2">
+        {/* Nav items — min-h-0 + overflow-y-auto: num flex-col h-screen, o filho flex-1 precisa
+            de min-h-0 para poder encolher abaixo do conteúdo e activar o seu próprio scroll.
+            Sem isto, com muitos submenus abertos o menu transbordava sem scroll do rato. */}
+        <ul className="flex-1 min-h-0 space-y-1 overflow-y-auto p-2">
           {visibleNav.map((item) => (
             <li key={item.to ?? item.label}>
               {item.children ? (() => {

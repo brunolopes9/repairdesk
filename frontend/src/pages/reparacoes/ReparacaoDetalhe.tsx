@@ -691,6 +691,18 @@ export default function ReparacaoDetalhe() {
           </button>
         )}
         <div className="flex flex-wrap gap-2 pt-1">
+          {/* Sprint 500: pista de discoverability — quando o Moloni NÃO está ligado, os botões
+              "Emitir Orçamento/Fatura Moloni" não aparecem (gating por billing.provider===1).
+              Sem isto o utilizador não percebe porque faltam os botões. Só quando nada foi emitido. */}
+          {billing.data && billing.data.provider !== 1 && !r.estimateExternalId && !r.invoiceExternalId && (
+            <Link
+              to="/definicoes"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200"
+              title="Liga o Moloni em Definições → Empresa & Faturação"
+            >
+              💡 Liga o Moloni para emitir orçamento e fatura
+            </Link>
+          )}
           {/* Sprint 141: o orçamento informativo do Mender foi descontinuado.
               Usa-se Moloni como fonte de orçamento oficial (botão "Emitir Orçamento Moloni" /
               "Orcamento OR ..." abaixo). O endpoint /orcamento.pdf permanece para retro-compat
