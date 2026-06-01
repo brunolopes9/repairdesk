@@ -170,6 +170,15 @@ export interface VapidPublicKeyDto {
   publicKey: string;
 }
 
+/** Sprint 493: resposta da iniciação de pagamento MBWay no portal. */
+export interface PublicPagamentoDto {
+  /** "pendente" | "pago" — estado do pedido de pagamento. */
+  estado: string;
+  valorCents: number;
+  instrucoes: string;
+  expiraEm: string | null;
+}
+
 export const publicPortalApi = {
   get(slug: string) {
     return httpPublic.get<PublicRepairDto>(`/public/repair/${slug}`).then((r) => r.data);
@@ -187,6 +196,12 @@ export const publicPortalApi = {
   /** Sprint 480: cliente envia mensagem ao staff via portal. Cria comunicação Inbound. */
   submeterMensagem(slug: string, texto: string) {
     return httpPublic.post<void>(`/public/repair/${slug}/mensagem`, { texto }).then((r) => r.data);
+  },
+  /** Sprint 493: cliente inicia pagamento MBWay da reparação (IFTHENPAY). */
+  pagarMbWay(slug: string, telefone: string) {
+    return httpPublic
+      .post<PublicPagamentoDto>(`/public/repair/${slug}/pagar-mbway`, { telefone })
+      .then((r) => r.data);
   },
   getGarantia(slug: string) {
     return httpPublic.get<PublicGarantiaDto>(`/public/warranty/${slug}`).then((r) => r.data);

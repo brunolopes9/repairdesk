@@ -12,8 +12,17 @@ public class Payment : BaseEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
 
-    public Guid VendaId { get; set; }
+    /// <summary>
+    /// Venda associada (POS). Sprint 493: nullable — um Payment pode agora estar ligado a uma
+    /// <see cref="ReparacaoId"/> em vez de uma Venda (pagamento de reparação pelo portal cliente).
+    /// Exactamente um de VendaId / ReparacaoId é preenchido (garantido pelo serviço).
+    /// </summary>
+    public Guid? VendaId { get; set; }
     public Venda? Venda { get; set; }
+
+    /// <summary>Sprint 493: reparação paga via portal MBWay (alternativa a VendaId). Coluna simples,
+    /// sem FK navegável — integridade garantida no serviço.</summary>
+    public Guid? ReparacaoId { get; set; }
 
     public PaymentMethod Method { get; set; }
     public PaymentProvider Provider { get; set; } = PaymentProvider.Manual;

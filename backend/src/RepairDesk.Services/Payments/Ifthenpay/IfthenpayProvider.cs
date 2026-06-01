@@ -50,7 +50,7 @@ public sealed class IfthenpayProvider : IPaymentProvider
         if (string.IsNullOrWhiteSpace(request.CustomerPhone))
             throw new ArgumentException("CustomerPhone obrigatório para MBWay.", nameof(request));
 
-        var orderId = $"venda-{request.VendaId:N}".Substring(0, 32);
+        var orderId = BuildOrderId(request);
         var payload = new MbWayRequest(
             MbWayKey: _options.MBWayKey,
             OrderId: orderId,
@@ -89,7 +89,7 @@ public sealed class IfthenpayProvider : IPaymentProvider
         if (string.IsNullOrWhiteSpace(_options.MultibancoKey))
             throw new InvalidOperationException("IFTHENPAY MB key não configurada.");
 
-        var orderId = $"venda-{request.VendaId:N}".Substring(0, 32);
+        var orderId = BuildOrderId(request);
         var url = $"{_options.BaseUrl}/multibanco/reference/sandbox" +
                   $"?mbKey={Uri.EscapeDataString(_options.MultibancoKey)}" +
                   $"&orderId={Uri.EscapeDataString(orderId)}" +
@@ -134,6 +134,10 @@ public sealed class IfthenpayProvider : IPaymentProvider
             ConfirmedAt: null,
             FailureReason: null));
     }
+
+    // Sprint 493: orderId de correlação — venda OU reparação. Máx 32 chars (limite IFTHENPAY).
+    private static string BuildOrderId(PaymentInitiationRequest request) =>
+        request.ReparacaoId is { } r ? $"rep-{r:N}"[..32] : $"venda-{request.VendaId:N}"[..32];
 
     private static string NormalizePhone(string phone)
     {

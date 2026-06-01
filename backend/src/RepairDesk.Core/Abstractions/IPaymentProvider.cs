@@ -35,12 +35,14 @@ public interface IPaymentProvider
 
 public sealed record PaymentInitiationRequest(
     Guid TenantId,
-    Guid VendaId,
+    Guid? VendaId,
     PaymentMethod Method,
     int AmountCents,
     string? CustomerPhone = null,
     string? CustomerEmail = null,
-    string? Description = null);
+    string? Description = null,
+    /// <summary>Sprint 493: alternativa a VendaId — pagamento de reparação (portal cliente).</summary>
+    Guid? ReparacaoId = null);
 
 public sealed record PaymentInitiation(
     PaymentStatus Status,

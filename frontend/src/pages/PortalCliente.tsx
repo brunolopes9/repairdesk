@@ -19,6 +19,7 @@ import {
   Smartphone,
   Sparkles,
   Star,
+  Wallet,
   Wrench,
   X,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ import {
   type AvaliacaoSubmittedDto,
   type PublicEstado,
   type PublicLoja,
+  type PublicPagamentoDto,
   type PublicRepairDto,
   type PublicTimelineEntry,
 } from '../lib/publicPortal/api';
@@ -112,6 +114,15 @@ export default function PortalCliente() {
             pending={decidir.isPending}
           />
         )}
+
+        {/* Sprint 493: pagar a reparação por MBWay quando está pronta e tem preço final.
+            Não mostra quando coberta por garantia (reparação grátis para o cliente). */}
+        {data.estado === PUBLIC_ESTADO.Pronto &&
+          data.temPrecoFinal &&
+          data.precoFinalCents != null &&
+          !data.coberturaGarantia && (
+            <PagamentoMbWayCard slug={data.slug} valorCents={data.precoFinalCents} />
+          )}
 
         {data.coberturaGarantia && (
           <div className="rounded-2xl border border-emerald-300 bg-emerald-50/70 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
@@ -741,6 +752,96 @@ function MensagemCard({
       ) : (
         <p className="text-xs text-zinc-400">Esta reparação já foi fechada — a conversa fica disponível para consulta.</p>
       )}
+    </Card>
+  );
+}
+
+function PagamentoMbWayCard({ slug, valorCents }: { slug: string; valorCents: number }) {
+  const [telefone, setTelefone] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [resultado, setResultado] = useState<PublicPagamentoDto | null>(null);
+
+  const mut = useMutation({
+    mutationFn: () => publicPortalApi.pagarMbWay(slug, telefone.replace(/\s+/g, '')),
+    onSuccess: (dto) => {
+      setError(null);
+      setResultado(dto);
+    },
+    onError: (e) => {
+      setResultado(null);
+      const status = isAxiosError(e) ? e.response?.status : undefined;
+      // O backend devolve mensagens PT amigáveis no ProblemDetails (detail) para 409/422.
+      const detail = isAxiosError(e) ? (e.response?.data as { detail?: string } | undefined)?.detail : undefined;
+      if (status === 422) {
+        setError('Número de telemóvel inválido. Usa o formato 9XX XXX XXX.');
+      } else if (status === 429) {
+        setError('Demasiados pedidos. Tenta novamente daqui a um minuto.');
+      } else if (status === 409) {
+        setError(detail ?? 'Não é possível pagar online neste momento. Contacta a loja.');
+      } else {
+        setError('Não foi possível iniciar o pagamento. Tenta novamente.');
+      }
+    },
+  });
+
+  // Validação local leve (a sério valida o backend): 9 dígitos a começar em 9.
+  const digits = telefone.replace(/\D/g, '');
+  const telefoneOk = /^9\d{8}$/.test(digits);
+
+  if (resultado) {
+    return (
+      <Card titulo="Pagamento por MBWay" icon={Wallet} tone="emerald">
+        <div className="flex items-start gap-3">
+          <CheckCircle2 size={20} strokeWidth={2} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <div className="text-sm">
+            <p className="font-medium text-emerald-900 dark:text-emerald-100">Pedido enviado para o teu telemóvel</p>
+            <p className="mt-1 text-emerald-800 dark:text-emerald-200/90">{resultado.instrucoes}</p>
+            {resultado.expiraEm && (
+              <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-300/70">
+                Válido até às {new Date(resultado.expiraEm).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}.
+              </p>
+            )}
+            <p className="mt-2 text-xs text-zinc-500">
+              Após confirmares na app MBWay, esta página actualiza automaticamente.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card titulo="Pagar por MBWay" icon={Wallet}>
+      <p className="text-sm text-zinc-700 dark:text-zinc-300">
+        Paga já os <span className="font-semibold">{formatCents(valorCents)}</span> sem te deslocares.
+        Recebes o pedido na app MBWay e confirmas no telemóvel.
+      </p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input
+          type="tel"
+          inputMode="numeric"
+          autoComplete="tel"
+          value={telefone}
+          onChange={(e) => {
+            setTelefone(e.target.value);
+            if (error) setError(null);
+          }}
+          placeholder="9XX XXX XXX"
+          className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+        />
+        <button
+          type="button"
+          disabled={!telefoneOk || mut.isPending}
+          onClick={() => mut.mutate()}
+          className="rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
+        >
+          {mut.isPending ? 'A iniciar…' : 'Pagar agora'}
+        </button>
+      </div>
+      {error && <div className="mt-2 text-xs text-rose-600">{error}</div>}
+      <p className="mt-2 text-[11px] text-zinc-400">
+        Pagamento processado de forma segura. O número é usado apenas para este pagamento.
+      </p>
     </Card>
   );
 }

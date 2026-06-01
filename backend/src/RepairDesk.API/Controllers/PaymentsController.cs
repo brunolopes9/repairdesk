@@ -35,7 +35,7 @@ public sealed class PaymentsController : ControllerBase
 
     public sealed record PaymentDto(
         Guid Id,
-        Guid VendaId,
+        Guid? VendaId,
         PaymentMethod Method,
         PaymentProvider Provider,
         int AmountCents,

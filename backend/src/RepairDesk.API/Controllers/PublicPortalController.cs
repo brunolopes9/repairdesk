@@ -50,6 +50,15 @@ public class PublicPortalController : ControllerBase
         await _service.SubmeterMensagemAsync(slug, req.Texto, ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// Sprint 493: cliente inicia pagamento MBWay da reparação a partir do portal. Reusa o
+    /// IfthenpayProvider (S303). Confirmação chega por webhook → reparação marca Paga.
+    /// Anonymous + rate-limit public-portal (60/min) + cooldown de push no serviço.
+    /// </summary>
+    [HttpPost("{slug}/pagar-mbway")]
+    public Task<PublicPagamentoDto> PagarMbWay(string slug, [FromBody] IniciarPagamentoMbWayRequest req, CancellationToken ct)
+        => _service.IniciarPagamentoMbWayAsync(slug, req.Telefone, ct);
 }
 
 /// <summary>

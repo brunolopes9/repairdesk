@@ -119,6 +119,16 @@ public sealed record AprovarOrcamentoRequest(bool Aceitar);
 /// <summary>Sprint 480: payload do cliente para enviar uma mensagem ao staff via portal público.</summary>
 public sealed record SubmitMensagemRequest(string Texto);
 
+/// <summary>Sprint 493: payload do cliente para iniciar pagamento MBWay no portal.</summary>
+public sealed record IniciarPagamentoMbWayRequest(string Telefone);
+
+/// <summary>Sprint 493: resposta de iniciação de pagamento MBWay (instruções para o cliente).</summary>
+public sealed record PublicPagamentoDto(
+    string Estado,
+    int ValorCents,
+    string Instrucoes,
+    DateTime? ExpiraEm);
+
 public sealed record PublicGarantiaDto(
     string Slug,
     string EquipamentoPublico,

@@ -177,6 +177,66 @@ public class PublicPortalPreferencesTests
     private static Task service_SubmeterMensagem(AppDbContext db, Guid tenantId, string slug, string texto)
         => NewService(db, tenantId, TenantPreferencesDefaults.Create()).SubmeterMensagemAsync(slug, texto);
 
+    // Sprint 493: MBWay no portal cliente.
+
+    [Fact]
+    public async Task IniciarPagamentoMbWay_TelefoneInvalido_ThrowsValidation()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        var service = NewService(db, tenantId, TenantPreferencesDefaults.Create());
+
+        var act = () => service.IniciarPagamentoMbWayAsync(rep.PublicSlug!, "12345", default);
+
+        await act.Should().ThrowAsync<RepairDesk.Core.Exceptions.ValidationException>()
+            .Where(e => e.Code == "telefone_invalido");
+    }
+
+    [Fact]
+    public async Task IniciarPagamentoMbWay_SemIfthenpay_ThrowsConflict()
+    {
+        // NewService usa IfthenpayOptions() não configurado → MBWay indisponível.
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        var service = NewService(db, tenantId, TenantPreferencesDefaults.Create());
+
+        var act = () => service.IniciarPagamentoMbWayAsync(rep.PublicSlug!, "912345678", default);
+
+        await act.Should().ThrowAsync<RepairDesk.Core.Exceptions.ConflictException>()
+            .Where(e => e.Code == "mbway_indisponivel");
+    }
+
+    [Fact]
+    public async Task PaymentService_ConfirmaPagamentoReparacao_MarcaPaga()
+    {
+        // Núcleo do fluxo de dinheiro: webhook confirma → reparação fica Paga.
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        rep.EstadoPagamento.Should().NotBe(PaymentStatus.Pago);
+
+        db.Payments.Add(new RepairDesk.Core.Entities.Payment
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, ReparacaoId = rep.Id,
+            Method = PaymentMethod.MBWay, Provider = PaymentProvider.Ifthenpay,
+            AmountCents = 12000, Status = PaymentStatus.NaoPago, ProviderRef = "req-abc-123",
+        });
+        await db.SaveChangesAsync();
+
+        var payments = new RepairDesk.Services.Payments.PaymentService(
+            new PaymentRepository(db),
+            Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(),
+            new ReparacaoRepository(db));
+
+        await payments.ApplyStatusUpdateAsync("req-abc-123",
+            new RepairDesk.Core.Abstractions.PaymentStatusSnapshot(PaymentStatus.Pago, DateTime.UtcNow, null));
+
+        var fresh = await new ReparacaoRepository(db).FindByIdAsync(rep.Id);
+        fresh!.EstadoPagamento.Should().Be(PaymentStatus.Pago);
+    }
+
     private static async Task<Reparacao> SeedRepairAsync(AppDbContext db, Guid tenantId)
     {
         var tenant = new Tenant { Id = tenantId, Name = "LopesTech" };
@@ -226,7 +286,9 @@ public class PublicPortalPreferencesTests
             new VendaRepository(db),
             new FakeTenantPreferencesService(prefs),
             new ReparacaoComunicacaoRepository(db),
-            new RepairDesk.Services.Push.StaffPushQueue());
+            new RepairDesk.Services.Push.StaffPushQueue(),
+            new RepairDesk.Services.Payments.PaymentService(new PaymentRepository(db), Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(), reparacoes),
+            new RepairDesk.Services.Payments.Ifthenpay.IfthenpayOptions());
     }
 
     private static AppDbContext NewDb(Guid tenantId)

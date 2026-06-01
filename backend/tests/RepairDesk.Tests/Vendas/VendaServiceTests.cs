@@ -444,6 +444,8 @@ public class VendaServiceTests
         public Task<Payment?> GetAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Payment?>(null);
         public Task<IReadOnlyList<Payment>> GetByVendaAsync(Guid vendaId, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<Payment>>(Array.Empty<Payment>());
+        public Task<IReadOnlyList<Payment>> GetByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<Payment>>(Array.Empty<Payment>());
         public Task<Payment> ApplyStatusUpdateAsync(string providerRef, PaymentStatusSnapshot snapshot, CancellationToken ct = default)
             => Task.FromResult(new Payment { Id = Guid.NewGuid() });
     }

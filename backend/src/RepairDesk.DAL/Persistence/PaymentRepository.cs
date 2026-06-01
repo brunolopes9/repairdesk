@@ -22,6 +22,12 @@ public class PaymentRepository : IPaymentRepository
             .OrderBy(p => p.CreatedAt)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Payment>> GetByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default) =>
+        await _db.Payments
+            .Where(p => p.ReparacaoId == reparacaoId)
+            .OrderBy(p => p.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task AddAsync(Payment payment, CancellationToken ct = default)
     {
         await _db.Payments.AddAsync(payment, ct);

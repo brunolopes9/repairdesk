@@ -17,6 +17,8 @@ public interface IPublicPortalService
     Task<AvaliacaoSubmittedDto> SubmeterAvaliacaoAsync(string repairSlug, int score, string? comentario, bool publicarTestemunho, CancellationToken ct = default);
     /// <summary>Sprint 480: cliente escreve do portal público. Cria comunicação Inbound + push staff.</summary>
     Task SubmeterMensagemAsync(string slug, string texto, CancellationToken ct = default);
+    /// <summary>Sprint 493: cliente inicia pagamento MBWay da reparação pelo portal (IFTHENPAY).</summary>
+    Task<PublicPagamentoDto> IniciarPagamentoMbWayAsync(string slug, string telefone, CancellationToken ct = default);
 }
 
 public class PublicPortalService : IPublicPortalService
@@ -32,6 +34,8 @@ public class PublicPortalService : IPublicPortalService
     private readonly ITenantPreferencesService _preferences;
     private readonly IReparacaoComunicacaoRepository _comunicacoes;
     private readonly IStaffPushQueue _push;
+    private readonly Payments.IPaymentService _payments;
+    private readonly Payments.Ifthenpay.IfthenpayOptions _ifthenpay;
 
     public PublicPortalService(
         IReparacaoRepository repo,
@@ -44,8 +48,12 @@ public class PublicPortalService : IPublicPortalService
         IVendaRepository vendas,
         ITenantPreferencesService preferences,
         IReparacaoComunicacaoRepository comunicacoes,
-        IStaffPushQueue push)
+        IStaffPushQueue push,
+        Payments.IPaymentService payments,
+        Payments.Ifthenpay.IfthenpayOptions ifthenpay)
     {
+        _payments = payments;
+        _ifthenpay = ifthenpay;
         _repo = repo;
         _tenants = tenants;
         _diagnostico = diagnostico;
@@ -303,6 +311,79 @@ public class PublicPortalService : IPublicPortalService
             preview,
             $"/reparacoes/{rep.Id}",
             $"portal-msg-{rep.Id}"), ct);
+    }
+
+    public async Task<PublicPagamentoDto> IniciarPagamentoMbWayAsync(string slug, string telefone, CancellationToken ct = default)
+    {
+        // Sprint 493: pagamento MBWay da reparação pelo portal. Money-sensitive — validações estritas.
+        if (string.IsNullOrWhiteSpace(slug) || slug.Length > 32)
+            throw new NotFoundException("Reparacao", slug ?? "");
+
+        // Telefone PT: 9 dígitos começados por 9 (após limpar espaços/+351).
+        var digits = new string((telefone ?? "").Where(char.IsDigit).ToArray());
+        if (digits.StartsWith("351") && digits.Length == 12) digits = digits[3..];
+        if (digits.Length != 9 || digits[0] != '9')
+            throw new ValidationException("telefone_invalido", "Indica um número de telemóvel português válido (9 dígitos).");
+
+        if (!_ifthenpay.IsConfigured || string.IsNullOrWhiteSpace(_ifthenpay.MBWayKey))
+            throw new ConflictException("mbway_indisponivel", "Esta loja ainda não tem pagamento MBWay activo. Paga no balcão.");
+
+        var rep = await _repo.FindByPublicSlugWithTimelineAsync(slug, ct)
+            ?? throw new NotFoundException("Reparacao", slug);
+
+        if (rep.RecebidoEm() < DateTime.UtcNow.AddYears(-2))
+            throw new NotFoundException("Reparacao", slug);
+        if (rep.EstadoPagamento == PaymentStatus.Pago)
+            throw new ConflictException("ja_pago", "Esta reparação já está paga.");
+        if (rep.Estado == RepairStatus.Cancelado)
+            throw new ConflictException("cancelada", "Esta reparação foi cancelada.");
+
+        var amount = rep.PrecoFinalCents ?? rep.OrcamentoCents ?? 0;
+        if (amount <= 0)
+            throw new ConflictException("sem_valor", "Ainda não há valor definido para pagar. Aguarda o orçamento da loja.");
+
+        // Anti-spam de push MBWay: não reenviar se já há um pedido pendente recente (janela 4 min).
+        var existentes = await _payments.GetByReparacaoAsync(rep.Id, ct);
+        var agora = DateTime.UtcNow;
+        var pendenteRecente = existentes.FirstOrDefault(p =>
+            p.Status == PaymentStatus.NaoPago
+            && p.Method == PaymentMethod.MBWay
+            && p.ProviderRef != null
+            && (p.ExpiresAt == null || p.ExpiresAt > agora));
+        if (pendenteRecente is not null)
+            return new PublicPagamentoDto("pendente", amount,
+                "Já enviámos um pedido MBWay. Confirma na app (até 4 min) ou tenta novamente depois.",
+                pendenteRecente.ExpiresAt);
+
+        var tenant = await _tenants.FindByIdAsync(rep.TenantId, ct);
+        var descricao = $"Reparação #{rep.Numero:D5}" + (tenant is not null ? $" · {tenant.LegalName ?? tenant.Name}" : "");
+
+        var payment = await _payments.InitiateAsync(
+            new PaymentInitiationRequest(
+                TenantId: rep.TenantId,
+                VendaId: null,
+                Method: PaymentMethod.MBWay,
+                AmountCents: amount,
+                CustomerPhone: digits,
+                CustomerEmail: rep.Cliente?.Email,
+                Description: descricao,
+                ReparacaoId: rep.Id),
+            PaymentProvider.Ifthenpay, ct);
+
+        if (string.IsNullOrWhiteSpace(payment.ProviderRef))
+            throw new ConflictException("mbway_falhou", "Não foi possível iniciar o MBWay. Tenta novamente ou paga no balcão.");
+
+        // Push staff: cliente iniciou pagamento (visibilidade no balcão).
+        await _push.EnqueueAsync(new StaffPushJob(
+            rep.TenantId,
+            "💳 Pagamento MBWay iniciado",
+            $"Reparação #{rep.Numero:D5} · {amount / 100m:F2}€ — a aguardar confirmação",
+            $"/reparacoes/{rep.Id}",
+            $"mbway-{rep.Id}"), ct);
+
+        return new PublicPagamentoDto("pendente", amount,
+            "Abre a app MBWay e confirma o pagamento (até 4 minutos).",
+            payment.ExpiresAt);
     }
 
     private static PublicRepairDto ToDto(
