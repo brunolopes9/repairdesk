@@ -267,6 +267,21 @@ lista simples numa base CRM segmentavel:
 - Validacao: `dotnet test` backend **538/538 verde** + `npm run build` frontend
   verde.
 
+## Sessao 2026-06-01 - Clientes: campanhas manuais por segmento (S481)
+
+Continuidade direta de S479/S480, sem migration:
+
+- **S481** endpoint read-only `GET /api/cliente-tags/segmento?tagIds=...` e
+  `GET /api/cliente-tags/{id}/segmento`.
+- Segmento = clientes com pelo menos uma das etiquetas escolhidas; resposta traz
+  `TotalSegmento`, `TotalElegiveis` e apenas clientes elegiveis.
+- RGPD hard rule no backend: so devolve `AceitaMarketing=true` e
+  `NaoContactar=false`.
+- UI nova `/clientes/campanhas`: escolhe etiquetas, edita template com `{nome}`,
+  ve contador "X de Y", exporta CSV local e abre links manuais `wa.me`/`mailto:`.
+- Guardrail respeitado: nenhum auto-envio, nenhuma integracao falsa.
+- Teste novo `ClienteTags_Segmento_OnlyReturnsMarketingEligibleClientes`.
+
 ## Guardrails
 
 - Nao copiar ROAPP horizontal demais. Mender deve continuar vertical para lojas/reparacao em Portugal.

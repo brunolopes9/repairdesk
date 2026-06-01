@@ -20,6 +20,7 @@ import {
   Bell,
   Plus,
   Settings,
+  Megaphone,
   Webhook,
   Workflow,
   Sparkles,
@@ -63,7 +64,14 @@ const nav: NavItem[] = [
   // todo o operacional. Numa loja de reparações ninguém é "só caixa" — não há split Cashier.
   // Operacional = sem tag (visível a Admin + Tech). Sensível = adminOnly (só Admin).
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/clientes', label: 'Clientes', icon: Users },
+  {
+    label: 'Clientes',
+    icon: Users,
+    children: [
+      { to: '/clientes', label: 'Base de clientes', icon: Users },
+      { to: '/clientes/campanhas', label: 'Campanhas', icon: Megaphone },
+    ],
+  },
   { to: '/reparacoes', label: 'Reparações', icon: Wrench },
   { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   { to: '/agendamentos', label: 'Agendamentos', icon: CalendarClock },
@@ -353,7 +361,7 @@ export default function Layout() {
             <li key={item.to} className="flex-1">
               <NavLink
                 to={item.to}
-                end={item.to === '/'}
+                end={item.to === '/' || item.to === '/clientes'}
                 className={({ isActive }) =>
                   `flex flex-col items-center gap-0.5 py-2 text-[11px] ${
                     isActive ? 'text-brand-600' : 'text-zinc-500'
@@ -419,6 +427,7 @@ export default function Layout() {
                           <li key={child.to}>
                             <NavLink
                               to={child.to}
+                              end={child.to === '/clientes'}
                               className={({ isActive }) =>
                                 `flex h-9 items-center gap-2 rounded-lg px-3 text-sm transition ${
                                   isActive

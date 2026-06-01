@@ -163,6 +163,14 @@ export default function Clientes() {
         meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'cliente' : 'clientes'}</span>}
         actions={
           <>
+            <Link
+              to="/clientes/campanhas"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              title="Criar campanha manual a partir de etiquetas e consentimento RGPD"
+            >
+              <Megaphone size={15} />
+              Campanhas
+            </Link>
             <Button
               type="button"
               variant="secondary"

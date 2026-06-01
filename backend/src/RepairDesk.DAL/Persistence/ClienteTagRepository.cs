@@ -65,4 +65,28 @@ public class ClienteTagRepository : IClienteTagRepository
             .Select(a => a.ClienteTag!)
             .OrderBy(t => t.Nome)
             .ToListAsync(ct);
+
+    public async Task<(IReadOnlyList<Cliente> Clientes, int TotalSegmento, int TotalElegiveis)> GetSegmentoAsync(
+        IReadOnlyList<Guid> tagIds,
+        CancellationToken ct = default)
+    {
+        var ids = tagIds.Distinct().ToArray();
+        if (ids.Length == 0) return (Array.Empty<Cliente>(), 0, 0);
+
+        var query = _db.Clientes
+            .AsNoTracking()
+            .Include(c => c.TagAssignments)
+                .ThenInclude(a => a.ClienteTag)
+            .Where(c => c.TagAssignments.Any(a => ids.Contains(a.ClienteTagId)));
+
+        var totalSegmento = await query.CountAsync(ct);
+        var elegiveisQuery = query.Where(c => c.AceitaMarketing && !c.NaoContactar);
+        var totalElegiveis = await elegiveisQuery.CountAsync(ct);
+        var clientes = await elegiveisQuery
+            .OrderBy(c => c.Nome)
+            .ThenBy(c => c.Id)
+            .ToListAsync(ct);
+
+        return (clientes, totalSegmento, totalElegiveis);
+    }
 }

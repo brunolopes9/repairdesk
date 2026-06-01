@@ -21,6 +21,13 @@ export interface Cliente {
   tags?: ClienteTag[];
 }
 
+export interface ClienteCampanhaSegmento {
+  tagIds: string[];
+  totalSegmento: number;
+  totalElegiveis: number;
+  clientes: Cliente[];
+}
+
 export interface ClienteForm {
   nome: string;
   telefone: string | null;

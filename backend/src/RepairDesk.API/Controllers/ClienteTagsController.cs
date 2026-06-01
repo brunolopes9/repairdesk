@@ -44,6 +44,17 @@ public sealed class ClienteTagsController : ControllerBase
         return Ok(tags.Select(ToDto).ToList());
     }
 
+    [HttpGet("segmento")]
+    public async Task<ActionResult<ClienteCampanhaSegmentoDto>> Segmento([FromQuery] string? tagIds, CancellationToken ct)
+    {
+        if (!TryParseTagIds(tagIds, out var ids, out var error)) return BadRequest(error);
+        return Ok(await BuildSegmentoDto(ids, ct));
+    }
+
+    [HttpGet("{id:guid}/segmento")]
+    public async Task<ActionResult<ClienteCampanhaSegmentoDto>> SegmentoByTag(Guid id, CancellationToken ct) =>
+        Ok(await BuildSegmentoDto(new[] { id }, ct));
+
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<ClienteTagSummaryDto>> Create([FromBody] CreateOrUpdateClienteTagRequest req, CancellationToken ct)
@@ -99,6 +110,73 @@ public sealed class ClienteTagsController : ControllerBase
     }
 
     private static ClienteTagSummaryDto ToDto(ClienteTag tag) => new(tag.Id, tag.Nome, tag.CorHex);
+
+    private async Task<ClienteCampanhaSegmentoDto> BuildSegmentoDto(IReadOnlyList<Guid> tagIds, CancellationToken ct)
+    {
+        var (clientes, totalSegmento, totalElegiveis) = await _repo.GetSegmentoAsync(tagIds, ct);
+        return new ClienteCampanhaSegmentoDto(
+            tagIds,
+            totalSegmento,
+            totalElegiveis,
+            clientes.Select(ToClienteDto).ToList());
+    }
+
+    private static ClienteDto ToClienteDto(Cliente c) =>
+        new(
+            c.Id,
+            c.Nome,
+            c.Telefone,
+            c.Email,
+            c.Nif,
+            c.Notas,
+            c.CreatedAt,
+            c.UpdatedAt,
+            c.NotaImportante,
+            c.ContactoPreferido,
+            c.AceitaMarketing,
+            c.NaoContactar,
+            c.TagAssignments
+                .Where(a => a.ClienteTag is not null)
+                .OrderBy(a => a.ClienteTag!.Nome)
+                .Select(a => new ClienteTagSummaryDto(a.ClienteTag!.Id, a.ClienteTag.Nome, a.ClienteTag.CorHex))
+                .ToList());
+
+    private static bool TryParseTagIds(string? raw, out IReadOnlyList<Guid> tagIds, out object? error)
+    {
+        tagIds = Array.Empty<Guid>();
+        error = null;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            error = new { code = "invalid_tag_ids", message = "Escolhe pelo menos uma etiqueta." };
+            return false;
+        }
+
+        var ids = new List<Guid>();
+        foreach (var part in raw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!Guid.TryParse(part, out var id))
+            {
+                error = new { code = "invalid_tag_ids", message = "tagIds deve ser CSV de GUIDs validos." };
+                return false;
+            }
+            ids.Add(id);
+        }
+
+        var distinct = ids.Distinct().ToArray();
+        if (distinct.Length == 0)
+        {
+            error = new { code = "invalid_tag_ids", message = "Escolhe pelo menos uma etiqueta." };
+            return false;
+        }
+        if (distinct.Length > 20)
+        {
+            error = new { code = "too_many_tags", message = "Escolhe no maximo 20 etiquetas por segmento." };
+            return false;
+        }
+
+        tagIds = distinct;
+        return true;
+    }
 
     private static string NormalizeCor(string? cor)
     {

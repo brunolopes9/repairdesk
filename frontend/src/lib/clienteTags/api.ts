@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { ClienteTag } from '../clientes/types';
+import type { ClienteCampanhaSegmento, ClienteTag } from '../clientes/types';
 
 export const clienteTagsApi = {
   list() {
@@ -13,6 +13,11 @@ export const clienteTagsApi = {
   },
   delete(id: string) {
     return api.delete<void>(`/cliente-tags/${id}`).then((r) => r.data);
+  },
+  segmento(tagIds: string[]) {
+    return api
+      .get<ClienteCampanhaSegmento>('/cliente-tags/segmento', { params: { tagIds: tagIds.join(',') } })
+      .then((r) => r.data);
   },
   setForCliente(clienteId: string, tagIds: string[]) {
     return api.put<ClienteTag[]>(`/clientes/${clienteId}/tags`, { tagIds }).then((r) => r.data);

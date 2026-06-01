@@ -176,6 +176,62 @@ public class ClientesApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task ClienteTags_Segmento_OnlyReturnsMarketingEligibleClientes()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var tagResp = await client.PostAsJsonAsync("/api/cliente-tags", new { nome = $"Camp {suffix}", corHex = "#059669" });
+        tagResp.EnsureSuccessStatusCode();
+        var tag = (await tagResp.Content.ReadFromJsonAsync<ClienteTagSummaryDto>())!;
+
+        var eligible = await CreateAsync(client, new CreateClienteRequest(
+            $"Cliente Elegivel {suffix}",
+            "912" + Random.Shared.Next(100000, 999999),
+            $"elegivel-{suffix}@example.com",
+            null,
+            null,
+            null,
+            "WhatsApp",
+            AceitaMarketing: true,
+            NaoContactar: false));
+        var noConsent = await CreateAsync(client, new CreateClienteRequest(
+            $"Cliente Sem Consentimento {suffix}",
+            "913" + Random.Shared.Next(100000, 999999),
+            $"sem-consentimento-{suffix}@example.com",
+            null,
+            null,
+            null,
+            "Email",
+            AceitaMarketing: false,
+            NaoContactar: false));
+        var blocked = await CreateAsync(client, new CreateClienteRequest(
+            $"Cliente Bloqueado {suffix}",
+            "914" + Random.Shared.Next(100000, 999999),
+            $"bloqueado-{suffix}@example.com",
+            null,
+            null,
+            null,
+            "Telefone",
+            AceitaMarketing: true,
+            NaoContactar: true));
+
+        foreach (var c in new[] { eligible, noConsent, blocked })
+        {
+            var setResp = await client.PutAsJsonAsync($"/api/clientes/{c.Id}/tags", new SetClienteTagsRequest(new[] { tag.Id }));
+            setResp.EnsureSuccessStatusCode();
+        }
+
+        var segmento = await client.GetFromJsonAsync<ClienteCampanhaSegmentoDto>($"/api/cliente-tags/segmento?tagIds={tag.Id}");
+
+        segmento.Should().NotBeNull();
+        segmento!.TotalSegmento.Should().Be(3);
+        segmento.TotalElegiveis.Should().Be(1);
+        segmento.Clientes.Should().ContainSingle(c => c.Id == eligible.Id);
+        segmento.Clientes.Should().OnlyContain(c => c.AceitaMarketing && !c.NaoContactar);
+        segmento.Clientes.Should().NotContain(c => c.Id == noConsent.Id || c.Id == blocked.Id);
+    }
+
+    [Fact]
     public async Task Delete_HidesFromList()
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);

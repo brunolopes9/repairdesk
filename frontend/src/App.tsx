@@ -19,6 +19,7 @@ import NotFound from './pages/NotFound';
 // Tudo o resto é code-split por route — reduz bundle inicial ~30-40%.
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Clientes = lazy(() => import('./pages/clientes/Clientes'));
+const ClienteCampanhas = lazy(() => import('./pages/clientes/ClienteCampanhas'));
 const ClienteDetalhe = lazy(() => import('./pages/clientes/ClienteDetalhe'));
 const Reparacoes = lazy(() => import('./pages/reparacoes/Reparacoes'));
 const ReparacaoDetalhe = lazy(() => import('./pages/reparacoes/ReparacaoDetalhe'));
@@ -145,6 +146,7 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="/clientes" element={<Clientes />} />
+              <Route path="/clientes/campanhas" element={<ClienteCampanhas />} />
               <Route path="/clientes/:id" element={<ClienteDetalhe />} />
               <Route path="/reparacoes" element={<Reparacoes />} />
               <Route path="/reparacoes/:id" element={<ReparacaoDetalhe />} />

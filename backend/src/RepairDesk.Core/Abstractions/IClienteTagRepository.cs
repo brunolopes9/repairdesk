@@ -13,4 +13,7 @@ public interface IClienteTagRepository
     Task DeleteAsync(ClienteTag tag, CancellationToken ct = default);
     Task SetTagsForClienteAsync(Guid clienteId, IReadOnlyList<Guid> tagIds, CancellationToken ct = default);
     Task<IReadOnlyList<ClienteTag>> ListByClienteAsync(Guid clienteId, CancellationToken ct = default);
+    Task<(IReadOnlyList<Cliente> Clientes, int TotalSegmento, int TotalElegiveis)> GetSegmentoAsync(
+        IReadOnlyList<Guid> tagIds,
+        CancellationToken ct = default);
 }

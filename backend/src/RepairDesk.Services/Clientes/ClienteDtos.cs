@@ -44,6 +44,12 @@ public sealed record ClienteTagSummaryDto(Guid Id, string Nome, string CorHex);
 
 public sealed record SetClienteTagsRequest(Guid[]? TagIds);
 
+public sealed record ClienteCampanhaSegmentoDto(
+    IReadOnlyList<Guid> TagIds,
+    int TotalSegmento,
+    int TotalElegiveis,
+    IReadOnlyList<ClienteDto> Clientes);
+
 public sealed record ClienteEquipamentoDto(
     string Nome,
     string? Imei,
