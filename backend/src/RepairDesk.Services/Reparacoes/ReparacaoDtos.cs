@@ -48,7 +48,9 @@ public sealed record UpdateReparacaoRequest(
     /// <summary>Sprint 474: estado físico inicial observado na recepção (separado de Diagnostico).</summary>
     string? EstadoFisicoInicial = null,
     /// <summary>Sprint 475: categoria estruturada (DeviceCategory).</summary>
-    DeviceCategory? Categoria = null);
+    DeviceCategory? Categoria = null,
+    /// <summary>Sprint 499: sinal/depósito recebido (cêntimos). 0 = sem sinal.</summary>
+    int SinalCents = 0);
 
 public sealed record ChangeEstadoRequest(RepairStatus Estado, string? Notas);
 
@@ -110,7 +112,9 @@ public sealed record ReparacaoDto(
     /// <summary>Sprint 474: estado físico inicial observado na recepção (riscos, mossas, acessórios).</summary>
     string? EstadoFisicoInicial = null,
     /// <summary>Sprint 475: categoria estruturada (DeviceCategory) — null se não classificado.</summary>
-    DeviceCategory? Categoria = null);
+    DeviceCategory? Categoria = null,
+    /// <summary>Sprint 499: sinal/depósito já recebido (cêntimos). Falta = (PrecoFinal ?? Orcamento) − Sinal.</summary>
+    int SinalCents = 0);
 
 public sealed record ReparacaoDetalhadaDto(
     ReparacaoDto Reparacao,

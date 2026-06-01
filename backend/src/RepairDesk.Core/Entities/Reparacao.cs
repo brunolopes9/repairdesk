@@ -56,6 +56,13 @@ public class Reparacao : BaseEntity, ITenantEntity
     public PaymentStatus EstadoPagamento { get; set; } = PaymentStatus.NaoPago;
 
     /// <summary>
+    /// Sprint 499: sinal/depósito já recebido do cliente (cêntimos). Falta a pagar =
+    /// (PrecoFinal ?? Orcamento) − SinalCents. 0 = sem sinal. Não é a caixa (decisão
+    /// separada, como os pagamentos manuais): aqui só se regista o valor adiantado.
+    /// </summary>
+    public int SinalCents { get; set; }
+
+    /// <summary>
     /// Sprint 343: técnico responsável por esta reparação. Null = não atribuída ainda.
     /// Quando Tech (role não-Admin) faz GET /reparacoes, filtra por AssignedToUserId == self.
     /// Admin vê todas, independente de owner.

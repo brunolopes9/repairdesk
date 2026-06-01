@@ -464,6 +464,8 @@ public class ReparacaoService : IReparacaoService
         rep.Notas = req.Notas?.Trim();
         rep.EstadoPagamento = req.EstadoPagamento;
         rep.PrevistoEntregueEm = req.PrevistoEntregueEm;
+        // Sprint 499: sinal/depósito recebido. Clamp a >=0 (não há sinal negativo).
+        rep.SinalCents = Math.Max(0, req.SinalCents);
         // Sprint 474: estado físico inicial (separado de Diagnostico).
         if (req.EstadoFisicoInicial is not null)
             rep.EstadoFisicoInicial = string.IsNullOrWhiteSpace(req.EstadoFisicoInicial) ? null : req.EstadoFisicoInicial.Trim();
@@ -1151,6 +1153,7 @@ public class ReparacaoService : IReparacaoService
                 .ToList(),
             r.PrevistoEntregueEm,
             r.EstadoFisicoInicial,
-            r.Categoria);
+            r.Categoria,
+            r.SinalCents);
     }
 }

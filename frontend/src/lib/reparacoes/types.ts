@@ -148,6 +148,8 @@ export interface Reparacao {
   estadoFisicoInicial: string | null;
   /** Sprint 475: categoria estruturada (DeviceCategory enum 0-5/99). Null = não classificado. */
   categoria: number | null;
+  /** Sprint 499: sinal/depósito recebido (cêntimos). Falta = (precoFinal ?? orcamento) − sinal. */
+  sinalCents: number;
 }
 
 export interface ReparacaoDetalhada {
