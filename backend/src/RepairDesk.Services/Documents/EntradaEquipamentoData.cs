@@ -15,6 +15,8 @@ public sealed record EntradaEquipamentoData(
     string? Imei,
     string Avaria,
     string? EstadoFisico,
+    /// <summary>Sprint 490: categoria do equipamento (DeviceCategory, S475) já com label pt-PT. Opcional.</summary>
+    string? Tipo,
     string? RecebidoPor,
     IReadOnlyList<OrcamentoCampoEquipamento>? CamposEquipamento = null,
     string? TermosLoja = null,

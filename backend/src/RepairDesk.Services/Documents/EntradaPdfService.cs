@@ -92,6 +92,8 @@ public sealed class EntradaPdfService : IEntradaPdfService
             // do Diagnostico que é o que técnico descobre depois). Fallback para Diagnostico
             // em reparações antigas sem EstadoFisicoInicial preenchido.
             EstadoFisico: rep.EstadoFisicoInicial ?? rep.Diagnostico,
+            // Sprint 490: tipo de equipamento (categoria S475) com label pt-PT, se classificado.
+            Tipo: CategoriaLabel(rep.Categoria),
             RecebidoPor: null, // futuro: capturar User.DisplayName no Create
             CamposEquipamento: camposEquipamento.Count > 0 ? camposEquipamento : null,
             TermosLoja: tenant?.TermosCondicoes,
@@ -100,6 +102,19 @@ public sealed class EntradaPdfService : IEntradaPdfService
         var pdf = EntradaPdfRenderer.Render(data);
         return (pdf, $"Entrada_R-{rep.Numero:D5}.pdf");
     }
+
+    /// <summary>Sprint 490: label pt-PT da categoria (DeviceCategory) para o documento. Null se não classificado.</summary>
+    private static string? CategoriaLabel(Core.Enums.DeviceCategory? c) => c switch
+    {
+        Core.Enums.DeviceCategory.Smartphone => "Telemóvel",
+        Core.Enums.DeviceCategory.Tablet => "Tablet",
+        Core.Enums.DeviceCategory.Laptop => "Portátil",
+        Core.Enums.DeviceCategory.Desktop => "Desktop",
+        Core.Enums.DeviceCategory.Smartwatch => "Smartwatch",
+        Core.Enums.DeviceCategory.Consola => "Consola",
+        Core.Enums.DeviceCategory.Outro => "Outro",
+        _ => null,
+    };
 
     private string? BuildPortalUrl(string? slug)
     {

@@ -108,6 +108,9 @@ public static class EntradaPdfRenderer
             {
                 c.Item().Text("EQUIPAMENTO").FontSize(9).Bold().FontColor(brand);
                 c.Item().PaddingTop(2).Text(d.Equipamento).FontSize(12).Bold();
+                // Sprint 490: tipo/categoria do equipamento (S475), quando classificado.
+                if (!string.IsNullOrWhiteSpace(d.Tipo))
+                    c.Item().Text($"Tipo: {d.Tipo}").FontSize(10);
                 if (!string.IsNullOrWhiteSpace(d.Imei))
                     c.Item().Text($"IMEI / Nº série: {d.Imei}").FontSize(10);
 
