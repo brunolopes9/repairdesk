@@ -275,6 +275,31 @@ Revisão dos 12 insights contra o código actual após Sprints 41-219.
 
 ---
 
+## Revisão de estado (2026-06-01)
+
+Re-verificado contra o código (não assumido). Mudanças face à revisão de 2026-05-23:
+
+- **#1 Rebrand "RepairDesk" → ✅ FEITO** (era ❌ crítico). Rebrand para **Mender** (Sprint 222-223):
+  strings user-facing migradas — footer PDF "Gerado pelo Mender", Login/Layout, portal cliente,
+  manifest. Só os namespaces .NET internos (`RepairDesk.Core`, `RepairDeskApiFactory`) se mantêm
+  por decisão (refactor mecânico sem valor user-facing). **Já não é bloqueante para beta.**
+- **Agendamento online (cliente marca hora) → ✅ FEITO** (era ❌). `PublicBookingController` (S389,
+  Doc 84): cliente marca pelo site, cria `Appointment` Source=Online + push staff. Interno: S371.
+- **Comunicação cliente / portal** muito reforçado desde então: portal bidireccional (S480/482),
+  CTAs WhatsApp/Email por estado (S456/457/471), consentimento RGPD (S479/488/489), Devices/asset
+  registry (S461+), categoria de equipamento ponta-a-ponta (S475-492), etiquetas/segmentos CRM (S480 Codex).
+
+**Itens genuinamente por fazer (todos Horizon 2-3 / decisão de negócio / lane CRM):**
+- **Tier "Solo" €9-15** — decisão de *positioning* em `07-Pricing-Proposta.md`, não código.
+- **Multi-loja + stock cross-location** (#3) — Horizon 2, infra grande; não bloqueia 1ª oficina.
+- **Integração contabilidade pura** (TOConline/Sage/PHC, #10) — Horizon 2 retenção, precisa de API/credenciais externas.
+- **Trade-ins** (#5) — Horizon 2-3, pouco comum em PT (Bruno não faz).
+- **Loyalty / pontos de fidelidade** (#12) — Horizon 2; **lane CRM (Codex)** — encaixa na linha tags/campanhas dele.
+- **Pagamento MBWay no portal cliente** (#12) — reusa IFTHENPAY (S303), mas é money-sensitive → requer decisão/envolvimento do Bruno.
+
+**Conclusão:** 9/12 dos insights estão implementados ou são princípios já aplicados. Os 3 restantes
+não são "código por escrever agora" — são roadmap Horizon 2-3, decisões comerciais, ou pertencem à lane do Codex.
+
 ## Reflexão crítica (minha)
 
 A descoberta do **conflict de nome com "RepairDesk" US** é a coisa mais importante deste batch. Bruno tem investido meses num nome que **não pode usar publicamente**. Quanto mais cedo rebrand, menos custo. Hoje o nome aparece em:
