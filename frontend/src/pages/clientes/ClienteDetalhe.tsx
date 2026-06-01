@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Ban, Download, Mail, Megaphone, MessageCircle, Pencil, Phone, Send, ShieldAlert, ShoppingBag, Smartphone, Wrench } from 'lucide-react';
+import { AlertTriangle, Ban, Download, Mail, Megaphone, MessageCircle, Pencil, Phone, Send, ShieldAlert, ShoppingBag, Smartphone, Tag, Wrench } from 'lucide-react';
 import { displayPhone } from '../../lib/phone/formatter';
 import Modal from '../../components/Modal';
 import { BackButton, Breadcrumb, Button, SkeletonCard } from '../../components/ui';
@@ -233,6 +233,15 @@ export default function ClienteDetalhe() {
               <Ban size={12} /> Não contactar
             </span>
           )}
+          {c.tags?.map((tag) => (
+            <span
+              key={tag.id}
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-medium text-white"
+              style={{ backgroundColor: tag.corHex }}
+            >
+              <Tag size={12} /> {tag.nome}
+            </span>
+          ))}
         </div>
         {cleanPhone && (
           <div className="flex flex-wrap gap-2">

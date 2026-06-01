@@ -11,7 +11,10 @@ public class ClienteRepository : IClienteRepository
     public ClienteRepository(AppDbContext db) => _db = db;
 
     public Task<Cliente?> FindByIdAsync(Guid id, CancellationToken ct = default)
-        => _db.Clientes.FirstOrDefaultAsync(c => c.Id == id, ct);
+        => _db.Clientes
+            .Include(c => c.TagAssignments)
+            .ThenInclude(a => a.ClienteTag)
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
 
     public async Task<IReadOnlyList<ClienteEquipamentoRow>> ListEquipamentosAsync(
         Guid clienteId,
@@ -112,9 +115,18 @@ public class ClienteRepository : IClienteRepository
     public Task<Cliente?> FindByTelefoneAsync(string telefoneNormalizado, CancellationToken ct = default)
         => _db.Clientes.FirstOrDefaultAsync(c => c.Telefone == telefoneNormalizado, ct);
 
-    public async Task<(IReadOnlyList<Cliente> Items, int Total)> SearchAsync(string? query, int page, int pageSize, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<Cliente> Items, int Total)> SearchAsync(
+        string? query,
+        int page,
+        int pageSize,
+        Guid? tagId = null,
+        CancellationToken ct = default)
     {
-        var q = _db.Clientes.AsNoTracking();
+        var q = _db.Clientes
+            .AsNoTracking()
+            .Include(c => c.TagAssignments)
+            .ThenInclude(a => a.ClienteTag)
+            .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -124,6 +136,11 @@ public class ClienteRepository : IClienteRepository
                 EF.Functions.Like(c.Telefone, like) ||
                 (c.Email != null && EF.Functions.Like(c.Email, like)) ||
                 (c.Nif != null && EF.Functions.Like(c.Nif, like)));
+        }
+
+        if (tagId.HasValue)
+        {
+            q = q.Where(c => c.TagAssignments.Any(a => a.ClienteTagId == tagId.Value && a.ClienteTag != null));
         }
 
         var total = await q.CountAsync(ct);

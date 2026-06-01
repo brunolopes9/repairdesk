@@ -8,7 +8,7 @@ namespace RepairDesk.Services.Clientes;
 
 public interface IClienteService
 {
-    Task<PagedResult<ClienteDto>> SearchAsync(string? query, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<ClienteDto>> SearchAsync(string? query, int page, int pageSize, Guid? tagId = null, CancellationToken ct = default);
     Task<ClienteDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<ClienteEquipamentoDto>> ListEquipamentosAsync(Guid id, int take, CancellationToken ct = default);
     Task<ClienteDto> CreateAsync(CreateClienteRequest req, CancellationToken ct = default);
@@ -37,11 +37,16 @@ public class ClienteService : IClienteService
         _updateValidator = updateValidator;
     }
 
-    public async Task<PagedResult<ClienteDto>> SearchAsync(string? query, int page, int pageSize, CancellationToken ct = default)
+    public async Task<PagedResult<ClienteDto>> SearchAsync(
+        string? query,
+        int page,
+        int pageSize,
+        Guid? tagId = null,
+        CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var (items, total) = await _repo.SearchAsync(query, page, pageSize, ct);
+        var (items, total) = await _repo.SearchAsync(query, page, pageSize, tagId, ct);
         return new PagedResult<ClienteDto>(items.Select(ToDto).ToList(), page, pageSize, total);
     }
 
@@ -259,5 +264,10 @@ public class ClienteService : IClienteService
             c.NotaImportante,
             c.ContactoPreferido,
             c.AceitaMarketing,
-            c.NaoContactar);
+            c.NaoContactar,
+            c.TagAssignments
+                .Where(a => a.ClienteTag is not null)
+                .OrderBy(a => a.ClienteTag!.Nome)
+                .Select(a => new ClienteTagSummaryDto(a.ClienteTag!.Id, a.ClienteTag.Nome, a.ClienteTag.CorHex))
+                .ToList());
 }

@@ -36,7 +36,13 @@ public sealed record ClienteDto(
     /// <summary>Sprint 479: canal preferido para contacto.</summary>
     string? ContactoPreferido = null,
     bool AceitaMarketing = false,
-    bool NaoContactar = false);
+    bool NaoContactar = false,
+    IReadOnlyList<ClienteTagSummaryDto>? Tags = null);
+
+/// <summary>Sprint 480: customer segment tag embedded in ClienteDto.</summary>
+public sealed record ClienteTagSummaryDto(Guid Id, string Nome, string CorHex);
+
+public sealed record SetClienteTagsRequest(Guid[]? TagIds);
 
 public sealed record ClienteEquipamentoDto(
     string Nome,

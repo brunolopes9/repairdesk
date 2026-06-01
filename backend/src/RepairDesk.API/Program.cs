@@ -201,6 +201,7 @@ try
 
     // Clientes
     builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+    builder.Services.AddScoped<IClienteTagRepository, ClienteTagRepository>();
     builder.Services.AddScoped<IClienteRgpdRepository, ClienteRgpdRepository>();
     builder.Services.AddScoped<IClienteService, ClienteService>();
     builder.Services.AddScoped<IClienteRgpdService, ClienteRgpdService>();

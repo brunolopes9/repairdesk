@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RepairDesk.DAL.Persistence;
 
@@ -11,9 +12,11 @@ using RepairDesk.DAL.Persistence;
 namespace RepairDesk.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260601095303_Sprint480_ClienteTags")]
+    partial class Sprint480_ClienteTags
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -632,11 +635,11 @@ namespace RepairDesk.DAL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ClienteTagId");
-
                     b.HasIndex("ClienteId", "ClienteTagId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("ClienteTagId");
 
                     b.ToTable("ClienteTagAssignments");
                 });

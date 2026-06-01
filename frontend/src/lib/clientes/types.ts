@@ -1,3 +1,9 @@
+export interface ClienteTag {
+  id: string;
+  nome: string;
+  corHex: string;
+}
+
 export interface Cliente {
   id: string;
   nome: string;
@@ -12,6 +18,7 @@ export interface Cliente {
   contactoPreferido?: 'Telefone' | 'WhatsApp' | 'Email' | 'Sms' | null;
   aceitaMarketing?: boolean;
   naoContactar?: boolean;
+  tags?: ClienteTag[];
 }
 
 export interface ClienteForm {

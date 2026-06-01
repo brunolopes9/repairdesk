@@ -248,6 +248,25 @@ fazer integrações falsas:
 - Validação: `dotnet test` backend **536/536 verde** + `npm run build` frontend
   verde.
 
+## Sessao 2026-06-01 - Clientes: etiquetas e segmentos CRM (S480)
+
+Feature ROAPP-inspired implementada pelo Codex para transformar Clientes de uma
+lista simples numa base CRM segmentavel:
+
+- **S480** entidades `ClienteTag` e `ClienteTagAssignment` com `TenantId`, nome e
+  cor por etiqueta. Migration `Sprint480_ClienteTags`.
+- API nova `/api/cliente-tags`: listar para users autenticados; criar/editar/apagar
+  apenas Admin. Novo `PUT /api/clientes/{id}/tags` para associar etiquetas.
+- `/api/clientes` aceita `tagId` para filtrar segmentos. `ClienteDto` inclui
+  `Tags` para lista, detalhe e inspector.
+- UI Clientes: chips de etiquetas na tabela e ficha, filtros rapidos por etiqueta,
+  editor "Gerir" no inspector lateral, e criacao inline de novas etiquetas como
+  `VIP`, `Empresa`, `Lead online`, etc.
+- Teste novo `ClienteTags_CreateAssignAndFilter_ReturnsTaggedCliente`.
+- Matriz de roles atualizada para `ClienteTagsController` e `ClientesController.SetTags`.
+- Validacao: `dotnet test` backend **538/538 verde** + `npm run build` frontend
+  verde.
+
 ## Guardrails
 
 - Nao copiar ROAPP horizontal demais. Mender deve continuar vertical para lojas/reparacao em Portugal.

@@ -28,6 +28,9 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<TenantBillingSettings> TenantBillingSettings => Set<TenantBillingSettings>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
+    // Sprint 480: customer segment tags.
+    public DbSet<ClienteTag> ClienteTags => Set<ClienteTag>();
+    public DbSet<ClienteTagAssignment> ClienteTagAssignments => Set<ClienteTagAssignment>();
     public DbSet<Reparacao> Reparacoes => Set<Reparacao>();
     public DbSet<ReparacaoEstadoLog> ReparacaoEstadoLogs => Set<ReparacaoEstadoLog>();
     public DbSet<Trabalho> Trabalhos => Set<Trabalho>();

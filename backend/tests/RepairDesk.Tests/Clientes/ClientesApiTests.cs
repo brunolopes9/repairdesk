@@ -150,6 +150,32 @@ public class ClientesApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task ClienteTags_CreateAssignAndFilter_ReturnsTaggedCliente()
+    {
+        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
+        var created = await CreateAsync(client, new CreateClienteRequest("Cliente VIP Tags", "912555001", null, null, null));
+        var tagNome = $"VIP {Guid.NewGuid():N}"[..10];
+
+        var tagResp = await client.PostAsJsonAsync("/api/cliente-tags", new { nome = tagNome, corHex = "#2563EB" });
+        tagResp.EnsureSuccessStatusCode();
+        var tag = await tagResp.Content.ReadFromJsonAsync<ClienteTagSummaryDto>();
+        tag.Should().NotBeNull();
+
+        var setResp = await client.PutAsJsonAsync($"/api/clientes/{created.Id}/tags",
+            new SetClienteTagsRequest(new[] { tag!.Id }));
+        setResp.EnsureSuccessStatusCode();
+        var assigned = await setResp.Content.ReadFromJsonAsync<IReadOnlyList<ClienteTagSummaryDto>>();
+        assigned.Should().ContainSingle(t => t.Id == tag.Id && t.Nome == tagNome);
+
+        var get = await client.GetFromJsonAsync<ClienteDto>($"/api/clientes/{created.Id}");
+        get!.Tags.Should().ContainSingle(t => t.Id == tag.Id);
+
+        var filtered = await client.GetFromJsonAsync<PagedResult<ClienteDto>>($"/api/clientes?tagId={tag.Id}");
+        filtered!.Items.Should().Contain(c => c.Id == created.Id);
+        filtered.Items.Should().OnlyContain(c => c.Tags != null && c.Tags.Any(t => t.Id == tag.Id));
+    }
+
+    [Fact]
     public async Task Delete_HidesFromList()
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);

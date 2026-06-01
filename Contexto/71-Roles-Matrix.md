@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:a6644fbcb5e22903 -->
+<!-- roles-matrix-snapshot:bbdcd807d45db9be -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -21,6 +21,8 @@ testes e esta matriz com snapshot.
 | AuthController | `POST /api/auth/login`, `POST /api/auth/refresh` | `Anonymous` |
 | AuthController | `POST /api/auth/logout`, `POST /api/auth/change-password`, `GET /api/auth/me` | `Authenticated` |
 | ClientesController | CRUD/export base + `GET /{id}/comunicacoes` (S453) | `Authenticated`; hard-delete `Admin` |
+| ClienteTagsController (S480) | `GET /api/cliente-tags`; `PUT /api/clientes/{id}/tags` | `Authenticated` |
+| ClienteTagsController (S480) | `POST/PUT/DELETE /api/cliente-tags*` (segmentos CRM do tenant) | `Admin` |
 | ReparacaoComunicacoesController (S452) | `GET/POST/DELETE /api/reparacoes/{id}/comunicacoes` | `Authenticated` |
 | ReparacoesController | `GET /{id}/entrada.pdf` (S450), `GET /{id}/entrega.pdf` (S451) | `Authenticated` |
 | DashboardController | `GET /api/dashboard/avisos-pendentes` (S460), `GET /devices-garantia-a-expirar` (S467) | `Authenticated` |

@@ -14,16 +14,20 @@ import {
   MessageCircle,
   Pencil,
   Phone,
+  Plus,
   Search,
   ShoppingBag,
+  Tag,
   UserPlus,
   Users,
   Wrench,
+  X,
 } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { isAxiosError } from 'axios';
 import { clientesApi, type ImportClientesResponse } from '../../lib/clientes/api';
+import { clienteTagsApi } from '../../lib/clienteTags/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { vendasApi } from '../../lib/vendas/api';
 import { STATUS_LABEL } from '../../lib/reparacoes/types';
@@ -32,7 +36,7 @@ import { downloadFile } from '../../lib/downloadPdf';
 import { displayPhone } from '../../lib/phone/formatter';
 import { validateNif } from '../../lib/nif/validator';
 import { formatCents, formatDateOnly } from '../../lib/money';
-import type { Cliente, ClienteForm } from '../../lib/clientes/types';
+import type { Cliente, ClienteForm, ClienteTag } from '../../lib/clientes/types';
 import ClienteFormView from './ClienteForm';
 
 /** Iniciais para o avatar (até 2 letras). */
@@ -80,12 +84,20 @@ export default function Clientes() {
   const [importOpen, setImportOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
   const list = useQuery({
-    queryKey: ['clientes', search, page],
-    queryFn: () => clientesApi.list(search, page, pageSize),
+    queryKey: ['clientes', search, page, tagFilter],
+    queryFn: () => clientesApi.list(search, page, pageSize, tagFilter),
     placeholderData: keepPreviousData,
   });
+
+  const tagsQuery = useQuery({
+    queryKey: ['cliente-tags-all'],
+    queryFn: () => clienteTagsApi.list(),
+    staleTime: 60_000,
+  });
+  const allTags = tagsQuery.data ?? [];
 
   const upsert = useMutation({
     mutationFn: async (form: ClienteForm) => {
@@ -217,6 +229,32 @@ export default function Clientes() {
               {f.label}
             </button>
           ))}
+          {allTags.length > 0 && (
+            <span className="mx-1 h-7 w-px bg-zinc-200 dark:bg-zinc-800" aria-hidden />
+          )}
+          {allTags.map((t) => {
+            const active = tagFilter === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setTagFilter(active ? null : t.id);
+                  setPage(1);
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                  active
+                    ? 'border-transparent text-white shadow-sm'
+                    : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300'
+                }`}
+                style={active ? { backgroundColor: t.corHex } : undefined}
+                title={`Filtrar por ${t.nome}`}
+              >
+                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: active ? '#fff' : t.corHex }} />
+                {t.nome}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -275,11 +313,23 @@ export default function Clientes() {
                             <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold ${avatarTone(c.nome)}`}>
                               {initials(c.nome)}
                             </span>
-                            <div className="min-w-0">
-                              <div className="truncate font-medium">{c.nome}</div>
-                              <div className="text-[11px] text-zinc-400">Desde {formatDateOnly(c.createdAt)}</div>
+                              <div className="min-w-0">
+                                <div className="truncate font-medium">{c.nome}</div>
+                                <div className="text-[11px] text-zinc-400">Desde {formatDateOnly(c.createdAt)}</div>
+                                {c.tags && c.tags.length > 0 && (
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {c.tags.slice(0, 3).map((t) => (
+                                      <ClienteTagChip key={t.id} tag={t} />
+                                    ))}
+                                    {c.tags.length > 3 && (
+                                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800">
+                                        +{c.tags.length - 3}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-zinc-600 dark:text-zinc-300">
@@ -362,6 +412,7 @@ export default function Clientes() {
         {/* Inspector de perfil */}
         <ClienteInspector
           cliente={selected}
+          allTags={allTags}
           onEdit={openEdit}
           onOpen={(id) => navigate(`/clientes/${id}`)}
         />
@@ -460,12 +511,163 @@ function KpiTile({ icon, tone, label, value }: { icon: ReactNode; tone: Tone; la
   );
 }
 
+function ClienteTagChip({ tag }: { tag: ClienteTag }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
+      style={{ backgroundColor: tag.corHex }}
+    >
+      {tag.nome}
+    </span>
+  );
+}
+
+const TAG_COLORS = ['#2563EB', '#059669', '#D97706', '#7C3AED', '#DC2626', '#0F766E'];
+
+function ClienteTagsEditor({ cliente, allTags }: { cliente: Cliente; allTags: ClienteTag[] }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newNome, setNewNome] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const selectedIds = cliente.tags?.map((t) => t.id) ?? [];
+  const selected = new Set(selectedIds);
+
+  const setTags = useMutation({
+    mutationFn: (ids: string[]) => clienteTagsApi.setForCliente(cliente.id, ids),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clientes'] });
+      qc.invalidateQueries({ queryKey: ['cliente', cliente.id] });
+      setError(null);
+    },
+    onError: () => setError('Nao foi possivel guardar as etiquetas.'),
+  });
+
+  const createTag = useMutation({
+    mutationFn: (nome: string) => clienteTagsApi.create({
+      nome,
+      corHex: TAG_COLORS[Math.abs(hashName(nome)) % TAG_COLORS.length],
+    }),
+    onSuccess: (tag) => {
+      qc.invalidateQueries({ queryKey: ['cliente-tags-all'] });
+      setTags.mutate([...selectedIds, tag.id]);
+      setNewNome('');
+      setCreating(false);
+      setOpen(false);
+      setError(null);
+    },
+    onError: () => setError('Nao foi possivel criar a etiqueta.'),
+  });
+
+  function toggleTag(tagId: string) {
+    const next = selected.has(tagId)
+      ? selectedIds.filter((id) => id !== tagId)
+      : [...selectedIds, tagId];
+    setTags.mutate(next);
+  }
+
+  return (
+    <div className="px-4">
+      <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <Tag size={13} /> Etiquetas
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            Gerir
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {cliente.tags && cliente.tags.length > 0 ? (
+            cliente.tags.map((t) => <ClienteTagChip key={t.id} tag={t} />)
+          ) : (
+            <span className="text-xs text-zinc-400">Sem etiquetas.</span>
+          )}
+        </div>
+
+        {open && (
+          <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+            <div className="flex flex-wrap gap-1.5">
+              {allTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => toggleTag(tag.id)}
+                  disabled={setTags.isPending}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                    selected.has(tag.id)
+                      ? 'border-transparent text-white'
+                      : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300'
+                  }`}
+                  style={selected.has(tag.id) ? { backgroundColor: tag.corHex } : undefined}
+                >
+                  {selected.has(tag.id) ? <X size={11} /> : <Plus size={11} />}
+                  {tag.nome}
+                </button>
+              ))}
+            </div>
+
+            {creating ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  value={newNome}
+                  onChange={(e) => setNewNome(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newNome.trim()) createTag.mutate(newNome.trim());
+                    if (e.key === 'Escape') { setCreating(false); setNewNome(''); }
+                  }}
+                  placeholder="Ex: VIP, Empresa, Instagram..."
+                  className="min-h-9 flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-zinc-700 dark:bg-zinc-900"
+                />
+                <button
+                  type="button"
+                  onClick={() => newNome.trim() && createTag.mutate(newNome.trim())}
+                  disabled={!newNome.trim() || createTag.isPending}
+                  className="rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                >
+                  Criar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950/30"
+              >
+                <Plus size={12} /> Nova etiqueta
+              </button>
+            )}
+
+            {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function hashName(value: string) {
+  let h = 0;
+  for (let i = 0; i < value.length; i++) h = (h * 31 + value.charCodeAt(i)) | 0;
+  return h;
+}
+
 function ClienteInspector({
   cliente,
+  allTags,
   onEdit,
   onOpen,
 }: {
   cliente: Cliente | null;
+  allTags: ClienteTag[];
   onEdit: (c: Cliente) => void;
   onOpen: (id: string) => void;
 }) {
@@ -556,6 +758,8 @@ function ClienteInspector({
           </div>
         )}
       </div>
+
+      <ClienteTagsEditor cliente={cliente} allTags={allTags} />
 
       {/* Ações de contacto */}
       <div className="grid grid-cols-2 gap-2 px-4">

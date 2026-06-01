@@ -31,4 +31,6 @@ public class Cliente : BaseEntity, ITenantEntity
 
     /// <summary>Bloqueia contactos não essenciais quando o cliente pede para não ser contactado.</summary>
     public bool NaoContactar { get; set; }
+
+    public List<ClienteTagAssignment> TagAssignments { get; set; } = new();
 }

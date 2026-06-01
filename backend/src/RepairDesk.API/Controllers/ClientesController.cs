@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RepairDesk.Core.Abstractions;
 using RepairDesk.Services.Clientes;
 
 namespace RepairDesk.API.Controllers;
@@ -21,10 +22,11 @@ public class ClientesController : ControllerBase
     [HttpGet]
     public Task<PagedResult<ClienteDto>> Search(
         [FromQuery] string? q,
+        [FromQuery] Guid? tagId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
-        => _service.SearchAsync(q, page, pageSize, ct);
+        => _service.SearchAsync(q, page, pageSize, tagId, ct);
 
     [HttpGet("{id:guid}")]
     public Task<ClienteDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
@@ -68,6 +70,20 @@ public class ClientesController : ControllerBase
     [HttpPut("{id:guid}")]
     public Task<ClienteDto> Update(Guid id, [FromBody] UpdateClienteRequest req, CancellationToken ct)
         => _service.UpdateAsync(id, req, ct);
+
+    /// <summary>Sprint 480: replaces the full customer segment tag set.</summary>
+    [HttpPut("{id:guid}/tags")]
+    public async Task<ActionResult<IReadOnlyList<ClienteTagSummaryDto>>> SetTags(
+        Guid id,
+        [FromBody] SetClienteTagsRequest req,
+        [FromServices] IClienteTagRepository tagRepo,
+        CancellationToken ct)
+    {
+        _ = await _service.GetAsync(id, ct);
+        await tagRepo.SetTagsForClienteAsync(id, req.TagIds ?? Array.Empty<Guid>(), ct);
+        var tags = await tagRepo.ListByClienteAsync(id, ct);
+        return Ok(tags.Select(t => new ClienteTagSummaryDto(t.Id, t.Nome, t.CorHex)).ToList());
+    }
 
     // Sprint 244 Fase B: soft-delete cliente esconde histórico (vendas, reparações) das
     // listas. Hard-delete já é Admin. Import bulk insere dados em massa. Doc 72 §2.
