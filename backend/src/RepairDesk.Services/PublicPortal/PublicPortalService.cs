@@ -460,7 +460,10 @@ public class PublicPortalService : IPublicPortalService
             // a previsão deixa de ser útil (já chegou ao fim) e pode confundir.
             PrevistoEntregueEm: rep.Estado is RepairStatus.Entregue or RepairStatus.Cancelado or RepairStatus.Pronto
                 ? null
-                : rep.PrevistoEntregueEm);
+                : rep.PrevistoEntregueEm,
+            // Sprint 494: estado de pagamento. Só revela "pago" quando o orçamento é
+            // visível no portal — sem MostrarOrcamento, valores e pagamento ficam ocultos.
+            Pago: portal.MostrarOrcamento && rep.EstadoPagamento == PaymentStatus.Pago);
     }
 }
 

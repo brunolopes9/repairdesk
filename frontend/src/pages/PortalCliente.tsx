@@ -51,6 +51,20 @@ export default function PortalCliente() {
     queryFn: () => publicPortalApi.get(slug!),
     enabled: !!slug,
     retry: 0,
+    // Sprint 494: enquanto a reparação está pronta, com preço e por pagar, faz polling
+    // para apanhar a confirmação MBWay que chega por webhook. 30s = cadência do
+    // output-cache do servidor (polling mais rápido devolveria a mesma resposta cacheada).
+    // Pára automaticamente quando fica paga ou sai do estado Pronto.
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      return d &&
+        d.estado === PUBLIC_ESTADO.Pronto &&
+        d.temPrecoFinal &&
+        d.precoFinalCents != null &&
+        !d.pago
+        ? 30_000
+        : false;
+    },
   });
 
   const decidir = useMutation({
@@ -120,7 +134,8 @@ export default function PortalCliente() {
         {data.estado === PUBLIC_ESTADO.Pronto &&
           data.temPrecoFinal &&
           data.precoFinalCents != null &&
-          !data.coberturaGarantia && (
+          !data.coberturaGarantia &&
+          !data.pago && (
             <PagamentoMbWayCard slug={data.slug} valorCents={data.precoFinalCents} />
           )}
 
@@ -304,11 +319,18 @@ function EstadoCard({ data }: { data: PublicRepairDto }) {
       <div className="text-[11px] uppercase tracking-wider text-zinc-500">Estado actual</div>
       <h2 className="mt-1 text-2xl font-semibold tracking-tight">{ESTADO_LABEL[data.estado]}</h2>
       <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{ESTADO_DESC[data.estado]}</p>
-      {data.estado === PUBLIC_ESTADO.Pronto && data.temPrecoFinal && data.precoFinalCents != null && (
-        <div className="mt-3 text-sm">
-          <span className="text-zinc-500">Valor a pagar no levantamento: </span>
-          <span className="font-semibold">{formatCents(data.precoFinalCents)}</span>
+      {data.temPrecoFinal && data.precoFinalCents != null && data.pago ? (
+        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+          <CheckCircle2 size={14} strokeWidth={2} />
+          Pago · {formatCents(data.precoFinalCents)}
         </div>
+      ) : (
+        data.estado === PUBLIC_ESTADO.Pronto && data.temPrecoFinal && data.precoFinalCents != null && (
+          <div className="mt-3 text-sm">
+            <span className="text-zinc-500">Valor a pagar no levantamento: </span>
+            <span className="font-semibold">{formatCents(data.precoFinalCents)}</span>
+          </div>
+        )
       )}
       {/* Sprint 487: previsão de entrega (ETA) enquanto a reparação está em curso. */}
       {data.previstoEntregueEm && (

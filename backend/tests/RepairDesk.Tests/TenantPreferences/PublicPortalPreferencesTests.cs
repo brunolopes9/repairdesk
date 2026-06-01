@@ -237,6 +237,38 @@ public class PublicPortalPreferencesTests
         fresh!.EstadoPagamento.Should().Be(PaymentStatus.Pago);
     }
 
+    [Fact]
+    public async Task GetBySlugAsync_RefleteEstadoPagamento()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        var service = NewService(db, tenantId, TenantPreferencesDefaults.Create());
+
+        (await service.GetBySlugAsync(rep.PublicSlug!)).Pago.Should().BeFalse();
+
+        rep.EstadoPagamento = PaymentStatus.Pago;
+        await db.SaveChangesAsync();
+
+        (await service.GetBySlugAsync(rep.PublicSlug!)).Pago.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetBySlugAsync_MostrarOrcamentoFalse_NaoRevelaPago()
+    {
+        // Sem orçamento visível, o estado de pagamento também fica oculto.
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        rep.EstadoPagamento = PaymentStatus.Pago;
+        await db.SaveChangesAsync();
+        var prefs = TenantPreferencesDefaults.Create();
+        prefs = prefs with { Portal = prefs.Portal with { MostrarOrcamento = false } };
+        var service = NewService(db, tenantId, prefs);
+
+        (await service.GetBySlugAsync(rep.PublicSlug!)).Pago.Should().BeFalse();
+    }
+
     private static async Task<Reparacao> SeedRepairAsync(AppDbContext db, Guid tenantId)
     {
         var tenant = new Tenant { Id = tenantId, Name = "LopesTech" };

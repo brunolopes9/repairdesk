@@ -39,7 +39,9 @@ public sealed record PublicRepairDto(
     /// <summary>Sprint 482: fio de conversa do portal (mensagens do cliente + respostas do staff).</summary>
     IReadOnlyList<PublicConversaMsg> Conversa,
     /// <summary>Sprint 487: previsão de entrega (ETA) — só exposta enquanto a reparação está em curso.</summary>
-    DateTime? PrevistoEntregueEm = null);
+    DateTime? PrevistoEntregueEm = null,
+    /// <summary>Sprint 494: reparação já paga — esconde o card de pagamento e mostra confirmação.</summary>
+    bool Pago = false);
 
 /// <summary>
 /// Sprint 482: uma mensagem do fio de conversa do portal. Só expõe comunicações do tipo

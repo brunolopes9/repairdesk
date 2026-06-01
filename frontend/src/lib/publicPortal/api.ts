@@ -96,6 +96,8 @@ export interface PublicRepairDto {
   conversa: PublicConversaMsg[];
   /** Sprint 487: previsão de entrega (ETA) — null quando já entregue/cancelado/pronto. */
   previstoEntregueEm: string | null;
+  /** Sprint 494: reparação já paga (esconde o card MBWay, mostra confirmação). */
+  pago: boolean;
 }
 
 export interface PublicConversaMsg {
