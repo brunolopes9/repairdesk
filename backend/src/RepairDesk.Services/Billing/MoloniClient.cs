@@ -746,7 +746,19 @@ public class MoloniClient : IMoloniClient
         var result = await PostAsync<JsonElement>(settings, "customers/insert", payload, ct);
         var id = GetIntAny(result, "customer_id", "id");
         if (id <= 0)
-            throw new BillingProviderException("moloni_customer_insert_missing_id", "A Moloni criou cliente sem devolver customer_id.");
+        {
+            // Sprint 502: o insert pode "falhar" porque o VAT já existe (a Moloni rejeita NIF
+            // duplicado) OU porque a resposta não trouxe o id. Re-procurar por VAT é idempotente
+            // e auto-cura o caso comum (cliente criado numa tentativa anterior) sem duplicar.
+            var rawJson = result.GetRawText();
+            _logger.LogWarning("Moloni customers/insert sem customer_id (vat={Vat}). JSON cru: {Json}", vat, rawJson);
+            var existing = await FindCustomerIdByVatAsync(settings, vat, ct);
+            if (existing is > 0)
+                return new MoloniCustomerDto(existing.Value, name, vat, true);
+            throw new BillingProviderException(
+                "moloni_customer_insert_missing_id",
+                $"A Moloni não devolveu customer_id ao criar o cliente '{name}' (NIF {vat}). Resposta: {(rawJson.Length > 300 ? rawJson[..300] + "…" : rawJson)}");
+        }
 
         return new MoloniCustomerDto(id, name, vat, true);
     }
