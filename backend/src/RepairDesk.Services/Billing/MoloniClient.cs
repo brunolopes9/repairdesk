@@ -172,8 +172,11 @@ public class MoloniClient : IMoloniClient
         if (documentId <= 0)
         {
             // Sprint 144b: log + propaga ao frontend com snippet da resposta para diagnose.
+            // Sprint 506: logar TAMBÉM o payload literal — sem isto ficamos a adivinhar a estrutura.
             var rawJson = insert.GetRawText();
-            _logger.LogError("Moloni {Endpoint} respondeu sem document_id. JSON cru: {Json}", endpoint, rawJson);
+            _logger.LogError(
+                "Moloni {Endpoint} respondeu sem document_id. PAYLOAD: {Payload} | JSON cru: {Json}",
+                endpoint, JsonSerializer.Serialize(payload, JsonOptions), rawJson);
             throw new BillingProviderException(
                 "moloni_missing_document_id",
                 $"A Moloni respondeu sem document_id. Resposta: {(rawJson.Length > 300 ? rawJson[..300] + "…" : rawJson)}");
@@ -356,7 +359,11 @@ public class MoloniClient : IMoloniClient
                 new Dictionary<string, object?>
                 {
                     ["tax_id"] = resolvedTaxId,
+                    // Sprint 506: a conta devolve "Field 'net_value' must be float > 0" mesmo com
+                    // tax_id válido (23%). A API pede a percentagem no campo net_value (não só value).
+                    // Enviamos ambos por segurança — value (doc) + net_value (o que o 422 exige).
                     ["value"] = item.VatPercent,
+                    ["net_value"] = item.VatPercent,
                     ["order"] = 1,
                     ["cumulative"] = 0,
                 },
