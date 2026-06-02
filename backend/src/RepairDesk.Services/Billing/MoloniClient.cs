@@ -93,8 +93,9 @@ public class MoloniClient : IMoloniClient
         EnsureReadyToInvoice(settings, draftItems.Max(i => i.VatPercent));
 
         var today = DateTime.UtcNow.Date;
+        var taxIdByRate = await ResolveTaxIdsAsync(settings, draftItems, ct);
         var products = draftItems
-            .Select((item, index) => BuildProduct(settings, item, index + 1))
+            .Select((item, index) => BuildProduct(settings, item, index + 1, taxIdByRate))
             .ToArray();
         var documentType = draft.DocumentTypeOverride ?? settings.DefaultDocumentType;
 
@@ -217,6 +218,7 @@ public class MoloniClient : IMoloniClient
 
         var today = DateTime.UtcNow.Date;
         var expiration = today.AddDays(30);
+        var taxIdByRate = await ResolveTaxIdsAsync(settings, draftItems, ct);
         var payload = new Dictionary<string, object?>
         {
             ["company_id"] = settings.CompanyId!.Value,
@@ -227,7 +229,7 @@ public class MoloniClient : IMoloniClient
             ["our_reference"] = draft.Reference,
             ["your_reference"] = draft.Reference,
             ["status"] = 1,
-            ["products"] = draftItems.Select((item, index) => BuildProduct(settings, item, index + 1)).ToArray(),
+            ["products"] = draftItems.Select((item, index) => BuildProduct(settings, item, index + 1, taxIdByRate)).ToArray(),
         };
 
         if (settings.DefaultMaturityDateId is { } maturityDateId)
@@ -314,7 +316,11 @@ public class MoloniClient : IMoloniClient
             DateTime.UtcNow);
     }
 
-    private static Dictionary<string, object?> BuildProduct(TenantBillingSettings settings, MoloniInvoiceDraftItem item, int order)
+    private static Dictionary<string, object?> BuildProduct(
+        TenantBillingSettings settings,
+        MoloniInvoiceDraftItem item,
+        int order,
+        IReadOnlyDictionary<decimal, int> taxIdByRate)
     {
         var grossUnit = item.UnitPriceCents / 100m;
         var netUnit = item.VatPercent > 0
@@ -339,11 +345,17 @@ public class MoloniClient : IMoloniClient
 
         if (item.VatPercent > 0)
         {
+            // Sprint 505: o Moloni usa a percentagem GUARDADA do imposto referenciado por tax_id
+            // (ignora o nosso "value"). Usamos o tax_id resolvido pela taxa real da conta; só se a
+            // resolução falhar é que caímos no DefaultTaxId (que pode estar stale → net_value=0).
+            var resolvedTaxId = taxIdByRate.TryGetValue(item.VatPercent, out var tid) && tid > 0
+                ? tid
+                : (settings.DefaultTaxId ?? 0);
             product["taxes"] = new[]
             {
                 new Dictionary<string, object?>
                 {
-                    ["tax_id"] = settings.DefaultTaxId!.Value,
+                    ["tax_id"] = resolvedTaxId,
                     ["value"] = item.VatPercent,
                     ["order"] = 1,
                     ["cumulative"] = 0,
@@ -357,6 +369,48 @@ public class MoloniClient : IMoloniClient
         }
 
         return product;
+    }
+
+    /// <summary>
+    /// Sprint 505: resolve o tax_id correcto para cada taxa de IVA do documento. O Moloni,
+    /// ao receber um tax_id, usa a percentagem GUARDADA desse imposto e ignora o "value" que
+    /// enviamos; se o DefaultTaxId estiver stale/errado (aponta para imposto com valor 0 ou
+    /// não-IVA), o documento rebenta com "Field 'net_value' must be float, greater than 0".
+    /// Procuramos o imposto da conta cuja percentagem bate certo com a taxa da linha. Fallback
+    /// ao DefaultTaxId só quando nenhum imposto bate. Loga os impostos disponíveis para diagnose.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<decimal, int>> ResolveTaxIdsAsync(
+        TenantBillingSettings settings,
+        IEnumerable<MoloniInvoiceDraftItem> items,
+        CancellationToken ct)
+    {
+        var rates = items.Where(i => i.VatPercent > 0).Select(i => i.VatPercent).Distinct().ToList();
+        var map = new Dictionary<decimal, int>();
+        if (rates.Count == 0) return map;
+
+        IReadOnlyList<MoloniTaxDto> taxes;
+        try
+        {
+            taxes = await GetTaxesAsync(settings, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Moloni taxes/getAll falhou ao resolver tax_id; uso DefaultTaxId={Default}", settings.DefaultTaxId);
+            taxes = Array.Empty<MoloniTaxDto>();
+        }
+
+        foreach (var rate in rates)
+        {
+            var match = taxes.FirstOrDefault(t => t.IsActive && Math.Abs(t.Value - rate) < 0.01m)
+                     ?? taxes.FirstOrDefault(t => Math.Abs(t.Value - rate) < 0.01m);
+            var id = match?.Id ?? settings.DefaultTaxId ?? 0;
+            map[rate] = id;
+            _logger.LogInformation(
+                "Moloni tax_id resolve: taxa={Rate}% -> tax_id={TaxId} (match={MatchId}, default={Default}, taxesConta=[{Taxes}])",
+                rate, id, match?.Id, settings.DefaultTaxId,
+                string.Join(", ", taxes.Select(t => $"{t.Id}:{t.Value}%{(t.IsActive ? "" : "(inativo)")}")));
+        }
+        return map;
     }
 
     public async Task<int?> GetDocumentStatusAsync(TenantBillingSettings settings, int documentId, CancellationToken ct = default)
@@ -428,7 +482,8 @@ public class MoloniClient : IMoloniClient
             throw new ValidationException("nc_sem_original", "Nota de Credito precisa de referencia a fatura original.");
 
         var today = DateTime.UtcNow.Date;
-        var products = draft.Items.Select((item, index) => BuildProduct(settings, item, index + 1)).ToArray();
+        var taxIdByRate = await ResolveTaxIdsAsync(settings, draft.Items, ct);
+        var products = draft.Items.Select((item, index) => BuildProduct(settings, item, index + 1, taxIdByRate)).ToArray();
 
         // creditNotes/insert exige relacao com documento original via 'related_documents'
         var payload = new Dictionary<string, object?>

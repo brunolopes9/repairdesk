@@ -22,6 +22,8 @@ public class MoloniBillingTests
     public async Task MoloniClient_InsertInvoice_Success_ReturnsDocumentNumberAndPdf()
     {
         var handler = new QueueHttpHandler(
+            // Sprint 505: resolução dinâmica de tax_id chama taxes/getAll antes do insert.
+            Json(HttpStatusCode.OK, """{"taxes":[{"tax_id":40,"name":"IVA23","value":23,"active":1}]}"""),
             Json(HttpStatusCode.OK, """{"document_id":123}"""),
             Json(HttpStatusCode.OK, """{"document_type":{"saft_code":"FA"},"year":2026,"number":123}"""),
             Json(HttpStatusCode.OK, """{"url":"https://moloni.test/fa-123.pdf"}"""));
@@ -33,13 +35,15 @@ public class MoloniBillingTests
         result.ExternalId.Should().Be("123");
         result.Number.Should().Be("FA 2026/123");
         result.PdfUrl.Should().Be("https://moloni.test/fa-123.pdf");
-        handler.Requests.Should().HaveCount(3);
+        handler.Requests.Should().HaveCount(4);
     }
 
     [Fact]
     public async Task MoloniClient_EstimateFlow_InsertsAndConvertsToInvoice()
     {
         var handler = new QueueHttpHandler(
+            // Sprint 505: estimates/insert resolve tax_id via taxes/getAll primeiro.
+            Json(HttpStatusCode.OK, """{"taxes":[{"tax_id":40,"name":"IVA23","value":23,"active":1}]}"""),
             Json(HttpStatusCode.OK, """{"document_id":456}"""),
             Json(HttpStatusCode.OK, """{"document_type":{"saft_code":"OR"},"year":2026,"number":456}"""),
             Json(HttpStatusCode.OK, """{"url":"https://moloni.test/or-456.pdf"}"""),
@@ -60,9 +64,10 @@ public class MoloniBillingTests
         invoice.ExternalId.Should().Be("789");
         invoice.Number.Should().Be("FA 2026/789");
         invoice.PdfUrl.Should().Be("https://moloni.test/fa-789.pdf");
-        handler.Requests.Should().HaveCount(6);
-        handler.Requests[0].RequestUri!.AbsoluteUri.Should().Contain("estimates/insert");
-        handler.Requests[3].RequestUri!.AbsoluteUri.Should().Contain("documentsToInvoice");
+        handler.Requests.Should().HaveCount(7);
+        handler.Requests[0].RequestUri!.AbsoluteUri.Should().Contain("taxes/getAll");
+        handler.Requests[1].RequestUri!.AbsoluteUri.Should().Contain("estimates/insert");
+        handler.Requests[4].RequestUri!.AbsoluteUri.Should().Contain("documentsToInvoice");
     }
 
     [Fact]
@@ -82,7 +87,9 @@ public class MoloniBillingTests
     [InlineData(HttpStatusCode.InternalServerError)]
     public async Task MoloniClient_InsertInvoice_HttpError_Throws(HttpStatusCode status)
     {
-        var handler = new QueueHttpHandler(Json(status, """{"error":"invalid","error_description":"falhou"}"""));
+        var handler = new QueueHttpHandler(
+            Json(HttpStatusCode.OK, """{"taxes":[{"tax_id":40,"name":"IVA23","value":23,"active":1}]}"""),
+            Json(status, """{"error":"invalid","error_description":"falhou"}"""));
         var client = NewMoloniClient(handler);
 
         var act = () => client.InsertInvoiceAsync(Settings(), new MoloniInvoiceDraft(
@@ -124,7 +131,9 @@ public class MoloniBillingTests
     [Fact]
     public async Task MoloniClient_InsertInvoice_MoloniValidationError_Throws()
     {
-        var handler = new QueueHttpHandler(Json(HttpStatusCode.OK, """{"valid":0,"errors":[{"description":"Serie invalida"}]}"""));
+        var handler = new QueueHttpHandler(
+            Json(HttpStatusCode.OK, """{"taxes":[{"tax_id":40,"name":"IVA23","value":23,"active":1}]}"""),
+            Json(HttpStatusCode.OK, """{"valid":0,"errors":[{"description":"Serie invalida"}]}"""));
         var client = NewMoloniClient(handler);
 
         var act = () => client.InsertInvoiceAsync(Settings(), new MoloniInvoiceDraft(
