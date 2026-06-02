@@ -393,7 +393,12 @@ export default function ReparacaoDetalhe() {
   });
 
   const emitirFatura = useMutation({
-    mutationFn: () => reparacoesApi.emitirFatura(id!, { discriminarMaoObra: emitDiscriminar }),
+    mutationFn: () =>
+      reparacoesApi.emitirFatura(id!, {
+        discriminarMaoObra: emitDiscriminar,
+        // Sprint 509: a escolha do modal MANDA — 1 = Fatura (com NIF), 0 = Fatura Simplificada.
+        documentType: emitTipo === 'com-nif' ? 1 : 0,
+      }),
     onSuccess: (invoice) => {
       qc.invalidateQueries({ queryKey: ['reparacao', id] });
       toast.success(`Fatura ${invoice.number} emitida`, invoice.pdfUrl ? 'PDF disponível na ficha.' : undefined);

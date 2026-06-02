@@ -80,7 +80,7 @@ public sealed record MoloniOAuthStartDto(string AuthorizationUrl, DateTime Expir
 /// peças + linha de mão-de-obra (true, default) ou se sai como linha única com a descrição do
 /// serviço + total (false) — para clientes a quem não se quer revelar a margem.
 /// </summary>
-public sealed record EmitInvoiceRequest(decimal? VatPercent, string? PaymentMethod, bool DiscriminarMaoObra = true);
+public sealed record EmitInvoiceRequest(decimal? VatPercent, string? PaymentMethod, bool DiscriminarMaoObra = true, BillingDocumentType? DocumentType = null);
 
 public sealed record InvoiceDto(string Number, string? PdfUrl, DateTime EmittedAt);
 

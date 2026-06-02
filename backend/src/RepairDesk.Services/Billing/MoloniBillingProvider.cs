@@ -7,7 +7,7 @@ namespace RepairDesk.Services.Billing;
 
 public interface IBillingProvider
 {
-    Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, CancellationToken ct = default);
+    Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default);
     Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default);
     Task<InvoiceDto> EmitVendaInvoiceAsync(Guid vendaId, CancellationToken ct = default);
     Task<Stream> GetPdfStreamAsync(string invoiceId, CancellationToken ct = default);
@@ -44,7 +44,7 @@ public class MoloniBillingProvider : IBillingProvider
         _parts = parts;
     }
 
-    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, CancellationToken ct = default)
+    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
     {
         var reparacao = await _reparacoes.FindByIdWithTimelineAsync(reparacaoId, ct)
             ?? throw new NotFoundException("Reparacao", reparacaoId);
@@ -77,7 +77,9 @@ public class MoloniBillingProvider : IBillingProvider
             lines = new[] { new MoloniInvoiceDraftItem(nome, null, 1, amount, 0, effectiveVat) };
         }
 
-        var docType = ResolveDocumentType(settings, reparacao.Cliente, amount, effectiveVat);
+        // Sprint 509: a escolha explícita do utilizador (modal: Fatura vs Simplificada) MANDA.
+        // Só caímos no ResolveDocumentType automático quando não há escolha (ex.: bulk emit).
+        var docType = documentTypeOverride ?? ResolveDocumentType(settings, reparacao.Cliente, amount, effectiveVat);
         var result = await _moloni.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
             customerId,
             $"Reparacao #{reparacao.Numero}",

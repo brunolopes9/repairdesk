@@ -115,7 +115,7 @@ public class ReparacoesController : ControllerBase
 
     [HttpPost("{id:guid}/emitir-fatura")]
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
-        => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, req?.DiscriminarMaoObra ?? true, ct);
+        => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, req?.DiscriminarMaoObra ?? true, req?.DocumentType, ct);
 
     [HttpPost("{id:guid}/emitir-orcamento-moloni")]
     public Task<ReparacaoDto> EmitirOrcamentoMoloni(Guid id, CancellationToken ct)

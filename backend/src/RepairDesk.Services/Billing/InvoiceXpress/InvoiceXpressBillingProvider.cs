@@ -35,9 +35,10 @@ public sealed class InvoiceXpressBillingProvider : IBillingProvider
 
     // Sprint 501: aceita discriminarMaoObra para paridade de interface; o InvoiceXpress já
     // emite uma linha única (não discrimina peças), por isso o flag não altera o comportamento aqui.
-    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, CancellationToken ct = default)
+    public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, RepairDesk.Core.Enums.BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
     {
         _ = discriminarMaoObra;
+        _ = documentTypeOverride;
         var reparacao = await _reparacoes.FindByIdWithTimelineAsync(reparacaoId, ct)
             ?? throw new NotFoundException("Reparacao", reparacaoId);
 

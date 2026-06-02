@@ -45,7 +45,7 @@ export const reparacoesApi = {
   },
   emitirFatura(
     id: string,
-    payload: { vatPercent?: number | null; paymentMethod?: string | null; discriminarMaoObra?: boolean } = {},
+    payload: { vatPercent?: number | null; paymentMethod?: string | null; discriminarMaoObra?: boolean; documentType?: number } = {},
   ) {
     return api.post<InvoiceDto>(`/reparacoes/${id}/emitir-fatura`, payload).then((r) => r.data);
   },
