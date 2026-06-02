@@ -182,6 +182,46 @@ public class MoloniBillingTests
         moloni.InsertCalls.Should().Be(0);
     }
 
+    // Sprint 507: a Fatura Simplificada tem limite legal de €100 (líquido) para não-retalho.
+    // O tipo de documento tem de escalar para Fatura quando há NIF OU o líquido passa €100,
+    // senão a Moloni rejeita com "net_value must be ... <= 100".
+    [Theory]
+    [InlineData("235061921", 5000, BillingDocumentType.Fatura)]            // NIF → Fatura (qualquer valor)
+    [InlineData(null, 13500, BillingDocumentType.Fatura)]                   // €135 (líquido 109,76 > €100) → Fatura
+    [InlineData(null, 5000, BillingDocumentType.FaturaSimplificada)]        // €50 sem NIF → default do tenant
+    public async Task EmitReparacaoInvoice_EscolheTipoDocumentoPorNifELimite(string? nif, int precoCents, BillingDocumentType esperado)
+    {
+        var tenantId = Guid.NewGuid();
+        var reparacao = new Reparacao
+        {
+            TenantId = tenantId,
+            Numero = 1,
+            ClienteId = Guid.NewGuid(),
+            Cliente = new Cliente { TenantId = tenantId, Nome = "Cliente", Nif = nif },
+            Equipamento = "iPhone",
+            Avaria = "Ecra",
+            Diagnostico = "Substituição de ecrã",
+            EstadoPagamento = PaymentStatus.Pago,
+            PrecoFinalCents = precoCents,
+        };
+
+        var moloni = new FakeMoloniClient();
+        var provider = new MoloniBillingProvider(
+            new FakeReparacaoRepository(reparacao),
+            new FakeTrabalhoRepository(),
+            new FakeVendaRepository(),
+            new FakeSettingsRepository(Settings(tenantId)),       // DefaultDocumentType = FaturaSimplificada
+            new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
+            new FakeTenantContext(tenantId),
+            moloni,
+            new FakePartRepository());
+
+        await provider.EmitReparacaoInvoiceAsync(reparacao.Id, null, null, discriminarMaoObra: false);
+
+        moloni.LastDraft.Should().NotBeNull();
+        moloni.LastDraft!.DocumentTypeOverride.Should().Be(esperado);
+    }
+
     [Fact]
     public async Task TenantBillingSettingsService_EncryptsApiKeyAtRest()
     {
@@ -397,6 +437,7 @@ public class MoloniBillingTests
     private sealed class FakeMoloniClient : IMoloniClient
     {
         public int InsertCalls { get; private set; }
+        public MoloniInvoiceDraft? LastDraft { get; private set; }
         public Task TestConnectionAsync(TenantBillingSettings settings, CancellationToken ct = default) => Task.CompletedTask;
         public Task<IReadOnlyList<BillingSerieDto>> GetSeriesAsync(TenantBillingSettings settings, CancellationToken ct = default)
             => Task.FromResult((IReadOnlyList<BillingSerieDto>)Array.Empty<BillingSerieDto>());
@@ -405,6 +446,7 @@ public class MoloniBillingTests
         public Task<MoloniInvoiceResult> InsertInvoiceAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default)
         {
             InsertCalls++;
+            LastDraft = draft;
             return Task.FromResult(new MoloniInvoiceResult("123", "FA 2026/123", "https://moloni.test/fa-123.pdf", DateTime.UtcNow));
         }
         public Task<MoloniEstimateResult> InsertEstimateAsync(TenantBillingSettings settings, MoloniInvoiceDraft draft, CancellationToken ct = default)
