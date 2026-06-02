@@ -755,6 +755,11 @@ public class MoloniClient : IMoloniClient
             ["city"] = "Portugal",
             ["salesman_id"] = 0,
             ["payment_day"] = 0,
+            // Sprint 504: contas Moloni em modo "campos obrigatórios" também exigem este trio
+            // (a doc lista como opcional, mas o 422 da conta LopesTech pede-os explicitamente >= 0).
+            ["discount"] = 0,
+            ["credit_limit"] = 0,
+            ["delivery_method_id"] = 0,
         };
         if (maturityDateId > 0)
             payload["maturity_date_id"] = maturityDateId;
