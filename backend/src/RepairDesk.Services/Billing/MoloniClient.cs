@@ -730,6 +730,18 @@ public class MoloniClient : IMoloniClient
     public async Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, CancellationToken ct = default)
     {
         EnsureMoloniBasics(settings);
+
+        // Sprint 503: contas Moloni com "campos obrigatórios" activos rejeitam customers/insert
+        // (422) sem salesman_id (>=0), payment_day (int) e maturity_date_id (>0). Resolvemos o
+        // prazo de vencimento a partir das settings (descoberto na auto-config) e, em falta,
+        // buscamos um válido à Moloni — em vez de rebentar com o cliente a tentar emitir.
+        var maturityDateId = settings.DefaultMaturityDateId ?? 0;
+        if (maturityDateId <= 0)
+        {
+            var dates = await GetMaturityDatesAsync(settings, ct);
+            maturityDateId = (dates.FirstOrDefault(d => d.IsActive) ?? dates.FirstOrDefault())?.Id ?? 0;
+        }
+
         var payload = new Dictionary<string, object?>
         {
             ["company_id"] = settings.CompanyId!.Value,
@@ -741,7 +753,13 @@ public class MoloniClient : IMoloniClient
             ["address"] = "Consumidor final",
             ["zip_code"] = "0000-000",
             ["city"] = "Portugal",
+            ["salesman_id"] = 0,
+            ["payment_day"] = 0,
         };
+        if (maturityDateId > 0)
+            payload["maturity_date_id"] = maturityDateId;
+        if (settings.DefaultPaymentMethodId is { } pmId && pmId > 0)
+            payload["payment_method_id"] = pmId;
 
         var result = await PostAsync<JsonElement>(settings, "customers/insert", payload, ct);
         var id = GetIntAny(result, "customer_id", "id");
@@ -757,7 +775,7 @@ public class MoloniClient : IMoloniClient
                 return new MoloniCustomerDto(existing.Value, name, vat, true);
             throw new BillingProviderException(
                 "moloni_customer_insert_missing_id",
-                $"A Moloni não devolveu customer_id ao criar o cliente '{name}' (NIF {vat}). Resposta: {(rawJson.Length > 300 ? rawJson[..300] + "…" : rawJson)}");
+                $"A Moloni não devolveu customer_id ao criar o cliente '{name}' (NIF {vat}). Resposta: {(rawJson.Length > 1000 ? rawJson[..1000] + "…" : rawJson)}");
         }
 
         return new MoloniCustomerDto(id, name, vat, true);
