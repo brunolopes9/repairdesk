@@ -77,6 +77,7 @@ public class MoloniBillingProvider : IBillingProvider
             lines = new[] { new MoloniInvoiceDraftItem(nome, null, 1, amount, 0, effectiveVat) };
         }
 
+        var docType = ResolveDocumentType(settings, reparacao.Cliente, amount, effectiveVat);
         var result = await _moloni.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
             customerId,
             $"Reparacao #{reparacao.Numero}",
@@ -85,6 +86,7 @@ public class MoloniBillingProvider : IBillingProvider
             amount,
             effectiveVat,
             paymentMethod,
+            docType,
             Items: lines),
             ct);
 
@@ -113,6 +115,7 @@ public class MoloniBillingProvider : IBillingProvider
         var customerId = await ResolveCustomerIdAsync(settings, trabalho.Cliente, ct);
         var effectiveVat = ResolveVatPercent(tenant, vatPercent);
 
+        var docType = ResolveDocumentType(settings, trabalho.Cliente, amount, effectiveVat);
         var result = await _moloni.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
             customerId,
             $"Trabalho #{trabalho.Numero}",
@@ -120,7 +123,8 @@ public class MoloniBillingProvider : IBillingProvider
             trabalho.Descricao,
             amount,
             effectiveVat,
-            paymentMethod),
+            paymentMethod,
+            docType),
             ct);
 
         trabalho.InvoiceProvider = BillingProvider.Moloni;
@@ -147,12 +151,11 @@ public class MoloniBillingProvider : IBillingProvider
 
         var settings = await RequireSettingsAsync(ct);
         var customerId = await ResolveCustomerIdAsync(settings, venda.Cliente, ct);
-        // Sprint 113: Fatura Simplificada quando não há NIF (cliente anónimo OU criado com nome
-        // interno como "Sérgio de Guimarães" sem NIF). Limite €1000 — abaixo desse valor o cliente
-        // não precisa de NIF para a fatura ter validade fiscal.
-        var documentType = string.IsNullOrWhiteSpace(venda.Cliente?.Nif)
-            ? BillingDocumentType.FaturaSimplificada
-            : BillingDocumentType.Fatura;
+        // Sprint 507: tipo de documento centralizado — Fatura quando há NIF ou o líquido passa
+        // €100 (limite da Fatura Simplificada para não-retalho); senão o default do tenant.
+        var documentType = ResolveDocumentType(
+            settings, venda.Cliente, venda.TotalCents,
+            venda.Items.Count > 0 ? venda.Items.Max(i => i.IvaRate) : 23m);
 
         var items = venda.Items.Select(i => new MoloniInvoiceDraftItem(
             i.Descricao,
@@ -243,6 +246,28 @@ public class MoloniBillingProvider : IBillingProvider
     {
         if (explicitVat is not null) return explicitVat.Value;
         return tenant.RegimeFiscal == RegimeFiscal.IsentoArt53 ? 0m : 23m;
+    }
+
+    /// <summary>
+    /// Sprint 507: escolhe o tipo de documento Moloni. A Fatura Simplificada tem limite legal
+    /// (€100 de valor líquido para quem não é retalhista) — acima disso a Moloni rejeita com
+    /// "net_value must be ... &lt;= 100". Por isso emitimos Fatura normal (sem limite) quando o
+    /// cliente tem NIF OU o líquido passa €100; caso contrário respeitamos o default do tenant
+    /// (tipicamente Simplificada, ideal para vendas rápidas de balcão sem NIF).
+    /// </summary>
+    private static BillingDocumentType ResolveDocumentType(
+        TenantBillingSettings settings, Cliente? cliente, int amountCents, decimal vatPercent)
+    {
+        if (!string.IsNullOrWhiteSpace(cliente?.Nif))
+            return BillingDocumentType.Fatura;
+
+        var netCents = vatPercent > 0
+            ? (int)Math.Round(amountCents / (1m + vatPercent / 100m))
+            : amountCents;
+        if (netCents > 10_000) // €100 líquido — limite da Fatura Simplificada (não-retalho)
+            return BillingDocumentType.Fatura;
+
+        return settings.DefaultDocumentType;
     }
 
     /// <summary>Sprint 136: helper partilhado com ReparacaoService (estimate). Devolve null = fallback.</summary>

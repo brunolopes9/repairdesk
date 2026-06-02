@@ -359,11 +359,7 @@ public class MoloniClient : IMoloniClient
                 new Dictionary<string, object?>
                 {
                     ["tax_id"] = resolvedTaxId,
-                    // Sprint 506: a conta devolve "Field 'net_value' must be float > 0" mesmo com
-                    // tax_id válido (23%). A API pede a percentagem no campo net_value (não só value).
-                    // Enviamos ambos por segurança — value (doc) + net_value (o que o 422 exige).
                     ["value"] = item.VatPercent,
-                    ["net_value"] = item.VatPercent,
                     ["order"] = 1,
                     ["cumulative"] = 0,
                 },
