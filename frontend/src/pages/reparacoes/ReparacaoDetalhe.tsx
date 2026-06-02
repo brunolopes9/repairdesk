@@ -767,14 +767,25 @@ export default function ReparacaoDetalhe() {
           )}
           {r.invoiceExternalId ? (
             <>
-              <a
-                href={r.invoicePdfUrl ?? '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
-              >
-                Fatura {r.invoiceNumber ?? r.invoiceExternalId}
-              </a>
+              {r.invoicePdfUrl ? (
+                <a
+                  href={r.invoicePdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Abrir o PDF da fatura (Moloni) numa nova aba"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+                >
+                  <span aria-hidden>📄</span>
+                  Fatura {r.invoiceNumber ?? r.invoiceExternalId} · ver PDF
+                </a>
+              ) : (
+                <span
+                  title="Fatura emitida no Moloni; o PDF ainda está a ser gerado. Atualiza dentro de momentos."
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+                >
+                  Fatura {r.invoiceNumber ?? r.invoiceExternalId} (PDF a gerar…)
+                </span>
+              )}
               <button
                 type="button"
                 disabled={anularFatura.isPending}
