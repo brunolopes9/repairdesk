@@ -52,6 +52,10 @@ export const reparacoesApi = {
   anularFatura(id: string) {
     return api.post<Reparacao>(`/reparacoes/${id}/anular-fatura`).then((r) => r.data);
   },
+  // Sprint 512: desvincula a fatura local (já anulada directamente no Moloni) para poder re-emitir.
+  limparFaturaLocal(id: string) {
+    return api.post<Reparacao>(`/reparacoes/${id}/limpar-fatura-local`).then((r) => r.data);
+  },
   emitirOrcamentoMoloni(id: string) {
     return api.post<Reparacao>(`/reparacoes/${id}/emitir-orcamento-moloni`).then((r) => r.data);
   },

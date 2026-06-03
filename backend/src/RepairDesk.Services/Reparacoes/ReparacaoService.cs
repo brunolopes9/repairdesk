@@ -20,6 +20,7 @@ public interface IReparacaoService
     Task<PagedResult<ReparacaoDto>> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default, DeviceCategory? categoria = null);
     Task<IReadOnlyList<ReparacaoDto>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default);
     Task<ReparacaoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
+    Task<ReparacaoDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> EmitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> ReemitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> ConverterOrcamentoEmFaturaAsync(Guid id, CancellationToken ct = default);
@@ -202,6 +203,27 @@ public class ReparacaoService : IReparacaoService
                 }
             }
         }
+
+        rep.InvoiceProvider = BillingProvider.None;
+        rep.InvoiceExternalId = null;
+        rep.InvoiceNumber = null;
+        rep.InvoicePdfUrl = null;
+        rep.InvoiceEmittedAt = null;
+
+        await _repo.SaveAsync(ct);
+        var custoFinal = await _despesas.SumByReparacaoAsync(rep.Id, ct);
+        return ToDto(rep, custoFinal);
+    }
+
+    /// <summary>Sprint 512: limpa SÓ as referências locais da fatura (InvoiceExternalId/Number/Pdf/...),
+    /// sem tocar no Moloni. Para quando o utilizador já anulou a fatura DIRECTAMENTE no painel Moloni —
+    /// o Mender ficava preso a achar que a fatura existia e não deixava re-emitir. Espelha
+    /// VendaService.LimparReferenciaFaturaAsync.</summary>
+    public async Task<ReparacaoDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default)
+    {
+        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
+        if (string.IsNullOrEmpty(rep.InvoiceExternalId))
+            throw new ConflictException("reparacao_sem_fatura", "Esta reparacao nao tem fatura para desvincular.");
 
         rep.InvoiceProvider = BillingProvider.None;
         rep.InvoiceExternalId = null;

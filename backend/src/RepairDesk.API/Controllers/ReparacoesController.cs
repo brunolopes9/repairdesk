@@ -139,6 +139,12 @@ public class ReparacoesController : ControllerBase
     public Task<ReparacaoDto> AnularFatura(Guid id, CancellationToken ct)
         => _service.AnularFaturaAsync(id, ct);
 
+    /// <summary>Sprint 512: limpa só as referências locais da fatura — para quando o operador já
+    /// anulou a fatura directamente no painel Moloni e quer poder re-emitir no Mender (não toca no Moloni).</summary>
+    [HttpPost("{id:guid}/limpar-fatura-local")]
+    public Task<ReparacaoDto> LimparFaturaLocal(Guid id, CancellationToken ct)
+        => _service.LimparReferenciaFaturaAsync(id, ct);
+
     /// <summary>Emite fatura para várias reparações pagas em batch. Devolve resultado por linha.</summary>
     [HttpPost("bulk-emit-faturas")]
     public async Task<IReadOnlyList<BulkEmitResult>> BulkEmitFaturas([FromBody] BulkEmitRequest req, CancellationToken ct)

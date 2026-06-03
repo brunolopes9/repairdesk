@@ -421,6 +421,18 @@ export default function ReparacaoDetalhe() {
     onError: (err) => toast.fromError(err, 'Não foi possível anular a fatura.'),
   });
 
+  // Sprint 512: desvincula a fatura local quando já foi anulada DIRECTAMENTE no painel Moloni.
+  // Não toca no Moloni — só limpa as referências locais para a reparação voltar a poder emitir.
+  const limparFaturaLocal = useMutation({
+    mutationFn: () => reparacoesApi.limparFaturaLocal(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reparacao', id] });
+      qc.invalidateQueries({ queryKey: ['reparacoes-pagas-sem-fatura'] });
+      toast.success('Fatura desvinculada', 'Já podes emitir uma nova fatura para esta reparação.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível desvincular a fatura.'),
+  });
+
   const emitirOrcamentoMoloni = useMutation({
     mutationFn: () => reparacoesApi.emitirOrcamentoMoloni(id!),
     onSuccess: (updated) => {
@@ -812,6 +824,24 @@ export default function ReparacaoDetalhe() {
                 title="Emite NC Moloni que anula esta fatura — útil se emitiste por engano"
               >
                 {anularFatura.isPending ? 'A anular…' : 'Anular fatura (NC)'}
+              </button>
+              {/* Sprint 512: já anulada no Moloni? Desvincula localmente para poder re-emitir. */}
+              <button
+                type="button"
+                disabled={limparFaturaLocal.isPending}
+                onClick={() => {
+                  const ok = confirm(
+                    `Já anulaste a fatura ${r.invoiceNumber ?? r.invoiceExternalId} DIRECTAMENTE no Moloni?\n\n` +
+                    'Isto remove a fatura desta reparação no Mender (NÃO toca no Moloni), ' +
+                    'para poderes emitir uma nova.\n\n' +
+                    'Continuar?'
+                  );
+                  if (ok) limparFaturaLocal.mutate();
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                title="Já anulada no Moloni? Desvincula aqui para poder emitir outra fatura"
+              >
+                {limparFaturaLocal.isPending ? 'A desvincular…' : 'Já anulada no Moloni? Desvincular'}
               </button>
             </>
           ) : canEmitMoloniInvoice && (
