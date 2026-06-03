@@ -119,6 +119,8 @@ internal sealed class E2eMoloniClient : IMoloniClient
     public Task<MoloniProductDto> InsertProductAsync(TenantBillingSettings settings, string name, CancellationToken ct = default)
         => Task.FromResult(new MoloniProductDto(10, name, true));
 
-    public Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, CancellationToken ct = default)
+    public Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, string? morada = null, string? codigoPostal = null, string? localidade = null, CancellationToken ct = default)
         => Task.FromResult(new MoloniCustomerDto(50, name, vat, true));
+    public Task<bool> UpdateCustomerAsync(TenantBillingSettings settings, int customerId, string name, string vat, string? morada = null, string? codigoPostal = null, string? localidade = null, CancellationToken ct = default)
+        => Task.FromResult(true);
 }

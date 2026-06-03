@@ -38,6 +38,9 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
   const [contactoPreferido, setContactoPreferido] = useState<ClienteForm['contactoPreferido']>(null);
   const [aceitaMarketing, setAceitaMarketing] = useState(false);
   const [naoContactar, setNaoContactar] = useState(false);
+  const [morada, setMorada] = useState('');
+  const [codigoPostal, setCodigoPostal] = useState('');
+  const [localidade, setLocalidade] = useState('');
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [generic, setGeneric] = useState<string | null>(null);
   const [atLookup, setAtLookup] = useState<AtLookupState>({ status: 'idle' });
@@ -52,6 +55,9 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
     setContactoPreferido(initial?.contactoPreferido ?? null);
     setAceitaMarketing(Boolean(initial?.aceitaMarketing));
     setNaoContactar(Boolean(initial?.naoContactar));
+    setMorada(initial?.morada ?? '');
+    setCodigoPostal(initial?.codigoPostal ?? '');
+    setLocalidade(initial?.localidade ?? '');
     setErrors({});
     setGeneric(null);
     setAtLookup({ status: 'idle' });
@@ -103,6 +109,9 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
         contactoPreferido: contactoPreferido ?? null,
         aceitaMarketing: naoContactar ? false : aceitaMarketing,
         naoContactar,
+        morada: morada.trim() || null,
+        codigoPostal: codigoPostal.trim() || null,
+        localidade: localidade.trim() || null,
       });
     } catch (err) {
       if (isAxiosError(err)) {
@@ -226,6 +235,47 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
         />
         <NifFeedback nif={nif} lookup={atLookup} currentNome={nome} onAcceptName={setNome} />
       </Field>
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/70">
+        <div className="mb-2 flex items-start gap-2">
+          <Building2 size={15} className="mt-0.5 text-brand-600" />
+          <div>
+            <div className="text-sm font-semibold">Morada (para faturas com NIF)</div>
+            <p className="text-xs text-zinc-500">Aparece na fatura Moloni. Opcional — deixa vazio para clientes sem morada.</p>
+          </div>
+        </div>
+        <Field label="Morada" errors={errors.morada}>
+          <input
+            type="text"
+            maxLength={200}
+            placeholder="ex: Rua da Igreja, n.º 42"
+            value={morada}
+            onChange={(e) => setMorada(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Field label="Código postal" errors={errors.codigoPostal}>
+            <input
+              type="text"
+              maxLength={8}
+              placeholder="0000-000"
+              value={codigoPostal}
+              onChange={(e) => setCodigoPostal(e.target.value)}
+              className={inputCls}
+            />
+          </Field>
+          <Field label="Localidade" errors={errors.localidade}>
+            <input
+              type="text"
+              maxLength={100}
+              placeholder="ex: Viseu"
+              value={localidade}
+              onChange={(e) => setLocalidade(e.target.value)}
+              className={inputCls}
+            />
+          </Field>
+        </div>
+      </div>
       <Field label="⚠️ Nota importante (alerta destacado)" errors={errors.notaImportante}>
         <input
           type="text"

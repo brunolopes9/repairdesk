@@ -221,12 +221,28 @@ public class MoloniBillingProvider : IBillingProvider
         if (!string.IsNullOrWhiteSpace(cliente?.Nif))
         {
             var id = await _moloni.FindCustomerIdByVatAsync(settings, cliente.Nif, ct);
-            if (id is > 0) return id.Value;
+            if (id is > 0)
+            {
+                // Sprint 510: cliente já existe no Moloni — sincroniza a morada do Mender
+                // (corrige clientes criados antes com o placeholder "Consumidor final").
+                // Best-effort: se falhar, não bloqueia a emissão da fatura.
+                if (!string.IsNullOrWhiteSpace(cliente.Morada) || !string.IsNullOrWhiteSpace(cliente.Localidade))
+                {
+                    try
+                    {
+                        await _moloni.UpdateCustomerAsync(settings, id.Value, cliente.Nome.Trim(), cliente.Nif.Trim(),
+                            cliente.Morada, cliente.CodigoPostal, cliente.Localidade, ct);
+                    }
+                    catch { /* sync de morada é best-effort — a fatura emite na mesma */ }
+                }
+                return id.Value;
+            }
 
-            // Sprint 66: cliente novo — cria na Moloni se tem NIF + nome.
+            // Sprint 66: cliente novo — cria na Moloni se tem NIF + nome. Sprint 510: com morada real.
             if (!string.IsNullOrWhiteSpace(cliente.Nome))
             {
-                var created = await _moloni.InsertCustomerAsync(settings, cliente.Nome.Trim(), cliente.Nif.Trim(), ct);
+                var created = await _moloni.InsertCustomerAsync(settings, cliente.Nome.Trim(), cliente.Nif.Trim(),
+                    cliente.Morada, cliente.CodigoPostal, cliente.Localidade, ct);
                 if (created.Id > 0) return created.Id;
             }
         }

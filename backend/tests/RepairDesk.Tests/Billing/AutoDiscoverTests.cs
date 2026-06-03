@@ -215,11 +215,13 @@ public class AutoDiscoverTests
             InsertProductCalls++;
             return Task.FromResult(InsertedProduct with { Name = name });
         }
-        public Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, CancellationToken ct = default)
+        public Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, string? morada = null, string? codigoPostal = null, string? localidade = null, CancellationToken ct = default)
         {
             InsertCustomerCalls++;
             return Task.FromResult(InsertedCustomer with { Name = name, Vat = vat });
         }
+        public Task<bool> UpdateCustomerAsync(TenantBillingSettings settings, int customerId, string name, string vat, string? morada = null, string? codigoPostal = null, string? localidade = null, CancellationToken ct = default)
+            => Task.FromResult(true);
     }
 
     private sealed class FakeInvoiceXpressClient : IInvoiceXpressClient

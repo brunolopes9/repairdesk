@@ -398,7 +398,7 @@ public class TrabalhoService : ITrabalhoService
             // Sprint 66: cliente novo (nunca facturado) — cria na Moloni automaticamente.
             if (!string.IsNullOrWhiteSpace(cliente.Nome))
             {
-                var created = await _moloni.InsertCustomerAsync(settings, cliente.Nome.Trim(), cliente.Nif.Trim(), ct);
+                var created = await _moloni.InsertCustomerAsync(settings, cliente.Nome.Trim(), cliente.Nif.Trim(), cliente.Morada, cliente.CodigoPostal, cliente.Localidade, ct);
                 if (created.Id > 0) return created.Id;
             }
         }

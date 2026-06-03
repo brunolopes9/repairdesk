@@ -1052,7 +1052,7 @@ public class ReparacaoService : IReparacaoService
                 var nome = cliente.Nome.Trim();
                 if (nome.Length > 0)
                 {
-                    var created = await _moloni.InsertCustomerAsync(settings, nome, cliente.Nif.Trim(), ct);
+                    var created = await _moloni.InsertCustomerAsync(settings, nome, cliente.Nif.Trim(), cliente.Morada, cliente.CodigoPostal, cliente.Localidade, ct);
                     if (created.Id > 0) return created.Id;
                 }
             }

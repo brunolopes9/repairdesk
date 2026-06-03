@@ -9,7 +9,11 @@ public sealed record CreateClienteRequest(
     string? NotaImportante = null,
     string? ContactoPreferido = null,
     bool AceitaMarketing = false,
-    bool NaoContactar = false);
+    bool NaoContactar = false,
+    // Sprint 510: morada do cliente — vai para a fatura Moloni (fim do "Consumidor final").
+    string? Morada = null,
+    string? CodigoPostal = null,
+    string? Localidade = null);
 
 public sealed record UpdateClienteRequest(
     string Nome,
@@ -20,7 +24,10 @@ public sealed record UpdateClienteRequest(
     string? NotaImportante = null,
     string? ContactoPreferido = null,
     bool AceitaMarketing = false,
-    bool NaoContactar = false);
+    bool NaoContactar = false,
+    string? Morada = null,
+    string? CodigoPostal = null,
+    string? Localidade = null);
 
 public sealed record ClienteDto(
     Guid Id,
@@ -37,7 +44,10 @@ public sealed record ClienteDto(
     string? ContactoPreferido = null,
     bool AceitaMarketing = false,
     bool NaoContactar = false,
-    IReadOnlyList<ClienteTagSummaryDto>? Tags = null);
+    IReadOnlyList<ClienteTagSummaryDto>? Tags = null,
+    string? Morada = null,
+    string? CodigoPostal = null,
+    string? Localidade = null);
 
 /// <summary>Sprint 480: customer segment tag embedded in ClienteDto.</summary>
 public sealed record ClienteTagSummaryDto(Guid Id, string Nome, string CorHex);

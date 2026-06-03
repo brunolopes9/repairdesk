@@ -18,6 +18,10 @@ export interface Cliente {
   contactoPreferido?: 'Telefone' | 'WhatsApp' | 'Email' | 'Sms' | null;
   aceitaMarketing?: boolean;
   naoContactar?: boolean;
+  /** Sprint 510: morada fiscal — vai para a fatura Moloni. */
+  morada?: string | null;
+  codigoPostal?: string | null;
+  localidade?: string | null;
   tags?: ClienteTag[];
 }
 
@@ -38,6 +42,9 @@ export interface ClienteForm {
   contactoPreferido?: 'Telefone' | 'WhatsApp' | 'Email' | 'Sms' | null;
   aceitaMarketing?: boolean;
   naoContactar?: boolean;
+  morada?: string | null;
+  codigoPostal?: string | null;
+  localidade?: string | null;
 }
 
 export interface ClienteEquipamento {

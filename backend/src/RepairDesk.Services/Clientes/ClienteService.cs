@@ -93,6 +93,9 @@ public class ClienteService : IClienteService
             ContactoPreferido = ClienteContactPreferences.NormalizeChannel(req.ContactoPreferido),
             AceitaMarketing = !req.NaoContactar && req.AceitaMarketing,
             NaoContactar = req.NaoContactar,
+            Morada = string.IsNullOrWhiteSpace(req.Morada) ? null : req.Morada.Trim(),
+            CodigoPostal = string.IsNullOrWhiteSpace(req.CodigoPostal) ? null : req.CodigoPostal.Trim(),
+            Localidade = string.IsNullOrWhiteSpace(req.Localidade) ? null : req.Localidade.Trim(),
         };
         await _repo.AddAsync(cliente, ct);
         await _repo.SaveAsync(ct);
@@ -115,6 +118,9 @@ public class ClienteService : IClienteService
         cliente.ContactoPreferido = ClienteContactPreferences.NormalizeChannel(req.ContactoPreferido);
         cliente.AceitaMarketing = !req.NaoContactar && req.AceitaMarketing;
         cliente.NaoContactar = req.NaoContactar;
+        cliente.Morada = string.IsNullOrWhiteSpace(req.Morada) ? null : req.Morada.Trim();
+        cliente.CodigoPostal = string.IsNullOrWhiteSpace(req.CodigoPostal) ? null : req.CodigoPostal.Trim();
+        cliente.Localidade = string.IsNullOrWhiteSpace(req.Localidade) ? null : req.Localidade.Trim();
         await _repo.SaveAsync(ct);
         return ToDto(cliente);
     }
@@ -269,5 +275,8 @@ public class ClienteService : IClienteService
                 .Where(a => a.ClienteTag is not null)
                 .OrderBy(a => a.ClienteTag!.Nome)
                 .Select(a => new ClienteTagSummaryDto(a.ClienteTag!.Id, a.ClienteTag.Nome, a.ClienteTag.CorHex))
-                .ToList());
+                .ToList(),
+            c.Morada,
+            c.CodigoPostal,
+            c.Localidade);
 }

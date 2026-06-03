@@ -356,7 +356,7 @@ public class TenantBillingSettingsService : ITenantBillingSettingsService
             var created = false;
             if (customer is null)
             {
-                customer = await _moloni.InsertCustomerAsync(settings, "Consumidor Final", "999999990", ct);
+                customer = await _moloni.InsertCustomerAsync(settings, "Consumidor Final", "999999990", ct: ct);
                 created = true;
             }
 

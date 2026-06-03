@@ -785,44 +785,10 @@ public class MoloniClient : IMoloniClient
         return new MoloniProductDto(id, name, true);
     }
 
-    public async Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, CancellationToken ct = default)
+    public async Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, string? morada = null, string? codigoPostal = null, string? localidade = null, CancellationToken ct = default)
     {
         EnsureMoloniBasics(settings);
-
-        // Sprint 503: contas Moloni com "campos obrigatórios" activos rejeitam customers/insert
-        // (422) sem salesman_id (>=0), payment_day (int) e maturity_date_id (>0). Resolvemos o
-        // prazo de vencimento a partir das settings (descoberto na auto-config) e, em falta,
-        // buscamos um válido à Moloni — em vez de rebentar com o cliente a tentar emitir.
-        var maturityDateId = settings.DefaultMaturityDateId ?? 0;
-        if (maturityDateId <= 0)
-        {
-            var dates = await GetMaturityDatesAsync(settings, ct);
-            maturityDateId = (dates.FirstOrDefault(d => d.IsActive) ?? dates.FirstOrDefault())?.Id ?? 0;
-        }
-
-        var payload = new Dictionary<string, object?>
-        {
-            ["company_id"] = settings.CompanyId!.Value,
-            ["name"] = name,
-            ["vat"] = vat,
-            ["number"] = vat,
-            ["language_id"] = 1,
-            ["country_id"] = 1,
-            ["address"] = "Consumidor final",
-            ["zip_code"] = "0000-000",
-            ["city"] = "Portugal",
-            ["salesman_id"] = 0,
-            ["payment_day"] = 0,
-            // Sprint 504: contas Moloni em modo "campos obrigatórios" também exigem este trio
-            // (a doc lista como opcional, mas o 422 da conta LopesTech pede-os explicitamente >= 0).
-            ["discount"] = 0,
-            ["credit_limit"] = 0,
-            ["delivery_method_id"] = 0,
-        };
-        if (maturityDateId > 0)
-            payload["maturity_date_id"] = maturityDateId;
-        if (settings.DefaultPaymentMethodId is { } pmId && pmId > 0)
-            payload["payment_method_id"] = pmId;
+        var payload = await BuildCustomerPayloadAsync(settings, name, vat, morada, codigoPostal, localidade, ct);
 
         var result = await PostAsync<JsonElement>(settings, "customers/insert", payload, ct);
         var id = GetIntAny(result, "customer_id", "id");
@@ -842,6 +808,77 @@ public class MoloniClient : IMoloniClient
         }
 
         return new MoloniCustomerDto(id, name, vat, true);
+    }
+
+    /// <summary>
+    /// Sprint 510: actualiza nome/morada (+ cluster) de um cliente Moloni existente. Best-effort —
+    /// usado para sincronizar a morada do Mender e corrigir clientes criados antes com o placeholder
+    /// "Consumidor final". Devolve false se a Moloni não confirmar (o caller não bloqueia a emissão).
+    /// </summary>
+    public async Task<bool> UpdateCustomerAsync(TenantBillingSettings settings, int customerId, string name, string vat, string? morada = null, string? codigoPostal = null, string? localidade = null, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        if (customerId <= 0) return false;
+        var payload = await BuildCustomerPayloadAsync(settings, name, vat, morada, codigoPostal, localidade, ct);
+        payload["customer_id"] = customerId;
+        var result = await PostAsync<JsonElement>(settings, "customers/update", payload, ct);
+        var id = GetIntAny(result, "customer_id", "id");
+        return id > 0
+            || (result.ValueKind == JsonValueKind.Object
+                && result.TryGetProperty("valid", out var v)
+                && v.ValueKind == JsonValueKind.Number
+                && v.GetInt32() == 1);
+    }
+
+    /// <summary>
+    /// Sprint 510: payload partilhado por customers/insert e customers/update. Usa a morada REAL
+    /// do cliente — nunca "Consumidor final" (isso é para anónimos e saía mal nas faturas com NIF).
+    /// Inclui o cluster de campos obrigatórios (S503/S504) que algumas contas Moloni exigem.
+    /// </summary>
+    private async Task<Dictionary<string, object?>> BuildCustomerPayloadAsync(
+        TenantBillingSettings settings, string name, string vat,
+        string? morada, string? codigoPostal, string? localidade, CancellationToken ct)
+    {
+        var maturityDateId = settings.DefaultMaturityDateId ?? 0;
+        if (maturityDateId <= 0)
+        {
+            var dates = await GetMaturityDatesAsync(settings, ct);
+            maturityDateId = (dates.FirstOrDefault(d => d.IsActive) ?? dates.FirstOrDefault())?.Id ?? 0;
+        }
+
+        var address = string.IsNullOrWhiteSpace(morada) ? "Desconhecida" : morada.Trim();
+        var city = string.IsNullOrWhiteSpace(localidade) ? "Desconhecida" : localidade.Trim();
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["company_id"] = settings.CompanyId!.Value,
+            ["name"] = name,
+            ["vat"] = vat,
+            ["number"] = vat,
+            ["language_id"] = 1,
+            ["country_id"] = 1,
+            ["address"] = address,
+            ["city"] = city,
+            ["salesman_id"] = 0,
+            ["payment_day"] = 0,
+            ["discount"] = 0,
+            ["credit_limit"] = 0,
+            ["delivery_method_id"] = 0,
+        };
+        // Moloni só valida o código postal PT se preenchido (4-3 dígitos). Enviamos apenas quando
+        // válido — assim a morada não fica com o "0000-000" feio quando não há CP.
+        var zip = NormalizePtZip(codigoPostal);
+        if (zip is not null) payload["zip_code"] = zip;
+        if (maturityDateId > 0) payload["maturity_date_id"] = maturityDateId;
+        if (settings.DefaultPaymentMethodId is { } pmId && pmId > 0) payload["payment_method_id"] = pmId;
+        return payload;
+    }
+
+    private static string? NormalizePtZip(string? zip)
+    {
+        if (string.IsNullOrWhiteSpace(zip)) return null;
+        var z = zip.Trim();
+        return System.Text.RegularExpressions.Regex.IsMatch(z, @"^\d{4}-\d{3}$") ? z : null;
     }
 
     public async Task<Stream> GetPdfStreamAsync(TenantBillingSettings settings, string documentId, CancellationToken ct = default)
