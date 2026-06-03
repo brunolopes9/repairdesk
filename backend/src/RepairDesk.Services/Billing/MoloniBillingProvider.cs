@@ -56,8 +56,26 @@ public class MoloniBillingProvider : IBillingProvider
         var settings = await RequireSettingsAsync(ct);
         var tenant = await RequireTenantAsync(ct);
         var amount = RequireAmount(reparacao.PrecoFinalCents ?? reparacao.OrcamentoCents);
-        var customerId = await ResolveCustomerIdAsync(settings, reparacao.Cliente, ct);
         var effectiveVat = ResolveVatPercent(tenant, vatPercent);
+
+        // Sprint 509: a escolha explícita do utilizador (modal: Fatura vs Simplificada) MANDA.
+        // Só caímos no ResolveDocumentType automático quando não há escolha (ex.: bulk emit).
+        var docType = documentTypeOverride ?? ResolveDocumentType(settings, reparacao.Cliente, amount, effectiveVat);
+
+        // Sprint 511: uma Fatura com NIF exige LEGALMENTE a morada do adquirente (CIVA art. 36.º n.º 5).
+        // Sem morada o Moloni imprime "Consumidor final / 0000-000" — documento fiscalmente inválido.
+        // Bloqueamos ANTES de tocar no Moloni e dizemos ao utilizador exactamente o que falta.
+        if (docType == BillingDocumentType.Fatura
+            && !string.IsNullOrWhiteSpace(reparacao.Cliente?.Nif)
+            && string.IsNullOrWhiteSpace(reparacao.Cliente?.Morada))
+        {
+            throw new ValidationException(
+                "fatura_nif_sem_morada",
+                $"Para emitir Fatura com NIF, o cliente \"{reparacao.Cliente?.Nome}\" precisa de morada. " +
+                "Preenche a morada (no modal de emissão ou na ficha do cliente) e tenta de novo.");
+        }
+
+        var customerId = await ResolveCustomerIdAsync(settings, reparacao.Cliente, ct);
 
         // Sprint 136: discrimina peças do stock + mão-de-obra na fatura. Fallback null se não há peças.
         // Sprint 501: quando discriminarMaoObra=false, força UMA linha (descrição do serviço + total),
@@ -77,9 +95,6 @@ public class MoloniBillingProvider : IBillingProvider
             lines = new[] { new MoloniInvoiceDraftItem(nome, null, 1, amount, 0, effectiveVat) };
         }
 
-        // Sprint 509: a escolha explícita do utilizador (modal: Fatura vs Simplificada) MANDA.
-        // Só caímos no ResolveDocumentType automático quando não há escolha (ex.: bulk emit).
-        var docType = documentTypeOverride ?? ResolveDocumentType(settings, reparacao.Cliente, amount, effectiveVat);
         var result = await _moloni.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
             customerId,
             $"Reparacao #{reparacao.Numero}",

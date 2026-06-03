@@ -122,6 +122,11 @@ export default function ReparacaoDetalhe() {
   const [emitLookup, setEmitLookup] = useState<import('../../lib/clientes/types').AtNifLookup | null>(null);
   const [emitLookupErr, setEmitLookupErr] = useState<string | null>(null);
   const [emitLookupPending, setEmitLookupPending] = useState(false);
+  // Sprint 511: morada obrigatória para Fatura com NIF (CIVA art. 36.º). Pré-preenchida da ficha
+  // do cliente ao abrir o modal e gravada de volta antes de emitir (single source of truth).
+  const [emitMorada, setEmitMorada] = useState('');
+  const [emitCp, setEmitCp] = useState('');
+  const [emitLocalidade, setEmitLocalidade] = useState('');
   // Sprint 501: discriminar peças+mão-de-obra (default) ou linha única (esconde margem ao cliente).
   const [emitDiscriminar, setEmitDiscriminar] = useState(true);
   // Sprint 141: modal rápido para adicionar telefone ao cliente quando ainda não tem.
@@ -813,13 +818,21 @@ export default function ReparacaoDetalhe() {
             <button
               type="button"
               disabled={emitirFatura.isPending}
-              onClick={() => {
+              onClick={async () => {
                 // Sprint 140: abre modal de escolha Simplificada vs Com NIF.
                 setEmitTipo(r.cliente.nif ? 'com-nif' : 'simplificada');
                 setEmitNif(r.cliente.nif ?? '');
                 setEmitLookup(null);
                 setEmitLookupErr(null);
+                setEmitMorada(''); setEmitCp(''); setEmitLocalidade('');
                 setEmitFaturaOpen(true);
+                // Sprint 511: pré-preenche a morada fiscal da ficha (ClienteResumo da reparação não a traz).
+                try {
+                  const full = await clientesApi.get(r.cliente.id);
+                  setEmitMorada(full.morada ?? '');
+                  setEmitCp(full.codigoPostal ?? '');
+                  setEmitLocalidade(full.localidade ?? '');
+                } catch { /* sem prefill — o utilizador preenche à mão */ }
               }}
               className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
@@ -1323,21 +1336,27 @@ export default function ReparacaoDetalhe() {
           <button type="button" onClick={() => setEmitFaturaOpen(false)} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
           <button
             type="button"
-            disabled={emitirFatura.isPending || (emitTipo === 'com-nif' && emitNif.length !== 9)}
+            disabled={emitirFatura.isPending || (emitTipo === 'com-nif' && (emitNif.length !== 9 || !emitMorada.trim()))}
             onClick={async () => {
               try {
                 // ClienteResumo na reparação só tem id/nome/telefone/nif — para fazer update
                 // preciso de fetch completo (inclui email + notas) antes de PUT.
                 const wantsNif = emitTipo === 'com-nif' && emitNif !== (r.cliente.nif ?? '');
                 const wantsClear = emitTipo === 'simplificada' && !!r.cliente.nif;
-                if (wantsNif || wantsClear) {
+                // Sprint 511: para Fatura com NIF gravamos sempre a morada na ficha (single source of
+                // truth) antes de emitir — o backend recusa Fatura com NIF sem morada (CIVA art. 36.º).
+                if (wantsNif || wantsClear || emitTipo === 'com-nif') {
                   const full = await clientesApi.get(r.cliente.id);
                   await clientesApi.update(r.cliente.id, {
                     nome: wantsNif && emitLookup?.nome ? emitLookup.nome : full.nome,
                     telefone: full.telefone,
                     email: full.email,
-                    nif: wantsClear ? null : emitNif,
+                    nif: wantsClear ? null : (emitTipo === 'com-nif' ? emitNif : full.nif),
                     notas: full.notas,
+                    // Override quando com-NIF; senão preserva a morada existente (nunca a apaga).
+                    morada: emitTipo === 'com-nif' ? (emitMorada.trim() || null) : (full.morada ?? null),
+                    codigoPostal: emitTipo === 'com-nif' ? (emitCp.trim() || null) : (full.codigoPostal ?? null),
+                    localidade: emitTipo === 'com-nif' ? (emitLocalidade.trim() || null) : (full.localidade ?? null),
                   });
                 }
                 qc.invalidateQueries({ queryKey: ['reparacao', id] });
@@ -1436,6 +1455,8 @@ export default function ReparacaoDetalhe() {
                     try {
                       const res = await clientesApi.lookupAtNif(emitNif);
                       setEmitLookup(res);
+                      // Sprint 511: aproveita a morada devolvida pela AT para preencher (só se ainda vazia).
+                      if (res.morada && !emitMorada.trim()) setEmitMorada(res.morada);
                     } catch (err) {
                       const code = isAxiosError(err) ? (err.response?.data as { code?: string } | undefined)?.code : undefined;
                       if (code === 'at_nif_not_found') setEmitLookupErr('NIF não encontrado na AT.');
@@ -1466,6 +1487,43 @@ export default function ReparacaoDetalhe() {
               )}
               {r.cliente.nif && r.cliente.nif === emitNif && (
                 <div className="text-xs text-zinc-500">NIF actual do cliente — não vai ser alterado.</div>
+              )}
+            </div>
+          )}
+
+          {/* Sprint 511: morada obrigatória na Fatura com NIF (CIVA art. 36.º). Sem isto o Moloni
+              imprime "Consumidor final / 0000-000" — fatura inválida. Grava-se na ficha do cliente. */}
+          {emitTipo === 'com-nif' && (
+            <div className="space-y-2">
+              <label className="block text-xs font-medium uppercase text-zinc-500">
+                Morada do cliente <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={emitMorada}
+                onChange={(e) => setEmitMorada(e.target.value)}
+                placeholder="Rua / Av., n.º, andar"
+                className={inputCls}
+              />
+              <div className="flex gap-2">
+                <input
+                  value={emitCp}
+                  onChange={(e) => setEmitCp(e.target.value)}
+                  placeholder="0000-000"
+                  className={`${inputCls} max-w-[8rem]`}
+                />
+                <input
+                  value={emitLocalidade}
+                  onChange={(e) => setEmitLocalidade(e.target.value)}
+                  placeholder="Localidade"
+                  className={inputCls}
+                />
+              </div>
+              {emitMorada.trim() ? (
+                <p className="text-[11px] text-zinc-400">Fica guardada na ficha do cliente e sincroniza com o Moloni.</p>
+              ) : (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Uma Fatura com NIF exige a morada do adquirente — sem morada não é possível emitir.
+                </p>
               )}
             </div>
           )}

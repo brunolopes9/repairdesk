@@ -11,6 +11,7 @@ using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
+using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Billing;
 using RepairDesk.Services.Billing.InvoiceXpress;
 
@@ -197,7 +198,8 @@ public class MoloniBillingTests
             TenantId = tenantId,
             Numero = 1,
             ClienteId = Guid.NewGuid(),
-            Cliente = new Cliente { TenantId = tenantId, Nome = "Cliente", Nif = nif },
+            // Sprint 511: cliente com NIF precisa de morada (guard CIVA art. 36.º); sem NIF não precisa.
+            Cliente = new Cliente { TenantId = tenantId, Nome = "Cliente", Nif = nif, Morada = nif is null ? null : "Rua de Teste, 10" },
             Equipamento = "iPhone",
             Avaria = "Ecra",
             Diagnostico = "Substituição de ecrã",
@@ -220,6 +222,43 @@ public class MoloniBillingTests
 
         moloni.LastDraft.Should().NotBeNull();
         moloni.LastDraft!.DocumentTypeOverride.Should().Be(esperado);
+    }
+
+    // Sprint 511: uma Fatura com NIF exige a morada do adquirente (CIVA art. 36.º n.º 5). Sem morada,
+    // emitir tem de FALHAR com erro claro — em vez de produzir "Consumidor final / 0000-000" no Moloni.
+    [Fact]
+    public async Task EmitReparacaoInvoice_FaturaComNif_SemMorada_Recusa()
+    {
+        var tenantId = Guid.NewGuid();
+        var reparacao = new Reparacao
+        {
+            TenantId = tenantId,
+            Numero = 1,
+            ClienteId = Guid.NewGuid(),
+            Cliente = new Cliente { TenantId = tenantId, Nome = "Maria", Nif = "235061921" }, // NIF mas SEM morada
+            Equipamento = "iPhone",
+            Avaria = "Ecra",
+            Diagnostico = "Substituição de ecrã",
+            EstadoPagamento = PaymentStatus.Pago,
+            PrecoFinalCents = 13500,
+        };
+
+        var moloni = new FakeMoloniClient();
+        var provider = new MoloniBillingProvider(
+            new FakeReparacaoRepository(reparacao),
+            new FakeTrabalhoRepository(),
+            new FakeVendaRepository(),
+            new FakeSettingsRepository(Settings(tenantId)),
+            new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
+            new FakeTenantContext(tenantId),
+            moloni,
+            new FakePartRepository());
+
+        var act = async () => await provider.EmitReparacaoInvoiceAsync(reparacao.Id, null, null, discriminarMaoObra: false);
+
+        (await act.Should().ThrowAsync<ValidationException>())
+            .Which.Code.Should().Be("fatura_nif_sem_morada");
+        moloni.InsertCalls.Should().Be(0); // nunca chegou a tocar no Moloni
     }
 
     [Fact]
