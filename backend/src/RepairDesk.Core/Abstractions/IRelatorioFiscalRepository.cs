@@ -1,8 +1,17 @@
+using RepairDesk.Core.Enums;
+
 namespace RepairDesk.Core.Abstractions;
 
 public interface IRelatorioFiscalRepository
 {
     Task<IReadOnlyList<RelatorioFiscalDocumentoRow>> ListDocumentosAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 513: versão rica de ListDocumentosAsync para o ecrã "Documentos / Faturas" (Vendas).
+    /// Inclui PDF, NIF do cliente e provider — tudo o que a lista única de faturas precisa de mostrar.
+    /// Agrega Reparações + Trabalhos + Vendas com fatura emitida no período.
+    /// </summary>
+    Task<IReadOnlyList<DocumentoVendaRow>> ListVendaDocumentosDetalheAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     /// <summary>Limpa campos Invoice* da entity (Reparacao, Trabalho ou Venda) — usado pelo sync Moloni
     /// quando detecta que o documento foi anulado externamente no painel Moloni.</summary>
     Task ClearInvoiceFieldsAsync(string tipo, Guid entityId, CancellationToken ct = default);
@@ -49,3 +58,18 @@ public sealed record RelatorioFiscalDocumentoRow(
     DateTime InvoiceEmittedAt,
     string? ClienteNome,
     int ValorCents);
+
+/// <summary>Sprint 513: linha rica de documento de venda emitido (fatura/simplificada) para a lista única.</summary>
+public sealed record DocumentoVendaRow(
+    Guid Id,
+    string Origem,                 // "Venda" | "Reparacao" | "Trabalho"
+    int NumeroInterno,
+    string? InvoiceNumber,
+    string? InvoiceExternalId,
+    string? InvoicePdfUrl,
+    BillingProvider Provider,
+    DateTime InvoiceEmittedAt,
+    Guid? ClienteId,
+    string? ClienteNome,
+    string? ClienteNif,
+    int TotalCents);

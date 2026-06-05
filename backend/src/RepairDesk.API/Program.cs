@@ -241,6 +241,8 @@ try
     // Relatorios fiscais
     builder.Services.AddScoped<IRelatorioFiscalRepository, RelatorioFiscalRepository>();
     builder.Services.AddScoped<IRelatorioFiscalService, RelatorioFiscalService>();
+    // Sprint 513: lista única de documentos/faturas (Vendas) — separador de Compras e Operação
+    builder.Services.AddScoped<RepairDesk.Services.Documentos.IDocumentoService, RepairDesk.Services.Documentos.DocumentoService>();
     builder.Services.AddScoped<IRelatorioNegocioRepository, RelatorioNegocioRepository>();
     builder.Services.AddScoped<IRelatorioNegocioService, RelatorioNegocioService>();
 

@@ -94,7 +94,9 @@ const nav: NavItem[] = [
     icon: Receipt,
     children: [
       { to: '/compras-operacao', label: 'Visão geral', icon: LayoutDashboard },
-      { to: '/compras', label: 'Inbox de faturas', icon: Receipt },
+      // Sprint 513: tríade Vendas · Compras · Despesas (Bruno). Vendas = lista única de faturas.
+      { to: '/documentos', label: 'Vendas · Faturas', icon: FileText },
+      { to: '/compras', label: 'Compras · Fornecedores', icon: Receipt },
       { to: '/despesas', label: 'Despesas & custos', icon: Banknote },
     ],
   },

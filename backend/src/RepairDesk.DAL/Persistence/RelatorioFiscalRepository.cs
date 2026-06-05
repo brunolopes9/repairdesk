@@ -241,4 +241,50 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .ThenBy(x => x.NumeroInterno)
             .ToList();
     }
+
+    public async Task<IReadOnlyList<DocumentoVendaRow>> ListVendaDocumentosDetalheAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        var reparacoes = await _db.Reparacoes
+            .AsNoTracking()
+            .Where(r => r.InvoiceEmittedAt != null && r.InvoiceEmittedAt >= fromUtc && r.InvoiceEmittedAt < toUtc)
+            .Select(r => new DocumentoVendaRow(
+                r.Id, "Reparacao", r.Numero,
+                r.InvoiceNumber, r.InvoiceExternalId, r.InvoicePdfUrl, r.InvoiceProvider,
+                r.InvoiceEmittedAt!.Value,
+                r.ClienteId,
+                r.Cliente != null ? r.Cliente.Nome : null,
+                r.Cliente != null ? r.Cliente.Nif : null,
+                r.PrecoFinalCents ?? r.OrcamentoCents ?? 0))
+            .ToListAsync(ct);
+
+        var trabalhos = await _db.Trabalhos
+            .AsNoTracking()
+            .Where(t => t.InvoiceEmittedAt != null && t.InvoiceEmittedAt >= fromUtc && t.InvoiceEmittedAt < toUtc)
+            .Select(t => new DocumentoVendaRow(
+                t.Id, "Trabalho", t.Numero,
+                t.InvoiceNumber, t.InvoiceExternalId, t.InvoicePdfUrl, t.InvoiceProvider,
+                t.InvoiceEmittedAt!.Value,
+                t.ClienteId,
+                t.Cliente != null ? t.Cliente.Nome : null,
+                t.Cliente != null ? t.Cliente.Nif : null,
+                t.PrecoFinalCents ?? t.OrcamentoCents ?? 0))
+            .ToListAsync(ct);
+
+        var vendas = await _db.Vendas
+            .AsNoTracking()
+            .Where(v => v.InvoiceEmittedAt != null && v.InvoiceEmittedAt >= fromUtc && v.InvoiceEmittedAt < toUtc)
+            .Select(v => new DocumentoVendaRow(
+                v.Id, "Venda", v.Numero,
+                v.InvoiceNumber, v.InvoiceExternalId, v.InvoicePdfUrl, v.InvoiceProvider,
+                v.InvoiceEmittedAt!.Value,
+                v.ClienteId,
+                v.Cliente != null ? v.Cliente.Nome : null,
+                v.Cliente != null ? v.Cliente.Nif : null,
+                v.Items.Sum(i => i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents)))
+            .ToListAsync(ct);
+
+        return reparacoes.Concat(trabalhos).Concat(vendas)
+            .OrderByDescending(x => x.InvoiceEmittedAt)
+            .ToList();
+    }
 }
