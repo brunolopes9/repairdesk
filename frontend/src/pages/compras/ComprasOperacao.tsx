@@ -8,6 +8,7 @@ import { formatCents, formatDateOnly } from '../../lib/money';
 import { downloadFile } from '../../lib/downloadPdf';
 import { supplierInvoicesApi } from '../../lib/supplierInvoices/api';
 import { despesasApi } from '../../lib/despesas/api';
+import { documentosApi } from '../../lib/documentos/api';
 
 const STATUS_BADGE: Record<string, string> = {
   Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
@@ -66,6 +67,13 @@ export default function ComprasOperacao() {
     queryFn: () => despesasApi.list({ from: mesIso, pageSize: 500 }),
     staleTime: 60_000,
   });
+  // Sprint 515: Vendas faturado no mês (lista única de faturas) para o cartão da secção Vendas.
+  const vendasMes = useQuery({
+    queryKey: ['documentos-vendas-mes', mesIso],
+    queryFn: () => documentosApi.listVendas({ from: mesIso, to: new Date().toISOString() }),
+    staleTime: 60_000,
+  });
+  const vendasFaturado = vendasMes.data?.totalCents ?? 0;
 
   const inboxItems = inbox.data ?? [];
   const inboxValor = inboxItems.reduce((s, i) => s + (i.totalCents ?? 0), 0);
@@ -92,13 +100,18 @@ export default function ComprasOperacao() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard icon={Inbox} tone={inboxItems.length > 0 ? 'amber' : 'zinc'} label="Inbox de faturas"
-          value={String(inboxItems.length)} sub="a decidir" />
-        <KpiCard icon={Receipt} tone="brand" label="Valor em inbox" value={formatCents(inboxValor)} />
-        <KpiCard icon={Banknote} tone="emerald" label="Despesas (mês)" value={formatCents(totalDespesasMes)} />
-        <KpiCard icon={FileDown} tone="zinc" label="Lançamentos (mês)" value={String(despesasItems.length)} sub="despesas" />
+      {/* Sprint 515: as 3 secções do centro operacional — Vendas · Compras · Despesas, clicáveis. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Link to="/documentos" className="block transition hover:opacity-90">
+          <KpiCard icon={Receipt} tone="emerald" label="Vendas · Faturas" value={formatCents(vendasFaturado)} sub="faturado este mês" />
+        </Link>
+        <Link to="/compras" className="block transition hover:opacity-90">
+          <KpiCard icon={Inbox} tone={inboxItems.length > 0 ? 'amber' : 'zinc'} label="Compras · Fornecedores"
+            value={String(inboxItems.length)} sub={inboxItems.length > 0 ? `${formatCents(inboxValor)} por decidir` : 'tudo tratado'} />
+        </Link>
+        <Link to="/despesas" className="block transition hover:opacity-90">
+          <KpiCard icon={Banknote} tone="brand" label="Despesas & custos" value={formatCents(totalDespesasMes)} sub={`${despesasItems.length} lançamentos (mês)`} />
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
