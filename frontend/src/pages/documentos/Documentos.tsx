@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Receipt, Banknote, Percent, FileText, Download, ExternalLink, Search } from 'lucide-react';
+import { Receipt, Banknote, Percent, FileText, Download, ExternalLink, Search, FilePlus } from 'lucide-react';
 import { KpiCard } from '../../components/ui';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { downloadFile } from '../../lib/downloadPdf';
 import { documentosApi } from '../../lib/documentos/api';
 import type { DocumentoDto } from '../../lib/documentos/types';
+import NovaFaturaModal from '../../components/documentos/NovaFaturaModal';
 
 /**
  * Sprint 513: separador "Vendas" de Compras e Operação — a lista única de TODAS as faturas
@@ -42,6 +43,7 @@ export default function Documentos() {
   const [to, setTo] = useState(hoje);
   const [q, setQ] = useState('');
   const [tipo, setTipo] = useState<TipoFiltro>('');
+  const [novaFaturaOpen, setNovaFaturaOpen] = useState(false);
 
   const params = useMemo(() => ({
     from: new Date(`${from}T00:00:00`).toISOString(),
@@ -85,6 +87,13 @@ export default function Documentos() {
             className="flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-sm font-medium transition hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-800 dark:hover:bg-zinc-800"
           >
             <Download size={15} /> Exportar CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => setNovaFaturaOpen(true)}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            <FilePlus size={15} /> Nova fatura
           </button>
         </div>
       </div>
@@ -198,6 +207,8 @@ export default function Documentos() {
         Inclui o histórico do Moloni — faturas antigas, notas de crédito e documentos feitos directamente no painel aparecem aqui (com valores e estado reais, sincronizados a cada poucos minutos).
         Para os documentos ainda só locais, o IVA é estimado a 23%. O SAF-T do Moloni continua a ser a fonte legal.
       </p>
+
+      <NovaFaturaModal open={novaFaturaOpen} onClose={() => setNovaFaturaOpen(false)} />
     </div>
   );
 }

@@ -174,6 +174,18 @@ public class MoloniBillingProvider : IBillingProvider
             settings, venda.Cliente, venda.TotalCents,
             venda.Items.Count > 0 ? venda.Items.Max(i => i.IvaRate) : 23m);
 
+        // Sprint 516: tal como nas reparações (S511), uma Fatura com NIF exige a morada do adquirente
+        // (CIVA art. 36.º). Protege o POS e o documento avulso de saírem com "Consumidor final".
+        if (documentType == BillingDocumentType.Fatura
+            && !string.IsNullOrWhiteSpace(venda.Cliente?.Nif)
+            && string.IsNullOrWhiteSpace(venda.Cliente?.Morada))
+        {
+            throw new ValidationException(
+                "fatura_nif_sem_morada",
+                $"Para emitir Fatura com NIF, o cliente \"{venda.Cliente?.Nome}\" precisa de morada. " +
+                "Preenche a morada na ficha do cliente e tenta de novo.");
+        }
+
         var items = venda.Items.Select(i => new MoloniInvoiceDraftItem(
             i.Descricao,
             i.Part?.Sku,
