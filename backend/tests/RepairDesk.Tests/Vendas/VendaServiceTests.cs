@@ -416,6 +416,8 @@ public class VendaServiceTests
             => Task.FromResult(new MoloniCustomerDto(1, name, vat, true));
         public Task<bool> UpdateCustomerAsync(TenantBillingSettings settings, int customerId, string name, string vat, string? morada = null, string? codigoPostal = null, string? localidade = null, CancellationToken ct = default)
             => Task.FromResult(true);
+        public Task<IReadOnlyList<MoloniDocumentRow>> ListDocumentsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<MoloniDocumentRow>>(System.Array.Empty<MoloniDocumentRow>());
     }
 
     private sealed class FakeInvoiceXpressNoOp : IInvoiceXpressClient

@@ -675,6 +675,65 @@ public class MoloniClient : IMoloniClient
             .ToArray();
     }
 
+    public async Task<IReadOnlyList<MoloniDocumentRow>> ListDocumentsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        var rows = new List<MoloniDocumentRow>();
+        const int pageSize = 50; // documents/getAll: qty máximo 50 → paginação por offset.
+        var offset = 0;
+
+        for (var guard = 0; guard < 20; guard++) // cap defensivo: até 1000 documentos.
+        {
+            var result = await PostAsync<JsonElement>(
+                settings,
+                "documents/getAll",
+                new { company_id = settings.CompanyId!.Value, qty = pageSize, offset },
+                ct);
+
+            var batch = EnumerateItems(result, "documents", "data").ToList();
+            if (batch.Count == 0) break;
+
+            foreach (var item in batch)
+            {
+                var documentId = GetIntAny(item, "document_id", "id");
+                if (documentId <= 0) continue;
+
+                var saft = item.TryGetProperty("document_type", out var dt) ? GetString(dt, "saft_code") : null;
+                var date = ParseMoloniDate(GetStringAny(item, "date"));
+                var number = GetIntAny(item, "number");
+                var numero = !string.IsNullOrWhiteSpace(saft) && number > 0
+                    ? $"{saft} {date.Year}/{number}"  // consistente com BuildDocumentNumber
+                    : $"Moloni #{documentId}";
+
+                rows.Add(new MoloniDocumentRow(
+                    documentId,
+                    saft,
+                    numero,
+                    date,
+                    GetStringAny(item, "entity_name"),
+                    GetStringAny(item, "entity_vat", "entity_number"),
+                    ToCents(GetDecimalAny(item, "gross_value")),
+                    ToCents(GetDecimalAny(item, "net_value")),
+                    ToCents(GetDecimalAny(item, "taxes_value")),
+                    GetIntAny(item, "status")));
+            }
+
+            if (batch.Count < pageSize) break;
+            offset += pageSize;
+        }
+
+        _logger.LogInformation("Moloni documents/getAll: {Count} documentos para tenant {TenantId}", rows.Count, settings.TenantId);
+        return rows;
+    }
+
+    private static DateTime ParseMoloniDate(string? value)
+        => DateTime.TryParse(value, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d)
+            ? d
+            : DateTime.UtcNow;
+
+    private static int ToCents(decimal value) => (int)Math.Round(value * 100m, MidpointRounding.AwayFromZero);
+
     public async Task<IReadOnlyList<MoloniTaxDto>> GetTaxesAsync(TenantBillingSettings settings, CancellationToken ct = default)
     {
         EnsureMoloniBasics(settings);

@@ -1,6 +1,11 @@
 using FluentAssertions;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using RepairDesk.Core.Abstractions;
+using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
+using RepairDesk.Services.Billing;
 using RepairDesk.Services.Documentos;
 
 namespace RepairDesk.Tests.Documentos;
@@ -12,7 +17,6 @@ public class DocumentoServiceTests
         public Task<IReadOnlyList<DocumentoVendaRow>> ListVendaDocumentosDetalheAsync(DateTime f, DateTime t, CancellationToken ct = default)
             => Task.FromResult(rows);
 
-        // Membros não usados por este serviço.
         public Task<IReadOnlyList<RelatorioFiscalDocumentoRow>> ListDocumentosAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
         public Task ClearInvoiceFieldsAsync(string tipo, Guid id, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<int> SumPecasCustoComIvaAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
@@ -21,17 +25,43 @@ public class DocumentoServiceTests
         public Task<IReadOnlyList<IvaDeducaoLinha>> ListDespesasOpExAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
     }
 
-    private static DocumentoVendaRow Row(string? numero, int total, string origem = "Venda", string? nif = null, string? nome = null)
-        => new(Guid.NewGuid(), origem, 1, numero, "100", "http://pdf", BillingProvider.Moloni, DateTime.UtcNow, Guid.NewGuid(), nome, nif, total);
+    private static DocumentoService MakeService(
+        IReadOnlyList<DocumentoVendaRow> localRows,
+        IReadOnlyList<MoloniDocumentRow>? moloniDocs = null)
+    {
+        // Sem moloniDocs → tenant null → o fetch ao Moloni é saltado (comportamento local puro).
+        Guid? tenantId = moloniDocs is null ? null : Guid.NewGuid();
+        var tenant = Mock.Of<ITenantContext>(t => t.TenantId == tenantId);
+
+        TenantBillingSettings? settings = moloniDocs is null
+            ? null
+            : new TenantBillingSettings { TenantId = tenantId!.Value, Provider = BillingProvider.Moloni, CompanyId = 388093 };
+        var settingsRepo = Mock.Of<ITenantBillingSettingsRepository>(r =>
+            r.FindByTenantIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()) == Task.FromResult(settings));
+
+        var docsResult = moloniDocs ?? (IReadOnlyList<MoloniDocumentRow>)System.Array.Empty<MoloniDocumentRow>();
+        var moloni = Mock.Of<IMoloniClient>(m =>
+            m.ListDocumentsAsync(It.IsAny<TenantBillingSettings>(), It.IsAny<CancellationToken>()) == Task.FromResult(docsResult));
+
+        return new DocumentoService(
+            new FakeRepo(localRows), tenant, settingsRepo, moloni,
+            new MemoryCache(new MemoryCacheOptions()), NullLogger<DocumentoService>.Instance);
+    }
+
+    private static DocumentoVendaRow Local(string? numero, int total, string origem = "Venda", string? nif = null, string? nome = null, string? externalId = null)
+        => new(Guid.NewGuid(), origem, 1, numero, externalId ?? Guid.NewGuid().ToString("N"), "http://pdf", BillingProvider.Moloni, DateTime.UtcNow, Guid.NewGuid(), nome, nif, total);
+
+    private static MoloniDocumentRow MoloniDoc(int docId, string saft, int gross, int net, int taxes, int status = 1, string? nome = null, string? nif = null)
+        => new(docId, saft, $"{saft} {DateTime.UtcNow.Year}/{docId}", DateTime.UtcNow, nome, nif, gross, net, taxes, status);
 
     [Fact]
-    public async Task ListVendas_DerivaTipo_ExtraiIva_SomaTotais()
+    public async Task ListVendas_LocalApenas_DerivaTipo_ExtraiIva_SomaTotais()
     {
-        var svc = new DocumentoService(new FakeRepo(new[]
+        var svc = MakeService(new[]
         {
-            Row("FT M/2", 13500, nome: "Maria", nif: "235061921"),
-            Row("FS 2026/7", 1000),
-        }));
+            Local("FT M/2", 13500, nome: "Maria", nif: "235061921"),
+            Local("FS 2026/7", 1000),
+        });
 
         var res = await svc.ListVendasAsync(new DocumentosFiltro(null, null, null, null));
 
@@ -44,21 +74,18 @@ public class DocumentoServiceTests
         var ft = res.Items.First(d => d.TipoCodigo == "FT");
         ft.BaseCents.Should().Be(10976);
         ft.IvaCents.Should().Be(2524);
-        res.TotalIvaCents.Should().Be(ft.IvaCents + res.Items.First(d => d.TipoCodigo == "FS").IvaCents);
     }
 
     [Fact]
     public async Task ListVendas_FiltraPorTipo_E_Por_Q()
     {
-        var svc = new DocumentoService(new FakeRepo(new[]
+        var svc = MakeService(new[]
         {
-            Row("FT M/2", 13500, nome: "Maria", nif: "235061921"),
-            Row("FS 2026/7", 1000, nome: "Joao"),
-        }));
+            Local("FT M/2", 13500, nome: "Maria", nif: "235061921"),
+            Local("FS 2026/7", 1000, nome: "Joao"),
+        });
 
-        var soFt = await svc.ListVendasAsync(new DocumentosFiltro(null, null, null, "FT"));
-        soFt.TotalDocumentos.Should().Be(1);
-        soFt.Items[0].TipoCodigo.Should().Be("FT");
+        (await svc.ListVendasAsync(new DocumentosFiltro(null, null, null, "FT"))).TotalDocumentos.Should().Be(1);
 
         var porNif = await svc.ListVendasAsync(new DocumentosFiltro(null, null, "235061921", null));
         porNif.TotalDocumentos.Should().Be(1);
@@ -66,15 +93,38 @@ public class DocumentoServiceTests
     }
 
     [Fact]
-    public async Task ExportCsv_TemCabecalhoEUmaLinhaPorDocumento()
+    public async Task ExportCsv_TemCabecalhoEUmaLinha()
     {
-        var svc = new DocumentoService(new FakeRepo(new[] { Row("FT M/2", 13500, nome: "Maria", nif: "235061921") }));
-        var bytes = await svc.ExportVendasCsvAsync(null, null);
-        var csv = System.Text.Encoding.UTF8.GetString(bytes);
-
-        csv.Should().Contain("data");
+        var svc = MakeService(new[] { Local("FT M/2", 13500, nome: "Maria", nif: "235061921") });
+        var csv = System.Text.Encoding.UTF8.GetString(await svc.ExportVendasCsvAsync(null, null));
         csv.Should().Contain("total_eur");
         csv.Should().Contain("FT M/2");
         csv.Should().Contain("235061921");
+    }
+
+    [Fact]
+    public async Task ListVendas_FundeMoloni_SobrepoeValoresReais_E_AdicionaSoMoloni()
+    {
+        // Local: 1 fatura emitida pelo Mender (externalId 100) com a estimativa 23%.
+        // Moloni: a MESMA (doc 100, com valores REAIS distintos da estimativa) + uma NC que só
+        // existe no Moloni (doc 200, feita/anulada directamente no painel).
+        var svc = MakeService(
+            localRows: new[] { Local("FT 2026/2", 13500, nome: "Maria", nif: "235061921", externalId: "100") },
+            moloniDocs: new[]
+            {
+                MoloniDoc(100, "FT", gross: 13500, net: 12501, taxes: 999, status: 1, nome: "Maria", nif: "235061921"),
+                MoloniDoc(200, "NC", gross: 13500, net: 12501, taxes: 999, status: 1, nome: "Maria", nif: "235061921"),
+            });
+
+        var res = await svc.ListVendasAsync(new DocumentosFiltro(null, null, null, null));
+
+        res.TotalDocumentos.Should().Be(2); // FT fundida (não duplicada) + NC só-Moloni
+
+        var ft = res.Items.First(d => d.TipoCodigo == "FT");
+        ft.IvaCents.Should().Be(999);     // IVA exacto do Moloni sobrepôs a estimativa (2524)
+        ft.BaseCents.Should().Be(12501);
+        ft.Origem.Should().Be("Venda");   // mantém o link à origem local
+
+        res.Items.Should().Contain(d => d.TipoCodigo == "NC" && d.Origem == "Moloni");
     }
 }

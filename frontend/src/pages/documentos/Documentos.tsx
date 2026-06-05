@@ -154,7 +154,14 @@ export default function Documentos() {
                         {d.tipo}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-medium">{d.numero ?? '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-medium">
+                      <span className={d.estado === 'Anulado' ? 'text-zinc-400 line-through' : ''}>{d.numero ?? '—'}</span>
+                      {(d.estado === 'Anulado' || d.estado === 'Rascunho') && (
+                        <span className={`ml-1.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ${d.estado === 'Anulado' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
+                          {d.estado}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{d.clienteNome ?? 'Consumidor final'}</div>
                       {d.clienteNif && <div className="text-xs text-zinc-500">NIF {d.clienteNif}</div>}
@@ -162,10 +169,10 @@ export default function Documentos() {
                     <td className="px-4 py-3">
                       {ORIGEM_LINK[d.origem] ? (
                         <Link to={ORIGEM_LINK[d.origem](d.id)} className="text-brand-600 hover:underline dark:text-brand-400">
-                          {ORIGEM_LABEL[d.origem] ?? d.origem} #{d.numeroInterno}
+                          {ORIGEM_LABEL[d.origem] ?? d.origem}{d.numeroInterno > 0 ? ` #${d.numeroInterno}` : ''}
                         </Link>
                       ) : (
-                        <span className="text-zinc-500">{ORIGEM_LABEL[d.origem] ?? d.origem} #{d.numeroInterno}</span>
+                        <span className="text-zinc-500">{ORIGEM_LABEL[d.origem] ?? d.origem}{d.numeroInterno > 0 ? ` #${d.numeroInterno}` : ''}</span>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">{formatCents(d.totalCents)}</td>
@@ -188,8 +195,8 @@ export default function Documentos() {
       </div>
 
       <p className="text-[11px] text-zinc-400">
-        IVA estimado a 23% sobre o total (LopesTech opera maioritariamente a esta taxa). O SAF-T do Moloni continua a ser a fonte legal.
-        Faturas antigas feitas directamente no Moloni vão aparecer aqui assim que ligar o histórico.
+        Inclui o histórico do Moloni — faturas antigas, notas de crédito e documentos feitos directamente no painel aparecem aqui (com valores e estado reais, sincronizados a cada poucos minutos).
+        Para os documentos ainda só locais, o IVA é estimado a 23%. O SAF-T do Moloni continua a ser a fonte legal.
       </p>
     </div>
   );

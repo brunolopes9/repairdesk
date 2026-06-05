@@ -1,14 +1,19 @@
 using System.Globalization;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using RepairDesk.Common.Helpers;
 using RepairDesk.Core.Abstractions;
+using RepairDesk.Core.Enums;
+using RepairDesk.Services.Billing;
 
 namespace RepairDesk.Services.Documentos;
 
 /// <summary>
-/// Sprint 513: lista única de documentos de VENDA emitidos (Fatura / Fatura Simplificada / …),
-/// agregando Reparações + Trabalhos + Vendas POS. É o backbone do separador "Vendas" em
-/// Compras e Operação — o Mender como sítio único onde se vêem todas as faturas. Leitura pura
-/// (sem tabela nova): reusa a query cross-entity do RelatorioFiscalRepository.
+/// Sprint 513/514: lista única de documentos de VENDA (Fatura / Fatura Simplificada / NC / …).
+/// Funde o que o Mender emitiu (com link à reparação/venda) com o que existe no Moloni (histórico +
+/// notas de crédito + documentos feitos directamente no painel), usando os valores e estado REAIS
+/// do Moloni. É o backbone do separador "Vendas" de Compras e Operação — o Mender como sítio único
+/// onde se vêem todas as faturas. Degrada com elegância: se o Moloni falhar, mostra só o local.
 /// </summary>
 public interface IDocumentoService
 {
@@ -18,11 +23,11 @@ public interface IDocumentoService
 
 public sealed record DocumentoDto(
     Guid Id,
-    string Origem,            // "Venda" | "Reparacao" | "Trabalho"
+    string Origem,            // "Venda" | "Reparacao" | "Trabalho" | "Moloni"
     int NumeroInterno,
     string Tipo,             // "Fatura" | "Fatura Simplificada" | "Nota de Crédito" | …
     string TipoCodigo,       // "FT" | "FS" | "NC" | …
-    string? Numero,          // ex: "FT M/2"
+    string? Numero,          // ex: "FT 2026/2"
     string? ExternalId,
     string? PdfUrl,
     string Provider,         // "Moloni" | "InvoiceXpress" | "None"
@@ -33,7 +38,7 @@ public sealed record DocumentoDto(
     int TotalCents,          // com IVA
     int IvaCents,
     int BaseCents,
-    string Estado);          // "Ativo" (reconciliação de anulações Moloni chega numa fase futura)
+    string Estado);          // "Ativo" | "Anulado" | "Rascunho" | "—"
 
 public sealed record DocumentosListDto(
     IReadOnlyList<DocumentoDto> Items,
@@ -48,7 +53,7 @@ public sealed record DocumentosFiltro(
     string? Q,
     string? Tipo);
 
-/// <summary>Mapeia o prefixo SAF-T do número Moloni (ex: "FT M/2") para tipo legível.</summary>
+/// <summary>Mapeia o prefixo SAF-T do número Moloni (ex: "FT 2026/2") para tipo legível.</summary>
 public static class DocumentoTipo
 {
     public static (string Codigo, string Nome) FromNumero(string? numero)
@@ -72,16 +77,75 @@ public static class DocumentoTipo
 
 public sealed class DocumentoService : IDocumentoService
 {
-    private readonly IRelatorioFiscalRepository _repo;
+    // Documentos de venda que entram nesta lista (exclui guias de transporte, orçamentos, etc).
+    private static readonly HashSet<string> VendaSaftCodes = new(StringComparer.OrdinalIgnoreCase)
+        { "FT", "FS", "FR", "NC", "ND", "VD" };
 
-    public DocumentoService(IRelatorioFiscalRepository repo) => _repo = repo;
+    private readonly IRelatorioFiscalRepository _repo;
+    private readonly ITenantContext _tenant;
+    private readonly ITenantBillingSettingsRepository _billingSettings;
+    private readonly IMoloniClient _moloni;
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<DocumentoService> _logger;
+
+    public DocumentoService(
+        IRelatorioFiscalRepository repo,
+        ITenantContext tenant,
+        ITenantBillingSettingsRepository billingSettings,
+        IMoloniClient moloni,
+        IMemoryCache cache,
+        ILogger<DocumentoService> logger)
+    {
+        _repo = repo;
+        _tenant = tenant;
+        _billingSettings = billingSettings;
+        _moloni = moloni;
+        _cache = cache;
+        _logger = logger;
+    }
 
     public async Task<DocumentosListDto> ListVendasAsync(DocumentosFiltro filtro, CancellationToken ct = default)
     {
         var (from, to) = ResolveRange(filtro.FromUtc, filtro.ToUtc);
-        var rows = await _repo.ListVendaDocumentosDetalheAsync(from, to, ct);
 
-        IEnumerable<DocumentoDto> items = rows.Select(Map);
+        // 1. Documentos emitidos pelo Mender (mantêm link à origem reparação/venda/trabalho).
+        var localRows = await _repo.ListVendaDocumentosDetalheAsync(from, to, ct);
+        var byExternalId = new Dictionary<string, DocumentoDto>(StringComparer.OrdinalIgnoreCase);
+        var semExternalId = new List<DocumentoDto>();
+        foreach (var r in localRows)
+        {
+            var dto = MapLocal(r);
+            if (!string.IsNullOrWhiteSpace(r.InvoiceExternalId))
+                byExternalId[r.InvoiceExternalId!] = dto;
+            else
+                semExternalId.Add(dto);
+        }
+
+        // 2. Fetch ao Moloni (cache 5min, graceful): histórico + NCs + documentos feitos no painel.
+        //    Para os Mender-emitidos, sobrepõe os valores + estado REAIS do Moloni à estimativa local.
+        foreach (var m in await FetchMoloniDocsAsync(ct))
+        {
+            if (m.Data < from || m.Data >= to) continue;
+            if (m.SaftCode is not null && !VendaSaftCodes.Contains(m.SaftCode)) continue;
+
+            var key = m.DocumentId.ToString(CultureInfo.InvariantCulture);
+            if (byExternalId.TryGetValue(key, out var local))
+            {
+                byExternalId[key] = local with
+                {
+                    TotalCents = m.GrossCents,
+                    IvaCents = m.TaxesCents,
+                    BaseCents = m.NetCents,
+                    Estado = EstadoLabel(m.Status),
+                };
+            }
+            else
+            {
+                byExternalId[key] = MapMoloni(m);
+            }
+        }
+
+        IEnumerable<DocumentoDto> items = byExternalId.Values.Concat(semExternalId);
 
         if (!string.IsNullOrWhiteSpace(filtro.Tipo))
             items = items.Where(d => string.Equals(d.TipoCodigo, filtro.Tipo, StringComparison.OrdinalIgnoreCase));
@@ -95,7 +159,7 @@ public sealed class DocumentoService : IDocumentoService
                 || (d.ClienteNif?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
-        var list = items.ToList();
+        var list = items.OrderByDescending(d => d.Data).ToList();
         return new DocumentosListDto(
             list,
             list.Count,
@@ -126,20 +190,62 @@ public sealed class DocumentoService : IDocumentoService
         return csv.ToUtf8WithBom();
     }
 
-    private static DocumentoDto Map(DocumentoVendaRow r)
+    private async Task<IReadOnlyList<MoloniDocumentRow>> FetchMoloniDocsAsync(CancellationToken ct)
+    {
+        if (_tenant.TenantId is not { } tenantId) return Array.Empty<MoloniDocumentRow>();
+
+        var cacheKey = $"moloni-docs:{tenantId}";
+        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<MoloniDocumentRow>? cached) && cached is not null)
+            return cached;
+
+        try
+        {
+            var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
+            if (settings?.Provider != BillingProvider.Moloni || settings.CompanyId is null or <= 0)
+                return Array.Empty<MoloniDocumentRow>();
+
+            var docs = await _moloni.ListDocumentsAsync(settings, ct);
+            _cache.Set(cacheKey, docs, TimeSpan.FromMinutes(5));
+            return docs;
+        }
+        catch (Exception ex)
+        {
+            // Graceful: Moloni em baixo / token expirado → mostramos só os documentos locais.
+            _logger.LogWarning(ex, "Fetch de documentos Moloni falhou; lista mostra apenas o que o Mender já tem.");
+            return Array.Empty<MoloniDocumentRow>();
+        }
+    }
+
+    private static DocumentoDto MapLocal(DocumentoVendaRow r)
     {
         var (codigo, nome) = DocumentoTipo.FromNumero(r.InvoiceNumber);
-        // IVA embutido a 23% (LopesTech opera maioritariamente a esta taxa). Base = total / 1.23.
-        // Aproximação assumida para o painel; o SAF-T do Moloni continua a ser a fonte legal.
+        // IVA estimado a 23% — substituído pelos valores exactos do Moloni quando há match (fetch).
         var baseCents = (int)Math.Round(r.TotalCents / 1.23m, MidpointRounding.AwayFromZero);
-        var ivaCents = r.TotalCents - baseCents;
         return new DocumentoDto(
             r.Id, r.Origem, r.NumeroInterno, nome, codigo,
             r.InvoiceNumber, r.InvoiceExternalId, r.InvoicePdfUrl,
             r.Provider.ToString(), r.InvoiceEmittedAt,
             r.ClienteId, r.ClienteNome, r.ClienteNif,
-            r.TotalCents, ivaCents, baseCents, "Ativo");
+            r.TotalCents, r.TotalCents - baseCents, baseCents, "Ativo");
     }
+
+    private static DocumentoDto MapMoloni(MoloniDocumentRow m)
+    {
+        var (codigo, nome) = DocumentoTipo.FromNumero(m.Numero);
+        return new DocumentoDto(
+            Guid.Empty, "Moloni", 0, nome, codigo,
+            m.Numero, m.DocumentId.ToString(CultureInfo.InvariantCulture), null,
+            "Moloni", m.Data, null, m.EntityName, m.EntityVat,
+            m.GrossCents, m.TaxesCents, m.NetCents, EstadoLabel(m.Status));
+    }
+
+    private static string EstadoLabel(int status) => status switch
+    {
+        1 => "Ativo",
+        2 => "Anulado",
+        0 => "Rascunho",
+        _ => "—",
+    };
 
     private static (DateTime from, DateTime to) ResolveRange(DateTime? fromUtc, DateTime? toUtc)
     {

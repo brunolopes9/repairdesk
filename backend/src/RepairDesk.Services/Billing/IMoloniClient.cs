@@ -43,7 +43,25 @@ public interface IMoloniClient
     Task<MoloniProductDto> InsertProductAsync(TenantBillingSettings settings, string name, CancellationToken ct = default);
     Task<MoloniCustomerDto> InsertCustomerAsync(TenantBillingSettings settings, string name, string vat, string? morada = null, string? codigoPostal = null, string? localidade = null, CancellationToken ct = default);
     Task<bool> UpdateCustomerAsync(TenantBillingSettings settings, int customerId, string name, string vat, string? morada = null, string? codigoPostal = null, string? localidade = null, CancellationToken ct = default);
+
+    // Sprint 514: lista os documentos de venda emitidos no Moloni (documents/getAll, todos os tipos).
+    // Backbone do "fetch de anteriores" para a lista única de Faturas — traz histórico + NCs +
+    // documentos feitos directamente no painel Moloni, com valores e estado reais.
+    Task<IReadOnlyList<MoloniDocumentRow>> ListDocumentsAsync(TenantBillingSettings settings, CancellationToken ct = default);
 }
+
+/// <summary>Sprint 514: documento de venda devolvido pelo Moloni documents/getAll. Valores em cêntimos.</summary>
+public sealed record MoloniDocumentRow(
+    int DocumentId,
+    string? SaftCode,      // FT | FS | FR | NC | ND | VD | …
+    string Numero,         // ex: "FT 2026/2"
+    DateTime Data,
+    string? EntityName,
+    string? EntityVat,
+    int GrossCents,        // total com IVA (gross_value)
+    int NetCents,          // base sem IVA (net_value)
+    int TaxesCents,        // IVA (taxes_value)
+    int Status);           // 0=Rascunho, 1=Fechado, 2=Anulado
 
 public sealed record MoloniInvoiceDraft(
     int CustomerId,
