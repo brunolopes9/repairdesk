@@ -38,7 +38,8 @@ public class DiagnosticoController : ControllerBase
     public async Task<ActionResult<DiagnosticoExecucaoDto?>> Get(Guid reparacaoId, CancellationToken ct)
     {
         var e = await _service.GetByReparacaoAsync(reparacaoId, ct);
-        if (e is null) return NotFound();
+        // Sprint 517: "ainda não há diagnóstico nesta reparação" é um estado vazio válido, não um erro.
+        // Devolve 200 null em vez de 404 — elimina o ruído na consola em cada abertura de reparação.
         return Ok(e);
     }
 

@@ -416,7 +416,7 @@ export default function ReparacaoDetalhe() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reparacao', id] });
       qc.invalidateQueries({ queryKey: ['reparacoes-pagas-sem-fatura'] });
-      toast.success('Fatura anulada', 'Nota de Crédito emitida no Moloni. A AT actualiza saldo IVA para zero.');
+      toast.success('Fatura anulada', 'O documento foi anulado no Moloni (anulação directa ou nota de crédito). O saldo de IVA fica a zero.');
     },
     onError: (err) => toast.fromError(err, 'Não foi possível anular a fatura.'),
   });

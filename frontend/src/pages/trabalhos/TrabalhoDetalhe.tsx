@@ -175,7 +175,7 @@ export default function TrabalhoDetalhe() {
     mutationFn: () => trabalhosApi.anularFatura(id!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['trabalho', id] });
-      toast.success('Fatura anulada', 'Nota de Crédito emitida no Moloni. AT actualiza saldo IVA para zero.');
+      toast.success('Fatura anulada', 'O documento foi anulado no Moloni (anulação directa ou nota de crédito). O saldo de IVA fica a zero.');
     },
     onError: (err) => toast.fromError(err, 'Não foi possível anular a fatura.'),
   });
