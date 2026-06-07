@@ -65,7 +65,7 @@ public class MoloniBillingProvider : IBillingProvider
         // Sprint 511: uma Fatura com NIF exige LEGALMENTE a morada do adquirente (CIVA art. 36.º n.º 5).
         // Sem morada o Moloni imprime "Consumidor final / 0000-000" — documento fiscalmente inválido.
         // Bloqueamos ANTES de tocar no Moloni e dizemos ao utilizador exactamente o que falta.
-        if (docType == BillingDocumentType.Fatura
+        if (RequiresAdquirenteMorada(docType)
             && !string.IsNullOrWhiteSpace(reparacao.Cliente?.Nif)
             && string.IsNullOrWhiteSpace(reparacao.Cliente?.Morada))
         {
@@ -176,7 +176,7 @@ public class MoloniBillingProvider : IBillingProvider
 
         // Sprint 516: tal como nas reparações (S511), uma Fatura com NIF exige a morada do adquirente
         // (CIVA art. 36.º). Protege o POS e o documento avulso de saírem com "Consumidor final".
-        if (documentType == BillingDocumentType.Fatura
+        if (RequiresAdquirenteMorada(documentType)
             && !string.IsNullOrWhiteSpace(venda.Cliente?.Nif)
             && string.IsNullOrWhiteSpace(venda.Cliente?.Morada))
         {
@@ -293,24 +293,32 @@ public class MoloniBillingProvider : IBillingProvider
         return tenant.RegimeFiscal == RegimeFiscal.IsentoArt53 ? 0m : 23m;
     }
 
+    /// <summary>Sprint 519: Fatura e Fatura-Recibo com NIF exigem a morada do adquirente (CIVA art. 36.º n.º 5).</summary>
+    private static bool RequiresAdquirenteMorada(BillingDocumentType t)
+        => t is BillingDocumentType.Fatura or BillingDocumentType.FaturaRecibo;
+
     /// <summary>
-    /// Sprint 507: escolhe o tipo de documento Moloni. A Fatura Simplificada tem limite legal
-    /// (€100 de valor líquido para quem não é retalhista) — acima disso a Moloni rejeita com
-    /// "net_value must be ... &lt;= 100". Por isso emitimos Fatura normal (sem limite) quando o
-    /// cliente tem NIF OU o líquido passa €100; caso contrário respeitamos o default do tenant
-    /// (tipicamente Simplificada, ideal para vendas rápidas de balcão sem NIF).
+    /// Sprint 507/519: escolhe o tipo de documento Moloni quando não há escolha explícita do utilizador.
+    /// A Fatura Simplificada tem limite legal (€100 líquido para não-retalho) — acima disso a Moloni
+    /// rejeita. Por isso, quando há NIF OU o líquido passa €100, emitimos um documento completo. No
+    /// fluxo Mender só faturamos DEPOIS de pago (EnsurePaid/venda Paga), logo o documento correcto é a
+    /// **Fatura-Recibo** (não deixa saldo "em dívida"); só caímos na Fatura pura (a crédito) se não
+    /// houver método de pagamento configurado, que a FR exige. Caso contrário, respeitamos o default do
+    /// tenant (tipicamente Simplificada, ideal para vendas rápidas de balcão sem NIF).
     /// </summary>
     private static BillingDocumentType ResolveDocumentType(
         TenantBillingSettings settings, Cliente? cliente, int amountCents, decimal vatPercent)
     {
-        if (!string.IsNullOrWhiteSpace(cliente?.Nif))
-            return BillingDocumentType.Fatura;
-
         var netCents = vatPercent > 0
             ? (int)Math.Round(amountCents / (1m + vatPercent / 100m))
             : amountCents;
-        if (netCents > 10_000) // €100 líquido — limite da Fatura Simplificada (não-retalho)
-            return BillingDocumentType.Fatura;
+
+        if (!string.IsNullOrWhiteSpace(cliente?.Nif) || netCents > 10_000)
+        {
+            return settings.DefaultPaymentMethodId is > 0
+                ? BillingDocumentType.FaturaRecibo
+                : BillingDocumentType.Fatura;
+        }
 
         return settings.DefaultDocumentType;
     }

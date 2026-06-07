@@ -16,6 +16,7 @@ public sealed class InvoiceXpressClient : IInvoiceXpressClient
     private const string Invoices = "invoices";
     private const string SimplifiedInvoices = "simplified_invoices";
     private const string CreditNotes = "credit_notes";
+    private const string InvoiceReceipts = "invoice_receipts"; // Sprint 519: Fatura-Recibo
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _http;
@@ -383,7 +384,12 @@ public sealed class InvoiceXpressClient : IInvoiceXpressClient
     }
 
     private static string ResolveDocumentType(BillingDocumentType documentType)
-        => documentType == BillingDocumentType.Fatura ? Invoices : SimplifiedInvoices;
+        => documentType switch
+        {
+            BillingDocumentType.Fatura => Invoices,
+            BillingDocumentType.FaturaRecibo => InvoiceReceipts,
+            _ => SimplifiedInvoices,
+        };
 
     private static InvoiceXpressDocumentRef ParseDocumentRef(string externalId, BillingDocumentType fallbackDocumentType)
     {
@@ -396,7 +402,7 @@ public sealed class InvoiceXpressClient : IInvoiceXpressClient
             idPart = externalId[(separator + 1)..];
         }
 
-        if (documentType is not (Invoices or SimplifiedInvoices or CreditNotes))
+        if (documentType is not (Invoices or SimplifiedInvoices or CreditNotes or InvoiceReceipts))
             throw new ValidationException("invoicexpress_document_type_invalid", "Tipo de documento InvoiceXpress invalido.");
 
         if (!int.TryParse(idPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) || id <= 0)

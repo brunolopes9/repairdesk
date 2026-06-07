@@ -117,7 +117,10 @@ export default function ReparacaoDetalhe() {
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   // Sprint 140: modal para escolher Simplificada vs Com NIF antes de emitir fatura.
   const [emitFaturaOpen, setEmitFaturaOpen] = useState(false);
-  const [emitTipo, setEmitTipo] = useState<'simplificada' | 'com-nif'>('simplificada');
+  // Sprint 519: 3 tipos — Simplificada (sem NIF), Fatura-Recibo (com NIF, pago) e Fatura (com NIF,
+  // a crédito). FR e Fatura recolhem ambos NIF+morada → comNif agrega os dois.
+  const [emitTipo, setEmitTipo] = useState<'simplificada' | 'fatura-recibo' | 'fatura'>('simplificada');
+  const comNif = emitTipo !== 'simplificada';
   const [emitNif, setEmitNif] = useState('');
   const [emitLookup, setEmitLookup] = useState<import('../../lib/clientes/types').AtNifLookup | null>(null);
   const [emitLookupErr, setEmitLookupErr] = useState<string | null>(null);
@@ -401,8 +404,9 @@ export default function ReparacaoDetalhe() {
     mutationFn: () =>
       reparacoesApi.emitirFatura(id!, {
         discriminarMaoObra: emitDiscriminar,
-        // Sprint 509: a escolha do modal MANDA — 1 = Fatura (com NIF), 0 = Fatura Simplificada.
-        documentType: emitTipo === 'com-nif' ? 1 : 0,
+        // Sprint 519: a escolha do modal MANDA — 0 = Simplificada, 1 = Fatura (a crédito),
+        // 2 = Fatura-Recibo (pago, sem "dívida"). 99% dos casos: cliente paga ao levantar → FR.
+        documentType: emitTipo === 'fatura-recibo' ? 2 : emitTipo === 'fatura' ? 1 : 0,
       }),
     onSuccess: (invoice) => {
       qc.invalidateQueries({ queryKey: ['reparacao', id] });
@@ -849,8 +853,8 @@ export default function ReparacaoDetalhe() {
               type="button"
               disabled={emitirFatura.isPending}
               onClick={async () => {
-                // Sprint 140: abre modal de escolha Simplificada vs Com NIF.
-                setEmitTipo(r.cliente.nif ? 'com-nif' : 'simplificada');
+                // Sprint 519: abre modal. Com NIF → Fatura-Recibo (pago) por defeito; sem NIF → Simplificada.
+                setEmitTipo(r.cliente.nif ? 'fatura-recibo' : 'simplificada');
                 setEmitNif(r.cliente.nif ?? '');
                 setEmitLookup(null);
                 setEmitLookupErr(null);
@@ -1366,27 +1370,27 @@ export default function ReparacaoDetalhe() {
           <button type="button" onClick={() => setEmitFaturaOpen(false)} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
           <button
             type="button"
-            disabled={emitirFatura.isPending || (emitTipo === 'com-nif' && (emitNif.length !== 9 || !emitMorada.trim()))}
+            disabled={emitirFatura.isPending || (comNif && (emitNif.length !== 9 || !emitMorada.trim()))}
             onClick={async () => {
               try {
                 // ClienteResumo na reparação só tem id/nome/telefone/nif — para fazer update
                 // preciso de fetch completo (inclui email + notas) antes de PUT.
-                const wantsNif = emitTipo === 'com-nif' && emitNif !== (r.cliente.nif ?? '');
+                const wantsNif = comNif && emitNif !== (r.cliente.nif ?? '');
                 const wantsClear = emitTipo === 'simplificada' && !!r.cliente.nif;
                 // Sprint 511: para Fatura com NIF gravamos sempre a morada na ficha (single source of
                 // truth) antes de emitir — o backend recusa Fatura com NIF sem morada (CIVA art. 36.º).
-                if (wantsNif || wantsClear || emitTipo === 'com-nif') {
+                if (wantsNif || wantsClear || comNif) {
                   const full = await clientesApi.get(r.cliente.id);
                   await clientesApi.update(r.cliente.id, {
                     nome: wantsNif && emitLookup?.nome ? emitLookup.nome : full.nome,
                     telefone: full.telefone,
                     email: full.email,
-                    nif: wantsClear ? null : (emitTipo === 'com-nif' ? emitNif : full.nif),
+                    nif: wantsClear ? null : (comNif ? emitNif : full.nif),
                     notas: full.notas,
                     // Override quando com-NIF; senão preserva a morada existente (nunca a apaga).
-                    morada: emitTipo === 'com-nif' ? (emitMorada.trim() || null) : (full.morada ?? null),
-                    codigoPostal: emitTipo === 'com-nif' ? (emitCp.trim() || null) : (full.codigoPostal ?? null),
-                    localidade: emitTipo === 'com-nif' ? (emitLocalidade.trim() || null) : (full.localidade ?? null),
+                    morada: comNif ? (emitMorada.trim() || null) : (full.morada ?? null),
+                    codigoPostal: comNif ? (emitCp.trim() || null) : (full.codigoPostal ?? null),
+                    localidade: comNif ? (emitLocalidade.trim() || null) : (full.localidade ?? null),
                   });
                 }
                 qc.invalidateQueries({ queryKey: ['reparacao', id] });
@@ -1449,18 +1453,34 @@ export default function ReparacaoDetalhe() {
               <input
                 type="radio"
                 name="emit-tipo"
-                checked={emitTipo === 'com-nif'}
-                onChange={() => setEmitTipo('com-nif')}
+                checked={emitTipo === 'fatura-recibo'}
+                onChange={() => setEmitTipo('fatura-recibo')}
                 className="mt-0.5"
               />
               <div className="flex-1">
-                <div className="font-medium">Fatura com NIF</div>
-                <div className="text-xs text-zinc-500">Cliente quer NIF na fatura (dedução IRS/IVA).</div>
+                <div className="font-medium">
+                  Fatura-Recibo (com NIF)
+                  <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">recomendado</span>
+                </div>
+                <div className="text-xs text-zinc-500">Cliente pagou ao levantar. Fatura + recibo num só documento — não fica "em dívida".</div>
+              </div>
+            </label>
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-zinc-200 p-3 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 dark:border-zinc-800 dark:has-[:checked]:bg-emerald-950/30">
+              <input
+                type="radio"
+                name="emit-tipo"
+                checked={emitTipo === 'fatura'}
+                onChange={() => setEmitTipo('fatura')}
+                className="mt-0.5"
+              />
+              <div className="flex-1">
+                <div className="font-medium">Fatura (com NIF · a crédito)</div>
+                <div className="text-xs text-zinc-500">Cliente paga depois (empresa, prazo). Fica "em dívida" até emitir recibo.</div>
               </div>
             </label>
           </fieldset>
 
-          {emitTipo === 'com-nif' && (
+          {comNif && (
             <div className="space-y-2">
               <label className="block text-xs font-medium text-zinc-500">NIF (9 dígitos)</label>
               <div className="flex gap-2">
@@ -1523,7 +1543,7 @@ export default function ReparacaoDetalhe() {
 
           {/* Sprint 511: morada obrigatória na Fatura com NIF (CIVA art. 36.º). Sem isto o Moloni
               imprime "Consumidor final / 0000-000" — fatura inválida. Grava-se na ficha do cliente. */}
-          {emitTipo === 'com-nif' && (
+          {comNif && (
             <div className="space-y-2">
               <label className="block text-xs font-medium uppercase text-zinc-500">
                 Morada do cliente <span className="text-red-500">*</span>

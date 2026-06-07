@@ -145,7 +145,18 @@ public class MoloniClient : IMoloniClient
         if (settings.DefaultMaturityDateId is { } maturityDateId)
             payload["maturity_date_id"] = maturityDateId;
 
-        if (documentType == BillingDocumentType.FaturaSimplificada
+        // Sprint 519: a Fatura-Recibo exige LEGALMENTE o array payments (a "parte recibo"). Sem método
+        // de pagamento configurado não a conseguimos emitir — erro claro em vez de "Database error".
+        if (documentType == BillingDocumentType.FaturaRecibo && settings.DefaultPaymentMethodId is null or <= 0)
+        {
+            throw new ValidationException(
+                "moloni_payment_method_missing_for_receipt",
+                "Para emitir Fatura-Recibo configura o método de pagamento Moloni por defeito (Definições > Faturação).");
+        }
+
+        // FS e FR são pagamento imediato → levam o array payments. A Fatura pura (a crédito) NÃO leva
+        // payments e fica "em dívida" até emitir Recibo.
+        if (documentType is BillingDocumentType.FaturaSimplificada or BillingDocumentType.FaturaRecibo
             && settings.DefaultPaymentMethodId is { } paymentMethodId)
         {
             // Sprint 156b: payments.value = total recalculado da soma dos products × IVA
@@ -163,9 +174,13 @@ public class MoloniClient : IMoloniClient
             };
         }
 
-        var endpoint = documentType == BillingDocumentType.FaturaSimplificada
-            ? "simplifiedInvoices/insert"
-            : "invoices/insert";
+        // Sprint 519: endpoint por tipo — FS=simplifiedInvoices, FR=invoiceReceipts, Fatura=invoices.
+        var endpoint = documentType switch
+        {
+            BillingDocumentType.FaturaSimplificada => "simplifiedInvoices/insert",
+            BillingDocumentType.FaturaRecibo => "invoiceReceipts/insert",
+            _ => "invoices/insert",
+        };
 
         var insert = await PostInvoiceWithRetryAsync(settings, endpoint, payload, ct);
         var documentId = GetInt(insert, "document_id");

@@ -187,8 +187,10 @@ public class MoloniBillingTests
     // O tipo de documento tem de escalar para Fatura quando há NIF OU o líquido passa €100,
     // senão a Moloni rejeita com "net_value must be ... <= 100".
     [Theory]
-    [InlineData("235061921", 5000, BillingDocumentType.Fatura)]            // NIF → Fatura (qualquer valor)
-    [InlineData(null, 13500, BillingDocumentType.Fatura)]                   // €135 (líquido 109,76 > €100) → Fatura
+    // Sprint 519: com método de pagamento configurado (Settings tem DefaultPaymentMethodId=50), os
+    // documentos completos saem como Fatura-Recibo (pago) em vez de Fatura pura (a crédito).
+    [InlineData("235061921", 5000, BillingDocumentType.FaturaRecibo)]       // NIF → Fatura-Recibo (qualquer valor)
+    [InlineData(null, 13500, BillingDocumentType.FaturaRecibo)]             // €135 (líquido 109,76 > €100) → Fatura-Recibo
     [InlineData(null, 5000, BillingDocumentType.FaturaSimplificada)]        // €50 sem NIF → default do tenant
     public async Task EmitReparacaoInvoice_EscolheTipoDocumentoPorNifELimite(string? nif, int precoCents, BillingDocumentType esperado)
     {
@@ -259,6 +261,44 @@ public class MoloniBillingTests
         (await act.Should().ThrowAsync<ValidationException>())
             .Which.Code.Should().Be("fatura_nif_sem_morada");
         moloni.InsertCalls.Should().Be(0); // nunca chegou a tocar no Moloni
+    }
+
+    // Sprint 519: a Fatura-Recibo exige método de pagamento (array payments). Sem ele configurado,
+    // o fallback tem de ser a Fatura pura (a crédito) — nunca uma FR inválida que o Moloni rejeitaria.
+    [Fact]
+    public async Task EmitReparacaoInvoice_SemMetodoPagamento_CaiEmFaturaPura()
+    {
+        var tenantId = Guid.NewGuid();
+        var reparacao = new Reparacao
+        {
+            TenantId = tenantId,
+            Numero = 1,
+            ClienteId = Guid.NewGuid(),
+            Cliente = new Cliente { TenantId = tenantId, Nome = "Maria", Nif = "235061921", Morada = "Rua X, 1" },
+            Equipamento = "iPhone",
+            Avaria = "Ecra",
+            Diagnostico = "Substituição de ecrã",
+            EstadoPagamento = PaymentStatus.Pago,
+            PrecoFinalCents = 13500,
+        };
+
+        var settings = Settings(tenantId);
+        settings.DefaultPaymentMethodId = null; // sem método de pagamento → FR impossível
+
+        var moloni = new FakeMoloniClient();
+        var provider = new MoloniBillingProvider(
+            new FakeReparacaoRepository(reparacao),
+            new FakeTrabalhoRepository(),
+            new FakeVendaRepository(),
+            new FakeSettingsRepository(settings),
+            new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
+            new FakeTenantContext(tenantId),
+            moloni,
+            new FakePartRepository());
+
+        await provider.EmitReparacaoInvoiceAsync(reparacao.Id, null, null, discriminarMaoObra: false);
+
+        moloni.LastDraft!.DocumentTypeOverride.Should().Be(BillingDocumentType.Fatura);
     }
 
     [Fact]
