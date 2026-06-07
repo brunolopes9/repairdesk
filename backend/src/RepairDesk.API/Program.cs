@@ -242,6 +242,10 @@ try
     builder.Services.AddScoped<IRelatorioFiscalRepository, RelatorioFiscalRepository>();
     builder.Services.AddScoped<IRelatorioFiscalService, RelatorioFiscalService>();
     // Sprint 513: lista única de documentos/faturas (Vendas) — separador de Compras e Operação
+    // Sprint 518 HOTFIX: o DocumentoService injecta IMemoryCache (cache 5min do fetch Moloni) mas
+    // o AddMemoryCache nunca tinha sido chamado → DI falhava a activar o controller → 500 em cada
+    // GET /api/documentos/vendas → a lista aparecia sempre vazia. Registar o cache resolve a raiz.
+    builder.Services.AddMemoryCache();
     builder.Services.AddScoped<RepairDesk.Services.Documentos.IDocumentoService, RepairDesk.Services.Documentos.DocumentoService>();
     builder.Services.AddScoped<IRelatorioNegocioRepository, RelatorioNegocioRepository>();
     builder.Services.AddScoped<IRelatorioNegocioService, RelatorioNegocioService>();
