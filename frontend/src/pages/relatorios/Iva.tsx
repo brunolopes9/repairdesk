@@ -138,6 +138,18 @@ export default function RelatorioIva() {
                   hint="Campo acima — fornecedores fora do Mender (ex: portes pagos por fora)" />
               </div>
 
+              {/* Sprint 524: aviso honesto — o auto assume 23% nacional sobre TUDO e ainda NÃO trata
+                  aquisições intra-UE (autoliquidação). Rede de segurança até à deteção automática
+                  por NIF do fornecedor estar pronta. Confirmado com regra OCC/RITI art. 19.º. */}
+              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200">
+                ⚠️ <strong>Compras intra-UE</strong> (fornecedores de fora de PT — ex: França/Espanha):
+                são <strong>autoliquidação</strong> — o IVA é liquidado <em>e</em> deduzido ao mesmo tempo
+                (<strong>efeito zero</strong>), e o IVA estrangeiro da fatura <strong>não é</strong> IVA
+                português dedutível. Este cálculo automático assume <strong>23% nacional sobre tudo</strong>,
+                por isso o dedutível pode estar <strong>inflacionado</strong> se compraste fora de PT.
+                A deteção automática (por NIF do fornecedor) está a caminho — até lá, confirma com o contabilista.
+              </div>
+
               {/* Sprint 180: drill-down — Bruno consegue ver de onde vem cada cêntimo. */}
               {(report.data.comprasStockDetalhe.length > 0 || report.data.despesasOpExDetalhe.length > 0) && (
                 <details className="mt-3 rounded-lg border border-emerald-200 bg-white p-3 dark:border-emerald-900/40 dark:bg-zinc-900">
