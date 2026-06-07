@@ -10,3 +10,4 @@ export { PageHeader } from './PageHeader';
 export { Popover } from './Popover';
 export { Skeleton, SkeletonCard, SkeletonRow, SkeletonTable } from './Skeleton';
 export { StatusBadge } from './StatusBadge';
+export { DetailWorkspace, InspectorRail, ViewTabs } from './Workspace';

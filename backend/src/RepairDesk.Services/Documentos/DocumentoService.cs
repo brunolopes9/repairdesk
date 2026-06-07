@@ -160,12 +160,20 @@ public sealed class DocumentoService : IDocumentoService
         }
 
         var list = items.OrderByDescending(d => d.Data).ToList();
+
+        // Sprint 521: os totais ("faturado") contam SÓ documentos de venda ATIVOS — exclui Anulados,
+        // Rascunhos e Notas de Crédito. Estes continuam a aparecer na lista (com badge), mas não inflam
+        // o total. Sem este filtro, anulados + rascunhos (0,00€) eram somados e davam totais absurdos
+        // (ex: base sem IVA > total com IVA, que é matematicamente impossível).
+        var faturado = list
+            .Where(d => d.Estado == "Ativo" && d.TipoCodigo is "FT" or "FS" or "FR" or "VD")
+            .ToList();
         return new DocumentosListDto(
             list,
             list.Count,
-            list.Sum(d => d.TotalCents),
-            list.Sum(d => d.IvaCents),
-            list.Sum(d => d.BaseCents));
+            faturado.Sum(d => d.TotalCents),
+            faturado.Sum(d => d.IvaCents),
+            faturado.Sum(d => d.BaseCents));
     }
 
     public async Task<byte[]> ExportVendasCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default)

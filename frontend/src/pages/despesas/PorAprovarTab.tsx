@@ -457,6 +457,7 @@ function ImportRow({
 }
 
 // Sprint 163b: tabela histórico — Approved/Rejected com botão Reprocess.
+// Sprint 520: linhas expansíveis — clica para ver o que o parser importou de cada fatura.
 function HistoryTable({
   data, onPdf, onReprocess, reprocessing,
 }: {
@@ -479,38 +480,87 @@ function HistoryTable({
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {data.map((x) => (
-            <tr key={x.id}>
-              <td className="px-2 py-2 font-medium">{x.fornecedorName ?? <span className="text-zinc-400">—</span>}</td>
-              <td className="px-2 py-2">{x.documentNumber ?? <span className="text-zinc-400">—</span>}</td>
-              <td className="px-2 py-2">
-                <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${x.status === 'Approved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'}`}>
-                  {x.status}
-                </span>
-              </td>
-              <td className="px-2 py-2 text-right">{x.totalCents != null ? formatCents(x.totalCents) : <span className="text-zinc-400">—</span>}</td>
-              <td className="px-2 py-2">
-                <div className="flex justify-end gap-1">
-                  <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
-                    <FileText size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm('Re-correr pipeline de parsing? A importação vai voltar para pendente.')) onReprocess(x.id);
-                    }}
-                    disabled={reprocessing}
-                    className="rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-300"
-                    title="Re-correr parser+LLM (útil se Anthropic key foi adicionada depois)"
-                  >
-                    🔄 Reprocessar
-                  </button>
-                </div>
-              </td>
-            </tr>
+            <HistoryRow key={x.id} x={x} onPdf={onPdf} onReprocess={onReprocess} reprocessing={reprocessing} />
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+// Sprint 520: linha de histórico expansível — mostra os items que o parser extraiu da fatura
+// (o pedido do Bruno: "clique abre dropdown em cada artigo para mostrar o que importou").
+function HistoryRow({
+  x, onPdf, onReprocess, reprocessing,
+}: {
+  x: SupplierInvoiceImport;
+  onPdf: (id: string) => void;
+  onReprocess: (id: string) => void;
+  reprocessing: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasItems = !!x.items && x.items.length > 0;
+  return (
+    <>
+      <tr className={hasItems ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900' : ''} onClick={() => hasItems && setExpanded(!expanded)}>
+        <td className="px-2 py-2 font-medium">
+          {hasItems && <span className="mr-1 text-zinc-400">{expanded ? '▾' : '▸'}</span>}
+          {x.fornecedorName ?? <span className="text-zinc-400">—</span>}
+        </td>
+        <td className="px-2 py-2">{x.documentNumber ?? <span className="text-zinc-400">—</span>}</td>
+        <td className="px-2 py-2">
+          <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${x.status === 'Approved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'}`}>
+            {x.status}
+          </span>
+        </td>
+        <td className="px-2 py-2 text-right">{x.totalCents != null ? formatCents(x.totalCents) : <span className="text-zinc-400">—</span>}</td>
+        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-end gap-1">
+            <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
+              <FileText size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Re-correr pipeline de parsing? A importação vai voltar para pendente.')) onReprocess(x.id);
+              }}
+              disabled={reprocessing}
+              className="rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-300"
+              title="Re-correr parser+LLM (útil se Anthropic key foi adicionada depois)"
+            >
+              🔄 Reprocessar
+            </button>
+          </div>
+        </td>
+      </tr>
+      {expanded && hasItems && (
+        <tr className="bg-zinc-50/50 dark:bg-zinc-900/50">
+          <td colSpan={5} className="px-4 py-3">
+            <div className="mb-2 text-xs font-semibold uppercase text-zinc-500">O que o parser importou desta fatura ({x.items!.length})</div>
+            <ul className="space-y-1.5">
+              {x.items!.map((item, i) => {
+                const isShipping = /\b(shipping|portes?|envio|transport|chronopost|dpd|ups|fedex|dhl|frete)\b/i.test(item.description);
+                return (
+                  <li key={i} className="flex items-start justify-between gap-3 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 dark:border-zinc-700 dark:bg-zinc-900">
+                    <div className="flex-1">
+                      <div className="text-sm">{item.description}</div>
+                      {item.brand && <div className="text-[11px] text-zinc-500">{item.brand}{item.model ? ` ${item.model}` : ''}</div>}
+                      {isShipping && <div className="text-[11px] italic text-zinc-400">🚚 Transporte — não entra em stock.</div>}
+                    </div>
+                    <div className="whitespace-nowrap text-xs text-zinc-500">
+                      {item.quantity}× · <span className="font-medium text-zinc-700 dark:text-zinc-300">{formatCents(item.lineTotalCents)}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-2 text-[11px] text-zinc-400">
+              Para veres onde cada linha ficou (stock vs despesa), confirma em <strong>Stock (peças)</strong> ou <strong>Despesas &amp; custos</strong>.
+            </p>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

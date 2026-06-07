@@ -28,7 +28,7 @@ import EquipmentFieldsForm, {
   type EquipmentFieldValuesMap,
 } from '../../components/EquipmentFieldsForm';
 import Modal from '../../components/Modal';
-import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
+import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
 import type { ClienteEquipamento } from '../../lib/clientes/types';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
@@ -288,12 +288,12 @@ export default function Reparacoes() {
 
   // Inspector extraído para variável: reutilizado nos modos lista E kanban.
   const inspectorAside = (
-    <aside className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <InspectorRail className="overflow-hidden p-0">
       {!selected ? (
         <div className="p-8 text-center text-sm text-zinc-500">Seleciona uma reparação.</div>
       ) : (
         <div>
-          <div className="rounded-t-xl bg-slate-900 p-4 text-white">
+          <div className="rounded-t-lg bg-slate-900 p-4 text-white">
             <div className="text-[10px] uppercase tracking-wide text-slate-400">Reparação selecionada</div>
             <div className="mt-0.5 flex items-center justify-between gap-2">
               <div className="truncate text-base font-semibold">#{selected.numero} · {selected.equipamento}</div>
@@ -329,7 +329,7 @@ export default function Reparacoes() {
           </div>
         </div>
       )}
-    </aside>
+    </InspectorRail>
   );
 
   return (
@@ -394,11 +394,12 @@ export default function Reparacoes() {
         }
       />
 
+      <section className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
       {/* Sprint 398 (Doc 88): barra de métricas por estado — fiel ao mockup. */}
       {view === 'list' && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {METRICS.map((m) => (
-            <div key={m.label} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
+            <div key={m.label} className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{m.label}</div>
               <div className={`mt-1.5 text-2xl font-bold tabular-nums ${m.color}`}>{m.value}</div>
             </div>
@@ -408,7 +409,7 @@ export default function Reparacoes() {
 
       {/* Sprint 417: 3 abas — Orçamentos · Em curso · Histórico — separam pipeline comercial vs trabalho vs arquivo */}
       {view === 'list' && (
-        <div className="border-b border-zinc-200 dark:border-zinc-800">
+        <div className="mt-3 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex gap-1">
             {BUCKETS.map((b) => {
               const countBucket = b.key === 'orcamentos'
@@ -439,7 +440,7 @@ export default function Reparacoes() {
 
       {/* Chips de filtro por estado, coloridos (mockup) — filtrados ao bucket activo */}
       {view === 'list' && (
-        <div className="-mx-4 overflow-x-auto px-4 pb-1">
+        <div className="-mx-3 mt-3 overflow-x-auto px-3 pb-1">
           <div className="flex gap-2">
             {tabsForBucket(bucket).map((t) => {
               const active = t.value === estado;
@@ -461,7 +462,7 @@ export default function Reparacoes() {
       )}
 
       {/* Sprint 477: chips de filtro por categoria (DeviceCategory do S475). Aparece em list e kanban. */}
-      <div className="-mx-4 overflow-x-auto px-4 pb-1">
+      <div className="-mx-3 mt-3 overflow-x-auto px-3 pb-1">
         <div className="flex items-center gap-2 text-xs">
           <span className="text-zinc-500">Tipo:</span>
           {[
@@ -497,7 +498,7 @@ export default function Reparacoes() {
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative mt-3">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
         <input
           type="search"
@@ -510,12 +511,13 @@ export default function Reparacoes() {
           className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
         />
       </div>
+      </section>
 
       {view === 'list' ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
+        <DetailWorkspace rail={inspectorAside}>
           {/* Coluna esquerda: tabela "Fila" + cards operacionais */}
           <div className="space-y-4">
-            <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                 <h2 className="text-sm font-semibold">Fila de reparações</h2>
                 <span className="text-xs text-zinc-500">{total} {total === 1 ? 'reparação' : 'reparações'}</span>
@@ -613,13 +615,13 @@ export default function Reparacoes() {
 
             {/* Cards operacionais (mockup): Alertas · Hoje · Ações rápidas */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
                 <h3 className="text-sm font-semibold">Alertas</h3>
                 <div className={`mt-2 rounded-lg px-3 py-2 text-xs font-medium ${semFatura > 0 ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-zinc-50 text-zinc-500 dark:bg-zinc-950'}`}>
                   {semFatura > 0 ? `${semFatura} reparação(ões) paga(s) sem fatura` : 'Sem alertas — tudo em dia ✓'}
                 </div>
               </div>
-              <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
                 <h3 className="text-sm font-semibold">Resumo</h3>
                 <dl className="mt-2 space-y-1.5 text-xs">
                   <div className="flex justify-between"><dt className="text-zinc-500">Em curso</dt><dd className="font-medium tabular-nums">{counts.data?.emCurso ?? 0}</dd></div>
@@ -627,7 +629,7 @@ export default function Reparacoes() {
                   <div className="flex justify-between"><dt className="text-zinc-500">A receber</dt><dd className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">{formatCents(aReceberCents)}</dd></div>
                 </dl>
               </div>
-              <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
                 <h3 className="text-sm font-semibold">Ações rápidas</h3>
                 <div className="mt-2 flex flex-col gap-2">
                   <button type="button" onClick={() => setCreateOpen(true)} className="flex items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700"><Plus size={14} /> Nova reparação</button>
@@ -638,12 +640,10 @@ export default function Reparacoes() {
             </div>
           </div>
 
-          {/* Inspector (mockup): reparação selecionada — extraído acima */}
-          {inspectorAside}
-        </div>
+        </DetailWorkspace>
       ) : (
         // Kanban + inspector lado a lado (fiel ao IDEIAS 2.png)
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
+        <DetailWorkspace rail={inspectorAside}>
           <KanbanBoard
             data={kanban.data}
             loading={kanban.isLoading}
@@ -653,8 +653,7 @@ export default function Reparacoes() {
             staleDaysThreshold={preferences.data?.communication.staleDaysThreshold ?? 7}
             idsPorResponder={idsPorResponder}
           />
-          {inspectorAside}
-        </div>
+        </DetailWorkspace>
       )}
 
       <CreateReparacaoModal

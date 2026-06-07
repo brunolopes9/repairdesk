@@ -4,6 +4,7 @@ import {
   ShoppingCart, Wallet, Lock, Banknote, Smartphone, CreditCard, Landmark, MoreHorizontal, PlusCircle,
 } from 'lucide-react';
 import { lazy, Suspense, type ReactNode } from 'react';
+import { DetailWorkspace, InspectorRail } from '../../components/ui';
 import { cashApi, DAILY_CLOSING_STATUS, type DailyClosingDto } from '../../lib/cash/api';
 import { formatCents } from '../../lib/money';
 
@@ -85,18 +86,17 @@ export default function Balcao() {
 
       <Suspense fallback={<div className="py-10 text-center text-sm text-zinc-500">A carregar…</div>}>
         {tab === 'venda' ? (
-          <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-            <div className="min-w-0">
-              <Vendas embedded />
-            </div>
-            <CaixaRail
+          <DetailWorkspace
+            rail={<CaixaRail
               dto={caixaHoje.data ?? null}
               aberta={caixaAberta}
               loading={caixaHoje.isLoading}
               onGoCaixa={() => setTab('caixa')}
               onGoFecho={() => setTab('fecho')}
-            />
-          </div>
+            />}
+          >
+            <Vendas embedded />
+          </DetailWorkspace>
         ) : tab === 'caixa' ? (
           <Cash embedded />
         ) : (
@@ -119,7 +119,7 @@ function CaixaRail({
 }) {
   return (
     <aside className="xl:sticky xl:top-4 xl:self-start">
-      <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <InspectorRail>
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-sm font-semibold"><Wallet size={16} /> Caixa do dia</h2>
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${aberta ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
@@ -187,7 +187,7 @@ function CaixaRail({
         ) : (
           <p className="text-sm text-zinc-400">Sem dados da caixa de hoje.</p>
         )}
-      </div>
+      </InspectorRail>
     </aside>
   );
 }

@@ -580,26 +580,38 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         if (Regex.IsMatch(desc, @"portes|envio|shipping|transport|frete", RegexOptions.IgnoreCase))
             return SupplierItemKind.Shipping;
 
-        if (Regex.IsMatch(desc, @"servi[cç]o|service|garantia|tax|imposto|iva", RegexOptions.IgnoreCase))
-            return SupplierItemKind.Service;
-
-        var looksLikePhone = Regex.IsMatch(
-            desc,
-            @"iphone\s*\d+|galaxy\s*[as]\d+|pixel\s*\d+|xiaomi\s*\d+|redmi",
-            RegexOptions.IgnoreCase);
-        var hasCapacity = Regex.IsMatch(desc, @"\d+\s*(?:gb|tb)\b|\b\d{3,4}\b", RegexOptions.IgnoreCase);
-        if (looksLikePhone && hasCapacity)
-            return SupplierItemKind.Phone;
-
-        var hasCharger = Regex.IsMatch(desc, @"carregador", RegexOptions.IgnoreCase);
+        // Sprint 521/522: PEÇAS PRIMEIRO — antes de "serviço" também. Uma descrição com
+        // "screen/display/touch/frame/glass/bateria/…" é um COMPONENTE, mesmo que contenha o nome do
+        // modelo OU a palavra "Service Pack" (termo Samsung para ecrã OEM!). Bugs originais: (1) o
+        // "A15/A155" do nome contava como capacidade → Phone → Despesa; (2) o "Service" de "Service
+        // Pack" caía no check de serviço → Despesa. Keywords alargadas p/ fornecedores PT/EU.
+        var hasCharger = Regex.IsMatch(desc, @"carregador|charger", RegexOptions.IgnoreCase);
         var hasPartKeyword = Regex.IsMatch(
             desc,
-            @"ecr[aã]|display|touch|bateria|battery|flex|conector|cabo|painel",
+            @"ecr[aã]|screen|display|touch|digitizer|frame|glass|vidro|tempered|lcd|oled|amoled|bateria|battery|flex|conector|connector|cabo|cable|painel|housing|chassis|carca[çc]a|tampa|back\s*cover|cover|p[eé]l[íi]cula|pelicula|capa|case|protetor|aro|moldura|sim\s*tray|lente|c[aâ]mara|camera|altifalante|speaker|auscultador|microfone|bot[aã]o|button|charging|dock|service\s*pack",
             RegexOptions.IgnoreCase);
         if (hasPartKeyword || (hasCharger && unitCostCents is < 3000))
             return SupplierItemKind.Part;
 
-        return SupplierItemKind.Unknown;
+        // Serviço/taxa REAL (sem keyword de peça). "service pack" excluído — é peça OEM, não serviço.
+        if (Regex.IsMatch(desc, @"servi[cç]o|service(?!\s*pack)|garantia|tax|imposto|iva", RegexOptions.IgnoreCase))
+            return SupplierItemKind.Service;
+
+        // Telemóvel COMPLETO (modelo + capacidade real GB/TB), sem keyword de peça → revenda, não stock.
+        // Removido o \b\d{3,4}\b que apanhava números de modelo (ex: A155) como falsa "capacidade".
+        var looksLikePhone = Regex.IsMatch(
+            desc,
+            @"iphone\s*\d+|galaxy\s*[as]\d+|pixel\s*\d+|xiaomi\s*\d+|redmi",
+            RegexOptions.IgnoreCase);
+        var hasCapacity = Regex.IsMatch(desc, @"\d+\s*(?:gb|tb)\b", RegexOptions.IgnoreCase);
+        if (looksLikePhone && hasCapacity)
+            return SupplierItemKind.Phone;
+
+        // Sprint 522: DEFAULT ROBUSTO = Peça. Numa fatura de FORNECEDOR, o que não é portes nem
+        // serviço/taxa nem telemóvel-completo é uma PEÇA de stock — é o que move o negócio (Bruno:
+        // "se faço imports de faturas é óbvio que são peças de stock, nunca mais pode ir para Despesa
+        // por engano"). Pior errar p/ Peça (Bruno corrige no modal) do que esconder uma peça em Despesa.
+        return SupplierItemKind.Part;
     }
 
     public async Task<byte[]> GetPdfAsync(Guid importId, CancellationToken ct = default)
@@ -1066,9 +1078,31 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         x.ParseConfidence,
         x.CreatedAt,
         x.PdfRelativePath,
-        // ToDto interno (Approve/Reject) — não inclui matches; UI usa pending list para isso.
-        Items: null,
+        // Sprint 520: inclui os items parseados (versão leve, sem fuzzy matches) para o Histórico de
+        // Compras·Fornecedores poder mostrar, por fatura, exactamente o que o parser extraiu.
+        Items: ParseItemsLight(x.ParsedItemsJson),
         FornecedorDefaultAction: x.Fornecedor?.DefaultImportAction.ToString().ToLowerInvariant());
+
+    /// <summary>
+    /// Sprint 520: desserializa os items parseados SEM fuzzy matching (rápido, sem ir à BD) — para o
+    /// histórico de importações mostrar o que o parser extraiu de cada fatura.
+    /// </summary>
+    private static IReadOnlyList<SupplierInvoiceItemDto>? ParseItemsLight(string? parsedItemsJson)
+    {
+        if (string.IsNullOrWhiteSpace(parsedItemsJson)) return null;
+        SupplierPdfItem[]? items;
+        try { items = System.Text.Json.JsonSerializer.Deserialize<SupplierPdfItem[]>(parsedItemsJson); }
+        catch { return null; }
+        if (items is null || items.Length == 0) return null;
+        return items.Select(item => new SupplierInvoiceItemDto(
+            item.Description,
+            item.Quantity,
+            item.LineTotalCents,
+            item.Brand,
+            item.Model,
+            ClassifyItemDescription(item.Description, item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString(),
+            Array.Empty<SkuMatchSuggestion>())).ToList();
+    }
 
     private static string ComputeSha256(byte[] bytes)
     {

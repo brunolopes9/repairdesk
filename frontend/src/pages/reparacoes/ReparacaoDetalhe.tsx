@@ -16,7 +16,7 @@ import EquipmentFieldsForm, {
 import FotosReparacao from '../../components/FotosReparacao';
 import Modal from '../../components/Modal';
 import WhatsAppMenu from '../../components/WhatsAppMenu';
-import { BackButton, Breadcrumb, SkeletonCard } from '../../components/ui';
+import { BackButton, Breadcrumb, DetailWorkspace, InspectorRail, SkeletonCard, ViewTabs } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import { displayPhone } from '../../lib/phone/formatter';
@@ -40,6 +40,7 @@ import type { ReparacaoVendaOrigem } from '../../lib/reparacoes/types';
 import { toast } from '../../lib/toast';
 import {
   PAYMENT_STATUS,
+  PAYMENT_LABEL,
   PRIMARY_STATUSES,
   STATUS_COLOR,
   STATUS_LABEL,
@@ -49,6 +50,8 @@ import {
 import { formatCents, formatDate, parseEuros } from '../../lib/money';
 import { paymentsApi } from '../../lib/payments/api';
 import { PAYMENT_PROVIDER } from '../../lib/payments/types';
+
+type DetailTab = 'resumo' | 'pecas' | 'financeiro' | 'operacao' | 'timeline';
 
 export default function ReparacaoDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -115,6 +118,7 @@ export default function ReparacaoDetalhe() {
   const [signatureOpen, setSignatureOpen] = useState<SigType | null>(null);
   const [pagamentoPrompt, setPagamentoPrompt] = useState<RepairStatus | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [activeTab, setActiveTab] = useState<DetailTab>('resumo');
   // Sprint 140: modal para escolher Simplificada vs Com NIF antes de emitir fatura.
   const [emitFaturaOpen, setEmitFaturaOpen] = useState(false);
   // Sprint 519: 3 tipos — Simplificada (sem NIF), Fatura-Recibo (com NIF, pago) e Fatura (com NIF,
@@ -531,6 +535,153 @@ export default function ReparacaoDetalhe() {
     link_review_google: tenant.data?.googleReviewUrl ?? undefined,
     data_pronto: r.estado === 4 ? formatDate(r.estadoSince) : undefined,
   };
+  const nextPrimaryStatus = possibleNext.find((s) => PRIMARY_STATUSES.includes(s));
+  const detailTabs: Array<{ key: DetailTab; label: string; meta?: string }> = [
+    { key: 'resumo', label: 'Resumo' },
+    { key: 'pecas', label: 'Peças & fotos' },
+    { key: 'financeiro', label: 'Financeiro', meta: formatCents(lucroLiquidoLive) },
+    { key: 'operacao', label: 'Operação' },
+    { key: 'timeline', label: 'Timeline', meta: `${detail.data.timeline.length}` },
+  ];
+  const inspectorRail = (
+    <InspectorRail>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Reparação #{r.numero}</p>
+          <h2 className="mt-1 line-clamp-2 text-base font-semibold text-zinc-950 dark:text-zinc-50">{r.equipamento}</h2>
+        </div>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[r.estado]}`}>
+          {STATUS_LABEL[r.estado]}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+          <p className="text-[11px] uppercase tracking-wide text-zinc-500">Receita</p>
+          <p className="mt-1 font-semibold">{formatCents(receitaCents)}</p>
+        </div>
+        <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+          <p className="text-[11px] uppercase tracking-wide text-zinc-500">Lucro líquido</p>
+          <p className={`mt-1 font-semibold ${lucroLiquidoLive >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
+            {formatCents(lucroLiquidoLive)}
+          </p>
+        </div>
+        <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+          <p className="text-[11px] uppercase tracking-wide text-zinc-500">Custos</p>
+          <p className="mt-1 font-semibold">{formatCents(r.custoPecasCents + r.custoDespesasCents)}</p>
+        </div>
+        <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+          <p className="text-[11px] uppercase tracking-wide text-zinc-500">Pagamento</p>
+          <p className="mt-1 font-semibold">{PAYMENT_LABEL[r.estadoPagamento]}</p>
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-200 pt-3 text-sm dark:border-zinc-800">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Cliente</p>
+        <Link to={`/clientes/${r.cliente.id}`} className="mt-1 block font-medium text-zinc-950 hover:underline dark:text-zinc-100">
+          {r.cliente.nome}
+        </Link>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {cleanPhone ? (
+            <a href={`tel:${cleanPhone}`} className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+              Ligar
+            </a>
+          ) : null}
+          {r.cliente.email ? (
+            <a href={`mailto:${r.cliente.email}`} className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+              Email
+            </a>
+          ) : null}
+          {r.publicSlug ? (
+            <button
+              type="button"
+              onClick={async () => {
+                const url = `${window.location.origin}/r/${r.publicSlug}`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  toast.success('Link copiado!', url);
+                } catch {
+                  toast.fromError(new Error(url), 'Copia manualmente');
+                }
+              }}
+              className="rounded-md border border-brand-300 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50 dark:border-brand-800/60 dark:text-brand-300 dark:hover:bg-brand-950/30"
+            >
+              Portal
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Próxima ação</p>
+        {nextPrimaryStatus != null && !isFrozen ? (
+          <button
+            type="button"
+            disabled={changeEstado.isPending}
+            onClick={() => tryChangeEstado(nextPrimaryStatus)}
+            className="mt-2 w-full rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
+          >
+            {changeEstado.isPending ? 'A atualizar...' : `Avançar para ${STATUS_LABEL[nextPrimaryStatus]}`}
+          </button>
+        ) : (
+          <p className="mt-1 text-sm text-zinc-500">{isFrozen ? 'Ficha entregue. Reabre para alterar.' : 'Sem próximo passo pendente.'}</p>
+        )}
+      </div>
+
+      <div className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Documentos</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => openPdfInNewTab(`/reparacoes/${r.id}/entrada.pdf`).catch((e) => toast.error(e instanceof Error ? e.message : 'Erro a gerar comprovativo.'))}
+            className="rounded-md border border-zinc-300 px-2 py-2 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            Entrada
+          </button>
+          <button
+            type="button"
+            onClick={() => openPdfInNewTab(`/reparacoes/${r.id}/entrega.pdf`).catch((e) => toast.error(e instanceof Error ? e.message : 'Erro a gerar recibo.'))}
+            className="rounded-md border border-zinc-300 px-2 py-2 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            Entrega
+          </button>
+          <button
+            type="button"
+            onClick={() => openPdfInNewTab(`/reparacoes/${r.id}/label.pdf`).catch((e) => toast.error(e instanceof Error ? e.message : 'Erro a gerar etiqueta.'))}
+            className="rounded-md border border-zinc-300 px-2 py-2 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            Etiqueta
+          </button>
+          {r.invoicePdfUrl ? (
+            <a
+              href={r.invoicePdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-emerald-300 px-2 py-2 text-center text-xs text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/60 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+            >
+              Fatura
+            </a>
+          ) : (
+            <span className="rounded-md border border-dashed border-zinc-300 px-2 py-2 text-center text-xs text-zinc-400 dark:border-zinc-700">Fatura</span>
+          )}
+        </div>
+      </div>
+
+      {!isLocked ? (
+        <div className="border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-800">
+          {update.isPending ? (
+            <span>A guardar...</span>
+          ) : savedAt ? (
+            <span className="text-emerald-600 dark:text-emerald-400">
+              Guardado às {savedAt.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          ) : (
+            <span>Alterações guardam automaticamente.</span>
+          )}
+        </div>
+      ) : null}
+    </InspectorRail>
+  );
 
   return (
     <div className="space-y-5">
@@ -938,8 +1089,19 @@ export default function ReparacaoDetalhe() {
       </Modal>
 
 
+      <DetailWorkspace rail={inspectorRail}>
+        <ViewTabs
+          tabs={detailTabs}
+          value={activeTab}
+          onChange={(value) => setActiveTab(value as DetailTab)}
+          className="sticky top-16 z-20 shadow-sm shadow-zinc-100/80 dark:shadow-black/20"
+        />
+
+        {activeTab === 'resumo' && (
+          <>
       <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-sm font-semibold">Detalhes</h2>
+        <div className="grid gap-3 lg:grid-cols-2">
         <Field label="Equipamento">
           <input disabled={isFrozen} value={equipamento} onChange={(e) => setEquipamento(e.target.value)} className={inputCls} />
         </Field>
@@ -1025,6 +1187,7 @@ export default function ReparacaoDetalhe() {
             Ex.: peça chega em 2 dias → prevê entrega quinta 14h. Aparece em <em>Agendamentos</em>.
           </p>
         </Field>
+        </div>
       </section>
 
       {/* Sprint 142: collapse por defeito — campos personalizados são raros (só laptops/desktops/IT).
@@ -1074,6 +1237,11 @@ export default function ReparacaoDetalhe() {
       </details>
 
       <DiagnosticoGuiado reparacaoId={r.id} readOnly={isFrozen} />
+          </>
+        )}
+
+        {activeTab === 'pecas' && (
+          <>
 
       <FotosReparacao reparacaoId={r.id} readOnly={isFrozen} />
 
@@ -1084,10 +1252,15 @@ export default function ReparacaoDetalhe() {
         <ApplyKitButton reparacaoId={r.id} disabled={isLocked} />
       </div>
       <PecasReparacao reparacaoId={r.id} readOnly={isLocked} />
+          </>
+        )}
 
+        {activeTab === 'financeiro' && (
+          <>
 
       <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-sm font-semibold">Preço & lucro</h2>
+        <div className="grid gap-4 lg:grid-cols-[minmax(220px,280px)_1fr] lg:items-start">
         <Field label="Preço final ao cliente (€)">
           <input
             disabled={isFrozen}
@@ -1183,8 +1356,13 @@ export default function ReparacaoDetalhe() {
           }
           return null;
         })()}
+        </div>
       </section>
+          </>
+        )}
 
+        {activeTab === 'operacao' && (
+          <>
       {/* Sprint 424: tarefas internas ligadas a esta reparação (S422 + cross-feature). */}
       <ReparacaoTarefasSection
         reparacaoId={r.id}
@@ -1208,7 +1386,11 @@ export default function ReparacaoDetalhe() {
         clienteContactoPreferido={r.cliente.contactoPreferido}
         publicSlug={r.publicSlug}
       />
+          </>
+        )}
 
+        {activeTab === 'timeline' && (
+          <>
       <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="mb-3 text-sm font-semibold">Timeline</h2>
         <ol className="space-y-3">
@@ -1227,6 +1409,9 @@ export default function ReparacaoDetalhe() {
           ))}
         </ol>
       </section>
+          </>
+        )}
+      </DetailWorkspace>
 
       {!isLocked && (
         <div className="flex items-center justify-end gap-2 text-xs text-zinc-500">

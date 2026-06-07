@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Ban, Download, Mail, Megaphone, MessageCircle, Pencil, Phone, Send, ShieldAlert, ShoppingBag, Smartphone, Tag, Wrench } from 'lucide-react';
 import { displayPhone } from '../../lib/phone/formatter';
 import Modal from '../../components/Modal';
-import { BackButton, Breadcrumb, Button, SkeletonCard } from '../../components/ui';
+import { BackButton, Breadcrumb, Button, DetailWorkspace, InspectorRail, SkeletonCard, ViewTabs } from '../../components/ui';
 import { clientesApi } from '../../lib/clientes/api';
 import type { ClienteEquipamento } from '../../lib/clientes/types';
 import { devicesApi } from '../../lib/devices/api';
@@ -24,6 +24,8 @@ import { VENDA_STATUS, type Venda } from '../../lib/vendas/types';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import ClienteFormView from './ClienteForm';
+
+type ClienteTab = 'perfil' | 'historico' | 'comunicacao' | 'rgpd';
 
 export default function ClienteDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -81,6 +83,7 @@ export default function ClienteDetalhe() {
   const [hardDeleteOpen, setHardDeleteOpen] = useState(false);
   const [hardDeleteConfirm, setHardDeleteConfirm] = useState('');
   const [hardDeleteMotivo, setHardDeleteMotivo] = useState('');
+  const [activeTab, setActiveTab] = useState<ClienteTab>('perfil');
 
   const update = useMutation({
     mutationFn: (form: Parameters<typeof clientesApi.update>[1]) => clientesApi.update(id!, form),
@@ -170,6 +173,110 @@ export default function ClienteDetalhe() {
     trabs.filter((t) => t.status !== 3 && t.status !== 4).length;
 
   const cleanPhone = c.telefone?.replace(/\s/g, '') ?? '';
+  const contactos30d = ((comunicacoesRecentes.data ?? []).filter((com) => {
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    return new Date(com.createdAt) >= since;
+  })).length;
+  const clienteTabs: Array<{ key: ClienteTab; label: string; meta?: string }> = [
+    { key: 'perfil', label: 'Perfil', meta: String(eqs.length + (devicesAtivos.data ?? []).length) },
+    { key: 'historico', label: 'Histórico', meta: String(reps.length + trabs.length + vds.length) },
+    { key: 'comunicacao', label: 'Comunicação', meta: String(contactos30d) },
+    { key: 'rgpd', label: 'RGPD' },
+  ];
+  const clienteRail = (
+    <InspectorRail>
+      <div>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Cliente</p>
+        <h2 className="mt-1 line-clamp-2 text-base font-semibold text-zinc-950 dark:text-zinc-50">{c.nome}</h2>
+        {c.nif ? (
+          <p className="mt-1 font-mono text-xs text-zinc-500">NIF {c.nif}</p>
+        ) : (
+          <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">Sem NIF registado</p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+          <p className="text-[11px] uppercase tracking-wide text-zinc-500">Total gasto</p>
+          <p className="mt-1 font-semibold text-emerald-700 dark:text-emerald-400">{formatCents(totalGasto)}</p>
+        </div>
+        <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+          <p className="text-[11px] uppercase tracking-wide text-zinc-500">Em curso</p>
+          <p className={`mt-1 font-semibold ${abertosCount > 0 ? 'text-amber-700 dark:text-amber-400' : ''}`}>{abertosCount}</p>
+        </div>
+        <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+          <p className="text-[11px] uppercase tracking-wide text-zinc-500">Equipamentos</p>
+          <p className="mt-1 font-semibold">{(devicesAtivos.data ?? []).length}</p>
+        </div>
+        <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950">
+          <p className="text-[11px] uppercase tracking-wide text-zinc-500">Última visita</p>
+          <p className="mt-1 font-semibold">{ultimaVisita ? formatDateOnly(ultimaVisita) : '—'}</p>
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-200 pt-3 text-sm dark:border-zinc-800">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Contacto</p>
+        <div className="mt-2 space-y-1.5 text-zinc-700 dark:text-zinc-300">
+          {c.telefone ? <p>{displayPhone(c.telefone)}</p> : <p className="text-zinc-400">Sem telefone</p>}
+          {c.email ? <p className="break-all">{c.email}</p> : <p className="text-zinc-400">Sem email</p>}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {cleanPhone ? (
+            <>
+              <a href={`tel:${cleanPhone}`} className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                Ligar
+              </a>
+              <a
+                href={`https://wa.me/${cleanPhone.replace('+', '')}?text=${encodeURIComponent(`Olá ${c.nome}, é da LopesTech.`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-emerald-300 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/60 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+              >
+                WhatsApp
+              </a>
+            </>
+          ) : null}
+          {c.email ? (
+            <a href={`mailto:${c.email}`} className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+              Email
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className="rounded-md border border-brand-300 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50 dark:border-brand-800/60 dark:text-brand-300 dark:hover:bg-brand-950/30"
+          >
+            Editar
+          </button>
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">RGPD & marketing</p>
+        <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+          <span className={`rounded-full px-2 py-1 font-medium ${c.aceitaMarketing ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'}`}>
+            {c.aceitaMarketing ? 'Marketing OK' : 'Marketing sem consentimento'}
+          </span>
+          <span className={`rounded-full px-2 py-1 font-medium ${c.naoContactar ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'}`}>
+            {c.naoContactar ? 'Não contactar' : 'Pode contactar'}
+          </span>
+        </div>
+      </div>
+
+      {c.notas || c.notaImportante ? (
+        <div className="border-t border-zinc-200 pt-3 text-sm dark:border-zinc-800">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Notas</p>
+          {c.notaImportante ? (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
+              {c.notaImportante}
+            </p>
+          ) : null}
+          {c.notas ? <p className="mt-2 text-zinc-600 dark:text-zinc-300">{c.notas}</p> : null}
+        </div>
+      ) : null}
+    </InspectorRail>
+  );
 
   return (
     <div className="space-y-5">
@@ -276,15 +383,21 @@ export default function ClienteDetalhe() {
         />
         <Kpi
           label="Contactos (30d)"
-          value={String(((comunicacoesRecentes.data ?? []).filter((c) => {
-            const since = new Date();
-            since.setDate(since.getDate() - 30);
-            return new Date(c.createdAt) >= since;
-          })).length)}
+          value={String(contactos30d)}
         />
       </section>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <DetailWorkspace rail={clienteRail}>
+        <ViewTabs
+          tabs={clienteTabs}
+          value={activeTab}
+          onChange={(value) => setActiveTab(value as ClienteTab)}
+          className="sticky top-16 z-20 shadow-sm shadow-zinc-100/80 dark:shadow-black/20"
+        />
+
+        {activeTab === 'perfil' && (
+          <>
+      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -310,12 +423,17 @@ export default function ClienteDetalhe() {
 
       {/* Sprint 462 (Doc 90 Tier 2 #6): gestão persistente de equipamentos do cliente. */}
       <ClienteDevicesSection clienteId={c.id} />
+          </>
+        )}
 
       {/* Sprint 453 (extensão eixo cliente do S452): histórico de comunicações agregado. */}
+        {activeTab === 'comunicacao' && (
       <ClienteComunicacoesSection clienteId={c.id} />
+        )}
 
       {/* RGPD */}
-      <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
+        {activeTab === 'rgpd' && (
+      <section className="rounded-lg border border-amber-200 bg-amber-50/60 p-4 shadow-sm shadow-black/[0.02] dark:border-amber-900/60 dark:bg-amber-950/20">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-950 dark:text-amber-100">
@@ -349,8 +467,12 @@ export default function ClienteDetalhe() {
         </div>
       </section>
 
+        )}
+
       {/* Reparações */}
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        {activeTab === 'historico' && (
+          <>
+      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">Reparações <span className="text-zinc-500">· {reps.length}</span></h2>
         </div>
@@ -364,7 +486,7 @@ export default function ClienteDetalhe() {
       </section>
 
       {/* Trabalhos */}
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">Trabalhos <span className="text-zinc-500">· {trabs.length}</span></h2>
         </div>
@@ -378,7 +500,7 @@ export default function ClienteDetalhe() {
       </section>
 
       {/* Vendas */}
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">Vendas <span className="text-zinc-500">· {vds.length}</span></h2>
         </div>
@@ -390,6 +512,9 @@ export default function ClienteDetalhe() {
           </ul>
         )}
       </section>
+          </>
+        )}
+      </DetailWorkspace>
 
       <Modal
         open={editOpen}
@@ -519,7 +644,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'eme
       : tone === 'amber' ? 'text-amber-700 dark:text-amber-400'
       : '';
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
       <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
       <div className={`mt-1 text-lg font-semibold ${toneCls}`}>{value}</div>
     </div>

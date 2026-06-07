@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, EyeOff, Plus, Search, SlidersHorizontal, Smartphone, Trash2, Upload, X, XCircle } from 'lucide-react';
+import { AlertTriangle, Boxes, CheckCircle2, EyeOff, Globe2, Layers, Plus, Search, SlidersHorizontal, Smartphone, Store, Trash2, Upload, X, XCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import Modal from '../../components/Modal';
 import UniversalCsvImportModal from '../../components/UniversalCsvImportModal';
 import ProductsByModel from './ProductsByModel';
-import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
+import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonRow, StatusBadge, ViewTabs } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import { api } from '../../lib/api';
 import {
@@ -37,6 +37,8 @@ import { fornecedorChipClass } from '../../lib/fornecedores/colors';
 import { formatCents, parseEuros } from '../../lib/money';
 
 const OWN_SUPPLIER_ID = '00000000-0000-0000-0000-000000000000';
+
+type CatalogScope = 'todos' | 'loja' | 'fisico' | 'virtual' | 'ocultos';
 
 const emptyForm = (): ProductWriteRequest => ({
   sku: null,
@@ -124,6 +126,7 @@ export default function Produtos() {
 
   // Sprint 361: vista agrupada por modelo (default) vs plana (pesquisa rápida).
   const [viewMode, setViewMode] = useState<'model' | 'flat'>('model');
+  const [catalogScope, setCatalogScope] = useState<CatalogScope>('todos');
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductWriteRequest>(emptyForm);
@@ -273,7 +276,127 @@ export default function Produtos() {
   });
 
   const items = list.data?.items ?? [];
+  const scopeCounts = useMemo(() => {
+    const modelKeys = new Set<string>();
+    let shopVisible = 0;
+    let shopHidden = 0;
+    let physicalVariants = 0;
+    let physicalUnits = 0;
+    let virtualVariants = 0;
+    let lowStock = 0;
+    let withoutImages = 0;
+    let withoutSeo = 0;
+    let physicalCostCents = 0;
+
+    for (const p of items) {
+      modelKeys.add(`${p.brand}|||${p.model}`.toLowerCase());
+      if (p.active && p.mostrarLojaOnline) shopVisible += 1;
+      if (!p.mostrarLojaOnline) shopHidden += 1;
+      if (p.supplyType === PRODUCT_SUPPLY_TYPE.Stock) {
+        physicalVariants += 1;
+        physicalUnits += p.stockQuantity;
+        physicalCostCents += p.stockQuantity * p.custoUnitarioCents;
+        if (p.stockMinima > 0 && p.stockQuantity <= p.stockMinima) lowStock += 1;
+      }
+      if (p.supplyType === PRODUCT_SUPPLY_TYPE.Dropship) virtualVariants += 1;
+      if (p.images.length === 0) withoutImages += 1;
+      if (!p.seoTitle || !p.seoDescription) withoutSeo += 1;
+    }
+
+    return {
+      modelCount: modelKeys.size,
+      shopVisible,
+      shopHidden,
+      physicalVariants,
+      physicalUnits,
+      virtualVariants,
+      lowStock,
+      withoutImages,
+      withoutSeo,
+      physicalCostCents,
+    };
+  }, [items]);
+  const scopedItems = useMemo(() => {
+    switch (catalogScope) {
+      case 'loja':
+        return items.filter((p) => p.active && p.mostrarLojaOnline);
+      case 'fisico':
+        return items.filter((p) => p.supplyType === PRODUCT_SUPPLY_TYPE.Stock);
+      case 'virtual':
+        return items.filter((p) => p.supplyType === PRODUCT_SUPPLY_TYPE.Dropship);
+      case 'ocultos':
+        return items.filter((p) => !p.mostrarLojaOnline);
+      default:
+        return items;
+    }
+  }, [catalogScope, items]);
+  const catalogTabs = [
+    { key: 'todos', label: 'Tudo', meta: items.length },
+    { key: 'loja', label: 'Na loja online', meta: scopeCounts.shopVisible },
+    { key: 'fisico', label: 'Stock fisico', meta: scopeCounts.physicalUnits },
+    { key: 'virtual', label: 'Stock virtual', meta: scopeCounts.virtualVariants },
+    { key: 'ocultos', label: 'Ocultos', meta: scopeCounts.shopHidden },
+  ];
+  const inventoryRail = (
+    <InspectorRail>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Cockpit de inventario</p>
+        <h2 className="mt-1 text-base font-semibold text-zinc-950 dark:text-zinc-50">Catalogo, stock e loja no mesmo sitio</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Usa modelos para conteudo partilhado e variantes apenas para cor, capacidade, grade, fornecedor, preco e stock.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <ProductMetric icon={<Layers size={15} />} label="Modelos" value={scopeCounts.modelCount.toString()} />
+        <ProductMetric icon={<Smartphone size={15} />} label="Variantes" value={items.length.toString()} />
+        <ProductMetric icon={<Boxes size={15} />} label="Fisico" value={`${scopeCounts.physicalUnits} un.`} />
+        <ProductMetric icon={<Globe2 size={15} />} label="Virtual" value={scopeCounts.virtualVariants.toString()} />
+      </div>
+
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="font-medium">Valor fisico em stock</span>
+          <span className="font-semibold">{formatCents(scopeCounts.physicalCostCents)}</span>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">Custo interno das unidades fisicas. Dropshipping fica fora deste valor.</p>
+        <p className="mt-2 text-xs text-zinc-500">
+          {scopeCounts.physicalVariants} variantes fisicas · {scopeCounts.withoutImages} sem imagens · {scopeCounts.withoutSeo} sem SEO
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <ProductInsightButton
+          icon={<Store size={14} />}
+          label="Ver montra online"
+          value={`${scopeCounts.shopVisible} visiveis`}
+          onClick={() => setCatalogScope('loja')}
+        />
+        <ProductInsightButton
+          icon={<EyeOff size={14} />}
+          label="Resolver ocultos"
+          value={`${scopeCounts.shopHidden} produtos`}
+          onClick={() => setCatalogScope('ocultos')}
+        />
+        <ProductInsightButton
+          icon={<AlertTriangle size={14} />}
+          label="Alertas de stock"
+          value={`${scopeCounts.lowStock} baixos`}
+          onClick={() => setCatalogScope('fisico')}
+          tone={scopeCounts.lowStock > 0 ? 'amber' : 'zinc'}
+        />
+      </div>
+
+      <div className="rounded-lg border border-dashed border-brand-200 bg-brand-50/60 p-3 text-xs text-brand-900 dark:border-brand-900/60 dark:bg-brand-950/20 dark:text-brand-200">
+        <p className="font-semibold">Regra UX para variantes</p>
+        <p className="mt-1">
+          Fotos, SEO e descricao vivem no modelo. Variante so guarda atributos comerciais e operacionais.
+        </p>
+      </div>
+    </InspectorRail>
+  );
   const hasActiveFilters = search.trim().length > 0 || fornecedorFilter !== 'todos' || includeInactive || onlyHiddenShop;
+  const hasDisplayFilters = hasActiveFilters || catalogScope !== 'todos';
   const totalProdutos = totalUnfiltered.data?.total ?? list.data?.total ?? 0;
   const counterText = hasActiveFilters
     ? `${list.data?.total ?? 0} produto(s) de ${totalProdutos} total`
@@ -285,14 +408,15 @@ export default function Produtos() {
     setFornecedorFilter('todos');
     setIncludeInactive(false);
     setOnlyHiddenShop(false);
+    setCatalogScope('todos');
     setFiltersOpen(false);
   }
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Produtos"
-        description="Telemóveis revendidos (Molano, Tudo4Mobile, etc) para a loja online. Distintos de Peças (peças técnicas em Stock)."
+        title="Catalogo & Stock"
+        description="Stock fisico da loja, stock virtual/dropshipping e montra online num cockpit unico."
         meta={<span className="text-sm text-zinc-500">{counterText}</span>}
         actions={<>
           <Button leftIcon={<Upload size={15} />} variant="ghost" onClick={() => { setMigrateResult(null); setMigrateOpen(true); }}>
@@ -339,7 +463,8 @@ export default function Produtos() {
         </Button>
       </div>
 
-      <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <DetailWorkspace rail={inventoryRail}>
+      <section className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <div className="hidden items-center gap-3 border-b border-zinc-100 px-4 py-2 text-xs dark:border-zinc-800 md:flex">
           <ProductFilters
             search={search}
@@ -354,22 +479,32 @@ export default function Produtos() {
           />
         </div>
         {/* Sprint 361: alternar entre vista agrupada por modelo e lista plana. */}
-        <div className="flex items-center gap-1.5 border-b border-zinc-100 px-4 py-2 text-xs dark:border-zinc-800">
-          <span className="text-zinc-500">Vista:</span>
-          <button type="button" onClick={() => setViewMode('model')}
-            className={`rounded px-2 py-1 ${viewMode === 'model' ? 'bg-brand-600 font-medium text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}>
-            Por modelo
-          </button>
-          <button type="button" onClick={() => setViewMode('flat')}
-            className={`rounded px-2 py-1 ${viewMode === 'flat' ? 'bg-brand-600 font-medium text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}>
-            Plana
-          </button>
+        <div className="space-y-3 border-b border-zinc-100 p-3 dark:border-zinc-800">
+          <ViewTabs
+            tabs={catalogTabs}
+            value={catalogScope}
+            onChange={(value) => setCatalogScope(value as CatalogScope)}
+          />
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-zinc-500">Vista:</span>
+              <button type="button" onClick={() => setViewMode('model')}
+                className={`rounded-md px-2 py-1 ${viewMode === 'model' ? 'bg-zinc-950 font-medium text-white dark:bg-zinc-100 dark:text-zinc-950' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}>
+                Por modelo
+              </button>
+              <button type="button" onClick={() => setViewMode('flat')}
+                className={`rounded-md px-2 py-1 ${viewMode === 'flat' ? 'bg-zinc-950 font-medium text-white dark:bg-zinc-100 dark:text-zinc-950' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}>
+                Plana
+              </button>
+            </div>
+            <span className="hidden text-zinc-500 sm:inline">{scopedItems.length} nesta vista</span>
+          </div>
         </div>
         {viewMode === 'model' ? (
           <div className="p-2">
             {list.isLoading
               ? <p className="py-6 text-center text-sm text-zinc-500">A carregar…</p>
-              : <ProductsByModel items={items} onEditVariant={openEdit} />}
+              : <ProductsByModel items={scopedItems} onEditVariant={openEdit} />}
           </div>
         ) : (
         <table className="w-full text-sm">
@@ -389,7 +524,7 @@ export default function Produtos() {
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {list.isLoading && Array.from({ length: 3 }).map((_, i) => <tr key={i}><td colSpan={10}><SkeletonRow columns={10} /></td></tr>)}
-            {!list.isLoading && items.map((p) => (
+            {!list.isLoading && scopedItems.map((p) => (
               <tr key={p.id} onClick={() => openEdit(p.id)} className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                 <td className="px-4 py-3">
                   <div className="font-medium">{p.brand} {p.model}</div>
@@ -428,13 +563,13 @@ export default function Produtos() {
                 </td>
               </tr>
             ))}
-            {!list.isLoading && items.length === 0 && (
+            {!list.isLoading && scopedItems.length === 0 && (
               <tr><td colSpan={10} className="p-6">
                 <EmptyState
                   icon={Smartphone}
-                  title={hasActiveFilters ? 'Sem produtos com este filtro' : 'Sem produtos'}
-                  description={hasActiveFilters ? 'Ajusta fornecedor, pesquisa ou estado para voltar a ver produtos.' : 'Cria iPhone 12, Samsung A15 ou outros telemóveis para revender. Aparecem no catálogo da loja online se mostrarLojaOnline=true.'}
-                  action={hasActiveFilters ? <Button variant="secondary" onClick={clearFilters}>Limpar filtros</Button> : undefined}
+                  title={hasDisplayFilters ? 'Sem produtos nesta vista' : 'Sem produtos'}
+                  description={hasDisplayFilters ? 'Ajusta segmento, fornecedor, pesquisa ou estado para voltar a ver produtos.' : 'Cria iPhone 12, Samsung A15 ou outros telemóveis para revender. Aparecem no catálogo da loja online se mostrarLojaOnline=true.'}
+                  action={hasDisplayFilters ? <Button variant="secondary" onClick={clearFilters}>Limpar filtros</Button> : undefined}
                 />
               </td></tr>
             )}
@@ -442,6 +577,7 @@ export default function Produtos() {
         </table>
         )}
       </section>
+      </DetailWorkspace>
 
       {filtersOpen && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
@@ -1213,6 +1349,50 @@ function displaySupplierGrade(product: Product) {
     || (grading === PRODUCT_GRADING.OpenBox && ['openbox', 'open box', 'open-box'].includes(normalized));
 
   return redundant ? <span className="text-zinc-400">—</span> : raw;
+}
+
+function ProductMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-center justify-between gap-2 text-zinc-500">
+        <span className="text-xs font-medium">{label}</span>
+        {icon}
+      </div>
+      <div className="mt-2 text-lg font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{value}</div>
+    </div>
+  );
+}
+
+function ProductInsightButton({
+  icon,
+  label,
+  value,
+  onClick,
+  tone = 'zinc',
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onClick: () => void;
+  tone?: 'zinc' | 'amber';
+}) {
+  const toneCls = tone === 'amber'
+    ? 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200'
+    : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition ${toneCls}`}
+    >
+      <span className="inline-flex min-w-0 items-center gap-2">
+        <span className="shrink-0 text-zinc-500">{icon}</span>
+        <span className="truncate font-medium">{label}</span>
+      </span>
+      <span className="shrink-0 text-xs text-zinc-500">{value}</span>
+    </button>
+  );
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
