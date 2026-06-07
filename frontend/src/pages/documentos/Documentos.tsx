@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Receipt, Banknote, Percent, FileText, Download, ExternalLink, Search, FilePlus } from 'lucide-react';
+import { Receipt, Banknote, Percent, FileText, Download, ExternalLink, Search, FilePlus, ChevronRight, ChevronDown } from 'lucide-react';
 import { KpiCard } from '../../components/ui';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { downloadFile } from '../../lib/downloadPdf';
@@ -156,46 +156,7 @@ export default function Documentos() {
               </thead>
               <tbody>
                 {items.map((d: DocumentoDto) => (
-                  <tr key={d.id} className="border-b border-zinc-100 transition last:border-0 hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-800/50">
-                    <td className="whitespace-nowrap px-4 py-3 text-zinc-600 dark:text-zinc-300">{formatDateOnly(d.data)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${TIPO_BADGE[d.tipoCodigo] ?? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
-                        {d.tipo}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-medium">
-                      <span className={d.estado === 'Anulado' ? 'text-zinc-400 line-through' : ''}>{d.numero ?? '—'}</span>
-                      {(d.estado === 'Anulado' || d.estado === 'Rascunho') && (
-                        <span className={`ml-1.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ${d.estado === 'Anulado' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
-                          {d.estado}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{d.clienteNome ?? 'Consumidor final'}</div>
-                      {d.clienteNif && <div className="text-xs text-zinc-500">NIF {d.clienteNif}</div>}
-                    </td>
-                    <td className="px-4 py-3">
-                      {ORIGEM_LINK[d.origem] ? (
-                        <Link to={ORIGEM_LINK[d.origem](d.id)} className="text-brand-600 hover:underline dark:text-brand-400">
-                          {ORIGEM_LABEL[d.origem] ?? d.origem}{d.numeroInterno > 0 ? ` #${d.numeroInterno}` : ''}
-                        </Link>
-                      ) : (
-                        <span className="text-zinc-500">{ORIGEM_LABEL[d.origem] ?? d.origem}{d.numeroInterno > 0 ? ` #${d.numeroInterno}` : ''}</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">{formatCents(d.totalCents)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {d.pdfUrl ? (
-                        <a href={d.pdfUrl} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-brand-600 hover:underline dark:text-brand-400" title="Abrir PDF (Moloni)">
-                          <ExternalLink size={14} /> PDF
-                        </a>
-                      ) : (
-                        <span className="text-xs text-zinc-400">—</span>
-                      )}
-                    </td>
-                  </tr>
+                  <DocumentoRow key={d.id} d={d} />
                 ))}
               </tbody>
             </table>
@@ -210,5 +171,88 @@ export default function Documentos() {
 
       <NovaFaturaModal open={novaFaturaOpen} onClose={() => setNovaFaturaOpen(false)} />
     </div>
+  );
+}
+
+/**
+ * Sprint 523: linha de fatura EXPANSÍVEL — clicar abre a reparação/trabalho/venda de origem,
+ * o cliente (com link) e os valores discriminados. Centraliza tudo como ERP (pedido do Bruno:
+ * "ao clicar numa fatura mostrar a reparação/trabalho e cliente sobre o qual foi emitida").
+ */
+function DocumentoRow({ d }: { d: DocumentoDto }) {
+  const [open, setOpen] = useState(false);
+  const origemHref = ORIGEM_LINK[d.origem]?.(d.id);
+  const origemLabel = `${ORIGEM_LABEL[d.origem] ?? d.origem}${d.numeroInterno > 0 ? ` #${d.numeroInterno}` : ''}`;
+  return (
+    <>
+      <tr
+        onClick={() => setOpen((o) => !o)}
+        className="cursor-pointer border-b border-zinc-100 transition last:border-0 hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-800/50"
+      >
+        <td className="whitespace-nowrap px-4 py-3 text-zinc-600 dark:text-zinc-300">
+          <span className="mr-1.5 inline-flex align-middle text-zinc-400">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
+          {formatDateOnly(d.data)}
+        </td>
+        <td className="px-4 py-3">
+          <span className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${TIPO_BADGE[d.tipoCodigo] ?? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>{d.tipo}</span>
+        </td>
+        <td className="whitespace-nowrap px-4 py-3 font-medium">
+          <span className={d.estado === 'Anulado' ? 'text-zinc-400 line-through' : ''}>{d.numero ?? '—'}</span>
+          {(d.estado === 'Anulado' || d.estado === 'Rascunho') && (
+            <span className={`ml-1.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ${d.estado === 'Anulado' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>{d.estado}</span>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          <div className="font-medium">{d.clienteNome ?? 'Consumidor final'}</div>
+          {d.clienteNif && <div className="text-xs text-zinc-500">NIF {d.clienteNif}</div>}
+        </td>
+        <td className="px-4 py-3 text-zinc-500">{origemLabel}</td>
+        <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">{formatCents(d.totalCents)}</td>
+        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+          {d.pdfUrl ? (
+            <a href={d.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-brand-600 hover:underline dark:text-brand-400" title="Abrir PDF (Moloni)">
+              <ExternalLink size={14} /> PDF
+            </a>
+          ) : (
+            <span className="text-xs text-zinc-400">—</span>
+          )}
+        </td>
+      </tr>
+      {open && (
+        <tr className="border-b border-zinc-100 bg-zinc-50/60 dark:border-zinc-800/60 dark:bg-zinc-900/40">
+          <td colSpan={7} className="px-4 py-3">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Emitida a partir de</div>
+                {origemHref ? (
+                  <Link to={origemHref} className="inline-flex items-center gap-1 font-medium text-brand-600 hover:underline dark:text-brand-400">
+                    {origemLabel} <ExternalLink size={12} />
+                  </Link>
+                ) : (
+                  <div className="text-zinc-600 dark:text-zinc-300">Documento criado diretamente no Moloni</div>
+                )}
+              </div>
+              <div>
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Cliente</div>
+                {d.clienteId ? (
+                  <Link to={`/clientes/${d.clienteId}`} className="inline-flex items-center gap-1 font-medium text-brand-600 hover:underline dark:text-brand-400">
+                    {d.clienteNome ?? 'Consumidor final'} <ExternalLink size={12} />
+                  </Link>
+                ) : (
+                  <div className="font-medium">{d.clienteNome ?? 'Consumidor final'}</div>
+                )}
+                {d.clienteNif && <div className="text-xs text-zinc-500">NIF {d.clienteNif}</div>}
+              </div>
+              <div>
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Valores</div>
+                <div className="text-zinc-600 dark:text-zinc-300">Base {formatCents(d.baseCents)} · IVA {formatCents(d.ivaCents)}</div>
+                <div className="font-semibold">Total {formatCents(d.totalCents)}</div>
+                <div className="mt-0.5 text-xs text-zinc-500">Estado: {d.estado}</div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
