@@ -649,6 +649,11 @@ public class TenantBillingSettingsService : ITenantBillingSettingsService
     private static int ProductScore(string name)
     {
         var normalized = NormalizeForSearch(name);
+        // Sprint 520: a Moloni cria um artigo de exemplo ("Serviço ou artigo exemplo 1") em todas as
+        // contas. Como contém "serviço", era escolhido por engano e as faturas saíam com a referência
+        // "EXE.1" e o nome do exemplo. Rejeita-o (score 0) → o auto-discovery cria/usa um artigo limpo.
+        if (normalized.Contains("exemplo", StringComparison.Ordinal) || normalized.Contains("example", StringComparison.Ordinal))
+            return 0;
         if (normalized.Contains("reparacao", StringComparison.Ordinal)) return 3;
         if (normalized.Contains("servico", StringComparison.Ordinal)) return 2;
         if (normalized.Contains("mao de obra", StringComparison.Ordinal)) return 1;

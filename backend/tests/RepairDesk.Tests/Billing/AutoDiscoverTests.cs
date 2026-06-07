@@ -50,6 +50,25 @@ public class AutoDiscoverTests
         result.Steps.Should().ContainEquivalentOf(new { Key = "product", Success = true, Created = true, Id = 901 });
     }
 
+    // Sprint 520: o artigo de exemplo da Moloni ("Serviço ou artigo exemplo 1") contém "serviço" e era
+    // escolhido por engano → as faturas saíam com a referência "EXE.1". Tem de ser REJEITADO e um
+    // artigo limpo ("Serviço de reparação") criado no lugar.
+    [Fact]
+    public async Task AutoDiscoverAsync_RejectsMoloniExampleProductAndCreatesCleanOne()
+    {
+        var tenant = Tenant(RegimeFiscal.RegimeNormalIva);
+        var settings = Settings(tenant.Id);
+        var moloni = CompleteMoloni();
+        moloni.Products = new[] { new MoloniProductDto(7, "Serviço ou artigo exemplo 1", true) };
+        moloni.InsertedProduct = new MoloniProductDto(902, "Serviço de reparação", true);
+
+        var result = await Service(settings, tenant, moloni).AutoDiscoverAsync();
+
+        settings.DefaultProductId.Should().Be(902);
+        moloni.InsertProductCalls.Should().Be(1);
+        result.Steps.Should().ContainEquivalentOf(new { Key = "product", Success = true, Created = true, Id = 902 });
+    }
+
     [Fact]
     public async Task AutoDiscoverAsync_ForVatExemptTenantSelectsZeroTaxAndM01()
     {
