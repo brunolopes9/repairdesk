@@ -209,6 +209,9 @@ public class ReparacaoService : IReparacaoService
         rep.InvoiceNumber = null;
         rep.InvoicePdfUrl = null;
         rep.InvoiceEmittedAt = null;
+        // Sprint 532: ao desvincular/anular a fatura, limpa também o recibo (senão fica o badge "liquidada" órfão).
+        rep.ReciboNumero = null;
+        rep.ReciboEmitidoEm = null;
 
         await _repo.SaveAsync(ct);
         var custoFinal = await _despesas.SumByReparacaoAsync(rep.Id, ct);
@@ -230,6 +233,9 @@ public class ReparacaoService : IReparacaoService
         rep.InvoiceNumber = null;
         rep.InvoicePdfUrl = null;
         rep.InvoiceEmittedAt = null;
+        // Sprint 532: ao desvincular/anular a fatura, limpa também o recibo (senão fica o badge "liquidada" órfão).
+        rep.ReciboNumero = null;
+        rep.ReciboEmitidoEm = null;
 
         await _repo.SaveAsync(ct);
         var custoFinal = await _despesas.SumByReparacaoAsync(rep.Id, ct);

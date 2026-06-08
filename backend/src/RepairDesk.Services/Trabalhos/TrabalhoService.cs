@@ -127,6 +127,9 @@ public class TrabalhoService : ITrabalhoService
         t.InvoiceNumber = null;
         t.InvoicePdfUrl = null;
         t.InvoiceEmittedAt = null;
+        // Sprint 532: limpa também o recibo (senão fica o badge "liquidada" órfão).
+        t.ReciboNumero = null;
+        t.ReciboEmitidoEm = null;
 
         await _repo.SaveAsync(ct);
         var custo = await _despesas.SumByTrabalhoAsync(t.Id, ct);

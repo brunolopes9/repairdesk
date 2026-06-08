@@ -496,6 +496,9 @@ public class VendaService : IVendaService
         venda.InvoiceNumber = null;
         venda.InvoicePdfUrl = null;
         venda.InvoiceEmittedAt = null;
+        // Sprint 532: limpa também o recibo (senão fica o badge "liquidada" órfão).
+        venda.ReciboNumero = null;
+        venda.ReciboEmitidoEm = null;
         await _vendas.SaveAsync(ct);
         return ToDto(venda);
     }
@@ -579,6 +582,9 @@ public class VendaService : IVendaService
         venda.InvoiceNumber = null;
         venda.InvoicePdfUrl = null;
         venda.InvoiceEmittedAt = null;
+        // Sprint 532: limpa também o recibo (senão fica o badge "liquidada" órfão).
+        venda.ReciboNumero = null;
+        venda.ReciboEmitidoEm = null;
 
         await _vendas.SaveAsync(ct);
         return ToDto(venda);
@@ -651,6 +657,9 @@ public class VendaService : IVendaService
             venda.InvoiceNumber = null;
             venda.InvoicePdfUrl = null;
             venda.InvoiceEmittedAt = null;
+            // Sprint 532: limpa também o recibo (badge "liquidada" não pode ficar órfão).
+            venda.ReciboNumero = null;
+            venda.ReciboEmitidoEm = null;
         }
 
         if (venda.Status == VendaStatus.Paga)
