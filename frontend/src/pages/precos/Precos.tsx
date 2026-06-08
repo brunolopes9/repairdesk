@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tansta
 import { FolderUp, Pencil, Plus, Search, Tags, X as XIcon } from 'lucide-react';
 import { isAxiosError } from 'axios';
 import Modal from '../../components/Modal';
-import { Button, EmptyState, PageHeader, SkeletonTable } from '../../components/ui';
+import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonTable } from '../../components/ui';
 import {
   DEVICE_CATEGORY,
   DEVICE_CATEGORY_LABEL,
@@ -50,6 +50,53 @@ export default function Precos() {
   const items = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / 50));
+  const activeCount = items.filter((e) => e.activo).length;
+  const noCostCount = items.filter((e) => e.custoPecaCents == null).length;
+  const noTimeCount = items.filter((e) => !e.tempoEstimadoMin).length;
+  const lowMarginCount = items.filter((e) => e.margemPct != null && e.margemPct < 20).length;
+  const marginValues = items.map((e) => e.margemPct).filter((m): m is number => m != null);
+  const avgMargin = marginValues.length ? Math.round(marginValues.reduce((sum, m) => sum + m, 0) / marginValues.length) : null;
+  const filtersActive = Boolean(search || categoria != null || marca);
+
+  const rail = (
+    <InspectorRail>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">Motor de orçamentos</p>
+        <h2 className="mt-1 text-base font-semibold text-zinc-950 dark:text-zinc-50">Saúde da tabela</h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Esta base deve acelerar orçamentos sem esconder custo, margem ou tempo previsto.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <PriceRailStat label="Nesta página" value={items.length} />
+        <PriceRailStat label="Activas" value={activeCount} />
+        <PriceRailStat label="Margem média" value={avgMargin != null ? `${avgMargin}%` : '—'} />
+        <PriceRailStat label="Baixa margem" value={lowMarginCount} tone={lowMarginCount > 0 ? 'danger' : 'default'} />
+      </div>
+
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="font-medium text-zinc-900 dark:text-zinc-100">Dados incompletos</span>
+          <span className="text-xs text-zinc-500">{noCostCount + noTimeCount}</span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-md bg-white p-2 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+            <div className="font-semibold text-zinc-950 dark:text-zinc-50">{noCostCount}</div>
+            <div className="text-zinc-500">sem custo</div>
+          </div>
+          <div className="rounded-md bg-white p-2 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+            <div className="font-semibold text-zinc-950 dark:text-zinc-50">{noTimeCount}</div>
+            <div className="text-zinc-500">sem tempo</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/25 dark:text-emerald-300">
+        <strong>Regra UX:</strong> se uma entrada tem custo, PVP e tempo, o orçamento fica rápido e a margem deixa de ser adivinhada.
+      </div>
+    </InspectorRail>
+  );
 
   function invalidate() {
     qc.invalidateQueries({ queryKey: ['precos'] });
@@ -74,6 +121,7 @@ export default function Precos() {
         }
       />
 
+      <DetailWorkspace rail={rail}>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <select
           value={categoria ?? ''}
@@ -104,6 +152,22 @@ export default function Precos() {
           />
         </div>
       </div>
+      {filtersActive && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            onClick={() => {
+              setSearch('');
+              setCategoria(null);
+              setMarca(null);
+              setPage(1);
+            }}
+          >
+            Limpar filtros
+          </button>
+        </div>
+      )}
 
       {list.isLoading ? (
         <SkeletonTable columns={8} rows={6} minWidth="min-w-[900px]" />
@@ -175,6 +239,7 @@ export default function Precos() {
           <button disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Seguinte →</button>
         </div>
       )}
+      </DetailWorkspace>
 
       <PriceFormModal
         open={createOpen}
@@ -206,6 +271,33 @@ export default function Precos() {
           <p className="text-sm">Apagar <strong>{confirmDelete.marca} {confirmDelete.modelo}</strong> · {confirmDelete.servico}?</p>
         )}
       </Modal>
+    </div>
+  );
+}
+
+function PriceRailStat({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string;
+  value: number | string;
+  tone?: 'default' | 'danger';
+}) {
+  const danger = tone === 'danger';
+
+  return (
+    <div
+      className={`rounded-lg border p-3 ${
+        danger
+          ? 'border-rose-200 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/25'
+          : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'
+      }`}
+    >
+      <div className={`text-lg font-semibold ${danger ? 'text-rose-700 dark:text-rose-300' : 'text-zinc-950 dark:text-zinc-50'}`}>
+        {value}
+      </div>
+      <div className="text-[11px] text-zinc-500">{label}</div>
     </div>
   );
 }

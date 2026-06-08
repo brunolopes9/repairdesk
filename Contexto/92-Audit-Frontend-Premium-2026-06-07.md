@@ -60,6 +60,9 @@ excessivo e esconde o que interessa: estado, proxima acao, cliente, pagamento e 
   reparacoes.
 - `Fornecedores.tsx` passou para lista principal + rail B2B: metricas de activos, RMA,
   intra-UE e garantias, com o filtro de inactivos fora da tabela e contexto fiscal mais visivel.
+- `Precos.tsx` passou a ter workspace com rail de "Saude da tabela": entradas activas, margem
+  media, margens baixas e dados incompletos ficam visiveis sem obrigar o utilizador a vasculhar a
+  grelha.
 - Frontend build validado com `npm run build`.
 
 ## Evidencia no codigo
