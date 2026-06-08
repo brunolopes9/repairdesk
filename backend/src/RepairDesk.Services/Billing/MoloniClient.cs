@@ -752,12 +752,17 @@ public class MoloniClient : IMoloniClient
             throw new BillingProviderException("moloni_receipt_no_document", "Documento Moloni inválido.");
         if (valueCents <= 0)
             throw new BillingProviderException("moloni_receipt_no_value", "Valor do recibo tem de ser positivo.");
+        // Sprint 527b: o receipts/insert EXIGE document_set_id (série). Reusa a mesma série das faturas.
+        if (settings.DefaultSerieId is null or <= 0)
+            throw new BillingProviderException("moloni_receipt_no_serie",
+                "Falta a série Moloni (document_set_id). Re-corre a auto-descoberta em Definições > Faturação.");
 
         // 2 casas decimais — consistente com o resto dos payloads Moloni (evita mismatch de subtotais).
         var value = Math.Round(valueCents / 100m, 2, MidpointRounding.AwayFromZero);
         var payload = new Dictionary<string, object?>
         {
             ["company_id"] = settings.CompanyId!.Value,
+            ["document_set_id"] = settings.DefaultSerieId!.Value,
             ["customer_id"] = customerId,
             ["date"] = DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["net_value"] = value,
