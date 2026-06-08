@@ -61,7 +61,7 @@ export function ViewTabs({
               }`}
             >
               <span>{tab.label}</span>
-              {tab.meta ? <span className="text-xs text-zinc-400">{tab.meta}</span> : null}
+              {tab.meta !== undefined && tab.meta !== null ? <span className="text-xs text-zinc-400">{tab.meta}</span> : null}
             </button>
           );
         })}

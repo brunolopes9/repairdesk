@@ -44,7 +44,15 @@ import { internalTasksApi } from '../lib/internalTasks/api';
 import { InternalTaskStatus, type InternalTask } from '../lib/internalTasks/types';
 import { liveListOptions } from '../lib/queryOptions';
 import { formatCents, formatDateOnly } from '../lib/money';
-import { EmptyState, PageHeader, Skeleton, KpiCard, SectionCard } from '../components/ui';
+import {
+  DetailWorkspace,
+  EmptyState,
+  InspectorRail,
+  PageHeader,
+  Skeleton,
+  KpiCard,
+  SectionCard,
+} from '../components/ui';
 
 type Tone = 'blue' | 'emerald' | 'amber' | 'rose' | 'zinc';
 
@@ -304,6 +312,66 @@ export default function Dashboard() {
     (kpis.data?.stockCriticoCount ?? 0) > 0 ||
     (garantias.data?.expiramEm30Dias ?? 0) > 0 ||
     (reabastecer.data?.length ?? 0) > 0;
+  const garantiasAExpirarCount = garantias.data?.expiramEm30Dias ?? 0;
+  const stockCriticoCount = kpis.data?.stockCriticoCount ?? 0;
+  const faturasPendentesCount = pagasSemFatura.data?.length ?? 0;
+  const alertasImportantesCount =
+    garantiasAExpirarCount +
+    stockCriticoCount +
+    faturasPendentesCount +
+    reparacoesParadasCount +
+    tarefasAtrasadasCount +
+    cobrancasEmAtrasoCount +
+    porLevantarCount +
+    avisosPendentesCount +
+    garantiaFabricanteCount +
+    mensagensPorResponderCount;
+  const commandRail = (
+    <InspectorRail>
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Comando diario</div>
+        <h2 className="mt-1 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">Prioridades da loja</h2>
+        <p className="mt-1 text-sm leading-5 text-zinc-500">
+          Comeca pelo que bloqueia dinheiro, cliente ou stock antes de abrir trabalho novo.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <RailStat icon={Wrench} label="Em curso" value={String(kpis.data?.reparacoesEmCurso ?? 0)} tone="blue" />
+        <RailStat icon={Euro} label="A receber" value={formatCents(kpis.data?.valorAReceberCents)} tone="emerald" />
+        <RailStat icon={AlertTriangle} label="Alertas" value={String(alertasImportantesCount)} tone={alertasImportantesCount > 0 ? 'amber' : 'zinc'} />
+        <RailStat icon={Clock3} label="Tempo medio" value={formatHours(kpis.data?.tempoMedioReparacaoHoras)} tone="zinc" />
+      </div>
+
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Acao sugerida</span>
+          <ArrowRight size={14} className="text-zinc-400" />
+        </div>
+        {mensagensPorResponderCount > 0 ? (
+          <Link to="/reparacoes" className="mt-2 block text-sm font-semibold text-rose-700 hover:underline dark:text-rose-300">
+            Responder {mensagensPorResponderCount} mensagem{mensagensPorResponderCount === 1 ? '' : 'ns'} de cliente
+          </Link>
+        ) : faturasPendentesCount > 0 ? (
+          <Link to="/reparacoes?openPagasSemFatura=1" className="mt-2 block text-sm font-semibold text-amber-700 hover:underline dark:text-amber-300">
+            Emitir {faturasPendentesCount} fatura{faturasPendentesCount === 1 ? '' : 's'} pendente{faturasPendentesCount === 1 ? '' : 's'}
+          </Link>
+        ) : stockCriticoCount > 0 ? (
+          <Link to="/stock?lowStock=1" className="mt-2 block text-sm font-semibold text-rose-700 hover:underline dark:text-rose-300">
+            Rever {stockCriticoCount} peca{stockCriticoCount === 1 ? '' : 's'} em stock critico
+          </Link>
+        ) : (
+          <p className="mt-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">Sem bloqueios principais neste momento.</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <RailLink to="/reparacoes" icon={Inbox} label="Fila operacional" value={`${totalAtivos} abertas`} />
+        <RailLink to="/agendamentos" icon={CalendarClock} label="ETAs da semana" value={`${reparacoesEtaSemana.length} marcadas`} />
+        <RailLink to="/tarefas" icon={ListTodo} label="Tarefas pendentes" value={`${tarefasPendentes.data?.length ?? 0}`} />
+      </div>
+    </InspectorRail>
+  );
 
   return (
     <div className="space-y-8">
@@ -322,13 +390,14 @@ export default function Dashboard() {
         </div>
       )}
 
+      <DetailWorkspace rail={commandRail}>
       <section className="space-y-3">
         <ZoneHeader
           eyebrow="Hoje"
           title="O que precisa de movimento agora"
           subtitle="Entrada, cobranca e stock critico. Fiscal fica nos relatorios."
         />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Link to="/reparacoes" className="block transition hover:-translate-y-0.5">
             <KpiCard icon={Wrench} tone="brand" label="Reparações em curso"
               value={String(kpis.data?.reparacoesEmCurso ?? 0)} sub="abertas" />
@@ -340,18 +409,6 @@ export default function Dashboard() {
           <Link to="/stock?lowStock=1" className="block transition hover:-translate-y-0.5">
             <KpiCard icon={AlertTriangle} tone={(kpis.data?.stockCriticoCount ?? 0) > 0 ? 'red' : 'zinc'}
               label="Stock crítico" value={String(kpis.data?.stockCriticoCount ?? 0)} sub="peças" />
-          </Link>
-          <Link to="/reparacoes?estado=Entregue" className="block transition hover:-translate-y-0.5">
-            <KpiCard icon={CheckCircle2} tone="brand" label="Entregues (7d)"
-              value={String(kpis.data?.reparacoesEntregues7d ?? 0)} />
-          </Link>
-          <Link to="/relatorios/negocio" className="block transition hover:-translate-y-0.5">
-            <KpiCard icon={Trophy} tone={(kpis.data?.lucroEstimado7dCents ?? 0) >= 0 ? 'amber' : 'red'}
-              label="Lucro estimado (7d)" value={formatCents(kpis.data?.lucroEstimado7dCents)} />
-          </Link>
-          <Link to="/relatorios/produtividade" className="block transition hover:-translate-y-0.5">
-            <KpiCard icon={Clock3} tone="zinc" label="Tempo médio"
-              value={formatHours(kpis.data?.tempoMedioReparacaoHoras)} />
           </Link>
         </div>
       </section>
@@ -393,6 +450,8 @@ export default function Dashboard() {
           )}
         </SectionCard>
       </section>
+
+      </DetailWorkspace>
 
       <section className="space-y-3">
         <ZoneHeader
@@ -781,6 +840,47 @@ function ZoneHeader({ eyebrow, title, subtitle }: { eyebrow: string; title: stri
         <p className="max-w-2xl text-sm text-zinc-500">{subtitle}</p>
       </div>
     </div>
+  );
+}
+
+function RailStat({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: ReactNode;
+  tone: Tone;
+}) {
+  const cls = toneClass[tone];
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+      <div className={`mb-2 inline-flex h-7 w-7 items-center justify-center rounded-md ${cls.icon}`}>
+        <Icon size={14} />
+      </div>
+      <div className="truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="mt-1 truncate text-lg font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{value}</div>
+    </div>
+  );
+}
+
+function RailLink({ to, icon: Icon, label, value }: { to: string; icon: LucideIcon; label: string; value: string }) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm transition hover:border-brand-200 hover:bg-brand-50/60 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-brand-900 dark:hover:bg-brand-950/20"
+    >
+      <span className="grid h-8 w-8 flex-none place-items-center rounded-md bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+        <Icon size={15} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium text-zinc-900 dark:text-zinc-100">{label}</span>
+        <span className="block truncate text-xs text-zinc-500">{value}</span>
+      </span>
+      <ArrowRight size={14} className="text-zinc-400" />
+    </Link>
   );
 }
 

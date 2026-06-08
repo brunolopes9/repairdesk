@@ -238,95 +238,88 @@ export default function PorAprovarTab() {
       </header>
 
       {/* Export ZIP para contabilista */}
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Download size={16} strokeWidth={2} />
-          Export trimestral para contabilista
-        </h2>
-        <p className="mt-1 text-xs text-zinc-500">
-          ZIP com todas as facturas aprovadas no período. Estrutura: <code>ano/mês/fornecedor/fatura.pdf</code>.
-        </p>
-        <div className="mt-3 flex flex-wrap items-end gap-2">
-          <label className="text-xs">
-            <span className="block text-zinc-500">De</span>
-            <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className={inputCls} />
-          </label>
-          <label className="text-xs">
-            <span className="block text-zinc-500">Até</span>
-            <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className={inputCls} />
-          </label>
-          <button
-            type="button"
-            onClick={downloadZip}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
-            Descarregar ZIP
-          </button>
+      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+              <Download size={16} strokeWidth={2} className="text-emerald-600" />
+              Export trimestral para contabilista
+            </h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              ZIP com todas as facturas aprovadas no período. Estrutura: <code>ano/mês/fornecedor/fatura.pdf</code>.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[150px_150px_auto]">
+            <label className="text-xs">
+              <span className="block text-zinc-500">De</span>
+              <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className={inputCls} />
+            </label>
+            <label className="text-xs">
+              <span className="block text-zinc-500">Até</span>
+              <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className={inputCls} />
+            </label>
+            <Button type="button" onClick={downloadZip} leftIcon={<Download size={15} />} className="self-end">
+              Descarregar ZIP
+            </Button>
+          </div>
         </div>
       </section>
 
-      {/* Falhadas — destaque vermelho */}
       <DetailWorkspace rail={inboxRail}>
-      {failed.length > 0 && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
-            <AlertTriangle size={16} strokeWidth={2} />
-            {failed.length} fatura(s) onde o parser falhou
-          </h2>
-          <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
-            Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
-          </p>
-          <ImportsTable data={failed} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
-        </section>
-      )}
+        {failed.length > 0 && (
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+              <AlertTriangle size={16} strokeWidth={2} />
+              {failed.length} fatura(s) onde o parser falhou
+            </h2>
+            <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+              Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
+            </p>
+            <ImportsTable data={failed} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+          </section>
+        )}
 
-      {/* Sprint 163b: tabs Pendentes vs Histórico (Approved/Rejected). */}
-      <section className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex items-center gap-1 border-b border-zinc-200 p-2 dark:border-zinc-800">
-          <button
-            type="button"
-            onClick={() => setTab('pending')}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === 'pending' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
-          >
-            Pendentes ({ready.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('history')}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === 'history' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
-          >
-            Histórico {history.data ? `(${history.data.length})` : ''}
-          </button>
-        </div>
+        {/* Sprint 163b: tabs Pendentes vs Histórico (Approved/Rejected). */}
+        <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="border-b border-zinc-200 p-2 dark:border-zinc-800">
+            <ViewTabs
+              value={tab}
+              onChange={(value) => setTab(value as 'pending' | 'history')}
+              tabs={[
+                { key: 'pending', label: 'Pendentes', meta: ready.length },
+                { key: 'history', label: 'Histórico', meta: history.data?.length },
+              ]}
+              className="border-0 bg-transparent p-0 dark:bg-transparent"
+            />
+          </div>
 
-        <div className="p-4">
-          {tab === 'pending' ? (
-            pending.isLoading ? (
-              <div className="py-8 text-center text-sm text-zinc-500">A carregar…</div>
-            ) : ready.length === 0 && failed.length === 0 ? (
-              <div className="py-8 text-center text-sm text-zinc-500">
-                Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
-              </div>
-            ) : ready.length > 0 ? (
-              <ImportsTable data={ready} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
-            ) : null
-          ) : (
-            history.isLoading ? (
-              <div className="py-8 text-center text-sm text-zinc-500">A carregar histórico…</div>
-            ) : (history.data?.length ?? 0) === 0 ? (
-              <div className="py-8 text-center text-sm text-zinc-500">Sem histórico ainda.</div>
+          <div className="p-4">
+            {tab === 'pending' ? (
+              pending.isLoading ? (
+                <div className="py-8 text-center text-sm text-zinc-500">A carregar…</div>
+              ) : ready.length === 0 && failed.length === 0 ? (
+                <div className="py-8 text-center text-sm text-zinc-500">
+                  Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
+                </div>
+              ) : ready.length > 0 ? (
+                <ImportsTable data={ready} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+              ) : null
             ) : (
-              <HistoryTable
-                data={history.data!}
-                onPdf={openPdf}
-                onReprocess={(id) => reprocess.mutate(id)}
-                reprocessing={reprocess.isPending}
-              />
-            )
-          )}
-        </div>
-      </section>
-
+              history.isLoading ? (
+                <div className="py-8 text-center text-sm text-zinc-500">A carregar histórico…</div>
+              ) : (history.data?.length ?? 0) === 0 ? (
+                <div className="py-8 text-center text-sm text-zinc-500">Sem histórico ainda.</div>
+              ) : (
+                <HistoryTable
+                  data={history.data!}
+                  onPdf={openPdf}
+                  onReprocess={(id) => reprocess.mutate(id)}
+                  reprocessing={reprocess.isPending}
+                />
+              )
+            )}
+          </div>
+        </section>
       </DetailWorkspace>
 
       {approveTarget && (
