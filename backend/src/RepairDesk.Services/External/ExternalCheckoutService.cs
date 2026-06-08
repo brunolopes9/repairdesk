@@ -337,6 +337,9 @@ public class ExternalCheckoutService : IExternalCheckoutService
         // Sprint 132: filter in-memory (lowStock + Sprint 154 updatedAfter). Catálogo refurbished
         // tipicamente <500 items. Promover ao SQL se Bruno chegar a milhares.
         var query = items.AsEnumerable();
+        // Sprint 530 (contrato shop): a montra só mostra A+/A/B+/B (A++→A+). Selado/C+/C nunca vão
+        // para a loja, mesmo que MostrarLojaOnline esteja ligado — "os restantes elimina" (Bruno).
+        query = query.Where(p => RepairDesk.Services.Products.ProductGradingMapper.IsShopGrade(p.Grade));
         if (lowStockOnly) query = query.Where(p => p.StockMinima > 0 && p.StockQuantity <= p.StockMinima);
         if (updatedAfter is { } cutoff) query = query.Where(p => (p.UpdatedAt ?? p.CreatedAt) > cutoff);
         var dtos = query.Select(ToExternalProductDto).ToList();
@@ -347,7 +350,9 @@ public class ExternalCheckoutService : IExternalCheckoutService
     {
         if (string.IsNullOrWhiteSpace(slug) || slug.Length > 200) return null;
         var p = await _products.FindBySlugAsync(slug, ct);
-        if (p is null || !p.Active || !p.MostrarLojaOnline) return null;
+        // Sprint 530: detalhe da loja respeita o mesmo contrato de graus que a listagem (A+/A/B+/B).
+        if (p is null || !p.Active || !p.MostrarLojaOnline
+            || !RepairDesk.Services.Products.ProductGradingMapper.IsShopGrade(p.Grade)) return null;
         return ToExternalProductDto(p);
     }
 
@@ -377,10 +382,11 @@ public class ExternalCheckoutService : IExternalCheckoutService
         // Sprint 197: 2D origin+grade — loja deve usar isto em vez do grading legacy.
         Origin: RepairDesk.Services.Products.ProductGradingMapper.OriginCanonical(p.Origin),
         OriginLabel: RepairDesk.Services.Products.ProductGradingMapper.OriginLabelPt(p.Origin),
-        Grade: RepairDesk.Services.Products.ProductGradingMapper.GradeCanonical(p.Grade),
-        GradeSlug: RepairDesk.Services.Products.ProductGradingMapper.GradeSlug(p.Grade),
-        GradeLabel: RepairDesk.Services.Products.ProductGradingMapper.GradeLabelPt(p.Grade),
-        ConditionCombined: RepairDesk.Services.Products.ProductGradingMapper.ComposedLabelPt(p.Origin, p.Grade),
+        // Sprint 530 (contrato shop): a loja só conhece 4 graus — A++ colapsa em A+ (NormalizeShopGrade).
+        Grade: RepairDesk.Services.Products.ProductGradingMapper.GradeCanonical(RepairDesk.Services.Products.ProductGradingMapper.NormalizeShopGrade(p.Grade)),
+        GradeSlug: RepairDesk.Services.Products.ProductGradingMapper.GradeSlug(RepairDesk.Services.Products.ProductGradingMapper.NormalizeShopGrade(p.Grade)),
+        GradeLabel: RepairDesk.Services.Products.ProductGradingMapper.GradeLabelPt(RepairDesk.Services.Products.ProductGradingMapper.NormalizeShopGrade(p.Grade)),
+        ConditionCombined: RepairDesk.Services.Products.ProductGradingMapper.ComposedLabelPt(p.Origin, RepairDesk.Services.Products.ProductGradingMapper.NormalizeShopGrade(p.Grade)),
         SupplierGrade: p.SupplierGrade,
         SupplyType: p.SupplyType.ToString(),
         PriceCents: p.PriceCents, StockQuantity: p.StockQuantity,

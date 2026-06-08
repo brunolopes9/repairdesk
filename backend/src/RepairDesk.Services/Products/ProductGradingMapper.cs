@@ -94,6 +94,18 @@ public static class ProductGradingMapper
         _ => g.ToString(),
     };
 
+    /// <summary>
+    /// Sprint 530 (contrato shop): a montra online trabalha SÓ em 4 graus — A+/A/B+/B. Decisão do
+    /// Bruno: "aceito A+ A B+ B do Molano, os restantes elimina". O A++ (open-box) colapsa em A+
+    /// (Premium, sem badge open-box); Selado/C+/C NÃO são publicáveis (ver <see cref="IsShopGrade"/>).
+    /// </summary>
+    public static ProductGrade NormalizeShopGrade(ProductGrade g)
+        => g == ProductGrade.APlusPlus ? ProductGrade.APlus : g;
+
+    /// <summary>Sprint 530: graus que podem ir para a loja online (A++→A+, A, B+, B). Selado/C+/C ficam de fora.</summary>
+    public static bool IsShopGrade(ProductGrade g)
+        => g is ProductGrade.APlusPlus or ProductGrade.APlus or ProductGrade.A or ProductGrade.BPlus or ProductGrade.B;
+
     /// <summary>Sprint 202: URL-safe slug do grade. '++' literal quebra parsers HTTP
     /// (?grade=A++ → 'A   ' após URL decode). Loja deve usar isto em URLs, breadcrumbs
     /// e Google Shopping feeds. GradeCanonical mantém-se para display.</summary>

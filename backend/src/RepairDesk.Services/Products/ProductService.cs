@@ -475,10 +475,11 @@ public class ProductService : IProductService
             // Sprint 197: 2D classification — loja deve usar isto em vez do grading legacy.
             origin = product.Origin.ToString().ToLowerInvariant(),
             originLabel = ProductGradingMapper.OriginLabelPt(product.Origin),
-            grade = ProductGradingMapper.GradeCanonical(product.Grade),
-            gradeSlug = ProductGradingMapper.GradeSlug(product.Grade),
-            gradeLabel = ProductGradingMapper.GradeLabelPt(product.Grade),
-            conditionCombined = ProductGradingMapper.ComposedLabelPt(product.Origin, product.Grade),
+            // Sprint 530 (contrato shop): a loja só conhece 4 graus — A++ colapsa em A+ (NormalizeShopGrade).
+            grade = ProductGradingMapper.GradeCanonical(ProductGradingMapper.NormalizeShopGrade(product.Grade)),
+            gradeSlug = ProductGradingMapper.GradeSlug(ProductGradingMapper.NormalizeShopGrade(product.Grade)),
+            gradeLabel = ProductGradingMapper.GradeLabelPt(ProductGradingMapper.NormalizeShopGrade(product.Grade)),
+            conditionCombined = ProductGradingMapper.ComposedLabelPt(product.Origin, ProductGradingMapper.NormalizeShopGrade(product.Grade)),
             // Sprint 305+307: grade exacto como veio do fornecedor (B+/C+/AB/A Premium/etc).
             // Shop usa: supplierGrade ?? grade ?? gradingCanonical (lookup priority).
             // Permite ao shop saber que "B+" canonical veio de "AB" (decisão Mender) vs "B+" original.
@@ -489,7 +490,9 @@ public class ProductService : IProductService
             isDropship = product.SupplyType == ProductSupplyType.Dropship,
             dropshipSupplierCode = product.Fornecedor?.Code,
             dropshipSupplierSku = product.DropshipSupplierSku,
-            publishToShop = product.MostrarLojaOnline,
+            // Sprint 530: só publicável na loja se for grau de loja (A+/A/B+/B). Selado/C+/C → false,
+            // mesmo com MostrarLojaOnline ligado ("os restantes elimina" — Bruno).
+            publishToShop = product.MostrarLojaOnline && ProductGradingMapper.IsShopGrade(product.Grade),
             shopSlug = product.Slug,
             shopSeoTitle = product.SeoTitle,
             shopSeoDescription = product.SeoDescription,
