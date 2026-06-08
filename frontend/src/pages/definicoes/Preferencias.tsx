@@ -4,6 +4,7 @@ import { CalendarClock, CheckCircle2, Eye, Loader2, MessageCircle, RotateCcw, Sh
 import { Button } from '../../components/ui/Button';
 import { BackButton, SkeletonCard } from '../../components/ui';
 import { StaffPushToggle } from '../../components/StaffPushToggle';
+import { ShopConditionImagesSection } from './ShopConditionImagesSection';
 import { toast } from '../../lib/toast';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import type {
@@ -436,6 +437,9 @@ export default function Preferencias() {
           </div>
         )}
       </section>
+
+      {/* Sprint 531: imagens por estado de condição da loja online (Mender = SSoT). */}
+      <ShopConditionImagesSection />
     </div>
   );
 }
