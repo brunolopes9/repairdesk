@@ -418,6 +418,8 @@ public class VendaServiceTests
             => Task.FromResult(true);
         public Task<IReadOnlyList<MoloniDocumentRow>> ListDocumentsAsync(TenantBillingSettings settings, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<MoloniDocumentRow>>(System.Array.Empty<MoloniDocumentRow>());
+        public Task<MoloniReceiptResult> InsertReceiptAsync(TenantBillingSettings settings, int customerId, int documentId, int valueCents, string? notes, CancellationToken ct = default)
+            => Task.FromResult(new MoloniReceiptResult(1, "RG/1"));
     }
 
     private sealed class FakeInvoiceXpressNoOp : IInvoiceXpressClient

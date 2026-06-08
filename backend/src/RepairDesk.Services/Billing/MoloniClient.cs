@@ -730,7 +730,8 @@ public class MoloniClient : IMoloniClient
                     ToCents(GetDecimalAny(item, "gross_value")),
                     ToCents(GetDecimalAny(item, "net_value")),
                     ToCents(GetDecimalAny(item, "taxes_value")),
-                    GetIntAny(item, "status")));
+                    GetIntAny(item, "status"),
+                    GetIntAny(item, "customer_id")));
             }
 
             if (batch.Count < pageSize) break;
@@ -739,6 +740,56 @@ public class MoloniClient : IMoloniClient
 
         _logger.LogInformation("Moloni documents/getAll: {Count} documentos para tenant {TenantId}", rows.Count, settings.TenantId);
         return rows;
+    }
+
+    public async Task<MoloniReceiptResult> InsertReceiptAsync(TenantBillingSettings settings, int customerId, int documentId, int valueCents, string? notes, CancellationToken ct = default)
+    {
+        EnsureMoloniBasics(settings);
+        if (customerId <= 0)
+            throw new BillingProviderException("moloni_receipt_no_customer",
+                "Esta fatura não tem cliente Moloni associado — não é possível emitir recibo. (Faturas a consumidor final sem NIF não geram dívida.)");
+        if (documentId <= 0)
+            throw new BillingProviderException("moloni_receipt_no_document", "Documento Moloni inválido.");
+        if (valueCents <= 0)
+            throw new BillingProviderException("moloni_receipt_no_value", "Valor do recibo tem de ser positivo.");
+
+        // 2 casas decimais — consistente com o resto dos payloads Moloni (evita mismatch de subtotais).
+        var value = Math.Round(valueCents / 100m, 2, MidpointRounding.AwayFromZero);
+        var payload = new Dictionary<string, object?>
+        {
+            ["company_id"] = settings.CompanyId!.Value,
+            ["customer_id"] = customerId,
+            ["date"] = DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["net_value"] = value,
+            // Sprint 527: liga o recibo à fatura em dívida. SEM 'payments' → o Moloni adiciona
+            // automaticamente o pagamento pelo valor total (a doc da API confirma) — evita o
+            // mismatch payments.value que dava "Database error".
+            ["associated_documents"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["associated_id"] = documentId,
+                    ["value"] = value,
+                },
+            },
+        };
+        if (!string.IsNullOrWhiteSpace(notes)) payload["notes"] = notes;
+
+        var insert = await PostAsync<JsonElement>(settings, "receipts/insert", payload, ct);
+        var receiptId = GetIntAny(insert, "document_id", "receipt_id", "valid_id");
+        if (receiptId <= 0)
+        {
+            var rawJson = insert.GetRawText();
+            _logger.LogError("Moloni receipts/insert sem id. PAYLOAD: {Payload} | JSON cru: {Json}",
+                JsonSerializer.Serialize(payload, JsonOptions), rawJson);
+            throw new BillingProviderException(
+                "moloni_receipt_failed",
+                $"A Moloni recusou o recibo. Resposta: {(rawJson.Length > 300 ? rawJson[..300] + "…" : rawJson)}");
+        }
+
+        _logger.LogInformation("Recibo Moloni {ReceiptId} emitido p/ doc {DocumentId} (cliente {CustomerId}, {Value}€)",
+            receiptId, documentId, customerId, value);
+        return new MoloniReceiptResult(receiptId, $"Recibo #{receiptId}");
     }
 
     private static DateTime ParseMoloniDate(string? value)

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Receipt, Banknote, Percent, FileText, Download, ExternalLink, Search, FilePlus, ChevronRight, ChevronDown } from 'lucide-react';
 import { KpiCard } from '../../components/ui';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { downloadFile } from '../../lib/downloadPdf';
+import { toast } from '../../lib/toast';
 import { documentosApi } from '../../lib/documentos/api';
 import type { DocumentoDto } from '../../lib/documentos/types';
 import NovaFaturaModal from '../../components/documentos/NovaFaturaModal';
@@ -181,8 +182,23 @@ export default function Documentos() {
  */
 function DocumentoRow({ d }: { d: DocumentoDto }) {
   const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
   const origemHref = ORIGEM_LINK[d.origem]?.(d.id);
   const origemLabel = `${ORIGEM_LABEL[d.origem] ?? d.origem}${d.numeroInterno > 0 ? ` #${d.numeroInterno}` : ''}`;
+
+  // Sprint 527: só a Fatura pura (FT) activa pode estar "em dívida" → emitir recibo de liquidação.
+  const podeEmitirRecibo = d.tipoCodigo === 'FT' && d.estado === 'Ativo' && !!d.externalId;
+  const emitirRecibo = useMutation({
+    mutationFn: () => documentosApi.emitirRecibo(Number(d.externalId)),
+    onSuccess: (r) => {
+      toast.success(`Recibo emitido — fatura ${d.numero ?? ''} liquidada (${formatCents(r.valorCents)}).`);
+      qc.invalidateQueries({ queryKey: ['documentos-vendas'] });
+    },
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string; title?: string } } })?.response?.data;
+      toast.error(detail?.detail ?? detail?.title ?? 'Não foi possível emitir o recibo.');
+    },
+  });
   return (
     <>
       <tr
@@ -248,6 +264,20 @@ function DocumentoRow({ d }: { d: DocumentoDto }) {
                 <div className="text-zinc-600 dark:text-zinc-300">Base {formatCents(d.baseCents)} · IVA {formatCents(d.ivaCents)}</div>
                 <div className="font-semibold">Total {formatCents(d.totalCents)}</div>
                 <div className="mt-0.5 text-xs text-zinc-500">Estado: {d.estado}</div>
+                {podeEmitirRecibo && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Emitir um Recibo que liquida a fatura ${d.numero ?? ''} (${formatCents(d.totalCents)})?\n\nSó deves fazer isto se a fatura ainda está em dívida.`))
+                        emitirRecibo.mutate();
+                    }}
+                    disabled={emitirRecibo.isPending}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                    title="Liquida a fatura a crédito emitindo um Recibo no Moloni"
+                  >
+                    <Receipt size={13} /> {emitirRecibo.isPending ? 'A emitir…' : 'Emitir recibo'}
+                  </button>
+                )}
               </div>
             </div>
           </td>

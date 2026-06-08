@@ -20,4 +20,14 @@ export const documentosApi = {
     const qs = p.toString();
     return `/documentos/vendas/export.csv${qs ? `?${qs}` : ''}`;
   },
+  /** Sprint 527: emite um Recibo Moloni que liquida uma Fatura a crédito (em dívida). */
+  emitirRecibo(documentId: number) {
+    return api.post<ReciboResult>(`/documentos/${documentId}/recibo`).then((r) => r.data);
+  },
 };
+
+export interface ReciboResult {
+  receiptId: number;
+  numero: string | null;
+  valorCents: number;
+}
