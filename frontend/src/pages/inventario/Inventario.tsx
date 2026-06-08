@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, ClipboardList, Download, Loader2, Play, Search, X } from 'lucide-react';
-import { Button } from '../../components/ui/Button';
+import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader } from '../../components/ui';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { toast } from '../../lib/toast';
 import { apiErrorMessage } from '../../lib/errors';
@@ -42,29 +42,22 @@ export default function Inventario() {
   if (!current.data) {
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <ClipboardList size={24} /> Inventário físico
-          </h1>
-          <p className="text-sm text-zinc-500">Contagem da prateleira para reconciliar com o stock do sistema.</p>
-        </div>
+        <PageHeader
+          title="Inventário físico"
+          description="Contagem da prateleira para reconciliar o stock real com o sistema."
+          meta={<span className="text-sm text-zinc-500">Stock</span>}
+        />
 
-        <div className="rounded-xl border border-dashed border-zinc-300 p-10 text-center dark:border-zinc-700">
-          <ClipboardList className="mx-auto mb-3 text-zinc-400" size={36} />
-          <h2 className="text-base font-semibold">Nenhum inventário aberto</h2>
-          <p className="mt-1 max-w-md mx-auto text-sm text-zinc-500">
-            Iniciar cria uma sessão com todas as peças activas. Vais contar cada uma e,
-            no fim, fechar para gerar os ajustes de stock automaticamente.
-          </p>
-          <Button
-            className="mt-4"
-            leftIcon={<Play size={16} />}
-            onClick={() => open.mutate()}
-            loading={open.isPending}
-          >
-            Iniciar inventário
-          </Button>
-        </div>
+        <EmptyState
+          icon={ClipboardList}
+          title="Nenhum inventário aberto"
+          description="Iniciar cria uma sessão com todas as peças activas. Vais contar cada uma e fechar no fim para gerar ajustes de stock automaticamente."
+          action={(
+            <Button leftIcon={<Play size={16} />} onClick={() => open.mutate()} loading={open.isPending}>
+              Iniciar inventário
+            </Button>
+          )}
+        />
       </div>
     );
   }
@@ -127,100 +120,120 @@ function StockTakeBoard({
   });
 
   const pct = stockTake.totalItems > 0 ? Math.round((stockTake.contadosCount / stockTake.totalItems) * 100) : 0;
+  const remainingCount = Math.max(0, stockTake.totalItems - stockTake.contadosCount);
+  const rail = (
+    <InspectorRail>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Sessão</p>
+        <h2 className="mt-1 text-base font-semibold text-zinc-950 dark:text-zinc-50">Fecho do inventário</h2>
+        <p className="mt-1 text-sm text-zinc-500">Confirma o progresso antes de aplicar ajustes definitivos ao stock.</p>
+      </div>
 
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <ClipboardList size={24} /> Inventário em curso
-          </h1>
-          <p className="text-sm text-zinc-500">
-            Iniciado em {new Date(stockTake.openedAt).toLocaleString('pt-PT')} · {stockTake.totalItems} peças
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {/* Sprint 434: export CSV — para contabilista / arquivo. */}
-          <Button
-            variant="secondary"
-            leftIcon={<Download size={15} />}
-            onClick={() =>
-              downloadFile(stockTakesApi.exportCsvPath(stockTake.id), `inventario_${stockTake.id.slice(0, 8)}.csv`)
-                .then(() => toast.success('CSV exportado.'))
-                .catch((e) => toast.error(e instanceof Error ? e.message : 'Erro ao exportar.'))
-            }
-          >
-            Exportar CSV
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              if (await confirm({ title: 'Cancelar inventário?', description: 'Vais perder todas as contagens registadas. Esta acção não pode ser desfeita.', confirmLabel: 'Cancelar inventário', destructive: true })) {
-                cancel.mutate();
-              }
-            }}
-            loading={cancel.isPending}
-          >
-            Cancelar
-          </Button>
-          <Button
-            disabled={stockTake.contadosCount === 0}
-            onClick={() => setCloseOpen(true)}
-            leftIcon={<CheckCircle2 size={16} />}
-          >
-            Fechar e aplicar ajustes
-          </Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Stat label="Contadas" value={`${stockTake.contadosCount} (${pct}%)`} accent="emerald" compact />
+        <Stat label="Por contar" value={remainingCount} accent={remainingCount > 0 ? 'amber' : 'zinc'} compact />
+        <div className="col-span-2">
+          <Stat label="Diferenças" value={stockTake.diferencasCount} accent={stockTake.diferencasCount > 0 ? 'amber' : 'zinc'} compact />
         </div>
       </div>
 
-      {/* Progresso */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="Total de peças" value={stockTake.totalItems} />
-        <Stat label="Contadas" value={`${stockTake.contadosCount} (${pct}%)`} accent="emerald" />
-        <Stat label="Diferenças" value={stockTake.diferencasCount} accent={stockTake.diferencasCount > 0 ? 'amber' : 'zinc'} />
-      </div>
       <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
         <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-zinc-400" />
-          <input
-            className="w-full rounded-lg border border-zinc-200 bg-white pl-8 pr-3 py-2 text-sm outline-none focus:border-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
-            placeholder="Procurar por nome, SKU, marca, modelo, localização…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+      {remainingCount > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+          <AlertTriangle size={16} className="mr-2 inline" />
+          Ainda tens {remainingCount} peça(s) por contar. Se fechares agora, essas mantêm o stock atual.
         </div>
-        <label className="inline-flex items-center gap-1.5 text-xs">
-          <input type="checkbox" checked={onlyPending} onChange={(e) => { setOnlyPending(e.target.checked); if (e.target.checked) setOnlyDiffs(false); }} />
-          Por contar
-        </label>
-        <label className="inline-flex items-center gap-1.5 text-xs">
-          <input type="checkbox" checked={onlyDiffs} onChange={(e) => { setOnlyDiffs(e.target.checked); if (e.target.checked) setOnlyPending(false); }} />
-          Só diferenças
-        </label>
-      </div>
+      ) : (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
+          Todas as peças foram contadas. Pronto para fechar e aplicar ajustes.
+        </div>
+      )}
 
-      {/* Tabela */}
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="grid grid-cols-[1fr_90px_100px_100px_80px] gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">
-          <div>Peça</div>
-          <div className="text-right">Sistema</div>
-          <div className="text-right">Contado</div>
-          <div className="text-right">Diferença</div>
-          <div />
-        </div>
-        {filtered.length === 0 && (
-          <div className="px-3 py-6 text-center text-sm text-zinc-500">Sem resultados para os filtros atuais.</div>
+      <Button
+        className="w-full"
+        disabled={stockTake.contadosCount === 0}
+        onClick={() => setCloseOpen(true)}
+        leftIcon={<CheckCircle2 size={16} />}
+      >
+        Fechar e aplicar ajustes
+      </Button>
+    </InspectorRail>
+  );
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Inventário em curso"
+        description={`Iniciado em ${new Date(stockTake.openedAt).toLocaleString('pt-PT')} · ${stockTake.totalItems} peças`}
+        meta={<span className="text-sm text-zinc-500">Sessão ativa</span>}
+        actions={(
+          <>
+            <Button
+              variant="secondary"
+              leftIcon={<Download size={15} />}
+              onClick={() =>
+                downloadFile(stockTakesApi.exportCsvPath(stockTake.id), `inventario_${stockTake.id.slice(0, 8)}.csv`)
+                  .then(() => toast.success('CSV exportado.'))
+                  .catch((e) => toast.error(e instanceof Error ? e.message : 'Erro ao exportar.'))
+              }
+            >
+              Exportar CSV
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                if (await confirm({ title: 'Cancelar inventário?', description: 'Vais perder todas as contagens registadas. Esta acção não pode ser desfeita.', confirmLabel: 'Cancelar inventário', destructive: true })) {
+                  cancel.mutate();
+                }
+              }}
+              loading={cancel.isPending}
+            >
+              Cancelar
+            </Button>
+          </>
         )}
-        {filtered.map((item) => (
-          <Row key={item.id} item={item} stockTakeId={stockTake.id} onReload={onReload} />
-        ))}
-      </div>
+      />
+
+      <DetailWorkspace rail={rail}>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="relative min-w-[220px] flex-1">
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-zinc-400" />
+            <input
+              className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-8 pr-3 text-sm outline-none focus:border-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
+              placeholder="Procurar por nome, SKU, marca, modelo, localização…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <label className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:border-zinc-800">
+            <input type="checkbox" checked={onlyPending} onChange={(e) => { setOnlyPending(e.target.checked); if (e.target.checked) setOnlyDiffs(false); }} />
+            Por contar
+          </label>
+          <label className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:border-zinc-800">
+            <input type="checkbox" checked={onlyDiffs} onChange={(e) => { setOnlyDiffs(e.target.checked); if (e.target.checked) setOnlyPending(false); }} />
+            Só diferenças
+          </label>
+        </div>
+
+        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="grid grid-cols-[1fr_90px_100px_100px_80px] gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">
+            <div>Peça</div>
+            <div className="text-right">Sistema</div>
+            <div className="text-right">Contado</div>
+            <div className="text-right">Diferença</div>
+            <div />
+          </div>
+          {filtered.length === 0 && (
+            <div className="px-3 py-6 text-center text-sm text-zinc-500">Sem resultados para os filtros atuais.</div>
+          )}
+          {filtered.map((item) => (
+            <Row key={item.id} item={item} stockTakeId={stockTake.id} onReload={onReload} />
+          ))}
+        </div>
+      </DetailWorkspace>
 
       {closeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setCloseOpen(false)}>
@@ -317,14 +330,24 @@ function Row({ item, stockTakeId, onReload }: { item: StockTakeItem; stockTakeId
   );
 }
 
-function Stat({ label, value, accent = 'zinc' }: { label: string; value: number | string; accent?: 'zinc' | 'emerald' | 'amber' }) {
+function Stat({
+  label,
+  value,
+  accent = 'zinc',
+  compact = false,
+}: {
+  label: string;
+  value: number | string;
+  accent?: 'zinc' | 'emerald' | 'amber';
+  compact?: boolean;
+}) {
   const accentCls = accent === 'emerald' ? 'text-emerald-700 dark:text-emerald-400'
     : accent === 'amber' ? 'text-amber-700 dark:text-amber-400'
     : 'text-zinc-700 dark:text-zinc-200';
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className={`rounded-lg border border-zinc-200 bg-white ${compact ? 'p-2.5' : 'p-3'} dark:border-zinc-800 dark:bg-zinc-900`}>
       <div className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</div>
-      <div className={`mt-1 text-xl font-semibold tabular-nums ${accentCls}`}>{value}</div>
+      <div className={`mt-1 ${compact ? 'text-lg' : 'text-xl'} font-semibold tabular-nums ${accentCls}`}>{value}</div>
     </div>
   );
 }

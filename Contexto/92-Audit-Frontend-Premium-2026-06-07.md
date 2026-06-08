@@ -37,6 +37,29 @@ excessivo e esconde o que interessa: estado, proxima acao, cliente, pagamento e 
   caixa sem tocar na logica critica de cobranca.
 - `Trabalhos.tsx` alinhado ao workspace com tabs, filtros compactos e rail de pipeline para valor
   previsto, trabalhos abertos/concluidos e pendencias de fatura.
+- `AprovadasTab.tsx` alinhado ao workspace financeiro partilhado por `/despesas` e `/compras`,
+  com filtros agrupados, lista compacta e rail lateral para totais, recorrentes, COGS/ligacoes e
+  categorias da vista.
+- `ComprasTabs.tsx` passou a usar `ViewTabs`, removendo labels com encoding partido e aproximando
+  `/compras` do mesmo contrato visual das restantes areas operacionais.
+- `PorAprovarTab.tsx` ganhou rail lateral de triagem de faturas fornecedor, cabecalho compacto,
+  uploads com `Button`, export trimestral numa faixa operacional e tabs internas com `ViewTabs`.
+- `Workspace.tsx` passou a mostrar meta `0` nas tabs, evitando estados invisiveis quando a contagem
+  e zero.
+- `ComprasOperacao.tsx` passou para `PageHeader` + `DetailWorkspace`, mantendo KPIs no topo e
+  movendo acoes/alertas/resumo mensal para um rail lateral unico; tabs da inbox usam `ViewTabs`.
+- `Inventario.tsx` reorganizado com `PageHeader`, estado vazio em `EmptyState` e contagem em
+  `DetailWorkspace`: filtros/tabela ficam no foco principal e progresso, risco e fecho da sessao
+  ficam no rail lateral.
+- `Dashboard.tsx` ganhou um cockpit inicial em `DetailWorkspace`: o topo fica com 3 prioridades
+  reais e um rail "Comando diario" com alertas, valor a receber, tempo medio, ETAs e tarefas.
+- `Agendamentos.tsx` passou a usar `DetailWorkspace` com rail lateral de agenda, separando o
+  calendario/lista do contexto operacional da semana e da subscricao externa.
+- `Tarefas.tsx` foi limpo e alinhado ao mesmo workspace: criacao inline compacta, tabs com
+  `ViewTabs`, lista dentro de painel unico e rail lateral com atrasos, prazos e ligacoes a
+  reparacoes.
+- `Fornecedores.tsx` passou para lista principal + rail B2B: metricas de activos, RMA,
+  intra-UE e garantias, com o filtro de inactivos fora da tabela e contexto fiscal mais visivel.
 - Frontend build validado com `npm run build`.
 
 ## Evidencia no codigo

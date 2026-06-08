@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Inbox, FileText, CheckCircle2, XCircle, AlertTriangle, Download } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Download, FileText, Inbox, Upload, XCircle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest, type ApproveAsStockItem } from '../../lib/supplierInvoices/api';
 import { formatCents } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
 import Modal from '../../components/Modal';
+import { Button, DetailWorkspace, InspectorRail, ViewTabs } from '../../components/ui';
 
 const inputCls = 'mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950';
 
@@ -138,17 +139,55 @@ export default function PorAprovarTab() {
   const data = pending.data ?? [];
   const failed = data.filter((d) => d.status === 'Failed');
   const ready = data.filter((d) => d.status === 'Pending');
+  const pendingTotalCents = data.reduce((sum, item) => sum + (item.totalCents ?? 0), 0);
+  const inboxRail = (
+    <InspectorRail>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Inbox fornecedor</p>
+        <h3 className="mt-1 text-base font-semibold text-zinc-950 dark:text-zinc-50">Triagem de faturas</h3>
+        <p className="mt-1 text-sm text-zinc-500">
+          Prioriza falhas do parser, depois aprova linhas para stock ou despesa sem perder o rasto do PDF.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <Inbox size={16} className="mb-3 text-brand-600" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Pendentes</p>
+          <p className="mt-1 text-lg font-semibold text-zinc-950 dark:text-zinc-50">{ready.length}</p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <AlertTriangle size={16} className="mb-3 text-amber-600" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Com falha</p>
+          <p className="mt-1 text-lg font-semibold text-zinc-950 dark:text-zinc-50">{failed.length}</p>
+        </div>
+        <div className="col-span-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <Download size={16} className="mb-3 text-emerald-600" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Valor detetado</p>
+          <p className="mt-1 text-lg font-semibold text-zinc-950 dark:text-zinc-50">{formatCents(pendingTotalCents)}</p>
+          <p className="mt-1 text-xs text-zinc-500">Soma apenas os PDFs com total extraido.</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg bg-zinc-950 p-3 text-sm text-white dark:bg-zinc-50 dark:text-zinc-950">
+        Usa esta inbox como mesa de revisao: PDF, parser, classificacao, aprovacao e export para contabilista.
+      </div>
+    </InspectorRail>
+  );
 
   return (
     <div className="space-y-4">
-      <header className="space-y-2">
+      <header className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Inbox size={24} strokeWidth={2} />
-            Importações de Fornecedor
-          </h1>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Compras</p>
+            <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold text-zinc-950 dark:text-zinc-50">
+              <Inbox size={22} strokeWidth={2} className="text-brand-600" />
+              Importações de Fornecedor
+            </h1>
+          </div>
           {/* Sprint 160c + 164: upload manual PDF / foto papel. */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -170,24 +209,26 @@ export default function PorAprovarTab() {
                 if (file) uploadPhoto.mutate(file);
               }}
             />
-            <button
+            <Button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={upload.isPending}
-              className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              loading={upload.isPending}
+              variant="secondary"
+              leftIcon={<Upload size={15} />}
               title="Upload manual de PDF (sem precisar de n8n IMAP)"
             >
-              {upload.isPending ? 'A processar…' : '📎 PDF'}
-            </button>
-            <button
+              PDF
+            </Button>
+            <Button
               type="button"
               onClick={() => photoInputRef.current?.click()}
-              disabled={uploadPhoto.isPending}
-              className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              loading={uploadPhoto.isPending}
+              variant="primary"
+              leftIcon={<Camera size={15} />}
               title="Foto papel — Claude Vision faz OCR (mobile: usa câmara directamente)"
             >
-              {uploadPhoto.isPending ? 'OCR…' : '📷 Foto papel'}
-            </button>
+              Foto papel
+            </Button>
           </div>
         </div>
         <p className="text-sm text-zinc-500">
@@ -197,93 +238,89 @@ export default function PorAprovarTab() {
       </header>
 
       {/* Export ZIP para contabilista */}
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Download size={16} strokeWidth={2} />
-          Export trimestral para contabilista
-        </h2>
-        <p className="mt-1 text-xs text-zinc-500">
-          ZIP com todas as facturas aprovadas no período. Estrutura: <code>ano/mês/fornecedor/fatura.pdf</code>.
-        </p>
-        <div className="mt-3 flex flex-wrap items-end gap-2">
-          <label className="text-xs">
-            <span className="block text-zinc-500">De</span>
-            <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className={inputCls} />
-          </label>
-          <label className="text-xs">
-            <span className="block text-zinc-500">Até</span>
-            <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className={inputCls} />
-          </label>
-          <button
-            type="button"
-            onClick={downloadZip}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
-            Descarregar ZIP
-          </button>
+      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+              <Download size={16} strokeWidth={2} className="text-emerald-600" />
+              Export trimestral para contabilista
+            </h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              ZIP com todas as facturas aprovadas no período. Estrutura: <code>ano/mês/fornecedor/fatura.pdf</code>.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[150px_150px_auto]">
+            <label className="text-xs">
+              <span className="block text-zinc-500">De</span>
+              <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className={inputCls} />
+            </label>
+            <label className="text-xs">
+              <span className="block text-zinc-500">Até</span>
+              <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className={inputCls} />
+            </label>
+            <Button type="button" onClick={downloadZip} leftIcon={<Download size={15} />} className="self-end">
+              Descarregar ZIP
+            </Button>
+          </div>
         </div>
       </section>
 
-      {/* Falhadas — destaque vermelho */}
-      {failed.length > 0 && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
-            <AlertTriangle size={16} strokeWidth={2} />
-            {failed.length} fatura(s) onde o parser falhou
-          </h2>
-          <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
-            Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
-          </p>
-          <ImportsTable data={failed} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
-        </section>
-      )}
+      <DetailWorkspace rail={inboxRail}>
+        {failed.length > 0 && (
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+              <AlertTriangle size={16} strokeWidth={2} />
+              {failed.length} fatura(s) onde o parser falhou
+            </h2>
+            <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+              Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
+            </p>
+            <ImportsTable data={failed} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+          </section>
+        )}
 
-      {/* Sprint 163b: tabs Pendentes vs Histórico (Approved/Rejected). */}
-      <section className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex items-center gap-1 border-b border-zinc-200 p-2 dark:border-zinc-800">
-          <button
-            type="button"
-            onClick={() => setTab('pending')}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === 'pending' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
-          >
-            Pendentes ({ready.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('history')}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === 'history' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
-          >
-            Histórico {history.data ? `(${history.data.length})` : ''}
-          </button>
-        </div>
+        {/* Sprint 163b: tabs Pendentes vs Histórico (Approved/Rejected). */}
+        <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="border-b border-zinc-200 p-2 dark:border-zinc-800">
+            <ViewTabs
+              value={tab}
+              onChange={(value) => setTab(value as 'pending' | 'history')}
+              tabs={[
+                { key: 'pending', label: 'Pendentes', meta: ready.length },
+                { key: 'history', label: 'Histórico', meta: history.data?.length },
+              ]}
+              className="border-0 bg-transparent p-0 dark:bg-transparent"
+            />
+          </div>
 
-        <div className="p-4">
-          {tab === 'pending' ? (
-            pending.isLoading ? (
-              <div className="py-8 text-center text-sm text-zinc-500">A carregar…</div>
-            ) : ready.length === 0 && failed.length === 0 ? (
-              <div className="py-8 text-center text-sm text-zinc-500">
-                Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
-              </div>
-            ) : ready.length > 0 ? (
-              <ImportsTable data={ready} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
-            ) : null
-          ) : (
-            history.isLoading ? (
-              <div className="py-8 text-center text-sm text-zinc-500">A carregar histórico…</div>
-            ) : (history.data?.length ?? 0) === 0 ? (
-              <div className="py-8 text-center text-sm text-zinc-500">Sem histórico ainda.</div>
+          <div className="p-4">
+            {tab === 'pending' ? (
+              pending.isLoading ? (
+                <div className="py-8 text-center text-sm text-zinc-500">A carregar…</div>
+              ) : ready.length === 0 && failed.length === 0 ? (
+                <div className="py-8 text-center text-sm text-zinc-500">
+                  Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
+                </div>
+              ) : ready.length > 0 ? (
+                <ImportsTable data={ready} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+              ) : null
             ) : (
-              <HistoryTable
-                data={history.data!}
-                onPdf={openPdf}
-                onReprocess={(id) => reprocess.mutate(id)}
-                reprocessing={reprocess.isPending}
-              />
-            )
-          )}
-        </div>
-      </section>
+              history.isLoading ? (
+                <div className="py-8 text-center text-sm text-zinc-500">A carregar histórico…</div>
+              ) : (history.data?.length ?? 0) === 0 ? (
+                <div className="py-8 text-center text-sm text-zinc-500">Sem histórico ainda.</div>
+              ) : (
+                <HistoryTable
+                  data={history.data!}
+                  onPdf={openPdf}
+                  onReprocess={(id) => reprocess.mutate(id)}
+                  reprocessing={reprocess.isPending}
+                />
+              )
+            )}
+          </div>
+        </section>
+      </DetailWorkspace>
 
       {approveTarget && (
         <ApproveModal

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Inbox, Receipt, Banknote, FileDown, Plus, Upload, AlertTriangle, ArrowRight, Download } from 'lucide-react';
-import { KpiCard, SectionCard } from '../../components/ui';
+import { Button, DetailWorkspace, InspectorRail, KpiCard, PageHeader, SectionCard, ViewTabs } from '../../components/ui';
 import { liveListOptions } from '../../lib/queryOptions';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { downloadFile } from '../../lib/downloadPdf';
@@ -37,6 +37,7 @@ type Tab = 'inbox' | 'history';
  * (precisa de categorização completa); aqui a tabela faz triagem e liga ao detalhe.
  */
 export default function ComprasOperacao() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('inbox');
   const mesIso = useMemo(() => {
     const d = new Date();
@@ -82,23 +83,75 @@ export default function ComprasOperacao() {
 
   const rows = tab === 'inbox' ? inboxItems : (history.data ?? []);
   const loadingRows = tab === 'inbox' ? inbox.isLoading : history.isLoading;
+  const rail = (
+    <InspectorRail>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Operação</p>
+        <h2 className="mt-1 text-base font-semibold text-zinc-950 dark:text-zinc-50">Ações rápidas</h2>
+        <p className="mt-1 text-sm text-zinc-500">Atalhos para tratar documentos, lançar custos e entregar tudo ao contabilista.</p>
+      </div>
+
+      <div className="grid gap-2">
+        <Link to="/compras" className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-200 px-3 text-sm font-medium transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800">
+          <Upload size={15} /> Importar / enviar fatura
+        </Link>
+        <Link to="/despesas" className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-200 px-3 text-sm font-medium transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800">
+          <Plus size={15} /> Nova despesa / custo
+        </Link>
+        <button
+          type="button"
+          onClick={() => downloadFile(supplierInvoicesApi.exportZipPath(from, to), `compras_${from}_${to}.zip`)}
+          className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-200 px-3 text-left text-sm font-medium transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800"
+        >
+          <FileDown size={15} /> Export contabilista
+        </button>
+      </div>
+
+      {inboxItems.length > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} className="mt-0.5 flex-none" />
+            <span><strong>{inboxItems.length}</strong> fatura(s) por decidir no inbox — {formatCents(inboxValor)}.</span>
+          </div>
+          <Link to="/compras" className="mt-2 inline-flex text-xs font-semibold text-amber-800 underline-offset-2 hover:underline dark:text-amber-200">
+            Resolver agora
+          </Link>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
+          Inbox de compras limpo neste momento.
+        </div>
+      )}
+
+      <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Resumo do mês</h3>
+        <dl className="mt-3 space-y-2 text-sm">
+          <div className="flex justify-between gap-3"><dt className="text-zinc-500">Vendas faturadas</dt><dd className="font-medium tabular-nums">{formatCents(vendasFaturado)}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-zinc-500">Despesas/custos</dt><dd className="font-medium tabular-nums">{formatCents(totalDespesasMes)}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-zinc-500">Lançamentos</dt><dd className="font-medium tabular-nums">{despesasItems.length}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-zinc-500">Valor em inbox</dt><dd className="font-medium tabular-nums">{formatCents(inboxValor)}</dd></div>
+        </dl>
+      </div>
+    </InspectorRail>
+  );
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Compras e Operação</h1>
-          <p className="text-sm text-zinc-500">Faturas que chegam, compras em stock e custos operacionais — num só sítio.</p>
-        </div>
-        <div className="flex gap-2">
-          <Link to="/compras" className="flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-sm font-medium transition hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800">
-            <Upload size={15} /> Importar fatura
-          </Link>
-          <Link to="/despesas" className="flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700">
-            <Plus size={16} strokeWidth={2.5} /> Nova despesa
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Compras e Operação"
+        description="Centro financeiro diário: faturas de fornecedor, compras para stock, custos OpEx e vendas faturadas."
+        meta={<span className="text-sm text-zinc-500">Operação financeira</span>}
+        actions={(
+          <>
+            <Button type="button" variant="secondary" leftIcon={<Upload size={15} />} onClick={() => navigate('/compras')}>
+              Importar fatura
+            </Button>
+            <Button type="button" leftIcon={<Plus size={15} />} onClick={() => navigate('/despesas')}>
+              Nova despesa
+            </Button>
+          </>
+        )}
+      />
 
       {/* Sprint 515: as 3 secções do centro operacional — Vendas · Compras · Despesas, clicáveis. */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -114,27 +167,19 @@ export default function ComprasOperacao() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Coluna principal: tabela de faturas + export */}
-        <div className="space-y-4 lg:col-span-2">
-          <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => setTab('inbox')}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${tab === 'inbox' ? 'bg-brand-600 text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
-                >
-                  Inbox{inboxItems.length > 0 ? ` · ${inboxItems.length}` : ''}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTab('history')}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${tab === 'history' ? 'bg-brand-600 text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
-                >
-                  Histórico
-                </button>
-              </div>
+      <DetailWorkspace rail={rail}>
+        <div className="space-y-4">
+          <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex flex-col gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
+              <ViewTabs
+                value={tab}
+                onChange={(value) => setTab(value as Tab)}
+                tabs={[
+                  { key: 'inbox', label: 'Inbox', meta: inboxItems.length },
+                  { key: 'history', label: 'Histórico', meta: history.data?.length },
+                ]}
+                className="border-0 bg-transparent p-0 dark:bg-transparent"
+              />
               <Link to="/compras" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">Abrir compras →</Link>
             </div>
 
@@ -205,47 +250,17 @@ export default function ComprasOperacao() {
                 <input type="date" value={to} min={from} max={today} onChange={(e) => setTo(e.target.value)}
                   className="mt-1 block rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
               </label>
-              <button
+              <Button
                 type="button"
                 onClick={() => downloadFile(supplierInvoicesApi.exportZipPath(from, to), `compras_${from}_${to}.zip`)}
-                className="flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-medium text-white transition hover:bg-brand-700"
+                leftIcon={<Download size={15} />}
               >
-                <Download size={15} /> Descarregar
-              </button>
+                Descarregar
+              </Button>
             </div>
           </SectionCard>
         </div>
-
-        {/* Coluna direita: ações + alertas + resumo */}
-        <div className="space-y-4">
-          <SectionCard title="Ações rápidas">
-            <div className="flex flex-col gap-2">
-              <Link to="/compras" className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800"><Upload size={15} /> Importar / enviar fatura</Link>
-              <Link to="/despesas" className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800"><Plus size={15} /> Nova despesa / custo</Link>
-              <Link to="/despesas" className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800"><FileDown size={15} /> Export contabilista</Link>
-            </div>
-          </SectionCard>
-
-          {inboxItems.length > 0 && (
-            <SectionCard title="Alertas">
-              <div className="flex items-start gap-2 text-sm">
-                <AlertTriangle size={16} className="mt-0.5 flex-none text-amber-500" />
-                <span><strong>{inboxItems.length}</strong> fatura(s) por decidir no inbox — {formatCents(inboxValor)}. <Link to="/compras" className="text-brand-600 hover:underline dark:text-brand-400">resolver</Link></span>
-              </div>
-            </SectionCard>
-          )}
-
-          <SectionCard title="Resumo do mês">
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-zinc-500">Despesas/custos</dt><dd className="font-medium tabular-nums">{formatCents(totalDespesasMes)}</dd></div>
-              <div className="flex justify-between"><dt className="text-zinc-500">Lançamentos</dt><dd className="font-medium tabular-nums">{despesasItems.length}</dd></div>
-              <div className="flex justify-between"><dt className="text-zinc-500">Faturas no inbox</dt><dd className="font-medium tabular-nums">{inboxItems.length}</dd></div>
-              <div className="flex justify-between"><dt className="text-zinc-500">Valor em inbox</dt><dd className="font-medium tabular-nums">{formatCents(inboxValor)}</dd></div>
-            </dl>
-            <Link to="/despesas" className="mt-3 block text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">Ver despesas & custos →</Link>
-          </SectionCard>
-        </div>
-      </div>
+      </DetailWorkspace>
     </div>
   );
 }
