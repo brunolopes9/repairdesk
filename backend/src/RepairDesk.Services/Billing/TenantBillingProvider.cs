@@ -23,8 +23,8 @@ public sealed class TenantBillingProvider : IBillingProvider
     public async Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
         => await (await ResolveAsync(ct)).EmitReparacaoInvoiceAsync(reparacaoId, vatPercent, paymentMethod, discriminarMaoObra, documentTypeOverride, ct);
 
-    public async Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
-        => await (await ResolveAsync(ct)).EmitTrabalhoInvoiceAsync(trabalhoId, vatPercent, paymentMethod, ct);
+    public async Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
+        => await (await ResolveAsync(ct)).EmitTrabalhoInvoiceAsync(trabalhoId, vatPercent, paymentMethod, documentTypeOverride, ct);
 
     public async Task<InvoiceDto> EmitVendaInvoiceAsync(Guid vendaId, CancellationToken ct = default)
         => await (await ResolveAsync(ct)).EmitVendaInvoiceAsync(vendaId, ct);

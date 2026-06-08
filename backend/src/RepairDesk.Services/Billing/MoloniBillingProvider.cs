@@ -8,7 +8,7 @@ namespace RepairDesk.Services.Billing;
 public interface IBillingProvider
 {
     Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default);
-    Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default);
+    Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default);
     Task<InvoiceDto> EmitVendaInvoiceAsync(Guid vendaId, CancellationToken ct = default);
     Task<Stream> GetPdfStreamAsync(string invoiceId, CancellationToken ct = default);
 }
@@ -117,7 +117,7 @@ public class MoloniBillingProvider : IBillingProvider
         return new InvoiceDto(result.Number, result.PdfUrl, result.EmittedAt);
     }
 
-    public async Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
+    public async Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
     {
         var trabalho = await _trabalhos.FindByIdAsync(trabalhoId, ct)
             ?? throw new NotFoundException("Trabalho", trabalhoId);
@@ -132,7 +132,24 @@ public class MoloniBillingProvider : IBillingProvider
         var customerId = await ResolveCustomerIdAsync(settings, trabalho.Cliente, ct);
         var effectiveVat = ResolveVatPercent(tenant, vatPercent);
 
-        var docType = ResolveDocumentType(settings, trabalho.Cliente, amount, effectiveVat);
+        // Sprint 533: faturação de serviços (ex.: desenvolvimento de software) — a escolha explícita
+        // do utilizador (Fatura vs Fatura-Recibo) MANDA; só caímos no auto-resolve quando não há escolha
+        // (ex.: bulk emit). Espelha EmitReparacaoInvoiceAsync.
+        var docType = documentTypeOverride ?? ResolveDocumentType(settings, trabalho.Cliente, amount, effectiveVat);
+
+        // Sprint 533: Fatura/Fatura-Recibo com NIF exige LEGALMENTE a morada do adquirente
+        // (CIVA art. 36.º n.º 5). Sem morada o Moloni imprime "Consumidor final / 0000-000" — documento
+        // fiscalmente inválido. Bloqueamos antes de tocar no Moloni, como nas Reparações.
+        if (RequiresAdquirenteMorada(docType)
+            && !string.IsNullOrWhiteSpace(trabalho.Cliente?.Nif)
+            && string.IsNullOrWhiteSpace(trabalho.Cliente?.Morada))
+        {
+            throw new ValidationException(
+                "fatura_nif_sem_morada",
+                $"Para emitir Fatura com NIF, o cliente \"{trabalho.Cliente?.Nome}\" precisa de morada. " +
+                "Preenche a morada na ficha do cliente e tenta de novo.");
+        }
+
         var result = await _moloni.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
             customerId,
             $"Trabalho #{trabalho.Numero}",

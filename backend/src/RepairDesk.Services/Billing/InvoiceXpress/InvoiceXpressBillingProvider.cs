@@ -71,7 +71,9 @@ public sealed class InvoiceXpressBillingProvider : IBillingProvider
         return new InvoiceDto(result.Number, result.PdfUrl, result.EmittedAt);
     }
 
-    public async Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
+    // Sprint 533: documentTypeOverride aceite para compatibilidade de interface; o provider InvoiceXpress
+    // não diferencia tipo de documento para trabalhos (mantém o comportamento existente).
+    public async Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
     {
         var trabalho = await _trabalhos.FindByIdAsync(trabalhoId, ct)
             ?? throw new NotFoundException("Trabalho", trabalhoId);

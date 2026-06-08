@@ -32,7 +32,7 @@ export const trabalhosApi = {
   update(id: string, form: UpdateTrabalhoForm) {
     return api.put<Trabalho>(`/trabalhos/${id}`, form).then((r) => r.data);
   },
-  emitirFatura(id: string, payload: { vatPercent?: number | null; paymentMethod?: string | null } = {}) {
+  emitirFatura(id: string, payload: { vatPercent?: number | null; paymentMethod?: string | null; documentType?: number } = {}) {
     return api.post<InvoiceDto>(`/trabalhos/${id}/emitir-fatura`, payload).then((r) => r.data);
   },
   anularFatura(id: string) {

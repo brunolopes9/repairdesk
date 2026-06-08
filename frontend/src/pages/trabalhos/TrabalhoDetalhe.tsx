@@ -163,7 +163,8 @@ export default function TrabalhoDetalhe() {
   });
 
   const emitirFatura = useMutation({
-    mutationFn: () => trabalhosApi.emitirFatura(id!),
+    // Sprint 533: documentType escolhido pelo utilizador — 2 = Fatura-Recibo (pago), 1 = Fatura (recibo à parte).
+    mutationFn: (documentType: number) => trabalhosApi.emitirFatura(id!, { documentType }),
     onSuccess: (invoice) => {
       qc.invalidateQueries({ queryKey: ['trabalho', id] });
       toast.success(`Fatura ${invoice.number} emitida`, invoice.pdfUrl ? 'PDF disponível na ficha.' : undefined);
@@ -421,14 +422,49 @@ export default function TrabalhoDetalhe() {
               </button>
             </>
           ) : canEmitMoloniInvoice && (
-            <button
-              type="button"
-              disabled={emitirFatura.isPending}
-              onClick={() => emitirFatura.mutate()}
-              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {emitirFatura.isPending ? 'A emitir…' : 'Emitir fatura via Moloni'}
-            </button>
+            <>
+              {/* Sprint 533: faturação de serviços (ex.: desenvolvimento de software) — escolha explícita
+                  do tipo de documento. Fatura-Recibo = pago num só documento; Fatura = documento simples
+                  (o recibo emite-se à parte depois). */}
+              <button
+                type="button"
+                disabled={emitirFatura.isPending}
+                onClick={() => {
+                  const valor = t.precoFinalCents ?? t.orcamentoCents ?? 0;
+                  const ok = confirm(
+                    (billing.data?.sandboxMode ? 'MODO SANDBOX — documento de teste\n\n' : '') +
+                    'Emitir FATURA-RECIBO (fatura + recibo num só documento, pago)?\n\n' +
+                    `Trabalho #${t.numero} — ${t.titulo}\n` +
+                    `Cliente: ${t.cliente?.nome ?? 'Fallback Moloni'}\n` +
+                    `Total: ${formatCents(valor)}\n\nContinuar?`
+                  );
+                  if (ok) emitirFatura.mutate(2);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                title="Fatura + recibo num só documento (pagamento imediato)"
+              >
+                {emitirFatura.isPending ? 'A emitir…' : '🧾 Emitir Fatura-Recibo'}
+              </button>
+              <button
+                type="button"
+                disabled={emitirFatura.isPending}
+                onClick={() => {
+                  const valor = t.precoFinalCents ?? t.orcamentoCents ?? 0;
+                  const ok = confirm(
+                    (billing.data?.sandboxMode ? 'MODO SANDBOX — documento de teste\n\n' : '') +
+                    'Emitir FATURA simples? O recibo emite-se à parte depois (ex.: a contabilidade do cliente quer os dois documentos separados).\n\n' +
+                    `Trabalho #${t.numero} — ${t.titulo}\n` +
+                    `Cliente: ${t.cliente?.nome ?? 'Fallback Moloni'}\n` +
+                    `Total: ${formatCents(valor)}\n\nContinuar?`
+                  );
+                  if (ok) emitirFatura.mutate(1);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+                title="Fatura simples; o recibo de liquidação emite-se à parte (em Compras & Operação › Faturas)"
+              >
+                📄 Emitir Fatura
+              </button>
+            </>
           )}
           {(t.status === TRABALHO_STATUS.EmExecucao || t.status === TRABALHO_STATUS.Concluido) && (
             <a

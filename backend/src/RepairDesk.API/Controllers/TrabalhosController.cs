@@ -36,7 +36,7 @@ public class TrabalhosController : ControllerBase
     [HttpPost("{id:guid}/emitir-fatura")]
     [Authorize(Roles = "Admin")]
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
-        => _billing.EmitTrabalhoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, ct);
+        => _billing.EmitTrabalhoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, req?.DocumentType, ct);
 
     [HttpPost("{id:guid}/emitir-orcamento-moloni")]
     [Authorize(Roles = "Admin")]
@@ -71,7 +71,7 @@ public class TrabalhosController : ControllerBase
         {
             try
             {
-                var invoice = await _billing.EmitTrabalhoInvoiceAsync(id, null, null, ct);
+                var invoice = await _billing.EmitTrabalhoInvoiceAsync(id, null, null, null, ct);
                 results.Add(new BulkEmitResult(id, true, invoice.Number, null));
             }
             catch (Exception ex)

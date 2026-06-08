@@ -361,7 +361,7 @@ public class VendaServiceTests
         public int EmitVendaCalls { get; private set; }
         public Task<InvoiceDto> EmitReparacaoInvoiceAsync(Guid reparacaoId, decimal? vatPercent, string? paymentMethod, bool discriminarMaoObra = true, RepairDesk.Core.Enums.BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
             => throw new NotSupportedException();
-        public Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, CancellationToken ct = default)
+        public Task<InvoiceDto> EmitTrabalhoInvoiceAsync(Guid trabalhoId, decimal? vatPercent, string? paymentMethod, RepairDesk.Core.Enums.BillingDocumentType? documentTypeOverride = null, CancellationToken ct = default)
             => throw new NotSupportedException();
         public Task<InvoiceDto> EmitVendaInvoiceAsync(Guid vendaId, CancellationToken ct = default)
         {
