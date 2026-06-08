@@ -8,6 +8,7 @@ import { apiErrorMessage } from '../../lib/errors';
 import { downloadFile } from '../../lib/downloadPdf';
 import { stockTakesApi } from '../../lib/stockTakes/api';
 import type { StockTake, StockTakeItem } from '../../lib/stockTakes/types';
+import { CatalogStockNav } from '../catalogo/CatalogStockNav';
 
 /**
  * Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
@@ -47,6 +48,9 @@ export default function Inventario() {
           description="Contagem da prateleira para reconciliar o stock real com o sistema."
           meta={<span className="text-sm text-zinc-500">Stock</span>}
         />
+
+        <CatalogStockNav />
+        <InventoryScopeNotice />
 
         <EmptyState
           icon={ClipboardList}
@@ -197,6 +201,9 @@ function StockTakeBoard({
         )}
       />
 
+      <CatalogStockNav />
+      <InventoryScopeNotice />
+
       <DetailWorkspace rail={rail}>
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="relative min-w-[220px] flex-1">
@@ -266,6 +273,28 @@ function StockTakeBoard({
         </div>
       )}
     </div>
+  );
+}
+
+function InventoryScopeNotice() {
+  return (
+    <section className="grid gap-3 lg:grid-cols-3">
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-100">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">Conta real</p>
+        <p className="mt-1 text-xl font-semibold">Apenas prateleira fisica</p>
+        <p className="mt-2 text-sm opacity-80">A sessao conta Parts ativas: capas, peliculas, ecraes, boards, baterias e stock que existe na loja.</p>
+      </div>
+      <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-4 text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-sky-100">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">Fora da contagem</p>
+        <p className="mt-1 text-xl font-semibold">Dropshipping nao entra aqui</p>
+        <p className="mt-2 text-sm opacity-80">Produtos retail virtuais e stock de fornecedor ficam na montra online, nao geram ajuste fisico.</p>
+      </div>
+      <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">Fecho</p>
+        <p className="mt-1 text-xl font-semibold">Ajustes so no fim</p>
+        <p className="mt-2 text-sm opacity-80">Ao fechar, o sistema cria movimentos de acerto apenas para diferencas contadas.</p>
+      </div>
+    </section>
   );
 }
 

@@ -7,6 +7,7 @@ import { formatCents, formatDate, parseEuros } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { stockApi } from '../../lib/stock/api';
 import { fornecedoresApi } from '../../lib/fornecedores/api';
+import { CatalogStockNav } from '../catalogo/CatalogStockNav';
 import {
   PART_CATEGORIA,
   PART_CATEGORIA_LABEL,
@@ -241,6 +242,8 @@ export default function Stock() {
           </>
         }
       />
+      <CatalogStockNav />
+      <StockModeStrip counts={stockCounts} />
       <DetailWorkspace rail={stockRail}>
         <section className="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -854,6 +857,72 @@ function ImportCsvModal({ open, onClose, onDone }: { open: boolean; onClose: () 
         )}
       </div>
     </Modal>
+  );
+}
+
+function StockModeStrip({
+  counts,
+}: {
+  counts: {
+    units: number;
+    stockValueCents: number;
+    low: number;
+    shopVisible: number;
+    noLocation: number;
+    noSupplier: number;
+  };
+}) {
+  return (
+    <section className="grid gap-3 lg:grid-cols-3">
+      <StockModeCard
+        title="Prateleira real"
+        value={`${counts.units} un`}
+        detail={formatCents(counts.stockValueCents)}
+        text="Tudo aqui deve existir fisicamente na oficina ou loja. Estas unidades entram em reparacoes e contagens."
+      />
+      <StockModeCard
+        title="Publicavel online"
+        value={`${counts.shopVisible} itens`}
+        detail="pecas visiveis"
+        text="Algumas pecas e acessorios podem aparecer na loja online, mas continuam a ser stock fisico."
+      />
+      <StockModeCard
+        title="Higiene logistica"
+        value={`${counts.noLocation + counts.noSupplier} falhas`}
+        detail={`${counts.noLocation} sem local · ${counts.noSupplier} sem fornecedor`}
+        text="Localizacao e fornecedor aceleram reposicao, compras e trabalho de bancada."
+        warn={counts.low > 0}
+      />
+    </section>
+  );
+}
+
+function StockModeCard({
+  title,
+  value,
+  detail,
+  text,
+  warn = false,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  text: string;
+  warn?: boolean;
+}) {
+  return (
+    <div className={`rounded-lg border p-3 ${warn ? 'border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{title}</p>
+          <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">{text}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-lg font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{value}</p>
+          <p className="text-[11px] text-zinc-500">{detail}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 

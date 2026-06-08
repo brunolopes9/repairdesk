@@ -1,13 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Boxes, Cloud, Store, AlertTriangle, FileWarning, Search, ChevronRight, Upload, Plus, Package,
+  Boxes, Cloud, Store, AlertTriangle, FileWarning, Search, ChevronRight, Upload, Plus, Package, ArrowRight, Wand2,
 } from 'lucide-react';
-import { KpiCard } from '../../components/ui';
+import { KpiCard, ViewTabs } from '../../components/ui';
 import { liveListOptions } from '../../lib/queryOptions';
 import { formatCents } from '../../lib/money';
-import { catalogApi, type CatalogParent, type CatalogTab, type CatalogVariant } from '../../lib/catalog/api';
+import { catalogApi, type CatalogKpis, type CatalogParent, type CatalogTab, type CatalogVariant } from '../../lib/catalog/api';
 import CatalogDetailPanel from './CatalogDetailPanel';
+import { CatalogStockNav } from './CatalogStockNav';
 
 const TABS: Array<{ key: CatalogTab; label: string }> = [
   { key: 'todos', label: 'Todos' },
@@ -59,6 +60,22 @@ export default function Catalogo() {
   // Catálogo totalmente vazio (sem produtos/peças) vs. só vazio para o filtro atual.
   const semFiltros = !q.trim() && !categoria && !marca && tab === 'todos';
   const catalogoVazio = !catalog.isLoading && parents.length === 0 && semFiltros && (kpis?.totalPublicavel ?? 0) === 0;
+  const filtersActive = !semFiltros;
+  const tabsWithMeta = TABS.map(({ key, label }) => ({
+    key,
+    label,
+    meta: key === 'todos'
+      ? parents.length
+      : key === 'fisico'
+        ? kpis?.stockFisicoUnidades ?? 0
+        : key === 'virtual'
+          ? kpis?.stockVirtualUnidades ?? 0
+          : key === 'loja'
+            ? kpis?.publicadosLoja ?? 0
+            : key === 'sem-conteudo'
+              ? kpis?.semConteudo ?? 0
+              : kpis?.stockCritico ?? 0,
+  }));
 
   function toggle(key: string) {
     setExpanded((cur) => {
@@ -85,6 +102,8 @@ export default function Catalogo() {
         </div>
       </div>
 
+      <CatalogStockNav showGuide />
+
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <KpiCard icon={Boxes} tone="brand" label="Stock físico" value={`${kpis?.stockFisicoUnidades ?? 0} un`} sub={kpis ? formatCents(kpis.stockFisicoCustoCents) : undefined} />
@@ -94,23 +113,9 @@ export default function Catalogo() {
         <KpiCard icon={FileWarning} tone={kpis && kpis.semConteudo > 0 ? 'amber' : 'zinc'} label="Sem conteúdo" value={String(kpis?.semConteudo ?? 0)} sub="a completar" />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
-        {TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`-mb-px whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm font-medium transition ${
-              tab === key
-                ? 'border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-300'
-                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <CatalogCommandBoard kpis={kpis} pctPublicado={pctPublicado} onTab={setTab} />
+
+      <ViewTabs tabs={tabsWithMeta} value={tab} onChange={(value) => setTab(value as CatalogTab)} />
 
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2">
@@ -131,11 +136,27 @@ export default function Catalogo() {
             className="h-9 w-full rounded-lg border border-zinc-200 bg-white pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-brand-400 dark:border-zinc-800 dark:bg-zinc-950"
           />
         </label>
+        {filtersActive && (
+          <button
+            type="button"
+            onClick={() => { setQ(''); setCategoria(''); setMarca(''); setTab('todos'); }}
+            className="h-9 rounded-lg px-3 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            Limpar filtros
+          </button>
+        )}
       </div>
 
       {/* Conteúdo: tabela (esq) + painel de detalhe inline (dir) */}
       <div className="grid gap-4 xl:grid-cols-[1fr_400px]">
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-col gap-2 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Mapa operacional do catalogo</p>
+            <p className="text-xs text-zinc-500">Agrupa produtos pai e variantes para veres stock, publicacao e conteudo num so sitio.</p>
+          </div>
+          <span className="text-xs font-medium text-zinc-500">{parents.length} grupos nesta vista</span>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-[860px] w-full text-sm">
             <thead className="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-800">
@@ -196,6 +217,125 @@ export default function Catalogo() {
   );
 }
 
+function CatalogCommandBoard({
+  kpis,
+  pctPublicado,
+  onTab,
+}: {
+  kpis?: CatalogKpis;
+  pctPublicado: number;
+  onTab: (tab: CatalogTab) => void;
+}) {
+  const stockCritico = kpis?.stockCritico ?? 0;
+  const semConteudo = kpis?.semConteudo ?? 0;
+
+  return (
+    <section className="grid gap-3 lg:grid-cols-3">
+      <CommandCard
+        icon={Boxes}
+        title="Loja fisica"
+        eyebrow="Stock real"
+        primary={`${kpis?.stockFisicoUnidades ?? 0} un`}
+        secondary={kpis ? formatCents(kpis.stockFisicoCustoCents) : '0,00 EUR'}
+        tone="brand"
+        text="Pecas, acessorios e produtos que existem na oficina. Entram em contagens fisicas e alertas de reposicao."
+        actions={(
+          <>
+            <a href="/stock" className={commandLinkCls}>Abrir stock <ArrowRight size={14} /></a>
+            <button type="button" onClick={() => onTab('critico')} className={commandGhostCls}>
+              {stockCritico} criticos
+            </button>
+          </>
+        )}
+      />
+      <CommandCard
+        icon={Store}
+        title="Loja online"
+        eyebrow="Montra e dropship"
+        primary={`${kpis?.publicadosLoja ?? 0} publicados`}
+        secondary={`${pctPublicado}% completo`}
+        tone="emerald"
+        text="Produtos retail e variantes que podem aparecer no site. Stock virtual fica aqui, mas nao entra na prateleira."
+        actions={(
+          <>
+            <a href="/produtos" className={commandLinkCls}>Gerir retail <ArrowRight size={14} /></a>
+            <button type="button" onClick={() => onTab('virtual')} className={commandGhostCls}>
+              {kpis?.stockVirtualUnidades ?? 0} virtuais
+            </button>
+          </>
+        )}
+      />
+      <CommandCard
+        icon={Wand2}
+        title="Qualidade do catalogo"
+        eyebrow="Conteudo e dados"
+        primary={`${semConteudo} em falta`}
+        secondary={`${kpis?.totalPublicavel ?? 0} publicaveis`}
+        tone={semConteudo > 0 ? 'amber' : 'zinc'}
+        text="Foca primeiro fotos, descricao, SEO, preco e visibilidade. O objetivo e uma montra pronta para vender."
+        actions={(
+          <>
+            <button type="button" onClick={() => onTab('sem-conteudo')} className={commandLinkCls}>
+              Corrigir conteudo <ArrowRight size={14} />
+            </button>
+            <a href="/inventario" className={commandGhostCls}>Contagens</a>
+          </>
+        )}
+      />
+    </section>
+  );
+}
+
+function CommandCard({
+  icon: Icon,
+  title,
+  eyebrow,
+  primary,
+  secondary,
+  text,
+  tone,
+  actions,
+}: {
+  icon: typeof Boxes;
+  title: string;
+  eyebrow: string;
+  primary: string;
+  secondary: string;
+  text: string;
+  tone: 'brand' | 'emerald' | 'amber' | 'zinc';
+  actions: ReactNode;
+}) {
+  const toneCls = {
+    brand: 'border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-900/60 dark:bg-brand-950/30 dark:text-brand-300',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300',
+    zinc: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300',
+  }[tone];
+
+  return (
+    <article className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{eyebrow}</p>
+          <h2 className="mt-1 text-base font-semibold text-zinc-950 dark:text-zinc-50">{title}</h2>
+        </div>
+        <span className={`grid h-10 w-10 place-items-center rounded-lg border ${toneCls}`}>
+          <Icon size={18} />
+        </span>
+      </div>
+      <div className="mt-4">
+        <p className="text-2xl font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{primary}</p>
+        <p className="text-xs text-zinc-500">{secondary}</p>
+      </div>
+      <p className="mt-3 min-h-[44px] text-xs leading-5 text-zinc-500 dark:text-zinc-400">{text}</p>
+      <div className="mt-4 flex flex-wrap gap-2">{actions}</div>
+    </article>
+  );
+}
+
+const commandLinkCls = 'inline-flex h-8 items-center gap-1.5 rounded-md bg-zinc-950 px-2.5 text-xs font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200';
+const commandGhostCls = 'inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-200 px-2.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50';
+
 function ParentRow({ parent, open, selected, onToggle, onSelect }: { parent: CatalogParent; open: boolean; selected: boolean; onToggle: () => void; onSelect: () => void }) {
   return (
     <>
@@ -211,7 +351,10 @@ function ParentRow({ parent, open, selected, onToggle, onSelect }: { parent: Cat
               <span className="grid h-9 w-9 flex-none place-items-center rounded-md bg-zinc-100 text-zinc-400 dark:bg-zinc-800"><Package size={16} /></span>
             )}
             <div className="min-w-0">
-              <div className="truncate font-medium">{parent.nome}</div>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="truncate font-medium">{parent.nome}</span>
+                <ParentKindBadge kind={parent.kind} />
+              </div>
               <div className="truncate text-xs text-zinc-500">
                 {parent.subtitle ?? parent.categoria}{parent.skuPai ? ` · SKU ${parent.skuPai}` : ''}
               </div>
@@ -245,6 +388,29 @@ function ParentRow({ parent, open, selected, onToggle, onSelect }: { parent: Cat
         <tr className="bg-zinc-50/60 dark:bg-zinc-950/40"><td colSpan={7} className="px-4 py-2 pl-12 text-xs italic text-zinc-400">Sem variantes.</td></tr>
       )}
     </>
+  );
+}
+
+function ParentKindBadge({ kind }: { kind: CatalogParent['kind'] }) {
+  const map = {
+    model: {
+      label: 'Modelo retail',
+      cls: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-900/60',
+    },
+    'product-group': {
+      label: 'Produto solto',
+      cls: 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900/60',
+    },
+    'part-group': {
+      label: 'Peca tecnica',
+      cls: 'bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700',
+    },
+  } satisfies Record<CatalogParent['kind'], { label: string; cls: string }>;
+  const item = map[kind];
+  return (
+    <span className={`inline-flex h-5 flex-none items-center rounded-full px-2 text-[10px] font-semibold ring-1 ${item.cls}`}>
+      {item.label}
+    </span>
   );
 }
 

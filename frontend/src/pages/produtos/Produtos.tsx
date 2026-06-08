@@ -6,6 +6,7 @@ import Modal from '../../components/Modal';
 import UniversalCsvImportModal from '../../components/UniversalCsvImportModal';
 import ProductsByModel from './ProductsByModel';
 import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonRow, StatusBadge, ViewTabs } from '../../components/ui';
+import { CatalogStockNav } from '../catalogo/CatalogStockNav';
 import { toast } from '../../lib/toast';
 import { api } from '../../lib/api';
 import {
@@ -415,8 +416,8 @@ export default function Produtos() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Catalogo & Stock"
-        description="Stock fisico da loja, stock virtual/dropshipping e montra online num cockpit unico."
+        title="Produtos retail"
+        description="Telemoveis e variantes para a loja online: stock proprio, dropshipping, preco, conteudo e SEO."
         meta={<span className="text-sm text-zinc-500">{counterText}</span>}
         actions={<>
           <Button leftIcon={<Upload size={15} />} variant="ghost" onClick={() => { setMigrateResult(null); setMigrateOpen(true); }}>
@@ -456,6 +457,8 @@ export default function Produtos() {
           <Button leftIcon={<Plus size={15} />} onClick={openCreate}>Novo produto</Button>
         </>}
       />
+      <CatalogStockNav />
+      <RetailModeStrip counts={scopeCounts} />
 
       <div className="md:hidden">
         <Button leftIcon={<SlidersHorizontal size={15} />} variant="secondary" onClick={() => setFiltersOpen(true)}>
@@ -1349,6 +1352,85 @@ function displaySupplierGrade(product: Product) {
     || (grading === PRODUCT_GRADING.OpenBox && ['openbox', 'open box', 'open-box'].includes(normalized));
 
   return redundant ? <span className="text-zinc-400">—</span> : raw;
+}
+
+function RetailModeStrip({
+  counts,
+}: {
+  counts: {
+    modelCount: number;
+    shopVisible: number;
+    shopHidden: number;
+    physicalVariants: number;
+    physicalUnits: number;
+    virtualVariants: number;
+    lowStock: number;
+    withoutImages: number;
+    withoutSeo: number;
+    physicalCostCents: number;
+  };
+}) {
+  const variants = counts.physicalVariants + counts.virtualVariants;
+  return (
+    <section className="grid gap-3 lg:grid-cols-3">
+      <RetailModeCard
+        title="Modelo pai"
+        value={`${counts.modelCount} modelos`}
+        detail={`${counts.withoutImages} sem imagens · ${counts.withoutSeo} sem SEO`}
+        text="O sitio certo para fotos, descricao, SEO e especificacoes partilhadas por todas as variantes."
+        tone={counts.withoutImages > 0 || counts.withoutSeo > 0 ? 'amber' : 'emerald'}
+      />
+      <RetailModeCard
+        title="Variantes"
+        value={`${variants} variantes`}
+        detail={`${counts.physicalUnits} un. fisicas · ${counts.virtualVariants} dropship`}
+        text="Cada variante guarda cor, capacidade, grade, fornecedor, preco, stock e publicacao."
+        tone="blue"
+      />
+      <RetailModeCard
+        title="Montra online"
+        value={`${counts.shopVisible} visiveis`}
+        detail={`${counts.shopHidden} ocultos · ${counts.lowStock} stock baixo`}
+        text="Mostra ou esconde produtos na loja sem confundir disponibilidade fisica com stock virtual."
+        tone={counts.lowStock > 0 || counts.shopHidden > 0 ? 'amber' : 'emerald'}
+      />
+    </section>
+  );
+}
+
+function RetailModeCard({
+  title,
+  value,
+  detail,
+  text,
+  tone,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  text: string;
+  tone: 'emerald' | 'amber' | 'blue';
+}) {
+  const toneCls = tone === 'emerald'
+    ? 'border-emerald-200 bg-emerald-50/60 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-100'
+    : tone === 'amber'
+      ? 'border-amber-200 bg-amber-50/70 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100'
+      : 'border-sky-200 bg-sky-50/60 text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-sky-100';
+
+  return (
+    <article className={`rounded-lg border p-4 ${toneCls}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">{title}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+        </div>
+        <span className="rounded-full bg-white/70 px-2 py-1 text-xs font-medium shadow-sm ring-1 ring-black/5 dark:bg-white/10">
+          {detail}
+        </span>
+      </div>
+      <p className="mt-3 max-w-xl text-sm opacity-80">{text}</p>
+    </article>
+  );
 }
 
 function ProductMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

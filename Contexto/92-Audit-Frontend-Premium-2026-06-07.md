@@ -63,6 +63,12 @@ excessivo e esconde o que interessa: estado, proxima acao, cliente, pagamento e 
 - `Precos.tsx` passou a ter workspace com rail de "Saude da tabela": entradas activas, margem
   media, margens baixas e dados incompletos ficam visiveis sem obrigar o utilizador a vasculhar a
   grelha.
+- `Catalogo & Stock` ganhou navegacao interna partilhada (`CatalogStockNav`) em `Catalogo`,
+  `Stock`, `Produtos` e `Inventario`: a area fica separada por modelo mental claro (`Visao geral`,
+  `Stock pecas`, `Produtos retail`, `Contagens fisicas`) sem duplicar entidades nem misturar
+  stock fisico com dropshipping.
+- `Catalogo.tsx` passou a usar `ViewTabs` com contadores e reset rapido de filtros, reforcando a
+  leitura de stock fisico, stock virtual, loja online, conteudo em falta e stock critico.
 - Frontend build validado com `npm run build`.
 
 ## Evidencia no codigo
@@ -334,6 +340,15 @@ Escopo:
 - Editor pai/variante.
 - Conteudo/fotos/SEO no modelo pai.
 - Variantes focadas em SKU/stock/preco/loja.
+
+Implementado em 2026-06-08:
+
+- `CatalogStockNav` cria navegacao interna consistente entre Visao geral, Stock pecas, Produtos retail e Contagens fisicas.
+- `/catalogo` ganhou cockpit de decisao: loja fisica, loja online e qualidade do catalogo, com acoes diretas para stock baixo, stock virtual e conteudo em falta.
+- `/stock` ganhou faixa operacional para separar prateleira real, publicacao online e higiene logistica.
+- `/produtos` passou a posicionar a pagina como Produtos retail: modelo pai para conteudo/fotos/SEO e variantes para cor, capacidade, grade, fornecedor, preco, stock e publicacao.
+- `ProductsByModel` mostra cada modelo com KPIs de variantes, stock fisico, stock virtual, publicacao online e preco minimo; ao expandir, as variantes aparecem em grelha comparavel.
+- `/inventario` explicita que contagens fisicas contam apenas Parts/stock real; dropshipping e stock virtual ficam fora dos ajustes.
 
 ### UX-6: Definicoes split
 

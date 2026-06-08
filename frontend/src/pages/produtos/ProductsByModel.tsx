@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Pencil, Layers, Save, X, BatteryCharging } from 'lucide-react';
-import type { Product } from '../../lib/products/api';
+import { PRODUCT_SUPPLY_TYPE, type Product } from '../../lib/products/api';
 import { productModelsApi, type ProductModelDto } from '../../lib/productModels/api';
 import { formatCents, parseEuros } from '../../lib/money';
 import { toast } from '../../lib/toast';
@@ -17,6 +17,11 @@ interface Grupo {
   model: string;
   variants: Product[];
   totalStock: number;
+  physicalUnits: number;
+  virtualVariants: number;
+  published: number;
+  hidden: number;
+  minPriceCents: number | null;
 }
 
 /**
@@ -44,11 +49,27 @@ export default function ProductsByModel({ items, onEditVariant }: Props) {
       const key = `${p.brand}|||${p.model}`.toLowerCase();
       let g = map.get(key);
       if (!g) {
-        g = { key, brand: p.brand, model: p.model, variants: [], totalStock: 0 };
+        g = {
+          key,
+          brand: p.brand,
+          model: p.model,
+          variants: [],
+          totalStock: 0,
+          physicalUnits: 0,
+          virtualVariants: 0,
+          published: 0,
+          hidden: 0,
+          minPriceCents: null,
+        };
         map.set(key, g);
       }
       g.variants.push(p);
       g.totalStock += p.stockQuantity;
+      if (p.supplyType === PRODUCT_SUPPLY_TYPE.Stock) g.physicalUnits += p.stockQuantity;
+      if (p.supplyType === PRODUCT_SUPPLY_TYPE.Dropship) g.virtualVariants += 1;
+      if (p.active && p.mostrarLojaOnline) g.published += 1;
+      if (!p.mostrarLojaOnline) g.hidden += 1;
+      g.minPriceCents = g.minPriceCents === null ? p.priceCents : Math.min(g.minPriceCents, p.priceCents);
     }
     return [...map.values()].sort((a, b) => `${a.brand} ${a.model}`.localeCompare(`${b.brand} ${b.model}`));
   }, [items]);
@@ -72,8 +93,8 @@ export default function ProductsByModel({ items, onEditVariant }: Props) {
         const modelo = modelByKey.get(g.key);
         const temConteudo = !!(modelo?.descriptionMarkdown || (modelo?.images.length ?? 0) > 0);
         return (
-          <div key={g.key} className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="flex items-center gap-2 px-3 py-2">
+          <div key={g.key} className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm shadow-black/[0.02] dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="grid gap-3 px-3 py-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
               <button type="button" onClick={() => toggle(g.key)} className="flex flex-1 items-center gap-2 text-left">
                 {aberto ? <ChevronDown size={16} className="shrink-0 text-zinc-400" /> : <ChevronRight size={16} className="shrink-0 text-zinc-400" />}
                 <Layers size={15} className="shrink-0 text-zinc-400" />
@@ -90,37 +111,63 @@ export default function ProductsByModel({ items, onEditVariant }: Props) {
                   ? <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">conteúdo ✓</span>
                   : <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">sem descrição/fotos</span>}
               </button>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <ModelStat label="Variantes" value={g.variants.length.toString()} />
+                <ModelStat label="Fisico" value={`${g.physicalUnits} un`} tone={g.physicalUnits > 0 ? 'emerald' : 'zinc'} />
+                <ModelStat label="Virtual" value={g.virtualVariants.toString()} tone={g.virtualVariants > 0 ? 'sky' : 'zinc'} />
+                <ModelStat label="Online" value={`${g.published}/${g.variants.length}`} tone={g.hidden > 0 ? 'amber' : 'emerald'} />
+                <ModelStat label="Desde" value={g.minPriceCents != null ? formatCents(g.minPriceCents) : '—'} />
+              </div>
               <button
                 type="button"
                 onClick={() => setEditModel({ brand: g.brand, model: g.model })}
-                className="inline-flex items-center gap-1 rounded border border-zinc-300 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg border border-zinc-300 px-3 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                 title="Editar conteúdo partilhado (descrição, preço da bateria) — aplica a todas as variantes"
               >
-                <Pencil size={11} /> Conteúdo do modelo
+                <Pencil size={12} /> Conteudo
               </button>
             </div>
 
             {aberto && (
-              <ul className="border-t border-zinc-100 text-sm dark:border-zinc-800">
+              <div className="border-t border-zinc-100 bg-zinc-50/60 dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="hidden grid-cols-[minmax(0,1.6fr)_110px_110px_90px_110px] gap-3 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400 md:grid">
+                  <span>Variante</span>
+                  <span>Origem</span>
+                  <span>Loja</span>
+                  <span className="text-right">Stock</span>
+                  <span className="text-right">Preco</span>
+                </div>
+              <ul className="divide-y divide-zinc-100 bg-white text-sm dark:divide-zinc-800 dark:bg-zinc-900">
                 {g.variants.map((v) => (
                   <li key={v.id}>
                     <button
                       type="button"
                       onClick={() => onEditVariant(v.id)}
-                      className="flex w-full items-center gap-3 px-3 py-1.5 pl-9 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                      className="grid w-full gap-2 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 md:grid-cols-[minmax(0,1.6fr)_110px_110px_90px_110px] md:items-center md:gap-3"
                     >
-                      <span className="flex-1 truncate">
+                      <span className="min-w-0">
                         {[v.storage, v.color, v.supplierGrade ?? gradeLabel(v.grade)].filter(Boolean).join(' · ')}
                         {v.fornecedorNome && <span className="text-zinc-400"> · {v.fornecedorNome}</span>}
                         {!v.active && <span className="ml-1 text-[10px] text-zinc-400">(inactivo)</span>}
                         {!v.mostrarLojaOnline && <span className="ml-1 text-[10px] text-zinc-400">· oculto na loja</span>}
                       </span>
-                      <span className="shrink-0 tabular-nums text-[11px] text-zinc-500">{v.stockQuantity} un</span>
-                      <span className="shrink-0 tabular-nums font-medium">{formatCents(v.priceCents)}</span>
+                      <span className="flex flex-wrap gap-1 md:block">
+                        <TinyBadge tone={v.supplyType === PRODUCT_SUPPLY_TYPE.Stock ? 'emerald' : 'sky'}>
+                          {v.supplyType === PRODUCT_SUPPLY_TYPE.Stock ? 'stock proprio' : 'dropship'}
+                        </TinyBadge>
+                      </span>
+                      <span className="flex flex-wrap gap-1 md:block">
+                        <TinyBadge tone={!v.active ? 'zinc' : v.mostrarLojaOnline ? 'emerald' : 'amber'}>
+                          {!v.active ? 'inativo' : v.mostrarLojaOnline ? 'publicado' : 'oculto'}
+                        </TinyBadge>
+                      </span>
+                      <span className="tabular-nums text-zinc-600 dark:text-zinc-300 md:text-right">{v.stockQuantity} un</span>
+                      <span className="tabular-nums font-semibold text-zinc-950 dark:text-zinc-50 md:text-right">{formatCents(v.priceCents)}</span>
                     </button>
                   </li>
                 ))}
               </ul>
+              </div>
             )}
           </div>
         );
@@ -135,6 +182,51 @@ export default function ProductsByModel({ items, onEditVariant }: Props) {
         />
       )}
     </div>
+  );
+}
+
+function ModelStat({
+  label,
+  value,
+  tone = 'zinc',
+}: {
+  label: string;
+  value: string;
+  tone?: 'zinc' | 'emerald' | 'sky' | 'amber';
+}) {
+  const toneCls = {
+    zinc: 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300',
+    sky: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
+  }[tone];
+
+  return (
+    <span className={`inline-flex min-h-9 min-w-[74px] flex-col justify-center rounded-lg border px-2 text-right ${toneCls}`}>
+      <span className="text-[9px] font-semibold uppercase tracking-[0.14em] opacity-70">{label}</span>
+      <span className="text-xs font-semibold tabular-nums">{value}</span>
+    </span>
+  );
+}
+
+function TinyBadge({
+  tone,
+  children,
+}: {
+  tone: 'zinc' | 'emerald' | 'sky' | 'amber';
+  children: ReactNode;
+}) {
+  const toneCls = {
+    zinc: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+    emerald: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+    sky: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
+    amber: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+  }[tone];
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${toneCls}`}>
+      {children}
+    </span>
   );
 }
 
