@@ -88,8 +88,10 @@ public static class DocumentoTipo
 public sealed class DocumentoService : IDocumentoService
 {
     // Documentos de venda que entram nesta lista (exclui guias de transporte, orçamentos, etc).
+    // Sprint 529: inclui RG (Recibo de liquidação) — vem do receipts/getAll, não do documents/getAll.
+    // Os recibos aparecem na lista mas NÃO entram nos totais "faturado" (ver filtro mais abaixo).
     private static readonly HashSet<string> VendaSaftCodes = new(StringComparer.OrdinalIgnoreCase)
-        { "FT", "FS", "FR", "NC", "ND", "VD" };
+        { "FT", "FS", "FR", "NC", "ND", "VD", "RG" };
 
     private readonly IRelatorioFiscalRepository _repo;
     private readonly ITenantContext _tenant;
@@ -259,8 +261,24 @@ public sealed class DocumentoService : IDocumentoService
                 return Array.Empty<MoloniDocumentRow>();
 
             var docs = await _moloni.ListDocumentsAsync(settings, ct);
-            _cache.Set(cacheKey, docs, TimeSpan.FromMinutes(5));
-            return docs;
+
+            // Sprint 529: os Recibos (RG) são uma família à parte no Moloni (receipts/getAll) — o
+            // documents/getAll não os devolve. Junta-os para a lista mostrar o fluxo Fatura → Recibo,
+            // como um ERP. Best-effort: se os recibos falharem, mostramos à mesma as faturas.
+            IReadOnlyList<MoloniDocumentRow> receipts = Array.Empty<MoloniDocumentRow>();
+            try
+            {
+                receipts = await _moloni.ListReceiptsAsync(settings, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Fetch de recibos Moloni falhou; lista mostra faturas sem os recibos.");
+            }
+
+            // `is { Count: > 0 }` é null-safe (mocks que não definem ListReceiptsAsync devolvem null).
+            var combined = receipts is { Count: > 0 } ? docs.Concat(receipts).ToList() : docs;
+            _cache.Set(cacheKey, combined, TimeSpan.FromMinutes(5));
+            return combined;
         }
         catch (Exception ex)
         {

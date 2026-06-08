@@ -28,7 +28,8 @@ public class DocumentoServiceTests
 
     private static DocumentoService MakeService(
         IReadOnlyList<DocumentoVendaRow> localRows,
-        IReadOnlyList<MoloniDocumentRow>? moloniDocs = null)
+        IReadOnlyList<MoloniDocumentRow>? moloniDocs = null,
+        IReadOnlyList<MoloniDocumentRow>? moloniReceipts = null)
     {
         // Sem moloniDocs → tenant null → o fetch ao Moloni é saltado (comportamento local puro).
         Guid? tenantId = moloniDocs is null ? null : Guid.NewGuid();
@@ -41,8 +42,10 @@ public class DocumentoServiceTests
             r.FindByTenantIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()) == Task.FromResult(settings));
 
         var docsResult = moloniDocs ?? (IReadOnlyList<MoloniDocumentRow>)System.Array.Empty<MoloniDocumentRow>();
+        var receiptsResult = moloniReceipts ?? (IReadOnlyList<MoloniDocumentRow>)System.Array.Empty<MoloniDocumentRow>();
         var moloni = Mock.Of<IMoloniClient>(m =>
-            m.ListDocumentsAsync(It.IsAny<TenantBillingSettings>(), It.IsAny<CancellationToken>()) == Task.FromResult(docsResult));
+            m.ListDocumentsAsync(It.IsAny<TenantBillingSettings>(), It.IsAny<CancellationToken>()) == Task.FromResult(docsResult)
+            && m.ListReceiptsAsync(It.IsAny<TenantBillingSettings>(), It.IsAny<CancellationToken>()) == Task.FromResult(receiptsResult));
 
         return new DocumentoService(
             new FakeRepo(localRows), tenant, settingsRepo, moloni,
@@ -127,5 +130,28 @@ public class DocumentoServiceTests
         ft.Origem.Should().Be("Venda");   // mantém o link à origem local
 
         res.Items.Should().Contain(d => d.TipoCodigo == "NC" && d.Origem == "Moloni");
+    }
+
+    [Fact]
+    public async Task ListVendas_IncluiRecibos_MasNaoOsSomaAoFaturado()
+    {
+        // Sprint 529: recibos (RG) vêm do receipts/getAll (família separada no Moloni). Aparecem
+        // na lista a par da fatura que liquidam, mas NÃO entram no "faturado" — senão duplicariam
+        // a receita (a FT já a contou). Invariante que o Bruno exige: total não inflaciona.
+        var svc = MakeService(
+            localRows: System.Array.Empty<DocumentoVendaRow>(),
+            moloniDocs: new[] { MoloniDoc(100, "FT", gross: 13500, net: 10976, taxes: 2524, status: 1, nome: "Maria") },
+            moloniReceipts: new[] { MoloniDoc(300, "RG", gross: 13500, net: 10976, taxes: 2524, status: 1, nome: "Maria") });
+
+        var res = await svc.ListVendasAsync(new DocumentosFiltro(null, null, null, null));
+
+        res.TotalDocumentos.Should().Be(2);                                  // FT + RG ambos visíveis
+        res.Items.Should().Contain(d => d.TipoCodigo == "RG" && d.Tipo == "Recibo");
+        res.TotalCents.Should().Be(13500);                                   // só a FT conta (RG excluído)
+
+        // E o filtro por tipo "RG" devolve só o recibo.
+        var soRecibos = await svc.ListVendasAsync(new DocumentosFiltro(null, null, null, "RG"));
+        soRecibos.TotalDocumentos.Should().Be(1);
+        soRecibos.Items[0].TipoCodigo.Should().Be("RG");
     }
 }

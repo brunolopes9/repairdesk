@@ -49,6 +49,11 @@ public interface IMoloniClient
     // documentos feitos directamente no painel Moloni, com valores e estado reais.
     Task<IReadOnlyList<MoloniDocumentRow>> ListDocumentsAsync(TenantBillingSettings settings, CancellationToken ct = default);
 
+    // Sprint 529: lista os Recibos (receipts/getAll) — uma família de documento SEPARADA no Moloni
+    // ("Liquidações → Recibos", saft_code RG) que o documents/getAll NÃO devolve. Necessário para a
+    // lista única mostrar os recibos de liquidação a par das faturas, como um ERP a sério.
+    Task<IReadOnlyList<MoloniDocumentRow>> ListReceiptsAsync(TenantBillingSettings settings, CancellationToken ct = default);
+
     // Sprint 527: emite um Recibo (receipts/insert) que liquida uma Fatura a crédito (em dívida).
     // NÃO envia o array payments → o Moloni adiciona automaticamente o pagamento pelo valor total
     // (evita o mismatch payments.value que causava "Database error"). Liquida o valor cheio do doc.

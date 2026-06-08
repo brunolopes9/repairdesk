@@ -21,6 +21,10 @@ const TIPO_BADGE: Record<string, string> = {
   FS: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
   FR: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   NC: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  // Sprint 529: recibos (liquidação) e outros tipos que agora aparecem na lista.
+  RG: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  VD: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  ND: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
 };
 
 const ORIGEM_LABEL: Record<string, string> = {
@@ -35,7 +39,18 @@ const ORIGEM_LINK: Record<string, (id: string) => string> = {
   Trabalho: (id) => `/trabalhos/${id}`,
 };
 
-type TipoFiltro = '' | 'FT' | 'FS';
+type TipoFiltro = '' | 'FT' | 'FS' | 'FR' | 'RG' | 'NC';
+
+// Sprint 529: secções por tipo, como um ERP a sério. Os Recibos (RG) vêm do receipts/getAll do
+// Moloni (família separada); Faturas-Recibo e Notas de Crédito já vinham do documents/getAll.
+const TIPO_TABS: ReadonlyArray<readonly [TipoFiltro, string]> = [
+  ['', 'Todos'],
+  ['FT', 'Faturas'],
+  ['FS', 'Simplificadas'],
+  ['FR', 'Faturas-Recibo'],
+  ['RG', 'Recibos'],
+  ['NC', 'Notas de crédito'],
+];
 
 export default function Documentos() {
   const hoje = new Date().toISOString().slice(0, 10);
@@ -46,12 +61,13 @@ export default function Documentos() {
   const [tipo, setTipo] = useState<TipoFiltro>('');
   const [novaFaturaOpen, setNovaFaturaOpen] = useState(false);
 
+  // Sprint 529: o tipo é filtrado NO CLIENTE (tabs com contagem por secção). O backend devolve
+  // todos os tipos do período de uma vez → trocar de secção é instantâneo e dá para contar cada uma.
   const params = useMemo(() => ({
     from: new Date(`${from}T00:00:00`).toISOString(),
     to: new Date(`${to}T23:59:59`).toISOString(),
     q: q.trim() || undefined,
-    tipo: tipo || undefined,
-  }), [from, to, q, tipo]);
+  }), [from, to, q]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['documentos-vendas', params],
@@ -60,6 +76,17 @@ export default function Documentos() {
   });
 
   const items = data?.items ?? [];
+
+  // Sprint 529: contagem por tipo (para os badges dos tabs) + lista visível da secção activa.
+  const countByTipo = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const d of items) m[d.tipoCodigo] = (m[d.tipoCodigo] ?? 0) + 1;
+    return m;
+  }, [items]);
+  const visibleItems = useMemo(
+    () => (tipo ? items.filter((d) => d.tipoCodigo === tipo) : items),
+    [items, tipo],
+  );
 
   return (
     <div className="space-y-5">
@@ -109,17 +136,21 @@ export default function Documentos() {
 
       {/* Filtros */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1">
-          {([['', 'Todos'], ['FT', 'Faturas'], ['FS', 'Simplificadas']] as const).map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setTipo(k)}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${tipo === k ? 'bg-brand-600 text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-1">
+          {TIPO_TABS.map(([k, label]) => {
+            const n = k === '' ? items.length : (countByTipo[k] ?? 0);
+            return (
+              <button
+                key={k || 'all'}
+                type="button"
+                onClick={() => setTipo(k)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${tipo === k ? 'bg-brand-600 text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
+              >
+                {label}
+                <span className={`ml-1.5 text-xs ${tipo === k ? 'text-white/80' : 'text-zinc-400'}`}>{n}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="relative sm:w-72">
           <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
@@ -136,10 +167,12 @@ export default function Documentos() {
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         {isLoading ? (
           <div className="p-4 text-sm text-zinc-500">A carregar…</div>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="flex flex-col items-center gap-2 p-10 text-center text-sm text-zinc-500">
             <FileText className="text-zinc-300" size={28} />
-            Sem faturas no período. Emite uma a partir de uma reparação ou venda.
+            {items.length === 0
+              ? 'Sem documentos no período. Emite uma fatura a partir de uma reparação ou venda.'
+              : 'Sem documentos deste tipo no período.'}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -156,7 +189,7 @@ export default function Documentos() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((d: DocumentoDto) => (
+                {visibleItems.map((d: DocumentoDto) => (
                   <DocumentoRow key={d.id} d={d} />
                 ))}
               </tbody>

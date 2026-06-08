@@ -690,22 +690,36 @@ public class MoloniClient : IMoloniClient
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<MoloniDocumentRow>> ListDocumentsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+    public Task<IReadOnlyList<MoloniDocumentRow>> ListDocumentsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+        => PageDocumentRowsAsync(settings, "documents/getAll", "documents", ct);
+
+    // Sprint 529: recibos vivem numa família separada no Moloni (receipts/getAll), com a MESMA forma
+    // de resposta dos documentos (document_id, saft_code RG, net/gross/taxes_value, status). O
+    // documents/getAll NÃO os devolve — daí esta chamada dedicada, reutilizando o mesmo mapeamento.
+    public Task<IReadOnlyList<MoloniDocumentRow>> ListReceiptsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+        => PageDocumentRowsAsync(settings, "receipts/getAll", "receipts", ct);
+
+    /// <summary>
+    /// Sprint 529: lê uma família de documentos Moloni paginada (documents/getAll, receipts/getAll, …).
+    /// Mapeia cada linha para <see cref="MoloniDocumentRow"/> com a convenção net/gross confirmada na S527c.
+    /// </summary>
+    private async Task<IReadOnlyList<MoloniDocumentRow>> PageDocumentRowsAsync(
+        TenantBillingSettings settings, string endpoint, string arrayProperty, CancellationToken ct)
     {
         EnsureMoloniBasics(settings);
         var rows = new List<MoloniDocumentRow>();
-        const int pageSize = 50; // documents/getAll: qty máximo 50 → paginação por offset.
+        const int pageSize = 50; // getAll: qty máximo 50 → paginação por offset.
         var offset = 0;
 
         for (var guard = 0; guard < 20; guard++) // cap defensivo: até 1000 documentos.
         {
             var result = await PostAsync<JsonElement>(
                 settings,
-                "documents/getAll",
+                endpoint,
                 new { company_id = settings.CompanyId!.Value, qty = pageSize, offset },
                 ct);
 
-            var batch = EnumerateItems(result, "documents", "data").ToList();
+            var batch = EnumerateItems(result, arrayProperty, "data").ToList();
             if (batch.Count == 0) break;
 
             foreach (var item in batch)
@@ -727,7 +741,7 @@ public class MoloniClient : IMoloniClient
                     date,
                     GetStringAny(item, "entity_name"),
                     GetStringAny(item, "entity_vat", "entity_number"),
-                    // Sprint 527c: convenção (contra-intuitiva) do Moloni documents/getAll, confirmada
+                    // Sprint 527c: convenção (contra-intuitiva) do Moloni getAll, confirmada
                     // no painel (Ilíquido 109,76 / Impostos 25,24 / Total 135 numa fatura de 135€):
                     //   net_value   = TOTAL com IVA   → GrossCents
                     //   gross_value = BASE sem IVA    → NetCents
@@ -745,7 +759,7 @@ public class MoloniClient : IMoloniClient
             offset += pageSize;
         }
 
-        _logger.LogInformation("Moloni documents/getAll: {Count} documentos para tenant {TenantId}", rows.Count, settings.TenantId);
+        _logger.LogInformation("Moloni {Endpoint}: {Count} linhas para tenant {TenantId}", endpoint, rows.Count, settings.TenantId);
         return rows;
     }
 
