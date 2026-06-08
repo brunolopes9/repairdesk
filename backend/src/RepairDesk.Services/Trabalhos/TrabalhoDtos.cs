@@ -50,6 +50,9 @@ public sealed record TrabalhoDto(
     string? InvoicePdfUrl,
     string? InvoiceNumber,
     DateTime? InvoiceEmittedAt,
+    // Sprint 529: recibo de liquidação (trabalho facturado a crédito e depois liquidado).
+    string? ReciboNumero,
+    DateTime? ReciboEmitidoEm,
     string? EstimateExternalId,
     string? EstimateNumber,
     string? EstimatePdfUrl,

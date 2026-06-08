@@ -98,6 +98,9 @@ export interface Trabalho {
   invoicePdfUrl: string | null;
   invoiceNumber: string | null;
   invoiceEmittedAt: string | null;
+  // Sprint 529: recibo de liquidação (trabalho facturado a crédito e depois liquidado).
+  reciboNumero: string | null;
+  reciboEmitidoEm: string | null;
   estimateExternalId: string | null;
   estimateNumber: string | null;
   estimatePdfUrl: string | null;

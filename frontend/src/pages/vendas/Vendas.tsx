@@ -914,6 +914,12 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
                         ver PDF
                       </a>
                     )}
+                    {/* Sprint 529: recibo de liquidação (Fatura → Recibo). */}
+                    {vendaDetalhe.reciboNumero && (
+                      <div className="mt-1 font-medium text-teal-700 dark:text-teal-400">
+                        🧾 Liquidada · Recibo {vendaDetalhe.reciboNumero}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <button

@@ -62,6 +62,9 @@ public sealed record VendaDto(
     string? InvoicePdfUrl,
     string? InvoiceNumber,
     DateTime? InvoiceEmittedAt,
+    // Sprint 529: recibo de liquidação (quando a venda foi facturada a crédito e depois liquidada).
+    string? ReciboNumero,
+    DateTime? ReciboEmitidoEm,
     string? Notas,
     IReadOnlyList<VendaItemDto> Items,
     VendaOrigem Origem);

@@ -760,6 +760,8 @@ public class VendaService : IVendaService
             venda.InvoicePdfUrl,
             venda.InvoiceNumber,
             venda.InvoiceEmittedAt,
+            venda.ReciboNumero,
+            venda.ReciboEmitidoEm,
             venda.Notas,
             venda.Items.Select(i => new VendaItemDto(
                 i.Id,

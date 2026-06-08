@@ -89,6 +89,9 @@ export interface Venda {
   invoicePdfUrl: string | null;
   invoiceNumber: string | null;
   invoiceEmittedAt: string | null;
+  // Sprint 529: recibo de liquidação (venda facturada a crédito e depois liquidada).
+  reciboNumero: string | null;
+  reciboEmitidoEm: string | null;
   notas: string | null;
   items: VendaItem[];
   origem: VendaOrigem;

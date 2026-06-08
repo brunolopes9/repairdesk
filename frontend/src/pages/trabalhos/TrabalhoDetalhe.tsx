@@ -395,6 +395,15 @@ export default function TrabalhoDetalhe() {
               >
                 Fatura {t.invoiceNumber ?? t.invoiceExternalId}
               </a>
+              {/* Sprint 529: recibo de liquidação — mostra a seguir à fatura (Fatura → Recibo). */}
+              {t.reciboNumero && (
+                <span
+                  title={`Fatura liquidada pelo recibo ${t.reciboNumero}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-800 dark:border-teal-800/60 dark:bg-teal-950/30 dark:text-teal-200"
+                >
+                  🧾 Recibo {t.reciboNumero} · liquidada
+                </span>
+              )}
               <button
                 type="button"
                 disabled={anularFatura.isPending}

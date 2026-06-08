@@ -365,6 +365,8 @@ public class TrabalhoService : ITrabalhoService
             t.InvoicePdfUrl,
             t.InvoiceNumber,
             t.InvoiceEmittedAt,
+            t.ReciboNumero,
+            t.ReciboEmitidoEm,
             t.EstimateExternalId,
             t.EstimateNumber,
             t.EstimatePdfUrl,
