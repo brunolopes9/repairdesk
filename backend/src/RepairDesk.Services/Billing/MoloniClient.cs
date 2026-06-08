@@ -698,8 +698,43 @@ public class MoloniClient : IMoloniClient
     // é um recibo, forçamos saft_code = "RG" (Sprint 529b): o Moloni nem sempre devolve o saft_code
     // esperado nos recibos, e sem isto a linha era excluída pelo filtro VendaSaftCodes → recibo
     // existia no Moloni mas nunca aparecia na lista do Mender.
-    public Task<IReadOnlyList<MoloniDocumentRow>> ListReceiptsAsync(TenantBillingSettings settings, CancellationToken ct = default)
-        => PageDocumentRowsAsync(settings, "receipts/getAll", "receipts", forceSaft: "RG", ct);
+    public async Task<IReadOnlyList<MoloniDocumentRow>> ListReceiptsAsync(TenantBillingSettings settings, CancellationToken ct = default)
+    {
+        var receipts = await PageDocumentRowsAsync(settings, "receipts/getAll", "receipts", forceSaft: "RG", ct);
+        if (receipts.Count == 0) return receipts;
+
+        // Sprint 529c: para cada recibo, descobre QUE fatura liquida (associated_documents do getOne),
+        // para o Mender poder ligar o recibo à reparação/venda de origem. Best-effort por linha.
+        var enriched = new List<MoloniDocumentRow>(receipts.Count);
+        foreach (var r in receipts)
+        {
+            int faturaId = 0;
+            try { faturaId = await GetReceiptAssociatedDocumentIdAsync(settings, r.DocumentId, ct); }
+            catch (Exception ex) { _logger.LogWarning(ex, "receipts/getOne falhou p/ recibo {Id}", r.DocumentId); }
+            enriched.Add(faturaId > 0 ? r with { AssociatedDocumentId = faturaId } : r);
+        }
+        return enriched;
+    }
+
+    /// <summary>Sprint 529c: id da 1ª fatura que o recibo liquida (receipts/getOne → associated_documents).</summary>
+    private async Task<int> GetReceiptAssociatedDocumentIdAsync(TenantBillingSettings settings, int receiptId, CancellationToken ct)
+    {
+        var result = await PostAsync<JsonElement>(
+            settings, "receipts/getOne",
+            new { company_id = settings.CompanyId!.Value, document_id = receiptId }, ct);
+        var doc = result.ValueKind == JsonValueKind.Array && result.GetArrayLength() > 0 ? result[0] : result;
+        if (doc.ValueKind == JsonValueKind.Object
+            && doc.TryGetProperty("associated_documents", out var assoc)
+            && assoc.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var a in assoc.EnumerateArray())
+            {
+                var id = GetIntAny(a, "associated_id", "document_id", "id");
+                if (id > 0) return id;
+            }
+        }
+        return 0;
+    }
 
     /// <summary>
     /// Sprint 529: lê uma família de documentos Moloni paginada (documents/getAll, receipts/getAll, …).

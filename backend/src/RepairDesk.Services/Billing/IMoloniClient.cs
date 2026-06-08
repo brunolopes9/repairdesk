@@ -75,7 +75,10 @@ public sealed record MoloniDocumentRow(
     int NetCents,          // base sem IVA (net_value)
     int TaxesCents,        // IVA (taxes_value)
     int Status,            // 0=Rascunho, 1=Fechado, 2=Anulado
-    int CustomerId = 0);   // Sprint 527: cliente Moloni — necessário p/ emitir Recibo de liquidação
+    int CustomerId = 0,    // Sprint 527: cliente Moloni — necessário p/ emitir Recibo de liquidação
+    // Sprint 529c: só para recibos — id da fatura que este recibo liquida (associated_documents do
+    // receipts/getOne). Permite ligar o recibo à reparação/venda de origem (que guarda esse id).
+    int AssociatedDocumentId = 0);
 
 public sealed record MoloniInvoiceDraft(
     int CustomerId,

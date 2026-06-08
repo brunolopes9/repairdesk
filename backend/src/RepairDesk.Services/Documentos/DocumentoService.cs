@@ -135,6 +135,9 @@ public sealed class DocumentoService : IDocumentoService
 
         // 2. Fetch ao Moloni (cache 5min, graceful): histórico + NCs + documentos feitos no painel.
         //    Para os Mender-emitidos, sobrepõe os valores + estado REAIS do Moloni à estimativa local.
+        // Sprint 529c: recibos a reconciliar localmente (fatura → liquidada), aplicado após o merge.
+        var reconciliar = new List<(string FaturaExternalId, string ReciboNumero, DateTime Data)>();
+
         foreach (var m in await FetchMoloniDocsAsync(ct))
         {
             if (m.Data < from || m.Data >= to) continue;
@@ -153,8 +156,39 @@ public sealed class DocumentoService : IDocumentoService
             }
             else
             {
-                byExternalId[key] = MapMoloni(m);
+                var dto = MapMoloni(m);
+                // Sprint 529c: um recibo (RG) herda a ORIGEM (reparação/venda) da fatura que liquida —
+                // assim clicar no recibo mostra "Reparação #1", tal como a fatura. E reconcilia o estado
+                // local: marca a fatura como liquidada por este recibo (esconde "Emitir recibo", mostra
+                // o recibo na ficha da reparação). Liga via associated_id (= InvoiceExternalId da origem).
+                if (string.Equals(m.SaftCode, "RG", StringComparison.OrdinalIgnoreCase) && m.AssociatedDocumentId > 0
+                    && byExternalId.TryGetValue(m.AssociatedDocumentId.ToString(CultureInfo.InvariantCulture), out var fatura))
+                {
+                    dto = dto with
+                    {
+                        Id = fatura.Id,
+                        Origem = fatura.Origem,
+                        NumeroInterno = fatura.NumeroInterno,
+                        ClienteId = fatura.ClienteId,
+                        ClienteNome = fatura.ClienteNome ?? dto.ClienteNome,
+                        ClienteNif = fatura.ClienteNif ?? dto.ClienteNif,
+                    };
+                    if (fatura.ReciboNumero is null && !string.IsNullOrWhiteSpace(fatura.ExternalId))
+                    {
+                        reconciliar.Add((fatura.ExternalId!, dto.Numero ?? dto.Tipo, m.Data));
+                        // Reflecte já nesta resposta (fatura liquidada + botão escondido), sem esperar pelo próximo fetch.
+                        byExternalId[fatura.ExternalId!] = fatura with { ReciboNumero = dto.Numero ?? dto.Tipo, ReciboEmitidoEm = m.Data };
+                    }
+                }
+                byExternalId[key] = dto;
             }
+        }
+
+        // Sprint 529c: persiste a reconciliação (uma vez — só enquanto ReciboNumero local está vazio).
+        foreach (var (faturaExternalId, reciboNumero, data) in reconciliar)
+        {
+            try { await _repo.MarcarReciboEmitidoAsync(faturaExternalId, reciboNumero, data, ct); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Reconciliação local do recibo falhou (fatura {Id})", faturaExternalId); }
         }
 
         IEnumerable<DocumentoDto> items = byExternalId.Values.Concat(semExternalId);

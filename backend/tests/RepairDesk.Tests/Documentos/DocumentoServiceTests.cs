@@ -55,8 +55,8 @@ public class DocumentoServiceTests
     private static DocumentoVendaRow Local(string? numero, int total, string origem = "Venda", string? nif = null, string? nome = null, string? externalId = null)
         => new(Guid.NewGuid(), origem, 1, numero, externalId ?? Guid.NewGuid().ToString("N"), "http://pdf", BillingProvider.Moloni, DateTime.UtcNow, Guid.NewGuid(), nome, nif, total);
 
-    private static MoloniDocumentRow MoloniDoc(int docId, string saft, int gross, int net, int taxes, int status = 1, string? nome = null, string? nif = null)
-        => new(docId, saft, $"{saft} {DateTime.UtcNow.Year}/{docId}", DateTime.UtcNow, nome, nif, gross, net, taxes, status);
+    private static MoloniDocumentRow MoloniDoc(int docId, string saft, int gross, int net, int taxes, int status = 1, string? nome = null, string? nif = null, int assoc = 0)
+        => new(docId, saft, $"{saft} {DateTime.UtcNow.Year}/{docId}", DateTime.UtcNow, nome, nif, gross, net, taxes, status, 0, assoc);
 
     [Fact]
     public async Task ListVendas_LocalApenas_DerivaTipo_ExtraiIva_SomaTotais()
@@ -153,5 +153,25 @@ public class DocumentoServiceTests
         var soRecibos = await svc.ListVendasAsync(new DocumentosFiltro(null, null, null, "RG"));
         soRecibos.TotalDocumentos.Should().Be(1);
         soRecibos.Items[0].TipoCodigo.Should().Be("RG");
+    }
+
+    [Fact]
+    public async Task ListVendas_Recibo_HerdaOrigemDaFatura_E_MarcaLiquidada()
+    {
+        // Sprint 529c: recibo (doc 300) liquida a fatura local da Reparação (externalId 100).
+        // O recibo deve herdar a origem (Reparacao) e a fatura deve ficar marcada como liquidada.
+        var svc = MakeService(
+            localRows: new[] { Local("FT 2026/3", 13500, origem: "Reparacao", nome: "Maria", nif: "235061921", externalId: "100") },
+            moloniDocs: new[] { MoloniDoc(100, "FT", gross: 13500, net: 10976, taxes: 2524, status: 1, nome: "Maria") },
+            moloniReceipts: new[] { MoloniDoc(300, "RG", gross: 13500, net: 10976, taxes: 2524, status: 1, nome: "Maria", assoc: 100) });
+
+        var res = await svc.ListVendasAsync(new DocumentosFiltro(null, null, null, null));
+
+        var recibo = res.Items.First(d => d.TipoCodigo == "RG");
+        recibo.Origem.Should().Be("Reparacao");      // herdou a origem da fatura que liquida
+        recibo.ClienteNome.Should().Be("Maria");
+
+        var fatura = res.Items.First(d => d.TipoCodigo == "FT");
+        fatura.ReciboNumero.Should().NotBeNull();    // marcada liquidada → esconde "Emitir recibo"
     }
 }
