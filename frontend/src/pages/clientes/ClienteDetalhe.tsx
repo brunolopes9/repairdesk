@@ -711,6 +711,21 @@ function RepRow({ r }: { r: Reparacao }) {
           </div>
           <div className="mt-0.5 truncate font-medium">{r.equipamento}</div>
           <div className="text-[11px] text-zinc-500 line-clamp-1">{r.avaria}</div>
+          {/* Sprint 529: documentos fiscais da reparação (fatura → recibo) na ficha do cliente. */}
+          {(r.invoiceNumber || r.reciboNumero) && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+              {r.invoiceNumber && (
+                <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  📄 {r.invoiceNumber}
+                </span>
+              )}
+              {r.reciboNumero && (
+                <span className="inline-flex items-center gap-1 rounded bg-teal-50 px-1.5 py-0.5 font-medium text-teal-700 dark:bg-teal-950/30 dark:text-teal-300">
+                  🧾 {r.reciboNumero}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="text-right">
           <div className="font-medium">{formatCents(r.precoFinalCents ?? r.orcamentoCents)}</div>
