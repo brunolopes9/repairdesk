@@ -254,6 +254,7 @@ try
     QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
     builder.Services.AddScoped<ITenantRepository, TenantRepository>();
     builder.Services.AddScoped<ITenantPreferencesRepository, TenantPreferencesRepository>();
+    builder.Services.AddScoped<IShopConditionImageRepository, ShopConditionImageRepository>();
     builder.Services.AddScoped<ITenantPreferencesService, TenantPreferencesService>();
     builder.Services.AddScoped<IWhatsAppNotificationLogRepository, WhatsAppNotificationLogRepository>();
     builder.Services.AddScoped<IOrcamentoPdfService, OrcamentoPdfService>();
@@ -390,6 +391,7 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Appointments.IAppointmentService, RepairDesk.Services.Appointments.AppointmentService>();
     // Sprint 189: pipeline imagens SEO (resize WebP + blur LQIP) — usa IPhotoStorage para R2.
     builder.Services.AddScoped<RepairDesk.Services.Products.IImageOptimizationService, RepairDesk.Services.Products.ImageOptimizationService>();
+    builder.Services.AddScoped<RepairDesk.Services.Shop.IShopConditionImageService, RepairDesk.Services.Shop.ShopConditionImageService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 

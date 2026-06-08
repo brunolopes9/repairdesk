@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:31ee7ec4cddb7155 -->
+<!-- roles-matrix-snapshot:d870576245a1ee4c -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -28,6 +28,7 @@ testes e esta matriz com snapshot.
 | ReparacoesController (S512) | fatura: `POST /{id}/emitir-fatura`, `/anular-fatura`, `/limpar-fatura-local` (desvincular fatura já anulada no Moloni para re-emitir) | `Authenticated` |
 | DocumentosController (S513) | `GET /api/documentos/vendas`, `/api/documentos/vendas/export.csv` (lista única de faturas emitidas) | `Authenticated` |
 | DocumentosController (S527) | `POST /api/documentos/{documentId}/recibo` (emite Recibo Moloni que liquida Fatura a crédito) | `Policy=RequireAdmin` |
+| ShopConditionImagesController (S531) | `GET/PUT/DELETE /api/shop-condition-images*` (imagens por estado de condição da loja online) | `Policy=RequireAdmin` |
 | DashboardController | `GET /api/dashboard/avisos-pendentes` (S460), `GET /devices-garantia-a-expirar` (S467) | `Authenticated` |
 | DevicesController (S461+S464) | `GET/POST/PUT/DELETE /api/devices*` + `GET /api/devices/by-imei/{imei}` — asset registry | `Authenticated` |
 | PublicPortalController / PublicWarrantyController | `GET/POST /api/public/*` | `Anonymous` + rate limit `public-portal` |

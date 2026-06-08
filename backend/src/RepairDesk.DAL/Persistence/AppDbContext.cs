@@ -61,6 +61,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<Fornecedor> Fornecedores => Set<Fornecedor>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    // Sprint 531: imagens ilustrativas por estado de condição (loja online), 1 por grau/tenant.
+    public DbSet<ShopConditionImage> ShopConditionImages => Set<ShopConditionImage>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
     // Sprint 147: faturas de fornecedor recebidas via endpoint ingest (n8n IMAP).
     public DbSet<SupplierInvoiceImport> SupplierInvoiceImports => Set<SupplierInvoiceImport>();

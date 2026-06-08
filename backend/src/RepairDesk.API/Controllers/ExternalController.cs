@@ -24,12 +24,15 @@ public class ExternalController : ControllerBase
     private readonly IExternalCheckoutService _checkout;
     private readonly IShopAiService _shopAi;
     private readonly IFileValidator _fileValidator;
+    private readonly RepairDesk.Services.Shop.IShopConditionImageService _conditionImages;
 
-    public ExternalController(IExternalCheckoutService checkout, IShopAiService shopAi, IFileValidator fileValidator)
+    public ExternalController(IExternalCheckoutService checkout, IShopAiService shopAi, IFileValidator fileValidator,
+        RepairDesk.Services.Shop.IShopConditionImageService conditionImages)
     {
         _checkout = checkout;
         _shopAi = shopAi;
         _fileValidator = fileValidator;
+        _conditionImages = conditionImages;
     }
 
     /// <summary>
@@ -47,6 +50,16 @@ public class ExternalController : ControllerBase
             ApiVersion: "1.0",
             TenantId: tenantClaim is null ? null : Guid.Parse(tenantClaim)));
     }
+
+    /// <summary>
+    /// Sprint 531: imagens ilustrativas por estado de condição (A+/A/B+/B) para o seletor visual
+    /// da loja (estilo Swappie). Geridas no Mender (single source of truth). Devolve 0-4 — a loja
+    /// faz fallback à sua imagem por defeito para os graus que ainda não tiverem imagem.
+    /// </summary>
+    [HttpGet("condition-images")]
+    [ApiScope("read")]
+    public Task<IReadOnlyList<RepairDesk.Services.Shop.ShopConditionImageDto>> ConditionImages(CancellationToken ct)
+        => _conditionImages.ListAsync(ct);
 
     /// <summary>
     /// Fecha uma venda inteira atomicamente. Use isto a partir de loja online (depois do pagamento
