@@ -83,6 +83,20 @@ public static class DocumentoTipo
             _ => ("FT", "Fatura"),
         };
     }
+
+    /// <summary>Sprint 529d: tipo a partir de um código SAF-T explícito (ex.: orçamentos locais).</summary>
+    public static (string Codigo, string Nome) FromCodigo(string codigo) => codigo.ToUpperInvariant() switch
+    {
+        "FT" => ("FT", "Fatura"),
+        "FS" => ("FS", "Fatura Simplificada"),
+        "FR" => ("FR", "Fatura-Recibo"),
+        "NC" => ("NC", "Nota de Crédito"),
+        "ND" => ("ND", "Nota de Débito"),
+        "VD" => ("VD", "Venda a Dinheiro"),
+        "RG" => ("RG", "Recibo"),
+        "ORC" => ("ORC", "Orçamento"),
+        _ => FromNumero(codigo),
+    };
 }
 
 public sealed class DocumentoService : IDocumentoService
@@ -324,7 +338,9 @@ public sealed class DocumentoService : IDocumentoService
 
     private static DocumentoDto MapLocal(DocumentoVendaRow r)
     {
-        var (codigo, nome) = DocumentoTipo.FromNumero(r.InvoiceNumber);
+        var (codigo, nome) = r.TipoOverride is not null
+            ? DocumentoTipo.FromCodigo(r.TipoOverride)
+            : DocumentoTipo.FromNumero(r.InvoiceNumber);
         // IVA estimado a 23% — substituído pelos valores exactos do Moloni quando há match (fetch).
         var baseCents = (int)Math.Round(r.TotalCents / 1.23m, MidpointRounding.AwayFromZero);
         return new DocumentoDto(

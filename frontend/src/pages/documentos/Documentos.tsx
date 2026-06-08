@@ -25,6 +25,8 @@ const TIPO_BADGE: Record<string, string> = {
   RG: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
   VD: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   ND: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  // Sprint 529d: orçamentos (pré-venda, não fiscal) — neutro/índigo.
+  ORC: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
 };
 
 const ORIGEM_LABEL: Record<string, string> = {
@@ -39,10 +41,11 @@ const ORIGEM_LINK: Record<string, (id: string) => string> = {
   Trabalho: (id) => `/trabalhos/${id}`,
 };
 
-type TipoFiltro = '' | 'FT' | 'FS' | 'FR' | 'RG' | 'NC';
+type TipoFiltro = '' | 'FT' | 'FS' | 'FR' | 'RG' | 'NC' | 'ORC';
 
 // Sprint 529: secções por tipo, como um ERP a sério. Os Recibos (RG) vêm do receipts/getAll do
 // Moloni (família separada); Faturas-Recibo e Notas de Crédito já vinham do documents/getAll.
+// Sprint 529d: Orçamentos (ORC) vêm dos campos Estimate* da reparação/trabalho — fora dos totais.
 const TIPO_TABS: ReadonlyArray<readonly [TipoFiltro, string]> = [
   ['', 'Todos'],
   ['FT', 'Faturas'],
@@ -50,6 +53,7 @@ const TIPO_TABS: ReadonlyArray<readonly [TipoFiltro, string]> = [
   ['FR', 'Faturas-Recibo'],
   ['RG', 'Recibos'],
   ['NC', 'Notas de crédito'],
+  ['ORC', 'Orçamentos'],
 ];
 
 export default function Documentos() {
@@ -94,7 +98,7 @@ export default function Documentos() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Vendas · Faturas</h1>
           <p className="text-sm text-zinc-500">
-            Todas as faturas emitidas — reparações, balcão e trabalhos — num só sítio.
+            Todos os documentos — faturas, recibos, orçamentos — de reparações, balcão e trabalhos.
           </p>
         </div>
         <div className="flex items-end gap-2">

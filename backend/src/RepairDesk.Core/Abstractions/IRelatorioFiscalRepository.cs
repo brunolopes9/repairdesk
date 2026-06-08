@@ -78,4 +78,6 @@ public sealed record DocumentoVendaRow(
     string? ClienteNif,
     int TotalCents,
     string? ReciboNumero = null,
-    DateTime? ReciboEmitidoEm = null);
+    DateTime? ReciboEmitidoEm = null,
+    // Sprint 529d: força o tipo do documento (ex.: "ORC" para orçamentos) em vez de o inferir do número.
+    string? TipoOverride = null);

@@ -303,7 +303,38 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
                 v.ReciboNumero, v.ReciboEmitidoEm))
             .ToListAsync(ct);
 
-        return reparacoes.Concat(trabalhos).Concat(vendas)
+        // Sprint 529d: orçamentos (estimates) — família à parte, mas o Mender guarda o EstimateExternalId,
+        // por isso listamo-los COM a origem certa (reparação/trabalho). TipoOverride="ORC" → não inflam
+        // os totais de faturado e aparecem numa secção própria. Vendas (POS) não têm orçamento.
+        var orcamentosRep = await _db.Reparacoes
+            .AsNoTracking()
+            .Where(r => r.EstimateEmittedAt != null && r.EstimateEmittedAt >= fromUtc && r.EstimateEmittedAt < toUtc)
+            .Select(r => new DocumentoVendaRow(
+                r.Id, "Reparacao", r.Numero,
+                r.EstimateNumber, r.EstimateExternalId, r.EstimatePdfUrl, r.InvoiceProvider,
+                r.EstimateEmittedAt!.Value,
+                r.ClienteId,
+                r.Cliente != null ? r.Cliente.Nome : null,
+                r.Cliente != null ? r.Cliente.Nif : null,
+                r.OrcamentoCents ?? 0,
+                null, null, "ORC"))
+            .ToListAsync(ct);
+
+        var orcamentosTrab = await _db.Trabalhos
+            .AsNoTracking()
+            .Where(t => t.EstimateEmittedAt != null && t.EstimateEmittedAt >= fromUtc && t.EstimateEmittedAt < toUtc)
+            .Select(t => new DocumentoVendaRow(
+                t.Id, "Trabalho", t.Numero,
+                t.EstimateNumber, t.EstimateExternalId, t.EstimatePdfUrl, t.InvoiceProvider,
+                t.EstimateEmittedAt!.Value,
+                t.ClienteId,
+                t.Cliente != null ? t.Cliente.Nome : null,
+                t.Cliente != null ? t.Cliente.Nif : null,
+                t.OrcamentoCents ?? 0,
+                null, null, "ORC"))
+            .ToListAsync(ct);
+
+        return reparacoes.Concat(trabalhos).Concat(vendas).Concat(orcamentosRep).Concat(orcamentosTrab)
             .OrderByDescending(x => x.InvoiceEmittedAt)
             .ToList();
     }
