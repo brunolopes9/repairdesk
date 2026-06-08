@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { AlertTriangle, History, PackagePlus, PackageSearch, Pencil, Search, SlidersHorizontal, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Boxes, History, MapPin, PackageCheck, PackagePlus, PackageSearch, Pencil, Search, SlidersHorizontal, Store, Trash2, Upload } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { Button, EmptyState, PageHeader, SkeletonCard, SkeletonTable, StatusBadge } from '../../components/ui';
+import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard, SkeletonTable, StatusBadge, ViewTabs } from '../../components/ui';
 import { formatCents, formatDate, parseEuros } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { stockApi } from '../../lib/stock/api';
@@ -20,6 +20,7 @@ import {
 } from '../../lib/stock/types';
 
 const PAGE_SIZE = 50;
+type StockScope = 'todos' | 'baixo' | 'loja' | 'inativas';
 
 export default function Stock() {
   const qc = useQueryClient();
@@ -30,6 +31,7 @@ export default function Stock() {
   const [marca, setMarca] = useState<string | null>(null);
   const [fornecedor, setFornecedor] = useState<string | null>(null);
   const [lowStockOnly, setLowStockOnly] = useState(initialLowStock);
+  const [stockScope, setStockScope] = useState<StockScope>(initialLowStock ? 'baixo' : 'todos');
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [pdfTextSnippet, setPdfTextSnippet] = useState<string | null>(null);
@@ -79,10 +81,103 @@ export default function Stock() {
   const items = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  // displayItems = items + filtro client-side de fornecedor (limitado à página atual).
-  const displayItems = fornecedor ? items.filter((p) => p.fornecedor === fornecedor) : items;
-  const totalStockCents = displayItems.reduce((sum, p) => sum + p.valorTotalStockCents, 0);
-  const lowCount = displayItems.filter((p) => p.stockBaixo).length;
+  // Filtro fornecedor ainda e client-side, limitado a pagina atual.
+  const displayItems = useMemo(() => (
+    fornecedor ? items.filter((p) => p.fornecedor === fornecedor) : items
+  ), [fornecedor, items]);
+  const stockCounts = useMemo(() => displayItems.reduce(
+    (acc, part) => {
+      acc.units += part.qtdStock;
+      acc.stockValueCents += part.valorTotalStockCents;
+      if (part.stockBaixo) acc.low += 1;
+      if (part.mostrarLojaOnline) acc.shopVisible += 1;
+      if (!part.activo) acc.inactive += 1;
+      if (!part.localArmazenamento) acc.noLocation += 1;
+      if (!part.fornecedor) acc.noSupplier += 1;
+      return acc;
+    },
+    { units: 0, stockValueCents: 0, low: 0, shopVisible: 0, inactive: 0, noLocation: 0, noSupplier: 0 },
+  ), [displayItems]);
+  const scopedItems = useMemo(() => {
+    if (stockScope === 'baixo') return displayItems.filter((p) => p.stockBaixo);
+    if (stockScope === 'loja') return displayItems.filter((p) => p.mostrarLojaOnline);
+    if (stockScope === 'inativas') return displayItems.filter((p) => !p.activo);
+    return displayItems;
+  }, [displayItems, stockScope]);
+  const totalStockCents = scopedItems.reduce((sum, p) => sum + p.valorTotalStockCents, 0);
+  const lowCount = stockCounts.low;
+  const stockTabs = [
+    { key: 'todos', label: 'Tudo', meta: displayItems.length },
+    { key: 'baixo', label: 'Stock baixo', meta: stockCounts.low },
+    { key: 'loja', label: 'Loja online', meta: stockCounts.shopVisible },
+    { key: 'inativas', label: 'Inativas', meta: stockCounts.inactive },
+  ];
+
+  function handleStockScopeChange(value: string) {
+    const next = value as StockScope;
+    setStockScope(next);
+    setLowStockOnly(next === 'baixo');
+    setPage(1);
+  }
+
+  const stockRail = (
+    <InspectorRail>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Inventario</p>
+        <h2 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">Armazem da oficina</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Saude do stock fisico, pecas publicas na loja e buracos de catalogacao nesta pagina.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <StockMetric label="Unidades" value={stockCounts.units} />
+        <StockMetric label="Valor stock" value={formatCents(stockCounts.stockValueCents)} tone="emerald" />
+        <StockMetric label="Stock baixo" value={stockCounts.low} tone={stockCounts.low > 0 ? 'amber' : 'zinc'} />
+        <StockMetric label="Na loja" value={stockCounts.shopVisible} tone="blue" />
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+        <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Atalhos de limpeza</p>
+        <StockInsightButton
+          icon={<AlertTriangle size={15} />}
+          label="Reabastecer"
+          value={`${stockCounts.low} baixo`}
+          tone={stockCounts.low > 0 ? 'amber' : 'zinc'}
+          onClick={() => handleStockScopeChange('baixo')}
+        />
+        <StockInsightButton
+          icon={<Store size={15} />}
+          label="Publicados"
+          value={`${stockCounts.shopVisible} loja`}
+          tone="blue"
+          onClick={() => handleStockScopeChange('loja')}
+        />
+        <StockInsightButton
+          icon={<MapPin size={15} />}
+          label="Sem local"
+          value={`${stockCounts.noLocation} itens`}
+          onClick={() => toast.info('Dica', 'Usa o filtro de pesquisa ou edita as pecas sem prateleira para acelerar a bancada.')}
+        />
+        <StockInsightButton
+          icon={<PackageCheck size={15} />}
+          label="Sem fornecedor"
+          value={`${stockCounts.noSupplier} itens`}
+          onClick={() => toast.info('Dica', 'Associar fornecedor ajuda compras, garantias e reposicao.')}
+        />
+      </div>
+
+      <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-950 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-100">
+        <div className="mb-1 flex items-center gap-2 font-semibold">
+          <Boxes size={15} />
+          Regra de organizacao
+        </div>
+        <p>
+          Mantem aqui o stock real da loja. Telemoveis/dropshipping vivem melhor em Catalogo & Stock, mas cada peca pode ser publicada na loja quando fizer sentido.
+        </p>
+      </div>
+    </InspectorRail>
+  );
 
   return (
     <div className="space-y-4">
@@ -146,7 +241,15 @@ export default function Stock() {
           </>
         }
       />
-      <header className="space-y-3">
+      <DetailWorkspace rail={stockRail}>
+        <section className="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Vista de inventario</p>
+              <p className="text-xs text-zinc-500">{scopedItems.length} nesta vista · {formatCents(totalStockCents)}</p>
+            </div>
+            <ViewTabs tabs={stockTabs} value={stockScope} onChange={handleStockScopeChange} className="lg:max-w-[620px]" />
+          </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <select
@@ -180,7 +283,12 @@ export default function Stock() {
             <input
               type="checkbox"
               checked={lowStockOnly}
-              onChange={(e) => { setLowStockOnly(e.target.checked); setPage(1); }}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setLowStockOnly(checked);
+                setStockScope(checked ? 'baixo' : 'todos');
+                setPage(1);
+              }}
               className="scale-125 sm:scale-100"
             />
             Só stock baixo
@@ -193,7 +301,7 @@ export default function Stock() {
             className="min-h-11 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
-      </header>
+        </section>
 
       {(lowCount > 0 || lowStockOnly) && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
@@ -205,7 +313,7 @@ export default function Stock() {
       {list.isLoading ? (
         <SkeletonTable columns={10} rows={8} minWidth="min-w-[920px]" />
       ) : (
-      <section className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <section className="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <table className="min-w-[920px] text-sm">
           <thead className="bg-zinc-50 text-left text-xs text-zinc-500 dark:bg-zinc-950">
             <tr>
@@ -222,7 +330,7 @@ export default function Stock() {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {displayItems.map((part) => (
+            {scopedItems.map((part) => (
               <tr key={part.id} className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${!part.activo ? 'opacity-50' : ''}`}>
                 <td className="px-3 py-2 font-mono text-xs text-zinc-500">{part.sku ?? '—'}</td>
                 <td className="px-3 py-2">
@@ -231,6 +339,7 @@ export default function Stock() {
                   </button>
                   <div className="mt-1 flex flex-wrap gap-1">
                     <StatusBadge tone="zinc">{PART_CATEGORIA_LABEL[part.categoria]}</StatusBadge>
+                    {part.mostrarLojaOnline && <StatusBadge tone="blue">Loja online</StatusBadge>}
                     {part.stockBaixo && <StatusBadge tone="amber" icon={<AlertTriangle size={11} />}>Stock baixo</StatusBadge>}
                     {!part.activo && <StatusBadge tone="rose">Inactiva</StatusBadge>}
                   </div>
@@ -263,10 +372,10 @@ export default function Stock() {
                 </td>
               </tr>
             ))}
-            {displayItems.length === 0 && !list.isLoading && (
+            {scopedItems.length === 0 && !list.isLoading && (
               <tr>
                 <td colSpan={10} className="px-3 py-2">
-                  {search || categoria != null || marca || fornecedor || lowStockOnly ? (
+                  {search || categoria != null || marca || fornecedor || lowStockOnly || stockScope !== 'todos' ? (
                     <EmptyState
                       icon={Search}
                       title="Sem peças para estes filtros"
@@ -301,6 +410,7 @@ export default function Stock() {
           <Button type="button" variant="ghost" size="sm" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)}>Seguinte</Button>
         </div>
       )}
+      </DetailWorkspace>
 
       <PartFormModal
         open={createOpen}
