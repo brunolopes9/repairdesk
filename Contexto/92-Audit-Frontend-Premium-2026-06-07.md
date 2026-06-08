@@ -30,8 +30,13 @@ excessivo e esconde o que interessa: estado, proxima acao, cliente, pagamento e 
 - `Produtos.tsx` passou para `Catalogo & Stock`, com tabs funcionais (`Tudo`, `Na loja online`,
   `Stock fisico`, `Stock virtual`, `Ocultos`) e rail sticky com metricas de modelos, variantes,
   stock fisico, dropshipping, ocultos, alertas e regra UX para conteudo por modelo.
+- `Stock.tsx` passou a usar o mesmo workspace premium, com vistas (`Tudo`, `Stock baixo`,
+  `Loja online`, `Inativas`) e rail lateral para saude do armazem, valor, unidades, publicacao
+  na loja, sem local e sem fornecedor.
 - `Balcao.tsx` alinhado ao mesmo `DetailWorkspace`/`InspectorRail`, mantendo a unificacao POS +
   caixa sem tocar na logica critica de cobranca.
+- `Trabalhos.tsx` alinhado ao workspace com tabs, filtros compactos e rail de pipeline para valor
+  previsto, trabalhos abertos/concluidos e pendencias de fatura.
 - Frontend build validado com `npm run build`.
 
 ## Evidencia no codigo

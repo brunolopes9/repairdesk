@@ -251,7 +251,7 @@ export default function Stock() {
             <ViewTabs tabs={stockTabs} value={stockScope} onChange={handleStockScopeChange} className="lg:max-w-[620px]" />
           </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <div className="grid gap-2 lg:grid-cols-[180px_180px_200px_150px_minmax(260px,1fr)]">
           <select
             value={categoria ?? ''}
             onChange={(e) => { setCategoria(e.target.value === '' ? null : (Number(e.target.value) as PartCategoria)); setPage(1); }}
@@ -298,7 +298,7 @@ export default function Stock() {
             placeholder="Pesquisar SKU, nome, modelo, fornecedor..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="min-h-11 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className="min-h-11 min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
         </section>
@@ -854,6 +854,65 @@ function ImportCsvModal({ open, onClose, onDone }: { open: boolean; onClose: () 
         )}
       </div>
     </Modal>
+  );
+}
+
+function StockMetric({
+  label,
+  value,
+  tone = 'zinc',
+}: {
+  label: string;
+  value: string | number;
+  tone?: 'zinc' | 'emerald' | 'amber' | 'blue';
+}) {
+  const toneCls = tone === 'emerald'
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200'
+    : tone === 'amber'
+      ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200'
+      : tone === 'blue'
+        ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200'
+        : 'border-zinc-200 bg-zinc-50 text-zinc-800 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200';
+
+  return (
+    <div className={`rounded-lg border p-3 ${toneCls}`}>
+      <div className="text-xs font-medium text-current/70">{label}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function StockInsightButton({
+  icon,
+  label,
+  value,
+  onClick,
+  tone = 'zinc',
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onClick: () => void;
+  tone?: 'zinc' | 'amber' | 'blue';
+}) {
+  const toneCls = tone === 'amber'
+    ? 'text-amber-700 dark:text-amber-300'
+    : tone === 'blue'
+      ? 'text-blue-700 dark:text-blue-300'
+      : 'text-zinc-500 dark:text-zinc-400';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition hover:border-brand-200 hover:bg-brand-50/60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-brand-900/60 dark:hover:bg-brand-950/30"
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <span className={toneCls}>{icon}</span>
+        <span className="truncate font-medium text-zinc-800 dark:text-zinc-100">{label}</span>
+      </span>
+      <span className="shrink-0 text-xs text-zinc-500">{value}</span>
+    </button>
   );
 }
 

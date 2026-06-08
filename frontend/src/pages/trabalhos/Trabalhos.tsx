@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { AlertTriangle, BriefcaseBusiness, Plus, Search } from 'lucide-react';
+import { AlertTriangle, BriefcaseBusiness, CheckCircle2, Clock3, Euro, FileWarning, Plus, Search } from 'lucide-react';
 import { isAxiosError } from 'axios';
 import Modal from '../../components/Modal';
-import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
+import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard, ViewTabs } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import { clientesApi } from '../../lib/clientes/api';
 import NovoClienteModal from '../../components/NovoClienteModal';
@@ -13,6 +13,7 @@ import { trabalhosApi } from '../../lib/trabalhos/api';
 import {
   CATEGORIA_LABEL,
   JOB_CATEGORY,
+  TRABALHO_STATUS,
   TRABALHO_STATUS_COLOR,
   TRABALHO_STATUS_LABEL,
   type JobCategory,
@@ -78,6 +79,67 @@ export default function Trabalhos() {
   const items = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / 20));
+  const tabValue = status === null ? 'todos' : String(status);
+  const tabItems = TABS.map((t) => ({ key: t.value === null ? 'todos' : String(t.value), label: t.label }));
+  const workStats = useMemo(() => {
+    let open = 0;
+    let done = 0;
+    let valueCents = 0;
+    for (const t of items) {
+      if (t.status === TRABALHO_STATUS.Concluido) done += 1;
+      if (t.status !== TRABALHO_STATUS.Concluido && t.status !== TRABALHO_STATUS.Cancelado) open += 1;
+      valueCents += t.precoFinalCents ?? t.orcamentoCents ?? 0;
+    }
+    return { open, done, valueCents };
+  }, [items]);
+
+  const workRail = (
+    <InspectorRail>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Operacao</p>
+        <h2 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">Pipeline de trabalhos</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Projetos fora da bancada: websites, software, assistencias e equipamento novo.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <WorkMetric icon={<Clock3 size={15} />} label="Abertos" value={workStats.open} />
+        <WorkMetric icon={<CheckCircle2 size={15} />} label="Concluidos" value={workStats.done} tone="emerald" />
+        <WorkMetric icon={<Euro size={15} />} label="Valor vista" value={formatCents(workStats.valueCents)} tone="blue" />
+        <WorkMetric icon={<FileWarning size={15} />} label="Sem fatura" value={pagasSemFatura.data?.length ?? 0} tone={(pagasSemFatura.data?.length ?? 0) > 0 ? 'amber' : 'zinc'} />
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+        <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Acoes rapidas</p>
+        <Button type="button" className="w-full justify-center" leftIcon={<Plus size={15} />} onClick={() => setCreateOpen(true)}>
+          Novo trabalho
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full justify-center"
+          disabled={(pagasSemFatura.data?.length ?? 0) === 0}
+          leftIcon={<AlertTriangle size={15} />}
+          onClick={() => setPagasSemFaturaOpen(true)}
+        >
+          Ver pendentes de fatura
+        </Button>
+      </div>
+
+      <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-950 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-100">
+        <p className="font-semibold">Regra UX</p>
+        <p className="mt-1">
+          Mantem aqui servicos/projetos que nao sao reparacoes de bancada. Reparacoes continuam no fluxo tecnico com estados e pecas.
+        </p>
+      </div>
+    </InspectorRail>
+  );
+
+  function handleTabChange(value: string) {
+    setStatus(value === 'todos' ? null : (Number(value) as TrabalhoStatus));
+    setPage(1);
+  }
 
   return (
     <div className="space-y-4">
@@ -103,24 +165,15 @@ export default function Trabalhos() {
         }
       />
 
-      <div className="-mx-4 overflow-x-auto px-4 pb-1">
-        <div className="flex gap-2">
-          {TABS.map((t) => (
-            <button
-              key={t.label}
-              type="button"
-              onClick={() => { setStatus(t.value); setPage(1); }}
-              className={`min-h-10 whitespace-nowrap rounded-full px-3 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
-                t.value === status
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <DetailWorkspace rail={workRail}>
+        <section className="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Vista de trabalhos</p>
+              <p className="text-xs text-zinc-500">{total} no filtro atual · {formatCents(workStats.valueCents)}</p>
+            </div>
+            <ViewTabs tabs={tabItems} value={tabValue} onChange={handleTabChange} className="lg:max-w-[620px]" />
+          </div>
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <select
@@ -144,6 +197,7 @@ export default function Trabalhos() {
           />
         </div>
       </div>
+        </section>
 
       <ul className="space-y-2">
         {list.isLoading && Array.from({ length: 4 }).map((_, index) => <SkeletonCard key={index} />)}
@@ -174,6 +228,7 @@ export default function Trabalhos() {
           <button disabled={page >= lastPage} onClick={() => setPage(p => p + 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Seguinte →</button>
         </div>
       )}
+      </DetailWorkspace>
 
       <CreateTrabalhoModal
         open={createOpen}
@@ -302,6 +357,34 @@ export default function Trabalhos() {
           </>
         )}
       </Modal>
+    </div>
+  );
+}
+
+function WorkMetric({
+  icon,
+  label,
+  value,
+  tone = 'zinc',
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  tone?: 'zinc' | 'emerald' | 'blue' | 'amber';
+}) {
+  const toneCls = tone === 'emerald'
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200'
+    : tone === 'blue'
+      ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200'
+      : tone === 'amber'
+        ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200'
+        : 'border-zinc-200 bg-zinc-50 text-zinc-800 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200';
+
+  return (
+    <div className={`rounded-lg border p-3 ${toneCls}`}>
+      <div className="mb-2 text-current/70">{icon}</div>
+      <div className="text-xs font-medium text-current/70">{label}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
