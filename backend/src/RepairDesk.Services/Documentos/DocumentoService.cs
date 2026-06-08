@@ -45,7 +45,10 @@ public sealed record DocumentoDto(
     int TotalCents,          // com IVA
     int IvaCents,
     int BaseCents,
-    string Estado);          // "Ativo" | "Anulado" | "Rascunho" | "—"
+    string Estado,           // "Ativo" | "Anulado" | "Rascunho" | "—"
+    // Sprint 528: se preenchido, a fatura está liquidada por este recibo → esconde "Emitir recibo".
+    string? ReciboNumero = null,
+    DateTime? ReciboEmitidoEm = null);
 
 public sealed record DocumentosListDto(
     IReadOnlyList<DocumentoDto> Items,
@@ -229,6 +232,12 @@ public sealed class DocumentoService : IDocumentoService
         var result = await _moloni.InsertReceiptAsync(
             settings, row.CustomerId, documentId, row.GrossCents, $"Liquidação da fatura {row.Numero}", ct);
 
+        // Sprint 528: marca o recibo na entity local (Reparacao/Trabalho/Venda) → esconde o botão
+        // "Emitir recibo" (evita duplicados) e mostra o recibo na ficha. No-op se for doc só-Moloni.
+        await _repo.MarcarReciboEmitidoAsync(
+            documentId.ToString(CultureInfo.InvariantCulture),
+            result.Numero ?? $"Recibo #{result.ReceiptId}", DateTime.UtcNow, ct);
+
         _cache.Remove($"moloni-docs:{tenantId}"); // força a lista a refletir o novo estado.
         _logger.LogInformation("Recibo {ReceiptId} emitido p/ fatura {Numero} (doc {DocumentId})",
             result.ReceiptId, row.Numero, documentId);
@@ -271,7 +280,8 @@ public sealed class DocumentoService : IDocumentoService
             r.InvoiceNumber, r.InvoiceExternalId, r.InvoicePdfUrl,
             r.Provider.ToString(), r.InvoiceEmittedAt,
             r.ClienteId, r.ClienteNome, r.ClienteNif,
-            r.TotalCents, r.TotalCents - baseCents, baseCents, "Ativo");
+            r.TotalCents, r.TotalCents - baseCents, baseCents, "Ativo",
+            r.ReciboNumero, r.ReciboEmitidoEm);
     }
 
     private static DocumentoDto MapMoloni(MoloniDocumentRow m)

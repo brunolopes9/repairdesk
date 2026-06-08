@@ -32,6 +32,10 @@ public class Trabalho : BaseEntity, ITenantEntity
     public string? InvoiceNumber { get; set; }
     public DateTime? InvoiceEmittedAt { get; set; }
 
+    // Sprint 528: recibo de liquidação emitido contra a fatura a crédito (ver Reparacao).
+    public string? ReciboNumero { get; set; }
+    public DateTime? ReciboEmitidoEm { get; set; }
+
     public string? EstimateExternalId { get; set; }
     public string? EstimateNumber { get; set; }
     public string? EstimatePdfUrl { get; set; }

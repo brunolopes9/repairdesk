@@ -17,6 +17,9 @@ export interface DocumentoDto {
   ivaCents: number;
   baseCents: number;
   estado: string; // "Ativo"
+  // Sprint 528: se preenchido, a fatura está liquidada por este recibo → esconde "Emitir recibo".
+  reciboNumero: string | null;
+  reciboEmitidoEm: string | null;
 }
 
 export interface DocumentosListDto {

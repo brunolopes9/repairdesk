@@ -16,6 +16,10 @@ public interface IRelatorioFiscalRepository
     /// quando detecta que o documento foi anulado externamente no painel Moloni.</summary>
     Task ClearInvoiceFieldsAsync(string tipo, Guid entityId, CancellationToken ct = default);
 
+    /// <summary>Sprint 528: marca o recibo de liquidação na entity (Reparacao/Trabalho/Venda) cujo
+    /// InvoiceExternalId corresponde. Permite esconder o botão "Emitir recibo" e mostrar o recibo na ficha.</summary>
+    Task MarcarReciboEmitidoAsync(string invoiceExternalId, string reciboNumero, DateTime emitidoEm, CancellationToken ct = default);
+
     /// <summary>
     /// Sprint 159: soma custos brutos (com IVA) das peças do stock consumidas em reparações
     /// PAGAS no período. Bruno deduz IVA destes ao IVA liquidado para apurar IVA a entregar.
@@ -72,4 +76,6 @@ public sealed record DocumentoVendaRow(
     Guid? ClienteId,
     string? ClienteNome,
     string? ClienteNif,
-    int TotalCents);
+    int TotalCents,
+    string? ReciboNumero = null,
+    DateTime? ReciboEmitidoEm = null);

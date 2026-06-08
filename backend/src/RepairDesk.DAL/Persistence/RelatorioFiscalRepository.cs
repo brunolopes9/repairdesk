@@ -51,6 +51,18 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
         await _db.SaveChangesAsync(ct);
     }
 
+    public async Task MarcarReciboEmitidoAsync(string invoiceExternalId, string reciboNumero, DateTime emitidoEm, CancellationToken ct = default)
+    {
+        // Sprint 528: a fatura mora numa de 3 tabelas (Reparacao/Trabalho/Venda). Procura por
+        // InvoiceExternalId e marca o recibo. Se for um doc só-Moloni (sem entity local), no-op silencioso.
+        var r = await _db.Reparacoes.FirstOrDefaultAsync(x => x.InvoiceExternalId == invoiceExternalId, ct);
+        if (r is not null) { r.ReciboNumero = reciboNumero; r.ReciboEmitidoEm = emitidoEm; await _db.SaveChangesAsync(ct); return; }
+        var t = await _db.Trabalhos.FirstOrDefaultAsync(x => x.InvoiceExternalId == invoiceExternalId, ct);
+        if (t is not null) { t.ReciboNumero = reciboNumero; t.ReciboEmitidoEm = emitidoEm; await _db.SaveChangesAsync(ct); return; }
+        var v = await _db.Vendas.FirstOrDefaultAsync(x => x.InvoiceExternalId == invoiceExternalId, ct);
+        if (v is not null) { v.ReciboNumero = reciboNumero; v.ReciboEmitidoEm = emitidoEm; await _db.SaveChangesAsync(ct); }
+    }
+
     /// <summary>
     /// Sprint 176+178b: soma o custo com IVA de TODAS as compras de stock (peças/material)
     /// no período. Inclui:
@@ -259,7 +271,8 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
                 r.ClienteId,
                 r.Cliente != null ? r.Cliente.Nome : null,
                 r.Cliente != null ? r.Cliente.Nif : null,
-                r.PrecoFinalCents ?? r.OrcamentoCents ?? 0))
+                r.PrecoFinalCents ?? r.OrcamentoCents ?? 0,
+                r.ReciboNumero, r.ReciboEmitidoEm))
             .ToListAsync(ct);
 
         var trabalhos = await _db.Trabalhos
@@ -272,7 +285,8 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
                 t.ClienteId,
                 t.Cliente != null ? t.Cliente.Nome : null,
                 t.Cliente != null ? t.Cliente.Nif : null,
-                t.PrecoFinalCents ?? t.OrcamentoCents ?? 0))
+                t.PrecoFinalCents ?? t.OrcamentoCents ?? 0,
+                t.ReciboNumero, t.ReciboEmitidoEm))
             .ToListAsync(ct);
 
         var vendas = await _db.Vendas
@@ -285,7 +299,8 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
                 v.ClienteId,
                 v.Cliente != null ? v.Cliente.Nome : null,
                 v.Cliente != null ? v.Cliente.Nif : null,
-                v.Items.Sum(i => i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents)))
+                v.Items.Sum(i => i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents),
+                v.ReciboNumero, v.ReciboEmitidoEm))
             .ToListAsync(ct);
 
         return reparacoes.Concat(trabalhos).Concat(vendas)

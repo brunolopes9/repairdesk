@@ -19,6 +19,7 @@ public class DocumentoServiceTests
 
         public Task<IReadOnlyList<RelatorioFiscalDocumentoRow>> ListDocumentosAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
         public Task ClearInvoiceFieldsAsync(string tipo, Guid id, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task MarcarReciboEmitidoAsync(string invoiceExternalId, string reciboNumero, DateTime emitidoEm, CancellationToken ct = default) => Task.CompletedTask;
         public Task<int> SumPecasCustoComIvaAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<int> SumDespesasComIvaAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<IvaDeducaoLinha>> ListComprasStockAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();

@@ -186,8 +186,9 @@ function DocumentoRow({ d }: { d: DocumentoDto }) {
   const origemHref = ORIGEM_LINK[d.origem]?.(d.id);
   const origemLabel = `${ORIGEM_LABEL[d.origem] ?? d.origem}${d.numeroInterno > 0 ? ` #${d.numeroInterno}` : ''}`;
 
-  // Sprint 527: só a Fatura pura (FT) activa pode estar "em dívida" → emitir recibo de liquidação.
-  const podeEmitirRecibo = d.tipoCodigo === 'FT' && d.estado === 'Ativo' && !!d.externalId;
+  // Sprint 527/528: só a Fatura pura (FT) activa AINDA SEM recibo pode emitir recibo de liquidação.
+  // Com recibo já emitido (d.reciboNumero), o botão desaparece → evita documentos duplicados.
+  const podeEmitirRecibo = d.tipoCodigo === 'FT' && d.estado === 'Ativo' && !!d.externalId && !d.reciboNumero;
   const emitirRecibo = useMutation({
     mutationFn: () => documentosApi.emitirRecibo(Number(d.externalId)),
     onSuccess: (r) => {
@@ -264,6 +265,11 @@ function DocumentoRow({ d }: { d: DocumentoDto }) {
                 <div className="text-zinc-600 dark:text-zinc-300">Base {formatCents(d.baseCents)} · IVA {formatCents(d.ivaCents)}</div>
                 <div className="font-semibold">Total {formatCents(d.totalCents)}</div>
                 <div className="mt-0.5 text-xs text-zinc-500">Estado: {d.estado}</div>
+                {d.reciboNumero && (
+                  <div className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+                    <Receipt size={13} /> Liquidada · {d.reciboNumero}
+                  </div>
+                )}
                 {podeEmitirRecibo && (
                   <button
                     type="button"

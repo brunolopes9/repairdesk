@@ -25,6 +25,10 @@ public class Venda : BaseEntity, ITenantEntity
     public string? InvoiceNumber { get; set; }
     public DateTime? InvoiceEmittedAt { get; set; }
 
+    // Sprint 528: recibo de liquidação emitido contra a fatura a crédito (ver Reparacao).
+    public string? ReciboNumero { get; set; }
+    public DateTime? ReciboEmitidoEm { get; set; }
+
     public string? Notas { get; set; }
     public List<VendaItem> Items { get; set; } = new();
 }
