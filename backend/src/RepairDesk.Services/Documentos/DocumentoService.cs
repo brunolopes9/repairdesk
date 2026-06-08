@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using RepairDesk.Common.Helpers;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
+using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Billing;
 
 namespace RepairDesk.Services.Documentos;
@@ -19,7 +20,13 @@ public interface IDocumentoService
 {
     Task<DocumentosListDto> ListVendasAsync(DocumentosFiltro filtro, CancellationToken ct = default);
     Task<byte[]> ExportVendasCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default);
+
+    /// <summary>Sprint 527: emite um Recibo Moloni que liquida uma Fatura a crédito (em dívida).</summary>
+    Task<ReciboResultDto> EmitirReciboAsync(int documentId, CancellationToken ct = default);
 }
+
+/// <summary>Sprint 527: resultado da emissão de um Recibo de liquidação.</summary>
+public sealed record ReciboResultDto(int ReceiptId, string? Numero, int ValorCents);
 
 public sealed record DocumentoDto(
     Guid Id,
@@ -196,6 +203,36 @@ public sealed class DocumentoService : IDocumentoService
                 d.Estado);
         }
         return csv.ToUtf8WithBom();
+    }
+
+    public async Task<ReciboResultDto> EmitirReciboAsync(int documentId, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+
+        var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
+        if (settings?.Provider != BillingProvider.Moloni || settings.CompanyId is null or <= 0)
+            throw new ValidationException("moloni_not_configured", "O Moloni não está configurado para este tenant.");
+
+        // Resolve o documento na FONTE REAL (Moloni), sem cache — nunca confiar em valores do cliente.
+        var docs = await _moloni.ListDocumentsAsync(settings, ct);
+        var row = docs.FirstOrDefault(d => d.DocumentId == documentId)
+            ?? throw new NotFoundException("Documento Moloni", documentId);
+
+        // Só a Fatura pura (FT) é "a crédito"/em dívida. FS, FR e VD já são pagamento imediato.
+        if (!string.Equals(row.SaftCode, "FT", StringComparison.OrdinalIgnoreCase))
+            throw new ValidationException("recibo_so_fatura",
+                "Só faturas a crédito (FT) podem receber recibo — FS / Fatura-Recibo / VD já estão pagas.");
+        if (row.Status == 2)
+            throw new ValidationException("recibo_doc_anulado", "Documento anulado — não pode receber recibo.");
+
+        var result = await _moloni.InsertReceiptAsync(
+            settings, row.CustomerId, documentId, row.GrossCents, $"Liquidação da fatura {row.Numero}", ct);
+
+        _cache.Remove($"moloni-docs:{tenantId}"); // força a lista a refletir o novo estado.
+        _logger.LogInformation("Recibo {ReceiptId} emitido p/ fatura {Numero} (doc {DocumentId})",
+            result.ReceiptId, row.Numero, documentId);
+        return new ReciboResultDto(result.ReceiptId, result.Numero, row.GrossCents);
     }
 
     private async Task<IReadOnlyList<MoloniDocumentRow>> FetchMoloniDocsAsync(CancellationToken ct)

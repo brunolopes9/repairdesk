@@ -48,7 +48,15 @@ public interface IMoloniClient
     // Backbone do "fetch de anteriores" para a lista única de Faturas — traz histórico + NCs +
     // documentos feitos directamente no painel Moloni, com valores e estado reais.
     Task<IReadOnlyList<MoloniDocumentRow>> ListDocumentsAsync(TenantBillingSettings settings, CancellationToken ct = default);
+
+    // Sprint 527: emite um Recibo (receipts/insert) que liquida uma Fatura a crédito (em dívida).
+    // NÃO envia o array payments → o Moloni adiciona automaticamente o pagamento pelo valor total
+    // (evita o mismatch payments.value que causava "Database error"). Liquida o valor cheio do doc.
+    Task<MoloniReceiptResult> InsertReceiptAsync(TenantBillingSettings settings, int customerId, int documentId, int valueCents, string? notes, CancellationToken ct = default);
 }
+
+/// <summary>Sprint 527: resultado da emissão de um Recibo Moloni.</summary>
+public sealed record MoloniReceiptResult(int ReceiptId, string? Numero);
 
 /// <summary>Sprint 514: documento de venda devolvido pelo Moloni documents/getAll. Valores em cêntimos.</summary>
 public sealed record MoloniDocumentRow(
@@ -61,7 +69,8 @@ public sealed record MoloniDocumentRow(
     int GrossCents,        // total com IVA (gross_value)
     int NetCents,          // base sem IVA (net_value)
     int TaxesCents,        // IVA (taxes_value)
-    int Status);           // 0=Rascunho, 1=Fechado, 2=Anulado
+    int Status,            // 0=Rascunho, 1=Fechado, 2=Anulado
+    int CustomerId = 0);   // Sprint 527: cliente Moloni — necessário p/ emitir Recibo de liquidação
 
 public sealed record MoloniInvoiceDraft(
     int CustomerId,

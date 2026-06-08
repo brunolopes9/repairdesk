@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RepairDesk.Core.Auth;
 using RepairDesk.Services.Documentos;
 
 namespace RepairDesk.API.Controllers;
@@ -36,4 +37,13 @@ public class DocumentosController : ControllerBase
         var bytes = await _service.ExportVendasCsvAsync(from, to, ct);
         return File(bytes, "text/csv", $"documentos-vendas-{DateTime.UtcNow:yyyyMMdd}.csv");
     }
+
+    /// <summary>
+    /// Sprint 527: emite um Recibo Moloni que liquida uma Fatura a crédito (em dívida 100%).
+    /// Admin-only (escrita fiscal). documentId = id Moloni do documento (DocumentoDto.ExternalId).
+    /// </summary>
+    [HttpPost("{documentId:int}/recibo")]
+    [Authorize(Policy = AppPolicies.RequireAdmin)]
+    public Task<ReciboResultDto> EmitirRecibo(int documentId, CancellationToken ct)
+        => _service.EmitirReciboAsync(documentId, ct);
 }
