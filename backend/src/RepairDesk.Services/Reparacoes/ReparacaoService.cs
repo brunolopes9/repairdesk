@@ -1158,6 +1158,8 @@ public class ReparacaoService : IReparacaoService
             r.InvoicePdfUrl,
             r.InvoiceNumber,
             r.InvoiceEmittedAt,
+            r.ReciboNumero,
+            r.ReciboEmitidoEm,
             r.EstimateExternalId,
             r.EstimateNumber,
             r.EstimatePdfUrl,

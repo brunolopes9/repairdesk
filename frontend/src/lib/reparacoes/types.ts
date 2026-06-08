@@ -128,6 +128,8 @@ export interface Reparacao {
   invoicePdfUrl: string | null;
   invoiceNumber: string | null;
   invoiceEmittedAt: string | null;
+  reciboNumero: string | null;
+  reciboEmitidoEm: string | null;
   estimateExternalId: string | null;
   estimateNumber: string | null;
   estimatePdfUrl: string | null;

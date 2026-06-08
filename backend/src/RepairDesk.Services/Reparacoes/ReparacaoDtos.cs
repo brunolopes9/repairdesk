@@ -93,6 +93,8 @@ public sealed record ReparacaoDto(
     string? InvoicePdfUrl,
     string? InvoiceNumber,
     DateTime? InvoiceEmittedAt,
+    string? ReciboNumero,
+    DateTime? ReciboEmitidoEm,
     string? EstimateExternalId,
     string? EstimateNumber,
     string? EstimatePdfUrl,

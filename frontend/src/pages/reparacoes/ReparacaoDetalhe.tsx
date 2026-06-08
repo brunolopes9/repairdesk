@@ -998,6 +998,20 @@ export default function ReparacaoDetalhe() {
               >
                 {limparFaturaLocal.isPending ? 'A desvincular…' : 'Já anulada no Moloni? Desvincular'}
               </button>
+              {/* Sprint 528: recibo de liquidação emitido — mostra a seguir à fatura (Fatura → Recibo). */}
+              {r.reciboNumero && (
+                <span
+                  title={
+                    r.reciboEmitidoEm
+                      ? `Fatura liquidada pelo recibo ${r.reciboNumero} em ${new Date(r.reciboEmitidoEm).toLocaleDateString('pt-PT')}`
+                      : `Fatura liquidada pelo recibo ${r.reciboNumero}`
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-800 dark:border-teal-800/60 dark:bg-teal-950/30 dark:text-teal-200"
+                >
+                  <span aria-hidden>🧾</span>
+                  Recibo {r.reciboNumero} · liquidada
+                </span>
+              )}
             </>
           ) : canEmitMoloniInvoice && (
             <button
