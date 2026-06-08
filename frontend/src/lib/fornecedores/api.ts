@@ -12,6 +12,7 @@ export interface Fornecedor {
   notas: string | null;
   active: boolean;
   createdAt: string;
+  intraUe: boolean;
 }
 
 export interface FornecedorWriteRequest {
@@ -23,6 +24,7 @@ export interface FornecedorWriteRequest {
   garantiaB2BDiasDefault?: number | null;
   notas?: string | null;
   active: boolean;
+  intraUe?: boolean;
 }
 
 export const fornecedoresApi = {

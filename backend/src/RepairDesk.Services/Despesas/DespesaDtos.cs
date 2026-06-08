@@ -14,7 +14,9 @@ public sealed record CreateDespesaRequest(
     Guid? ReparacaoId,
     bool IsCogs = false,
     bool IsRecorrente = false,
-    int? PeriodicidadeMeses = null);
+    int? PeriodicidadeMeses = null,
+    // Sprint 525: compra intra-UE em autoliquidação — IVA não dedutível em PT.
+    bool ReverseCharge = false);
 
 public sealed record UpdateDespesaRequest(
     string Descricao,

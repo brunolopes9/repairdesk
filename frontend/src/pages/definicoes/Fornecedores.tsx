@@ -15,6 +15,7 @@ const emptyForm: FornecedorWriteRequest = {
   garantiaB2BDiasDefault: null,
   notas: null,
   active: true,
+  intraUe: false,
 };
 
 export default function Fornecedores() {
@@ -33,7 +34,7 @@ export default function Fornecedores() {
   function openEdit(f: Fornecedor) {
     setEditing(f);
     setForm({ name: f.name, email: f.email, rmaEmail: f.rmaEmail, phone: f.phone,
-      website: f.website, garantiaB2BDiasDefault: f.garantiaB2BDiasDefault, notas: f.notas, active: f.active });
+      website: f.website, garantiaB2BDiasDefault: f.garantiaB2BDiasDefault, notas: f.notas, active: f.active, intraUe: f.intraUe });
     setOpen(true);
   }
 
@@ -89,7 +90,17 @@ export default function Fornecedores() {
             {!list.isLoading && items.map((f) => (
               <tr key={f.id} onClick={() => openEdit(f)} className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                 <td className="px-4 py-3">
-                  <div className="font-medium">{f.name}</div>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    {f.name}
+                    {f.intraUe && (
+                      <span
+                        className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                        title="Fornecedor intra-UE (autoliquidação — IVA não dedutível)"
+                      >
+                        UE
+                      </span>
+                    )}
+                  </div>
                   {f.website && <div className="text-[11px] text-zinc-500">{f.website}</div>}
                 </td>
                 <td className="px-4 py-3 text-xs text-zinc-600 dark:text-zinc-300">
@@ -174,6 +185,20 @@ export default function Fornecedores() {
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-zinc-500">Notas</span>
             <textarea rows={3} value={form.notas ?? ''} onChange={(e) => setForm({ ...form, notas: e.target.value || null })} className={`${inputCls} resize-none`} placeholder="Pagamento por Multibanco, devoluções até 14d..." />
+          </label>
+          <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs dark:border-amber-900/40 dark:bg-amber-950/20">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={form.intraUe ?? false}
+              onChange={(e) => setForm({ ...form, intraUe: e.target.checked })}
+            />
+            <span>
+              <span className="font-medium text-amber-800 dark:text-amber-300">Fornecedor intra-UE (autoliquidação)</span>
+              <span className="mt-0.5 block text-amber-700/80 dark:text-amber-400/70">
+                Compras a fornecedores de outro país da UE (ex: Utopya/FR, Molano/NL). O IVA é autoliquidado e <strong>não conta como IVA dedutível</strong> no Relatório IVA — evita inflar o crédito de IVA.
+              </span>
+            </span>
           </label>
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />

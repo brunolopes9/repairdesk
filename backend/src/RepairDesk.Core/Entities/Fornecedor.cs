@@ -53,6 +53,15 @@ public class Fornecedor : BaseEntity, ITenantEntity
     public DefaultImportAction DefaultImportAction { get; set; } = DefaultImportAction.Auto;
 
     /// <summary>
+    /// Sprint 525: fornecedor de fora de Portugal (aquisição intra-UE). Quando true, as compras a
+    /// este fornecedor são tratadas como AUTOLIQUIDAÇÃO (reverse charge): o IVA é liquidado E deduzido
+    /// pelo adquirente português = efeito ZERO; o IVA estrangeiro da fatura NÃO é dedutível em PT
+    /// (RITI art. 19.º, confirmado OCC). Carimba Despesa.ReverseCharge / PartMovimento.ReverseCharge
+    /// na aprovação para o Relatório IVA os tratar correctamente.
+    /// </summary>
+    public bool IntraUe { get; set; }
+
+    /// <summary>
     /// Sprint 203: mapeamento aprendido de colunas CSV para campos canónicos.
     /// JSON Object com chaves canónicas e valores = nome da coluna no CSV (case-insensitive).
     /// Ex: { "sku":"SKU", "brand":"", "model":"Product", "price":"Price (EUR)", "stock":"Stock",

@@ -888,6 +888,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         var partsAffected = 0;
         var newParts = 0;
         var notas = $"Compra fornecedor {entity.Fornecedor?.Name ?? entity.FornecedorNameRaw ?? "?"} doc {entity.ParsedDocumentNumber ?? "?"}";
+        // Sprint 525: fornecedor intra-UE → compra em autoliquidação (IVA não dedutível em PT).
+        var reverseCharge = entity.Fornecedor?.IntraUe ?? false;
 
         var despesasCriadas = 0;
         foreach (var item in req.Items)
@@ -909,7 +911,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                     Notas: notas,
                     TrabalhoId: null,
                     ReparacaoId: null,
-                    IsCogs: false), ct);
+                    IsCogs: false,
+                    ReverseCharge: reverseCharge), ct);
                 despesasCriadas++;
                 continue;
             }
@@ -969,6 +972,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                 StockDepois = stockAntes + item.Quantity,
                 Motivo = PartMovimentoMotivo.Entrada,
                 Notas = notas,
+                ReverseCharge = reverseCharge,
             });
             part.QtdStock += item.Quantity;
             partsAffected++;

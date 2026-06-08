@@ -67,6 +67,7 @@ public class DespesaService : IDespesaService
             IsCogs = req.IsCogs,
             IsRecorrente = req.IsRecorrente,
             PeriodicidadeMeses = req.IsRecorrente ? req.PeriodicidadeMeses : null,
+            ReverseCharge = req.ReverseCharge,
         };
         await _repo.AddAsync(d, ct);
         await _repo.SaveAsync(ct);

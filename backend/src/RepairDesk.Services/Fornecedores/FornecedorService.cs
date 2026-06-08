@@ -24,7 +24,9 @@ public sealed record FornecedorDto(
     int? GarantiaB2BDiasDefault,
     string? Notas,
     bool Active,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    // Sprint 525: fornecedor intra-UE (autoliquidação) — compras não geram IVA dedutível em PT.
+    bool IntraUe = false);
 
 public sealed record FornecedorWriteRequest(
     string Name,
@@ -34,7 +36,8 @@ public sealed record FornecedorWriteRequest(
     string? Website,
     int? GarantiaB2BDiasDefault,
     string? Notas,
-    bool Active);
+    bool Active,
+    bool IntraUe = false);
 
 public class FornecedorService : IFornecedorService
 {
@@ -76,6 +79,7 @@ public class FornecedorService : IFornecedorService
             GarantiaB2BDiasDefault = req.GarantiaB2BDiasDefault is > 0 ? req.GarantiaB2BDiasDefault : null,
             Notas = Clean(req.Notas),
             Active = req.Active,
+            IntraUe = req.IntraUe,
         };
         await _repo.AddAsync(entity, ct);
         await _repo.SaveAsync(ct);
@@ -105,6 +109,7 @@ public class FornecedorService : IFornecedorService
         entity.GarantiaB2BDiasDefault = req.GarantiaB2BDiasDefault is > 0 ? req.GarantiaB2BDiasDefault : null;
         entity.Notas = Clean(req.Notas);
         entity.Active = req.Active;
+        entity.IntraUe = req.IntraUe;
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(Fornecedor), entity.Id, new { entity.Name, entity.Active }, ct: ct);
         return ToDto(entity);
@@ -139,5 +144,5 @@ public class FornecedorService : IFornecedorService
     }
 
     private static FornecedorDto ToDto(Fornecedor f) =>
-        new(f.Id, f.Name, f.Code, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt);
+        new(f.Id, f.Name, f.Code, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt, f.IntraUe);
 }

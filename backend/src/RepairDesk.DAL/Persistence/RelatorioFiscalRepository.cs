@@ -64,7 +64,8 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .AsNoTracking()
             .Where(m => m.Quantidade > 0
                 && m.CreatedAt >= fromUtc && m.CreatedAt < toUtc
-                && m.Motivo == Core.Enums.PartMovimentoMotivo.Entrada)
+                && m.Motivo == Core.Enums.PartMovimentoMotivo.Entrada
+                && !m.ReverseCharge) // Sprint 525: intra-UE (autoliquidação) não é dedutível em PT
             .GroupBy(m => 1)
             .Select(g => g.Sum(m => m.Quantidade * (m.Part != null ? m.Part.CustoUnitarioCents : 0)))
             .FirstOrDefaultAsync(ct);
@@ -74,6 +75,7 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
         var despesasPecas = await _db.Despesas
             .Where(d => d.Data >= fromUtc && d.Data < toUtc
                 && !d.IsCogs
+                && !d.ReverseCharge // Sprint 525: intra-UE (autoliquidação) não é dedutível em PT
                 && (d.Categoria == Core.Enums.DespesaCategoria.Pecas
                  || d.Categoria == Core.Enums.DespesaCategoria.Material))
             .SumAsync(d => (int?)d.ValorCents, ct) ?? 0;
@@ -105,6 +107,7 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
         return await _db.Despesas
             .Where(d => d.Data >= fromUtc && d.Data < toUtc
                 && !d.IsCogs
+                && !d.ReverseCharge // Sprint 525: intra-UE/serviços estrangeiros (autoliquidação) não dedutível em PT
                 && d.Categoria != Core.Enums.DespesaCategoria.Pecas
                 && d.Categoria != Core.Enums.DespesaCategoria.Material
                 && ((d.ReparacaoId != null && reparacoesPagasIds.Contains(d.ReparacaoId.Value))
@@ -124,6 +127,7 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .Where(m => m.Quantidade > 0
                 && m.CreatedAt >= fromUtc && m.CreatedAt < toUtc
                 && m.Motivo == Core.Enums.PartMovimentoMotivo.Entrada
+                && !m.ReverseCharge // Sprint 525: detalhe bate com o total (autoliquidação fora)
                 && m.Part != null)
             .Select(m => new
             {
@@ -138,6 +142,7 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .AsNoTracking()
             .Where(d => d.Data >= fromUtc && d.Data < toUtc
                 && !d.IsCogs
+                && !d.ReverseCharge // Sprint 525: detalhe bate com o total (autoliquidação fora)
                 && (d.Categoria == Core.Enums.DespesaCategoria.Pecas
                  || d.Categoria == Core.Enums.DespesaCategoria.Material))
             .Select(d => new { d.Data, d.Descricao, d.Fornecedor, d.ValorCents })

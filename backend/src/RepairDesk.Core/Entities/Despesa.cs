@@ -44,4 +44,11 @@ public class Despesa : BaseEntity, ITenantEntity
     /// Periodicidade em meses para recorrencia. Valores esperados: 1, 3 ou 12.
     /// </summary>
     public int? PeriodicidadeMeses { get; set; }
+
+    /// <summary>
+    /// Sprint 525: compra a fornecedor intra-UE (autoliquidação). Quando true, NÃO conta como IVA
+    /// dedutível normal no Relatório IVA (reverse charge = efeito zero; IVA estrangeiro não é
+    /// dedutível em PT). Carimbado na aprovação de fatura a partir de Fornecedor.IntraUe.
+    /// </summary>
+    public bool ReverseCharge { get; set; }
 }
