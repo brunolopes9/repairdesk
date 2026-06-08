@@ -691,20 +691,23 @@ public class MoloniClient : IMoloniClient
     }
 
     public Task<IReadOnlyList<MoloniDocumentRow>> ListDocumentsAsync(TenantBillingSettings settings, CancellationToken ct = default)
-        => PageDocumentRowsAsync(settings, "documents/getAll", "documents", ct);
+        => PageDocumentRowsAsync(settings, "documents/getAll", "documents", forceSaft: null, ct);
 
-    // Sprint 529: recibos vivem numa família separada no Moloni (receipts/getAll), com a MESMA forma
-    // de resposta dos documentos (document_id, saft_code RG, net/gross/taxes_value, status). O
-    // documents/getAll NÃO os devolve — daí esta chamada dedicada, reutilizando o mesmo mapeamento.
+    // Sprint 529: recibos vivem numa família separada no Moloni (receipts/getAll), que o
+    // documents/getAll NÃO devolve — daí esta chamada dedicada. Como TUDO o que vem deste endpoint
+    // é um recibo, forçamos saft_code = "RG" (Sprint 529b): o Moloni nem sempre devolve o saft_code
+    // esperado nos recibos, e sem isto a linha era excluída pelo filtro VendaSaftCodes → recibo
+    // existia no Moloni mas nunca aparecia na lista do Mender.
     public Task<IReadOnlyList<MoloniDocumentRow>> ListReceiptsAsync(TenantBillingSettings settings, CancellationToken ct = default)
-        => PageDocumentRowsAsync(settings, "receipts/getAll", "receipts", ct);
+        => PageDocumentRowsAsync(settings, "receipts/getAll", "receipts", forceSaft: "RG", ct);
 
     /// <summary>
     /// Sprint 529: lê uma família de documentos Moloni paginada (documents/getAll, receipts/getAll, …).
     /// Mapeia cada linha para <see cref="MoloniDocumentRow"/> com a convenção net/gross confirmada na S527c.
+    /// <paramref name="forceSaft"/> sobrepõe o saft_code (recibos → "RG" sempre).
     /// </summary>
     private async Task<IReadOnlyList<MoloniDocumentRow>> PageDocumentRowsAsync(
-        TenantBillingSettings settings, string endpoint, string arrayProperty, CancellationToken ct)
+        TenantBillingSettings settings, string endpoint, string arrayProperty, string? forceSaft, CancellationToken ct)
     {
         EnsureMoloniBasics(settings);
         var rows = new List<MoloniDocumentRow>();
@@ -724,10 +727,11 @@ public class MoloniClient : IMoloniClient
 
             foreach (var item in batch)
             {
-                var documentId = GetIntAny(item, "document_id", "id");
+                var documentId = GetIntAny(item, "document_id", "receipt_id", "id");
                 if (documentId <= 0) continue;
 
-                var saft = item.TryGetProperty("document_type", out var dt) ? GetString(dt, "saft_code") : null;
+                // Sprint 529b: recibos → saft forçado a "RG" (o Moloni nem sempre o devolve nos recibos).
+                var saft = forceSaft ?? (item.TryGetProperty("document_type", out var dt) ? GetString(dt, "saft_code") : null);
                 var date = ParseMoloniDate(GetStringAny(item, "date"));
                 var number = GetIntAny(item, "number");
                 var numero = !string.IsNullOrWhiteSpace(saft) && number > 0
