@@ -190,7 +190,10 @@ export default function Documentos() {
               </thead>
               <tbody>
                 {visibleItems.map((d: DocumentoDto) => (
-                  <DocumentoRow key={d.id} d={d} />
+                  // Sprint 529 fix: docs só-Moloni têm Id=Guid.Empty (todos iguais!) → key duplicada
+                  // fazia o React reaproveitar linhas e a lista "colava" no filtro anterior. O
+                  // externalId (document_id Moloni) é único; cai no Guid para docs locais.
+                  <DocumentoRow key={d.externalId ?? d.id} d={d} />
                 ))}
               </tbody>
             </table>
