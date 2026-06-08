@@ -727,8 +727,15 @@ public class MoloniClient : IMoloniClient
                     date,
                     GetStringAny(item, "entity_name"),
                     GetStringAny(item, "entity_vat", "entity_number"),
-                    ToCents(GetDecimalAny(item, "gross_value")),
-                    ToCents(GetDecimalAny(item, "net_value")),
+                    // Sprint 527c: convenção (contra-intuitiva) do Moloni documents/getAll, confirmada
+                    // no painel (Ilíquido 109,76 / Impostos 25,24 / Total 135 numa fatura de 135€):
+                    //   net_value   = TOTAL com IVA   → GrossCents
+                    //   gross_value = BASE sem IVA    → NetCents
+                    //   taxes_value = IVA
+                    // (invariante: net_value = gross_value + taxes_value). Antes estava trocado → a
+                    // lista mostrava Base>Total (impossível) e o recibo liquidava a base, não o total.
+                    ToCents(GetDecimalAny(item, "net_value")),    // GrossCents = total c/ IVA
+                    ToCents(GetDecimalAny(item, "gross_value")),  // NetCents   = base s/ IVA
                     ToCents(GetDecimalAny(item, "taxes_value")),
                     GetIntAny(item, "status"),
                     GetIntAny(item, "customer_id")));
@@ -765,6 +772,10 @@ public class MoloniClient : IMoloniClient
             ["document_set_id"] = settings.DefaultSerieId!.Value,
             ["customer_id"] = customerId,
             ["date"] = DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            // Sprint 527c: status=1 FECHA o recibo. Sem isto ficava rascunho (status 0) → não
+            // reconciliava a fatura (Moloni mostrava Dívida 100% e o recibo nem aparecia na lista).
+            // Mesma convenção que invoices/insert (que também envia status=1).
+            ["status"] = 1,
             ["net_value"] = value,
             // Sprint 527: liga o recibo à fatura em dívida. SEM 'payments' → o Moloni adiciona
             // automaticamente o pagamento pelo valor total (a doc da API confirma) — evita o
