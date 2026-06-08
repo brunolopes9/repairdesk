@@ -318,6 +318,10 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             }
         }
 
+        // Sprint 526: garante Fornecedor ligado (find-or-create). Antes, imports de fornecedores
+        // novos (ex: Utopya) ficavam órfãos — não apareciam na lista nem podiam ser marcados intra-UE.
+        fornecedorId = await ResolveOrCreateFornecedorIdAsync(fornecedorId, fornecedorNameRaw, tenantId, ct);
+
         // 4. Save to filesystem with organized layout.
         // Sprint 171: validation rules pós-parse — rebaixa confidence se totais não batem etc.
         IReadOnlyList<string> parseWarnings;
@@ -827,6 +831,9 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         IReadOnlyList<string> reprocessWarnings;
         (parsed, reprocessWarnings) = ParseValidator.Apply(parsed);
 
+        // Sprint 526: find-or-create fornecedor também no reprocess (re-corre importações órfãs).
+        fornecedorId = await ResolveOrCreateFornecedorIdAsync(fornecedorId, fornecedorNameRaw, tenantId, ct);
+
         // Update in-place.
         entity.FornecedorNameRaw = fornecedorNameRaw;
         entity.FornecedorId = fornecedorId;
@@ -1069,6 +1076,36 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         var zip = await _storage.CreateZipAsync(tenantId, paths, ct);
         var filename = $"Faturas-fornecedor_{from:yyyy-MM-dd}_a_{to:yyyy-MM-dd}.zip";
         return (zip, filename);
+    }
+
+    /// <summary>
+    /// Sprint 526: garante que existe um Fornecedor ligado ao import (find-or-create por nome).
+    /// Antes, imports de fornecedores novos (ex: Utopya) ficavam órfãos (FornecedorId null) — não
+    /// apareciam em Definições>Fornecedores nem podiam ser marcados intra-UE, logo o IVA reverse-charge
+    /// nunca era carimbado. Fornecedores B2B intra-UE conhecidos ficam IntraUe=true por defeito
+    /// (override sempre possível no toggle do fornecedor).
+    /// </summary>
+    private async Task<Guid?> ResolveOrCreateFornecedorIdAsync(Guid? currentId, string? nameRaw, Guid tenantId, CancellationToken ct)
+    {
+        if (currentId is not null) return currentId;
+        if (string.IsNullOrWhiteSpace(nameRaw)) return null;
+
+        var nome = nameRaw.Trim();
+        var existing = await _fornecedores.FindByNameAsync(nome, ct);
+        if (existing is not null) return existing.Id;
+
+        var novo = new Fornecedor
+        {
+            TenantId = tenantId,
+            Name = nome.Length > 200 ? nome[..200] : nome,
+            IntraUe = IntraUeSuppliers.IsKnownIntraUe(nome),
+            Active = true,
+        };
+        await _fornecedores.AddAsync(novo, ct);
+        await _fornecedores.SaveAsync(ct);
+        _logger.LogInformation("Auto-criado Fornecedor '{Name}' (intraUe={IntraUe}) a partir de import de fatura",
+            novo.Name, novo.IntraUe);
+        return novo.Id;
     }
 
     private static SupplierInvoiceImportDto ToDto(SupplierInvoiceImport x) => new(
