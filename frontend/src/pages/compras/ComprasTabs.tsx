@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { PageHeader } from '../../components/ui';
+import { PageHeader, ViewTabs } from '../../components/ui';
 import { supplierInvoicesApi } from '../../lib/supplierInvoices/api';
 import {
   DESPESA_CATEGORIA,
@@ -13,8 +13,8 @@ import PorAprovarTab from '../despesas/PorAprovarTab';
 type TabKey = 'pending' | 'approved';
 
 const tabs: Array<{ key: TabKey; label: string }> = [
-  { key: 'pending', label: '📥 Por aprovar' },
-  { key: 'approved', label: '✅ Aprovadas' },
+  { key: 'pending', label: 'Por aprovar' },
+  { key: 'approved', label: 'Aprovadas' },
 ];
 
 function normalizeTab(value: string | null): TabKey {
@@ -47,24 +47,17 @@ export default function ComprasTabs() {
       <PageHeader
         title="Compras"
         description="Faturas de fornecedor, pecas, material e compras ligadas a stock."
-        meta={(
-          <div className="flex flex-wrap gap-1">
-            {tabs.map((tab) => {
-              const badge = tab.key === 'pending' ? counts.pending : null;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setTab(tab.key)}
-                  className={`min-h-10 rounded-lg px-3 py-2 text-sm font-medium transition ${active === tab.key ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-800 dark:hover:bg-zinc-800'}`}
-                >
-                  {tab.label}
-                  {badge !== null && <span className="ml-2 rounded-full bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">{badge}</span>}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        meta={<span className="text-sm text-zinc-500">Inbox fornecedor + compras aprovadas para stock</span>}
+      />
+
+      <ViewTabs
+        value={active}
+        onChange={(value) => setTab(value as TabKey)}
+        tabs={tabs.map((tab) => ({
+          key: tab.key,
+          label: tab.label,
+          meta: tab.key === 'pending' ? counts.pending : 'stock',
+        }))}
       />
 
       {active === 'pending' && <PorAprovarTab />}

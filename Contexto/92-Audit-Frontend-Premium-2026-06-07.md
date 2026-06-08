@@ -37,6 +37,13 @@ excessivo e esconde o que interessa: estado, proxima acao, cliente, pagamento e 
   caixa sem tocar na logica critica de cobranca.
 - `Trabalhos.tsx` alinhado ao workspace com tabs, filtros compactos e rail de pipeline para valor
   previsto, trabalhos abertos/concluidos e pendencias de fatura.
+- `AprovadasTab.tsx` alinhado ao workspace financeiro partilhado por `/despesas` e `/compras`,
+  com filtros agrupados, lista compacta e rail lateral para totais, recorrentes, COGS/ligacoes e
+  categorias da vista.
+- `ComprasTabs.tsx` passou a usar `ViewTabs`, removendo labels com encoding partido e aproximando
+  `/compras` do mesmo contrato visual das restantes areas operacionais.
+- `PorAprovarTab.tsx` ganhou rail lateral de triagem de faturas fornecedor, com pendentes, falhas
+  do parser e valor detetado, mantendo intacta a logica de upload, rejeicao e aprovacao.
 - Frontend build validado com `npm run build`.
 
 ## Evidencia no codigo

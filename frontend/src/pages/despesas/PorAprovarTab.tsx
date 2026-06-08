@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Inbox, FileText, CheckCircle2, XCircle, AlertTriangle, Download } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Download, FileText, Inbox, Upload, XCircle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest, type ApproveAsStockItem } from '../../lib/supplierInvoices/api';
 import { formatCents } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
 import Modal from '../../components/Modal';
+import { Button, DetailWorkspace, InspectorRail, ViewTabs } from '../../components/ui';
 
 const inputCls = 'mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950';
 
@@ -138,17 +139,55 @@ export default function PorAprovarTab() {
   const data = pending.data ?? [];
   const failed = data.filter((d) => d.status === 'Failed');
   const ready = data.filter((d) => d.status === 'Pending');
+  const pendingTotalCents = data.reduce((sum, item) => sum + (item.totalCents ?? 0), 0);
+  const inboxRail = (
+    <InspectorRail>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Inbox fornecedor</p>
+        <h3 className="mt-1 text-base font-semibold text-zinc-950 dark:text-zinc-50">Triagem de faturas</h3>
+        <p className="mt-1 text-sm text-zinc-500">
+          Prioriza falhas do parser, depois aprova linhas para stock ou despesa sem perder o rasto do PDF.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <Inbox size={16} className="mb-3 text-brand-600" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Pendentes</p>
+          <p className="mt-1 text-lg font-semibold text-zinc-950 dark:text-zinc-50">{ready.length}</p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <AlertTriangle size={16} className="mb-3 text-amber-600" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Com falha</p>
+          <p className="mt-1 text-lg font-semibold text-zinc-950 dark:text-zinc-50">{failed.length}</p>
+        </div>
+        <div className="col-span-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <Download size={16} className="mb-3 text-emerald-600" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Valor detetado</p>
+          <p className="mt-1 text-lg font-semibold text-zinc-950 dark:text-zinc-50">{formatCents(pendingTotalCents)}</p>
+          <p className="mt-1 text-xs text-zinc-500">Soma apenas os PDFs com total extraido.</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg bg-zinc-950 p-3 text-sm text-white dark:bg-zinc-50 dark:text-zinc-950">
+        Usa esta inbox como mesa de revisao: PDF, parser, classificacao, aprovacao e export para contabilista.
+      </div>
+    </InspectorRail>
+  );
 
   return (
     <div className="space-y-4">
-      <header className="space-y-2">
+      <header className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Inbox size={24} strokeWidth={2} />
-            Importações de Fornecedor
-          </h1>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Compras</p>
+            <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold text-zinc-950 dark:text-zinc-50">
+              <Inbox size={22} strokeWidth={2} className="text-brand-600" />
+              Importações de Fornecedor
+            </h1>
+          </div>
           {/* Sprint 160c + 164: upload manual PDF / foto papel. */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -170,24 +209,26 @@ export default function PorAprovarTab() {
                 if (file) uploadPhoto.mutate(file);
               }}
             />
-            <button
+            <Button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={upload.isPending}
-              className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              loading={upload.isPending}
+              variant="secondary"
+              leftIcon={<Upload size={15} />}
               title="Upload manual de PDF (sem precisar de n8n IMAP)"
             >
-              {upload.isPending ? 'A processar…' : '📎 PDF'}
-            </button>
-            <button
+              PDF
+            </Button>
+            <Button
               type="button"
               onClick={() => photoInputRef.current?.click()}
-              disabled={uploadPhoto.isPending}
-              className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              loading={uploadPhoto.isPending}
+              variant="primary"
+              leftIcon={<Camera size={15} />}
               title="Foto papel — Claude Vision faz OCR (mobile: usa câmara directamente)"
             >
-              {uploadPhoto.isPending ? 'OCR…' : '📷 Foto papel'}
-            </button>
+              Foto papel
+            </Button>
           </div>
         </div>
         <p className="text-sm text-zinc-500">
@@ -225,6 +266,7 @@ export default function PorAprovarTab() {
       </section>
 
       {/* Falhadas — destaque vermelho */}
+      <DetailWorkspace rail={inboxRail}>
       {failed.length > 0 && (
         <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
@@ -284,6 +326,8 @@ export default function PorAprovarTab() {
           )}
         </div>
       </section>
+
+      </DetailWorkspace>
 
       {approveTarget && (
         <ApproveModal
