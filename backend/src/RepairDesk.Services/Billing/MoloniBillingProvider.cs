@@ -52,7 +52,6 @@ public class MoloniBillingProvider : IBillingProvider
         if (reparacao.InvoiceExternalId is not null)
             return ToDto(reparacao.InvoiceNumber, reparacao.InvoicePdfUrl, reparacao.InvoiceEmittedAt);
 
-        EnsurePaid(reparacao.EstadoPagamento);
         var settings = await RequireSettingsAsync(ct);
         var tenant = await RequireTenantAsync(ct);
         var amount = RequireAmount(reparacao.PrecoFinalCents ?? reparacao.OrcamentoCents);
@@ -61,6 +60,11 @@ public class MoloniBillingProvider : IBillingProvider
         // Sprint 509: a escolha explícita do utilizador (modal: Fatura vs Simplificada) MANDA.
         // Só caímos no ResolveDocumentType automático quando não há escolha (ex.: bulk emit).
         var docType = documentTypeOverride ?? ResolveDocumentType(settings, reparacao.Cliente, amount, effectiveVat);
+
+        // Sprint 537: a Fatura (FT) é A CRÉDITO — emitível antes do pagamento (cria a dívida; o Recibo
+        // emite-se quando o cliente paga). Só Fatura-Recibo / Simplificada (pagamento imediato) exigem pago.
+        if (docType is BillingDocumentType.FaturaRecibo or BillingDocumentType.FaturaSimplificada)
+            EnsurePaid(reparacao.EstadoPagamento);
 
         // Sprint 511: uma Fatura com NIF exige LEGALMENTE a morada do adquirente (CIVA art. 36.º n.º 5).
         // Sem morada o Moloni imprime "Consumidor final / 0000-000" — documento fiscalmente inválido.
@@ -125,17 +129,21 @@ public class MoloniBillingProvider : IBillingProvider
         if (trabalho.InvoiceExternalId is not null)
             return ToDto(trabalho.InvoiceNumber, trabalho.InvoicePdfUrl, trabalho.InvoiceEmittedAt);
 
-        EnsurePaid(trabalho.EstadoPagamento);
         var settings = await RequireSettingsAsync(ct);
         var tenant = await RequireTenantAsync(ct);
         var amount = RequireAmount(trabalho.PrecoFinalCents ?? trabalho.OrcamentoCents);
         var customerId = await ResolveCustomerIdAsync(settings, trabalho.Cliente, ct);
         var effectiveVat = ResolveVatPercent(tenant, vatPercent);
 
-        // Sprint 533: faturação de serviços (ex.: desenvolvimento de software) — a escolha explícita
-        // do utilizador (Fatura vs Fatura-Recibo) MANDA; só caímos no auto-resolve quando não há escolha
-        // (ex.: bulk emit). Espelha EmitReparacaoInvoiceAsync.
+        // Sprint 533: faturação de serviços — a escolha explícita (Fatura vs Fatura-Recibo) MANDA; só
+        // auto-resolve quando não há escolha (ex.: bulk emit). Espelha EmitReparacaoInvoiceAsync.
         var docType = documentTypeOverride ?? ResolveDocumentType(settings, trabalho.Cliente, amount, effectiveVat);
+
+        // Sprint 537: a Fatura (FT) é A CRÉDITO — pode ser emitida com o trabalho entregue mas ainda NÃO
+        // pago (cria a dívida; o cliente paga e só depois se emite o Recibo). Só a Fatura-Recibo e a
+        // Simplificada (pagamento imediato, levam o array payments) exigem estar pago.
+        if (docType is BillingDocumentType.FaturaRecibo or BillingDocumentType.FaturaSimplificada)
+            EnsurePaid(trabalho.EstadoPagamento);
 
         // Sprint 533: Fatura/Fatura-Recibo com NIF exige LEGALMENTE a morada do adquirente
         // (CIVA art. 36.º n.º 5). Sem morada o Moloni imprime "Consumidor final / 0000-000" — documento

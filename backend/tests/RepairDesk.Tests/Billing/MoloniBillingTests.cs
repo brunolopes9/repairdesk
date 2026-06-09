@@ -374,6 +374,64 @@ public class MoloniBillingTests
         moloni.InsertCalls.Should().Be(0); // nunca chegou a tocar no Moloni
     }
 
+    // Sprint 537: a Fatura (FT) é a crédito — emitível com o trabalho entregue mas NÃO pago (cria a
+    // dívida; recibo emite-se depois). Só a Fatura-Recibo exige estar pago.
+    [Fact]
+    public async Task EmitTrabalhoInvoice_Fatura_NaoPago_Emite()
+    {
+        var tenantId = Guid.NewGuid();
+        var trabalho = new Trabalho
+        {
+            TenantId = tenantId, Numero = 1, ClienteId = Guid.NewGuid(),
+            Cliente = new Cliente { TenantId = tenantId, Nome = "Empresa Lda", Nif = "501234567", Morada = "Rua X, 1" },
+            Titulo = "Desenvolvimento de software", EstadoPagamento = PaymentStatus.NaoPago, PrecoFinalCents = 150000,
+        };
+        var moloni = new FakeMoloniClient();
+        var provider = new MoloniBillingProvider(
+            new FakeReparacaoRepository(new Reparacao { TenantId = tenantId, Equipamento = "n/a", Avaria = "n/a" }),
+            new FakeTrabalhoRepository(trabalho),
+            new FakeVendaRepository(),
+            new FakeSettingsRepository(Settings(tenantId)),
+            new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
+            new FakeTenantContext(tenantId),
+            moloni,
+            new FakePartRepository());
+
+        await provider.EmitTrabalhoInvoiceAsync(trabalho.Id, null, null, BillingDocumentType.Fatura);
+
+        moloni.InsertCalls.Should().Be(1); // FT a crédito emite mesmo sem estar pago
+        moloni.LastDraft!.DocumentTypeOverride.Should().Be(BillingDocumentType.Fatura);
+    }
+
+    // Sprint 537: a Fatura-Recibo (pagamento imediato) continua a exigir estar pago.
+    [Fact]
+    public async Task EmitTrabalhoInvoice_FaturaRecibo_NaoPago_Recusa()
+    {
+        var tenantId = Guid.NewGuid();
+        var trabalho = new Trabalho
+        {
+            TenantId = tenantId, Numero = 1, ClienteId = Guid.NewGuid(),
+            Cliente = new Cliente { TenantId = tenantId, Nome = "Empresa Lda", Nif = "501234567", Morada = "Rua X, 1" },
+            Titulo = "Desenvolvimento de software", EstadoPagamento = PaymentStatus.NaoPago, PrecoFinalCents = 150000,
+        };
+        var moloni = new FakeMoloniClient();
+        var provider = new MoloniBillingProvider(
+            new FakeReparacaoRepository(new Reparacao { TenantId = tenantId, Equipamento = "n/a", Avaria = "n/a" }),
+            new FakeTrabalhoRepository(trabalho),
+            new FakeVendaRepository(),
+            new FakeSettingsRepository(Settings(tenantId)),
+            new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
+            new FakeTenantContext(tenantId),
+            moloni,
+            new FakePartRepository());
+
+        var act = async () => await provider.EmitTrabalhoInvoiceAsync(trabalho.Id, null, null, BillingDocumentType.FaturaRecibo);
+
+        (await act.Should().ThrowAsync<ValidationException>())
+            .Which.Code.Should().Be("invoice_requires_paid");
+        moloni.InsertCalls.Should().Be(0);
+    }
+
     // Sprint 534: Regime da margem — bens em segunda mão (CIVA art. 308.º / motivo M13). As linhas de
     // artigos recondicionados/usados saem a 0% IVA + exemption_reason=M13; as restantes (novo/acessório)
     // mantêm o IVA normal no MESMO documento.
