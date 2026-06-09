@@ -136,6 +136,8 @@ export default function ReparacaoDetalhe() {
   const [emitLocalidade, setEmitLocalidade] = useState('');
   // Sprint 501: discriminar peças+mão-de-obra (default) ou linha única (esconde margem ao cliente).
   const [emitDiscriminar, setEmitDiscriminar] = useState(true);
+  // Sprint 538: taxa de IVA escolhida ao emitir (deixa de ser hardcoded 23%). 23/13/6/0.
+  const [emitIvaRate, setEmitIvaRate] = useState(23);
   // Sprint 141: modal rápido para adicionar telefone ao cliente quando ainda não tem.
   const [telefoneOpen, setTelefoneOpen] = useState(false);
   const [telefoneInput, setTelefoneInput] = useState('');
@@ -411,6 +413,8 @@ export default function ReparacaoDetalhe() {
         // Sprint 519: a escolha do modal MANDA — 0 = Simplificada, 1 = Fatura (a crédito),
         // 2 = Fatura-Recibo (pago, sem "dívida"). 99% dos casos: cliente paga ao levantar → FR.
         documentType: emitTipo === 'fatura-recibo' ? 2 : emitTipo === 'fatura' ? 1 : 0,
+        // Sprint 538: taxa de IVA escolhida (deixa de ser hardcoded 23%).
+        vatPercent: emitIvaRate,
       }),
     onSuccess: (invoice) => {
       qc.invalidateQueries({ queryKey: ['reparacao', id] });
@@ -1632,6 +1636,24 @@ export default function ReparacaoDetalhe() {
               </div>
             </div>
           </label>
+
+          {/* Sprint 538: taxa de IVA escolhida ao emitir (deixa de ser hardcoded 23%). */}
+          <div className="flex items-center justify-between gap-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+            <div>
+              <div className="font-medium">Taxa de IVA</div>
+              <div className="text-xs text-zinc-500">23% normal · 13%/6% reduzidas · 0% isento (exige motivo configurado)</div>
+            </div>
+            <select
+              value={emitIvaRate}
+              onChange={(e) => setEmitIvaRate(Number(e.target.value))}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            >
+              <option value={23}>23%</option>
+              <option value={13}>13%</option>
+              <option value={6}>6%</option>
+              <option value={0}>0% (isento)</option>
+            </select>
+          </div>
 
           <fieldset className="space-y-2">
             <legend className="text-xs font-semibold uppercase text-zinc-500">Tipo de documento</legend>
