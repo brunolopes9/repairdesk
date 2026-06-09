@@ -520,6 +520,24 @@ public class MoloniBillingTests
         dto.HasApiKey.Should().BeTrue();
     }
 
+    // Sprint 539: o guard EnsureReadyToInvoice passou a aceitar isenção POR LINHA (S534). Mas uma linha
+    // a 0% que NÃO é regime da margem e sem motivo de isenção (nem por linha, nem no tenant) continua a
+    // ser RECUSADA antes de tocar no Moloni — não se emite um documento isento sem justificação fiscal.
+    [Fact]
+    public async Task MoloniClient_LinhaZeroSemIsencao_Recusa()
+    {
+        var settings = Settings();
+        settings.ExemptionReason = null;
+        var client = NewMoloniClient(new QueueHttpHandler()); // recusa antes de qualquer HTTP
+
+        var act = () => client.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
+            77, "V#1", "Artigo", null, 5000, 0m, null,
+            Items: new[] { new MoloniInvoiceDraftItem("Artigo 0%", null, 1, 5000, 0, 0m) }));
+
+        (await act.Should().ThrowAsync<ValidationException>())
+            .Which.Code.Should().Be("moloni_exemption_missing");
+    }
+
     private static MoloniClient NewMoloniClient(QueueHttpHandler handler, ITenantBillingSettingsRepository? repo = null)
     {
         var cfg = new ConfigurationBuilder()
