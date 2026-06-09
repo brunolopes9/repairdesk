@@ -301,6 +301,79 @@ public class MoloniBillingTests
         moloni.LastDraft!.DocumentTypeOverride.Should().Be(BillingDocumentType.Fatura);
     }
 
+    // Sprint 533: faturação de serviços (ex.: software) via Trabalhos — a escolha explícita do tipo de
+    // documento MANDA; só auto-resolve quando não há escolha. Espelha EmitReparacaoInvoice.
+    [Theory]
+    [InlineData(null, BillingDocumentType.FaturaRecibo)]                              // sem escolha + NIF + método pagamento → FR
+    [InlineData(BillingDocumentType.Fatura, BillingDocumentType.Fatura)]             // escolha Fatura manda
+    [InlineData(BillingDocumentType.FaturaRecibo, BillingDocumentType.FaturaRecibo)] // escolha Fatura-Recibo manda
+    public async Task EmitTrabalhoInvoice_RespeitaDocumentTypeOverride(BillingDocumentType? escolha, BillingDocumentType esperado)
+    {
+        var tenantId = Guid.NewGuid();
+        var trabalho = new Trabalho
+        {
+            TenantId = tenantId,
+            Numero = 1,
+            ClienteId = Guid.NewGuid(),
+            Cliente = new Cliente { TenantId = tenantId, Nome = "Empresa Lda", Nif = "501234567", Morada = "Rua do Software, 1" },
+            Titulo = "Desenvolvimento de software",
+            Descricao = "Projeto X",
+            EstadoPagamento = PaymentStatus.Pago,
+            PrecoFinalCents = 150000,
+        };
+
+        var moloni = new FakeMoloniClient();
+        var provider = new MoloniBillingProvider(
+            new FakeReparacaoRepository(new Reparacao { TenantId = tenantId, Equipamento = "n/a", Avaria = "n/a" }),
+            new FakeTrabalhoRepository(trabalho),
+            new FakeVendaRepository(),
+            new FakeSettingsRepository(Settings(tenantId)),
+            new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
+            new FakeTenantContext(tenantId),
+            moloni,
+            new FakePartRepository());
+
+        await provider.EmitTrabalhoInvoiceAsync(trabalho.Id, null, null, escolha);
+
+        moloni.LastDraft.Should().NotBeNull();
+        moloni.LastDraft!.DocumentTypeOverride.Should().Be(esperado);
+    }
+
+    // Sprint 533: guarda fiscal — Fatura/Fatura-Recibo de Trabalho com NIF exige morada (CIVA art. 36.º n.º 5).
+    [Fact]
+    public async Task EmitTrabalhoInvoice_FaturaComNif_SemMorada_Recusa()
+    {
+        var tenantId = Guid.NewGuid();
+        var trabalho = new Trabalho
+        {
+            TenantId = tenantId,
+            Numero = 1,
+            ClienteId = Guid.NewGuid(),
+            Cliente = new Cliente { TenantId = tenantId, Nome = "Empresa Lda", Nif = "501234567" }, // NIF mas SEM morada
+            Titulo = "Desenvolvimento de software",
+            Descricao = "Projeto X",
+            EstadoPagamento = PaymentStatus.Pago,
+            PrecoFinalCents = 150000,
+        };
+
+        var moloni = new FakeMoloniClient();
+        var provider = new MoloniBillingProvider(
+            new FakeReparacaoRepository(new Reparacao { TenantId = tenantId, Equipamento = "n/a", Avaria = "n/a" }),
+            new FakeTrabalhoRepository(trabalho),
+            new FakeVendaRepository(),
+            new FakeSettingsRepository(Settings(tenantId)),
+            new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
+            new FakeTenantContext(tenantId),
+            moloni,
+            new FakePartRepository());
+
+        var act = async () => await provider.EmitTrabalhoInvoiceAsync(trabalho.Id, null, null, BillingDocumentType.Fatura);
+
+        (await act.Should().ThrowAsync<ValidationException>())
+            .Which.Code.Should().Be("fatura_nif_sem_morada");
+        moloni.InsertCalls.Should().Be(0); // nunca chegou a tocar no Moloni
+    }
+
     [Fact]
     public async Task TenantBillingSettingsService_EncryptsApiKeyAtRest()
     {
@@ -457,9 +530,9 @@ public class MoloniBillingTests
         public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
-    private sealed class FakeTrabalhoRepository : ITrabalhoRepository
+    private sealed class FakeTrabalhoRepository(Trabalho? trabalho = null) : ITrabalhoRepository
     {
-        public Task<Trabalho?> FindByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Trabalho?>(null);
+        public Task<Trabalho?> FindByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult(trabalho);
         public Task CreateWithNextNumeroAsync(Trabalho trabalho, Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
         public Task<(IReadOnlyList<Trabalho> Items, int Total)> SearchAsync(string? query, TrabalhoStatus? status, JobCategory? categoria, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
             => Task.FromResult(((IReadOnlyList<Trabalho>)Array.Empty<Trabalho>(), 0));
