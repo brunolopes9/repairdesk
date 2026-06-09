@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -115,6 +115,7 @@ const VIEW_KEY = 'rd.reparacoes.view';
 
 export default function Reparacoes() {
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
   const [view, setView] = useState<ViewMode>(() => {
     try { return (localStorage.getItem(VIEW_KEY) as ViewMode) || 'list'; } catch { return 'list'; }
@@ -134,6 +135,19 @@ export default function Reparacoes() {
   const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(initialPagasOpen);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null); // Sprint 399: inspector
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('new') === '1') {
+      setCreateOpen(true);
+    }
+  }, [location.search]);
+
+  function closeCreateModal() {
+    setCreateOpen(false);
+    if (new URLSearchParams(location.search).get('new') === '1') {
+      navigate('/reparacoes', { replace: true });
+    }
+  }
 
   const pagasSemFatura = useQuery({
     queryKey: ['reparacoes-pagas-sem-fatura'],
@@ -658,7 +672,7 @@ export default function Reparacoes() {
 
       <CreateReparacaoModal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={closeCreateModal}
         onCreated={(rep) => {
           qc.invalidateQueries({ queryKey: ['reparacoes'] });
           qc.invalidateQueries({ queryKey: ['cliente-equipamentos'] });

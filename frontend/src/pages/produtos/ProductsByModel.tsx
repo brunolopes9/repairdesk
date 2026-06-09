@@ -95,10 +95,10 @@ export default function ProductsByModel({ items, onEditVariant }: Props) {
         return (
           <div key={g.key} className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm shadow-black/[0.02] dark:border-zinc-700 dark:bg-zinc-900">
             <div className="grid gap-3 px-3 py-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <button type="button" onClick={() => toggle(g.key)} className="flex flex-1 items-center gap-2 text-left">
+              <button type="button" onClick={() => toggle(g.key)} className="flex min-w-0 flex-wrap items-center gap-2 text-left">
                 {aberto ? <ChevronDown size={16} className="shrink-0 text-zinc-400" /> : <ChevronRight size={16} className="shrink-0 text-zinc-400" />}
                 <Layers size={15} className="shrink-0 text-zinc-400" />
-                <span className="font-medium">{g.brand} {g.model}</span>
+                <span className="max-w-[380px] truncate font-semibold text-zinc-950 dark:text-zinc-50">{g.brand} {g.model}</span>
                 <span className="text-[11px] text-zinc-500">
                   {g.variants.length} variante(s) · {g.totalStock} un
                 </span>
@@ -111,7 +111,7 @@ export default function ProductsByModel({ items, onEditVariant }: Props) {
                   ? <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">conteúdo ✓</span>
                   : <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">sem descrição/fotos</span>}
               </button>
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 xl:justify-end">
                 <ModelStat label="Variantes" value={g.variants.length.toString()} />
                 <ModelStat label="Fisico" value={`${g.physicalUnits} un`} tone={g.physicalUnits > 0 ? 'emerald' : 'zinc'} />
                 <ModelStat label="Virtual" value={g.virtualVariants.toString()} tone={g.virtualVariants > 0 ? 'sky' : 'zinc'} />
@@ -137,7 +137,7 @@ export default function ProductsByModel({ items, onEditVariant }: Props) {
                   <span className="text-right">Stock</span>
                   <span className="text-right">Preco</span>
                 </div>
-              <ul className="divide-y divide-zinc-100 bg-white text-sm dark:divide-zinc-800 dark:bg-zinc-900">
+                <ul className="divide-y divide-zinc-100 bg-white text-sm dark:divide-zinc-800 dark:bg-zinc-900">
                 {g.variants.map((v) => (
                   <li key={v.id}>
                     <button
@@ -145,7 +145,7 @@ export default function ProductsByModel({ items, onEditVariant }: Props) {
                       onClick={() => onEditVariant(v.id)}
                       className="grid w-full gap-2 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 md:grid-cols-[minmax(0,1.6fr)_110px_110px_90px_110px] md:items-center md:gap-3"
                     >
-                      <span className="min-w-0">
+                      <span className="min-w-0 truncate font-medium text-zinc-900 dark:text-zinc-100">
                         {[v.storage, v.color, v.supplierGrade ?? gradeLabel(v.grade)].filter(Boolean).join(' · ')}
                         {v.fornecedorNome && <span className="text-zinc-400"> · {v.fornecedorNome}</span>}
                         {!v.active && <span className="ml-1 text-[10px] text-zinc-400">(inactivo)</span>}
@@ -166,7 +166,7 @@ export default function ProductsByModel({ items, onEditVariant }: Props) {
                     </button>
                   </li>
                 ))}
-              </ul>
+                </ul>
               </div>
             )}
           </div>

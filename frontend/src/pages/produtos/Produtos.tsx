@@ -458,7 +458,7 @@ export default function Produtos() {
         </>}
       />
       <CatalogStockNav />
-      <RetailModeStrip counts={scopeCounts} />
+      <RetailModeStrip counts={scopeCounts} onScope={setCatalogScope} />
 
       <div className="md:hidden">
         <Button leftIcon={<SlidersHorizontal size={15} />} variant="secondary" onClick={() => setFiltersOpen(true)}>
@@ -1356,6 +1356,7 @@ function displaySupplierGrade(product: Product) {
 
 function RetailModeStrip({
   counts,
+  onScope,
 }: {
   counts: {
     modelCount: number;
@@ -1369,6 +1370,7 @@ function RetailModeStrip({
     withoutSeo: number;
     physicalCostCents: number;
   };
+  onScope: (scope: CatalogScope) => void;
 }) {
   const variants = counts.physicalVariants + counts.virtualVariants;
   return (
@@ -1379,6 +1381,8 @@ function RetailModeStrip({
         detail={`${counts.withoutImages} sem imagens · ${counts.withoutSeo} sem SEO`}
         text="O sitio certo para fotos, descricao, SEO e especificacoes partilhadas por todas as variantes."
         tone={counts.withoutImages > 0 || counts.withoutSeo > 0 ? 'amber' : 'emerald'}
+        action="Ver modelos"
+        onClick={() => onScope('todos')}
       />
       <RetailModeCard
         title="Variantes"
@@ -1386,6 +1390,8 @@ function RetailModeStrip({
         detail={`${counts.physicalUnits} un. fisicas · ${counts.virtualVariants} dropship`}
         text="Cada variante guarda cor, capacidade, grade, fornecedor, preco, stock e publicacao."
         tone="blue"
+        action="Ver fisico"
+        onClick={() => onScope('fisico')}
       />
       <RetailModeCard
         title="Montra online"
@@ -1393,6 +1399,8 @@ function RetailModeStrip({
         detail={`${counts.shopHidden} ocultos · ${counts.lowStock} stock baixo`}
         text="Mostra ou esconde produtos na loja sem confundir disponibilidade fisica com stock virtual."
         tone={counts.lowStock > 0 || counts.shopHidden > 0 ? 'amber' : 'emerald'}
+        action="Ver montra"
+        onClick={() => onScope('loja')}
       />
     </section>
   );
@@ -1404,12 +1412,16 @@ function RetailModeCard({
   detail,
   text,
   tone,
+  action,
+  onClick,
 }: {
   title: string;
   value: string;
   detail: string;
   text: string;
   tone: 'emerald' | 'amber' | 'blue';
+  action: string;
+  onClick: () => void;
 }) {
   const toneCls = tone === 'emerald'
     ? 'border-emerald-200 bg-emerald-50/60 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-100'
@@ -1418,7 +1430,7 @@ function RetailModeCard({
       : 'border-sky-200 bg-sky-50/60 text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-sky-100';
 
   return (
-    <article className={`rounded-lg border p-4 ${toneCls}`}>
+    <button type="button" onClick={onClick} className={`rounded-lg border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${toneCls}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">{title}</p>
@@ -1429,7 +1441,8 @@ function RetailModeCard({
         </span>
       </div>
       <p className="mt-3 max-w-xl text-sm opacity-80">{text}</p>
-    </article>
+      <span className="mt-3 inline-flex text-xs font-semibold opacity-90">{action}</span>
+    </button>
   );
 }
 

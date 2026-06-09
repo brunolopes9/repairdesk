@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { AlertTriangle, BriefcaseBusiness, CheckCircle2, Clock3, Euro, FileWarning, Plus, Search } from 'lucide-react';
 import { isAxiosError } from 'axios';
@@ -33,6 +33,7 @@ const TABS: Array<{ value: TrabalhoStatus | null; label: string }> = [
 export default function Trabalhos() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const [status, setStatus] = useState<TrabalhoStatus | null>(null);
   const [categoria, setCategoria] = useState<JobCategory | null>(null);
   const [search, setSearch] = useState('');
@@ -41,6 +42,19 @@ export default function Trabalhos() {
   const [confirmDelete, setConfirmDelete] = useState<Trabalho | null>(null);
   const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('new') === '1') {
+      setCreateOpen(true);
+    }
+  }, [location.search]);
+
+  function closeCreateModal() {
+    setCreateOpen(false);
+    if (new URLSearchParams(location.search).get('new') === '1') {
+      navigate('/trabalhos', { replace: true });
+    }
+  }
 
   const pagasSemFatura = useQuery({
     queryKey: ['trabalhos-pagas-sem-fatura'],
@@ -232,7 +246,7 @@ export default function Trabalhos() {
 
       <CreateTrabalhoModal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={closeCreateModal}
         onCreated={(createdId) => {
           qc.invalidateQueries({ queryKey: ['trabalhos'] });
           setCreateOpen(false);

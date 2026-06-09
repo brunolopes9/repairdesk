@@ -350,6 +350,17 @@ Implementado em 2026-06-08:
 - `ProductsByModel` mostra cada modelo com KPIs de variantes, stock fisico, stock virtual, publicacao online e preco minimo; ao expandir, as variantes aparecem em grelha comparavel.
 - `/inventario` explicita que contagens fisicas contam apenas Parts/stock real; dropshipping e stock virtual ficam fora dos ajustes.
 
+Implementado em 2026-06-09:
+
+- `/catalogo` ganhou uma faixa de saude operacional com publicacao da loja, conteudo comercial em falta e risco de stock fisico. A faixa funciona como resumo acionavel antes das tabs.
+- `/stock` passou a tratar os cards "Prateleira real", "Publicavel online" e "Higiene logistica" como atalhos clicaveis para os recortes certos da tabela.
+- `/produtos` passou a tratar os cards de modelo pai, variantes e montra online como atalhos clicaveis para o recorte correspondente.
+- `ProductsByModel` foi polido para ler melhor em desktop: nome do modelo truncado, KPIs alinhados, grelha de variantes com origem, loja, stock e preco.
+- `Ctrl+K` foi alinhado com a nova arquitetura: Campanhas CRM, Balcao, Compras e Operacao, Compras Fornecedores, Despesas & custos, Catalogo & Stock, Stock, Produtos e Contagens fisicas aparecem como destinos separados.
+- Atalhos `g + tecla` ganharam painel de ajuda e novas rotas operacionais: Balcao, Operacao, Catalogo, Stock e Produtos.
+- Deep-links `?new=1` agora abrem efetivamente os modais de Novo cliente, Nova reparacao e Novo trabalho, fechando tambem o parametro ao cancelar.
+- Validacao: `npm.cmd run build` verde e `git diff --check` verde nos ficheiros tocados.
+
 ### UX-6: Definicoes split
 
 Escopo:

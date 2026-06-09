@@ -17,16 +17,25 @@ import { useNavigate } from 'react-router-dom';
  *
  * Não dispara dentro de inputs/textareas. Esc cancela a sequência.
  */
-const NAV_KEYS: Record<string, string> = {
-  d: '/',
-  c: '/clientes',
-  r: '/reparacoes',
-  t: '/trabalhos',
-  s: '/stock',
-  p: '/precos',
-  e: '/despesas',
-  a: '/auditoria',
-  i: '/definicoes',
+type ShortcutTarget = {
+  to: string;
+  label: string;
+};
+
+const NAV_KEYS: Record<string, ShortcutTarget> = {
+  d: { to: '/', label: 'Dashboard' },
+  c: { to: '/clientes', label: 'Clientes' },
+  r: { to: '/reparacoes', label: 'Reparações' },
+  t: { to: '/trabalhos', label: 'Trabalhos' },
+  b: { to: '/balcao', label: 'Balcão' },
+  o: { to: '/compras-operacao', label: 'Operação' },
+  e: { to: '/despesas', label: 'Despesas' },
+  l: { to: '/catalogo', label: 'Catálogo' },
+  s: { to: '/stock', label: 'Stock' },
+  u: { to: '/produtos', label: 'Produtos' },
+  p: { to: '/precos', label: 'Preços' },
+  a: { to: '/auditoria', label: 'Auditoria' },
+  i: { to: '/definicoes', label: 'Definições' },
 };
 
 export default function GShortcuts() {
@@ -63,7 +72,7 @@ export default function GShortcuts() {
         const target = NAV_KEYS[e.key.toLowerCase()];
         if (target) {
           e.preventDefault();
-          navigate(target);
+          navigate(target.to);
         }
         setWaitingForSecondKey(false);
         if (timeoutId) {
@@ -95,8 +104,21 @@ export default function GShortcuts() {
   // Indicador visual quando a aguardar segunda tecla
   if (!waitingForSecondKey) return null;
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-40 rounded-full bg-zinc-900 px-3 py-1.5 text-xs text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
-      <kbd className="font-mono">g</kbd> + ... · Esc para cancelar
+    <div className="pointer-events-none fixed bottom-4 right-4 z-40 w-[min(23rem,calc(100vw-2rem))] rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs text-white shadow-2xl dark:border-zinc-200 dark:bg-zinc-50 dark:text-zinc-900">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="font-semibold">Atalho de navegação</span>
+        <span className="text-zinc-400 dark:text-zinc-500">Esc cancela</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        {Object.entries(NAV_KEYS).map(([key, target]) => (
+          <span key={key} className="flex min-w-0 items-center gap-2 rounded-lg bg-white/5 px-2 py-1.5 dark:bg-zinc-900/5">
+            <kbd className="rounded border border-white/15 px-1.5 py-0.5 font-mono text-[11px] dark:border-zinc-900/15">
+              g {key}
+            </kbd>
+            <span className="truncate text-zinc-300 dark:text-zinc-700">{target.label}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

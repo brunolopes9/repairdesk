@@ -115,6 +115,8 @@ export default function Catalogo() {
 
       <CatalogCommandBoard kpis={kpis} pctPublicado={pctPublicado} onTab={setTab} />
 
+      <CatalogHealthStrip kpis={kpis} pctPublicado={pctPublicado} onTab={setTab} />
+
       <ViewTabs tabs={tabsWithMeta} value={tab} onChange={(value) => setTab(value as CatalogTab)} />
 
       {/* Filtros */}
@@ -282,6 +284,64 @@ function CatalogCommandBoard({
           </>
         )}
       />
+    </section>
+  );
+}
+
+function CatalogHealthStrip({
+  kpis,
+  pctPublicado,
+  onTab,
+}: {
+  kpis?: CatalogKpis;
+  pctPublicado: number;
+  onTab: (tab: CatalogTab) => void;
+}) {
+  const totalPublicavel = kpis?.totalPublicavel ?? 0;
+  const publicados = kpis?.publicadosLoja ?? 0;
+  const semConteudo = kpis?.semConteudo ?? 0;
+  const stockCritico = kpis?.stockCritico ?? 0;
+
+  return (
+    <section className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[1.3fr_1fr_1fr]">
+      <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950/60">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-zinc-950 dark:text-zinc-50">Publicacao da loja</p>
+            <p className="mt-0.5 text-xs text-zinc-500">{publicados}/{totalPublicavel} itens publicaveis online</p>
+          </div>
+          <span className="text-xl font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{pctPublicado}%</span>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+          <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, Math.max(0, pctPublicado))}%` }} />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onTab('sem-conteudo')}
+        className={`rounded-lg border p-3 text-left transition ${semConteudo > 0
+          ? 'border-amber-200 bg-amber-50 hover:bg-amber-100/70 dark:border-amber-900/60 dark:bg-amber-950/25 dark:hover:bg-amber-950/40'
+          : 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:hover:bg-emerald-950/40'
+        }`}
+      >
+        <p className="text-xs font-semibold text-zinc-950 dark:text-zinc-50">Conteudo comercial</p>
+        <p className="mt-1 text-xl font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{semConteudo}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">itens sem fotos, descricao ou dados prontos para vender</p>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onTab('critico')}
+        className={`rounded-lg border p-3 text-left transition ${stockCritico > 0
+          ? 'border-red-200 bg-red-50 hover:bg-red-100/70 dark:border-red-900/60 dark:bg-red-950/25 dark:hover:bg-red-950/40'
+          : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100/70 dark:border-zinc-800 dark:bg-zinc-950/60 dark:hover:bg-zinc-800'
+        }`}
+      >
+        <p className="text-xs font-semibold text-zinc-950 dark:text-zinc-50">Risco de stock fisico</p>
+        <p className="mt-1 text-xl font-semibold tabular-nums text-zinc-950 dark:text-zinc-50">{stockCritico}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">pecas abaixo do minimo para oficina e reparacoes</p>
+      </button>
     </section>
   );
 }

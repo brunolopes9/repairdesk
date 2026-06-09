@@ -243,7 +243,7 @@ export default function Stock() {
         }
       />
       <CatalogStockNav />
-      <StockModeStrip counts={stockCounts} />
+      <StockModeStrip counts={stockCounts} onScope={handleStockScopeChange} />
       <DetailWorkspace rail={stockRail}>
         <section className="space-y-3 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -862,6 +862,7 @@ function ImportCsvModal({ open, onClose, onDone }: { open: boolean; onClose: () 
 
 function StockModeStrip({
   counts,
+  onScope,
 }: {
   counts: {
     units: number;
@@ -871,6 +872,7 @@ function StockModeStrip({
     noLocation: number;
     noSupplier: number;
   };
+  onScope: (scope: StockScope) => void;
 }) {
   return (
     <section className="grid gap-3 lg:grid-cols-3">
@@ -879,12 +881,16 @@ function StockModeStrip({
         value={`${counts.units} un`}
         detail={formatCents(counts.stockValueCents)}
         text="Tudo aqui deve existir fisicamente na oficina ou loja. Estas unidades entram em reparacoes e contagens."
+        action="Ver stock"
+        onClick={() => onScope('todos')}
       />
       <StockModeCard
         title="Publicavel online"
         value={`${counts.shopVisible} itens`}
         detail="pecas visiveis"
         text="Algumas pecas e acessorios podem aparecer na loja online, mas continuam a ser stock fisico."
+        action="Ver publicaveis"
+        onClick={() => onScope('loja')}
       />
       <StockModeCard
         title="Higiene logistica"
@@ -892,6 +898,8 @@ function StockModeStrip({
         detail={`${counts.noLocation} sem local · ${counts.noSupplier} sem fornecedor`}
         text="Localizacao e fornecedor aceleram reposicao, compras e trabalho de bancada."
         warn={counts.low > 0}
+        action="Ver stock baixo"
+        onClick={() => onScope('baixo')}
       />
     </section>
   );
@@ -902,16 +910,20 @@ function StockModeCard({
   value,
   detail,
   text,
+  action,
+  onClick,
   warn = false,
 }: {
   title: string;
   value: string;
   detail: string;
   text: string;
+  action: string;
+  onClick: () => void;
   warn?: boolean;
 }) {
   return (
-    <div className={`rounded-lg border p-3 ${warn ? 'border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
+    <button type="button" onClick={onClick} className={`rounded-lg border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${warn ? 'border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{title}</p>
@@ -922,7 +934,8 @@ function StockModeCard({
           <p className="text-[11px] text-zinc-500">{detail}</p>
         </div>
       </div>
-    </div>
+      <span className="mt-3 inline-flex text-xs font-medium text-brand-700 dark:text-brand-300">{action}</span>
+    </button>
   );
 }
 

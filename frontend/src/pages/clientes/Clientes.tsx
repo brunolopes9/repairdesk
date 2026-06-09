@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -75,6 +75,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 export default function Clientes() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -106,8 +107,7 @@ export default function Clientes() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clientes'] });
-      setModalOpen(false);
-      setEditing(null);
+      closeClienteModal();
     },
   });
 
@@ -124,10 +124,24 @@ export default function Clientes() {
     setModalOpen(true);
   }
 
+  function closeClienteModal() {
+    setModalOpen(false);
+    setEditing(null);
+    if (new URLSearchParams(location.search).get('new') === '1') {
+      navigate('/clientes', { replace: true });
+    }
+  }
+
   function openEdit(c: Cliente) {
     setEditing(c);
     setModalOpen(true);
   }
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('new') === '1') {
+      openCreate();
+    }
+  }, [location.search]);
 
   const items = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
@@ -429,12 +443,12 @@ export default function Clientes() {
       <Modal
         open={modalOpen}
         title={editing ? 'Editar cliente' : 'Novo cliente'}
-        onClose={() => setModalOpen(false)}
+        onClose={closeClienteModal}
         footer={
           <>
             <button
               type="button"
-              onClick={() => setModalOpen(false)}
+              onClick={closeClienteModal}
               className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               Cancelar
@@ -453,7 +467,7 @@ export default function Clientes() {
         <ClienteFormView
           initial={editing}
           submitting={upsert.isPending}
-          onCancel={() => setModalOpen(false)}
+          onCancel={closeClienteModal}
           onSubmit={async (form) => {
             await upsert.mutateAsync(form);
           }}
