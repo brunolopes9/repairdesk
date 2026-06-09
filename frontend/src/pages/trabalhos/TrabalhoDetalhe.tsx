@@ -161,9 +161,12 @@ export default function TrabalhoDetalhe() {
     },
   });
 
+  // Sprint 538: taxa de IVA escolhida ao emitir (deixa de ser hardcoded 23%). 23/13/6/0.
+  const [ivaRate, setIvaRate] = useState(23);
   const emitirFatura = useMutation({
-    // Sprint 533: documentType escolhido pelo utilizador — 2 = Fatura-Recibo (pago), 1 = Fatura (recibo à parte).
-    mutationFn: (documentType: number) => trabalhosApi.emitirFatura(id!, { documentType }),
+    // Sprint 533/538: documentType (1=Fatura, 2=Fatura-Recibo) + taxa de IVA escolhida pelo utilizador.
+    mutationFn: (vars: { documentType: number; vatPercent: number }) =>
+      trabalhosApi.emitirFatura(id!, { documentType: vars.documentType, vatPercent: vars.vatPercent }),
     onSuccess: (invoice) => {
       qc.invalidateQueries({ queryKey: ['trabalho', id] });
       toast.success(`Fatura ${invoice.number} emitida`, invoice.pdfUrl ? 'PDF disponível na ficha.' : undefined);
@@ -416,6 +419,16 @@ export default function TrabalhoDetalhe() {
             </>
           ) : canEmitMoloniInvoice && (
             <>
+              {/* Sprint 538: taxa de IVA escolhida ao emitir (deixa de ser hardcoded 23%). */}
+              <label className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300" title="Taxa de IVA da fatura">
+                IVA
+                <select value={ivaRate} onChange={e => setIvaRate(Number(e.target.value))} className="bg-transparent text-xs font-medium outline-none">
+                  <option value={23}>23%</option>
+                  <option value={13}>13%</option>
+                  <option value={6}>6%</option>
+                  <option value={0}>0% (isento)</option>
+                </select>
+              </label>
               {/* Sprint 537: fluxo de serviços — Fatura (a crédito) → cliente paga → Recibo. A
                   Fatura-Recibo (pago num só documento) só aparece quando o trabalho já está pago. */}
               <button
@@ -425,12 +438,12 @@ export default function TrabalhoDetalhe() {
                   const valor = t.precoFinalCents ?? t.orcamentoCents ?? 0;
                   const ok = confirm(
                     (billing.data?.sandboxMode ? 'MODO SANDBOX — documento de teste\n\n' : '') +
-                    'Emitir FATURA ao cliente? Fica em dívida até o cliente pagar; depois emites o Recibo (na lista de Faturas).\n\n' +
+                    `Emitir FATURA ao cliente (IVA ${ivaRate}%)? Fica em dívida até o cliente pagar; depois emites o Recibo (na lista de Faturas).\n\n` +
                     `Trabalho #${t.numero} — ${t.titulo}\n` +
                     `Cliente: ${t.cliente?.nome ?? 'Fallback Moloni'}\n` +
                     `Total: ${formatCents(valor)}\n\nContinuar?`
                   );
-                  if (ok) emitirFatura.mutate(1);
+                  if (ok) emitirFatura.mutate({ documentType: 1, vatPercent: ivaRate });
                 }}
                 className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
                 title="Fatura a crédito — o cliente paga depois; emites o Recibo quando receberes"
@@ -445,12 +458,12 @@ export default function TrabalhoDetalhe() {
                     const valor = t.precoFinalCents ?? t.orcamentoCents ?? 0;
                     const ok = confirm(
                       (billing.data?.sandboxMode ? 'MODO SANDBOX — documento de teste\n\n' : '') +
-                      'Emitir FATURA-RECIBO (fatura + recibo num só documento, já pago)?\n\n' +
+                      `Emitir FATURA-RECIBO (IVA ${ivaRate}%, fatura + recibo num só documento, já pago)?\n\n` +
                       `Trabalho #${t.numero} — ${t.titulo}\n` +
                       `Cliente: ${t.cliente?.nome ?? 'Fallback Moloni'}\n` +
                       `Total: ${formatCents(valor)}\n\nContinuar?`
                     );
-                    if (ok) emitirFatura.mutate(2);
+                    if (ok) emitirFatura.mutate({ documentType: 2, vatPercent: ivaRate });
                   }}
                   className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
                   title="Fatura + recibo num só documento (só quando já está pago)"
