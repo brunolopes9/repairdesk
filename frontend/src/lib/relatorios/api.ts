@@ -88,8 +88,10 @@ export interface RelatorioNegocioResponse {
   receitaVendasCents: number;
   custoPecasCents: number;
   opexCents: number;
-  lucroBrutoCents: number;
-  margemMedia: number;
+  lucroBrutoCents: number;     // Sprint 536: receita − peças (COGS), SEM OpEx
+  margemMedia: number;         // margem bruta
+  lucroOperacionalCents: number; // Sprint 536: lucro bruto − OpEx
+  margemOperacionalPct: number;
   ticketMedioCents: number;
   reparacoesPagasCount: number;
   topReparacoesLucrativas: TopReparacaoLucrativa[];

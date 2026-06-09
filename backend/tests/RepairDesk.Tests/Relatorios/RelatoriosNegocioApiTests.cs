@@ -52,8 +52,10 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
         report.ReceitaVendasCents.Should().Be(7_000);
         report.CustoPecasCents.Should().Be(2_000);
         report.OpexCents.Should().Be(3_000);
-        report.LucroBrutoCents.Should().Be(17_000);
-        report.MargemMedia.Should().Be(77.27m);
+        report.LucroBrutoCents.Should().Be(20_000);        // Sprint 536: bruto = receita − peças (22000 − 2000)
+        report.MargemMedia.Should().Be(90.91m);            // margem bruta (20000/22000)
+        report.LucroOperacionalCents.Should().Be(17_000);  // operacional = bruto − OpEx (20000 − 3000)
+        report.MargemOperacionalPct.Should().Be(77.27m);   // 17000/22000
         report.TicketMedioCents.Should().Be(22_000);
     }
 
@@ -112,8 +114,10 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
         report!.ReceitaTotalCents.Should().Be(1_000);
         report.CustoPecasCents.Should().Be(2_000);
         report.OpexCents.Should().Be(500);
-        report.LucroBrutoCents.Should().Be(-1_500);
-        report.MargemMedia.Should().Be(-150m);
+        report.LucroBrutoCents.Should().Be(-1_000);        // Sprint 536: bruto = receita − peças (1000 − 2000)
+        report.MargemMedia.Should().Be(-100m);             // margem bruta negativa
+        report.LucroOperacionalCents.Should().Be(-1_500);  // operacional = bruto − OpEx (−1000 − 500)
+        report.MargemOperacionalPct.Should().Be(-150m);
     }
 
     [Fact]

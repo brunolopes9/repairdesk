@@ -35,10 +35,18 @@ public sealed class RelatorioNegocioService : IRelatorioNegocioService
         var receitaTotal = snapshot.ReceitaReparacoesCents
             + snapshot.ReceitaTrabalhosCents
             + snapshot.ReceitaVendasCents;
-        var lucroBruto = receitaTotal - snapshot.CustoPecasCents - snapshot.OpexCents;
-        var margemMedia = receitaTotal == 0
+        // Sprint 536: lucro BRUTO = receita − custo das peças (COGS). O OpEx (despesas fixas: renda,
+        // ferramentas, etc.) entra no resultado OPERACIONAL, NÃO no bruto. Antes subtraía-se o OpEx ao
+        // bruto, por isso um serviço lucrativo (ex.: Maria Inês, 98,40€ de margem) aparecia como
+        // prejuízo (−1,60€) só porque havia 100€ de OpEx no período. Agora separa-se.
+        var lucroBruto = receitaTotal - snapshot.CustoPecasCents;
+        var lucroOperacional = lucroBruto - snapshot.OpexCents;
+        var margemBruta = receitaTotal == 0
             ? 0
             : Math.Round(lucroBruto * 100m / receitaTotal, 2, MidpointRounding.AwayFromZero);
+        var margemOperacional = receitaTotal == 0
+            ? 0
+            : Math.Round(lucroOperacional * 100m / receitaTotal, 2, MidpointRounding.AwayFromZero);
         var ticketMedio = snapshot.ReparacoesPagasCount == 0
             ? 0
             : (int)Math.Round(receitaTotal / (decimal)snapshot.ReparacoesPagasCount, MidpointRounding.AwayFromZero);
@@ -55,7 +63,7 @@ public sealed class RelatorioNegocioService : IRelatorioNegocioService
             snapshot.CustoPecasCents,
             snapshot.OpexCents,
             lucroBruto,
-            margemMedia,
+            margemBruta,
             ticketMedio,
             snapshot.ReparacoesPagasCount,
             snapshot.TopReparacoesLucrativas.Select(r => new TopReparacaoLucrativaDto(
@@ -73,7 +81,9 @@ public sealed class RelatorioNegocioService : IRelatorioNegocioService
                 p.Quantidade)).ToList(),
             snapshot.TopFornecedores.Select(f => new TopFornecedorDto(
                 f.Nome,
-                f.TotalCompradoCents)).ToList());
+                f.TotalCompradoCents)).ToList(),
+            lucroOperacional,
+            margemOperacional);
     }
 
     public async Task<TaxaDefeitoFornecedorResponse> GetTaxaDefeitoFornecedorAsync(int meses, CancellationToken ct = default)
@@ -116,13 +126,17 @@ public sealed record RelatorioNegocioResponse(
     int ReceitaVendasCents,
     int CustoPecasCents,
     int OpexCents,
+    // Sprint 536: LucroBrutoCents = receita − peças (COGS), SEM OpEx. MargemMedia = margem BRUTA.
     int LucroBrutoCents,
     decimal MargemMedia,
     int TicketMedioCents,
     int ReparacoesPagasCount,
     IReadOnlyList<TopReparacaoLucrativaDto> TopReparacoesLucrativas,
     IReadOnlyList<TopPecaUsadaDto> TopPecasUsadas,
-    IReadOnlyList<TopFornecedorDto> TopFornecedores);
+    IReadOnlyList<TopFornecedorDto> TopFornecedores,
+    // Sprint 536: resultado operacional = lucro bruto − OpEx (despesas fixas) + margem respectiva.
+    int LucroOperacionalCents = 0,
+    decimal MargemOperacionalPct = 0);
 
 public sealed record TopReparacaoLucrativaDto(
     Guid Id,

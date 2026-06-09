@@ -77,8 +77,10 @@ export default function RelatorioNegocio() {
             <KpiCard title="Receita total" value={formatCents(report.data.receitaTotalCents)} hint={`${formatCents(report.data.receitaReparacoesCents)} reparacoes · ${formatCents(report.data.receitaTrabalhosCents)} trabalhos · ${formatCents(report.data.receitaVendasCents)} vendas`} icon={TrendingUp} tone="brand" />
             <KpiCard title="Custo pecas" value={formatCents(report.data.custoPecasCents)} hint="Stock consumido em reparacoes no periodo" icon={PackageSearch} />
             <KpiCard title="OpEx" value={formatCents(report.data.opexCents)} hint="Despesas operacionais, exclui pecas/material" icon={ReceiptText} />
-            <KpiCard title="Lucro bruto" value={formatCents(report.data.lucroBrutoCents)} hint="Receita - pecas - OpEx" icon={BarChart3} tone={report.data.lucroBrutoCents < 0 ? 'danger' : 'success'} />
-            <KpiCard title="Margem media" value={`${report.data.margemMedia.toFixed(2)}%`} hint="Lucro bruto / receita" icon={TrendingUp} />
+            <KpiCard title="Lucro bruto" value={formatCents(report.data.lucroBrutoCents)} hint="Receita - pecas (margem do servico, SEM OpEx)" icon={BarChart3} tone={report.data.lucroBrutoCents < 0 ? 'danger' : 'success'} />
+            <KpiCard title="Margem bruta" value={`${report.data.margemMedia.toFixed(2)}%`} hint="Lucro bruto / receita" icon={TrendingUp} />
+            <KpiCard title="Resultado operacional" value={formatCents(report.data.lucroOperacionalCents)} hint="Lucro bruto - OpEx (despesas fixas do periodo)" icon={BarChart3} tone={report.data.lucroOperacionalCents < 0 ? 'danger' : 'success'} />
+            <KpiCard title="Margem operacional" value={`${report.data.margemOperacionalPct.toFixed(2)}%`} hint="Resultado operacional / receita" icon={TrendingUp} />
             <KpiCard title="Ticket medio" value={formatCents(report.data.ticketMedioCents)} hint={`${report.data.reparacoesPagasCount} reparacoes pagas`} icon={Wrench} />
           </section>
 
