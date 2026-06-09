@@ -104,4 +104,7 @@ public sealed record MoloniInvoiceDraftItem(
     int Quantity,
     int UnitPriceCents,
     int DiscountCents,
-    decimal VatPercent);
+    decimal VatPercent,
+    // Sprint 534: motivo de isenção POR LINHA (ex.: "M13" regime da margem — bens em segunda mão).
+    // Null → usa o motivo por defeito do tenant (settings.ExemptionReason), como até aqui.
+    string? ExemptionReason = null);

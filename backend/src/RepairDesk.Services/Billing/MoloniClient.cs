@@ -90,7 +90,7 @@ public class MoloniClient : IMoloniClient
                     draft.VatPercent),
             };
 
-        EnsureReadyToInvoice(settings, draftItems.Max(i => i.VatPercent));
+        EnsureReadyToInvoice(settings, draftItems);
 
         var today = DateTime.UtcNow.Date;
         var taxIdByRate = await ResolveTaxIdsAsync(settings, draftItems, ct);
@@ -232,7 +232,7 @@ public class MoloniClient : IMoloniClient
                     draft.VatPercent),
             };
 
-        EnsureReadyToInvoice(settings, draftItems.Max(i => i.VatPercent));
+        EnsureReadyToInvoice(settings, draftItems);
 
         var today = DateTime.UtcNow.Date;
         var expiration = today.AddDays(30);
@@ -382,7 +382,12 @@ public class MoloniClient : IMoloniClient
         }
         else
         {
-            product["exemption_reason"] = settings.ExemptionReason;
+            // Sprint 534: isenção por linha (ex.: "M13" regime da margem) tem prioridade sobre o
+            // motivo por defeito do tenant. Permite linhas de segunda mão (M13) ao lado de linhas
+            // normais a 23% no mesmo documento.
+            product["exemption_reason"] = string.IsNullOrWhiteSpace(item.ExemptionReason)
+                ? settings.ExemptionReason
+                : item.ExemptionReason;
             product["taxes"] = Array.Empty<object>();
         }
 
@@ -495,7 +500,7 @@ public class MoloniClient : IMoloniClient
 
     public async Task<MoloniInvoiceResult> InsertCreditNoteAsync(TenantBillingSettings settings, MoloniCreditNoteDraft draft, CancellationToken ct = default)
     {
-        EnsureReadyToInvoice(settings, draft.Items.FirstOrDefault()?.VatPercent ?? 23m);
+        EnsureReadyToInvoice(settings, draft.Items);
         if (draft.OriginalDocumentId <= 0)
             throw new ValidationException("nc_sem_original", "Nota de Credito precisa de referencia a fatura original.");
 
@@ -1313,16 +1318,20 @@ public class MoloniClient : IMoloniClient
             throw new ValidationException("moloni_company_missing", "Configura o CompanyId da Moloni.");
     }
 
-    private static void EnsureReadyToInvoice(TenantBillingSettings settings, decimal vatPercent)
+    private static void EnsureReadyToInvoice(TenantBillingSettings settings, IReadOnlyList<MoloniInvoiceDraftItem> items)
     {
         EnsureMoloniBasics(settings);
         if (settings.DefaultSerieId is null or <= 0)
             throw new ValidationException("moloni_serie_missing", "Configura a serie Moloni por defeito.");
         if (settings.DefaultProductId is null or <= 0)
             throw new ValidationException("moloni_product_missing", "Configura o produto/servico Moloni por defeito.");
-        if (vatPercent > 0 && (settings.DefaultTaxId is null or <= 0))
+        if (items.Any(i => i.VatPercent > 0) && (settings.DefaultTaxId is null or <= 0))
             throw new ValidationException("moloni_tax_missing", "Configura o TaxId Moloni para documentos com IVA.");
-        if (vatPercent <= 0 && string.IsNullOrWhiteSpace(settings.ExemptionReason))
+        // Sprint 534: uma linha a 0% precisa de motivo de isenção — POR LINHA (ex.: M13 regime da margem)
+        // OU o motivo por defeito do tenant. Só falha se houver uma linha 0% sem nenhum dos dois.
+        if (items.Any(i => i.VatPercent <= 0
+                && string.IsNullOrWhiteSpace(i.ExemptionReason)
+                && string.IsNullOrWhiteSpace(settings.ExemptionReason)))
             throw new ValidationException("moloni_exemption_missing", "Configura o motivo de isencao Moloni.");
     }
 

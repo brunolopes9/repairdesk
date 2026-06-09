@@ -203,13 +203,22 @@ public class MoloniBillingProvider : IBillingProvider
                 "Preenche a morada na ficha do cliente e tenta de novo.");
         }
 
-        var items = venda.Items.Select(i => new MoloniInvoiceDraftItem(
-            i.Descricao,
-            i.Part?.Sku,
-            i.Quantidade,
-            i.PrecoUnitarioCents,
-            i.DescontoCents,
-            i.IvaRate)).ToList();
+        // Sprint 534: linhas de bens em segunda mão (recondicionado/usado) saem em REGIME DA MARGEM —
+        // 0% IVA + motivo de isenção M13. As restantes mantêm o IVA normal. O Moloni aceita os dois
+        // regimes no mesmo documento (a isenção é por linha). O IVA da margem (venda−compra) é
+        // declarado à parte pelo vendedor — não é discriminado na fatura ao cliente.
+        var items = venda.Items.Select(i =>
+        {
+            var margem = RegimeMargemRules.IsSegundaMao(i.Condicao);
+            return new MoloniInvoiceDraftItem(
+                i.Descricao,
+                i.Part?.Sku,
+                i.Quantidade,
+                i.PrecoUnitarioCents,
+                i.DescontoCents,
+                margem ? 0m : i.IvaRate,
+                margem ? RegimeMargemRules.ExemptionCodeM13 : null);
+        }).ToList();
 
         var result = await _moloni.InsertInvoiceAsync(settings, new MoloniInvoiceDraft(
             customerId,

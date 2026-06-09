@@ -374,6 +374,51 @@ public class MoloniBillingTests
         moloni.InsertCalls.Should().Be(0); // nunca chegou a tocar no Moloni
     }
 
+    // Sprint 534: Regime da margem — bens em segunda mão (CIVA art. 308.º / motivo M13). As linhas de
+    // artigos recondicionados/usados saem a 0% IVA + exemption_reason=M13; as restantes (novo/acessório)
+    // mantêm o IVA normal no MESMO documento.
+    [Fact]
+    public async Task EmitVendaInvoice_BensSegundaMao_SaemEmRegimeMargemM13()
+    {
+        var tenantId = Guid.NewGuid();
+        var venda = new Venda
+        {
+            TenantId = tenantId,
+            Numero = 1,
+            ClienteId = Guid.NewGuid(),
+            Cliente = new Cliente { TenantId = tenantId, Nome = "Cliente" }, // sem NIF → sem guarda de morada
+            Status = VendaStatus.Paga,
+            TotalCents = 6000,
+            Items = new List<VendaItem>
+            {
+                new() { TenantId = tenantId, Descricao = "iPhone 12 recondicionado", Quantidade = 1, PrecoUnitarioCents = 5000, IvaRate = 23m, Condicao = CondicaoArtigo.Recondicionado },
+                new() { TenantId = tenantId, Descricao = "Capa", Quantidade = 1, PrecoUnitarioCents = 1000, IvaRate = 23m, Condicao = CondicaoArtigo.Novo },
+            },
+        };
+
+        var moloni = new FakeMoloniClient();
+        var provider = new MoloniBillingProvider(
+            new FakeReparacaoRepository(new Reparacao { TenantId = tenantId, Equipamento = "n/a", Avaria = "n/a" }),
+            new FakeTrabalhoRepository(),
+            new FakeVendaRepository(venda),
+            new FakeSettingsRepository(Settings(tenantId)),
+            new FakeTenantRepository(new Tenant { Id = tenantId, Name = "Tenant" }),
+            new FakeTenantContext(tenantId),
+            moloni,
+            new FakePartRepository());
+
+        await provider.EmitVendaInvoiceAsync(venda.Id);
+
+        var linhas = moloni.LastDraft!.Items!;
+        var recond = linhas.Single(l => l.Name.Contains("recondicionado"));
+        recond.VatPercent.Should().Be(0m);
+        recond.ExemptionReason.Should().Be("M13");
+
+        var capa = linhas.Single(l => l.Name == "Capa");
+        capa.VatPercent.Should().Be(23m);
+        capa.ExemptionReason.Should().BeNull();
+    }
+
     [Fact]
     public async Task TenantBillingSettingsService_EncryptsApiKeyAtRest()
     {
@@ -542,10 +587,10 @@ public class MoloniBillingTests
         public Task SaveAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
-    private sealed class FakeVendaRepository : IVendaRepository
+    private sealed class FakeVendaRepository(Venda? venda = null) : IVendaRepository
     {
-        public Task<Venda?> FindByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Venda?>(null);
-        public Task<Venda?> FindByIdWithItemsAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Venda?>(null);
+        public Task<Venda?> FindByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult(venda);
+        public Task<Venda?> FindByIdWithItemsAsync(Guid id, CancellationToken ct = default) => Task.FromResult(venda);
         public Task CreateWithNextNumeroAsync(Venda venda, Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
         public Task<(IReadOnlyList<Venda> Items, int Total)> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
             => Task.FromResult(((IReadOnlyList<Venda>)Array.Empty<Venda>(), 0));
