@@ -51,4 +51,17 @@ export const despesasApi = {
   remove(id: string) {
     return api.delete(`/despesas/${id}`).then(() => undefined);
   },
+  // Sprint 540: tirar uma compra de Peças/Material do limbo "despesa" e materializá-la no Stock
+  // (cria Part + entrada). Move com efeito fiscal nulo — o backend remove a despesa.
+  converterStock(
+    id: string,
+    req: { quantidade?: number; sku?: string | null; nome?: string | null },
+  ) {
+    return api
+      .post<{ partId: string; nome: string; quantidade: number; custoUnitarioCents: number }>(
+        `/despesas/${id}/converter-stock`,
+        req,
+      )
+      .then((r) => r.data);
+  },
 };

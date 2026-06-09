@@ -58,6 +58,14 @@ public class DespesasController : ControllerBase
         return NoContent();
     }
 
+    // Sprint 540: tirar uma compra de inventário do limbo "Despesa-Peças" (invisível no Stock)
+    // e materializá-la como Part + movimento de entrada. Move com efeito fiscal nulo (a despesa
+    // é removida para não contar a compra duas vezes no IVA). Admin-only, como o resto.
+    [HttpPost("{id:guid}/converter-stock")]
+    [Authorize(Roles = "Admin")]
+    public Task<ConvertDespesaToStockResult> ConverterStock(Guid id, [FromBody] ConvertDespesaToStockRequest req, CancellationToken ct)
+        => _service.ConvertToStockAsync(id, req, ct);
+
     private static IReadOnlyCollection<DespesaCategoria>? ParseCategoriaIn(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;

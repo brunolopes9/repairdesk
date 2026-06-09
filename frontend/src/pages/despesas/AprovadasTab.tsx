@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Banknote, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2, Search, TrendingDown } from 'lucide-react';
+import { Banknote, CalendarClock, FileText, Layers3, PackagePlus, Plus, ReceiptText, Repeat2, Search, TrendingDown } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard } from '../../components/ui';
 import { DespesaFormModal } from '../../components/DespesasImputadas';
@@ -53,6 +53,11 @@ export default function AprovadasTab({
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Despesa | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Despesa | null>(null);
+  // Sprint 540: converter compra Peças/Material (limbo) em peça de stock real.
+  const [convertTarget, setConvertTarget] = useState<Despesa | null>(null);
+  const [convertQtd, setConvertQtd] = useState(1);
+  const [convertNome, setConvertNome] = useState('');
+  const [convertSku, setConvertSku] = useState('');
 
   const list = useQuery({
     queryKey: ['despesas', categoriaIn ?? null, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, categoria, search, onlyRecurring, page],
@@ -94,6 +99,29 @@ export default function AprovadasTab({
       setConfirmDelete(null);
     },
   });
+
+  const convert = useMutation({
+    mutationFn: (vars: { id: string; quantidade: number; nome: string; sku: string }) =>
+      despesasApi.converterStock(vars.id, {
+        quantidade: vars.quantidade,
+        nome: vars.nome.trim() || undefined,
+        sku: vars.sku.trim() || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['despesas'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['parts'] });
+      qc.invalidateQueries({ queryKey: ['stock'] });
+      setConvertTarget(null);
+    },
+  });
+
+  function openConvert(d: Despesa) {
+    setConvertTarget(d);
+    setConvertQtd(1);
+    setConvertNome(d.descricao);
+    setConvertSku('');
+  }
 
   function invalidateAfterSave() {
     qc.invalidateQueries({ queryKey: ['despesas'] });
@@ -323,6 +351,16 @@ export default function AprovadasTab({
                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Saida</div>
                   <span className="font-semibold text-red-600 dark:text-red-400">-{formatCents(d.valorCents)}</span>
                 </div>
+                {(d.categoria === DESPESA_CATEGORIA.Pecas || d.categoria === DESPESA_CATEGORIA.Material) && (
+                  <button
+                    type="button"
+                    onClick={() => openConvert(d)}
+                    className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                    title="Mover esta compra para o Stock (cria peça + entrada, sem mexer no IVA)"
+                  >
+                    <PackagePlus size={14} /> Stock
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(d)}
@@ -386,6 +424,45 @@ export default function AprovadasTab({
         </>}
       >
         <p className="text-sm">Apagar <strong>{confirmDelete?.descricao}</strong> ({formatCents(confirmDelete?.valorCents ?? 0)})?</p>
+      </Modal>
+
+      <Modal
+        open={!!convertTarget}
+        title="Converter em stock"
+        onClose={() => setConvertTarget(null)}
+        footer={<>
+          <button type="button" onClick={() => setConvertTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
+          <button type="button" disabled={convert.isPending || convertQtd < 1 || !convertNome.trim()}
+            onClick={() => convertTarget && convert.mutate({ id: convertTarget.id, quantidade: convertQtd, nome: convertNome, sku: convertSku })}
+            className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
+            {convert.isPending ? 'A converter...' : 'Criar peça no stock'}
+          </button>
+        </>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            Cria uma peça no Stock a partir desta compra (<strong>{formatCents(convertTarget?.valorCents ?? 0)}</strong>) e remove-a das despesas.
+            O efeito no IVA é o mesmo — só passa a estar visível no inventário e disponível para reparações.
+          </p>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Nome da peça</span>
+            <input value={convertNome} onChange={(e) => setConvertNome(e.target.value)} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-zinc-700 dark:bg-zinc-950" />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Quantidade</span>
+              <input type="number" min={1} value={convertQtd} onChange={(e) => setConvertQtd(Math.max(1, Number(e.target.value) || 1))} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-zinc-700 dark:bg-zinc-950" />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">SKU (opcional)</span>
+              <input value={convertSku} onChange={(e) => setConvertSku(e.target.value)} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-zinc-700 dark:bg-zinc-950" />
+            </label>
+          </div>
+          <p className="text-xs text-zinc-500">
+            Custo unitário: <strong>{formatCents(Math.round((convertTarget?.valorCents ?? 0) / Math.max(1, convertQtd)))}</strong>
+            {' '}· categoria inicial "Outro" (ajustável depois no Stock).
+          </p>
+        </div>
       </Modal>
     </div>
   );

@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:d870576245a1ee4c -->
+<!-- roles-matrix-snapshot:2666c32fbda1b53d -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -39,7 +39,7 @@ testes e esta matriz com snapshot.
 | **Sprint 243 (Doc 72 Fase A) — operações fiscais/credenciais/estruturais** | | |
 | TrabalhosController | `DELETE /{id}`, billing endpoints (`emitir-fatura`, `anular-fatura`, `converter-orcamento-fatura`, `bulk-emit-faturas`, `emitir-orcamento-moloni`), `reabrir` | `Admin` |
 | SupplierInvoicesController | `approve`, `reject`, `approve-stock`, `reprocess` | `Admin` |
-| DespesasController | `POST`, `PUT`, `DELETE` (afecta IVA dedutível) | `Admin` |
+| DespesasController | `POST`, `PUT`, `DELETE`, `POST /{id}/converter-stock` (afecta IVA dedutível) | `Admin` |
 | PartsController | `POST /{id}/movimento` (ajuste manual stock), `POST /import` | `Admin` |
 | TenantPreferencesController | `PUT /`, `POST /reset/{group}` | `Admin` |
 | LlmUsageController | `POST/DELETE /anthropic-key` (BYOK credencial) | `Admin` |
