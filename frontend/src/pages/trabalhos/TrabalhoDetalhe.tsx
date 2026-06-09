@@ -11,6 +11,7 @@ import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { templatesForTrabalhoStatus } from '../../lib/whatsapp/templates';
 import { trabalhosApi } from '../../lib/trabalhos/api';
+import { documentosApi } from '../../lib/documentos/api';
 import { toast } from '../../lib/toast';
 import {
   CATEGORIA_LABEL,
@@ -181,6 +182,16 @@ export default function TrabalhoDetalhe() {
       toast.success('Fatura anulada', 'O documento foi anulado no Moloni (anulação directa ou nota de crédito). O saldo de IVA fica a zero.');
     },
     onError: (err) => toast.fromError(err, 'Não foi possível anular a fatura.'),
+  });
+
+  // Sprint 538b: emite o Recibo que liquida a Fatura a crédito (cliente já pagou) — direto na ficha.
+  const emitirRecibo = useMutation({
+    mutationFn: (documentId: number) => documentosApi.emitirRecibo(documentId),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['trabalho', id] });
+      toast.success(`Recibo ${r.numero ?? ''} emitido`, 'Fatura liquidada no Moloni.');
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível emitir o recibo.'),
   });
 
   const emitirOrcamentoMoloni = useMutation({
@@ -400,6 +411,21 @@ export default function TrabalhoDetalhe() {
                 >
                   🧾 Recibo {t.reciboNumero} · liquidada
                 </span>
+              )}
+              {/* Sprint 538b: emitir o Recibo direto na ficha — quando a fatura está paga e ainda sem recibo. */}
+              {!t.reciboNumero && t.estadoPagamento === PAYMENT_STATUS.Pago && (
+                <button
+                  type="button"
+                  disabled={emitirRecibo.isPending}
+                  onClick={() => {
+                    const ok = confirm(`Emitir RECIBO da fatura ${t.invoiceNumber ?? t.invoiceExternalId}? (confirma que o cliente já pagou)`);
+                    if (ok) emitirRecibo.mutate(Number(t.invoiceExternalId));
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-60"
+                  title="Emite o Recibo que liquida a fatura (cliente já pagou)"
+                >
+                  {emitirRecibo.isPending ? 'A emitir…' : '🧾 Emitir Recibo'}
+                </button>
               )}
               <button
                 type="button"
