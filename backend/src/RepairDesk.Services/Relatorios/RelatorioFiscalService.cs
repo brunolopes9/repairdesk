@@ -55,6 +55,8 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
         var prevDocs = BuildDocumentos(await _repo.ListDocumentosAsync(prevFrom, prevTo, ct), tenant.RegimeFiscal);
         var ivaCompras = Math.Max(0, ivaComprasCents);
         var ivaLiquidado = docs.Sum(d => d.IvaCents);
+        var ivaRegimeMargemCents = 0;
+        var regimeMargemSemCustoCount = 0;
 
         // Sprint 159: auto-calcular IVA dedutível das peças stock + Despesas.
         // Assume taxa 23% para o cálculo IVA = cents × 23 / 123 (extracção do IVA embutido no preço com IVA).
@@ -77,6 +79,14 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
                 l.Data, l.Descricao, l.Fornecedor, l.Origem, l.ValorComIvaCents, l.IvaCents)).ToList();
             despesasOpExDetalhe = opex.Select(l => new IvaDeducaoLinhaDto(
                 l.Data, l.Descricao, l.Fornecedor, l.Origem, l.ValorComIvaCents, l.IvaCents)).ToList();
+
+            // Sprint 535: IVA do regime da margem (bens em segunda mão, M13) — incide sobre (venda−compra),
+            // não sobre o total. As vendas em margem saem a 0% nos docs Moloni, por isso este IVA NÃO está
+            // em ivaLiquidado; calcula-se da base da margem e soma-se. Estimativa — o TOC valida no fecho.
+            var margem = await _repo.SumMargemRegimeAsync(from, to, ct);
+            ivaRegimeMargemCents = (int)Math.Round(margem.MargemTributavelCents * 23.0 / 123.0);
+            regimeMargemSemCustoCount = margem.LinhasSemCustoCount;
+            ivaLiquidado += ivaRegimeMargemCents;
         }
         var ivaDedutivelTotal = ivaCompras + ivaDedutivelPecas + ivaDedutivelDespesas;
 
@@ -100,7 +110,9 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
             prevDocs.Sum(d => d.IvaCents),
             docs,
             comprasStockDetalhe,
-            despesasOpExDetalhe);
+            despesasOpExDetalhe,
+            ivaRegimeMargemCents,
+            regimeMargemSemCustoCount);
     }
 
     public async Task<byte[]> ExportIvaCsvAsync(int ano, int trimestre, int ivaComprasCents = 0, CancellationToken ct = default)

@@ -24,6 +24,7 @@ public class DocumentoServiceTests
         public Task<int> SumDespesasComIvaAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<IvaDeducaoLinha>> ListComprasStockAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<IvaDeducaoLinha>> ListDespesasOpExAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<MargemRegimeResult> SumMargemRegimeAsync(DateTime f, DateTime t, CancellationToken ct = default) => throw new NotImplementedException();
     }
 
     private static DocumentoService MakeService(

@@ -25,7 +25,13 @@ public sealed record RelatorioIvaResponse(
     IReadOnlyList<RelatorioIvaDocumentoDto> Documentos,
     // Sprint 180: drill-down — Bruno consegue ver de onde vem cada KPI.
     IReadOnlyList<IvaDeducaoLinhaDto> ComprasStockDetalhe,
-    IReadOnlyList<IvaDeducaoLinhaDto> DespesasOpExDetalhe);
+    IReadOnlyList<IvaDeducaoLinhaDto> DespesasOpExDetalhe,
+    // === Regime da margem (bens em segunda mão, M13) ===
+    // Sprint 535: IVA da margem (venda−compra), JÁ somado em IvaLiquidadoCents. As vendas em margem
+    // saem a 0% nos docs Moloni, por isso este valor é calculado à parte e acrescentado ao liquidado.
+    int IvaRegimeMargemCents = 0,
+    // Nº de linhas de 2ª mão sem custo registado (sem Part) — não entraram na base; Bruno deve registar o custo.
+    int RegimeMargemSemCustoCount = 0);
 
 public sealed record RelatorioIvaDocumentoDto(
     Guid Id,

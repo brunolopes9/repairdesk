@@ -30,6 +30,10 @@ export interface RelatorioIvaResponse {
   // === Vendas ===
   totalSemIvaCents: number;
   ivaLiquidadoCents: number;
+  /** Sprint 535: IVA do regime da margem (bens em segunda mão) — JÁ incluído em ivaLiquidadoCents. */
+  ivaRegimeMargemCents: number;
+  /** Sprint 535: nº de linhas de 2ª mão sem custo registado (não entraram na base da margem). */
+  regimeMargemSemCustoCount: number;
   // === Compras dedutíveis (Sprint 159) ===
   /** Input manual Bruno (compras não registadas). */
   ivaComprasCents: number;

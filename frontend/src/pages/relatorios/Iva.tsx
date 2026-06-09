@@ -122,6 +122,20 @@ export default function RelatorioIva() {
                 <Kpi title="Total facturado sem IVA" value={report.data.totalSemIvaCents} />
                 <Kpi title="IVA liquidado" value={report.data.ivaLiquidadoCents} tone="brand" />
               </div>
+              {/* Sprint 535: regime da margem (bens em segunda mão) — o IVA incide só sobre (venda−compra),
+                  não está nos docs Moloni (saem a 0%), por isso é somado aqui ao liquidado. */}
+              {report.data.ivaRegimeMargemCents > 0 && (
+                <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">
+                  Inclui <strong>{formatCents(report.data.ivaRegimeMargemCents)}</strong> de IVA em regime
+                  da margem (bens em segunda mão), estimado sobre (venda − compra). O teu TOC valida no fecho.
+                </p>
+              )}
+              {report.data.regimeMargemSemCustoCount > 0 && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                  ⚠️ {report.data.regimeMargemSemCustoCount} artigo(s) em segunda mão sem custo registado —
+                  não entraram na margem. Regista o custo no Stock para o IVA da margem ficar completo.
+                </p>
+              )}
             </div>
 
             {/* Bloco Compras dedutíveis */}

@@ -338,4 +338,40 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .OrderByDescending(x => x.InvoiceEmittedAt)
             .ToList();
     }
+
+    public async Task<MargemRegimeResult> SumMargemRegimeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        // Sprint 535: linhas de artigos em segunda mão (Recondicionado/Usado) de vendas FATURADAS no
+        // período. Base da margem = Σ max(0, venda − custo); custo = Part.CustoUnitarioCents. Linhas
+        // sem Part/custo são contadas à parte (não entram na base — não inflamos uma margem fictícia).
+        var rows = await _db.Vendas
+            .AsNoTracking()
+            .Where(v => v.InvoiceEmittedAt != null && v.InvoiceEmittedAt >= fromUtc && v.InvoiceEmittedAt < toUtc)
+            .SelectMany(v => v.Items)
+            .Where(i => i.Condicao == CondicaoArtigo.Recondicionado || i.Condicao == CondicaoArtigo.Usado)
+            .Select(i => new
+            {
+                i.Quantidade,
+                i.PrecoUnitarioCents,
+                i.DescontoCents,
+                CustoUnit = i.Part != null ? (int?)i.Part.CustoUnitarioCents : null,
+            })
+            .ToListAsync(ct);
+
+        var margemCents = 0;
+        var semCusto = 0;
+        foreach (var i in rows)
+        {
+            var vendaCents = Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents);
+            if (i.CustoUnit is null or 0)
+            {
+                semCusto++;
+                continue;
+            }
+            var custoCents = i.CustoUnit.Value * i.Quantidade;
+            var m = vendaCents - custoCents;
+            if (m > 0) margemCents += m; // margem negativa (vendido abaixo do custo) → 0 (regime per-item, conservador)
+        }
+        return new MargemRegimeResult(margemCents, semCusto);
+    }
 }

@@ -43,7 +43,18 @@ public interface IRelatorioFiscalRepository
     /// para drill-down UI.
     /// </summary>
     Task<IReadOnlyList<IvaDeducaoLinha>> ListDespesasOpExAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 535: base tributável do regime da margem (CIVA art. 308.º). Para os artigos em segunda
+    /// mão (Condicao Recondicionado/Usado) faturados no período, soma Σ max(0, preço venda − custo)
+    /// — o IVA da margem incide sobre esta base, não sobre o total. Custo = Part.CustoUnitarioCents.
+    /// Linhas sem custo registado (sem Part) são contadas à parte e NÃO entram na base (evita inflar).
+    /// </summary>
+    Task<MargemRegimeResult> SumMargemRegimeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 }
+
+/// <summary>Sprint 535: resultado do apuramento do regime da margem para o relatório IVA.</summary>
+public sealed record MargemRegimeResult(int MargemTributavelCents, int LinhasSemCustoCount);
 
 public sealed record IvaDeducaoLinha(
     DateTime Data,
