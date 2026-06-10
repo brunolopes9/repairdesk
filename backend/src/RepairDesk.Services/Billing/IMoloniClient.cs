@@ -29,6 +29,16 @@ public interface IMoloniClient
     // como 'nao conseguimos verificar — manter estado local'.
     Task<int?> GetDocumentStatusAsync(TenantBillingSettings settings, int documentId, CancellationToken ct = default);
 
+    // Sprint 541: status + totais fiscais EXATOS do documento numa só chamada (o mesmo
+    // documents/getOne que o status já usava). Default para implementações que não suportam
+    // (fakes, e2e): devolve só o status — o caller cai na estimativa local. O MoloniClient
+    // real faz override com o parse completo (base/IVA exatos por documento).
+    async Task<MoloniDocumentFiscal?> GetDocumentFiscalAsync(TenantBillingSettings settings, int documentId, CancellationToken ct = default)
+    {
+        var status = await GetDocumentStatusAsync(settings, documentId, ct);
+        return status is null ? null : new MoloniDocumentFiscal(status, null, null);
+    }
+
     // OAuth2 password grant: troca username+password (uma vez) por tokens. Tokens guardados cifrados em settings; password nunca persistida.
     Task ConnectViaPasswordGrantAsync(TenantBillingSettings settings, string username, string password, CancellationToken ct = default);
     Task ExchangeAuthorizationCodeAsync(TenantBillingSettings settings, string code, string redirectUri, CancellationToken ct = default);
@@ -63,6 +73,13 @@ public interface IMoloniClient
 /// <summary>Sprint 527: resultado da emissão de um Recibo Moloni.</summary>
 public sealed record MoloniReceiptResult(int ReceiptId, string? Numero);
 
+/// <summary>
+/// Sprint 541: totais fiscais exatos de um documento Moloni (documents/getOne). Convenção Moloni
+/// contra-intuitiva, validada no painel (S527c): net_value = TOTAL com IVA, gross_value = BASE sem
+/// IVA. Totais null quando o documento não os devolve (caller cai na estimativa local).
+/// </summary>
+public sealed record MoloniDocumentFiscal(int? Status, int? TotalComIvaCents, int? BaseSemIvaCents);
+
 /// <summary>Sprint 514: documento de venda devolvido pelo Moloni documents/getAll. Valores em cêntimos.</summary>
 public sealed record MoloniDocumentRow(
     int DocumentId,
@@ -71,8 +88,8 @@ public sealed record MoloniDocumentRow(
     DateTime Data,
     string? EntityName,
     string? EntityVat,
-    int GrossCents,        // total com IVA (gross_value)
-    int NetCents,          // base sem IVA (net_value)
+    int GrossCents,        // total com IVA (campo Moloni: net_value — convenção trocada, ver S527c)
+    int NetCents,          // base sem IVA (campo Moloni: gross_value)
     int TaxesCents,        // IVA (taxes_value)
     int Status,            // 0=Rascunho, 1=Fechado, 2=Anulado
     int CustomerId = 0,    // Sprint 527: cliente Moloni — necessário p/ emitir Recibo de liquidação

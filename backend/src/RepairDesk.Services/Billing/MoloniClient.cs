@@ -437,6 +437,9 @@ public class MoloniClient : IMoloniClient
     }
 
     public async Task<int?> GetDocumentStatusAsync(TenantBillingSettings settings, int documentId, CancellationToken ct = default)
+        => (await GetDocumentFiscalAsync(settings, documentId, ct))?.Status;
+
+    public async Task<MoloniDocumentFiscal?> GetDocumentFiscalAsync(TenantBillingSettings settings, int documentId, CancellationToken ct = default)
     {
         if (settings.Provider != BillingProvider.Moloni) return null;
         if (settings.CompanyId is null or <= 0) return null;
@@ -452,7 +455,18 @@ public class MoloniClient : IMoloniClient
 
             if (doc.ValueKind != JsonValueKind.Object) return null;
             if (!doc.TryGetProperty("status", out var statusProp)) return null;
-            return ReadInt(statusProp);
+            var status = ReadInt(statusProp);
+
+            // Sprint 541: totais exatos do documento — convenção Moloni trocada (S527c):
+            // net_value = TOTAL com IVA, gross_value = BASE sem IVA. Só devolvemos o par
+            // quando é coerente (0 <= base <= total, total > 0); senão o caller estima.
+            var totalCents = ToCents(GetDecimalAny(doc, "net_value"));
+            var baseCents = ToCents(GetDecimalAny(doc, "gross_value"));
+            var coerente = totalCents > 0 && baseCents >= 0 && baseCents <= totalCents;
+            return new MoloniDocumentFiscal(
+                status,
+                coerente ? totalCents : null,
+                coerente ? baseCents : null);
         }
         catch (Exception ex)
         {

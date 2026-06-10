@@ -20,6 +20,8 @@ export interface RelatorioIvaDocumento {
   baseCents: number;
   ivaCents: number;
   totalCents: number;
+  /** Sprint 541: true = IVA exato (totais do Moloni ou taxa por linha); false = estimado a 23%. */
+  ivaExato: boolean;
 }
 
 export interface RelatorioIvaResponse {

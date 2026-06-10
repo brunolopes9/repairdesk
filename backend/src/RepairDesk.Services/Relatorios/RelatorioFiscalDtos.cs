@@ -42,7 +42,11 @@ public sealed record RelatorioIvaDocumentoDto(
     string Cliente,
     int BaseCents,
     int IvaCents,
-    int TotalCents);
+    int TotalCents,
+    // Sprint 541: true quando o IVA NÃO é a estimativa fixa de 23% — ou veio EXATO do documento
+    // Moloni (documents/getOne, fonte de verdade fiscal), ou foi calculado linha-a-linha com a
+    // taxa real (Vendas). false = estimado a 23/123 (Reparações/Trabalhos com Moloni inacessível).
+    bool IvaExato = false);
 
 /// <summary>Sprint 180: linha individual de IVA dedutível para drill-down do UI.</summary>
 public sealed record IvaDeducaoLinhaDto(

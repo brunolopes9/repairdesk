@@ -538,6 +538,39 @@ public class MoloniBillingTests
             .Which.Code.Should().Be("moloni_exemption_missing");
     }
 
+    // Sprint 541: documents/getOne passa a alimentar o Relatório IVA com totais EXATOS. Convenção
+    // Moloni contra-intuitiva (validada no painel, S527c): net_value = TOTAL com IVA,
+    // gross_value = BASE sem IVA. Valores reais de uma fatura de 135€ (base 109,76 + IVA 25,24).
+    [Fact]
+    public async Task MoloniClient_GetDocumentFiscal_ParseiaTotaisExatos()
+    {
+        var handler = new QueueHttpHandler(
+            Json(HttpStatusCode.OK, """{"status":1,"net_value":135.00,"gross_value":109.76}"""));
+        var client = NewMoloniClient(handler);
+
+        var fiscal = await client.GetDocumentFiscalAsync(Settings(), 42);
+
+        fiscal.Should().NotBeNull();
+        fiscal!.Status.Should().Be(1);
+        fiscal.TotalComIvaCents.Should().Be(13500);
+        fiscal.BaseSemIvaCents.Should().Be(10976);
+    }
+
+    // Sem totais coerentes (doc sem valores) → devolve só o status; o relatório cai na via local.
+    [Fact]
+    public async Task MoloniClient_GetDocumentFiscal_SemTotais_DevolveSoStatus()
+    {
+        var handler = new QueueHttpHandler(Json(HttpStatusCode.OK, """{"status":1}"""));
+        var client = NewMoloniClient(handler);
+
+        var fiscal = await client.GetDocumentFiscalAsync(Settings(), 43);
+
+        fiscal.Should().NotBeNull();
+        fiscal!.Status.Should().Be(1);
+        fiscal.TotalComIvaCents.Should().BeNull();
+        fiscal.BaseSemIvaCents.Should().BeNull();
+    }
+
     private static MoloniClient NewMoloniClient(QueueHttpHandler handler, ITenantBillingSettingsRepository? repo = null)
     {
         var cfg = new ConfigurationBuilder()

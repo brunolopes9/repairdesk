@@ -49,10 +49,13 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
         var rawRows = await _repo.ListDocumentosAsync(from, to, ct);
         // Sprint 53: sincroniza com Moloni — exclui (e limpa local) documentos com status=Anulado.
         // Se Moloni nao responder (sandbox 503, timeout, etc), mantemos estado local sem alterar.
-        var syncedRows = await SyncWithMoloniAsync(rawRows, ct);
+        // Sprint 541: a MESMA chamada traz agora os totais exatos (base/IVA) de cada documento.
+        var (syncedRows, exactByDoc) = await SyncWithMoloniAsync(rawRows, ct);
 
-        var docs = BuildDocumentos(syncedRows, tenant.RegimeFiscal);
-        var prevDocs = BuildDocumentos(await _repo.ListDocumentosAsync(prevFrom, prevTo, ct), tenant.RegimeFiscal);
+        var docs = BuildDocumentos(syncedRows, tenant.RegimeFiscal, exactByDoc);
+        // Trimestre anterior é só tendência — fica na via local (per-linha p/ vendas, estimativa
+        // p/ resto) para não duplicar chamadas Moloni a cada vista do relatório.
+        var prevDocs = BuildDocumentos(await _repo.ListDocumentosAsync(prevFrom, prevTo, ct), tenant.RegimeFiscal, EmptyExact);
         var ivaCompras = Math.Max(0, ivaComprasCents);
         var ivaLiquidado = docs.Sum(d => d.IvaCents);
         var ivaRegimeMargemCents = 0;
@@ -133,17 +136,26 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
         return (pdf, $"relatorio_iva_{ano}_T{trimestre}.pdf");
     }
 
+    /// <summary>Sprint 541: base/IVA/total exatos de um documento, lidos do Moloni.</summary>
+    private sealed record ExactFiscal(int BaseCents, int IvaCents, int TotalCents);
+
+    private static readonly IReadOnlyDictionary<Guid, ExactFiscal> EmptyExact =
+        new Dictionary<Guid, ExactFiscal>();
+
     /// <summary>Verifica cada doc contra Moloni. Os anulados (status=2) sao excluidos do relatorio
-    /// E os seus campos Invoice* sao limpos em DB para nao aparecerem em futuras consultas.</summary>
-    private async Task<IReadOnlyList<RelatorioFiscalDocumentoRow>> SyncWithMoloniAsync(
+    /// E os seus campos Invoice* sao limpos em DB para nao aparecerem em futuras consultas.
+    /// Sprint 541: a mesma chamada (documents/getOne) devolve agora os totais exatos do documento —
+    /// recolhidos por entidade para o IVA do relatório bater com o Moloni ao cêntimo.</summary>
+    private async Task<(IReadOnlyList<RelatorioFiscalDocumentoRow> Rows, IReadOnlyDictionary<Guid, ExactFiscal> Exact)> SyncWithMoloniAsync(
         IReadOnlyList<RelatorioFiscalDocumentoRow> rows, CancellationToken ct)
     {
-        if (rows.Count == 0) return rows;
-        if (_tenant.TenantId is not { } tenantId) return rows;
+        var exact = new Dictionary<Guid, ExactFiscal>();
+        if (rows.Count == 0) return (rows, exact);
+        if (_tenant.TenantId is not { } tenantId) return (rows, exact);
 
         var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
         if (settings is null || settings.Provider != BillingProvider.Moloni || string.IsNullOrEmpty(settings.ApiKeyCipherText))
-            return rows; // Moloni nao configurado/ligado — nao ha como sincronizar
+            return (rows, exact); // Moloni nao configurado/ligado — nao ha como sincronizar
 
         var keep = new List<RelatorioFiscalDocumentoRow>(rows.Count);
         foreach (var r in rows)
@@ -154,9 +166,9 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
                 continue;
             }
 
-            var status = await _moloni.GetDocumentStatusAsync(settings, moloniDocId, ct);
+            var fiscal = await _moloni.GetDocumentFiscalAsync(settings, moloniDocId, ct);
             // status: null=falha ao verificar (mantem), 0=Rascunho, 1=Fechado, 2=Anulado
-            if (status == 2)
+            if (fiscal?.Status == 2)
             {
                 _logger.LogInformation(
                     "Doc Moloni {DocId} ({Tipo} #{Num}) anulado externamente — limpa local.",
@@ -174,9 +186,11 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
             else
             {
                 keep.Add(r);
+                if (fiscal is { TotalComIvaCents: { } total, BaseSemIvaCents: { } baseCents })
+                    exact[r.Id] = new ExactFiscal(baseCents, total - baseCents, total);
             }
         }
-        return keep;
+        return (keep, exact);
     }
 
     private async Task<Core.Entities.Tenant> RequireTenantAsync(CancellationToken ct)
@@ -186,21 +200,40 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
         return await _tenants.FindByIdAsync(tenantId, ct) ?? throw new NotFoundException("Tenant", tenantId);
     }
 
-    private static IReadOnlyList<RelatorioIvaDocumentoDto> BuildDocumentos(IReadOnlyList<RelatorioFiscalDocumentoRow> rows, RegimeFiscal regime)
+    private static IReadOnlyList<RelatorioIvaDocumentoDto> BuildDocumentos(
+        IReadOnlyList<RelatorioFiscalDocumentoRow> rows,
+        RegimeFiscal regime,
+        IReadOnlyDictionary<Guid, ExactFiscal> exact)
     {
         // Sprint 159b: ValorCents da entidade é o TOTAL COM IVA (o que o cliente pagou).
-        // ANTES estava a tratar como base e somava IVA por cima (= 80 → IVA 18,40 → erro).
-        // Para extrair IVA embutido: base = total × 100 / 123 (com IVA 23%); IVA = total − base.
+        // Sprint 541: cascata de precisão por documento —
+        //   1) totais EXATOS do Moloni (fonte de verdade fiscal: margem 0%, taxas 6/13/23, isenções)
+        //   2) IVA por LINHA calculado localmente (Vendas: taxa real de cada item; margem fora)
+        //   3) estimativa 23% embutido (Reparações/Trabalhos com Moloni inacessível)
         // Tenant IsentoArt53 → tudo isento, ValorCents é a base e IVA=0.
         var isExempt = regime == RegimeFiscal.IsentoArt53;
         return rows.Select(r =>
         {
             var totalCents = Math.Max(0, r.ValorCents);
             int baseCents, ivaCents;
+            var ivaExato = false;
             if (isExempt)
             {
                 baseCents = totalCents;
                 ivaCents = 0;
+            }
+            else if (exact.TryGetValue(r.Id, out var ex))
+            {
+                totalCents = ex.TotalCents;
+                baseCents = ex.BaseCents;
+                ivaCents = ex.IvaCents;
+                ivaExato = true;
+            }
+            else if (r.LocalIvaCents is { } localIva)
+            {
+                ivaCents = Math.Clamp(localIva, 0, totalCents);
+                baseCents = totalCents - ivaCents;
+                ivaExato = true;
             }
             else
             {
@@ -217,7 +250,8 @@ public sealed class RelatorioFiscalService : IRelatorioFiscalService
                 string.IsNullOrWhiteSpace(r.ClienteNome) ? "Consumidor final" : r.ClienteNome!,
                 baseCents,
                 ivaCents,
-                totalCents);
+                totalCents,
+                ivaExato);
         }).ToList();
     }
 

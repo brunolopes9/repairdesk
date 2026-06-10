@@ -344,8 +344,17 @@ function Bar({ label, value, vat, pct, className }: { label: string; value: numb
 }
 
 function DocumentsTable({ docs }: { docs: RelatorioIvaDocumento[] }) {
+  // Sprint 541: transparência p/ contabilista — quantos documentos têm IVA exato (Moloni/por linha)
+  // vs estimado a 23% (Moloni inacessível e sem dados por linha).
+  const estimados = docs.filter((d) => !d.ivaExato).length;
   return (
     <section className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      {estimados > 0 && (
+        <p className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+          {estimados} de {docs.length} {docs.length === 1 ? 'documento tem' : 'documentos têm'} IVA <strong>estimado a 23%</strong> (Moloni
+          inacessível no momento da consulta). Os restantes usam os totais exatos do documento.
+        </p>
+      )}
       <table className="min-w-[760px] divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
         <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-950">
           <tr>
@@ -366,7 +375,17 @@ function DocumentsTable({ docs }: { docs: RelatorioIvaDocumento[] }) {
               <td className="px-3 py-2 font-mono text-xs">{d.numeroDocumento}</td>
               <td className="px-3 py-2">{d.cliente}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCents(d.baseCents)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{formatCents(d.ivaCents)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">
+                {formatCents(d.ivaCents)}
+                {!d.ivaExato && (
+                  <span
+                    className="ml-1 rounded bg-amber-100 px-1 py-0.5 align-middle text-[9px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                    title="IVA estimado a 23% embutido — o Moloni não estava acessível para confirmar os totais exatos"
+                  >
+                    est.
+                  </span>
+                )}
+              </td>
               <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCents(d.totalCents)}</td>
             </tr>
           ))}

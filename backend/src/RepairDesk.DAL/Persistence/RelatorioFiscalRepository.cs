@@ -239,18 +239,41 @@ public sealed class RelatorioFiscalRepository : IRelatorioFiscalRepository
             .ToListAsync(ct);
 
         // Sprint 45: incluir Vendas/POS no relatorio fiscal.
-        var vendas = await _db.Vendas
+        var vendasRaw = await _db.Vendas
+            .AsNoTracking()
             .Where(v => v.InvoiceEmittedAt != null && v.InvoiceEmittedAt >= fromUtc && v.InvoiceEmittedAt < toUtc)
-            .Select(v => new RelatorioFiscalDocumentoRow(
+            .Select(v => new
+            {
                 v.Id,
-                "Venda",
                 v.Numero,
                 v.InvoiceNumber,
                 v.InvoiceExternalId,
-                v.InvoiceEmittedAt!.Value,
-                v.Cliente != null ? v.Cliente.Nome : null,
-                v.Items.Sum(i => i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents)))
+                InvoiceEmittedAt = v.InvoiceEmittedAt!.Value,
+                ClienteNome = v.Cliente != null ? v.Cliente.Nome : null,
+                Items = v.Items
+                    .Select(i => new { i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents, i.IvaRate, i.Condicao })
+                    .ToList(),
+            })
             .ToListAsync(ct);
+
+        var vendas = vendasRaw.Select(v =>
+        {
+            var total = v.Items.Sum(i => i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents);
+            // Sprint 541: IVA embutido EXATO por linha — a taxa da linha (6/13/23) em vez de 23% fixo.
+            // Linhas em regime da margem (2ª mão — espelha RegimeMargemRules.IsSegundaMao; Services
+            // não é referenciável do DAL) contribuem 0: o IVA delas incide sobre a margem e é
+            // apurado/somado à parte em SumMargemRegimeAsync (S535) — senão contava DUAS vezes.
+            var localIva = v.Items.Sum(i =>
+            {
+                var linha = Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents);
+                if (i.Condicao is CondicaoArtigo.Recondicionado or CondicaoArtigo.Usado) return 0;
+                if (i.IvaRate <= 0 || linha == 0) return 0;
+                return (int)Math.Round(linha * (double)i.IvaRate / (100.0 + (double)i.IvaRate), MidpointRounding.AwayFromZero);
+            });
+            return new RelatorioFiscalDocumentoRow(
+                v.Id, "Venda", v.Numero, v.InvoiceNumber, v.InvoiceExternalId,
+                v.InvoiceEmittedAt, v.ClienteNome, total, localIva);
+        }).ToList();
 
         return reparacoes.Concat(trabalhos).Concat(vendas)
             .OrderBy(x => x.InvoiceEmittedAt)

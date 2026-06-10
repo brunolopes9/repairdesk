@@ -72,7 +72,11 @@ public sealed record RelatorioFiscalDocumentoRow(
     string? InvoiceExternalId,
     DateTime InvoiceEmittedAt,
     string? ClienteNome,
-    int ValorCents);
+    int ValorCents,
+    // Sprint 541: IVA embutido calculado por LINHA (taxa real de cada linha; linhas em regime da
+    // margem contribuem 0 — o IVA delas apura-se sobre a margem, somado à parte). Preenchido para
+    // Vendas (têm IvaRate+Condicao por item); null para Reparações/Trabalhos → caller estima 23%.
+    int? LocalIvaCents = null);
 
 /// <summary>Sprint 513: linha rica de documento de venda emitido (fatura/simplificada) para a lista única.</summary>
 public sealed record DocumentoVendaRow(
