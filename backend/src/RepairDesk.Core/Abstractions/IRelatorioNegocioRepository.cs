@@ -11,7 +11,27 @@ public interface IRelatorioNegocioRepository
     Task<IReadOnlyList<FornecedorDefeitoRow>> GetTaxaDefeitoFornecedorAsync(
         DateTime fromUtc,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 547 (Doc 93 #2): artigos mais vendidos no período — linhas de VENDAS pagas (mesma
+    /// janela da receita de vendas do snapshot), agregadas por descrição. Margem só quando todas
+    /// as linhas do artigo têm custo (Part) — senão null ("sem custo registado").
+    /// </summary>
+    Task<IReadOnlyList<TopArtigoRow>> GetTopArtigosAsync(DateTime fromUtc, DateTime toUtc, int top, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 547 (Doc 93 #2): clientes com mais receita no período — soma das 3 fontes com as
+    /// MESMAS condições do snapshot (reparações entregues+pagas, trabalhos concluídos+pagos,
+    /// vendas pagas). Sem-cliente (consumidor final) fica de fora.
+    /// </summary>
+    Task<IReadOnlyList<TopClienteReceitaRow>> GetTopClientesAsync(DateTime fromUtc, DateTime toUtc, int top, CancellationToken ct = default);
 }
+
+/// <summary>Sprint 547: linha do top de artigos vendidos.</summary>
+public sealed record TopArtigoRow(string Descricao, int Quantidade, long ReceitaCents, long? MargemCents);
+
+/// <summary>Sprint 547: linha do top de clientes por receita.</summary>
+public sealed record TopClienteReceitaRow(Guid ClienteId, string Nome, long ReceitaCents, int Documentos);
 
 public sealed record RelatorioNegocioSnapshot(
     int ReceitaReparacoesCents,

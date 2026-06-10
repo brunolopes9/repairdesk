@@ -35,6 +35,11 @@ public sealed class RelatoriosController : ControllerBase
     public Task<TaxaDefeitoFornecedorResponse> GetTaxaDefeitoFornecedor([FromQuery] int meses = 12, CancellationToken ct = default)
         => _negocio.GetTaxaDefeitoFornecedorAsync(meses, ct);
 
+    // Sprint 547 (Doc 93 #2): Análise de Vendas — top artigos + top clientes do trimestre.
+    [HttpGet("analise-vendas")]
+    public Task<AnaliseVendasResponse> GetAnaliseVendas([FromQuery] int ano, [FromQuery] int trimestre, CancellationToken ct = default)
+        => _negocio.GetAnaliseVendasAsync(ano, trimestre, ct);
+
     [HttpGet("iva/export.csv")]
     public async Task<IActionResult> ExportCsv([FromQuery] int ano, [FromQuery] int trimestre, [FromQuery] int ivaComprasCents = 0, CancellationToken ct = default)
     {

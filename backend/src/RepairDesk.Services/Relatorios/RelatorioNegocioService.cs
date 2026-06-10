@@ -11,7 +11,20 @@ public interface IRelatorioNegocioService
     // com fornecedor identificado que voltaram para reparação. `meses` controla quão atrás se
     // olha (default 12). Não inclui vendas onde FornecedorNome ou IMEI estejam vazios.
     Task<TaxaDefeitoFornecedorResponse> GetTaxaDefeitoFornecedorAsync(int meses, CancellationToken ct = default);
+
+    // Sprint 547 (Doc 93 #2): "Análise de Vendas" do painel Moloni — top artigos vendidos
+    // (quantidade, receita, margem quando há custo) + top clientes por receita no trimestre.
+    Task<AnaliseVendasResponse> GetAnaliseVendasAsync(int ano, int trimestre, CancellationToken ct = default);
 }
+
+/// <summary>Sprint 547: resposta da Análise de Vendas (top artigos + top clientes do trimestre).</summary>
+public sealed record AnaliseVendasResponse(
+    int Ano,
+    int Trimestre,
+    DateTime PeriodoDe,
+    DateTime PeriodoAte,
+    IReadOnlyList<TopArtigoRow> TopArtigos,
+    IReadOnlyList<TopClienteReceitaRow> TopClientes);
 
 public sealed class RelatorioNegocioService : IRelatorioNegocioService
 {
@@ -103,6 +116,17 @@ public sealed class RelatorioNegocioService : IRelatorioNegocioService
                 r.ItemsVendidos,
                 r.ItemsComReparacao,
                 r.TaxaDefeitoPct)).ToList());
+    }
+
+    public async Task<AnaliseVendasResponse> GetAnaliseVendasAsync(int ano, int trimestre, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is null)
+            throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
+
+        var (fromUtc, toUtc) = Periodo(ano, trimestre);
+        var artigos = await _repo.GetTopArtigosAsync(fromUtc, toUtc, top: 10, ct);
+        var clientes = await _repo.GetTopClientesAsync(fromUtc, toUtc, top: 10, ct);
+        return new AnaliseVendasResponse(ano, trimestre, fromUtc, toUtc, artigos, clientes);
     }
 
     private static (DateTime FromUtc, DateTime ToUtc) Periodo(int ano, int trimestre)

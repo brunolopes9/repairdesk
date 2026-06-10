@@ -213,4 +213,96 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
             .ThenByDescending(r => r.ItemsVendidos)
             .ToList();
     }
+
+    public async Task<IReadOnlyList<TopArtigoRow>> GetTopArtigosAsync(DateTime fromUtc, DateTime toUtc, int top, CancellationToken ct = default)
+    {
+        var tenantId = _tenant.TenantId ?? Guid.Empty;
+
+        // Linhas das vendas PAGAS no período (mesma janela da ReceitaVendas do snapshot).
+        var linhas = await _db.Vendas
+            .AsNoTracking()
+            .Where(v => v.TenantId == tenantId
+                && v.Status == VendaStatus.Paga
+                && v.Data >= fromUtc && v.Data < toUtc)
+            .SelectMany(v => v.Items)
+            .Select(i => new
+            {
+                i.Descricao,
+                i.Quantidade,
+                LinhaCents = i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents,
+                CustoUnit = i.Part != null ? (int?)i.Part.CustoUnitarioCents : null,
+            })
+            .ToListAsync(ct);
+
+        // Agregação em memória por descrição (case-insensitive) — escala de loja, não de marketplace.
+        return linhas
+            .GroupBy(l => l.Descricao.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var receita = g.Sum(x => (long)Math.Max(0, x.LinhaCents));
+                // Margem só quando TODAS as linhas têm custo registado — meia-margem engana mais
+                // do que "—" (o UI mostra "sem custo" quando null).
+                long? margem = g.All(x => x.CustoUnit != null)
+                    ? receita - g.Sum(x => (long)x.Quantidade * x.CustoUnit!.Value)
+                    : null;
+                return new TopArtigoRow(g.First().Descricao.Trim(), g.Sum(x => x.Quantidade), receita, margem);
+            })
+            .OrderByDescending(r => r.ReceitaCents)
+            .Take(top)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<TopClienteReceitaRow>> GetTopClientesAsync(DateTime fromUtc, DateTime toUtc, int top, CancellationToken ct = default)
+    {
+        var tenantId = _tenant.TenantId ?? Guid.Empty;
+
+        var reparacoes = await _db.Reparacoes
+            .AsNoTracking()
+            .Where(r => r.TenantId == tenantId
+                && r.EntregueEm != null && r.EntregueEm >= fromUtc && r.EntregueEm < toUtc
+                && r.EstadoPagamento == PaymentStatus.Pago
+                && r.Cliente != null)
+            .Select(r => new { r.ClienteId, Nome = r.Cliente!.Nome, Receita = (long)(r.PrecoFinalCents ?? r.OrcamentoCents ?? 0) })
+            .ToListAsync(ct);
+
+        var trabalhos = await _db.Trabalhos
+            .AsNoTracking()
+            .Where(t => t.TenantId == tenantId
+                && t.Status == TrabalhoStatus.Concluido
+                && t.DataConclusao != null && t.DataConclusao >= fromUtc && t.DataConclusao < toUtc
+                && t.EstadoPagamento == PaymentStatus.Pago
+                && t.ClienteId != null && t.Cliente != null)
+            .Select(t => new { ClienteId = t.ClienteId!.Value, Nome = t.Cliente!.Nome, Receita = (long)(t.PrecoFinalCents ?? t.OrcamentoCents ?? 0) })
+            .ToListAsync(ct);
+
+        var vendas = await _db.Vendas
+            .AsNoTracking()
+            .Where(v => v.TenantId == tenantId
+                && v.Status == VendaStatus.Paga
+                && v.Data >= fromUtc && v.Data < toUtc
+                && v.ClienteId != null && v.Cliente != null)
+            .Select(v => new
+            {
+                ClienteId = v.ClienteId!.Value,
+                Nome = v.Cliente!.Nome,
+                Receita = (long)v.Items.Sum(i => i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents),
+            })
+            .ToListAsync(ct);
+
+        var porCliente = new Dictionary<Guid, (string Nome, long Receita, int Docs)>();
+        void Add(Guid id, string nome, long receita)
+        {
+            if (!porCliente.TryGetValue(id, out var atual)) atual = (nome, 0L, 0);
+            porCliente[id] = (atual.Nome, atual.Receita + Math.Max(0, receita), atual.Docs + 1);
+        }
+        foreach (var r in reparacoes) Add(r.ClienteId, r.Nome, r.Receita);
+        foreach (var t in trabalhos) Add(t.ClienteId, t.Nome, t.Receita);
+        foreach (var v in vendas) Add(v.ClienteId, v.Nome, v.Receita);
+
+        return porCliente
+            .Select(kv => new TopClienteReceitaRow(kv.Key, kv.Value.Nome, kv.Value.Receita, kv.Value.Docs))
+            .OrderByDescending(c => c.ReceitaCents)
+            .Take(top)
+            .ToList();
+    }
 }

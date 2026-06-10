@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, BarChart3, Building2, PackageSearch, ReceiptText, TrendingUp, Wrench } from 'lucide-react';
 import { EmptyState, PageHeader, SkeletonCard, SkeletonTable } from '../../components/ui';
 import { formatCents } from '../../lib/money';
-import { relatoriosApi, type FornecedorDefeito, type TopFornecedor, type TopPecaUsada, type TopReparacaoLucrativa } from '../../lib/relatorios/api';
+import { relatoriosApi, type AnaliseVendasTopArtigo, type AnaliseVendasTopCliente, type FornecedorDefeito, type TopFornecedor, type TopPecaUsada, type TopReparacaoLucrativa } from '../../lib/relatorios/api';
 
 const QUARTERS = [1, 2, 3, 4] as const;
 
@@ -15,6 +16,13 @@ export default function RelatorioNegocio() {
   const report = useQuery({
     queryKey: ['relatorio-negocio', ano, trimestre],
     queryFn: () => relatoriosApi.negocio(ano, trimestre),
+  });
+
+  // Sprint 547 (Doc 93 #2): top artigos vendidos + top clientes do trimestre selecionado.
+  const analise = useQuery({
+    queryKey: ['analise-vendas', ano, trimestre],
+    queryFn: () => relatoriosApi.analiseVendas(ano, trimestre),
+    staleTime: 60_000,
   });
 
   // Sprint 187: análise B2B independente do trimestre — janela de 12 meses corridos por defeito.
@@ -90,6 +98,14 @@ export default function RelatorioNegocio() {
             <TopFornecedores rows={report.data.topFornecedores} />
           </section>
 
+          {/* Sprint 547 (Doc 93 #2): Análise de Vendas — "Produtos mais vendidos" + top clientes. */}
+          {analise.data && (
+            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <TopArtigosVendidos rows={analise.data.topArtigos} />
+              <TopClientesReceita rows={analise.data.topClientes} />
+            </section>
+          )}
+
           <TaxaDefeitoFornecedores
             data={defeito.data}
             loading={defeito.isLoading}
@@ -136,6 +152,47 @@ function KpiCard({
       </div>
       <p className="mt-2 text-xs leading-5 text-zinc-500">{hint}</p>
     </article>
+  );
+}
+
+/** Sprint 547: o cartão "Produtos mais vendidos" do painel Moloni, com margem quando há custo. */
+function TopArtigosVendidos({ rows }: { rows: AnaliseVendasTopArtigo[] }) {
+  return (
+    <TopPanel title="Artigos mais vendidos" empty="Sem vendas pagas neste periodo.">
+      {rows.map((row) => (
+        <li key={row.descricao} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-100 p-3 dark:border-zinc-800">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium">{row.descricao}</div>
+            <div className="text-xs text-zinc-500">
+              {row.quantidade} un. · {formatCents(row.receitaCents)}
+              {row.margemCents != null
+                ? <span className={row.margemCents >= 0 ? ' text-emerald-600 dark:text-emerald-400' : ' text-red-600 dark:text-red-400'}> · margem {formatCents(row.margemCents)}</span>
+                : <span title="Artigo sem custo registado — liga-o a uma peça do stock para ver a margem"> · margem —</span>}
+            </div>
+          </div>
+          <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold tabular-nums dark:bg-zinc-800">{formatCents(row.receitaCents)}</span>
+        </li>
+      ))}
+    </TopPanel>
+  );
+}
+
+/** Sprint 547: top clientes por receita (reparações + trabalhos + vendas pagas do trimestre). */
+function TopClientesReceita({ rows }: { rows: AnaliseVendasTopCliente[] }) {
+  return (
+    <TopPanel title="Top clientes por receita" empty="Sem receita com cliente identificado neste periodo.">
+      {rows.map((row) => (
+        <li key={row.clienteId} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-100 p-3 dark:border-zinc-800">
+          <div className="min-w-0">
+            <Link to={`/clientes/${row.clienteId}`} className="truncate text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">
+              {row.nome}
+            </Link>
+            <div className="text-xs text-zinc-500">{row.documentos} {row.documentos === 1 ? 'documento' : 'documentos'}</div>
+          </div>
+          <span className="font-mono text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCents(row.receitaCents)}</span>
+        </li>
+      ))}
+    </TopPanel>
   );
 }
 

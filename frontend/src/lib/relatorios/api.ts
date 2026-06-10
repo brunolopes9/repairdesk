@@ -115,6 +115,31 @@ export interface TaxaDefeitoFornecedorResponse {
   fornecedores: FornecedorDefeito[];
 }
 
+/** Sprint 547 (Doc 93 #2): Análise de Vendas — top artigos + top clientes do trimestre. */
+export interface AnaliseVendasTopArtigo {
+  descricao: string;
+  quantidade: number;
+  receitaCents: number;
+  /** null = artigo sem custo registado (margem incalculável). */
+  margemCents: number | null;
+}
+
+export interface AnaliseVendasTopCliente {
+  clienteId: string;
+  nome: string;
+  receitaCents: number;
+  documentos: number;
+}
+
+export interface AnaliseVendasResponse {
+  ano: number;
+  trimestre: number;
+  periodoDe: string;
+  periodoAte: string;
+  topArtigos: AnaliseVendasTopArtigo[];
+  topClientes: AnaliseVendasTopCliente[];
+}
+
 export const relatoriosApi = {
   iva(ano: number, trimestre: number, ivaComprasCents = 0) {
     return api
@@ -129,6 +154,11 @@ export const relatoriosApi = {
   taxaDefeitoFornecedor(meses = 12) {
     return api
       .get<TaxaDefeitoFornecedorResponse>('/relatorios/taxa-defeito-fornecedor', { params: { meses } })
+      .then((r) => r.data);
+  },
+  analiseVendas(ano: number, trimestre: number) {
+    return api
+      .get<AnaliseVendasResponse>('/relatorios/analise-vendas', { params: { ano, trimestre } })
       .then((r) => r.data);
   },
 };
