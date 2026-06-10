@@ -53,6 +53,14 @@ public class Fornecedor : BaseEntity, ITenantEntity
     public DefaultImportAction DefaultImportAction { get; set; } = DefaultImportAction.Auto;
 
     /// <summary>
+    /// Sprint 543: categoria de Despesa aprendida para este fornecedor (Anthropic→Software,
+    /// Vodafone→Comunicações). Pré-selecionada no modal de aprovação — classifica-se uma vez e as
+    /// faturas seguintes vêm certas. Bootstrap por lista conhecida ao auto-criar (KnownDespesaSuppliers);
+    /// depois aprende com cada aprovação (last-wins). NULL = sem regra (UI usa o default antigo).
+    /// </summary>
+    public Enums.DespesaCategoria? DefaultDespesaCategoria { get; set; }
+
+    /// <summary>
     /// Sprint 525: fornecedor de fora de Portugal (aquisição intra-UE). Quando true, as compras a
     /// este fornecedor são tratadas como AUTOLIQUIDAÇÃO (reverse charge): o IVA é liquidado E deduzido
     /// pelo adquirente português = efeito ZERO; o IVA estrangeiro da fatura NÃO é dedutível em PT

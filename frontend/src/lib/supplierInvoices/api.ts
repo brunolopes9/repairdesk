@@ -36,6 +36,8 @@ export interface SupplierInvoiceImport {
   items: SupplierInvoiceItem[] | null;
   /** Sprint 184: regra aprendida do fornecedor (UI usa como default action). */
   fornecedorDefaultAction: 'auto' | 'stock' | 'despesa' | null;
+  /** Sprint 543: categoria de Despesa aprendida/conhecida do fornecedor (valor do enum DespesaCategoria). */
+  fornecedorDefaultDespesaCategoria: number | null;
 }
 
 export interface ApproveSupplierInvoiceRequest {

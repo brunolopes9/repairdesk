@@ -134,7 +134,10 @@ public sealed record SupplierInvoiceImportDto(
     IReadOnlyList<SupplierInvoiceItemDto>? Items,
     // Sprint 184: regra aprendida do fornecedor — UI usa como default action.
     // "auto" | "stock" | "despesa". NULL se Fornecedor não está registado.
-    string? FornecedorDefaultAction);
+    string? FornecedorDefaultAction,
+    // Sprint 543: categoria de Despesa aprendida/conhecida do fornecedor (valor numérico do enum
+    // DespesaCategoria) — UI pré-seleciona no modal de aprovação. NULL = sem regra.
+    int? FornecedorDefaultDespesaCategoria = null);
 
 public sealed record SupplierInvoiceItemDto(
     string Description,
@@ -651,6 +654,15 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         entity.Status = SupplierInvoiceImportStatus.Approved;
         entity.DespesaId = despesa.Id;
         entity.ProcessedAt = DateTime.UtcNow;
+
+        // Sprint 543: aprende a categoria deste fornecedor com a escolha do Bruno (last-wins —
+        // a próxima fatura do mesmo fornecedor vem com esta categoria pré-selecionada no modal).
+        if (entity.Fornecedor is not null && entity.Fornecedor.DefaultDespesaCategoria != req.Categoria)
+        {
+            entity.Fornecedor.DefaultDespesaCategoria = req.Categoria;
+            _logger.LogInformation("Aprendi categoria de despesa do fornecedor {Name}: {Categoria}",
+                entity.Fornecedor.Name, req.Categoria);
+        }
         await _repo.SaveAsync(ct);
 
         await _audit.LogAsync(AuditAction.Update, nameof(SupplierInvoiceImport), entity.Id, new
@@ -1092,19 +1104,32 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 
         var nome = nameRaw.Trim();
         var existing = await _fornecedores.FindByNameAsync(nome, ct);
-        if (existing is not null) return existing.Id;
+        if (existing is not null)
+        {
+            // Sprint 543: fornecedor já existia mas ainda sem regra de categoria → bootstrap da
+            // lista conhecida (ex: Anthropic criado antes desta feature passa a sugerir Software).
+            if (existing.DefaultDespesaCategoria is null
+                && KnownDespesaSuppliers.SuggestCategoria(nome) is { } sugerida)
+            {
+                existing.DefaultDespesaCategoria = sugerida;
+                await _fornecedores.SaveAsync(ct);
+            }
+            return existing.Id;
+        }
 
         var novo = new Fornecedor
         {
             TenantId = tenantId,
             Name = nome.Length > 200 ? nome[..200] : nome,
             IntraUe = IntraUeSuppliers.IsKnownIntraUe(nome),
+            // Sprint 543: 1ª fatura de fornecedor conhecido já vem com categoria sugerida.
+            DefaultDespesaCategoria = KnownDespesaSuppliers.SuggestCategoria(nome),
             Active = true,
         };
         await _fornecedores.AddAsync(novo, ct);
         await _fornecedores.SaveAsync(ct);
-        _logger.LogInformation("Auto-criado Fornecedor '{Name}' (intraUe={IntraUe}) a partir de import de fatura",
-            novo.Name, novo.IntraUe);
+        _logger.LogInformation("Auto-criado Fornecedor '{Name}' (intraUe={IntraUe}, categoria={Cat}) a partir de import de fatura",
+            novo.Name, novo.IntraUe, novo.DefaultDespesaCategoria);
         return novo.Id;
     }
 
@@ -1122,7 +1147,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // Sprint 520: inclui os items parseados (versão leve, sem fuzzy matches) para o Histórico de
         // Compras·Fornecedores poder mostrar, por fatura, exactamente o que o parser extraiu.
         Items: ParseItemsLight(x.ParsedItemsJson),
-        FornecedorDefaultAction: x.Fornecedor?.DefaultImportAction.ToString().ToLowerInvariant());
+        FornecedorDefaultAction: x.Fornecedor?.DefaultImportAction.ToString().ToLowerInvariant(),
+        FornecedorDefaultDespesaCategoria: (int?)x.Fornecedor?.DefaultDespesaCategoria);
 
     /// <summary>
     /// Sprint 520: desserializa os items parseados SEM fuzzy matching (rápido, sem ir à BD) — para o

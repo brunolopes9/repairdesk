@@ -192,10 +192,14 @@ export default function PorAprovarTab() {
               ref={fileInputRef}
               type="file"
               accept=".pdf,application/pdf"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) upload.mutate(file);
+                // Sprint 543: multi-fatura — seleciona vários PDFs de uma vez (ex: mês inteiro de
+                // faturas Anthropic/CTT); cada um vira uma importação própria.
+                const files = Array.from(e.target.files ?? []);
+                for (const file of files) upload.mutate(file);
+                e.target.value = '';
               }}
             />
             <input
@@ -637,7 +641,10 @@ function ApproveModal({
   const [descricao, setDescricao] = useState(target.fornecedorName
     ? `${target.fornecedorName}${target.documentNumber ? ` · ${target.documentNumber}` : ''}`
     : 'Compra a fornecedor');
-  const [categoria, setCategoria] = useState<DespesaCategoria>(DESPESA_CATEGORIA.Pecas);
+  // Sprint 543: pré-seleciona a categoria aprendida/conhecida do fornecedor (Anthropic→Software).
+  const [categoria, setCategoria] = useState<DespesaCategoria>(
+    (target.fornecedorDefaultDespesaCategoria as DespesaCategoria | null | undefined) ?? DESPESA_CATEGORIA.Pecas,
+  );
   const [valor, setValor] = useState((target.totalCents ?? 0) / 100);
   const [data, setData] = useState(target.documentDate ? target.documentDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
   const [fornecedor, setFornecedor] = useState(target.fornecedorName ?? '');
