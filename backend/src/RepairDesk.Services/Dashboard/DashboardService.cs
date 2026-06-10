@@ -1,4 +1,5 @@
 using RepairDesk.Core.Abstractions;
+using RepairDesk.Services.Documentos;
 
 namespace RepairDesk.Services.Dashboard;
 
@@ -12,6 +13,8 @@ public interface IDashboardService
     Task<TendenciaResponse> GetTendenciaAsync(int meses, CancellationToken ct = default);
     /// <summary>Sprint 429: série diária de cash flow para gráfico Dashboard.</summary>
     Task<CashflowResponse> GetCashflowAsync(int days, CancellationToken ct = default);
+    /// <summary>Sprint 549 (Doc 93 #6): faturado vs recebido por mês (controlo de tesouraria).</summary>
+    Task<TesourariaResponse> GetTesourariaAsync(int meses, CancellationToken ct = default);
     Task<TopReparacoesResponse> GetTopReparacoesAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default);
     Task<TopReparacoesResponse> GetTopReparacoesCurrentMonthAsync(int limit, CancellationToken ct = default);
     Task<AvaliacoesDashboardResponse> GetAvaliacoesAsync(CancellationToken ct = default);
@@ -25,12 +28,14 @@ public class DashboardService : IDashboardService
     private readonly IDashboardRepository _repo;
     private readonly IAvaliacaoRepository _avaliacoes;
     private readonly IGarantiaRepository _garantias;
+    private readonly IDocumentoService _documentos;
 
-    public DashboardService(IDashboardRepository repo, IAvaliacaoRepository avaliacoes, IGarantiaRepository garantias)
+    public DashboardService(IDashboardRepository repo, IAvaliacaoRepository avaliacoes, IGarantiaRepository garantias, IDocumentoService documentos)
     {
         _repo = repo;
         _avaliacoes = avaliacoes;
         _garantias = garantias;
+        _documentos = documentos;
     }
 
     public async Task<GarantiasResumoResponse> GetGarantiasResumoAsync(int diasJanela, int topLimit, CancellationToken ct = default)
@@ -147,6 +152,54 @@ public class DashboardService : IDashboardService
         var rows = await _repo.GetCashflowAsync(days, ct);
         return new CashflowResponse(
             rows.Select(r => new CashflowDay(r.Date, r.ReceitaCents, r.DespesaCents, r.ReceitaCents - r.DespesaCents)).ToList());
+    }
+
+    // Sprint 549 (Doc 93 #6 — "Controlo de Tesouraria" do Moloni): faturado vs recebido por mês.
+    // Recebido reusa a Tendência (receita PAGA: reparações entregues+pagas, trabalhos concluídos+pagos,
+    // vendas pagas). Faturado vem da lista única de documentos (inclui só-Moloni, cache 5 min) com as
+    // mesmas regras do Extrato — uma FT em dívida conta como faturado mas não como recebido: o gap
+    // entre as barras é o crédito por cobrar.
+    public async Task<TesourariaResponse> GetTesourariaAsync(int meses, CancellationToken ct = default)
+    {
+        meses = Math.Clamp(meses, 3, 12);
+        var now = DateTime.UtcNow;
+        var fim = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1);
+        var inicio = fim.AddMonths(-meses);
+
+        var tendencia = await _repo.GetTendenciaAsync(meses, ct);
+        var recebidoPorMes = tendencia.ToDictionary(r => (r.Ano, r.Mes), r => (long)r.ReceitaCents);
+
+        var docs = await _documentos.ListVendasAsync(new DocumentosFiltro(inicio, fim, null, null), ct);
+        var faturadoPorMes = ComputeFaturadoPorMes(docs.Items);
+
+        var result = new List<TesourariaMes>(meses);
+        for (int i = 0; i < meses; i++)
+        {
+            var bucket = inicio.AddMonths(i);
+            result.Add(new TesourariaMes(
+                bucket.Year, bucket.Month,
+                faturadoPorMes.GetValueOrDefault((bucket.Year, bucket.Month)),
+                recebidoPorMes.GetValueOrDefault((bucket.Year, bucket.Month))));
+        }
+        return new TesourariaResponse(result);
+    }
+
+    /// <summary>
+    /// Mesmas regras do ExtratoService.ComputeTotais: anulados/rascunhos fora, RG é liquidação
+    /// (não faturação), ORC é proposta, NC subtrai. Valores c/ IVA, bucket pela data de emissão.
+    /// </summary>
+    public static Dictionary<(int Ano, int Mes), long> ComputeFaturadoPorMes(IReadOnlyList<DocumentoDto> docs)
+    {
+        var porMes = new Dictionary<(int, int), long>();
+        foreach (var d in docs)
+        {
+            if (d.Estado is "Anulado" or "Rascunho") continue;
+            if (d.TipoCodigo is "RG" or "ORC") continue;
+            var sinal = d.TipoCodigo == "NC" ? -1 : 1;
+            var key = (d.Data.Year, d.Data.Month);
+            porMes[key] = porMes.GetValueOrDefault(key) + sinal * (long)d.TotalCents;
+        }
+        return porMes;
     }
 
     public async Task<TopReparacoesResponse> GetTopReparacoesAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default)

@@ -138,6 +138,10 @@ export const dashboardApi = {
   cashflow(days = 30) {
     return api.get<CashflowResponse>('/dashboard/cashflow', { params: { days } }).then((r) => r.data);
   },
+  // Sprint 549 (Doc 93 #6): faturado vs recebido por mês — controlo de tesouraria.
+  tesouraria(meses = 6) {
+    return api.get<TesourariaResponse>('/dashboard/tesouraria', { params: { meses } }).then((r) => r.data);
+  },
   topReparacoesCurrent(limit = 5) {
     return api.get<TopReparacoesResponse>('/dashboard/top-reparacoes', { params: { limit } }).then((r) => r.data);
   },
@@ -330,6 +334,18 @@ export interface CashflowDay {
 
 export interface CashflowResponse {
   days: CashflowDay[];
+}
+
+// Sprint 549 (Doc 93 #6): tesouraria mensal — faturado (docs emitidos c/ IVA) vs recebido (receita paga).
+export interface TesourariaMes {
+  ano: number;
+  mes: number;
+  faturadoCents: number;
+  recebidoCents: number;
+}
+
+export interface TesourariaResponse {
+  meses: TesourariaMes[];
 }
 
 export interface ReparacaoTop {

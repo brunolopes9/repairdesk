@@ -164,6 +164,19 @@ public sealed record CashflowDay(
     int DespesaCents,
     int NetCents);
 
+/// <summary>
+/// Sprint 549 (Doc 93 #6): tesouraria mensal — o que foi faturado (documentos emitidos,
+/// FT+FS+FR+VD−NC, valores c/ IVA, inclui docs só-Moloni) vs o que foi recebido (receita paga
+/// registada no Mender — mesma fonte da Tendência). O gap acumulado é o crédito por cobrar.
+/// </summary>
+public sealed record TesourariaResponse(IReadOnlyList<TesourariaMes> Meses);
+
+public sealed record TesourariaMes(
+    int Ano,
+    int Mes,
+    long FaturadoCents,
+    long RecebidoCents);
+
 public sealed record TopReparacoesResponse(
     IReadOnlyList<ReparacaoTop> Items);
 
