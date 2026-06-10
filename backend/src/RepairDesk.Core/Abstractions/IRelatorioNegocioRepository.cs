@@ -42,7 +42,12 @@ public sealed record RelatorioNegocioSnapshot(
     int OpexCents,
     IReadOnlyList<TopReparacaoLucrativaRow> TopReparacoesLucrativas,
     IReadOnlyList<TopPecaUsadaRow> TopPecasUsadas,
-    IReadOnlyList<TopFornecedorComprasRow> TopFornecedores);
+    IReadOnlyList<TopFornecedorComprasRow> TopFornecedores,
+    // Sprint 550 (mão de contabilista): COGS dos artigos das vendas pagas (linhas com Part) e
+    // IVA embutido nas vendas — por linha (taxa da linha; regime da margem = IVA sobre a margem
+    // quando há custo, 0 sem custo), com fallback 23/123 para vendas pagas sem linhas.
+    int CustoVendasCents = 0,
+    int IvaEmbutidoVendasCents = 0);
 
 public sealed record TopReparacaoLucrativaRow(
     Guid Id,

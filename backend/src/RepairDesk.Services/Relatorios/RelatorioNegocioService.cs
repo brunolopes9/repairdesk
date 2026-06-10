@@ -48,18 +48,29 @@ public sealed class RelatorioNegocioService : IRelatorioNegocioService
         var receitaTotal = snapshot.ReceitaReparacoesCents
             + snapshot.ReceitaTrabalhosCents
             + snapshot.ReceitaVendasCents;
-        // Sprint 536: lucro BRUTO = receita − custo das peças (COGS). O OpEx (despesas fixas: renda,
-        // ferramentas, etc.) entra no resultado OPERACIONAL, NÃO no bruto. Antes subtraía-se o OpEx ao
-        // bruto, por isso um serviço lucrativo (ex.: Maria Inês, 98,40€ de margem) aparecia como
-        // prejuízo (−1,60€) só porque havia 100€ de OpEx no período. Agora separa-se.
-        var lucroBruto = receitaTotal - snapshot.CustoPecasCents;
+
+        // Sprint 550 (mão de contabilista): o IVA liquidado NÃO é receita — é conta do Estado.
+        // Margens calculam-se sobre a receita LÍQUIDA: vendas com IVA por linha exato vindo do
+        // repo (taxa da linha + regime da margem, S541); serviços (reparações/trabalhos) estimados
+        // a 23/123 do total pago. OpEx fica como registado (nem todas as despesas têm IVA
+        // dedutível — descontar 23% a tudo sobrestimaria o lucro; conservador).
+        var ivaServicos = Iva23Embutido(snapshot.ReceitaReparacoesCents + snapshot.ReceitaTrabalhosCents);
+        var ivaEmbutido = ivaServicos + snapshot.IvaEmbutidoVendasCents;
+        var receitaLiquida = receitaTotal - ivaEmbutido;
+
+        // Sprint 536: lucro BRUTO sem OpEx (despesas fixas vão ao resultado OPERACIONAL).
+        // Sprint 550: bruto = receita LÍQUIDA − COGS completo — peças das reparações E custo dos
+        // artigos vendidos (antes as vendas entravam na receita mas o custo do aparelho não saía,
+        // ao contrário da Tendência do Dashboard — um telemóvel de 250€ vendido a 300€ aparecia
+        // como +300€ de lucro).
+        var lucroBruto = receitaLiquida - snapshot.CustoPecasCents - snapshot.CustoVendasCents;
         var lucroOperacional = lucroBruto - snapshot.OpexCents;
-        var margemBruta = receitaTotal == 0
+        var margemBruta = receitaLiquida == 0
             ? 0
-            : Math.Round(lucroBruto * 100m / receitaTotal, 2, MidpointRounding.AwayFromZero);
-        var margemOperacional = receitaTotal == 0
+            : Math.Round(lucroBruto * 100m / receitaLiquida, 2, MidpointRounding.AwayFromZero);
+        var margemOperacional = receitaLiquida == 0
             ? 0
-            : Math.Round(lucroOperacional * 100m / receitaTotal, 2, MidpointRounding.AwayFromZero);
+            : Math.Round(lucroOperacional * 100m / receitaLiquida, 2, MidpointRounding.AwayFromZero);
         var ticketMedio = snapshot.ReparacoesPagasCount == 0
             ? 0
             : (int)Math.Round(receitaTotal / (decimal)snapshot.ReparacoesPagasCount, MidpointRounding.AwayFromZero);
@@ -96,8 +107,15 @@ public sealed class RelatorioNegocioService : IRelatorioNegocioService
                 f.Nome,
                 f.TotalCompradoCents)).ToList(),
             lucroOperacional,
-            margemOperacional);
+            margemOperacional,
+            receitaLiquida,
+            ivaEmbutido,
+            snapshot.CustoVendasCents);
     }
+
+    /// <summary>IVA embutido num total c/ IVA assumindo taxa normal (23%): total × 23/123.</summary>
+    private static int Iva23Embutido(int totalCents) =>
+        (int)Math.Round(totalCents * 23.0 / 123.0, MidpointRounding.AwayFromZero);
 
     public async Task<TaxaDefeitoFornecedorResponse> GetTaxaDefeitoFornecedorAsync(int meses, CancellationToken ct = default)
     {
@@ -160,7 +178,13 @@ public sealed record RelatorioNegocioResponse(
     IReadOnlyList<TopFornecedorDto> TopFornecedores,
     // Sprint 536: resultado operacional = lucro bruto − OpEx (despesas fixas) + margem respectiva.
     int LucroOperacionalCents = 0,
-    decimal MargemOperacionalPct = 0);
+    decimal MargemOperacionalPct = 0,
+    // Sprint 550 (mão de contabilista): receita sem o IVA liquidado (o IVA é do Estado, não é
+    // receita), o IVA embutido apurado, e o COGS dos artigos vendidos. Lucro/margens acima
+    // passaram a calcular-se sobre a receita LÍQUIDA e a subtrair também o CustoVendas.
+    int ReceitaLiquidaCents = 0,
+    int IvaEmbutidoCents = 0,
+    int CustoVendasCents = 0);
 
 public sealed record TopReparacaoLucrativaDto(
     Guid Id,

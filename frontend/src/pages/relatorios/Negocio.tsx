@@ -81,15 +81,20 @@ export default function RelatorioNegocio() {
         <EmptyState icon={ReceiptText} title="Nao foi possivel carregar o dashboard" description="Confirma a ligacao ao servidor e tenta novamente." />
       ) : report.data ? (
         <>
+          {/* Sprint 550 (mão de contabilista): margens calculadas sobre a receita LÍQUIDA de IVA
+              (o IVA liquidado é do Estado, não é receita) e o COGS inclui o custo dos artigos
+              vendidos — antes só saíam as peças das reparações. */}
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <KpiCard title="Receita total" value={formatCents(report.data.receitaTotalCents)} hint={`${formatCents(report.data.receitaReparacoesCents)} reparacoes · ${formatCents(report.data.receitaTrabalhosCents)} trabalhos · ${formatCents(report.data.receitaVendasCents)} vendas`} icon={TrendingUp} tone="brand" />
+            <KpiCard title="Receita total (c/ IVA)" value={formatCents(report.data.receitaTotalCents)} hint={`${formatCents(report.data.receitaReparacoesCents)} reparacoes · ${formatCents(report.data.receitaTrabalhosCents)} trabalhos · ${formatCents(report.data.receitaVendasCents)} vendas`} icon={TrendingUp} tone="brand" />
+            <KpiCard title="Receita liquida (s/ IVA)" value={formatCents(report.data.receitaLiquidaCents)} hint={`${formatCents(report.data.ivaEmbutidoCents)} de IVA embutido (do Estado). Vendas por linha (regime da margem incl.); servicos estimados a 23%.`} icon={TrendingUp} tone="brand" />
             <KpiCard title="Custo pecas" value={formatCents(report.data.custoPecasCents)} hint="Stock consumido em reparacoes no periodo" icon={PackageSearch} />
-            <KpiCard title="OpEx" value={formatCents(report.data.opexCents)} hint="Despesas operacionais, exclui pecas/material" icon={ReceiptText} />
-            <KpiCard title="Lucro bruto" value={formatCents(report.data.lucroBrutoCents)} hint="Receita - pecas (margem do servico, SEM OpEx)" icon={BarChart3} tone={report.data.lucroBrutoCents < 0 ? 'danger' : 'success'} />
-            <KpiCard title="Margem bruta" value={`${report.data.margemMedia.toFixed(2)}%`} hint="Lucro bruto / receita" icon={TrendingUp} />
+            <KpiCard title="Custo artigos vendidos" value={formatCents(report.data.custoVendasCents)} hint="Custo de stock dos artigos das vendas pagas (COGS)" icon={PackageSearch} />
+            <KpiCard title="OpEx" value={formatCents(report.data.opexCents)} hint="Despesas operacionais, exclui pecas/material (valores como registados, c/ IVA quando aplicavel)" icon={ReceiptText} />
+            <KpiCard title="Lucro bruto" value={formatCents(report.data.lucroBrutoCents)} hint="Receita liquida - pecas - custo artigos vendidos (SEM OpEx)" icon={BarChart3} tone={report.data.lucroBrutoCents < 0 ? 'danger' : 'success'} />
+            <KpiCard title="Margem bruta" value={`${report.data.margemMedia.toFixed(2)}%`} hint="Lucro bruto / receita liquida" icon={TrendingUp} />
             <KpiCard title="Resultado operacional" value={formatCents(report.data.lucroOperacionalCents)} hint="Lucro bruto - OpEx (despesas fixas do periodo)" icon={BarChart3} tone={report.data.lucroOperacionalCents < 0 ? 'danger' : 'success'} />
-            <KpiCard title="Margem operacional" value={`${report.data.margemOperacionalPct.toFixed(2)}%`} hint="Resultado operacional / receita" icon={TrendingUp} />
-            <KpiCard title="Ticket medio" value={formatCents(report.data.ticketMedioCents)} hint={`${report.data.reparacoesPagasCount} reparacoes pagas`} icon={Wrench} />
+            <KpiCard title="Margem operacional" value={`${report.data.margemOperacionalPct.toFixed(2)}%`} hint="Resultado operacional / receita liquida" icon={TrendingUp} />
+            <KpiCard title="Ticket medio" value={formatCents(report.data.ticketMedioCents)} hint={`${report.data.reparacoesPagasCount} reparacoes pagas (valor c/ IVA)`} icon={Wrench} />
           </section>
 
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">

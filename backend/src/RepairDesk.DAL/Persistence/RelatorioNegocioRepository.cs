@@ -50,8 +50,45 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
             .Where(v => v.TenantId == tenantId
                 && v.Status == VendaStatus.Paga
                 && v.Data >= fromUtc && v.Data < toUtc)
-            .Select(v => v.TotalCents)
+            .Select(v => new { v.Id, v.TotalCents })
             .ToListAsync(ct);
+
+        // Sprint 550 (mão de contabilista): por LINHA das vendas pagas — COGS (custo do Part) e
+        // IVA embutido. Mesma matemática do relatório IVA (S541): taxa da linha em vez de 23% fixo;
+        // 2ª mão (regime da margem) = IVA sobre a margem quando há custo, 0 sem custo (não estimável).
+        var vendaLinhas = await _db.VendaItems
+            .AsNoTracking()
+            .Where(i => i.TenantId == tenantId
+                && i.Venda != null
+                && i.Venda.Status == VendaStatus.Paga
+                && i.Venda.Data >= fromUtc && i.Venda.Data < toUtc)
+            .Select(i => new
+            {
+                i.VendaId,
+                LinhaCents = Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents),
+                i.IvaRate,
+                i.Condicao,
+                CustoCents = i.Part != null ? (int?)(i.Part.CustoUnitarioCents * i.Quantidade) : null,
+            })
+            .ToListAsync(ct);
+
+        var custoVendasCents = vendaLinhas.Sum(l => l.CustoCents ?? 0);
+        var ivaEmbutidoVendasCents = vendaLinhas.Sum(l =>
+        {
+            if (l.LinhaCents == 0) return 0;
+            if (l.Condicao is CondicaoArtigo.Recondicionado or CondicaoArtigo.Usado)
+                return l.CustoCents is { } custo
+                    ? (int)Math.Round(Math.Max(0, l.LinhaCents - custo) * 23.0 / 123.0, MidpointRounding.AwayFromZero)
+                    : 0;
+            if (l.IvaRate <= 0) return 0;
+            return (int)Math.Round(l.LinhaCents * (double)l.IvaRate / (100.0 + (double)l.IvaRate), MidpointRounding.AwayFromZero);
+        });
+
+        // Vendas pagas sem nenhuma linha (dados antigos/seed): fallback 23/123 sobre o total.
+        var vendasComLinhas = vendaLinhas.Select(l => l.VendaId).ToHashSet();
+        ivaEmbutidoVendasCents += vendasPagas
+            .Where(v => !vendasComLinhas.Contains(v.Id))
+            .Sum(v => (int)Math.Round(v.TotalCents * 23.0 / 123.0, MidpointRounding.AwayFromZero));
 
         var custoPecasCents = await _db.PartMovimentos
             .AsNoTracking()
@@ -150,13 +187,15 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
         return new RelatorioNegocioSnapshot(
             ReceitaReparacoesCents: reparacoesPagas.Sum(r => r.ReceitaCents),
             ReceitaTrabalhosCents: trabalhosPagos.Sum(),
-            ReceitaVendasCents: vendasPagas.Sum(),
+            ReceitaVendasCents: vendasPagas.Sum(v => v.TotalCents),
             ReparacoesPagasCount: reparacoesPagas.Count,
             CustoPecasCents: custoPecasCents,
             OpexCents: opexCents,
             TopReparacoesLucrativas: topReparacoes,
             TopPecasUsadas: topPecas,
-            TopFornecedores: topFornecedores);
+            TopFornecedores: topFornecedores,
+            CustoVendasCents: custoVendasCents,
+            IvaEmbutidoVendasCents: ivaEmbutidoVendasCents);
     }
 
     public async Task<IReadOnlyList<FornecedorDefeitoRow>> GetTaxaDefeitoFornecedorAsync(

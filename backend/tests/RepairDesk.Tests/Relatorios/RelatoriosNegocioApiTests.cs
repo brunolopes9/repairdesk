@@ -52,11 +52,15 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
         report.ReceitaVendasCents.Should().Be(7_000);
         report.CustoPecasCents.Should().Be(2_000);
         report.OpexCents.Should().Be(3_000);
-        report.LucroBrutoCents.Should().Be(20_000);        // Sprint 536: bruto = receita − peças (22000 − 2000)
-        report.MargemMedia.Should().Be(90.91m);            // margem bruta (20000/22000)
-        report.LucroOperacionalCents.Should().Be(17_000);  // operacional = bruto − OpEx (20000 − 3000)
-        report.MargemOperacionalPct.Should().Be(77.27m);   // 17000/22000
-        report.TicketMedioCents.Should().Be(22_000);
+        // Sprint 550: IVA embutido = serviços 15000×23/123 (2805) + venda sem linhas 7000×23/123 (1309).
+        report.IvaEmbutidoCents.Should().Be(2_805 + 1_309);
+        report.ReceitaLiquidaCents.Should().Be(22_000 - 4_114);
+        report.CustoVendasCents.Should().Be(0);            // venda de seed não tem linhas com Part
+        report.LucroBrutoCents.Should().Be(15_886);        // Sprint 550: receita LÍQUIDA − peças (17886 − 2000)
+        report.MargemMedia.Should().Be(88.82m);            // margem bruta sobre líquida (15886/17886)
+        report.LucroOperacionalCents.Should().Be(12_886);  // operacional = bruto − OpEx (15886 − 3000)
+        report.MargemOperacionalPct.Should().Be(72.05m);   // 12886/17886
+        report.TicketMedioCents.Should().Be(22_000);       // métrica de caixa: mantém-se c/ IVA
     }
 
     [Fact]
@@ -114,10 +118,12 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
         report!.ReceitaTotalCents.Should().Be(1_000);
         report.CustoPecasCents.Should().Be(2_000);
         report.OpexCents.Should().Be(500);
-        report.LucroBrutoCents.Should().Be(-1_000);        // Sprint 536: bruto = receita − peças (1000 − 2000)
-        report.MargemMedia.Should().Be(-100m);             // margem bruta negativa
-        report.LucroOperacionalCents.Should().Be(-1_500);  // operacional = bruto − OpEx (−1000 − 500)
-        report.MargemOperacionalPct.Should().Be(-150m);
+        // Sprint 550: líquida = 1000 − 187 (23/123). Bruto = 813 − 2000.
+        report.ReceitaLiquidaCents.Should().Be(813);
+        report.LucroBrutoCents.Should().Be(-1_187);
+        report.MargemMedia.Should().Be(-146.00m);          // −1187/813, margem negativa preservada
+        report.LucroOperacionalCents.Should().Be(-1_687);  // operacional = bruto − OpEx (−1187 − 500)
+        report.MargemOperacionalPct.Should().Be(-207.50m);
     }
 
     [Fact]

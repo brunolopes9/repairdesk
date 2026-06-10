@@ -90,10 +90,14 @@ export interface RelatorioNegocioResponse {
   receitaVendasCents: number;
   custoPecasCents: number;
   opexCents: number;
-  lucroBrutoCents: number;     // Sprint 536: receita − peças (COGS), SEM OpEx
-  margemMedia: number;         // margem bruta
+  lucroBrutoCents: number;     // Sprint 550: receita LÍQUIDA − peças − custo artigos vendidos
+  margemMedia: number;         // margem bruta (sobre receita líquida)
   lucroOperacionalCents: number; // Sprint 536: lucro bruto − OpEx
   margemOperacionalPct: number;
+  // Sprint 550 (mão de contabilista): receita sem IVA liquidado + IVA embutido + COGS das vendas.
+  receitaLiquidaCents: number;
+  ivaEmbutidoCents: number;
+  custoVendasCents: number;
   ticketMedioCents: number;
   reparacoesPagasCount: number;
   topReparacoesLucrativas: TopReparacaoLucrativa[];
