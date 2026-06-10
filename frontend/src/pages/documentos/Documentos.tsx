@@ -63,6 +63,8 @@ export default function Documentos() {
   const [to, setTo] = useState(hoje);
   const [q, setQ] = useState('');
   const [tipo, setTipo] = useState<TipoFiltro>('');
+  // Sprint 544: "Montante em dívida" (consulta de pendentes, como no Moloni) — só FT ativas sem recibo.
+  const [soDivida, setSoDivida] = useState(false);
   const [novaFaturaOpen, setNovaFaturaOpen] = useState(false);
 
   // Sprint 529: o tipo é filtrado NO CLIENTE (tabs com contagem por secção). O backend devolve
@@ -87,9 +89,16 @@ export default function Documentos() {
     for (const d of items) m[d.tipoCodigo] = (m[d.tipoCodigo] ?? 0) + 1;
     return m;
   }, [items]);
+  // Sprint 544: em dívida = Fatura a crédito (FT) ativa que ainda não foi liquidada por Recibo.
+  // FS/FR/VD são pagamento imediato; NC/ORC/RG não são dívida. (ND fica de fora — Bruno não usa.)
+  const emDivida = useMemo(
+    () => items.filter((d) => d.tipoCodigo === 'FT' && d.estado === 'Ativo' && !d.reciboNumero),
+    [items],
+  );
+  const emDividaTotal = useMemo(() => emDivida.reduce((s, d) => s + d.totalCents, 0), [emDivida]);
   const visibleItems = useMemo(
-    () => (tipo ? items.filter((d) => d.tipoCodigo === tipo) : items),
-    [items, tipo],
+    () => (soDivida ? emDivida : tipo ? items.filter((d) => d.tipoCodigo === tipo) : items),
+    [items, tipo, soDivida, emDivida],
   );
 
   return (
@@ -131,11 +140,21 @@ export default function Documentos() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <KpiCard icon={Receipt} tone="emerald" label="Total faturado" value={formatCents(data?.totalCents ?? 0)} sub="com IVA" />
         <KpiCard icon={Banknote} tone="brand" label="Base (sem IVA)" value={formatCents(data?.totalBaseCents ?? 0)} />
         <KpiCard icon={Percent} tone="amber" label="IVA" value={formatCents(data?.totalIvaCents ?? 0)} />
         <KpiCard icon={FileText} tone="zinc" label="Documentos" value={String(data?.totalDocumentos ?? 0)} />
+        {/* Sprint 544: clicar filtra a lista para as faturas por receber. */}
+        <button
+          type="button"
+          onClick={() => { setSoDivida((v) => !v); setTipo(''); }}
+          className={`rounded-xl text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${soDivida ? 'ring-2 ring-red-400' : ''}`}
+          title="Faturas a crédito (FT) ativas ainda sem recibo de liquidação — clica para listar"
+        >
+          <KpiCard icon={Banknote} tone="red" label="Em dívida" value={formatCents(emDividaTotal)}
+            sub={`${emDivida.length} ${emDivida.length === 1 ? 'fatura' : 'faturas'} por receber`} />
+        </button>
       </div>
 
       {/* Filtros */}
@@ -143,18 +162,28 @@ export default function Documentos() {
         <div className="flex flex-wrap gap-1">
           {TIPO_TABS.map(([k, label]) => {
             const n = k === '' ? items.length : (countByTipo[k] ?? 0);
+            const active = !soDivida && tipo === k;
             return (
               <button
                 key={k || 'all'}
                 type="button"
-                onClick={() => setTipo(k)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${tipo === k ? 'bg-brand-600 text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
+                onClick={() => { setTipo(k); setSoDivida(false); }}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${active ? 'bg-brand-600 text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
               >
                 {label}
-                <span className={`ml-1.5 text-xs ${tipo === k ? 'text-white/80' : 'text-zinc-400'}`}>{n}</span>
+                <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-zinc-400'}`}>{n}</span>
               </button>
             );
           })}
+          {/* Sprint 544: listagem de pendentes — chip dedicado, como a consulta do Moloni. */}
+          <button
+            type="button"
+            onClick={() => { setSoDivida((v) => !v); setTipo(''); }}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${soDivida ? 'bg-red-600 text-white' : 'text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40'}`}
+          >
+            Em dívida
+            <span className={`ml-1.5 text-xs ${soDivida ? 'text-white/80' : 'text-red-400'}`}>{emDivida.length}</span>
+          </button>
         </div>
         <div className="relative sm:w-72">
           <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
@@ -176,7 +205,9 @@ export default function Documentos() {
             <FileText className="text-zinc-300" size={28} />
             {items.length === 0
               ? 'Sem documentos no período. Emite uma fatura a partir de uma reparação ou venda.'
-              : 'Sem documentos deste tipo no período.'}
+              : soDivida
+                ? 'Sem faturas em dívida no período — está tudo recebido. 🎉'
+                : 'Sem documentos deste tipo no período.'}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -229,6 +260,10 @@ function DocumentoRow({ d }: { d: DocumentoDto }) {
   // Sprint 527/528: só a Fatura pura (FT) activa AINDA SEM recibo pode emitir recibo de liquidação.
   // Com recibo já emitido (d.reciboNumero), o botão desaparece → evita documentos duplicados.
   const podeEmitirRecibo = d.tipoCodigo === 'FT' && d.estado === 'Ativo' && !!d.externalId && !d.reciboNumero;
+  // Sprint 544: idade da dívida — FT ativa sem recibo está por receber desde a emissão.
+  // >30 dias = fora do prazo habitual PT → vermelho; até 30 = âmbar.
+  const emDivida = d.tipoCodigo === 'FT' && d.estado === 'Ativo' && !d.reciboNumero;
+  const diasDivida = emDivida ? Math.max(0, Math.floor((Date.now() - new Date(d.data).getTime()) / 86_400_000)) : 0;
   const emitirRecibo = useMutation({
     mutationFn: () => documentosApi.emitirRecibo(Number(d.externalId)),
     onSuccess: (r) => {
@@ -257,6 +292,14 @@ function DocumentoRow({ d }: { d: DocumentoDto }) {
           <span className={d.estado === 'Anulado' ? 'text-zinc-400 line-through' : ''}>{d.numero ?? '—'}</span>
           {(d.estado === 'Anulado' || d.estado === 'Rascunho') && (
             <span className={`ml-1.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ${d.estado === 'Anulado' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>{d.estado}</span>
+          )}
+          {emDivida && (
+            <span
+              className={`ml-1.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ${diasDivida > 30 ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}
+              title={`Fatura a crédito por receber há ${diasDivida} dia${diasDivida === 1 ? '' : 's'} (sem recibo de liquidação)`}
+            >
+              dívida · {diasDivida}d
+            </span>
           )}
         </td>
         <td className="px-4 py-3">
