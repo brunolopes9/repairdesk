@@ -105,6 +105,14 @@ export default function ComprasOperacao() {
         >
           <FileDown size={15} /> Export contabilista
         </button>
+        <button
+          type="button"
+          onClick={() => downloadFile(`/relatorios/extrato/export.pdf?from=${from}&to=${to}`, `extrato_${from}_${to}.pdf`)}
+          title="PDF único com Vendas (incl. documentos Moloni), Compras de stock e Despesas do período"
+          className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-200 px-3 text-left text-sm font-medium transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800"
+        >
+          <FileDown size={15} /> Extrato unificado (PDF)
+        </button>
       </div>
 
       {inboxItems.length > 0 ? (

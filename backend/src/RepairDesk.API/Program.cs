@@ -249,6 +249,8 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Documentos.IDocumentoService, RepairDesk.Services.Documentos.DocumentoService>();
     builder.Services.AddScoped<IRelatorioNegocioRepository, RelatorioNegocioRepository>();
     builder.Services.AddScoped<IRelatorioNegocioService, RelatorioNegocioService>();
+    // Sprint 542: extrato unificado (Vendas+Compras+Despesas) em PDF para o contabilista.
+    builder.Services.AddScoped<IExtratoService, ExtratoService>();
 
     // Documents (PDF orçamento)
     QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
