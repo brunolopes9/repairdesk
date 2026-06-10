@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, CheckCircle2, Mail, Phone, Plus, Trash2, XCircle } from 'lucide-react';
+import { Building2, CheckCircle2, History, Mail, Phone, Plus, Trash2, XCircle } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { BackButton, Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonRow } from '../../components/ui';
 import { toast } from '../../lib/toast';
+import { formatCents, formatDateOnly } from '../../lib/money';
 import { fornecedoresApi, type Fornecedor, type FornecedorWriteRequest } from '../../lib/fornecedores/api';
 
 const emptyForm: FornecedorWriteRequest = {
@@ -29,6 +30,8 @@ export default function Fornecedores() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Fornecedor | null>(null);
   const [form, setForm] = useState<FornecedorWriteRequest>(emptyForm);
+  // Sprint 548 (Doc 93 #3): histórico consolidado por fornecedor.
+  const [historicoDe, setHistoricoDe] = useState<Fornecedor | null>(null);
 
   function openCreate() {
     setEditing(null);
@@ -194,6 +197,15 @@ export default function Fornecedores() {
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
+                        onClick={(e) => { e.stopPropagation(); setHistoricoDe(f); }}
+                        className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-brand-600 dark:hover:bg-zinc-800"
+                        aria-label="Histórico"
+                        title="Histórico consolidado: compras, faturas, taxa de defeito"
+                      >
+                        <History size={15} />
+                      </button>
+                      <button
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); if (confirm(`Remover ${f.name}?`)) remove.mutate(f.id); }}
                         className="rounded-md p-1 text-zinc-500 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
                         aria-label="Remover"
@@ -289,6 +301,79 @@ export default function Fornecedores() {
           </div>
         </form>
       </Modal>
+
+      <FornecedorHistoricoModal fornecedor={historicoDe} onClose={() => setHistoricoDe(null)} />
+    </div>
+  );
+}
+
+/** Sprint 548 (Doc 93 #3): o "Histórico de Fornecedores" do Moloni — tudo numa vista. */
+function FornecedorHistoricoModal({ fornecedor, onClose }: { fornecedor: Fornecedor | null; onClose: () => void }) {
+  const historico = useQuery({
+    queryKey: ['fornecedor-historico', fornecedor?.id],
+    queryFn: () => fornecedoresApi.historico(fornecedor!.id),
+    enabled: !!fornecedor,
+    staleTime: 60_000,
+  });
+  const h = historico.data;
+
+  return (
+    <Modal open={!!fornecedor} title={`Histórico — ${fornecedor?.name ?? ''}`} onClose={onClose}>
+      {historico.isLoading || !h ? (
+        <p className="text-sm text-zinc-500">A carregar…</p>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <HistoricoStat label="Compras stock" value={formatCents(h.comprasStockCents)} />
+            <HistoricoStat label="Despesas" value={formatCents(h.despesasCents)} />
+            <HistoricoStat label="Faturas" value={`${h.importsTotal}`} sub={h.importsPendentes > 0 ? `${h.importsPendentes} pendente${h.importsPendentes === 1 ? '' : 's'}` : undefined} />
+            <HistoricoStat
+              label="Defeito 12m"
+              value={h.itensVendidos12m === 0 ? '—' : `${h.taxaDefeitoPct12m}%`}
+              sub={h.itensVendidos12m > 0 ? `${h.itensComReparacao12m}/${h.itensVendidos12m} c/ IMEI` : 'sem vendas c/ IMEI'}
+              tone={h.taxaDefeitoPct12m > 10 ? 'warning' : 'default'}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
+            {h.ultimaCompraEm && <span>Última compra: <strong className="text-zinc-700 dark:text-zinc-300">{formatDateOnly(h.ultimaCompraEm)}</strong></span>}
+            {h.intraUe && <span className="text-amber-700 dark:text-amber-400">Intra-UE (autoliquidação)</span>}
+            {h.garantiaB2BDiasDefault != null && <span>Garantia B2B: {h.garantiaB2BDiasDefault} dias</span>}
+            <span>Regra import: {h.defaultImportAction}</span>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">Últimas faturas</p>
+            {h.ultimasFaturas.length === 0 ? (
+              <p className="rounded-md bg-zinc-50 px-3 py-3 text-center text-sm text-zinc-500 dark:bg-zinc-950/60">Sem faturas importadas deste fornecedor.</p>
+            ) : (
+              <ul className="space-y-1">
+                {h.ultimasFaturas.map((f) => (
+                  <li key={f.importId} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-100 px-3 py-2 text-sm dark:border-zinc-800">
+                    <div>
+                      <span className="font-medium">{f.numero ?? 'Sem número'}</span>
+                      <span className="ml-2 text-xs text-zinc-500">{f.data ? formatDateOnly(f.data) : '—'}</span>
+                      {f.status === 'Pending' && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">pendente</span>}
+                      {f.status === 'Rejected' && <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">rejeitada</span>}
+                    </div>
+                    <span className="font-semibold tabular-nums">{f.totalCents != null ? formatCents(f.totalCents) : '—'}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function HistoricoStat({ label, value, sub, tone = 'default' }: { label: string; value: string; sub?: string; tone?: 'default' | 'warning' }) {
+  return (
+    <div className={`rounded-lg border p-3 ${tone === 'warning' ? 'border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/25' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
+      <div className={`text-base font-semibold tabular-nums ${tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-zinc-950 dark:text-zinc-50'}`}>{value}</div>
+      <div className="text-[11px] text-zinc-500">{label}</div>
+      {sub && <div className="text-[10px] text-zinc-400">{sub}</div>}
     </div>
   );
 }
