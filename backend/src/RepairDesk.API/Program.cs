@@ -220,6 +220,9 @@ try
     // Trabalhos
     builder.Services.AddScoped<ITrabalhoRepository, TrabalhoRepository>();
     builder.Services.AddScoped<ITrabalhoService, TrabalhoService>();
+    // Sprint 546 (Doc 93 #1): avenças — faturação recorrente (fábrica de Trabalhos + FT Moloni).
+    builder.Services.AddScoped<IAvencaRepository, AvencaRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Avencas.IAvencaService, RepairDesk.Services.Avencas.AvencaService>();
     builder.Services.AddScoped<FluentValidation.IValidator<CreateTrabalhoRequest>, CreateTrabalhoValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateTrabalhoRequest>, UpdateTrabalhoValidator>();
 
@@ -306,6 +309,8 @@ try
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueTasksHostedService>();
         // Sprint 430 (Doc 90 §7.2 Automated overdue reminders): digest diário de cobranças em atraso.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueInvoicesHostedService>();
+        // Sprint 546 (Doc 93 #1): digest diário de avenças devidas — push "pronta a emitir, 1 clique".
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.AvencasHostedService>();
         // Sprint 441 (Doc 91 follow-up): digest diário de reparações Pronto há +N dias sem ser levantadas.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ReadyForPickupHostedService>();
         // Sprint 458 (Doc 91 ponto 3 — lembretes): digest diário de reparações em estado

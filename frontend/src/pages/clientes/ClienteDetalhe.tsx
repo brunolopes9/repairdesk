@@ -9,6 +9,7 @@ import { clientesApi } from '../../lib/clientes/api';
 import type { ClienteEquipamento } from '../../lib/clientes/types';
 import { devicesApi } from '../../lib/devices/api';
 import { ClienteComunicacoesSection } from './ClienteComunicacoesSection';
+import { ClienteAvencasSection } from './ClienteAvencasSection';
 import { ClienteDevicesSection } from './ClienteDevicesSection';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { STATUS_COLOR, STATUS_LABEL, type Reparacao } from '../../lib/reparacoes/types';
@@ -423,6 +424,9 @@ export default function ClienteDetalhe() {
 
       {/* Sprint 462 (Doc 90 Tier 2 #6): gestão persistente de equipamentos do cliente. */}
       <ClienteDevicesSection clienteId={c.id} />
+
+      {/* Sprint 546 (Doc 93 #1): avenças — faturação recorrente deste cliente. */}
+      <ClienteAvencasSection clienteId={c.id} />
           </>
         )}
 
