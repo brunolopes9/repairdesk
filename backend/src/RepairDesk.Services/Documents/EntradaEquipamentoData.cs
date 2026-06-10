@@ -20,4 +20,8 @@ public sealed record EntradaEquipamentoData(
     string? RecebidoPor,
     IReadOnlyList<OrcamentoCampoEquipamento>? CamposEquipamento = null,
     string? TermosLoja = null,
-    string? PortalUrl = null);
+    string? PortalUrl = null,
+    // Sprint 551: assinatura digital do cliente (canvas) — quando presente, substitui a
+    // linha em branco de assinatura manual.
+    byte[]? AssinaturaPng = null,
+    DateTime? AssinaturaEm = null);

@@ -24,6 +24,7 @@ public sealed class EntregaPdfService : IEntregaPdfService
     private readonly IDespesaRepository _despesas;
     private readonly IPartRepository _parts;
     private readonly IGarantiaRepository _garantias;
+    private readonly IReparacaoAssinaturaRepository _assinaturas;
     private readonly IConfiguration _config;
 
     public EntregaPdfService(
@@ -34,6 +35,7 @@ public sealed class EntregaPdfService : IEntregaPdfService
         IDespesaRepository despesas,
         IPartRepository parts,
         IGarantiaRepository garantias,
+        IReparacaoAssinaturaRepository assinaturas,
         IConfiguration config)
     {
         _reparacoes = reparacoes;
@@ -43,6 +45,7 @@ public sealed class EntregaPdfService : IEntregaPdfService
         _despesas = despesas;
         _parts = parts;
         _garantias = garantias;
+        _assinaturas = assinaturas;
         _config = config;
     }
 
@@ -52,6 +55,8 @@ public sealed class EntregaPdfService : IEntregaPdfService
             ?? throw new NotFoundException("Reparacao", reparacaoId);
         var cliente = await _clientes.FindByIdAsync(rep.ClienteId, ct)
             ?? throw new NotFoundException("Cliente", rep.ClienteId);
+
+        var assinatura = await _assinaturas.FindAsync(rep.Id, Core.Enums.AssinaturaTipo.Entrega, ct);
 
         var tenant = _tenantContext.TenantId is not null
             ? await _tenants.FindByIdAsync(_tenantContext.TenantId.Value, ct)
@@ -141,7 +146,10 @@ public sealed class EntregaPdfService : IEntregaPdfService
             GarantiaCobertura: tenant?.GarantiaCoberturaDefault,
             EntreguePor: null,
             GarantiaUrl: garantiaUrl,
-            PortalUrl: BuildPortalUrl(rep.PublicSlug));
+            PortalUrl: BuildPortalUrl(rep.PublicSlug),
+            // Sprint 551: assinatura digital recolhida no balcão na entrega, se existir.
+            AssinaturaPng: assinatura?.PngBytes,
+            AssinaturaEm: assinatura?.AssinadaEm);
 
         var pdf = EntregaPdfRenderer.Render(data);
         return (pdf, $"Entrega_R-{rep.Numero:D5}.pdf");

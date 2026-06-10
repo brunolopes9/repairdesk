@@ -22,6 +22,7 @@ public sealed class EntradaPdfService : IEntradaPdfService
     private readonly ITenantRepository _tenants;
     private readonly ITenantContext _tenantContext;
     private readonly IEquipmentFieldService _equipmentFields;
+    private readonly IReparacaoAssinaturaRepository _assinaturas;
     private readonly IConfiguration _config;
 
     public EntradaPdfService(
@@ -30,6 +31,7 @@ public sealed class EntradaPdfService : IEntradaPdfService
         ITenantRepository tenants,
         ITenantContext tenantContext,
         IEquipmentFieldService equipmentFields,
+        IReparacaoAssinaturaRepository assinaturas,
         IConfiguration config)
     {
         _reparacoes = reparacoes;
@@ -37,6 +39,7 @@ public sealed class EntradaPdfService : IEntradaPdfService
         _tenants = tenants;
         _tenantContext = tenantContext;
         _equipmentFields = equipmentFields;
+        _assinaturas = assinaturas;
         _config = config;
     }
 
@@ -71,6 +74,8 @@ public sealed class EntradaPdfService : IEntradaPdfService
 
         // Sprint 359: campos de equipamento (cor, password, etc) marcados para portal/visíveis
         // ao cliente também fazem sentido aqui — é a fotografia do equipamento na entrada.
+        var assinatura = await _assinaturas.FindAsync(rep.Id, Core.Enums.AssinaturaTipo.Entrada, ct);
+
         var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
         var camposEquipamento = campos
             .Where(c => !string.IsNullOrWhiteSpace(c.Value))
@@ -98,7 +103,10 @@ public sealed class EntradaPdfService : IEntradaPdfService
             RecebidoPor: null, // futuro: capturar User.DisplayName no Create
             CamposEquipamento: camposEquipamento.Count > 0 ? camposEquipamento : null,
             TermosLoja: tenant?.TermosCondicoes,
-            PortalUrl: BuildPortalUrl(rep.PublicSlug));
+            PortalUrl: BuildPortalUrl(rep.PublicSlug),
+            // Sprint 551: assinatura digital recolhida no balcão, se existir.
+            AssinaturaPng: assinatura?.PngBytes,
+            AssinaturaEm: assinatura?.AssinadaEm);
 
         var pdf = EntradaPdfRenderer.Render(data);
         return (pdf, $"Entrada_R-{rep.Numero:D5}.pdf");

@@ -113,6 +113,18 @@ public class ReparacoesController : ControllerBase
         return File(pdf, "application/pdf", filename);
     }
 
+    /// <summary>Sprint 551 (Doc 80/93): guarda a assinatura do cliente (canvas → PNG) na entrada ou entrega. Recapturar substitui.</summary>
+    [HttpPost("{id:guid}/assinaturas")]
+    public Task<AssinaturaDto> SaveAssinatura(
+        Guid id, [FromBody] SaveAssinaturaRequest req, [FromServices] IAssinaturaService assinaturas, CancellationToken ct)
+        => assinaturas.SaveAsync(id, req.Tipo, req.DataUrl, ct);
+
+    /// <summary>Sprint 551: estado das assinaturas da reparação (tipo + quando, sem bytes).</summary>
+    [HttpGet("{id:guid}/assinaturas")]
+    public Task<IReadOnlyList<AssinaturaDto>> ListAssinaturas(
+        Guid id, [FromServices] IAssinaturaService assinaturas, CancellationToken ct)
+        => assinaturas.ListAsync(id, ct);
+
     [HttpPost("{id:guid}/emitir-fatura")]
     public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
         => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, req?.DiscriminarMaoObra ?? true, req?.DocumentType, ct);
@@ -193,6 +205,8 @@ public class ReparacoesController : ControllerBase
     public sealed record ReabrirRequest(string? Notas);
     public sealed record BulkEmitRequest(IReadOnlyList<Guid> Ids);
     public sealed record BulkEmitResult(Guid Id, bool Success, string? InvoiceNumber, string? ErrorMessage);
+    /// <summary>Sprint 551: Tipo = "entrada" | "entrega"; DataUrl = data:image/png;base64,...</summary>
+    public sealed record SaveAssinaturaRequest(string Tipo, string DataUrl);
 
     [HttpPost("{id:guid}/reabrir")]
     public Task<ReparacaoDto> Reabrir(Guid id, [FromBody] ReabrirRequest? req, CancellationToken ct)

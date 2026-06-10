@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:df0b19c1af9e2aee -->
+<!-- roles-matrix-snapshot:6f6dd1f6d30e6b77 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -24,7 +24,7 @@ testes e esta matriz com snapshot.
 | ClienteTagsController (S480) | `GET /api/cliente-tags`; `GET /api/cliente-tags/segmento`; `GET /api/cliente-tags/{id}/segmento`; `PUT /api/clientes/{id}/tags` | `Authenticated` |
 | ClienteTagsController (S480) | `POST/PUT/DELETE /api/cliente-tags*` (segmentos CRM do tenant) | `Admin` |
 | ReparacaoComunicacoesController (S452) | `GET/POST/DELETE /api/reparacoes/{id}/comunicacoes` | `Authenticated` |
-| ReparacoesController | `GET /{id}/entrada.pdf` (S450), `GET /{id}/entrega.pdf` (S451) | `Authenticated` |
+| ReparacoesController | `GET /{id}/entrada.pdf` (S450), `GET /{id}/entrega.pdf` (S451), `POST`+`GET /{id}/assinaturas` (S551 — assinatura cliente no balcão) | `Authenticated` |
 | ReparacoesController (S512) | fatura: `POST /{id}/emitir-fatura`, `/anular-fatura`, `/limpar-fatura-local` (desvincular fatura já anulada no Moloni para re-emitir) | `Authenticated` |
 | DocumentosController (S513) | `GET /api/documentos/vendas`, `/api/documentos/vendas/export.csv` (lista única de faturas emitidas) | `Authenticated` |
 | DocumentosController (S527) | `POST /api/documentos/{documentId}/recibo` (emite Recibo Moloni que liquida Fatura a crédito) | `Policy=RequireAdmin` |

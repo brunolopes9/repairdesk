@@ -103,6 +103,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<Device> Devices => Set<Device>();
     // Sprint 546 (Doc 93 #1): avenças — faturação recorrente a clientes (mensalidades software).
     public DbSet<Avenca> Avencas => Set<Avenca>();
+    // Sprint 551 (Doc 80/93): assinatura do cliente (canvas) na entrada/entrega do equipamento.
+    public DbSet<ReparacaoAssinatura> ReparacaoAssinaturas => Set<ReparacaoAssinatura>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

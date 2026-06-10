@@ -156,13 +156,24 @@ public static class EntregaPdfRenderer
                 c.Item().PaddingTop(2).Text("Confirmo o levantamento do equipamento acima identificado e a conformidade da reparação com o orçamento aprovado.").FontSize(9);
             });
 
+            // Assinatura digital (S551) quando recolhida no balcão; senão espaço para preencher.
             col.Item().PaddingTop(15).Row(row =>
             {
                 row.RelativeItem().Column(c =>
                 {
-                    c.Item().BorderBottom(0.5f).BorderColor(Colors.Grey.Darken1).Height(40);
-                    c.Item().PaddingTop(2).Text("Assinatura do cliente").FontSize(9).FontColor(Colors.Grey.Darken1);
-                    c.Item().Text($"Data: {d.EntregueEm.ToString("dd/MM/yyyy", PtPt)}").FontSize(8).FontColor(Colors.Grey.Lighten1);
+                    if (d.AssinaturaPng is { Length: > 0 })
+                    {
+                        c.Item().BorderBottom(0.5f).BorderColor(Colors.Grey.Darken1).Height(40)
+                            .AlignCenter().AlignBottom().Image(d.AssinaturaPng).FitArea();
+                        c.Item().PaddingTop(2).Text("Assinatura do cliente").FontSize(9).FontColor(Colors.Grey.Darken1);
+                        c.Item().Text($"Assinado digitalmente em {d.AssinaturaEm:dd/MM/yyyy HH:mm}").FontSize(8).FontColor(Colors.Grey.Lighten1);
+                    }
+                    else
+                    {
+                        c.Item().BorderBottom(0.5f).BorderColor(Colors.Grey.Darken1).Height(40);
+                        c.Item().PaddingTop(2).Text("Assinatura do cliente").FontSize(9).FontColor(Colors.Grey.Darken1);
+                        c.Item().Text($"Data: {d.EntregueEm.ToString("dd/MM/yyyy", PtPt)}").FontSize(8).FontColor(Colors.Grey.Lighten1);
+                    }
                 });
                 row.ConstantItem(30);
                 row.RelativeItem().Column(c =>

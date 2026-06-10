@@ -149,14 +149,24 @@ public static class EntradaPdfRenderer
                 });
             });
 
-            // Assinaturas — espaço físico para preencher.
+            // Assinaturas — digital (S551) quando recolhida no balcão; senão espaço para preencher.
             col.Item().PaddingTop(20).Row(row =>
             {
                 row.RelativeItem().Column(c =>
                 {
-                    c.Item().BorderBottom(0.5f).BorderColor(Colors.Grey.Darken1).Height(40);
-                    c.Item().PaddingTop(2).Text("Assinatura do cliente").FontSize(9).FontColor(Colors.Grey.Darken1);
-                    c.Item().Text($"Data: ___/___/____").FontSize(8).FontColor(Colors.Grey.Lighten1);
+                    if (d.AssinaturaPng is { Length: > 0 })
+                    {
+                        c.Item().BorderBottom(0.5f).BorderColor(Colors.Grey.Darken1).Height(40)
+                            .AlignCenter().AlignBottom().Image(d.AssinaturaPng).FitArea();
+                        c.Item().PaddingTop(2).Text("Assinatura do cliente").FontSize(9).FontColor(Colors.Grey.Darken1);
+                        c.Item().Text($"Assinado digitalmente em {d.AssinaturaEm:dd/MM/yyyy HH:mm}").FontSize(8).FontColor(Colors.Grey.Lighten1);
+                    }
+                    else
+                    {
+                        c.Item().BorderBottom(0.5f).BorderColor(Colors.Grey.Darken1).Height(40);
+                        c.Item().PaddingTop(2).Text("Assinatura do cliente").FontSize(9).FontColor(Colors.Grey.Darken1);
+                        c.Item().Text($"Data: ___/___/____").FontSize(8).FontColor(Colors.Grey.Lighten1);
+                    }
                 });
                 row.ConstantItem(30);
                 row.RelativeItem().Column(c =>

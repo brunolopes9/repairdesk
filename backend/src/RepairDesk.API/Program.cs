@@ -213,6 +213,9 @@ try
     builder.Services.AddScoped<IEquipmentFieldRepository, EquipmentFieldRepository>();
     builder.Services.AddScoped<IEquipmentFieldService, EquipmentFieldService>();
     builder.Services.AddScoped<IReparacaoService, ReparacaoService>();
+    // Sprint 551: assinatura do cliente (canvas) na entrada/entrega.
+    builder.Services.AddScoped<IReparacaoAssinaturaRepository, ReparacaoAssinaturaRepository>();
+    builder.Services.AddScoped<IAssinaturaService, AssinaturaService>();
     builder.Services.AddScoped<FluentValidation.IValidator<CreateReparacaoRequest>, CreateReparacaoValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateReparacaoRequest>, UpdateReparacaoValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<ChangeEstadoRequest>, ChangeEstadoValidator>();

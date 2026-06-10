@@ -28,6 +28,7 @@ import { useAuth } from '../../lib/auth/AuthContext';
 import AssignTecnicoModal from '../../components/reparacoes/AssignTecnicoModal';
 import ReparacaoTagsEditor from '../../components/reparacoes/ReparacaoTagsEditor';
 import { ReparacaoTarefasSection } from './ReparacaoTarefasSection';
+import { ReparacaoAssinaturas } from './ReparacaoAssinaturas';
 import { ReparacaoComunicacoesSection } from './ReparacaoComunicacoesSection';
 import { ReparacaoOtherDevicesSection } from './ReparacaoOtherDevicesSection';
 import SignaturePadModal from '../../components/signatures/SignaturePadModal';
@@ -670,6 +671,9 @@ export default function ReparacaoDetalhe() {
           )}
         </div>
       </div>
+
+      {/* Sprint 551: assinatura do cliente no balcão — fica estampada nos PDFs acima. */}
+      <ReparacaoAssinaturas reparacaoId={r.id} />
 
       {!isLocked ? (
         <div className="border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-zinc-800">

@@ -91,7 +91,20 @@ export const reparacoesApi = {
   remove(id: string) {
     return api.delete(`/reparacoes/${id}`).then(() => undefined);
   },
+  // Sprint 551: assinatura do cliente (canvas) na entrada/entrega — fica estampada nos PDFs.
+  listAssinaturas(id: string) {
+    return api.get<AssinaturaInfo[]>(`/reparacoes/${id}/assinaturas`).then((r) => r.data);
+  },
+  saveAssinatura(id: string, tipo: 'entrada' | 'entrega', dataUrl: string) {
+    return api.post<AssinaturaInfo>(`/reparacoes/${id}/assinaturas`, { tipo, dataUrl }).then((r) => r.data);
+  },
 };
+
+/** Sprint 551: estado de uma assinatura recolhida (sem os bytes). */
+export interface AssinaturaInfo {
+  tipo: string; // "entrada" | "entrega"
+  assinadaEm: string;
+}
 
 export interface InvoiceDto {
   number: string;
