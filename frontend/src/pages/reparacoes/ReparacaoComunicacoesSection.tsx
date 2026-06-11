@@ -14,6 +14,7 @@ import {
 } from '../../lib/comunicacoes/api';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
+import { normalizeWaNumber } from '../../lib/phone/formatter';
 
 /**
  * Sprint 452 (Doc 91 ponto 1 — Conversas omnicanal v1).
@@ -534,11 +535,4 @@ const STATE_KEY_BY_INT: Record<number, string> = {
   7: 'Orcamento',
 };
 
-/** Normaliza um telefone PT para `wa.me/351XXXXXXXXX`. Aceita "+351 9X X XX XX" etc. */
-function normalizeWaNumber(raw: string): string | null {
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return null;
-  if (digits.startsWith('351')) return digits;
-  if (digits.length === 9 && digits[0] === '9') return `351${digits}`;
-  return digits;
-}
+// Sprint 553: normalizeWaNumber mudou-se para lib/phone/formatter (partilhado com Documentos).

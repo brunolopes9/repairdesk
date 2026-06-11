@@ -61,3 +61,15 @@ export function displayPhone(raw: string | null | undefined): string {
   if (!raw) return '';
   return formatPhonePT(raw).display || raw;
 }
+
+/**
+ * Sprint 553 (movido de ReparacaoComunicacoesSection): número para link wa.me —
+ * dígitos com indicativo, assumindo PT (9xxxxxxxx → 351...). Null se não há dígitos.
+ */
+export function normalizeWaNumber(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('351')) return digits;
+  if (digits.length === 9 && digits[0] === '9') return `351${digits}`;
+  return digits;
+}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Receipt, Banknote, Percent, FileText, Download, ExternalLink, Search, FilePlus, ChevronRight, ChevronDown } from 'lucide-react';
+import { Receipt, Banknote, Percent, FileText, Download, ExternalLink, Search, FilePlus, ChevronRight, ChevronDown, MessageCircle } from 'lucide-react';
 import { KpiCard } from '../../components/ui';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { downloadFile } from '../../lib/downloadPdf';
@@ -9,6 +9,9 @@ import { toast } from '../../lib/toast';
 import { documentosApi } from '../../lib/documentos/api';
 import type { DocumentoDto } from '../../lib/documentos/types';
 import NovaFaturaModal from '../../components/documentos/NovaFaturaModal';
+import { clientesApi } from '../../lib/clientes/api';
+import { normalizeWaNumber } from '../../lib/phone/formatter';
+import { waMeLink } from '../../lib/whatsapp/templates';
 
 /**
  * Sprint 513: separador "Vendas" de Compras e Operação — a lista única de TODAS as faturas
@@ -264,6 +267,27 @@ function DocumentoRow({ d }: { d: DocumentoDto }) {
   // >30 dias = fora do prazo habitual PT → vermelho; até 30 = âmbar.
   const emDivida = d.tipoCodigo === 'FT' && d.estado === 'Ativo' && !d.reciboNumero;
   const diasDivida = emDivida ? Math.max(0, Math.floor((Date.now() - new Date(d.data).getTime()) / 86_400_000)) : 0;
+
+  // Sprint 553: lembrete de dívida via WhatsApp — manual, 1 clique, nada é enviado sozinho.
+  // O contacto só é carregado quando a linha está expandida (lazy). Respeita NaoContactar (RGPD).
+  const clienteContacto = useQuery({
+    queryKey: ['cliente-contacto', d.clienteId],
+    queryFn: () => clientesApi.get(d.clienteId!),
+    enabled: open && emDivida && !!d.clienteId,
+    staleTime: 5 * 60_000,
+  });
+  const waLembrete = useMemo(() => {
+    const c = clienteContacto.data;
+    if (!emDivida || !c?.telefone || c.naoContactar) return null;
+    const numero = normalizeWaNumber(c.telefone);
+    if (!numero) return null;
+    const primeiroNome = (c.nome ?? '').trim().split(/\s+/)[0] || 'cliente';
+    const msg =
+      `Olá ${primeiroNome}, a fatura ${d.numero ?? ''} no valor de ${formatCents(d.totalCents)}, ` +
+      `emitida a ${formatDateOnly(d.data)}, encontra-se por liquidar. ` +
+      `Agradecemos a regularização quando lhe for possível. Qualquer questão, estamos disponíveis. Obrigado!`;
+    return waMeLink(numero, msg);
+  }, [clienteContacto.data, emDivida, d.numero, d.totalCents, d.data]);
   const emitirRecibo = useMutation({
     mutationFn: () => documentosApi.emitirRecibo(Number(d.externalId)),
     onSuccess: (r) => {
@@ -353,20 +377,34 @@ function DocumentoRow({ d }: { d: DocumentoDto }) {
                     <Receipt size={13} /> Liquidada · {d.reciboNumero}
                   </div>
                 )}
-                {podeEmitirRecibo && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm(`Emitir um Recibo que liquida a fatura ${d.numero ?? ''} (${formatCents(d.totalCents)})?\n\nSó deves fazer isto se a fatura ainda está em dívida.`))
-                        emitirRecibo.mutate();
-                    }}
-                    disabled={emitirRecibo.isPending}
-                    className="mt-2 inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                    title="Liquida a fatura a crédito emitindo um Recibo no Moloni"
-                  >
-                    <Receipt size={13} /> {emitirRecibo.isPending ? 'A emitir…' : 'Emitir recibo'}
-                  </button>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {podeEmitirRecibo && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Emitir um Recibo que liquida a fatura ${d.numero ?? ''} (${formatCents(d.totalCents)})?\n\nSó deves fazer isto se a fatura ainda está em dívida.`))
+                          emitirRecibo.mutate();
+                      }}
+                      disabled={emitirRecibo.isPending}
+                      className="mt-2 inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                      title="Liquida a fatura a crédito emitindo um Recibo no Moloni"
+                    >
+                      <Receipt size={13} /> {emitirRecibo.isPending ? 'A emitir…' : 'Emitir recibo'}
+                    </button>
+                  )}
+                  {/* Sprint 553: cobrança amigável 1-clique — abre o WhatsApp com a mensagem pronta. */}
+                  {waLembrete && (
+                    <a
+                      href={waLembrete}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 rounded-lg border border-emerald-300 px-2.5 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-800/60 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                      title={`Abrir WhatsApp com lembrete da dívida (há ${diasDivida} dia${diasDivida === 1 ? '' : 's'})`}
+                    >
+                      <MessageCircle size={13} /> Lembrar dívida
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
           </td>
