@@ -476,7 +476,11 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
                 <span>
                   <span className="block text-sm font-medium">{part.nome}</span>
                   <span className="mt-1 block text-xs text-zinc-500">{part.sku ?? 'Sem SKU'} · {part.marca ?? 'Sem marca'}</span>
-                  <span className="mt-2 block text-xs text-zinc-500">Stock: {part.qtdStock}</span>
+                  <span className="mt-2 block text-xs text-zinc-500">
+                    Stock: {part.qtdStock}
+                    {/* Sprint 552: onde está o artigo — poupa a caça à prateleira com o cliente à frente. */}
+                    {part.localArmazenamento ? <span className="text-brand-600 dark:text-brand-400"> · 📍 {part.localArmazenamento}</span> : null}
+                  </span>
                 </span>
                 <span className="text-sm font-semibold">{formatCents(part.custoUnitarioCents)}</span>
               </button>

@@ -154,6 +154,8 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
                         </div>
                         <div className="text-xs text-zinc-500">
                           {p.sku ?? 'sem SKU'} · {PART_CATEGORIA_LABEL[p.categoria]} · {[p.marca, p.modelo].filter(Boolean).join(' ')}
+                          {/* Sprint 552: onde está a peça — é agora que se vai à prateleira buscá-la. */}
+                          {p.localArmazenamento ? <span className="text-brand-600 dark:text-brand-400"> · 📍 {p.localArmazenamento}</span> : null}
                         </div>
                       </button>
                     </li>
@@ -178,6 +180,10 @@ export default function PecasUsadas({ reparacaoId, readOnly }: { reparacaoId: st
               Adicionar
             </Button>
           </div>
+          {/* Sprint 552: peça escolhida — mostra já onde está, antes de ir buscá-la. */}
+          {selected?.localArmazenamento ? (
+            <p className="mt-1.5 text-xs text-brand-600 dark:text-brand-400">📍 {selected.nome} está em: {selected.localArmazenamento}</p>
+          ) : null}
         </div>
       )}
 
