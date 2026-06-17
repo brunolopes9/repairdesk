@@ -32,7 +32,7 @@ jobs:
       short_sha: ${{ steps.meta.outputs.short_sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.version || github.ref }}
 
@@ -113,7 +113,7 @@ jobs:
       name: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Upload compose file
         uses: appleboy/scp-action@v1.0.0
