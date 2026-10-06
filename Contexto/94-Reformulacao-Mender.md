@@ -34,9 +34,10 @@ Menu: Dashboard · **Vendas** · **Compras** (inclui Stock) · **Despesas** · C
 |---|---|---|
 | 1 | Login por email **ou** username + "Esqueci a palavra-passe" (Resend) | ✅ |
 | 2 | Remover Moloni/faturação, loja, webhooks + migração de BD | ⏳ |
-| 3 | Motor de IVA + Compras/Stock por lote + IA/email ligados ao modelo novo + seed Excel | ⏳ |
+| 3 | **Perfil fiscal** (setup + PDF da declaração de atividade) + motor de IVA + Compras/Stock por lote + IA/email ligados ao modelo novo + seed Excel | ⏳ |
 | 4 | Vendas unificadas (reparação simples) + limpeza Balcão/Trabalhos/Reparações/Preços/Catálogo | ⏳ |
 | 5 | Despesas + IVA & Resultados + balancete trimestral | ⏳ |
+| 7 | Motor IRS + Segurança Social completo, recomendações por regras e agente no site (só explica o que o motor calcula) | ⏳ |
 | 6 | Atividades + Finanças + import `Gestao_Financeira_v10.xlsx` (só Informática, Trading, despesas e fixas) | ⏳ |
 
 Cada fase é deployável sozinha. O motor de IVA é validado pelos testes de aceitação do SPEC §6 (382,29 € IVA a pagar; 519 € lucro; −132,55 € saldo de IVA).
@@ -71,3 +72,45 @@ Consequências no modelo:
 - **Despesas** ganham regime de IVA como os fornecedores (nacional / UE autoliquidação / fora UE autoliquidação).
 - Payouts em USD: guarda-se o valor em euros recebido + moeda/valor original como nota.
 - "Quanto guardar" (Fase 6): Segurança Social = 21,4% × (70% serviços + 20% bens) × (1 − ajuste configurável, ex. 25%); IRS = estimativa por coeficiente, % configurável. Sempre marcado como estimativa — a contabilista faz as contas finais.
+
+## Módulo fiscal (decisão 2026-10-06)
+
+Objetivo: o Mender sabe o enquadramento de cada utilizador e calcula **IVA, IRS e Segurança Social**, avisa prazos e dá recomendações — sem substituir o contabilista.
+
+### Princípios (obrigatórios)
+1. **Números por código determinístico e testado, nunca pelo LLM.** O agente do site só chama o motor e explica o resultado, citando o artigo.
+2. **Regras fiscais em dados versionados por ano** (): taxas de IVA, escalões de IRS, coeficientes do art. 31.º, dedução específica, IRS Jovem, taxas e bases da SS, limites (art. 53.º, regime simplificado), prazos. Cada valor tem artigo e link oficial. Mudar de ano = novo ficheiro; testes do ano anterior continuam verdes.
+3. Casos duvidosos marcados **"confirmar com contabilista"** (ex.: coeficiente do CIRS 1519 — 0,35 vs 0,75).
+4. Todo o resultado mostra "estimativa — não substitui o contabilista".
+5. **Nunca recomendar gastar dinheiro para pagar menos imposto.** Recomendar só pedir fatura com NIF do que já se compra.
+
+### Perfil fiscal (setup do tenant)
+Upload do PDF da declaração de início/alteração de atividade → IA extrai os campos → utilizador confirma cada um (ou preenche à mão):
+categoria (B), data de início, códigos CAE/CIRS (principal/secundários + datas), regime de IRS (simplificado/organizada), regime de IVA (isento art. 53.º / normal mensal / trimestral + data), operações intracomunitárias (bens / serviços), NIF ativo no VIES, IRS Jovem (ano de benefício), SS (isenção 1.º ano, ajuste ±25%), retenção na fonte.
+As **atividades** do tenant são criadas a partir dos códigos do perfil (ex.: Informática = 62100/95102/47401; Trading = 1519).
+
+### Classificação de cada documento (IVA)
+| Situação | Tratamento |
+|---|---|
+| Venda em PT | IVA liquidado (23/13/6%) |
+| Serviço a empresa UE com VAT válido | 0% · M40 · campo 7 + recapitulativa |
+| Serviço a cliente fora da UE | 0% · M40 · campo 8 |
+| Compra PT com NIF | IVA dedutível |
+| Compra UE (bens ou serviços) com o VAT ID do utilizador | autoliquidação: liquida e deduz o mesmo valor (neutro) |
+| Compra B2C / IVA OSS / fatura sem NIF | IVA **não** dedutível e não conta para a regra dos 15% |
+| Moeda estrangeira | câmbio BCE da data da operação (API do BCE) |
+| Exigibilidade (arts. 7.º–8.º CIVA) | a data da operação decide o período, não a data da fatura |
+
+Correção a não esquecer: comprar peças na UE sem IVA **não** dá vantagem — a autoliquidação anula-se; na venda cobra-se 23% sobre o preço todo (SPEC §3.2).
+
+### Cálculos
+- **IRS (simplificado, art. 31.º CIRS):** rendimento × coeficiente por tipo (0,15 bens / 0,35 serviços / outros nos dados), redução 1.º/2.º ano (n.º 10) se aplicável, regra dos 15% (n.º 13: dedução específica + SS + despesas com NIF) com "faltam X € → custa ~Y € de IRS", IRS Jovem (art. 2.º-B), escalões do ano.
+- **Segurança Social:** rendimento relevante trimestral = 70% serviços + 20% bens, ajuste ±25%, 21,4%, mínimo, isenção 12 meses, prazos (declaração trimestral, pagamento dia 10–20).
+- **"Quanto guardar"** de cada recebimento para IVA, IRS e SS.
+
+### Recomendações (motor de regras) e agente
+Exemplos de regras: fatura estrangeira sem o VAT ID → pedir nova; perto do limite do art. 53.º ou do regime simplificado; faltam X € para a regra dos 15%; prazos (DP dia 20 do 2.º mês após o trimestre, recapitulativa dia 20, SS trimestral); venda a cliente UE sem M40; câmbio não registado.
+O agente responde com base nos resultados do motor; sem regra para o caso → diz que não sabe e sugere o contabilista.
+
+### Testes de referência (anonimizados)
+Serviço a empresa checa: 269,70 USD ao câmbio BCE 1,1605 = 232,40 € · M40 · campo 7 + recapitulativa. Website em PT: 300 € + 69 € IVA. Compra Amazon com IVA OSS: não dedutível. Balancete e motor de IVA: testes dos SPECs.
