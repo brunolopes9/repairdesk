@@ -39,6 +39,10 @@ public sealed class R2BackupStorage : IBackupRemoteStorage, IDisposable
             InputStream = stream,
             ContentType = "application/octet-stream",
             AutoCloseStream = false,
+            // Cloudflare R2 não suporta chunked SigV4 (STREAMING-AWS4-HMAC-SHA256-PAYLOAD) — mesmo fix
+            // do CloudflareR2PhotoStorage. Sem isto o upload offsite do backup falhava sempre.
+            UseChunkEncoding = false,
+            DisablePayloadSigning = true,
         };
 
         await GetClient(options).PutObjectAsync(request, ct);

@@ -6,6 +6,10 @@
 set -e
 
 chmod 0777 /backups 2>/dev/null || true
+# O SQL Server cria os .bak com 0640 (dono mssql). ACL por defeito dá ao app user leitura/escrita
+# nos ficheiros novos — necessário para o upload offsite (R2) e para a retenção.
+setfacl -m u:app:rwx -d -m u:app:rwX /backups 2>/dev/null || true
+setfacl -m u:app:rw /backups/*.bak 2>/dev/null || true
 chmod 0700 /data/dp-keys 2>/dev/null || true
 chown -R app:app /data/dp-keys /data/photos 2>/dev/null || true
 

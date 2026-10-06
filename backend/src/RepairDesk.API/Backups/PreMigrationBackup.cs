@@ -31,7 +31,31 @@ public static class PreMigrationBackup
             pending.Count, string.Join(", ", pending));
 
         var backup = scope.ServiceProvider.GetRequiredService<IBackupService>();
-        var result = await backup.RunBackupAsync(BackupTrigger.PreMigration, ct);
-        logger.LogInformation("PreMigrationBackup concluído: {Result}", result);
+        var startedUtc = DateTime.UtcNow;
+        try
+        {
+            var result = await backup.RunBackupAsync(BackupTrigger.PreMigration, ct);
+            logger.LogInformation("PreMigrationBackup concluído: {Result}", result);
+        }
+        catch (Exception ex)
+        {
+            // O que protege a migração é a cópia LOCAL (.bak). Se o SQL Server a escreveu e só um
+            // passo seguinte falhou (ex.: upload offsite para o R2), segue — com aviso. Sem .bak, aborta.
+            var localBak = FindLocalBackupSince(config, startedUtc.AddSeconds(-5));
+            if (localBak is null) throw;
+            logger.LogWarning(ex, "PreMigrationBackup: backup local {File} criado mas um passo seguinte falhou — migração continua.", localBak);
+        }
+    }
+
+    private static string? FindLocalBackupSince(IConfiguration config, DateTime sinceUtc)
+    {
+        var dir = config["Backup:LocalPath"];
+        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return null;
+        return new DirectoryInfo(dir)
+            .EnumerateFiles("*.bak")
+            .Where(f => f.LastWriteTimeUtc >= sinceUtc && f.Length > 0)
+            .OrderByDescending(f => f.LastWriteTimeUtc)
+            .Select(f => f.FullName)
+            .FirstOrDefault();
     }
 }

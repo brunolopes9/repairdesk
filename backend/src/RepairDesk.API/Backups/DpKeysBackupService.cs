@@ -201,6 +201,10 @@ public sealed class DpKeysBackupService : IDpKeysBackupService, IDisposable
             InputStream = new MemoryStream(payload),
             ContentType = "application/octet-stream",
             AutoCloseStream = true,
+            // Cloudflare R2 não suporta chunked SigV4 (STREAMING-AWS4-HMAC-SHA256-PAYLOAD) — mesmo fix
+            // do CloudflareR2PhotoStorage. Sem isto o upload offsite do backup falhava sempre.
+            UseChunkEncoding = false,
+            DisablePayloadSigning = true,
         };
         await GetClient().PutObjectAsync(request, ct);
     }
