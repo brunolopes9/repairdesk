@@ -79,7 +79,7 @@ Objetivo: o Mender sabe o enquadramento de cada utilizador e calcula **IVA, IRS 
 
 ### Princípios (obrigatórios)
 1. **Números por código determinístico e testado, nunca pelo LLM.** O agente do site só chama o motor e explica o resultado, citando o artigo.
-2. **Regras fiscais em dados versionados por ano** (): taxas de IVA, escalões de IRS, coeficientes do art. 31.º, dedução específica, IRS Jovem, taxas e bases da SS, limites (art. 53.º, regime simplificado), prazos. Cada valor tem artigo e link oficial. Mudar de ano = novo ficheiro; testes do ano anterior continuam verdes.
+2. **Regras fiscais em dados versionados por ano** (`Fiscal/Rules/2026.json`): taxas de IVA, escalões de IRS, coeficientes do art. 31.º, dedução específica, IRS Jovem, taxas e bases da SS, limites (art. 53.º, regime simplificado), prazos. Cada valor tem artigo e link oficial. Mudar de ano = novo ficheiro; testes do ano anterior continuam verdes.
 3. Casos duvidosos marcados **"confirmar com contabilista"** (ex.: coeficiente do CIRS 1519 — 0,35 vs 0,75).
 4. Todo o resultado mostra "estimativa — não substitui o contabilista".
 5. **Nunca recomendar gastar dinheiro para pagar menos imposto.** Recomendar só pedir fatura com NIF do que já se compra.
