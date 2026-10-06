@@ -113,3 +113,6 @@ docker-compose.override.yml
 # Sprint 394: dumps TAC convertidos (gerados pelo script, não versionar)
 tac-mender.csv
 tacdb-raw.csv
+
+# Claude Code — definições pessoais
+.claude/settings.local.json

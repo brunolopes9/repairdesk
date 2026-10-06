@@ -134,15 +134,29 @@ jobs:
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
           REGISTRY: ${{ env.REGISTRY }}
           DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_SSH_PORT || 22 }}
-          envs: GHCR_USERNAME,GHCR_TOKEN,IMAGE_NAMESPACE,IMAGE_TAG,REGISTRY,DEPLOY_PATH
+          envs: GHCR_USERNAME,GHCR_TOKEN,IMAGE_NAMESPACE,IMAGE_TAG,REGISTRY,DEPLOY_PATH,RESEND_API_KEY
           script: |
             set -eu
             cd "$DEPLOY_PATH"
+            # Config gerida pelo repositório: escreve/atualiza estas chaves no .env.production
+            # (o resto do ficheiro, com os segredos da BD, fica intocado).
+            upsert_env() {
+              [ -n "$2" ] || return 0
+              tmp=$(mktemp)
+              grep -v "^$1=" .env.production > "$tmp" || true
+              printf '%s="%s"\n' "$1" "$2" >> "$tmp"
+              cat "$tmp" > .env.production
+              rm -f "$tmp"
+            }
+            upsert_env RESEND_API_KEY "${RESEND_API_KEY:-}"
+            upsert_env EMAIL_FROM "Mender <no-reply@lopestech.pt>"
+            upsert_env FRONTEND_BASE_URL "https://app.lopestech.pt"
             if [ -x ./backup-db.sh ]; then
               ./backup-db.sh "pre-${IMAGE_TAG}"
             fi

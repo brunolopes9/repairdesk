@@ -6,7 +6,7 @@ public sealed class EmailOptions
 {
     public const string SectionName = "Email";
 
-    /// <summary>Remetente, ex.: "Mender &lt;no-reply@mender.pt&gt;". O domínio tem de estar verificado no Resend.</summary>
+    /// <summary>Remetente, ex.: "Mender &lt;no-reply@lopestech.pt&gt;". O domínio tem de estar verificado no Resend.</summary>
     public string From { get; init; } = string.Empty;
 
     public string ResendApiKey { get; init; } = string.Empty;
