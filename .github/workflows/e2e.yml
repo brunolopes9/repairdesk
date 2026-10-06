@@ -47,7 +47,6 @@ jobs:
       - name: Start RepairDesk stack
         env:
           E2E_ENABLED: 'true'
-          E2E_USE_MOLONI_STUB: 'true'
           E2E_API_KEY: ${{ env.E2E_API_KEY }}
         run: docker compose up -d --build db cache api web
 

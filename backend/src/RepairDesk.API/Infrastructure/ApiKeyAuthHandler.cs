@@ -10,7 +10,7 @@ namespace RepairDesk.API.Infrastructure;
 
 /// <summary>
 /// Aceita <c>Authorization: ApiKey rd_live_xxx</c> ou <c>X-Api-Key: rd_live_xxx</c>.
-/// Para integrações servidor-a-servidor (loja online, importadores).
+/// Para integrações servidor-a-servidor (importadores, automações).
 /// Resolve <c>tenant_id</c> a partir da chave — autenticação E tenancy num passo.
 /// </summary>
 public sealed class ApiKeyAuthSchemeOptions : AuthenticationSchemeOptions { }

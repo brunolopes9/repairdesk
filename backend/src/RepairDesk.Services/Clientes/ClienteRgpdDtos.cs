@@ -29,8 +29,7 @@ public sealed record PartMovimentoExportDto(Guid Id, Guid PartId, string? PartNo
 public sealed record VendaExportDto(
     Guid Id, int Numero, DateTime Data, int TotalCents, int IvaCents,
     PaymentMethod PaymentMethod, VendaStatus Status,
-    BillingProvider InvoiceProvider, string? InvoiceExternalId, string? InvoiceNumber,
-    string? InvoicePdfUrl, DateTime? InvoiceEmittedAt, string? Notas,
+    string? InvoiceNumber, DateTime? InvoiceEmittedAt, string? Notas,
     IReadOnlyList<VendaItemExportDto> Items);
 public sealed record VendaItemExportDto(
     Guid Id, Guid? PartId, string? PartSku, string Descricao,

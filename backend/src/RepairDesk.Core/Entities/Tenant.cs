@@ -44,7 +44,6 @@ public class Tenant : BaseEntity
     // Google Reviews funil (mostrado ao cliente quando avalia 4-5 estrelas)
     public string? GoogleReviewUrl { get; set; }
 
-    public TenantBillingSettings? BillingSettings { get; set; }
 
     // Sprint 167b: plano SaaS + quota LLM mensal.
     // Free=100 chamadas/mês, Pro=1000, Enterprise=ilimitado (usa key própria).

@@ -203,7 +203,7 @@ export default function Automacoes() {
                   <li>Gmail → Definições → "Encaminhamento e POP/IMAP"</li>
                   <li>"Adicionar endereço de encaminhamento" → cola <code>{ingestEmail.email}</code></li>
                   <li>Confirma o email de verificação que Gmail manda</li>
-                  <li>Cria filtro: "From contém" <code>@tudo4mobile.pt</code> OR <code>@utopya.com</code> OR <code>@molano</code> → "Reencaminhar para" {ingestEmail.email}</li>
+                  <li>Cria filtro: "From contém" <code>@tudo4mobile.pt</code> OR <code>@utopya.com</code> OR <code>@mobilesentrix</code> → "Reencaminhar para" {ingestEmail.email}</li>
                   <li>Pronto. Próximas faturas aparecem em <a href="/importacoes" className="underline">/importacoes</a></li>
                 </ol>
               </details>
@@ -254,12 +254,12 @@ export default function Automacoes() {
         <WorkflowCard
           icon={Mail}
           title="IMAP Ingest — fatura fornecedor"
-          description="Lê novos emails da tua caixa, detecta anexos PDF de fornecedores (T4M, Utopya, Molano, …), envia para o endpoint /api/external/supplier-invoices/ingest."
+          description="Lê novos emails da tua caixa, detecta anexos PDF de fornecedores (T4M, Utopya, MobileSentrix, …), envia para o endpoint /api/external/supplier-invoices/ingest."
           docPath="Contexto/56-Setup-IMAP-Ingest-Passo-a-Passo.md"
           steps={[
             'Cria workflow novo em n8n com IMAP Trigger',
             'Configura credenciais IMAP do teu Gmail/Outlook',
-            'Filtra: from contém "@tudo4mobile" OU "@utopya" OU "@molano" (ou outros)',
+            'Filtra: from contém "@tudo4mobile" OU "@utopya" OU "@mobilesentrix" (ou outros)',
             'Extrai anexos + body HTML',
             'HTTP POST com API key Mender (cria em /definicoes → chaves)',
           ]}
@@ -276,20 +276,6 @@ export default function Automacoes() {
             'Clica "📷 Foto papel" — câmara abre directamente',
             'Tira foto da fatura',
             'Claude Vision faz OCR — fica em "Pendentes" para aprovares',
-          ]}
-        />
-
-        <WorkflowCard
-          icon={Server}
-          title="SFTP Molano — sync CSV diário"
-          description="Quando Molano disponibilizar SFTP, n8n pull do CSV todas as 6h e alimenta importação automática de produtos."
-          docPath="Contexto/59-Molano-SFTP-Automation.md"
-          steps={[
-            'Aguardar credenciais SFTP Molano',
-            'n8n: Schedule trigger 6h + SFTP node',
-            'Hash SHA256 para dedupe (skip se igual ao último)',
-            'POST /api/products/import-molano',
-            'Erros visíveis em /importacoes',
           ]}
         />
       </section>

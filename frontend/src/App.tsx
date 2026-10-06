@@ -37,15 +37,12 @@ const Definicoes = lazy(() => import('./pages/definicoes/Definicoes'));
 const Perfil = lazy(() => import('./pages/definicoes/Perfil'));
 const Servicos = lazy(() => import('./pages/definicoes/Servicos'));
 const Preferencias = lazy(() => import('./pages/definicoes/Preferencias'));
-const Webhooks = lazy(() => import('./pages/definicoes/Webhooks'));
 const Fornecedores = lazy(() => import('./pages/definicoes/Fornecedores'));
 const PartKitsPage = lazy(() => import('./pages/definicoes/PartKits'));
 const Automacoes = lazy(() => import('./pages/definicoes/Automacoes'));
 const LlmUsage = lazy(() => import('./pages/definicoes/LlmUsage'));
 const UsersDefinicoes = lazy(() => import('./pages/definicoes/Users'));
-const Produtos = lazy(() => import('./pages/produtos/Produtos'));
 const Precos = lazy(() => import('./pages/precos/Precos'));
-const RelatorioIva = lazy(() => import('./pages/relatorios/Iva'));
 const RelatorioNegocio = lazy(() => import('./pages/relatorios/Negocio'));
 const RelatorioProdutividade = lazy(() => import('./pages/relatorios/Produtividade'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
@@ -58,10 +55,7 @@ const PedidoReparacao = lazy(() => import('./pages/PedidoReparacao'));
 const Agendar = lazy(() => import('./pages/Agendar'));
 const PedidosOnline = lazy(() => import('./pages/reparacoes/PedidosOnline'));
 const Agendamentos = lazy(() => import('./pages/agendamentos/Agendamentos'));
-const ComprasOperacao = lazy(() => import('./pages/compras/ComprasOperacao'));
-const Documentos = lazy(() => import('./pages/documentos/Documentos'));
 const Balcao = lazy(() => import('./pages/balcao/Balcao'));
-const Catalogo = lazy(() => import('./pages/catalogo/Catalogo'));
 const PoliticaPrivacidade = lazy(() => import('./pages/legal/PoliticaPrivacidade'));
 const Termos = lazy(() => import('./pages/legal/Termos'));
 const Cookies = lazy(() => import('./pages/legal/Cookies'));
@@ -164,15 +158,15 @@ export default function App() {
               <Route path="/vendas" element={<Vendas />} />
               <Route path="/stock" element={<Stock />} />
               <Route path="/precos" element={<Precos />} />
-              <Route path="/relatorios/iva" element={<RelatorioIva />} />
+              <Route path="/relatorios/iva" element={<Navigate to="/relatorios/negocio" replace />} />
               <Route path="/relatorios/negocio" element={<RelatorioNegocio />} />
               <Route path="/relatorios/produtividade" element={<RelatorioProdutividade />} />
               <Route path="/pedidos-online" element={<PedidosOnline />} />
               <Route path="/agendamentos" element={<Agendamentos />} />
-              <Route path="/compras-operacao" element={<ComprasOperacao />} />
-              <Route path="/documentos" element={<Documentos />} />
+              <Route path="/compras-operacao" element={<Navigate to="/compras" replace />} />
+              <Route path="/documentos" element={<Navigate to="/vendas" replace />} />
               <Route path="/balcao" element={<Balcao />} />
-              <Route path="/catalogo" element={<Catalogo />} />
+              <Route path="/catalogo" element={<Navigate to="/stock" replace />} />
               <Route path="/inventario" element={<Inventario />} />
               <Route path="/tarefas" element={<Tarefas />} />
               <Route path="/auditoria" element={<Auditoria />} />
@@ -180,13 +174,13 @@ export default function App() {
               <Route path="/definicoes/perfil" element={<Perfil />} />
               <Route path="/definicoes/servicos" element={<Servicos />} />
               <Route path="/definicoes/preferencias" element={<Preferencias />} />
-              <Route path="/definicoes/webhooks" element={<Webhooks />} />
+              <Route path="/definicoes/webhooks" element={<Navigate to="/definicoes" replace />} />
               <Route path="/definicoes/fornecedores" element={<Fornecedores />} />
               <Route path="/definicoes/kits" element={<PartKitsPage />} />
               <Route path="/definicoes/automacoes" element={<Automacoes />} />
               <Route path="/definicoes/llm-usage" element={<LlmUsage />} />
               <Route path="/definicoes/utilizadores" element={<UsersDefinicoes />} />
-              <Route path="/produtos" element={<Produtos />} />
+              <Route path="/produtos" element={<Navigate to="/stock" replace />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

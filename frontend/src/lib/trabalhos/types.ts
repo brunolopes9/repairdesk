@@ -93,18 +93,9 @@ export interface Trabalho {
   estadoPagamento: PaymentStatus;
   custoDespesasCents: number;
   lucroCents: number;
-  invoiceProvider: 0 | 1 | 2;
-  invoiceExternalId: string | null;
-  invoicePdfUrl: string | null;
+  /** Nº da fatura emitida fora do Mender (registo manual). */
   invoiceNumber: string | null;
   invoiceEmittedAt: string | null;
-  // Sprint 529: recibo de liquidação (trabalho facturado a crédito e depois liquidado).
-  reciboNumero: string | null;
-  reciboEmitidoEm: string | null;
-  estimateExternalId: string | null;
-  estimateNumber: string | null;
-  estimatePdfUrl: string | null;
-  estimateEmittedAt: string | null;
 }
 
 export interface CreateTrabalhoForm {

@@ -10,9 +10,9 @@ public class AuditEntry : ITenantEntity
     public Guid? AppUserId { get; set; }
     public AppUser? AppUser { get; set; }
     /// <summary>
-    /// Quando a acção foi executada por integração externa (loja online, importador),
+    /// Quando a acção foi executada por integração externa (importador, automação),
     /// AppUserId é null e isto referencia a chave que autenticou — para que a UI
-    /// possa mostrar "Loja online produção" em vez de "Integração externa" anónimo.
+    /// possa mostrar "Importador de faturas" em vez de "Integração externa" anónimo.
     /// </summary>
     public Guid? ServiceApiKeyId { get; set; }
     public ServiceApiKey? ServiceApiKey { get; set; }

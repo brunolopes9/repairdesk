@@ -221,7 +221,7 @@ export default function Fornecedores() {
                       <EmptyState
                         icon={Building2}
                         title="Sem fornecedores"
-                        description="Adiciona Molano, Tudo4Mobile e outros fornecedores. A garantia B2B padrão é usada como sugestão ao registar compras."
+                        description="Adiciona Tudo4Mobile, Utopya e outros fornecedores. A garantia B2B padrão é usada como sugestão ao registar compras."
                       />
                     </td>
                   </tr>
@@ -236,7 +236,7 @@ export default function Fornecedores() {
         <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="space-y-3">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-zinc-500">Nome *</span>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="Molano" required />
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="Tudo4Mobile" required />
           </label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
@@ -261,7 +261,7 @@ export default function Fornecedores() {
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-zinc-500">
               Garantia B2B padrão (dias)
-              <span className="ml-1 text-[10px] text-zinc-400">— ex: Molano open-box 60 dias</span>
+              <span className="ml-1 text-[10px] text-zinc-400">— ex: 60 dias</span>
             </span>
             <input
               type="number"
@@ -307,7 +307,7 @@ export default function Fornecedores() {
   );
 }
 
-/** Sprint 548 (Doc 93 #3): o "Histórico de Fornecedores" do Moloni — tudo numa vista. */
+/** Sprint 548 (Doc 93 #3): histórico do fornecedor — tudo numa vista. */
 function FornecedorHistoricoModal({ fornecedor, onClose }: { fornecedor: Fornecedor | null; onClose: () => void }) {
   const historico = useQuery({
     queryKey: ['fornecedor-historico', fornecedor?.id],

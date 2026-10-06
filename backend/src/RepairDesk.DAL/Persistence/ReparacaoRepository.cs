@@ -124,7 +124,7 @@ public class ReparacaoRepository : IReparacaoRepository
         return await _db.Reparacoes
             .AsNoTracking()
             .Include(r => r.Cliente)
-            .Where(r => r.EstadoPagamento == PaymentStatus.Pago && r.InvoiceExternalId == null)
+            .Where(r => r.EstadoPagamento == PaymentStatus.Pago && r.InvoiceNumber == null)
             .OrderByDescending(r => r.EntregueEm ?? r.UpdatedAt ?? r.CreatedAt)
             .Take(capped)
             .ToListAsync(ct);

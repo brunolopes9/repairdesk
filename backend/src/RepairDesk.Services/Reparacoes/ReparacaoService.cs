@@ -4,13 +4,10 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
-using RepairDesk.Services.Billing;
-using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.EquipmentFields;
 using RepairDesk.Services.Push;
 using RepairDesk.Services.TenantPreferences;
-using RepairDesk.Services.Webhooks;
 // ImeiValidator do Common.Helpers
 
 namespace RepairDesk.Services.Reparacoes;
@@ -19,11 +16,6 @@ public interface IReparacaoService
 {
     Task<PagedResult<ReparacaoDto>> SearchAsync(string? query, RepairStatus? estado, Guid? clienteId, int page, int pageSize, CancellationToken ct = default, DeviceCategory? categoria = null);
     Task<IReadOnlyList<ReparacaoDto>> ListPagasSemFaturaAsync(int limit, CancellationToken ct = default);
-    Task<ReparacaoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
-    Task<ReparacaoDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default);
-    Task<ReparacaoDto> EmitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default);
-    Task<ReparacaoDto> ReemitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default);
-    Task<ReparacaoDto> ConverterOrcamentoEmFaturaAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<ReparacaoDto> CreateAsync(CreateReparacaoRequest req, CancellationToken ct = default);
     Task<ReparacaoDto> UpdateAsync(Guid id, UpdateReparacaoRequest req, CancellationToken ct = default);
@@ -50,11 +42,7 @@ public class ReparacaoService : IReparacaoService
     private readonly IPushNotificationQueue _pushQueue;
     private readonly ITenantContext _tenant;
     private readonly ICurrentUser _user;
-    private readonly ITenantBillingSettingsRepository _billingSettings;
-    private readonly IMoloniClient _moloni;
-    private readonly IInvoiceXpressClient _invoiceXpress;
     private readonly IAuditLogger _audit;
-    private readonly IWebhookPublisher _webhooks;
     private readonly IPartRepository _parts;
     private readonly ITenantPreferencesService _preferences;
     private readonly IValidator<CreateReparacaoRequest> _createV;
@@ -73,11 +61,7 @@ public class ReparacaoService : IReparacaoService
         IPushNotificationQueue pushQueue,
         ITenantContext tenant,
         ICurrentUser user,
-        ITenantBillingSettingsRepository billingSettings,
-        IMoloniClient moloni,
-        IInvoiceXpressClient invoiceXpress,
         IAuditLogger audit,
-        IWebhookPublisher webhooks,
         IPartRepository parts,
         ITenantPreferencesService preferences,
         IValidator<CreateReparacaoRequest> createV,
@@ -95,11 +79,7 @@ public class ReparacaoService : IReparacaoService
         _pushQueue = pushQueue;
         _tenant = tenant;
         _user = user;
-        _billingSettings = billingSettings;
-        _moloni = moloni;
-        _invoiceXpress = invoiceXpress;
         _audit = audit;
-        _webhooks = webhooks;
         _parts = parts;
         _preferences = preferences;
         _createV = createV;
@@ -134,242 +114,6 @@ public class ReparacaoService : IReparacaoService
             dtos.Add(ToDto(r, custo));
         }
         return dtos;
-    }
-
-    public async Task<ReparacaoDto> AnularFaturaAsync(Guid id, CancellationToken ct = default)
-    {
-        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
-        if (string.IsNullOrEmpty(rep.InvoiceExternalId))
-            throw new ConflictException("reparacao_sem_fatura", "Esta reparacao nao tem fatura emitida para anular.");
-
-        // Estrategia: tentar documentCancel primeiro (1 doc anulado, sem criar NC).
-        // Se Moloni rejeitar (ja processado pela AT, etc), fallback para Nota de Credito.
-        if (_tenant.TenantId is { } tenantId)
-        {
-            var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
-            if (settings?.Provider == BillingProvider.Moloni && int.TryParse(rep.InvoiceExternalId, out var originalDocId))
-            {
-                var cancelled = await _moloni.CancelDocumentAsync(
-                    settings,
-                    originalDocId,
-                    $"Anulado via RepairDesk — reparacao #{rep.Numero}",
-                    ct);
-
-                if (!cancelled)
-                {
-                    var valor = rep.PrecoFinalCents ?? rep.OrcamentoCents ?? 0;
-                    var items = new List<RepairDesk.Services.Billing.MoloniInvoiceDraftItem>
-                    {
-                        new($"Reparacao {rep.Equipamento}", rep.Avaria, 1, valor, 0, 23m),
-                    };
-                    var customerId = settings.FallbackCustomerId ?? 0;
-                    if (customerId <= 0)
-                        throw new RepairDesk.Core.Exceptions.ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
-
-                    await _moloni.InsertCreditNoteAsync(settings, new RepairDesk.Services.Billing.MoloniCreditNoteDraft(
-                        originalDocId,
-                        customerId,
-                        $"Reparacao #{rep.Numero}",
-                        items,
-                        $"Anulacao da Fatura {rep.InvoiceNumber} via RepairDesk"
-                    ), ct);
-                }
-            }
-            else if (settings?.Provider == BillingProvider.InvoiceXpress && rep.InvoiceProvider == BillingProvider.InvoiceXpress)
-            {
-                rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
-                var reason = $"Anulado via RepairDesk - reparacao #{rep.Numero}";
-                var cancelled = await _invoiceXpress.CancelDocumentAsync(settings, rep.InvoiceExternalId, reason, ct);
-
-                if (!cancelled)
-                {
-                    var valor = rep.PrecoFinalCents ?? rep.OrcamentoCents ?? 0;
-                    var items = new List<InvoiceXpressInvoiceDraftItem>
-                    {
-                        new($"Reparacao {rep.Equipamento}", rep.Avaria, 1, valor, 0, 23m),
-                    };
-
-                    await _invoiceXpress.InsertCreditNoteAsync(settings, new InvoiceXpressCreditNoteDraft(
-                        rep.InvoiceExternalId,
-                        new InvoiceXpressClientDraft(
-                            string.IsNullOrWhiteSpace(rep.Cliente?.Nome) ? "Consumidor Final" : rep.Cliente.Nome,
-                            rep.Cliente?.Email,
-                            rep.Cliente?.Nif,
-                            rep.Cliente?.Telefone),
-                        $"Reparacao #{rep.Numero}",
-                        items,
-                        $"Anulacao da Fatura {rep.InvoiceNumber} via RepairDesk"
-                    ), ct);
-                }
-            }
-        }
-
-        rep.InvoiceProvider = BillingProvider.None;
-        rep.InvoiceExternalId = null;
-        rep.InvoiceNumber = null;
-        rep.InvoicePdfUrl = null;
-        rep.InvoiceEmittedAt = null;
-        // Sprint 532: ao desvincular/anular a fatura, limpa também o recibo (senão fica o badge "liquidada" órfão).
-        rep.ReciboNumero = null;
-        rep.ReciboEmitidoEm = null;
-
-        await _repo.SaveAsync(ct);
-        var custoFinal = await _despesas.SumByReparacaoAsync(rep.Id, ct);
-        return ToDto(rep, custoFinal);
-    }
-
-    /// <summary>Sprint 512: limpa SÓ as referências locais da fatura (InvoiceExternalId/Number/Pdf/...),
-    /// sem tocar no Moloni. Para quando o utilizador já anulou a fatura DIRECTAMENTE no painel Moloni —
-    /// o Mender ficava preso a achar que a fatura existia e não deixava re-emitir. Espelha
-    /// VendaService.LimparReferenciaFaturaAsync.</summary>
-    public async Task<ReparacaoDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default)
-    {
-        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
-        if (string.IsNullOrEmpty(rep.InvoiceExternalId))
-            throw new ConflictException("reparacao_sem_fatura", "Esta reparacao nao tem fatura para desvincular.");
-
-        rep.InvoiceProvider = BillingProvider.None;
-        rep.InvoiceExternalId = null;
-        rep.InvoiceNumber = null;
-        rep.InvoicePdfUrl = null;
-        rep.InvoiceEmittedAt = null;
-        // Sprint 532: ao desvincular/anular a fatura, limpa também o recibo (senão fica o badge "liquidada" órfão).
-        rep.ReciboNumero = null;
-        rep.ReciboEmitidoEm = null;
-
-        await _repo.SaveAsync(ct);
-        var custoFinal = await _despesas.SumByReparacaoAsync(rep.Id, ct);
-        return ToDto(rep, custoFinal);
-    }
-
-    public async Task<ReparacaoDto> EmitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default)
-    {
-        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
-        if (!string.IsNullOrWhiteSpace(rep.EstimateExternalId))
-        {
-            var custoExistente = await _despesas.SumByReparacaoAsync(rep.Id, ct);
-            return ToDto(rep, custoExistente);
-        }
-
-        var settings = await RequireMoloniSettingsAsync(ct);
-        var tenant = await RequireTenantAsync(ct);
-        rep.Cliente ??= await _clientes.FindByIdAsync(rep.ClienteId, ct);
-        var customerId = await ResolveCustomerIdAsync(settings, rep.Cliente, ct);
-        var amount = RequireAmount(rep.OrcamentoCents ?? rep.PrecoFinalCents);
-        var vat = tenant.RegimeFiscal == RegimeFiscal.IsentoArt53 ? 0m : 23m;
-
-        // Sprint 136: discrimina peças do stock + mão-de-obra (Bruno opção A: peça ao custo).
-        // Se não há peças válidas ou se custaram mais que o orçamento, fallback à linha sintética.
-        var moloniLines = await BuildBillingItemsAsync(rep, amount, vat, ct);
-
-        var estimate = await _moloni.InsertEstimateAsync(settings, new MoloniInvoiceDraft(
-            customerId,
-            $"Reparacao #{rep.Numero}",
-            $"Reparacao {rep.Equipamento}",
-            rep.Avaria,
-            amount,
-            vat,
-            null,
-            Items: moloniLines),
-            ct);
-
-        rep.EstimateExternalId = estimate.ExternalId;
-        rep.EstimateNumber = estimate.Number;
-        rep.EstimatePdfUrl = estimate.PdfUrl;
-        rep.EstimateEmittedAt = estimate.EmittedAt;
-        await _repo.SaveAsync(ct);
-        await _audit.LogAsync(AuditAction.Update, nameof(Reparacao), rep.Id, new
-        {
-            operation = "emit_moloni_estimate",
-            estimate.ExternalId,
-            estimate.Number,
-        }, ct: ct);
-
-        var custo = await _despesas.SumByReparacaoAsync(rep.Id, ct);
-        return ToDto(rep, custo);
-    }
-
-    /// <summary>
-    /// Sprint 143: re-emite o orçamento Moloni quando o preço/items mudaram desde a primeira
-    /// emissão. Best-effort cancel do velho no Moloni; depois limpa as referências locais e chama
-    /// EmitirOrcamentoMoloniAsync que cria um novo com o preço actual.
-    /// </summary>
-    public async Task<ReparacaoDto> ReemitirOrcamentoMoloniAsync(Guid id, CancellationToken ct = default)
-    {
-        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
-        if (string.IsNullOrWhiteSpace(rep.EstimateExternalId))
-            throw new ConflictException("reparacao_sem_orcamento_moloni", "Ainda não há orçamento Moloni para re-emitir.");
-        if (!string.IsNullOrWhiteSpace(rep.InvoiceExternalId))
-            throw new ConflictException("reparacao_ja_facturada", "Esta reparação já tem fatura emitida. Anula a fatura primeiro.");
-
-        var oldEstimateId = rep.EstimateExternalId;
-        var oldEstimateNumber = rep.EstimateNumber;
-
-        // Best-effort: tenta cancelar no Moloni. Se falhar, fica órfão mas seguimos.
-        var cancelOk = false;
-        if (int.TryParse(rep.EstimateExternalId, out var estimateIdInt))
-        {
-            try
-            {
-                var settings = await RequireMoloniSettingsAsync(ct);
-                cancelOk = await _moloni.CancelDocumentAsync(settings, estimateIdInt, "Re-emitido com preço actualizado", ct);
-            }
-            catch
-            {
-                // Swallow — seguimos com a re-emissão mesmo se o cancel falhou.
-            }
-        }
-
-        // Limpa referências locais para permitir a re-emissão.
-        rep.EstimateExternalId = null;
-        rep.EstimateNumber = null;
-        rep.EstimatePdfUrl = null;
-        rep.EstimateEmittedAt = null;
-        await _repo.SaveAsync(ct);
-
-        await _audit.LogAsync(AuditAction.Update, nameof(Reparacao), rep.Id, new
-        {
-            operation = "reemit_moloni_estimate",
-            oldEstimateId,
-            oldEstimateNumber,
-            cancelledOnMoloni = cancelOk,
-        }, ct: ct);
-
-        return await EmitirOrcamentoMoloniAsync(id, ct);
-    }
-
-    public async Task<ReparacaoDto> ConverterOrcamentoEmFaturaAsync(Guid id, CancellationToken ct = default)
-    {
-        var rep = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Reparacao", id);
-        if (string.IsNullOrWhiteSpace(rep.EstimateExternalId))
-            throw new ConflictException("reparacao_sem_orcamento_moloni", "Esta reparacao nao tem orçamento Moloni emitido.");
-        if (!string.IsNullOrWhiteSpace(rep.InvoiceExternalId))
-        {
-            var custoExistente = await _despesas.SumByReparacaoAsync(rep.Id, ct);
-            return ToDto(rep, custoExistente);
-        }
-        if (!int.TryParse(rep.EstimateExternalId, out var estimateId))
-            throw new RepairDesk.Core.Exceptions.ValidationException("moloni_estimate_id_invalid", "ID do orçamento Moloni inválido.");
-
-        var settings = await RequireMoloniSettingsAsync(ct);
-        var invoice = await _moloni.ConvertEstimateToInvoiceAsync(settings, estimateId, ct: ct);
-
-        rep.InvoiceProvider = BillingProvider.Moloni;
-        rep.InvoiceExternalId = invoice.ExternalId;
-        rep.InvoiceNumber = invoice.Number;
-        rep.InvoicePdfUrl = invoice.PdfUrl;
-        rep.InvoiceEmittedAt = invoice.EmittedAt;
-        await _repo.SaveAsync(ct);
-        await _audit.LogAsync(AuditAction.Update, nameof(Reparacao), rep.Id, new
-        {
-            operation = "convert_moloni_estimate_to_invoice",
-            estimateId = rep.EstimateExternalId,
-            invoice.ExternalId,
-            invoice.Number,
-        }, ct: ct);
-
-        var custo = await _despesas.SumByReparacaoAsync(rep.Id, ct);
-        return ToDto(rep, custo);
     }
 
     public async Task<ReparacaoDetalhadaDto> GetAsync(Guid id, CancellationToken ct = default)
@@ -594,20 +338,6 @@ public class ReparacaoService : IReparacaoService
                 case GarantiaAutoMode.Perguntar:
                     precisaConfirmacaoGarantia = true;
                     break;
-            }
-
-            if (_tenant.TenantId is { } publishTenantId)
-            {
-                await _webhooks.PublishAsync(publishTenantId, WebhookEvents.ReparacaoConcluida, new
-                {
-                    reparacaoId = rep.Id,
-                    reparacaoNumero = rep.Numero,
-                    clienteId = rep.ClienteId,
-                    equipamento = rep.Equipamento,
-                    imei = rep.Imei,
-                    precoFinalCents = rep.PrecoFinalCents,
-                    entregueEm = rep.EntregueEm,
-                }, ct);
             }
         }
 
@@ -1008,13 +738,6 @@ public class ReparacaoService : IReparacaoService
         return string.IsNullOrEmpty(clean) ? null : clean;
     }
 
-    private static InvoiceXpressClientDraft ToInvoiceXpressClientDraft(Cliente? cliente)
-        => new(
-            string.IsNullOrWhiteSpace(cliente?.Nome) ? "Consumidor Final" : cliente.Nome,
-            cliente?.Email,
-            cliente?.Nif,
-            cliente?.Telefone);
-
     private static bool IsValidTransition(RepairStatus from, RepairStatus to)
     {
         // Workflow granular (Sprint 17):
@@ -1047,97 +770,6 @@ public class ReparacaoService : IReparacaoService
         };
     }
 
-    private async Task<TenantBillingSettings> RequireMoloniSettingsAsync(CancellationToken ct)
-    {
-        if (_tenant.TenantId is not { } tenantId)
-            throw new RepairDesk.Core.Exceptions.ValidationException("no_tenant_context", "Sem contexto de tenant.");
-        var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
-        if (settings is null || settings.Provider != BillingProvider.Moloni)
-            throw new RepairDesk.Core.Exceptions.ValidationException("billing_provider_not_moloni", "Configura Moloni em Definicoes > Faturacao.");
-        return settings;
-    }
-
-    private async Task<Tenant> RequireTenantAsync(CancellationToken ct)
-    {
-        if (_tenant.TenantId is not { } tenantId)
-            throw new RepairDesk.Core.Exceptions.ValidationException("no_tenant_context", "Sem contexto de tenant.");
-        return await _tenants.FindByIdAsync(tenantId, ct)
-            ?? throw new NotFoundException("Tenant", tenantId);
-    }
-
-    private async Task<int> ResolveCustomerIdAsync(TenantBillingSettings settings, Cliente? cliente, CancellationToken ct)
-    {
-        // 1. Se tem NIF, tenta encontrar na Moloni.
-        if (!string.IsNullOrWhiteSpace(cliente?.Nif))
-        {
-            var id = await _moloni.FindCustomerIdByVatAsync(settings, cliente.Nif, ct);
-            if (id is > 0) return id.Value;
-
-            // 2. Não encontrado mas tem nome + NIF: cria automaticamente na Moloni.
-            //    Sprint 65 fix: orçamento/fatura para cliente novo não falha mais por falta de ficha.
-            if (!string.IsNullOrWhiteSpace(cliente.Nome))
-            {
-                var nome = cliente.Nome.Trim();
-                if (nome.Length > 0)
-                {
-                    var created = await _moloni.InsertCustomerAsync(settings, nome, cliente.Nif.Trim(), cliente.Morada, cliente.CodigoPostal, cliente.Localidade, ct);
-                    if (created.Id > 0) return created.Id;
-                }
-            }
-        }
-
-        // 3. Sem NIF (ou criação falhou): fallback (típicamente "Consumidor Final" 999999990).
-        if (settings.FallbackCustomerId is > 0)
-            return settings.FallbackCustomerId.Value;
-
-        // 4. Sprint 113: fallback hardcoded — tenta encontrar o "Consumidor Final" PT (NIF 999999990)
-        //    no Moloni. É um cliente padrão que existe em todas as contas Moloni configuradas para PT.
-        //    Bruno usa "Sérgio de Guimarães" sem NIF e o orçamento dava 422; agora cai aqui.
-        var consumidorFinalId = await _moloni.FindCustomerIdByVatAsync(settings, "999999990", ct);
-        if (consumidorFinalId is > 0) return consumidorFinalId.Value;
-
-        throw new RepairDesk.Core.Exceptions.ValidationException(
-            "moloni_customer_missing",
-            "Cliente sem NIF e não foi possível encontrar Consumidor Final no Moloni. "
-            + "Liga Moloni nas Definições (auto-discovery cria 'Consumidor Final') ou adiciona NIF ao cliente.");
-    }
-
-    /// <summary>
-    /// Sprint 136: carrega peças usadas (líquido das devoluções) e constrói as linhas Moloni
-    /// discriminadas (1 linha por peça + 1 linha de mão-de-obra). Devolve null se não há peças
-    /// ou se não consegue calcular (peças > orçamento) — caller usa fallback à linha sintética.
-    /// </summary>
-    private async Task<IReadOnlyList<MoloniInvoiceDraftItem>?> BuildBillingItemsAsync(
-        Reparacao rep, int totalCents, decimal vatPercent, CancellationToken ct)
-    {
-        var movimentos = await _parts.MovimentosAsync(partId: null, reparacaoId: rep.Id, ct);
-        if (movimentos.Count == 0) return null;
-
-        // Líquido por Part: Uso=quantidade negativa, Devolução=positiva. -Sum > 0 = consumido.
-        var usedParts = movimentos
-            .GroupBy(m => m.PartId)
-            .Select(g =>
-            {
-                var first = g.First();
-                var netQty = -g.Sum(m => m.Quantidade);
-                var name = first.Part?.Nome ?? "Peça";
-                var unitCost = first.Part?.CustoUnitarioCents ?? 0;
-                return new Billing.ReparacaoBillingItemsBuilder.UsedPart(name, netQty, unitCost);
-            })
-            .Where(p => p.Quantity > 0)
-            .ToList();
-
-        if (usedParts.Count == 0) return null;
-        return Billing.ReparacaoBillingItemsBuilder.Build(rep.Equipamento, usedParts, totalCents, vatPercent);
-    }
-
-    private static int RequireAmount(int? amountCents)
-    {
-        if (amountCents is null or <= 0)
-            throw new RepairDesk.Core.Exceptions.ValidationException("estimate_amount_missing", "Define um valor de orçamento antes de emitir.");
-        return amountCents.Value;
-    }
-
     private static ReparacaoDto ToDto(
         Reparacao r,
         int custoDespesasCents,
@@ -1159,17 +791,8 @@ public class ReparacaoService : IReparacaoService
             custoDespesasCents,
             r.Notas, r.EstadoPagamento,
             r.PublicSlug,
-            r.InvoiceProvider,
-            r.InvoiceExternalId,
-            r.InvoicePdfUrl,
             r.InvoiceNumber,
             r.InvoiceEmittedAt,
-            r.ReciboNumero,
-            r.ReciboEmitidoEm,
-            r.EstimateExternalId,
-            r.EstimateNumber,
-            r.EstimatePdfUrl,
-            r.EstimateEmittedAt,
             r.EquipmentFieldTemplateId,
             r.EquipmentFieldTemplate?.Nome,
             fields ?? Array.Empty<EquipmentFieldValueDto>(),

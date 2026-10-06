@@ -43,7 +43,6 @@ public static class TenantPreferencesDefaults
             Sales: new SalesPrefs(
                 DefaultMetodoPagamento: nameof(PaymentMethod.MBWay),
                 DefaultCondicaoArtigo: (int)CondicaoArtigo.NaoAplicavel,
-                EmitirFatura: EmitirFaturaMode.Perguntar,
                 VendaGarantia: GarantiaAutoMode.Sim),
             Booking: new BookingPrefs(
                 OpenHour: 9,

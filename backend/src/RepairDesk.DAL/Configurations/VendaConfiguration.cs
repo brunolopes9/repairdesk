@@ -17,9 +17,6 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
         builder.Property(x => x.PaymentMethod).HasConversion<int>();
         builder.Property(x => x.Status).HasConversion<int>();
         builder.Property(x => x.Origem).HasConversion<int>().HasDefaultValue(VendaOrigem.Balcao);
-        builder.Property(x => x.InvoiceProvider).HasConversion<int>();
-        builder.Property(x => x.InvoiceExternalId).HasMaxLength(120);
-        builder.Property(x => x.InvoicePdfUrl).HasMaxLength(1000);
         builder.Property(x => x.InvoiceNumber).HasMaxLength(120);
         builder.Property(x => x.Notas).HasMaxLength(2000);
 
@@ -38,8 +35,6 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
             .HasFilter("[IsDeleted] = 0");
         builder.HasIndex(x => new { x.TenantId, x.Data });
         builder.HasIndex(x => new { x.TenantId, x.Status });
-        builder.HasIndex(x => new { x.TenantId, x.InvoiceExternalId })
-            .HasFilter("[InvoiceExternalId] IS NOT NULL");
     }
 
     public void Configure(EntityTypeBuilder<VendaItem> builder)

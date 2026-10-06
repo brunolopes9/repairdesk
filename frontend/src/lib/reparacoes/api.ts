@@ -43,37 +43,6 @@ export const reparacoesApi = {
   assign(id: string, userId: string | null) {
     return api.put<Reparacao>(`/reparacoes/${id}/assign`, { userId }).then((r) => r.data);
   },
-  emitirFatura(
-    id: string,
-    payload: { vatPercent?: number | null; paymentMethod?: string | null; discriminarMaoObra?: boolean; documentType?: number } = {},
-  ) {
-    return api.post<InvoiceDto>(`/reparacoes/${id}/emitir-fatura`, payload).then((r) => r.data);
-  },
-  anularFatura(id: string) {
-    return api.post<Reparacao>(`/reparacoes/${id}/anular-fatura`).then((r) => r.data);
-  },
-  // Sprint 512: desvincula a fatura local (já anulada directamente no Moloni) para poder re-emitir.
-  limparFaturaLocal(id: string) {
-    return api.post<Reparacao>(`/reparacoes/${id}/limpar-fatura-local`).then((r) => r.data);
-  },
-  emitirOrcamentoMoloni(id: string) {
-    return api.post<Reparacao>(`/reparacoes/${id}/emitir-orcamento-moloni`).then((r) => r.data);
-  },
-  // Sprint 143: re-emite orçamento Moloni quando preço/items mudaram (best-effort cancel velho).
-  reemitirOrcamentoMoloni(id: string) {
-    return api.post<Reparacao>(`/reparacoes/${id}/reemitir-orcamento-moloni`).then((r) => r.data);
-  },
-  converterOrcamentoEmFatura(id: string) {
-    return api.post<Reparacao>(`/reparacoes/${id}/converter-orcamento-fatura`).then((r) => r.data);
-  },
-  bulkEmitFaturas(ids: string[]) {
-    return api
-      .post<Array<{ id: string; success: boolean; invoiceNumber: string | null; errorMessage: string | null }>>(
-        '/reparacoes/bulk-emit-faturas',
-        { ids },
-      )
-      .then((r) => r.data);
-  },
   setFields(id: string, templateId: string | null, values: SetEquipmentFieldValue[]) {
     return api.post<EquipmentFieldValue[]>(`/reparacoes/${id}/fields`, { templateId, values }).then((r) => r.data);
   },
@@ -104,12 +73,6 @@ export const reparacoesApi = {
 export interface AssinaturaInfo {
   tipo: string; // "entrada" | "entrega"
   assinadaEm: string;
-}
-
-export interface InvoiceDto {
-  number: string;
-  pdfUrl: string | null;
-  emittedAt: string;
 }
 
 export interface HistoricoImeiItem {

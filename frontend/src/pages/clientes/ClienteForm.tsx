@@ -240,7 +240,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
           <Building2 size={15} className="mt-0.5 text-brand-600" />
           <div>
             <div className="text-sm font-semibold">Morada (para faturas com NIF)</div>
-            <p className="text-xs text-zinc-500">Aparece na fatura Moloni. Opcional — deixa vazio para clientes sem morada.</p>
+            <p className="text-xs text-zinc-500">Usada na fatura. Opcional — deixa vazio para clientes sem morada.</p>
           </div>
         </div>
         <Field label="Morada" errors={errors.morada}>

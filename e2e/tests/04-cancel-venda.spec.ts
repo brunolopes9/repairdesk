@@ -1,9 +1,8 @@
 import { test, expect } from '../support/fixtures';
 import { openAppPage } from '../support/ui';
 
-test('cancelar venda faturada limpa invoice, repoe stock e marca Cancelada', async ({ api, page }) => {
+test('cancelar venda paga repoe stock e marca Cancelada', async ({ api, page }) => {
   await api.completeOnboarding();
-  await api.configureBilling();
 
   const cliente = await api.createCliente({ nome: 'Cliente E2E Cancelar Venda' });
   const part = await api.createPart({ nome: 'E2E Bateria Cancelamento', sku: 'E2E-BAT-CANCEL', qtdStock: 4, custoUnitarioCents: 2490 });
@@ -22,13 +21,11 @@ test('cancelar venda faturada limpa invoice, repoe stock e marca Cancelada', asy
     ],
   });
 
-  const paga = await api.payVenda(venda.id, 2, true);
-  expect(paga.venda.invoiceExternalId).toBeTruthy();
+  const paga = await api.payVenda(venda.id, 2);
+  expect(paga.status).toBe(1);
 
   const cancelada = await api.cancelVenda(venda.id);
   expect(cancelada.status).toBe(2);
-  expect(cancelada.invoiceExternalId).toBeNull();
-  expect(cancelada.invoiceNumber).toBeNull();
 
   const partDepois = await api.getPart(part.id);
   expect(partDepois.qtdStock).toBe(4);

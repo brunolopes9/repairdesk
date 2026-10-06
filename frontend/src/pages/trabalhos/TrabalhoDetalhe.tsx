@@ -11,7 +11,7 @@ import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { displayPhone } from '../../lib/phone/formatter';
 import { templatesForTrabalhoStatus } from '../../lib/whatsapp/templates';
 import { trabalhosApi } from '../../lib/trabalhos/api';
-import { documentosApi } from '../../lib/documentos/api';
+import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { toast } from '../../lib/toast';
 import {
   CATEGORIA_LABEL,
@@ -41,12 +41,6 @@ export default function TrabalhoDetalhe() {
   const tenant = useQuery({
     queryKey: ['tenant-settings'],
     queryFn: () => tenantSettingsApi.getMine(),
-    staleTime: 5 * 60_000,
-  });
-
-  const billing = useQuery({
-    queryKey: ['tenant-billing-settings'],
-    queryFn: () => tenantSettingsApi.getBilling(),
     staleTime: 5 * 60_000,
   });
 
@@ -162,57 +156,6 @@ export default function TrabalhoDetalhe() {
     },
   });
 
-  // Sprint 538: taxa de IVA escolhida ao emitir (deixa de ser hardcoded 23%). 23/13/6/0.
-  const [ivaRate, setIvaRate] = useState(23);
-  const emitirFatura = useMutation({
-    // Sprint 533/538: documentType (1=Fatura, 2=Fatura-Recibo) + taxa de IVA escolhida pelo utilizador.
-    mutationFn: (vars: { documentType: number; vatPercent: number }) =>
-      trabalhosApi.emitirFatura(id!, { documentType: vars.documentType, vatPercent: vars.vatPercent }),
-    onSuccess: (invoice) => {
-      qc.invalidateQueries({ queryKey: ['trabalho', id] });
-      toast.success(`Fatura ${invoice.number} emitida`, invoice.pdfUrl ? 'PDF disponível na ficha.' : undefined);
-    },
-    onError: (err) => toast.fromError(err, 'Não foi possível emitir a fatura.'),
-  });
-
-  const anularFatura = useMutation({
-    mutationFn: () => trabalhosApi.anularFatura(id!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['trabalho', id] });
-      toast.success('Fatura anulada', 'O documento foi anulado no Moloni (anulação directa ou nota de crédito). O saldo de IVA fica a zero.');
-    },
-    onError: (err) => toast.fromError(err, 'Não foi possível anular a fatura.'),
-  });
-
-  // Sprint 538b: emite o Recibo que liquida a Fatura a crédito (cliente já pagou) — direto na ficha.
-  const emitirRecibo = useMutation({
-    mutationFn: (documentId: number) => documentosApi.emitirRecibo(documentId),
-    onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ['trabalho', id] });
-      toast.success(`Recibo ${r.numero ?? ''} emitido`, 'Fatura liquidada no Moloni.');
-    },
-    onError: (err) => toast.fromError(err, 'Não foi possível emitir o recibo.'),
-  });
-
-  const emitirOrcamentoMoloni = useMutation({
-    mutationFn: () => trabalhosApi.emitirOrcamentoMoloni(id!),
-    onSuccess: (updated) => {
-      qc.invalidateQueries({ queryKey: ['trabalho', id] });
-      qc.invalidateQueries({ queryKey: ['trabalhos'] });
-      toast.success(`Orcamento ${updated.estimateNumber ?? updated.estimateExternalId} emitido`, updated.estimatePdfUrl ? 'PDF Moloni disponivel na ficha.' : undefined);
-    },
-    onError: (err) => toast.fromError(err, 'Nao foi possivel emitir o orcamento Moloni.'),
-  });
-
-  const converterOrcamentoMoloni = useMutation({
-    mutationFn: () => trabalhosApi.converterOrcamentoEmFatura(id!),
-    onSuccess: (updated) => {
-      qc.invalidateQueries({ queryKey: ['trabalho', id] });
-      qc.invalidateQueries({ queryKey: ['trabalhos'] });
-      toast.success(`Fatura ${updated.invoiceNumber ?? updated.invoiceExternalId} emitida`, updated.invoicePdfUrl ? 'PDF disponivel na ficha.' : undefined);
-    },
-    onError: (err) => toast.fromError(err, 'Nao foi possivel converter o orcamento em fatura.'),
-  });
 
   const reabrir = useMutation({
     mutationFn: () => trabalhosApi.reabrir(id!),
@@ -252,10 +195,6 @@ export default function TrabalhoDetalhe() {
   // 3 tiers: aberto / frozen (Concluído sem pagamento) / locked (Concluído + Pago)
   const isFrozen = t.status === TRABALHO_STATUS.Concluido;
   const isLocked = isFrozen && t.estadoPagamento === PAYMENT_STATUS.Pago;
-  // Sprint 537: a Fatura é a crédito — pode ser emitida ANTES do pagamento (entregue mas não pago).
-  // Não exige estar pago; só a Fatura-Recibo (botão separado, abaixo) é que exige.
-  const canEmitMoloniInvoice = billing.data?.provider === 1 && !t.invoiceExternalId;
-  const canEmitMoloniEstimate = billing.data?.provider === 1 && !t.estimateExternalId;
   const possibleNext = TRABALHO_VALID_TRANSITIONS[t.status] ?? [];
 
   const valorParaCobrar = t.precoFinalCents ?? t.orcamentoCents ?? null;
@@ -343,161 +282,15 @@ export default function TrabalhoDetalhe() {
         )}
         <p className="text-xs text-zinc-500">criado {formatDate(t.createdAt)}</p>
         <div className="flex flex-wrap gap-2 pt-1">
-          {/* Sprint 537: removido o PDF de orçamento próprio do Mender — o orçamento certificado é o do
-              Moloni (botão abaixo). O portal do cliente é separado, fora desta barra. */}
-          {t.estimateExternalId ? (
-            <>
-              <a
-                href={t.estimatePdfUrl ?? '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-950/30 dark:text-blue-200"
-              >
-                Orcamento {t.estimateNumber ?? t.estimateExternalId}
-              </a>
-              {!t.invoiceExternalId && (
-                <button
-                  type="button"
-                  disabled={converterOrcamentoMoloni.isPending}
-                  onClick={() => {
-                    const ok = confirm(
-                      'Converter este orcamento Moloni em fatura?\n\n' +
-                      `${t.estimateNumber ?? t.estimateExternalId} vai originar uma fatura real no Moloni.`
-                    );
-                    if (ok) converterOrcamentoMoloni.mutate();
-                  }}
-                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {converterOrcamentoMoloni.isPending ? 'A converter...' : 'Converter em Fatura'}
-                </button>
-              )}
-            </>
-          ) : canEmitMoloniEstimate && (
-            <button
-              type="button"
-              disabled={emitirOrcamentoMoloni.isPending}
-              onClick={() => {
-                const valor = t.orcamentoCents ?? t.precoFinalCents ?? 0;
-                const ok = confirm(
-                  (billing.data?.sandboxMode
-                    ? 'MODO SANDBOX - orcamento Moloni de teste\n\n'
-                    : 'ATENCAO: Vai emitir um orcamento Moloni certificado\n\n') +
-                  `Trabalho #${t.numero} - ${t.titulo}\n` +
-                  `Cliente: ${t.cliente?.nome ?? 'Fallback Moloni'}\n` +
-                  `Total: ${formatCents(valor)}\n\nContinuar?`
-                );
-                if (ok) emitirOrcamentoMoloni.mutate();
-              }}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-            >
-              {emitirOrcamentoMoloni.isPending ? 'A emitir...' : 'Emitir Orcamento Moloni'}
-            </button>
-          )}
-          {t.invoiceExternalId ? (
-            <>
-              <a
-                href={t.invoicePdfUrl ?? '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
-              >
-                Fatura {t.invoiceNumber ?? t.invoiceExternalId}
-              </a>
-              {/* Sprint 529: recibo de liquidação — mostra a seguir à fatura (Fatura → Recibo). */}
-              {t.reciboNumero && (
-                <span
-                  title={`Fatura liquidada pelo recibo ${t.reciboNumero}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-800 dark:border-teal-800/60 dark:bg-teal-950/30 dark:text-teal-200"
-                >
-                  🧾 Recibo {t.reciboNumero} · liquidada
-                </span>
-              )}
-              {/* Sprint 538b: emitir o Recibo direto na ficha — quando a fatura está paga e ainda sem recibo. */}
-              {!t.reciboNumero && t.estadoPagamento === PAYMENT_STATUS.Pago && (
-                <button
-                  type="button"
-                  disabled={emitirRecibo.isPending}
-                  onClick={() => {
-                    const ok = confirm(`Emitir RECIBO da fatura ${t.invoiceNumber ?? t.invoiceExternalId}? (confirma que o cliente já pagou)`);
-                    if (ok) emitirRecibo.mutate(Number(t.invoiceExternalId));
-                  }}
-                  className="inline-flex items-center gap-1 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-60"
-                  title="Emite o Recibo que liquida a fatura (cliente já pagou)"
-                >
-                  {emitirRecibo.isPending ? 'A emitir…' : '🧾 Emitir Recibo'}
-                </button>
-              )}
-              <button
-                type="button"
-                disabled={anularFatura.isPending}
-                onClick={() => {
-                  const ok = confirm(
-                    'ATENÇÃO: Vai emitir Nota de Crédito Moloni para ANULAR a fatura ' +
-                    `${t.invoiceNumber ?? t.invoiceExternalId}.\n\nContinuar?`
-                  );
-                  if (ok) anularFatura.mutate();
-                }}
-                className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
-                title="Emite NC Moloni que anula esta fatura"
-              >
-                {anularFatura.isPending ? 'A anular…' : 'Anular fatura (NC)'}
-              </button>
-            </>
-          ) : canEmitMoloniInvoice && (
-            <>
-              {/* Sprint 538: taxa de IVA escolhida ao emitir (deixa de ser hardcoded 23%). */}
-              <label className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300" title="Taxa de IVA da fatura">
-                IVA
-                <select value={ivaRate} onChange={e => setIvaRate(Number(e.target.value))} className="bg-transparent text-xs font-medium outline-none">
-                  <option value={23}>23%</option>
-                  <option value={13}>13%</option>
-                  <option value={6}>6%</option>
-                  <option value={0}>0% (isento)</option>
-                </select>
-              </label>
-              {/* Sprint 537: fluxo de serviços — Fatura (a crédito) → cliente paga → Recibo. A
-                  Fatura-Recibo (pago num só documento) só aparece quando o trabalho já está pago. */}
-              <button
-                type="button"
-                disabled={emitirFatura.isPending}
-                onClick={() => {
-                  const valor = t.precoFinalCents ?? t.orcamentoCents ?? 0;
-                  const ok = confirm(
-                    (billing.data?.sandboxMode ? 'MODO SANDBOX — documento de teste\n\n' : '') +
-                    `Emitir FATURA ao cliente (IVA ${ivaRate}%)? Fica em dívida até o cliente pagar; depois emites o Recibo (na lista de Faturas).\n\n` +
-                    `Trabalho #${t.numero} — ${t.titulo}\n` +
-                    `Cliente: ${t.cliente?.nome ?? 'Fallback Moloni'}\n` +
-                    `Total: ${formatCents(valor)}\n\nContinuar?`
-                  );
-                  if (ok) emitirFatura.mutate({ documentType: 1, vatPercent: ivaRate });
-                }}
-                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                title="Fatura a crédito — o cliente paga depois; emites o Recibo quando receberes"
-              >
-                {emitirFatura.isPending ? 'A emitir…' : '📄 Emitir Fatura'}
-              </button>
-              {t.estadoPagamento === PAYMENT_STATUS.Pago && (
-                <button
-                  type="button"
-                  disabled={emitirFatura.isPending}
-                  onClick={() => {
-                    const valor = t.precoFinalCents ?? t.orcamentoCents ?? 0;
-                    const ok = confirm(
-                      (billing.data?.sandboxMode ? 'MODO SANDBOX — documento de teste\n\n' : '') +
-                      `Emitir FATURA-RECIBO (IVA ${ivaRate}%, fatura + recibo num só documento, já pago)?\n\n` +
-                      `Trabalho #${t.numero} — ${t.titulo}\n` +
-                      `Cliente: ${t.cliente?.nome ?? 'Fallback Moloni'}\n` +
-                      `Total: ${formatCents(valor)}\n\nContinuar?`
-                    );
-                    if (ok) emitirFatura.mutate({ documentType: 2, vatPercent: ivaRate });
-                  }}
-                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200"
-                  title="Fatura + recibo num só documento (só quando já está pago)"
-                >
-                  🧾 Emitir Fatura-Recibo
-                </button>
-              )}
-            </>
+          <button
+            type="button"
+            onClick={() => openPdfInNewTab(`/trabalhos/${t.id}/orcamento.pdf`).catch((e) => toast.error(e instanceof Error ? e.message : "Erro a gerar orçamento."))}
+            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            Orçamento (PDF)
+          </button>
+          {t.invoiceNumber && (
+            <span className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:border-emerald-800/60 dark:text-emerald-300">FT {t.invoiceNumber}</span>
           )}
         </div>
       </header>

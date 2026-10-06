@@ -959,7 +959,7 @@ function ApproveStockModal({
                     <input
                       value={it.supplierSku ?? ''}
                       onChange={(e) => patch(i, { supplierSku: e.target.value })}
-                      placeholder="ex: 137491 (T4M), MLN-ABC123 (Molano)"
+                      placeholder="ex: 137491 (T4M), INV-1023347 (Utopya)"
                       className={inputCls}
                     />
                   </label>

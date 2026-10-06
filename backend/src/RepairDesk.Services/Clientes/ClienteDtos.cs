@@ -10,7 +10,7 @@ public sealed record CreateClienteRequest(
     string? ContactoPreferido = null,
     bool AceitaMarketing = false,
     bool NaoContactar = false,
-    // Sprint 510: morada do cliente — vai para a fatura Moloni (fim do "Consumidor final").
+    // Sprint 510: morada do cliente — usada na fatura (com NIF).
     string? Morada = null,
     string? CodigoPostal = null,
     string? Localidade = null);

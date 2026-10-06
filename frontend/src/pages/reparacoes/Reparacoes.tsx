@@ -41,7 +41,6 @@ import { devicesApi } from '../../lib/devices/api';
 import { liveListOptions } from '../../lib/queryOptions';
 import { garantiasApi } from '../../lib/garantias/api';
 import { precosApi, type PriceTableEntry } from '../../lib/precos/api';
-import { toast } from '../../lib/toast';
 import { downloadFile } from '../../lib/downloadPdf';
 import {
   STATUS_LABEL,
@@ -130,10 +129,9 @@ export default function Reparacoes() {
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Reparacao | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  // Sprint 414: ?openPagasSemFatura=1 abre o modal de bulk-emit ao chegar via "Alertas importantes" do Dashboard.
+  // Sprint 414: ?openPagasSemFatura=1 abre a lista de pagas sem fatura ao chegar via "Alertas importantes" do Dashboard.
   const initialPagasOpen = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('openPagasSemFatura') === '1';
   const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(initialPagasOpen);
-  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null); // Sprint 399: inspector
 
   useEffect(() => {
@@ -161,22 +159,6 @@ export default function Reparacoes() {
     staleTime: 60_000,
   });
 
-  const bulkEmit = useMutation({
-    mutationFn: (ids: string[]) => reparacoesApi.bulkEmitFaturas(ids),
-    onSuccess: (results) => {
-      const ok = results.filter((r) => r.success).length;
-      const fail = results.filter((r) => !r.success).length;
-      qc.invalidateQueries({ queryKey: ['reparacoes-pagas-sem-fatura'] });
-      qc.invalidateQueries({ queryKey: ['reparacoes'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      setBulkSelected(new Set());
-      if (fail === 0) {
-        toast.success(`${ok} faturas emitidas`, 'Todas comunicadas à AT com sucesso.');
-      } else {
-        toast.warning(`${ok} OK, ${fail} falharam`, results.filter((r) => !r.success).slice(0, 3).map((r) => r.errorMessage).join(' • '));
-      }
-    },
-  });
 
   function setViewMode(v: ViewMode) {
     setView(v);
@@ -377,7 +359,7 @@ export default function Reparacoes() {
                 type="button"
                 onClick={() => setPagasSemFaturaOpen(true)}
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
-                title="Reparações pagas sem fatura Moloni emitida"
+                title="Reparações pagas sem nº de fatura registado"
               >
                 <AlertTriangle size={13} />
                 {pagasSemFatura.data!.length} {pagasSemFatura.data!.length === 1 ? 'pendente fatura' : 'pendentes fatura'}
@@ -648,7 +630,7 @@ export default function Reparacoes() {
                 <div className="mt-2 flex flex-col gap-2">
                   <button type="button" onClick={() => setCreateOpen(true)} className="flex items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700"><Plus size={14} /> Nova reparação</button>
                   <button type="button" onClick={() => setImportOpen(true)} className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800">Importar CSV</button>
-                  {semFatura > 0 && <button type="button" onClick={() => setPagasSemFaturaOpen(true)} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-900/40 dark:text-amber-300">Emitir faturas pendentes</button>}
+                  {semFatura > 0 && <button type="button" onClick={() => setPagasSemFaturaOpen(true)} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-900/40 dark:text-amber-300">Ver pagas sem fatura</button>}
                 </div>
               </div>
             </div>
@@ -714,62 +696,20 @@ export default function Reparacoes() {
       <Modal
         open={pagasSemFaturaOpen}
         title="Reparações pagas sem fatura"
-        onClose={() => {
-          setPagasSemFaturaOpen(false);
-          setBulkSelected(new Set());
-        }}
+        onClose={() => setPagasSemFaturaOpen(false)}
       >
         <p className="mb-3 text-xs text-zinc-500">
-          Reparações pagas sem fatura Moloni. Selecciona várias e clica <strong>Emitir todas</strong> para
-          faturar em batch, ou clica numa linha para abrir o detalhe.
+          Reparações pagas sem nº de fatura registado. Passa a fatura no teu programa de faturação
+          e regista o número na ficha. Clica numa linha para abrir a reparação.
         </p>
         {(pagasSemFatura.data?.length ?? 0) === 0 ? (
           <p className="text-sm text-zinc-500">Nenhuma reparação pendente de fatura — tudo em dia ✓</p>
         ) : (
           <>
-            <div className="mb-2 flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-950 sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex min-h-10 items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="scale-125 sm:scale-100"
-                  checked={bulkSelected.size > 0 && bulkSelected.size === pagasSemFatura.data!.length}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setBulkSelected(new Set(pagasSemFatura.data!.map((r) => r.id)));
-                    } else {
-                      setBulkSelected(new Set());
-                    }
-                  }}
-                />
-                <span>
-                  {bulkSelected.size === 0
-                    ? 'Seleccionar todas'
-                    : `${bulkSelected.size} de ${pagasSemFatura.data!.length} seleccionadas`}
-                </span>
-              </label>
-              <button
-                type="button"
-                disabled={bulkSelected.size === 0 || bulkEmit.isPending}
-                onClick={() => {
-                  const total = pagasSemFatura.data!
-                    .filter((r) => bulkSelected.has(r.id))
-                    .reduce((sum, r) => sum + (r.precoFinalCents ?? r.orcamentoCents ?? 0), 0);
-                  const ok = confirm(
-                    `Vais emitir ${bulkSelected.size} faturas Moloni — total ${formatCents(total)}.\n\n` +
-                    `Cada fatura é comunicada à AT em tempo real e entra na declaração IVA trimestral.\n\nContinuar?`
-                  );
-                  if (ok) bulkEmit.mutate(Array.from(bulkSelected));
-                }}
-                className="min-h-11 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-              >
-                {bulkEmit.isPending ? 'A emitir…' : `Emitir ${bulkSelected.size} faturas`}
-              </button>
-            </div>
             <div className="max-h-[55vh] overflow-auto">
               <table className="w-full min-w-[480px] text-sm">
                 <thead className="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-800">
                   <tr>
-                    <th className="w-8 px-2 py-2"></th>
                     <th className="px-2 py-2 text-left font-medium">Nº</th>
                     <th className="px-2 py-2 text-left font-medium">Equipamento</th>
                     <th className="px-2 py-2 text-left font-medium">Cliente</th>
@@ -782,20 +722,6 @@ export default function Reparacoes() {
                       key={r.id}
                       className="border-b border-zinc-100 hover:bg-amber-50/50 dark:border-zinc-900 dark:hover:bg-amber-950/30"
                     >
-                      <td className="px-2 py-2">
-                        <input
-                          type="checkbox"
-                          className="scale-125 sm:scale-100"
-                          checked={bulkSelected.has(r.id)}
-                          onChange={(e) => {
-                            const next = new Set(bulkSelected);
-                            if (e.target.checked) next.add(r.id);
-                            else next.delete(r.id);
-                            setBulkSelected(next);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </td>
                       <td
                         className="cursor-pointer px-2 py-2 font-mono text-xs"
                         onClick={() => { setPagasSemFaturaOpen(false); navigate(`/reparacoes/${r.id}`); }}
@@ -1515,7 +1441,7 @@ function KanbanBoard({
                                 📄 Faturada
                               </span>
                             ) : r.estadoPagamento === 2 ? (
-                              <span title="Pago sem fatura — emite via Moloni" className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                              <span title="Pago sem nº de fatura registado" className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                                 Sem fatura
                               </span>
                             ) : null}

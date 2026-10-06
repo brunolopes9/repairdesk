@@ -79,7 +79,6 @@ export interface Part {
   createdAt: string;
   updatedAt: string | null;
   /** Sprint 121: quando true, esta peça aparece no catálogo /api/external/parts?lojaOnline=true. */
-  mostrarLojaOnline: boolean;
 }
 
 export interface PartForm {
@@ -95,7 +94,6 @@ export interface PartForm {
   fornecedor: string | null;
   localArmazenamento: string | null;
   notas: string | null;
-  mostrarLojaOnline: boolean;
 }
 
 export interface PartUpdateForm extends PartForm {

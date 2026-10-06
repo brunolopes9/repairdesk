@@ -71,15 +71,7 @@ public enum GarantiaAutoMode
 public sealed record SalesPrefs(
     string DefaultMetodoPagamento,
     int DefaultCondicaoArtigo,
-    EmitirFaturaMode EmitirFatura,
     GarantiaAutoMode VendaGarantia);
-
-public enum EmitirFaturaMode
-{
-    Nunca = 0,
-    Perguntar = 1,
-    Automatico = 2,
-}
 
 public sealed record WhatsAppNotificationStatusDto(bool JaEnviado);
 

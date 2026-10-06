@@ -15,7 +15,7 @@ interface Props {
  * utilizador descobre que o cliente ainda não existe.
  * Sprint 538: passa a capturar dados de faturação (NIF + morada + código postal + localidade) com
  * "Verificar NIF" (auto-preenche nome e morada via AT). Necessário porque emitir Fatura com NIF
- * exige LEGALMENTE a morada (CIVA art. 36.º n.º 5) — sem ela o Moloni recusa. Para consumidor final,
+ * exige LEGALMENTE a morada (CIVA art. 36.º n.º 5) . Para consumidor final,
  * basta o nome (campos de faturação ficam vazios).
  */
 export default function NovoClienteModal({ open, onClose, onCreated }: Props) {
@@ -54,7 +54,7 @@ export default function NovoClienteModal({ open, onClose, onCreated }: Props) {
     },
   });
 
-  // Sprint 538: auto-preenche nome + morada a partir do NIF (lookup AT), como o "Verificar contribuinte" do Moloni.
+  // Sprint 538: auto-preenche nome + morada a partir do NIF (lookup AT).
   const lookup = useMutation({
     mutationFn: () => clientesApi.lookupAtNif(nif.trim()),
     onSuccess: (r) => {

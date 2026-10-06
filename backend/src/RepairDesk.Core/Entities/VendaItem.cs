@@ -33,7 +33,7 @@ public class VendaItem : BaseEntity, ITenantEntity
     public CondicaoArtigo Condicao { get; set; } = CondicaoArtigo.NaoAplicavel;
 
     /// <summary>
-    /// Data até quando o fornecedor cobre garantia B2B (ex: Molano open-box 60d → DataVenda + 60).
+    /// Data até quando o fornecedor cobre garantia B2B (ex: 60d → DataVenda + 60).
     /// Útil em reparações em garantia: se está dentro, RMA ao fornecedor (€0 a teu cargo);
     /// se está fora, absorves o custo. Ver reference_garantia_imei_nc_pt em memory.
     /// </summary>

@@ -160,7 +160,7 @@ function KpiCard({
   );
 }
 
-/** Sprint 547: o cartão "Produtos mais vendidos" do painel Moloni, com margem quando há custo. */
+/** Sprint 547: produtos mais vendidos, com margem quando há custo. */
 function TopArtigosVendidos({ rows }: { rows: AnaliseVendasTopArtigo[] }) {
   return (
     <TopPanel title="Artigos mais vendidos" empty="Sem vendas pagas neste periodo.">

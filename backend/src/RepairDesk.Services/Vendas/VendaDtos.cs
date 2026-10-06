@@ -1,5 +1,4 @@
 using RepairDesk.Core.Enums;
-using RepairDesk.Services.Billing;
 
 namespace RepairDesk.Services.Vendas;
 
@@ -24,7 +23,6 @@ public sealed record CreateVendaRequest(
 
 public sealed record MarcarVendaPagaRequest(
     PaymentMethod PaymentMethod,
-    bool EmitirFatura = false,
     // Sprint 303: provider opcional. null → Manual (sem registo Payment).
     // Mock/Ifthenpay registam Payment automaticamente quando a venda fica paga.
     PaymentProvider? Provider = null);
@@ -57,19 +55,11 @@ public sealed record VendaDto(
     int IvaCents,
     PaymentMethod PaymentMethod,
     VendaStatus Status,
-    BillingProvider InvoiceProvider,
-    string? InvoiceExternalId,
-    string? InvoicePdfUrl,
     string? InvoiceNumber,
     DateTime? InvoiceEmittedAt,
-    // Sprint 529: recibo de liquidação (quando a venda foi facturada a crédito e depois liquidada).
-    string? ReciboNumero,
-    DateTime? ReciboEmitidoEm,
     string? Notas,
     IReadOnlyList<VendaItemDto> Items,
     VendaOrigem Origem);
-
-public sealed record EmitVendaFaturaResponse(VendaDto Venda, InvoiceDto? Invoice);
 
 public sealed record VendaImeiLookupDto(
     Guid VendaId,

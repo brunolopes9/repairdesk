@@ -26,22 +26,6 @@ const subs: Sub[] = [
     url: 'https://www.cloudflare.com/privacypolicy/',
   },
   {
-    name: 'Moloni (DigitalSign Lda)',
-    purpose: 'Facturação electrónica certificada AT — apenas quando tenant liga conta Moloni.',
-    dataCategories: 'Dados de facturação (cliente, NIF, valor, items).',
-    location: 'Portugal (UE)',
-    url: 'https://www.moloni.com/termos-e-condicoes',
-    optional: true,
-  },
-  {
-    name: 'InvoiceXpress (IOL)',
-    purpose: 'Alternativa a Moloni — facturação electrónica certificada. Apenas quando tenant escolhe.',
-    dataCategories: 'Dados de facturação.',
-    location: 'Portugal (UE)',
-    url: 'https://invoicexpress.com/termos',
-    optional: true,
-  },
-  {
     name: 'Sentry.io (Functional Software, Inc.)',
     purpose: 'Captura de erros aplicacionais para debugging.',
     dataCategories: 'Stack traces, tenant_id, user_id (sem PII de clientes finais; PII scrubbing activo).',
@@ -114,7 +98,7 @@ export default function SubProcessors() {
       <Section title="Notas">
         <ul className="list-disc pl-6">
           <li><strong>Core</strong>: sub-processador usado por todos os tenants (infra obrigatória).</li>
-          <li><strong>Opt-in</strong>: usado apenas quando o tenant activa a feature (ex: Moloni só se ligar conta).</li>
+          <li><strong>Opt-in</strong>: usado apenas quando o tenant activa a feature (ex: IA só quando ativada).</li>
           <li>
             <strong>BYOK Anthropic</strong>: tenants podem opt-out do nosso uso de Anthropic, configurando
             a sua própria API key em <code>/definicoes/uso-de-ia</code>. Nesse caso, a Anthropic

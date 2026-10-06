@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RepairDesk.API.Cash;
 using RepairDesk.Core.Enums;
-using RepairDesk.Services.Billing;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Documents;
 using RepairDesk.Services.Vendas;
@@ -73,7 +72,7 @@ public class VendasController : ControllerBase
     // está confirmado e perder-se o lançamento de caixa é menos grave que duplicar
     // o pagamento. Log estruturado para reconciliação manual se ocorrer.
     [HttpPost("{id:guid}/marcar-paga")]
-    public async Task<EmitVendaFaturaResponse> MarcarPaga(Guid id, [FromBody] MarcarVendaPagaRequest req, CancellationToken ct)
+    public async Task<VendaDto> MarcarPaga(Guid id, [FromBody] MarcarVendaPagaRequest req, CancellationToken ct)
     {
         var result = await _service.MarcarPagaAsync(id, req, ct);
 
@@ -81,8 +80,7 @@ public class VendasController : ControllerBase
         {
             var venda = await _service.GetAsync(id, ct);
             var descricao = $"Venda #{venda.Numero}"
-                + (venda.Cliente is { } c ? $" — {c.Nome}" : "")
-                + (req.EmitirFatura && !string.IsNullOrEmpty(venda.InvoiceNumber) ? $" (FT {venda.InvoiceNumber})" : "");
+                + (venda.Cliente is { } c ? $" — {c.Nome}" : "");
 
             await _cash.RecordMovementAsync(new RecordMovementRequest(
                 Type: CashMovementType.PagamentoCliente,
@@ -103,28 +101,11 @@ public class VendasController : ControllerBase
         return result;
     }
 
-    [HttpPost("{id:guid}/emitir-fatura")]
-    public Task<InvoiceDto> EmitirFatura(Guid id, CancellationToken ct)
-        => _service.EmitirFaturaAsync(id, ct);
-
-    // Sprint 237 H1.1: cancelar venda + anular fatura + limpar fatura são operações
-    // destrutivas com impacto fiscal (Moloni NC). Só Admin.
+    // Sprint 237 H1.1: cancelar venda repõe stock — só Admin.
     [HttpPost("{id:guid}/cancelar")]
     [Authorize(Roles = "Admin")]
     public Task<VendaDto> Cancelar(Guid id, CancellationToken ct)
         => _service.CancelarAsync(id, ct);
-
-    /// <summary>Emite Nota de Crédito Moloni para anular a fatura (chama API Moloni).</summary>
-    [HttpPost("{id:guid}/anular-fatura")]
-    [Authorize(Roles = "Admin")]
-    public Task<VendaDto> AnularFatura(Guid id, CancellationToken ct)
-        => _service.AnularFaturaAsync(id, ct);
-
-    /// <summary>Limpa só referências locais — para casos onde o operador já anulou manualmente no painel Moloni.</summary>
-    [HttpPost("{id:guid}/limpar-fatura-local")]
-    [Authorize(Roles = "Admin")]
-    public Task<VendaDto> LimparFaturaLocal(Guid id, CancellationToken ct)
-        => _service.LimparReferenciaFaturaAsync(id, ct);
 
     [HttpGet("{id:guid}/recibo.pdf")]
     public async Task<IActionResult> ReciboPdf(Guid id, CancellationToken ct)

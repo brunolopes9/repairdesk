@@ -53,7 +53,7 @@ public class ServiceApiKeyService : IServiceApiKeyService
     public async Task<CreateServiceApiKeyResponse> CreateAsync(string name, IReadOnlyList<string>? scopes, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(name))
-            throw new ValidationException("name_required", "Nome da chave obrigatório (ex: 'Loja online').");
+            throw new ValidationException("name_required", "Nome da chave obrigatório (ex: 'Importador de faturas').");
         name = name.Trim();
         if (name.Length > 200)
             throw new ValidationException("name_too_long", "Nome até 200 caracteres.");

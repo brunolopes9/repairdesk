@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
-using RepairDesk.Services.Billing;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Documents;
 using RepairDesk.Services.EquipmentFields;
@@ -17,13 +16,11 @@ public class ReparacoesController : ControllerBase
 {
     private readonly IReparacaoService _service;
     private readonly IOrcamentoPdfService _pdf;
-    private readonly IBillingProvider _billing;
 
-    public ReparacoesController(IReparacaoService service, IOrcamentoPdfService pdf, IBillingProvider billing)
+    public ReparacoesController(IReparacaoService service, IOrcamentoPdfService pdf)
     {
         _service = service;
         _pdf = pdf;
-        _billing = billing;
     }
 
     [HttpGet]
@@ -125,61 +122,6 @@ public class ReparacoesController : ControllerBase
         Guid id, [FromServices] IAssinaturaService assinaturas, CancellationToken ct)
         => assinaturas.ListAsync(id, ct);
 
-    [HttpPost("{id:guid}/emitir-fatura")]
-    public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
-        => _billing.EmitReparacaoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, req?.DiscriminarMaoObra ?? true, req?.DocumentType, ct);
-
-    [HttpPost("{id:guid}/emitir-orcamento-moloni")]
-    public Task<ReparacaoDto> EmitirOrcamentoMoloni(Guid id, CancellationToken ct)
-        => _service.EmitirOrcamentoMoloniAsync(id, ct);
-
-    /// <summary>
-    /// Sprint 143: re-emite orçamento Moloni quando preço/items mudaram desde a primeira emissão.
-    /// Best-effort cancel do velho no Moloni + limpa fields locais + emite novo via EmitirOrcamentoMoloniAsync.
-    /// Se o cancel falhar, o velho fica órfão no Moloni mas o novo é emitido na mesma.
-    /// </summary>
-    [HttpPost("{id:guid}/reemitir-orcamento-moloni")]
-    public Task<ReparacaoDto> ReemitirOrcamentoMoloni(Guid id, CancellationToken ct)
-        => _service.ReemitirOrcamentoMoloniAsync(id, ct);
-
-    [HttpPost("{id:guid}/converter-orcamento-fatura")]
-    public Task<ReparacaoDto> ConverterOrcamentoEmFatura(Guid id, CancellationToken ct)
-        => _service.ConverterOrcamentoEmFaturaAsync(id, ct);
-
-    /// <summary>Emite Nota de Credito no Moloni para anular a fatura desta reparacao + limpa referencias locais.</summary>
-    [HttpPost("{id:guid}/anular-fatura")]
-    public Task<ReparacaoDto> AnularFatura(Guid id, CancellationToken ct)
-        => _service.AnularFaturaAsync(id, ct);
-
-    /// <summary>Sprint 512: limpa só as referências locais da fatura — para quando o operador já
-    /// anulou a fatura directamente no painel Moloni e quer poder re-emitir no Mender (não toca no Moloni).</summary>
-    [HttpPost("{id:guid}/limpar-fatura-local")]
-    public Task<ReparacaoDto> LimparFaturaLocal(Guid id, CancellationToken ct)
-        => _service.LimparReferenciaFaturaAsync(id, ct);
-
-    /// <summary>Emite fatura para várias reparações pagas em batch. Devolve resultado por linha.</summary>
-    [HttpPost("bulk-emit-faturas")]
-    public async Task<IReadOnlyList<BulkEmitResult>> BulkEmitFaturas([FromBody] BulkEmitRequest req, CancellationToken ct)
-    {
-        if (req.Ids is null || req.Ids.Count == 0)
-            return Array.Empty<BulkEmitResult>();
-
-        var results = new List<BulkEmitResult>(req.Ids.Count);
-        foreach (var id in req.Ids)
-        {
-            try
-            {
-                var invoice = await _billing.EmitReparacaoInvoiceAsync(id, null, null, ct: ct);
-                results.Add(new BulkEmitResult(id, true, invoice.Number, null));
-            }
-            catch (Exception ex)
-            {
-                results.Add(new BulkEmitResult(id, false, null, ex.Message));
-            }
-        }
-        return results;
-    }
-
     /// <summary>Histórico de reparações com mesmo IMEI dentro do tenant.</summary>
     [HttpGet("historico-imei")]
     public Task<ReparacaoHistoricoResponse> HistoricoPorImei(
@@ -203,8 +145,6 @@ public class ReparacoesController : ControllerBase
     }
 
     public sealed record ReabrirRequest(string? Notas);
-    public sealed record BulkEmitRequest(IReadOnlyList<Guid> Ids);
-    public sealed record BulkEmitResult(Guid Id, bool Success, string? InvoiceNumber, string? ErrorMessage);
     /// <summary>Sprint 551: Tipo = "entrada" | "entrega"; DataUrl = data:image/png;base64,...</summary>
     public sealed record SaveAssinaturaRequest(string Tipo, string DataUrl);
 

@@ -5,7 +5,7 @@ namespace RepairDesk.Services.Documents;
 
 /// <summary>
 /// Sprint 124: heurísticas para extrair campos estruturados de texto de encomendas de
-/// fornecedor. Tenta primeiro parsers específicos (Tudo4Mobile, Molano), cai para genérico.
+/// fornecedor. Tenta primeiro parsers específicos (Tudo4Mobile), cai para genérico.
 ///
 /// Confiança baixa por definição — Bruno deve confirmar manualmente todos os campos
 /// sugeridos. O objectivo é reduzir digitação, não automatizar 100%.
@@ -31,7 +31,6 @@ public static class SupplierPdfParser
     {
         var lower = text.ToLowerInvariant();
         if (lower.Contains("tudo4mobile")) return "Tudo4Mobile";
-        if (lower.Contains("molano")) return "Molano";
         if (lower.Contains("lcphones") || lower.Contains("lc phones")) return "LCPhones";
         if (lower.Contains("utopya")) return "Utopya";
         return null;

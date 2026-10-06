@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { BarChart3, Boxes, ClipboardCheck, PackageSearch, type LucideIcon } from 'lucide-react';
+import { Boxes, ClipboardCheck, type LucideIcon } from 'lucide-react';
 
 type ModuleLink = {
   to: string;
@@ -12,27 +12,11 @@ type ModuleLink = {
 
 const LINKS: ModuleLink[] = [
   {
-    to: '/catalogo',
-    label: 'Visao geral',
-    eyebrow: 'Read model',
-    description: 'Tudo o que existe: pecas, variantes, stock fisico, dropship e publicacao.',
-    icon: BarChart3,
-    end: true,
-  },
-  {
     to: '/stock',
     label: 'Stock pecas',
     eyebrow: 'Loja fisica',
     description: 'Pecas tecnicas, acessorios e consumiveis que estao na oficina.',
     icon: Boxes,
-    end: true,
-  },
-  {
-    to: '/produtos',
-    label: 'Produtos retail',
-    eyebrow: 'Loja online',
-    description: 'Telemoveis e variantes vendidas online, stock proprio ou dropshipping.',
-    icon: PackageSearch,
     end: true,
   },
   {
@@ -50,7 +34,7 @@ export function CatalogStockNav({ showGuide = false }: { showGuide?: boolean }) 
     <section className="space-y-3">
       <nav
         aria-label="Catalogo e stock"
-        className="grid gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-2 xl:grid-cols-2"
       >
         {LINKS.map((item) => {
           const Icon = item.icon;
@@ -95,18 +79,14 @@ export function CatalogStockNav({ showGuide = false }: { showGuide?: boolean }) 
       </nav>
 
       {showGuide ? (
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="grid gap-3 lg:grid-cols-2">
           <GuideCard
             title="Loja fisica"
             text="Stock pecas representa o que podes tocar: pecas tecnicas, capas, peliculas, ecras e consumiveis."
           />
           <GuideCard
-            title="Loja online"
-            text="Produtos retail gere conteudo, SEO, preco e visibilidade. Cada variante pode ser stock proprio ou dropship."
-          />
-          <GuideCard
             title="Contagem"
-            text="Contagens fisicas reconciliam apenas stock real. Dropship e stock virtual nao entram na prateleira."
+            text="Contagens fisicas reconciliam o stock real com a prateleira."
           />
         </div>
       ) : null}

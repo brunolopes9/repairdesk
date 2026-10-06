@@ -21,7 +21,6 @@ import {
   Plus,
   Settings,
   Megaphone,
-  Webhook,
   Workflow,
   Sparkles,
   Building2,
@@ -34,7 +33,6 @@ import {
   UserCog,
   Lock,
   Boxes,
-  Package,
   ClipboardCheck,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
@@ -93,9 +91,6 @@ const nav: NavItem[] = [
     label: 'Compras e Operação',
     icon: Receipt,
     children: [
-      { to: '/compras-operacao', label: 'Visão geral', icon: LayoutDashboard },
-      // Sprint 513: tríade Vendas · Compras · Despesas (Bruno). Vendas = lista única de faturas.
-      { to: '/documentos', label: 'Vendas · Faturas', icon: FileText },
       { to: '/compras', label: 'Compras · Fornecedores', icon: Receipt },
       { to: '/despesas', label: 'Despesas & custos', icon: Banknote },
     ],
@@ -104,12 +99,10 @@ const nav: NavItem[] = [
   // colapsável único. Antes /stock e /produtos não tinham entry no menu (Sprint 388 escondeu-os
   // dentro do Catálogo, mas Bruno precisa de aceder direto). Agora ficam tudo aqui dentro.
   {
-    label: 'Catálogo & Stock',
+    label: 'Stock',
     icon: Boxes,
     children: [
-      { to: '/catalogo', label: 'Visão geral', icon: LayoutDashboard },
       { to: '/stock', label: 'Stock (peças)', icon: Boxes },
-      { to: '/produtos', label: 'Produtos (retail)', icon: Package },
       // Sprint 421 (Doc 90): inventário físico = contagem para validar stock. Só admin.
       { to: '/inventario', label: 'Contagens físicas', icon: ClipboardCheck, adminOnly: true },
     ],
@@ -119,7 +112,6 @@ const nav: NavItem[] = [
     label: 'Relatorios',
     icon: FileText,
     children: [
-      { to: '/relatorios/iva', label: 'IVA', icon: FileText },
       { to: '/relatorios/negocio', label: 'Negocio', icon: BarChart3 },
       { to: '/relatorios/produtividade', label: 'Produtividade', icon: BarChart3, adminOnly: true },
     ],
@@ -133,11 +125,10 @@ const nav: NavItem[] = [
     icon: Settings,
     adminOnly: true,
     children: [
-      { to: '/definicoes', label: 'Empresa & Faturação', icon: Settings },
+      { to: '/definicoes', label: 'Empresa', icon: Settings },
       { to: '/definicoes/preferencias', label: 'Preferências', icon: SlidersHorizontal },
       { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2 },
       { to: '/definicoes/kits', label: 'Kits de peças', icon: PackageSearch, adminOnly: true },
-      { to: '/definicoes/webhooks', label: 'Webhooks', icon: Webhook },
       { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
       { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },
       { to: '/definicoes/utilizadores', label: 'Utilizadores', icon: UserCog },

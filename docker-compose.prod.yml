@@ -98,7 +98,7 @@ services:
       Email__ResendApiKey: ${RESEND_API_KEY:-}
     volumes:
       - photos_data:/data/photos
-      # DataProtection keys (cifram tokens Moloni, refresh tokens). Volume persistente — critico.
+      # DataProtection keys (cifram refresh tokens, chaves de API). Volume persistente — critico.
       - dp_keys:/data/dp-keys
       - backups_data:/backups
       - ${AT_SECRETS_HOST_PATH:-/opt/repairdesk/secrets/at}:/run/secrets/at:ro

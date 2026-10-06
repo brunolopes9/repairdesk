@@ -14,8 +14,6 @@ using RepairDesk.Infrastructure.At;
 using RepairDesk.Infrastructure.Storage;
 using RepairDesk.Services.Auth;
 using RepairDesk.Services.Audit;
-using RepairDesk.Services.Billing;
-using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Dashboard;
 using RepairDesk.Services.Despesas;
@@ -66,7 +64,7 @@ try
     builder.Services.AddHttpContextAccessor();
 
     // DataProtection: persistir keys em volume montado para sobreviverem a rebuilds do container.
-    // Sem isto, cada rebuild gera novas keys e os secrets cifrados em DB (tokens Moloni, etc)
+    // Sem isto, cada rebuild gera novas keys e os secrets cifrados em DB (chaves de API, etc)
     // tornam-se ilegiveis (CryptographicException: key was not found in the key ring).
     var dpKeysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/data/dp-keys";
     if (!builder.Environment.IsEnvironment("Testing"))
@@ -229,9 +227,6 @@ try
     // Trabalhos
     builder.Services.AddScoped<ITrabalhoRepository, TrabalhoRepository>();
     builder.Services.AddScoped<ITrabalhoService, TrabalhoService>();
-    // Sprint 546 (Doc 93 #1): avenças — faturação recorrente (fábrica de Trabalhos + FT Moloni).
-    builder.Services.AddScoped<IAvencaRepository, AvencaRepository>();
-    builder.Services.AddScoped<RepairDesk.Services.Avencas.IAvencaService, RepairDesk.Services.Avencas.AvencaService>();
     builder.Services.AddScoped<FluentValidation.IValidator<CreateTrabalhoRequest>, CreateTrabalhoValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateTrabalhoRequest>, UpdateTrabalhoValidator>();
 
@@ -251,24 +246,13 @@ try
     builder.Services.AddScoped<IVendaService, VendaService>();
 
     // Relatorios fiscais
-    builder.Services.AddScoped<IRelatorioFiscalRepository, RelatorioFiscalRepository>();
-    builder.Services.AddScoped<IRelatorioFiscalService, RelatorioFiscalService>();
-    // Sprint 513: lista única de documentos/faturas (Vendas) — separador de Compras e Operação
-    // Sprint 518 HOTFIX: o DocumentoService injecta IMemoryCache (cache 5min do fetch Moloni) mas
-    // o AddMemoryCache nunca tinha sido chamado → DI falhava a activar o controller → 500 em cada
-    // GET /api/documentos/vendas → a lista aparecia sempre vazia. Registar o cache resolve a raiz.
-    builder.Services.AddMemoryCache();
-    builder.Services.AddScoped<RepairDesk.Services.Documentos.IDocumentoService, RepairDesk.Services.Documentos.DocumentoService>();
     builder.Services.AddScoped<IRelatorioNegocioRepository, RelatorioNegocioRepository>();
     builder.Services.AddScoped<IRelatorioNegocioService, RelatorioNegocioService>();
-    // Sprint 542: extrato unificado (Vendas+Compras+Despesas) em PDF para o contabilista.
-    builder.Services.AddScoped<IExtratoService, ExtratoService>();
 
     // Documents (PDF orçamento)
     QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
     builder.Services.AddScoped<ITenantRepository, TenantRepository>();
     builder.Services.AddScoped<ITenantPreferencesRepository, TenantPreferencesRepository>();
-    builder.Services.AddScoped<IShopConditionImageRepository, ShopConditionImageRepository>();
     builder.Services.AddScoped<ITenantPreferencesService, TenantPreferencesService>();
     builder.Services.AddScoped<IWhatsAppNotificationLogRepository, WhatsAppNotificationLogRepository>();
     builder.Services.AddScoped<IOrcamentoPdfService, OrcamentoPdfService>();
@@ -283,17 +267,6 @@ try
 
     // Tenant settings
     builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();
-    builder.Services.AddScoped<ITenantBillingSettingsRepository, TenantBillingSettingsRepository>();
-    builder.Services.AddScoped<ITenantBillingSettingsService, TenantBillingSettingsService>();
-    builder.Services.AddScoped<MoloniBillingProvider>();
-    builder.Services.AddScoped<InvoiceXpressBillingProvider>();
-    builder.Services.AddScoped<BillingProviderFactory>();
-    builder.Services.AddScoped<IBillingProvider, TenantBillingProvider>();
-    if (builder.Configuration.GetValue("E2E:UseMoloniStub", false))
-        builder.Services.AddSingleton<IMoloniClient, E2eMoloniClient>();
-    else
-        builder.Services.AddHttpClient<IMoloniClient, MoloniClient>();
-    builder.Services.AddHttpClient<IInvoiceXpressClient, InvoiceXpressClient>();
 
     // Public portal (anonymous, rate-limited)
     builder.Services.AddScoped<IPublicPortalService, PublicPortalService>();
@@ -316,10 +289,6 @@ try
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.StalledRepairsHostedService>();
         // Sprint 428 (Doc 90 cross-feature): digest diário de tarefas internas atrasadas.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueTasksHostedService>();
-        // Sprint 430 (Doc 90 §7.2 Automated overdue reminders): digest diário de cobranças em atraso.
-        builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueInvoicesHostedService>();
-        // Sprint 546 (Doc 93 #1): digest diário de avenças devidas — push "pronta a emitir, 1 clique".
-        builder.Services.AddHostedService<RepairDesk.API.HostedServices.AvencasHostedService>();
         // Sprint 441 (Doc 91 follow-up): digest diário de reparações Pronto há +N dias sem ser levantadas.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ReadyForPickupHostedService>();
         // Sprint 458 (Doc 91 ponto 3 — lembretes): digest diário de reparações em estado
@@ -342,36 +311,16 @@ try
     // Service API keys (Sprint 71)
     builder.Services.AddScoped<IServiceApiKeyRepository, RepairDesk.DAL.Persistence.ServiceApiKeyRepository>();
     builder.Services.AddScoped<RepairDesk.Services.ServiceApiKeys.IServiceApiKeyService, RepairDesk.Services.ServiceApiKeys.ServiceApiKeyService>();
-
-    // Webhook subscriptions (Sprint 101) + delivery infra (Sprint 102)
-    builder.Services.AddScoped<IWebhookSubscriptionRepository, RepairDesk.DAL.Persistence.WebhookSubscriptionRepository>();
-    builder.Services.AddScoped<RepairDesk.Services.Webhooks.IWebhookSubscriptionService, RepairDesk.Services.Webhooks.WebhookSubscriptionService>();
-
     // Fornecedores (Sprint 120)
     builder.Services.AddScoped<IFornecedorRepository, RepairDesk.DAL.Persistence.FornecedorRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Fornecedores.IFornecedorService, RepairDesk.Services.Fornecedores.FornecedorService>();
-
-    // Products (Sprint 122)
-    builder.Services.AddScoped<IProductRepository, RepairDesk.DAL.Persistence.ProductRepository>();
-    builder.Services.AddScoped<RepairDesk.Services.Products.IProductService, RepairDesk.Services.Products.ProductService>();
-
-    builder.Services.AddScoped<IWebhookDeliveryRepository, RepairDesk.DAL.Persistence.WebhookDeliveryRepository>();
-    builder.Services.AddScoped<RepairDesk.Services.Webhooks.IWebhookPublisher, RepairDesk.Services.Webhooks.WebhookPublisher>();
-    builder.Services.AddHttpClient("webhook")
-        .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(20));
-    builder.Services.AddHostedService<RepairDesk.API.Webhooks.WebhookDeliveryHostedService>();
-    builder.Services.AddHostedService<RepairDesk.API.Webhooks.GarantiaExpirationHostedService>();
     // Sprint 175: retention cleanup diário às 3h UTC.
     builder.Services.AddHostedService<RepairDesk.API.HostedServices.SupplierInvoiceRetentionHostedService>();
     if (!builder.Environment.IsEnvironment("Testing"))
         builder.Services.AddHostedService<RefreshTokenCleanupHostedService>();
-
-    // External checkout (Sprint 73) — atómico para loja online / integrações
-    builder.Services.AddScoped<RepairDesk.Services.External.IExternalCheckoutService, RepairDesk.Services.External.ExternalCheckoutService>();
-
     // Sprint 147: ingest de faturas de fornecedor via n8n IMAP
     builder.Services.AddScoped<ISupplierInvoiceImportRepository, RepairDesk.DAL.Persistence.SupplierInvoiceImportRepository>();
-    // Sprint 157: SKU mapping tabela aprendida — fornecedor → Part/Product interno.
+    // Sprint 157: SKU mapping tabela aprendida — fornecedor → Part interno.
     builder.Services.AddScoped<ISkuMappingRepository, RepairDesk.DAL.Persistence.SkuMappingRepository>();
     // Sprint 162: supplier fingerprinting (detect fornecedor antes do parser).
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierFingerprintingService, RepairDesk.Services.Documents.SupplierFingerprintingService>();
@@ -382,12 +331,6 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmUsageTracker, RepairDesk.Services.Documents.LlmUsageTracker>();
     // Sprint 167b: quota enforcement per-tenant (free/pro/enterprise).
     builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmQuotaService, RepairDesk.Services.Documents.LlmQuotaService>();
-    // Sprint 166a: pacote SEO completo (title+description+alt+markdown) gerado por Claude.
-    builder.Services.AddHttpClient<RepairDesk.Services.Products.IProductSeoGenerator, RepairDesk.Services.Products.AnthropicAltTextService>();
-    // Sprint 203: detector de mapeamento colunas CSV (universal importer com Claude).
-    builder.Services.AddHttpClient<RepairDesk.Services.Products.ICsvColumnDetector, RepairDesk.Services.Products.CsvColumnDetectionService>();
-    // Sprint 188: Shop AI Bridge — assistant NL + image search via Anthropic central.
-    builder.Services.AddHttpClient<RepairDesk.Services.Shop.IShopAiService, RepairDesk.Services.Shop.ShopAiService>();
     // Sprint 369: assistente interno read-only (tool-use sobre dados do tenant).
     builder.Services.AddHttpClient<RepairDesk.API.Assistant.IAssistantService, RepairDesk.API.Assistant.AssistantService>();
     // Sprint 371: agendamentos (booking).
@@ -405,9 +348,6 @@ try
     builder.Services.AddScoped<IDeviceRepository, RepairDesk.DAL.Persistence.DeviceRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Devices.IDeviceService, RepairDesk.Services.Devices.DeviceService>();
     builder.Services.AddScoped<RepairDesk.Services.Appointments.IAppointmentService, RepairDesk.Services.Appointments.AppointmentService>();
-    // Sprint 189: pipeline imagens SEO (resize WebP + blur LQIP) — usa IPhotoStorage para R2.
-    builder.Services.AddScoped<RepairDesk.Services.Products.IImageOptimizationService, RepairDesk.Services.Products.ImageOptimizationService>();
-    builder.Services.AddScoped<RepairDesk.Services.Shop.IShopConditionImageService, RepairDesk.Services.Shop.ShopConditionImageService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 
@@ -421,13 +361,6 @@ try
     builder.Services.AddScoped<IPartKitRepository, RepairDesk.DAL.Persistence.PartKitRepository>();
     // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
     builder.Services.AddScoped<IRepairRequestRepository, RepairDesk.DAL.Persistence.RepairRequestRepository>();
-    // Sprint 359 (Doc 83): templates de modelo.
-    builder.Services.AddScoped<IProductModelRepository, RepairDesk.DAL.Persistence.ProductModelRepository>();
-
-    // Sprint 385 (Doc 87): vista unificada "Catálogo & Stock" (read model Product/ProductModel/Part).
-    builder.Services.AddScoped<ICatalogReadRepository, RepairDesk.DAL.Persistence.CatalogReadRepository>();
-    builder.Services.AddScoped<RepairDesk.Services.Catalog.ICatalogService, RepairDesk.Services.Catalog.CatalogService>();
-
     // Sprint 390 (Doc 04): lookup TAC→modelo offline. Base num JSON em disco (mountar volume em prod
     // para sobreviver a redeploys; override via TacDb:Path). Importada pelo admin a partir de dump aberto.
     var tacDbPath = builder.Configuration["TacDb:Path"]
@@ -700,6 +633,7 @@ try
 
     if (!app.Configuration.GetValue("Database:SkipAutoMigrate", false))
     {
+        await PreMigrationBackup.RunIfPendingAsync(app.Services, app.Configuration);
         await DbInitializer.InitializeAsync(app.Services);
     }
 

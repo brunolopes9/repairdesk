@@ -13,11 +13,11 @@ namespace RepairDesk.Core.Entities;
 public class Fornecedor : BaseEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
-    /// <summary>Nome legível e único por tenant (ex: "Molano", "Tudo4Mobile", "LCPhones").</summary>
+    /// <summary>Nome legível e único por tenant (ex: "Tudo4Mobile", "Utopya", "MobileSentrix").</summary>
     public required string Name { get; set; }
     /// <summary>
-    /// Sprint 151: slug estável usado em integrações (webhook payload, CSV importer dropship).
-    /// Ex: "molano", "tudo4mobile", "lcphones". Único por tenant. Auto-gerado de Name se não
+    /// Sprint 151: slug estável usado em integrações (importação de faturas).
+    /// Ex: "tudo4mobile", "utopya", "mobilesentrix". Único por tenant. Auto-gerado de Name se não
     /// definido. Não muda quando Name muda — clientes externos podem referenciá-lo.
     /// </summary>
     public string? Code { get; set; }
@@ -28,7 +28,7 @@ public class Fornecedor : BaseEntity, ITenantEntity
     public string? Phone { get; set; }
     public string? Website { get; set; }
     /// <summary>
-    /// Dias padrão de garantia B2B que este fornecedor dá ao tenant (ex: Molano open-box = 60).
+    /// Dias padrão de garantia B2B que este fornecedor dá ao tenant (ex: 60).
     /// Usado como sugestão ao popular VendaItem.GarantiaFornecedorAteAo.
     /// </summary>
     public int? GarantiaB2BDiasDefault { get; set; }
@@ -69,15 +69,6 @@ public class Fornecedor : BaseEntity, ITenantEntity
     /// </summary>
     public bool IntraUe { get; set; }
 
-    /// <summary>
-    /// Sprint 203: mapeamento aprendido de colunas CSV para campos canónicos.
-    /// JSON Object com chaves canónicas e valores = nome da coluna no CSV (case-insensitive).
-    /// Ex: { "sku":"SKU", "brand":"", "model":"Product", "price":"Price (EUR)", "stock":"Stock",
-    ///       "storage":"Storage", "color":"Colour", "grading":"Grade" }
-    /// Vazio brand="" quando o fornecedor não tem brand separado (parser infere de model).
-    /// NULL = não há mapping aprendido; sistema pede ao Claude para sugerir.
-    /// </summary>
-    public string? CsvColumnMappingJson { get; set; }
 }
 
 public enum DefaultImportAction

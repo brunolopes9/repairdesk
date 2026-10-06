@@ -278,16 +278,11 @@ function StockTakeBoard({
 
 function InventoryScopeNotice() {
   return (
-    <section className="grid gap-3 lg:grid-cols-3">
+    <section className="grid gap-3 lg:grid-cols-2">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-100">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">Conta real</p>
         <p className="mt-1 text-xl font-semibold">Apenas prateleira fisica</p>
         <p className="mt-2 text-sm opacity-80">A sessao conta Parts ativas: capas, peliculas, ecraes, boards, baterias e stock que existe na loja.</p>
-      </div>
-      <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-4 text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-sky-100">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">Fora da contagem</p>
-        <p className="mt-1 text-xl font-semibold">Dropshipping nao entra aqui</p>
-        <p className="mt-2 text-sm opacity-80">Produtos retail virtuais e stock de fornecedor ficam na montra online, nao geram ajuste fisico.</p>
       </div>
       <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">Fecho</p>

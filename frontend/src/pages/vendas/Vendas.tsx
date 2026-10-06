@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, Download, FileText, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound, XCircle, CheckCircle2, History as HistoryIcon, Lock, Banknote } from 'lucide-react';
+import { CreditCard, Download, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, UserRound, XCircle, CheckCircle2, History as HistoryIcon, Lock, Banknote } from 'lucide-react';
 import { downloadFile } from '../../lib/downloadPdf';
 import { toast } from '../../lib/toast';
 import { clientesApi } from '../../lib/clientes/api';
@@ -8,7 +8,6 @@ import type { Cliente } from '../../lib/clientes/types';
 import { formatCents, parseEuros } from '../../lib/money';
 import { cashApi, DAILY_CLOSING_STATUS } from '../../lib/cash/api';
 import { stockApi } from '../../lib/stock/api';
-import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import { PART_CATEGORIA_REQUER_IMEI, type Part } from '../../lib/stock/types';
 import { isValidImei, normalizeImei } from '../../lib/imei';
@@ -76,11 +75,6 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
     staleTime: 10_000,
   });
 
-  const billing = useQuery({
-    queryKey: ['tenant-billing-settings'],
-    queryFn: () => tenantSettingsApi.getBilling(),
-    staleTime: 5 * 60_000,
-  });
 
   const preferences = useQuery({
     queryKey: ['tenant-preferences'],
@@ -179,14 +173,14 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
           garantiaFornecedorAteAo: line.garantiaFornecedorAteAo || null,
         })),
       });
-      return vendasApi.marcarPaga(venda.id, paymentMethod, preferences.data?.sales.emitirFatura === 2);
+      return vendasApi.marcarPaga(venda.id, paymentMethod);
     },
     onSuccess: (res) => {
-      setLastVenda(res.venda);
+      setLastVenda(res);
       setCart([]);
       qc.invalidateQueries({ queryKey: ['vendas-parts'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
-      toast.success(`Venda #${String(res.venda.numero).padStart(5, '0')} paga`);
+      toast.success(`Venda #${String(res.numero).padStart(5, '0')} paga`);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel cobrar.'),
   });
@@ -231,33 +225,19 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
   async function confirmOnlinePayment() {
     if (!pendingPaymentVenda) return;
     try {
-      const res = await vendasApi.marcarPaga(
-        pendingPaymentVenda.id,
-        paymentMethod,
-        preferences.data?.sales.emitirFatura === 2,
-      );
-      setLastVenda(res.venda);
+      const res = await vendasApi.marcarPaga(pendingPaymentVenda.id, paymentMethod);
+      setLastVenda(res);
       setCart([]);
       setPendingPaymentVenda(null);
       qc.invalidateQueries({ queryKey: ['vendas-parts'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['vendas-historico'] });
-      toast.success(`Venda #${String(res.venda.numero).padStart(5, '0')} paga via IFTHENPAY`);
+      toast.success(`Venda #${String(res.numero).padStart(5, '0')} paga via IFTHENPAY`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Nao foi possivel marcar venda paga.');
     }
   }
 
-  const emitirFatura = useMutation({
-    mutationFn: (id: string) => vendasApi.emitirFatura(id),
-    onSuccess: (invoice) => {
-      toast.success(`Fatura ${invoice.number} emitida`);
-      if (invoice.pdfUrl) window.open(invoice.pdfUrl, '_blank', 'noopener,noreferrer');
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      qc.invalidateQueries({ queryKey: ['vendas-historico'] });
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel emitir fatura.'),
-  });
 
   // Histórico de vendas — últimos 30 dias por defeito
   const [historicoFrom, setHistoricoFrom] = useState<string>(() => {
@@ -291,27 +271,7 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Nao foi possivel cancelar.'),
   });
 
-  const anularFatura = useMutation({
-    mutationFn: (id: string) => vendasApi.anularFatura(id),
-    onSuccess: (venda) => {
-      qc.invalidateQueries({ queryKey: ['vendas-historico'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      setVendaDetalhe(venda);
-      toast.success('Fatura anulada no Moloni', 'documentCancel ou NC emitida. O documento já não aparece no Relatório IVA.');
-    },
-    onError: (err) => toast.fromError(err, 'Não foi possível anular fatura.'),
-  });
 
-  const limparFaturaLocal = useMutation({
-    mutationFn: (id: string) => vendasApi.limparFaturaLocal(id),
-    onSuccess: (venda) => {
-      qc.invalidateQueries({ queryKey: ['vendas-historico'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      setVendaDetalhe(venda);
-      toast.success('Referência limpa', 'Venda removida do Relatório IVA do Mender. (Moloni não foi chamado.)');
-    },
-    onError: (err) => toast.fromError(err, 'Não foi possível limpar referência.'),
-  });
 
   function addPart(part: Part) {
     if (part.qtdStock <= 0) {
@@ -418,28 +378,6 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
             >
               <Receipt size={16} /> Recibo
             </a>
-            {!lastVenda.invoiceExternalId && (
-              <button
-                type="button"
-                onClick={() => {
-                  const isSandbox = billing.data?.sandboxMode === true;
-                  const ok = confirm(
-                    isSandbox
-                      ? 'MODO SANDBOX — fatura de teste\n\n' +
-                        'Não é comunicada à AT real. Útil para validar o fluxo.\n\n' +
-                        `Total: ${formatCents(lastVenda.totalCents)}\nContinuar?`
-                      : 'ATENÇÃO: MODO PRODUÇÃO — fatura real à AT\n\n' +
-                        'Vai ser comunicada em tempo real. Entra na tua declaração IVA.\n\n' +
-                        `Total: ${formatCents(lastVenda.totalCents)}\n` +
-                        `Cliente: ${lastVenda.cliente?.nome ?? 'Consumidor final'}\n\nTem a certeza?`
-                  );
-                  if (ok) emitirFatura.mutate(lastVenda.id);
-                }}
-                className="inline-flex items-center gap-2 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
-              >
-                <FileText size={16} /> Emitir fatura Moloni
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -580,7 +518,7 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
                       <input
                         type="text"
                         list="fornecedores-list"
-                        placeholder="Fornecedor (ex: Molano)"
+                        placeholder="Fornecedor (ex: Tudo4Mobile)"
                         value={line.fornecedorNome ?? ''}
                         onChange={(e) => setCart((cur) => cur.map((l) => l.part.id === line.part.id ? { ...l, fornecedorNome: e.target.value } : l))}
                         className="h-10 w-full rounded border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-800 dark:bg-zinc-950"
@@ -596,7 +534,7 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
                       </select>
                       <input
                         type="date"
-                        title="Até quando o fornecedor cobre garantia B2B (ex: Molano open-box +60d)"
+                        title="Até quando o fornecedor cobre garantia B2B (ex: +60d)"
                         value={line.garantiaFornecedorAteAo ?? ''}
                         onChange={(e) => setCart((cur) => cur.map((l) => l.part.id === line.part.id ? { ...l, garantiaFornecedorAteAo: e.target.value } : l))}
                         className="h-10 w-full rounded border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-800 dark:bg-zinc-950"
@@ -757,7 +695,7 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
                 `vendas_${historicoFrom}_${historicoTo}.csv`,
               )}
               className="inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 px-3 py-2 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-              title="Exportar CSV para análise interna (Excel). NÃO substitui o SAFT-PT mensal do Moloni — esse é o documento oficial para o contabilista."
+              title="Exportar CSV para análise interna (Excel). Não substitui o SAF-T do teu programa de faturação."
             >
               <Download size={13} /> CSV
             </button>
@@ -912,54 +850,7 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
               <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-xs dark:border-emerald-900/40 dark:bg-emerald-950/30">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <strong>Fatura emitida:</strong> {vendaDetalhe.invoiceNumber}
-                    {vendaDetalhe.invoicePdfUrl && (
-                      <a href={vendaDetalhe.invoicePdfUrl} target="_blank" rel="noreferrer" className="ml-2 underline">
-                        ver PDF
-                      </a>
-                    )}
-                    {/* Sprint 529: recibo de liquidação (Fatura → Recibo). */}
-                    {vendaDetalhe.reciboNumero && (
-                      <div className="mt-1 font-medium text-teal-700 dark:text-teal-400">
-                        🧾 Liquidada · Recibo {vendaDetalhe.reciboNumero}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const ok = confirm(
-                          `Anular fatura ${vendaDetalhe.invoiceNumber} via Moloni\n\n` +
-                          'O Mender vai chamar a Moloni para cancelar este documento ' +
-                          '(documentCancel ou Nota de Crédito).\n\n' +
-                          `Saldo na AT após: 0,00 € (nada a pagar)\n\nContinuar?`
-                        );
-                        if (ok) anularFatura.mutate(vendaDetalhe.id);
-                      }}
-                      disabled={anularFatura.isPending || limparFaturaLocal.isPending}
-                      className="min-h-11 rounded-md border border-red-200 px-3 py-2 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
-                      title="Chama Moloni para anular (documentCancel ou NC). Saldo IVA fica zero."
-                    >
-                      {anularFatura.isPending ? 'A anular…' : 'Anular via Moloni'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const ok = confirm(
-                          'Já anulei manualmente no painel Moloni\n\n' +
-                          'Esta acção APENAS remove a referência da fatura no Mender.\n' +
-                          'NÃO chama a Moloni. Usa só se já cancelaste a fatura no painel moloni.pt.\n\n' +
-                          'A venda fica sem fatura associada e sai do Relatório IVA do Mender.\n\nContinuar?'
-                        );
-                        if (ok) limparFaturaLocal.mutate(vendaDetalhe.id);
-                      }}
-                      disabled={anularFatura.isPending || limparFaturaLocal.isPending}
-                      className="min-h-11 rounded-md border border-zinc-200 px-3 py-2 text-[11px] text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                      title="Já anulaste no Moloni — só limpa a referência aqui (sem chamar API Moloni)"
-                    >
-                      {limparFaturaLocal.isPending ? 'A limpar…' : 'Já anulei no Moloni'}
-                    </button>
+                    <strong>Fatura nº:</strong> {vendaDetalhe.invoiceNumber}
                   </div>
                 </div>
               </div>
@@ -974,43 +865,16 @@ export default function Vendas({ embedded = false }: { embedded?: boolean } = {}
               >
                 <Receipt size={13} /> Recibo PDF
               </a>
-              {vendaDetalhe.status === VENDA_STATUS.Paga && !vendaDetalhe.invoiceExternalId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const isSandbox = billing.data?.sandboxMode === true;
-                    const ok = confirm(
-                      isSandbox
-                        ? 'MODO SANDBOX — fatura de teste\n\nNão é comunicada à AT real.\n\n' +
-                          `Venda #${vendaDetalhe.numero} · Total: ${formatCents(vendaDetalhe.totalCents)}\nContinuar?`
-                        : 'ATENÇÃO: MODO PRODUÇÃO — fatura real à AT\n\n' +
-                          'Vai ser comunicada em tempo real. Entra na declaração IVA.\n\n' +
-                          `Venda #${vendaDetalhe.numero} · Total: ${formatCents(vendaDetalhe.totalCents)}\n\nTem a certeza?`
-                    );
-                    if (ok) emitirFatura.mutate(vendaDetalhe.id);
-                  }}
-                  disabled={emitirFatura.isPending}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-                >
-                  <FileText size={13} /> Emitir fatura Moloni
-                </button>
-              )}
               {vendaDetalhe.status !== VENDA_STATUS.Cancelada && (
                 <button
                   type="button"
                   onClick={() => {
-                    const temFatura = !!vendaDetalhe.invoiceExternalId;
-                    const msg = temFatura
-                      ? `Cancelar venda #${vendaDetalhe.numero}?\n\n` +
-                        `Vai fazer 2 coisas:\n` +
-                        `  1. Anular fatura ${vendaDetalhe.invoiceNumber} no Moloni (cancel ou NC)\n` +
-                        `  2. Reverter stock dos artigos\n\nContinuar?`
-                      : `Cancelar venda #${vendaDetalhe.numero}? O stock será reposto.`;
+                    const msg = `Cancelar venda #${vendaDetalhe.numero}? O stock será reposto.`;
                     if (confirm(msg)) cancelar.mutate(vendaDetalhe.id);
                   }}
                   disabled={cancelar.isPending}
                   className="inline-flex min-h-11 items-center gap-1 rounded-md border border-red-200 px-3 py-2 text-xs text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-950/40"
-                  title={vendaDetalhe.invoiceExternalId ? 'Anula fatura no Moloni + reverte stock (1 clique)' : 'Cancela venda + reverte stock'}
+                  title="Cancela venda + reverte stock"
                 >
                   <XCircle size={13} /> Cancelar venda
                 </button>

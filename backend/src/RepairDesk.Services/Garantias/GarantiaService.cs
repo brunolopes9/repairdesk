@@ -5,7 +5,6 @@ using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Audit;
 using RepairDesk.Services.Documents;
-using RepairDesk.Services.Webhooks;
 
 namespace RepairDesk.Services.Garantias;
 
@@ -47,15 +46,13 @@ public class GarantiaService : IGarantiaService
     private readonly IAuditLogger _audit;
     private readonly ITenantContext _tenant;
     private readonly ITenantRepository _tenants;
-    private readonly IWebhookPublisher _webhooks;
 
-    public GarantiaService(IGarantiaRepository repo, IAuditLogger audit, ITenantContext tenant, ITenantRepository tenants, IWebhookPublisher webhooks)
+    public GarantiaService(IGarantiaRepository repo, IAuditLogger audit, ITenantContext tenant, ITenantRepository tenants)
     {
         _repo = repo;
         _audit = audit;
         _tenant = tenant;
         _tenants = tenants;
-        _webhooks = webhooks;
     }
 
     public async Task<(byte[] Pdf, string Filename)> RenderPdfAsync(Guid id, string portalBaseUrl, CancellationToken ct = default)
@@ -181,19 +178,6 @@ public class GarantiaService : IGarantiaService
             new { acao = "anulada", motivo = g.MotivoAnulacao, slug = g.Slug },
             _tenant.TenantId,
             ct: ct);
-
-        if (_tenant.TenantId is { } tid)
-        {
-            await _webhooks.PublishAsync(tid, WebhookEvents.GarantiaAnulada, new
-            {
-                garantiaId = g.Id,
-                slug = g.Slug,
-                origem = g.SourceType.ToString(),
-                vendaId = g.VendaId,
-                reparacaoId = g.ReparacaoId,
-                motivo = g.MotivoAnulacao,
-            }, ct);
-        }
 
         return ToDto(g);
     }

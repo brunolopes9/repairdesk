@@ -1,7 +1,6 @@
 export type WhatsAppRepeatMode = 0 | 1 | 2;
 export type EntregarMarcaPagoMode = 0 | 1 | 2;
 export type GarantiaAutoMode = 0 | 1 | 2;
-export type EmitirFaturaMode = 0 | 1 | 2;
 
 export interface WhatsAppStateTemplate {
   enabled: boolean;
@@ -42,7 +41,6 @@ export interface RepairsPrefs {
 export interface SalesPrefs {
   defaultMetodoPagamento: string;
   defaultCondicaoArtigo: number;
-  emitirFatura: EmitirFaturaMode;
   vendaGarantia: GarantiaAutoMode;
 }
 

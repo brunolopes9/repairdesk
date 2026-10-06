@@ -18,7 +18,7 @@ public class SkuMapping : BaseEntity, ITenantEntity
 
     /// <summary>
     /// Código do fornecedor (slug — match com <see cref="Fornecedor.Code"/>).
-    /// Ex: "tudo4mobile", "molano", "utopya", "lcphones".
+    /// Ex: "tudo4mobile", "utopya", "lcphones".
     /// </summary>
     public required string SupplierCode { get; set; }
 

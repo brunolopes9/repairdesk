@@ -242,7 +242,6 @@ public sealed class TenantPreferencesService : ITenantPreferencesService
         return new SalesPrefs(
             payment,
             condition,
-            Enum.IsDefined(input.EmitirFatura) ? input.EmitirFatura : defaults.EmitirFatura,
             Enum.IsDefined(input.VendaGarantia) ? input.VendaGarantia : defaults.VendaGarantia);
     }
 

@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:92294a6ad3d5cffd -->
+<!-- roles-matrix-snapshot:302eddcecd290a31 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -26,22 +26,16 @@ testes e esta matriz com snapshot.
 | ClienteTagsController (S480) | `POST/PUT/DELETE /api/cliente-tags*` (segmentos CRM do tenant) | `Admin` |
 | ReparacaoComunicacoesController (S452) | `GET/POST/DELETE /api/reparacoes/{id}/comunicacoes` | `Authenticated` |
 | ReparacoesController | `GET /{id}/entrada.pdf` (S450), `GET /{id}/entrega.pdf` (S451), `POST`+`GET /{id}/assinaturas` (S551 — assinatura cliente no balcão) | `Authenticated` |
-| ReparacoesController (S512) | fatura: `POST /{id}/emitir-fatura`, `/anular-fatura`, `/limpar-fatura-local` (desvincular fatura já anulada no Moloni para re-emitir) | `Authenticated` |
-| DocumentosController (S513) | `GET /api/documentos/vendas`, `/api/documentos/vendas/export.csv` (lista única de faturas emitidas) | `Authenticated` |
-| DocumentosController (S527) | `POST /api/documentos/{documentId}/recibo` (emite Recibo Moloni que liquida Fatura a crédito) | `Policy=RequireAdmin` |
-| ShopConditionImagesController (S531) | `GET/PUT/DELETE /api/shop-condition-images*` (imagens por estado de condição da loja online) | `Policy=RequireAdmin` |
-| DashboardController | `GET /api/dashboard/avisos-pendentes` (S460), `GET /devices-garantia-a-expirar` (S467), `GET /tesouraria` (S549) | `Authenticated` |
+| DashboardController | `GET /api/dashboard/avisos-pendentes` (S460), `GET /devices-garantia-a-expirar` (S467) | `Authenticated` |
 | DevicesController (S461+S464) | `GET/POST/PUT/DELETE /api/devices*` + `GET /api/devices/by-imei/{imei}` — asset registry | `Authenticated` |
 | PublicPortalController / PublicWarrantyController | `GET/POST /api/public/*` | `Anonymous` + rate limit `public-portal` |
 | RelatoriosController | `GET /api/relatorios/*` (inclui Sprint 187 taxa-defeito-fornecedor) | `Authenticated` |
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |
 | UsersController | `POST /api/users/{id}/revoke-sessions`, `POST /api/users/{id}/deactivate` | `Admin` |
-| WebhooksController | `GET/POST/PUT/DELETE /api/webhooks*` | `Admin` |
 | **Sprint 243 (Doc 72 Fase A) — operações fiscais/credenciais/estruturais** | | |
-| TrabalhosController | `DELETE /{id}`, billing endpoints (`emitir-fatura`, `anular-fatura`, `converter-orcamento-fatura`, `bulk-emit-faturas`, `emitir-orcamento-moloni`), `reabrir` | `Admin` |
+| TrabalhosController | `DELETE /{id}`, `reabrir` | `Admin` |
 | SupplierInvoicesController | `approve`, `reject`, `approve-stock`, `reprocess` | `Admin` |
 | DespesasController | `POST`, `PUT`, `DELETE`, `POST /{id}/converter-stock` (afecta IVA dedutível) | `Admin` |
-| AvencasController | `POST`, `PUT`, `DELETE`, `POST /{id}/emitir` (faturação recorrente — cria FT Moloni) | `Admin` |
 | PartsController | `POST /{id}/movimento` (ajuste manual stock), `POST /import` | `Admin` |
 | TenantPreferencesController | `PUT /`, `POST /reset/{group}` | `Admin` |
 | LlmUsageController | `POST/DELETE /anthropic-key` (BYOK credencial) | `Admin` |
@@ -79,7 +73,7 @@ testes e esta matriz com snapshot.
 Foram adicionadas 4 roles canónicas em `RepairDesk.Core.Auth.AppRoles`:
 - `Admin` — acesso total (fiscal, RGPD, peças, fornecedores).
 - `Tech` — reparações, diagnóstico, peças (não-fiscal).
-- `Cashier` — vendas POS, caixa, fatura, clientes.
+- `Cashier` — vendas POS, caixa, clientes.
 - `ReadOnly` — leitura apenas (dashboard, histórico).
 
 Policies disponíveis em `RepairDesk.Core.Auth.AppPolicies`:
@@ -94,3 +88,5 @@ passar a usar `[Authorize(Policy = AppPolicies.RequireXxx)]` à medida que cada 
 precisar de abrir acesso a roles não-Admin).
 
 Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por reflection dos controllers.
+
+> Out/2026 (Doc 94 Fase 2): removidos Moloni/InvoiceXpress (emissão/anulação de faturas, orçamentos, recibos, OAuth), Documentos, Avenças, Webhooks, API externa da loja, Produtos/Catálogo e relatório de IVA/Extrato.

@@ -143,7 +143,7 @@ export default function Auditoria() {
                             <span
                               title={entry.serviceApiKeyPrefix
                                 ? `API key: ${entry.serviceApiKeyPrefix}`
-                                : 'Operação realizada via API key (loja online, importador ou outra integração servidor-a-servidor)'}
+                                : 'Operação realizada via API key (importador ou outra integração servidor-a-servidor)'}
                               className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
                             >
                               API

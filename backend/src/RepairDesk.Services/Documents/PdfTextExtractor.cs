@@ -7,7 +7,7 @@ namespace RepairDesk.Services.Documents;
 /// <summary>
 /// Sprint 119: extrai texto plain de um PDF (encomendas de fornecedor, faturas recebidas,
 /// orçamentos). Sem parsing inteligente — devolve apenas o texto bruto para o utilizador
-/// confirmar campos na UI. Parser específico por fornecedor (Tudo4Mobile, Molano, etc)
+/// confirmar campos na UI. Parser específico por fornecedor (Tudo4Mobile, etc)
 /// fica para sprints futuros.
 /// </summary>
 public static class PdfTextExtractor
@@ -46,5 +46,5 @@ public sealed record PdfExtractionResult(
     int PageCount,
     int PagesRead,
     bool Truncated,
-    /// <summary>Sprint 124: dados sugeridos parseados (Tudo4Mobile/Molano regex).</summary>
+    /// <summary>Sprint 124: dados sugeridos parseados (Tudo4Mobile regex).</summary>
     SupplierPdfParseResult? Suggestions = null);

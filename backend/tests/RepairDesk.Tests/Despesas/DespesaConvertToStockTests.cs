@@ -65,34 +65,6 @@ public class DespesaConvertToStockTests
     }
 
     [Fact]
-    public async Task Converter_TemEfeitoNuloNoRelatorioIVA()
-    {
-        var dataCompra = new DateTime(2026, 3, 15, 0, 0, 0, DateTimeKind.Utc);
-        var marInicio = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
-        var marFim = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        await using var db = NewDb();
-        db.Despesas.Add(new Despesa
-        {
-            TenantId = Tenant, Descricao = "Peças A15", Categoria = DespesaCategoria.Pecas,
-            ValorCents = 5000, Data = dataCompra,
-        });
-        await db.SaveChangesAsync();
-
-        var fiscal = new RelatorioFiscalRepository(db);
-        var antes = await fiscal.SumPecasCustoComIvaAsync(marInicio, marFim);
-        antes.Should().Be(5000); // conta via despesa
-
-        var despesaId = await db.Despesas.Select(d => d.Id).SingleAsync();
-        await NewService(db).ConvertToStockAsync(despesaId, new ConvertDespesaToStockRequest(Quantidade: 1));
-
-        var depois = await fiscal.SumPecasCustoComIvaAsync(marInicio, marFim);
-        // Mesmo valor, mesmo trimestre: agora conta via PartMovimento Entrada. Se o período não
-        // fosse preservado, o movimento cairia em Junho e Março passaria a 0 — este teste apanharia.
-        depois.Should().Be(antes);
-    }
-
-    [Fact]
     public async Task Converter_PreservaReverseCharge()
     {
         await using var db = NewDb();

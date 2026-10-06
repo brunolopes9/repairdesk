@@ -32,28 +32,8 @@ export const trabalhosApi = {
   update(id: string, form: UpdateTrabalhoForm) {
     return api.put<Trabalho>(`/trabalhos/${id}`, form).then((r) => r.data);
   },
-  emitirFatura(id: string, payload: { vatPercent?: number | null; paymentMethod?: string | null; documentType?: number } = {}) {
-    return api.post<InvoiceDto>(`/trabalhos/${id}/emitir-fatura`, payload).then((r) => r.data);
-  },
-  anularFatura(id: string) {
-    return api.post<Trabalho>(`/trabalhos/${id}/anular-fatura`).then((r) => r.data);
-  },
-  emitirOrcamentoMoloni(id: string) {
-    return api.post<Trabalho>(`/trabalhos/${id}/emitir-orcamento-moloni`).then((r) => r.data);
-  },
-  converterOrcamentoEmFatura(id: string) {
-    return api.post<Trabalho>(`/trabalhos/${id}/converter-orcamento-fatura`).then((r) => r.data);
-  },
   listPagasSemFatura(limit: number = 100) {
     return api.get<Trabalho[]>('/trabalhos/pagas-sem-fatura', { params: { limit } }).then((r) => r.data);
-  },
-  bulkEmitFaturas(ids: string[]) {
-    return api
-      .post<Array<{ id: string; success: boolean; invoiceNumber: string | null; errorMessage: string | null }>>(
-        '/trabalhos/bulk-emit-faturas',
-        { ids },
-      )
-      .then((r) => r.data);
   },
   reabrir(id: string) {
     return api.post<Trabalho>(`/trabalhos/${id}/reabrir`).then((r) => r.data);
@@ -62,9 +42,3 @@ export const trabalhosApi = {
     return api.delete(`/trabalhos/${id}`).then(() => undefined);
   },
 };
-
-export interface InvoiceDto {
-  number: string;
-  pdfUrl: string | null;
-  emittedAt: string;
-}

@@ -19,7 +19,6 @@ PowerShell:
 
 ```powershell
 $env:E2E_ENABLED = 'true'
-$env:E2E_USE_MOLONI_STUB = 'true'
 $env:E2E_API_KEY = 'repairdesk-e2e-local'
 docker compose up -d --build db cache api web
 
@@ -54,7 +53,7 @@ npm run test:headed
 - `global-setup.ts` espera por `/api/health/live`, `/api/health/ready` e pelo frontend.
 - Cada teste chama `POST /api/e2e/reset` antes de comecar.
 - O reset so existe quando `E2E__Enabled=true`.
-- Faturacao usa `E2eMoloniClient`, activado com `E2E__UseMoloniStub=true`, para nao depender da Moloni real.
+- O Mender nao emite faturas (sao passadas fora do Mender), por isso os testes nao precisam de stub de faturacao.
 - A suite corre com `workers: 1`, porque o reset de base de dados e global.
 
 ## Artifacts

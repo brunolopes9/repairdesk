@@ -1,62 +1,5 @@
 import { api } from '../api';
 
-/** Sprint 180: linha individual para drill-down (PartMovimento Entrada ou Despesa). */
-export interface IvaDeducaoLinha {
-  data: string;
-  descricao: string;
-  fornecedor: string | null;
-  origem: 'stock-entrada' | 'despesa-pecas' | 'despesa-opex';
-  valorComIvaCents: number;
-  ivaCents: number;
-}
-
-export interface RelatorioIvaDocumento {
-  id: string;
-  tipo: string;
-  numeroInterno: number;
-  numeroDocumento: string;
-  data: string;
-  cliente: string;
-  baseCents: number;
-  ivaCents: number;
-  totalCents: number;
-  /** Sprint 541: true = IVA exato (totais do Moloni ou taxa por linha); false = estimado a 23%. */
-  ivaExato: boolean;
-}
-
-export interface RelatorioIvaResponse {
-  ano: number;
-  trimestre: number;
-  periodoDe: string;
-  periodoAte: string;
-  // === Vendas ===
-  totalSemIvaCents: number;
-  ivaLiquidadoCents: number;
-  /** Sprint 535: IVA do regime da margem (bens em segunda mão) — JÁ incluído em ivaLiquidadoCents. */
-  ivaRegimeMargemCents: number;
-  /** Sprint 535: nº de linhas de 2ª mão sem custo registado (não entraram na base da margem). */
-  regimeMargemSemCustoCount: number;
-  // === Compras dedutíveis (Sprint 159) ===
-  /** Input manual Bruno (compras não registadas). */
-  ivaComprasCents: number;
-  /** Sprint 178: auto — IVA pago nas peças que ENTRARAM em stock no período (compras a fornecedor). */
-  ivaDedutivelPecasCents: number;
-  /** Sprint 176: auto — IVA das Despesas OpEx (IsCogs=false) no período. */
-  ivaDedutivelDespesasCents: number;
-  /** Sprint 180: drill-down — linhas individuais que somam para 'Compras stock'. */
-  comprasStockDetalhe: IvaDeducaoLinha[];
-  /** Sprint 180: drill-down — linhas individuais 'Despesas operacionais'. */
-  despesasOpExDetalhe: IvaDeducaoLinha[];
-  /** Soma das 3 fontes. */
-  ivaDedutivelTotalCents: number;
-  // === A entregar ===
-  ivaAEntregarCents: number;
-  // === Comparação ===
-  trimestreAnteriorTotalSemIvaCents: number;
-  trimestreAnteriorIvaLiquidadoCents: number;
-  documentos: RelatorioIvaDocumento[];
-}
-
 export interface TopReparacaoLucrativa {
   id: string;
   numero: number;
@@ -145,11 +88,6 @@ export interface AnaliseVendasResponse {
 }
 
 export const relatoriosApi = {
-  iva(ano: number, trimestre: number, ivaComprasCents = 0) {
-    return api
-      .get<RelatorioIvaResponse>('/relatorios/iva', { params: { ano, trimestre, ivaComprasCents } })
-      .then((r) => r.data);
-  },
   negocio(ano: number, trimestre: number) {
     return api
       .get<RelatorioNegocioResponse>('/relatorios/negocio', { params: { ano, trimestre } })

@@ -60,10 +60,6 @@ public sealed class SupplierFingerprintingService : ISupplierFingerprintingServi
         {
             @"utopya", @"@utopya\.(com|fr)", @"noreply@utopya",
         }),
-        new KnownSupplier("molano", "Molano", new[]
-        {
-            @"molano", @"@molano\.(com|eu)", @"mln-",
-        }),
         new KnownSupplier("lcphones", "LC Phones", new[]
         {
             @"lcphones", @"@lcphones",

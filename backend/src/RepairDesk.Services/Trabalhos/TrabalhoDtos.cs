@@ -45,15 +45,5 @@ public sealed record TrabalhoDto(
     PaymentStatus EstadoPagamento,
     int CustoDespesasCents,
     int LucroCents,
-    BillingProvider InvoiceProvider,
-    string? InvoiceExternalId,
-    string? InvoicePdfUrl,
     string? InvoiceNumber,
-    DateTime? InvoiceEmittedAt,
-    // Sprint 529: recibo de liquidação (trabalho facturado a crédito e depois liquidado).
-    string? ReciboNumero,
-    DateTime? ReciboEmitidoEm,
-    string? EstimateExternalId,
-    string? EstimateNumber,
-    string? EstimatePdfUrl,
-    DateTime? EstimateEmittedAt);
+    DateTime? InvoiceEmittedAt);

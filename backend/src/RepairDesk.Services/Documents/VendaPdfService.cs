@@ -130,7 +130,7 @@ public class VendaPdfService : IVendaPdfService
                         totals.Item().Text($"Total: {Money(venda.TotalCents)}").FontSize(16).Bold().FontColor("#0EA5E9");
                     });
 
-                    if (venda.InvoiceExternalId is null)
+                    if (string.IsNullOrWhiteSpace(venda.InvoiceNumber))
                     {
                         col.Item().PaddingTop(16).Border(1).BorderColor(Colors.Red.Lighten2).Background(Colors.Red.Lighten5).Padding(10)
                             .Text("Documento nao fiscal - emitir fatura no software certificado.")
@@ -138,7 +138,7 @@ public class VendaPdfService : IVendaPdfService
                     }
                     else
                     {
-                        col.Item().PaddingTop(10).Text($"Fatura: {venda.InvoiceNumber ?? venda.InvoiceExternalId}")
+                        col.Item().PaddingTop(10).Text($"Fatura: {venda.InvoiceNumber}")
                             .FontSize(10).FontColor(Colors.Grey.Darken2);
                     }
 

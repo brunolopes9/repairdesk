@@ -52,17 +52,6 @@ public class CrossTenantTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
-    public async Task Produto_FromOtherTenant_Returns404()
-    {
-        var ids = await SeedTenantBScenarioAsync();
-        var client = await NewTenantAAdminClient();
-
-        var response = await client.GetAsync($"/api/products/{ids.ProductId}");
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
     public async Task Garantia_FromOtherTenant_Returns404()
     {
         var ids = await SeedTenantBScenarioAsync();
@@ -90,17 +79,6 @@ public class CrossTenantTests : IClassFixture<RepairDeskApiFactory>
             notas = (string?)null,
             active = true
         });
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task Webhook_FromOtherTenant_DeliveriesReturns404()
-    {
-        var ids = await SeedTenantBScenarioAsync();
-        var client = await NewTenantAAdminClient();
-
-        var response = await client.GetAsync($"/api/webhooks/{ids.WebhookId}/deliveries");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -172,23 +150,6 @@ public class CrossTenantTests : IClassFixture<RepairDeskApiFactory>
             PaymentMethod = PaymentMethod.MBWay,
             Status = VendaStatus.Paga
         };
-        var product = new Product
-        {
-            Id = Guid.NewGuid(),
-            TenantId = tenantId,
-            Sku = $"SKU-{suffix[..8]}",
-            Slug = $"produto-{suffix}",
-            Brand = "Apple",
-            Model = "iPhone 13",
-            Storage = "128GB",
-            Color = "Preto",
-            PriceCents = 49900,
-            StockQuantity = 1,
-            StockMinima = 0,
-            CustoUnitarioCents = 35000,
-            Active = true,
-            MostrarLojaOnline = true
-        };
         var garantia = new Garantia
         {
             Id = Guid.NewGuid(),
@@ -207,16 +168,6 @@ public class CrossTenantTests : IClassFixture<RepairDeskApiFactory>
             Name = $"Fornecedor Tenant B {suffix}",
             Active = true
         };
-        var webhook = new WebhookSubscription
-        {
-            Id = Guid.NewGuid(),
-            TenantId = tenantId,
-            Name = $"Webhook Tenant B {suffix}",
-            Url = $"https://example.com/hooks/{suffix}",
-            Secret = $"secret-{suffix}",
-            Events = WebhookEvents.VendaCriada,
-            Active = true
-        };
         var apiKey = new ServiceApiKey
         {
             Id = Guid.NewGuid(),
@@ -227,17 +178,15 @@ public class CrossTenantTests : IClassFixture<RepairDeskApiFactory>
             Scopes = ServiceApiKeyScopes.Read
         };
 
-        db.AddRange(cliente, reparacao, venda, product, garantia, fornecedor, webhook, apiKey);
+        db.AddRange(cliente, reparacao, venda, garantia, fornecedor, apiKey);
         await db.SaveChangesAsync();
 
         return new CrossTenantIds(
             cliente.Id,
             reparacao.Id,
             venda.Id,
-            product.Id,
             garantia.Id,
             fornecedor.Id,
-            webhook.Id,
             apiKey.Id);
     }
 
@@ -245,9 +194,7 @@ public class CrossTenantTests : IClassFixture<RepairDeskApiFactory>
         Guid ClienteId,
         Guid ReparacaoId,
         Guid VendaId,
-        Guid ProductId,
         Guid GarantiaId,
         Guid FornecedorId,
-        Guid WebhookId,
         Guid ApiKeyId);
 }

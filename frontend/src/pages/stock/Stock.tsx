@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { AlertTriangle, Boxes, History, MapPin, PackageCheck, PackagePlus, PackageSearch, Pencil, Search, SlidersHorizontal, Store, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Boxes, History, MapPin, PackageCheck, PackagePlus, PackageSearch, Pencil, Search, SlidersHorizontal, Trash2, Upload } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard, SkeletonTable, StatusBadge, ViewTabs } from '../../components/ui';
 import { formatCents, formatDate, parseEuros } from '../../lib/money';
@@ -21,7 +21,7 @@ import {
 } from '../../lib/stock/types';
 
 const PAGE_SIZE = 50;
-type StockScope = 'todos' | 'baixo' | 'loja' | 'inativas';
+type StockScope = 'todos' | 'baixo' | 'inativas';
 
 export default function Stock() {
   const qc = useQueryClient();
@@ -91,17 +91,15 @@ export default function Stock() {
       acc.units += part.qtdStock;
       acc.stockValueCents += part.valorTotalStockCents;
       if (part.stockBaixo) acc.low += 1;
-      if (part.mostrarLojaOnline) acc.shopVisible += 1;
       if (!part.activo) acc.inactive += 1;
       if (!part.localArmazenamento) acc.noLocation += 1;
       if (!part.fornecedor) acc.noSupplier += 1;
       return acc;
     },
-    { units: 0, stockValueCents: 0, low: 0, shopVisible: 0, inactive: 0, noLocation: 0, noSupplier: 0 },
+    { units: 0, stockValueCents: 0, low: 0, inactive: 0, noLocation: 0, noSupplier: 0 },
   ), [displayItems]);
   const scopedItems = useMemo(() => {
     if (stockScope === 'baixo') return displayItems.filter((p) => p.stockBaixo);
-    if (stockScope === 'loja') return displayItems.filter((p) => p.mostrarLojaOnline);
     if (stockScope === 'inativas') return displayItems.filter((p) => !p.activo);
     return displayItems;
   }, [displayItems, stockScope]);
@@ -110,7 +108,6 @@ export default function Stock() {
   const stockTabs = [
     { key: 'todos', label: 'Tudo', meta: displayItems.length },
     { key: 'baixo', label: 'Stock baixo', meta: stockCounts.low },
-    { key: 'loja', label: 'Loja online', meta: stockCounts.shopVisible },
     { key: 'inativas', label: 'Inativas', meta: stockCounts.inactive },
   ];
 
@@ -127,7 +124,7 @@ export default function Stock() {
         <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Inventario</p>
         <h2 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">Armazem da oficina</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Saude do stock fisico, pecas publicas na loja e buracos de catalogacao nesta pagina.
+          Saude do stock fisico e buracos de catalogacao nesta pagina.
         </p>
       </div>
 
@@ -135,7 +132,7 @@ export default function Stock() {
         <StockMetric label="Unidades" value={stockCounts.units} />
         <StockMetric label="Valor stock" value={formatCents(stockCounts.stockValueCents)} tone="emerald" />
         <StockMetric label="Stock baixo" value={stockCounts.low} tone={stockCounts.low > 0 ? 'amber' : 'zinc'} />
-        <StockMetric label="Na loja" value={stockCounts.shopVisible} tone="blue" />
+        <StockMetric label="Inativas" value={stockCounts.inactive} tone="zinc" />
       </div>
 
       <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
@@ -146,13 +143,6 @@ export default function Stock() {
           value={`${stockCounts.low} baixo`}
           tone={stockCounts.low > 0 ? 'amber' : 'zinc'}
           onClick={() => handleStockScopeChange('baixo')}
-        />
-        <StockInsightButton
-          icon={<Store size={15} />}
-          label="Publicados"
-          value={`${stockCounts.shopVisible} loja`}
-          tone="blue"
-          onClick={() => handleStockScopeChange('loja')}
         />
         <StockInsightButton
           icon={<MapPin size={15} />}
@@ -174,7 +164,7 @@ export default function Stock() {
           Regra de organizacao
         </div>
         <p>
-          Mantem aqui o stock real da loja. Telemoveis/dropshipping vivem melhor em Catalogo & Stock, mas cada peca pode ser publicada na loja quando fizer sentido.
+          Mantem aqui o stock real da loja: pecas, acessorios e consumiveis.
         </p>
       </div>
     </InspectorRail>
@@ -342,7 +332,6 @@ export default function Stock() {
                   </button>
                   <div className="mt-1 flex flex-wrap gap-1">
                     <StatusBadge tone="zinc">{PART_CATEGORIA_LABEL[part.categoria]}</StatusBadge>
-                    {part.mostrarLojaOnline && <StatusBadge tone="blue">Loja online</StatusBadge>}
                     {part.stockBaixo && <StatusBadge tone="amber" icon={<AlertTriangle size={11} />}>Stock baixo</StatusBadge>}
                     {!part.activo && <StatusBadge tone="rose">Inactiva</StatusBadge>}
                   </div>
@@ -479,7 +468,6 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText, pdfS
     fornecedor: null,
     localArmazenamento: null,
     notas: null,
-    mostrarLojaOnline: false,
   });
   const [activo, setActivo] = useState(true);
   const [stockStr, setStockStr] = useState('0');
@@ -501,7 +489,6 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText, pdfS
         fornecedor: editing.fornecedor,
         localArmazenamento: editing.localArmazenamento,
         notas: editing.notas,
-        mostrarLojaOnline: editing.mostrarLojaOnline,
       });
       setActivo(editing.activo);
       setStockStr(String(editing.qtdStock));
@@ -536,7 +523,6 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText, pdfS
         fornecedor: s?.supplierName ?? null,
         localArmazenamento: null,
         notas: s?.orderId ? `Encomenda ${s.orderId}${s.dateAdded ? ` · ${new Date(s.dateAdded).toLocaleDateString('pt-PT')}` : ''}` : null,
-        mostrarLojaOnline: false,
       });
       setActivo(true);
       setStockStr(String(firstItem?.quantity ?? 0));
@@ -646,22 +632,6 @@ function PartFormModal({ open, editing, onClose, onSaved, pdfReferenceText, pdfS
           <Field label="Local"><input value={form.localArmazenamento ?? ''} onChange={(e) => setForm({ ...form, localArmazenamento: e.target.value || null })} placeholder="Prateleira A3" className={inputCls} /></Field>
         </div>
         <Field label="Notas"><textarea rows={2} value={form.notas ?? ''} onChange={(e) => setForm({ ...form, notas: e.target.value || null })} className={inputCls + ' resize-none'} /></Field>
-        <div className="space-y-2 rounded-md border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
-          <label className="flex cursor-pointer items-start gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={form.mostrarLojaOnline}
-              onChange={(e) => setForm({ ...form, mostrarLojaOnline: e.target.checked })}
-              className="mt-0.5 scale-125 sm:scale-100"
-            />
-            <div>
-              <div className="font-medium">Mostrar na loja online</div>
-              <div className="text-[10px] text-zinc-500">
-                Esta peça vai aparecer no catálogo público da loja em shop.lopestech.pt. Desliga para peças internas (charge boards, ferramentas, etc).
-              </div>
-            </div>
-          </label>
-        </div>
         {editing && (
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="scale-125 sm:scale-100" />
@@ -868,7 +838,6 @@ function StockModeStrip({
     units: number;
     stockValueCents: number;
     low: number;
-    shopVisible: number;
     noLocation: number;
     noSupplier: number;
   };
@@ -883,14 +852,6 @@ function StockModeStrip({
         text="Tudo aqui deve existir fisicamente na oficina ou loja. Estas unidades entram em reparacoes e contagens."
         action="Ver stock"
         onClick={() => onScope('todos')}
-      />
-      <StockModeCard
-        title="Publicavel online"
-        value={`${counts.shopVisible} itens`}
-        detail="pecas visiveis"
-        text="Algumas pecas e acessorios podem aparecer na loja online, mas continuam a ser stock fisico."
-        action="Ver publicaveis"
-        onClick={() => onScope('loja')}
       />
       <StockModeCard
         title="Higiene logistica"

@@ -72,7 +72,7 @@ public class TrabalhoRepository : ITrabalhoRepository
         return await _db.Trabalhos
             .AsNoTracking()
             .Include(t => t.Cliente)
-            .Where(t => t.EstadoPagamento == PaymentStatus.Pago && t.InvoiceExternalId == null)
+            .Where(t => t.EstadoPagamento == PaymentStatus.Pago && t.InvoiceNumber == null)
             .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
             .Take(capped)
             .ToListAsync(ct);

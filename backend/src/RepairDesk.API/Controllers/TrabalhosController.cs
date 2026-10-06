@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Core.Enums;
-using RepairDesk.Services.Billing;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Documents;
 using RepairDesk.Services.Trabalhos;
@@ -15,13 +14,11 @@ public class TrabalhosController : ControllerBase
 {
     private readonly ITrabalhoService _service;
     private readonly IOrcamentoPdfService _pdf;
-    private readonly IBillingProvider _billing;
 
-    public TrabalhosController(ITrabalhoService service, IOrcamentoPdfService pdf, IBillingProvider billing)
+    public TrabalhosController(ITrabalhoService service, IOrcamentoPdfService pdf)
     {
         _service = service;
         _pdf = pdf;
-        _billing = billing;
     }
 
     [HttpGet("{id:guid}/orcamento.pdf")]
@@ -31,59 +28,9 @@ public class TrabalhosController : ControllerBase
         return File(pdf, "application/pdf", filename);
     }
 
-    // Sprint 243 Fase A: operações fiscais (Moloni: emitir, NC, converter) só Admin —
-    // paralelo com VendasController/ReparacoesController. Doc 72 §2 A.1.
-    [HttpPost("{id:guid}/emitir-fatura")]
-    [Authorize(Roles = "Admin")]
-    public Task<InvoiceDto> EmitirFatura(Guid id, [FromBody] EmitInvoiceRequest? req, CancellationToken ct)
-        => _billing.EmitTrabalhoInvoiceAsync(id, req?.VatPercent, req?.PaymentMethod, req?.DocumentType, ct);
-
-    [HttpPost("{id:guid}/emitir-orcamento-moloni")]
-    [Authorize(Roles = "Admin")]
-    public Task<TrabalhoDto> EmitirOrcamentoMoloni(Guid id, CancellationToken ct)
-        => _service.EmitirOrcamentoMoloniAsync(id, ct);
-
-    [HttpPost("{id:guid}/converter-orcamento-fatura")]
-    [Authorize(Roles = "Admin")]
-    public Task<TrabalhoDto> ConverterOrcamentoEmFatura(Guid id, CancellationToken ct)
-        => _service.ConverterOrcamentoEmFaturaAsync(id, ct);
-
-    /// <summary>Emite Nota de Credito Moloni + limpa referencias locais.</summary>
-    [HttpPost("{id:guid}/anular-fatura")]
-    [Authorize(Roles = "Admin")]
-    public Task<TrabalhoDto> AnularFatura(Guid id, CancellationToken ct)
-        => _service.AnularFaturaAsync(id, ct);
-
     [HttpGet("pagas-sem-fatura")]
     public Task<IReadOnlyList<TrabalhoDto>> PagasSemFatura([FromQuery] int limit = 100, CancellationToken ct = default)
         => _service.ListPagasSemFaturaAsync(limit, ct);
-
-    /// <summary>Emite fatura para vários trabalhos pagos em batch.</summary>
-    [HttpPost("bulk-emit-faturas")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IReadOnlyList<BulkEmitResult>> BulkEmitFaturas([FromBody] BulkEmitRequest req, CancellationToken ct)
-    {
-        if (req.Ids is null || req.Ids.Count == 0)
-            return Array.Empty<BulkEmitResult>();
-
-        var results = new List<BulkEmitResult>(req.Ids.Count);
-        foreach (var id in req.Ids)
-        {
-            try
-            {
-                var invoice = await _billing.EmitTrabalhoInvoiceAsync(id, null, null, null, ct);
-                results.Add(new BulkEmitResult(id, true, invoice.Number, null));
-            }
-            catch (Exception ex)
-            {
-                results.Add(new BulkEmitResult(id, false, null, ex.Message));
-            }
-        }
-        return results;
-    }
-
-    public sealed record BulkEmitRequest(IReadOnlyList<Guid> Ids);
-    public sealed record BulkEmitResult(Guid Id, bool Success, string? InvoiceNumber, string? ErrorMessage);
 
     // Reabrir trabalho fechado é admin-only — pode reverter histórico e KPI.
     [HttpPost("{id:guid}/reabrir")]

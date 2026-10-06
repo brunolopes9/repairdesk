@@ -5,7 +5,6 @@ import { AlertTriangle, BriefcaseBusiness, CheckCircle2, Clock3, Euro, FileWarni
 import { isAxiosError } from 'axios';
 import Modal from '../../components/Modal';
 import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard, ViewTabs } from '../../components/ui';
-import { toast } from '../../lib/toast';
 import { clientesApi } from '../../lib/clientes/api';
 import NovoClienteModal from '../../components/NovoClienteModal';
 import { displayPhone } from '../../lib/phone/formatter';
@@ -41,7 +40,6 @@ export default function Trabalhos() {
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Trabalho | null>(null);
   const [pagasSemFaturaOpen, setPagasSemFaturaOpen] = useState(false);
-  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (new URLSearchParams(location.search).get('new') === '1') {
@@ -62,19 +60,6 @@ export default function Trabalhos() {
     staleTime: 30_000,
   });
 
-  const bulkEmit = useMutation({
-    mutationFn: (ids: string[]) => trabalhosApi.bulkEmitFaturas(ids),
-    onSuccess: (results) => {
-      const ok = results.filter((r) => r.success).length;
-      const fail = results.filter((r) => !r.success).length;
-      qc.invalidateQueries({ queryKey: ['trabalhos-pagas-sem-fatura'] });
-      qc.invalidateQueries({ queryKey: ['trabalhos'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      setBulkSelected(new Set());
-      if (fail === 0) toast.success(`${ok} faturas emitidas`, 'Todas comunicadas à AT com sucesso.');
-      else toast.warning(`${ok} OK, ${fail} falharam`, results.filter((r) => !r.success).slice(0, 3).map((r) => r.errorMessage).join(' • '));
-    },
-  });
 
   const remove = useMutation({
     mutationFn: (t: Trabalho) => trabalhosApi.remove(t.id),
@@ -168,7 +153,7 @@ export default function Trabalhos() {
                 type="button"
                 onClick={() => setPagasSemFaturaOpen(true)}
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
-                title="Trabalhos pagos sem fatura Moloni emitida"
+                title="Trabalhos pagos sem fatura registada emitida"
               >
                 <AlertTriangle size={13} />
                 {pagasSemFatura.data!.length} {pagasSemFatura.data!.length === 1 ? 'pendente fatura' : 'pendentes fatura'}
@@ -275,56 +260,20 @@ export default function Trabalhos() {
       <Modal
         open={pagasSemFaturaOpen}
         title="Trabalhos pagos sem fatura"
-        onClose={() => { setPagasSemFaturaOpen(false); setBulkSelected(new Set()); }}
+        onClose={() => setPagasSemFaturaOpen(false)}
       >
         <p className="mb-3 text-xs text-zinc-500">
-          Trabalhos pagos sem fatura Moloni. Selecciona vários e clica <strong>Emitir todas</strong> para
-          faturar em batch, ou clica numa linha para abrir o detalhe.
+          Trabalhos pagos sem nº de fatura registado. Passa a fatura no teu programa de faturação
+          e regista o número na ficha. Clica numa linha para abrir o trabalho.
         </p>
         {(pagasSemFatura.data?.length ?? 0) === 0 ? (
           <p className="text-sm text-zinc-500">Nenhum trabalho pendente de fatura — tudo em dia ✓</p>
         ) : (
           <>
-            <div className="mb-2 flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-950 sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex min-h-10 items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="scale-125 sm:scale-100"
-                  checked={bulkSelected.size > 0 && bulkSelected.size === pagasSemFatura.data!.length}
-                  onChange={(e) => {
-                    if (e.target.checked) setBulkSelected(new Set(pagasSemFatura.data!.map((t) => t.id)));
-                    else setBulkSelected(new Set());
-                  }}
-                />
-                <span>
-                  {bulkSelected.size === 0
-                    ? 'Seleccionar todos'
-                    : `${bulkSelected.size} de ${pagasSemFatura.data!.length} seleccionados`}
-                </span>
-              </label>
-              <button
-                type="button"
-                disabled={bulkSelected.size === 0 || bulkEmit.isPending}
-                onClick={() => {
-                  const total = pagasSemFatura.data!
-                    .filter((t) => bulkSelected.has(t.id))
-                    .reduce((sum, t) => sum + (t.precoFinalCents ?? t.orcamentoCents ?? 0), 0);
-                  const ok = confirm(
-                    `Vais emitir ${bulkSelected.size} faturas Moloni — total ${formatCents(total)}.\n\n` +
-                    `Cada fatura é comunicada à AT em tempo real e entra na declaração IVA trimestral.\n\nContinuar?`
-                  );
-                  if (ok) bulkEmit.mutate(Array.from(bulkSelected));
-                }}
-                className="min-h-11 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-              >
-                {bulkEmit.isPending ? 'A emitir…' : `Emitir ${bulkSelected.size} faturas`}
-              </button>
-            </div>
             <div className="max-h-[55vh] overflow-auto">
               <table className="w-full min-w-[480px] text-sm">
                 <thead className="border-b border-zinc-200 text-xs text-zinc-500 dark:border-zinc-800">
                   <tr>
-                    <th className="w-8 px-2 py-2"></th>
                     <th className="px-2 py-2 text-left font-medium">Nº</th>
                     <th className="px-2 py-2 text-left font-medium">Título</th>
                     <th className="px-2 py-2 text-left font-medium">Cliente</th>
@@ -334,20 +283,6 @@ export default function Trabalhos() {
                 <tbody>
                   {pagasSemFatura.data!.map((t) => (
                     <tr key={t.id} className="border-b border-zinc-100 hover:bg-amber-50/50 dark:border-zinc-900 dark:hover:bg-amber-950/30">
-                      <td className="px-2 py-2">
-                        <input
-                          type="checkbox"
-                          className="scale-125 sm:scale-100"
-                          checked={bulkSelected.has(t.id)}
-                          onChange={(e) => {
-                            const next = new Set(bulkSelected);
-                            if (e.target.checked) next.add(t.id);
-                            else next.delete(t.id);
-                            setBulkSelected(next);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </td>
                       <td
                         className="cursor-pointer px-2 py-2 font-mono text-xs"
                         onClick={() => { setPagasSemFaturaOpen(false); navigate(`/trabalhos/${t.id}`); }}

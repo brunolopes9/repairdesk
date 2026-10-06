@@ -65,7 +65,6 @@ public sealed class E2eController : ControllerBase
             await DeleteAsync(deleted, "trabalhos", _db.Trabalhos.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "reparacoes", _db.Reparacoes.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "clientes", _db.Clientes.IgnoreQueryFilters(), ct);
-            await DeleteAsync(deleted, "tenantBillingSettings", _db.TenantBillingSettings.IgnoreQueryFilters(), ct);
 
             await ResetSeedTenantAsync(ct);
             await ResetSeedAdminAsync(ct);

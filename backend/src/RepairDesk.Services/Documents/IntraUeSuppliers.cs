@@ -13,8 +13,8 @@ namespace RepairDesk.Services.Documents;
 /// </summary>
 public static class IntraUeSuppliers
 {
-    // Utopya (FR), Molano (NL/Haarlem) — os fornecedores estrangeiros recorrentes da LopesTech.
-    private static readonly string[] Known = ["utopya", "molano"];
+    // Fornecedores UE recorrentes da LopesTech: Utopya (FR), 4Phones, iPartsTrade e MobileSentrix (NL).
+    private static readonly string[] Known = ["utopya", "4phones", "ipartstrade", "mobilesentrix"];
 
     /// <summary>True se o nome do fornecedor corresponder a um fornecedor intra-UE conhecido.</summary>
     public static bool IsKnownIntraUe(string? name)

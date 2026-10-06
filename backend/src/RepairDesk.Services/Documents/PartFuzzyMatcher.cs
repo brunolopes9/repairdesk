@@ -1,4 +1,4 @@
-namespace RepairDesk.Services.Products;
+namespace RepairDesk.Services.Documents;
 
 /// <summary>
 /// Sprint 157: fuzzy matcher para sugerir matches Part/Product internos quando o fornecedor

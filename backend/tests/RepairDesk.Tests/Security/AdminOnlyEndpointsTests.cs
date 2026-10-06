@@ -29,9 +29,6 @@ public class AdminOnlyEndpointsTests : IClassFixture<RepairDeskApiFactory>
     [Theory]
     // Sprint 243 Fase A — operações fiscais e estruturais P0
     [InlineData("DELETE", "/api/trabalhos/00000000-0000-0000-0000-000000000001")]
-    [InlineData("POST", "/api/trabalhos/00000000-0000-0000-0000-000000000001/emitir-fatura")]
-    [InlineData("POST", "/api/trabalhos/00000000-0000-0000-0000-000000000001/anular-fatura")]
-    [InlineData("POST", "/api/trabalhos/bulk-emit-faturas")]
     [InlineData("POST", "/api/supplier-invoices/00000000-0000-0000-0000-000000000001/approve")]
     [InlineData("POST", "/api/supplier-invoices/00000000-0000-0000-0000-000000000001/reject")]
     [InlineData("POST", "/api/supplier-invoices/00000000-0000-0000-0000-000000000001/reprocess")]

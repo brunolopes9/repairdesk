@@ -94,7 +94,7 @@ public class PartsController : ControllerBase
 
     /// <summary>
     /// Sprint 119: extrai texto de um PDF de encomenda/fatura recebida do fornecedor
-    /// (Tudo4Mobile, Molano, etc). Devolve texto bruto para preencher manualmente um
+    /// (Tudo4Mobile, etc). Devolve texto bruto para preencher manualmente um
     /// form de criação de peça. Sem parsing AI — apenas extracção. Limite 10 MB / 30 páginas.
     /// </summary>
     [HttpPost("extract-pdf")]

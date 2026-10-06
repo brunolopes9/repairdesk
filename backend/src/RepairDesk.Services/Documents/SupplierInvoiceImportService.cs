@@ -263,7 +263,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // 3. Reconcile fornecedor — pipeline em ordem (mais específico → mais geral):
         //   a) Parser específico (Sprint 124+134 Tudo4Mobile etc) já detectou pelo formato do PDF.
         //   b) Sprint 162: supplier fingerprinting determinístico via emailMeta + first chars do PDF
-        //      (cobre fornecedores conhecidos sem parser específico — Utopya, Molano, Mr.Phones, etc).
+        //      (cobre fornecedores conhecidos sem parser específico — Utopya, MobileSentrix, Mr.Phones, etc).
         //   c) Sprint 163 (futuro): LLM fallback se ainda nada detectado.
         Guid? fornecedorId = null;
         var fornecedorNameRaw = parsed?.SupplierName;
@@ -554,7 +554,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             //    Por ora só fazemos fuzzy.
 
             // 2. Fuzzy match.
-            var candidates = Products.PartFuzzyMatcher.Find(item.Description, partHaystack, topN: 3, minScore: 0.35);
+            var candidates = PartFuzzyMatcher.Find(item.Description, partHaystack, topN: 3, minScore: 0.35);
             foreach (var c in candidates)
             {
                 // Procurar Part para preencher SKU.

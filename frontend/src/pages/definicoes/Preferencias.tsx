@@ -4,13 +4,11 @@ import { CalendarClock, CheckCircle2, Eye, Loader2, MessageCircle, RotateCcw, Sh
 import { Button } from '../../components/ui/Button';
 import { BackButton, SkeletonCard } from '../../components/ui';
 import { StaffPushToggle } from '../../components/StaffPushToggle';
-import { ShopConditionImagesSection } from './ShopConditionImagesSection';
 import { toast } from '../../lib/toast';
 import { tenantPreferencesApi } from '../../lib/tenantPreferences/api';
 import type {
   BookingPrefs,
   CommunicationPrefs,
-  EmitirFaturaMode,
   EntregarMarcaPagoMode,
   GarantiaAutoMode,
   PortalPrefs,
@@ -44,12 +42,6 @@ const yesAskNoLabels: Record<GarantiaAutoMode | EntregarMarcaPagoMode, string> =
   0: 'Sim',
   1: 'Perguntar',
   2: 'Não',
-};
-
-const emitirFaturaLabels: Record<EmitirFaturaMode, string> = {
-  0: 'Nunca',
-  1: 'Perguntar',
-  2: 'Automático',
 };
 
 const paymentNames = ['Dinheiro', 'MBWay', 'Multibanco', 'TransferenciaBancaria', 'Cartao', 'Outro'];
@@ -390,15 +382,6 @@ export default function Preferencias() {
                 ))}
               </select>
             </Field>
-            <Field label="Emitir fatura em venda POS">
-              <select
-                value={draft.sales.emitirFatura}
-                onChange={(e) => patchSales({ emitirFatura: Number(e.target.value) as EmitirFaturaMode })}
-                className={inputCls}
-              >
-                {Object.entries(emitirFaturaLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </Field>
             <Field label="Garantia automática em vendas">
               <select
                 value={draft.sales.vendaGarantia}
@@ -438,8 +421,6 @@ export default function Preferencias() {
         )}
       </section>
 
-      {/* Sprint 531: imagens por estado de condição da loja online (Mender = SSoT). */}
-      <ShopConditionImagesSection />
     </div>
   );
 }

@@ -79,7 +79,6 @@ services:
       # Sem esta key, o sistema usa só parsers determinísticos (Sprint 124+162).
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
-      E2E__UseMoloniStub: ${E2E_USE_MOLONI_STUB:-false}
       AtNifLookup__Production: ${AT_PRODUCTION:-false}
       AtNifLookup__CertPath: ${AT_CERT_PATH:-}
       AtNifLookup__KeyPath: ${AT_KEY_PATH:-}
@@ -95,7 +94,7 @@ services:
       - "5080:8080"
     volumes:
       - photos_data:/data/photos
-      # DataProtection keys (cifram tokens Moloni, refresh tokens, etc).
+      # DataProtection keys (cifram refresh tokens, chaves de API, etc).
       # Bind mount em ./data/dp-keys para sobreviverem a 'docker compose down -v' tambem.
       # CRITICO: sem isto, rebuilds perdem as keys e os secrets em DB tornam-se ilegiveis.
       - ./data/dp-keys:/data/dp-keys

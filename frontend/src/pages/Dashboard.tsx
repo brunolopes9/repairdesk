@@ -27,7 +27,6 @@ import {
   Bar,
   BarChart,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -136,7 +135,7 @@ export default function Dashboard() {
     staleTime: 60_000,
   });
 
-  // Sprint 410: faturas pendentes (reparações pagas sem fatura Moloni) — alimenta "Alertas importantes".
+  // Sprint 410: faturas pendentes (reparações pagas sem nº de fatura registado) — alimenta "Alertas importantes".
   const pagasSemFatura = useQuery({
     queryKey: ['dashboard-pagas-sem-fatura'],
     queryFn: () => reparacoesApi.listPagasSemFatura(100),
@@ -164,12 +163,6 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
   });
 
-  // Sprint 549 (Doc 93 #6): tesouraria mensal — faturado vs recebido.
-  const tesouraria = useQuery({
-    queryKey: ['dashboard-tesouraria-6m'],
-    queryFn: () => dashboardApi.tesouraria(6),
-    staleTime: 5 * 60_000,
-  });
 
   // Sprint 431 (Doc 90): contagens dos crons S392 + S428 + S430 para "Alertas importantes".
   const alertasQuery = useQuery({
@@ -239,18 +232,6 @@ export default function Dashboard() {
       net: days.reduce((s, d) => s + d.netCents, 0),
     };
   }, [cashflow.data]);
-  const tesourariaData = useMemo(() => {
-    return (tesouraria.data?.meses ?? []).map((m) => ({
-      label: new Date(Date.UTC(m.ano, m.mes - 1, 1)).toLocaleDateString('pt-PT', { month: 'short' }),
-      faturado: m.faturadoCents / 100,
-      recebido: m.recebidoCents / 100,
-    }));
-  }, [tesouraria.data]);
-  // Gap acumulado faturado−recebido na janela: aproximação do crédito por cobrar.
-  const tesourariaGap = useMemo(() => {
-    const meses = tesouraria.data?.meses ?? [];
-    return meses.reduce((s, m) => s + m.faturadoCents - m.recebidoCents, 0);
-  }, [tesouraria.data]);
 
   // Sprint 423 (Doc 90): reparações com ETA esta semana — filtra client-side da fila.
   const reparacoesEtaSemana = useMemo(() => {
@@ -690,7 +671,7 @@ export default function Dashboard() {
                       <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300"><Euro size={14} /></span>
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium text-amber-900 dark:text-amber-100">{faturasPend} reparação{faturasPend === 1 ? '' : 'ões'} paga{faturasPend === 1 ? '' : 's'} sem fatura</span>
-                        <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Emitir no Moloni para fechar</span>
+                        <span className="block text-[11px] text-amber-700/80 dark:text-amber-300/80">Regista o nº da fatura</span>
                       </span>
                     </Link>
                   </li>
@@ -821,40 +802,6 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* Sprint 549 (Doc 93 #6 — "Controlo de Tesouraria" do Moloni): faturado vs recebido por mês.
-          O gap entre as barras é crédito por cobrar (FT em dívida) ou receita paga sem documento. */}
-      <section className="space-y-3">
-        <ZoneHeader
-          eyebrow="Tesouraria"
-          title="Faturado vs recebido (6 meses)"
-          subtitle={
-            tesourariaGap > 0
-              ? `Diferença acumulada: ${formatCents(tesourariaGap)} faturados por receber.`
-              : 'O recebido acompanha o faturado nos últimos 6 meses.'
-          }
-        />
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={tesourariaData} margin={{ left: 0, right: 8, top: 6, bottom: 0 }}>
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}€`} width={56} />
-                <Tooltip
-                  formatter={(value, name) => [`${Number(value ?? 0).toFixed(2)}€`, String(name)]}
-                  labelStyle={{ fontWeight: 600 }}
-                />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="faturado" name="Faturado" fill="#7c3aed" radius={[4, 4, 0, 0]} maxBarSize={42} />
-                <Bar dataKey="recebido" name="Recebido" fill="#059669" radius={[4, 4, 0, 0]} maxBarSize={42} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-zinc-400 dark:text-zinc-500">
-            Faturado = documentos emitidos (FT + FS + FR + VD − NC, valores c/ IVA, inclui os criados diretamente no Moloni).
-            Recebido = receita paga registada no Mender. Uma fatura a crédito em dívida conta como faturado mas só passa a recebido quando for paga.
-          </p>
-        </div>
-      </section>
 
       {/* Sprint 423 (Doc 90): widgets pessoais — o que está marcado para os próximos dias. */}
       <section className="space-y-3">

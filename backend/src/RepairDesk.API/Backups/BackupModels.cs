@@ -7,6 +7,8 @@ public enum BackupTrigger
 {
     Scheduled,
     Manual,
+    /// <summary>Automático, imediatamente antes de aplicar migrações pendentes no arranque.</summary>
+    PreMigration,
 }
 
 public enum BackupLocation

@@ -218,11 +218,6 @@ public class DashboardController : ControllerBase
     public Task<CashflowResponse> GetCashflow([FromQuery] int days = 30, CancellationToken ct = default)
         => _service.GetCashflowAsync(days, ct);
 
-    /// <summary>Sprint 549 (Doc 93 #6): faturado vs recebido por mês — controlo de tesouraria. Default 6 meses, 3..12.</summary>
-    [HttpGet("tesouraria")]
-    public Task<TesourariaResponse> GetTesouraria([FromQuery] int meses = 6, CancellationToken ct = default)
-        => _service.GetTesourariaAsync(meses, ct);
-
     [HttpGet("top-reparacoes")]
     public Task<TopReparacoesResponse> GetTopReparacoes(
         [FromQuery] DateTime? from,
@@ -253,7 +248,7 @@ public class DashboardController : ControllerBase
         CancellationToken ct = default)
         => _service.GetReparacoesEmGarantiaAsync(dias, limit, ct);
 
-    /// <summary>Export CSV das reparações em garantia interna — para enviar ao fornecedor (Molano).</summary>
+    /// <summary>Export CSV das reparações em garantia interna — para enviar ao fornecedor.</summary>
     [HttpGet("reparacoes-em-garantia/export.csv")]
     public async Task<IActionResult> ExportReparacoesEmGarantia(
         [FromQuery] int dias = 90,

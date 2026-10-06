@@ -20,7 +20,7 @@ public class FornecedorConfiguration : IEntityTypeConfiguration<Fornecedor>
         builder.Property(x => x.Website).HasMaxLength(300);
         builder.Property(x => x.Notas).HasMaxLength(2000);
 
-        // Nome único por tenant — evita duplicados (Molano vs molano vs MOLANO).
+        // Nome único por tenant — evita duplicados (Utopya vs utopya vs UTOPYA).
         builder.HasIndex(x => new { x.TenantId, x.Name })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0");

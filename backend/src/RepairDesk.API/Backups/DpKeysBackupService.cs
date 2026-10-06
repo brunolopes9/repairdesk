@@ -12,7 +12,7 @@ namespace RepairDesk.API.Backups;
 ///
 /// **Porquê:** se o volume <c>dp_keys</c> desaparecer (VPS perdida, disco corrompido,
 /// rebuild com volume reset), TODOS os secrets cifrados em DB tornam-se ilegíveis —
-/// Moloni refresh tokens, Anthropic key per-tenant, OAuth state, etc. Identificado
+/// Anthropic key per-tenant, OAuth state, etc. Identificado
 /// como single point of failure em Doc 76 §inventário.
 ///
 /// **Como:**

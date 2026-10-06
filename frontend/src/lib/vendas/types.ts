@@ -84,14 +84,9 @@ export interface Venda {
   ivaCents: number;
   paymentMethod: PaymentMethod;
   status: VendaStatus;
-  invoiceProvider: number;
-  invoiceExternalId: string | null;
-  invoicePdfUrl: string | null;
+  /** Nº da fatura emitida fora do Mender (registo manual). */
   invoiceNumber: string | null;
   invoiceEmittedAt: string | null;
-  // Sprint 529: recibo de liquidação (venda facturada a crédito e depois liquidada).
-  reciboNumero: string | null;
-  reciboEmitidoEm: string | null;
   notas: string | null;
   items: VendaItem[];
   origem: VendaOrigem;
@@ -116,11 +111,6 @@ export interface CreateVendaRequest {
   clienteId: string | null;
   items: CreateVendaItemRequest[];
   notas: string | null;
-}
-
-export interface EmitVendaFaturaResponse {
-  venda: Venda;
-  invoice: { number: string; pdfUrl: string | null; emittedAt: string } | null;
 }
 
 export type VendasPage = PagedResult<Venda>;

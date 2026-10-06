@@ -123,17 +123,9 @@ export interface Reparacao {
   estadoPagamento: PaymentStatus;
   /** Sprint 229: slug público para portal cliente (/r/{slug}) — sempre presente. */
   publicSlug: string | null;
-  invoiceProvider: 0 | 1 | 2;
-  invoiceExternalId: string | null;
-  invoicePdfUrl: string | null;
+  /** Nº da fatura emitida fora do Mender (registo manual). */
   invoiceNumber: string | null;
   invoiceEmittedAt: string | null;
-  reciboNumero: string | null;
-  reciboEmitidoEm: string | null;
-  estimateExternalId: string | null;
-  estimateNumber: string | null;
-  estimatePdfUrl: string | null;
-  estimateEmittedAt: string | null;
   equipmentFieldTemplateId: string | null;
   equipmentFieldTemplateNome: string | null;
   fields: EquipmentFieldValue[];

@@ -33,7 +33,7 @@ Menu: Dashboard · **Vendas** · **Compras** (inclui Stock) · **Despesas** · C
 | # | Fase | Estado |
 |---|---|---|
 | 1 | Login por email **ou** username + "Esqueci a palavra-passe" (Resend) | ✅ |
-| 2 | Remover Moloni/faturação, loja, webhooks + migração de BD | ⏳ |
+| 2 | Remover Moloni/faturação, loja (incl. Produtos/Catálogo e Molano), webhooks + migração de BD | ✅ |
 | 3 | **Perfil fiscal** (setup + PDF da declaração de atividade) + motor de IVA + Compras/Stock por lote + IA/email ligados ao modelo novo + seed Excel | ⏳ |
 | 4 | Vendas unificadas (reparação simples) + limpeza Balcão/Trabalhos/Reparações/Preços/Catálogo | ⏳ |
 | 5 | Despesas + IVA & Resultados + balancete trimestral | ⏳ |
@@ -114,3 +114,11 @@ O agente responde com base nos resultados do motor; sem regra para o caso → di
 
 ### Testes de referência (anonimizados)
 Serviço a empresa checa: 269,70 USD ao câmbio BCE 1,1605 = 232,40 € · M40 · campo 7 + recapitulativa. Website em PT: 300 € + 69 € IVA. Compra Amazon com IVA OSS: não dedutível. Balancete e motor de IVA: testes dos SPECs.
+
+## Fase 2 — notas (Sprint 555)
+
+Removido (código + tabelas): Moloni/InvoiceXpress (emissão, anulação, recibos, orçamentos, OAuth, definições de faturação), Documentos ("Vendas · Faturas"), Avenças, Extrato e relatório de IVA (refeitos na Fase 5), tesouraria do Dashboard, API externa da loja + checkout + IA da loja + imagens de estado, Produtos/Modelos/Catálogo (telemóveis retail/dropshipping Molano), Webhooks (+ cron de garantias expiradas), flag "mostrar na loja" das peças, cron de faturas em dívida, preferência "emitir fatura no POS".
+
+Mantido: `InvoiceNumber` + `InvoiceEmittedAt` em Reparação/Trabalho/Venda (registo manual do nº da fatura passada fora do Mender); lista "pagas sem fatura" passou a lembrete só de leitura; PDF de orçamento do Mender voltou aos Trabalhos.
+
+Migração `Sprint555RemoveFaturacaoLojaWebhooks`: 9 tabelas + colunas Invoice*/Estimate*/Recibo*. Novo `PreMigrationBackup`: com `Backup:Enabled=true`, faz backup antes de aplicar migrações pendentes e aborta o arranque se o backup falhar.

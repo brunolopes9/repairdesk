@@ -26,18 +26,8 @@ public class Trabalho : BaseEntity, ITenantEntity
     public string? Notas { get; set; }
     public PaymentStatus EstadoPagamento { get; set; } = PaymentStatus.NaoPago;
 
-    public BillingProvider InvoiceProvider { get; set; } = BillingProvider.None;
-    public string? InvoiceExternalId { get; set; }
-    public string? InvoicePdfUrl { get; set; }
+    /// <summary>Nº da fatura emitida fora do Mender (ex.: Moloni web) — registo manual.</summary>
     public string? InvoiceNumber { get; set; }
     public DateTime? InvoiceEmittedAt { get; set; }
 
-    // Sprint 528: recibo de liquidação emitido contra a fatura a crédito (ver Reparacao).
-    public string? ReciboNumero { get; set; }
-    public DateTime? ReciboEmitidoEm { get; set; }
-
-    public string? EstimateExternalId { get; set; }
-    public string? EstimateNumber { get; set; }
-    public string? EstimatePdfUrl { get; set; }
-    public DateTime? EstimateEmittedAt { get; set; }
 }

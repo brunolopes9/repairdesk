@@ -25,7 +25,6 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<TenantPreferences> TenantPreferences => Set<TenantPreferences>();
-    public DbSet<TenantBillingSettings> TenantBillingSettings => Set<TenantBillingSettings>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
     // Sprint 480: customer segment tags.
@@ -57,16 +56,10 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<ServiceApiKey> ServiceApiKeys => Set<ServiceApiKey>();
-    public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
     public DbSet<Fornecedor> Fornecedores => Set<Fornecedor>();
-    public DbSet<Product> Products => Set<Product>();
-    public DbSet<ProductImage> ProductImages => Set<ProductImage>();
-    // Sprint 531: imagens ilustrativas por estado de condição (loja online), 1 por grau/tenant.
-    public DbSet<ShopConditionImage> ShopConditionImages => Set<ShopConditionImage>();
-    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
     // Sprint 147: faturas de fornecedor recebidas via endpoint ingest (n8n IMAP).
     public DbSet<SupplierInvoiceImport> SupplierInvoiceImports => Set<SupplierInvoiceImport>();
-    // Sprint 157: mapping aprendido entre SKUs de fornecedor e Parts/Products internos.
+    // Sprint 157: mapping aprendido entre SKUs de fornecedor e Parts internos.
     public DbSet<SkuMapping> SkuMappings => Set<SkuMapping>();
     // Sprint 167a: tracking de uso LLM Anthropic per-tenant.
     public DbSet<LlmUsage> LlmUsage => Set<LlmUsage>();
@@ -88,8 +81,6 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
     public DbSet<RepairRequest> RepairRequests => Set<RepairRequest>();
     // Sprint 359 (Doc 83): templates de modelo (conteúdo partilhado por variantes).
-    public DbSet<ProductModel> ProductModels => Set<ProductModel>();
-    public DbSet<ProductModelImage> ProductModelImages => Set<ProductModelImage>();
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico — sessão + linhas contadas.
     public DbSet<StockTake> StockTakes => Set<StockTake>();
     public DbSet<StockTakeItem> StockTakeItems => Set<StockTakeItem>();
@@ -102,7 +93,6 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 461 (Doc 90 Tier 2 #6): asset registry — equipamentos persistentes do cliente.
     public DbSet<Device> Devices => Set<Device>();
     // Sprint 546 (Doc 93 #1): avenças — faturação recorrente a clientes (mensalidades software).
-    public DbSet<Avenca> Avencas => Set<Avenca>();
     // Sprint 551 (Doc 80/93): assinatura do cliente (canvas) na entrada/entrega do equipamento.
     public DbSet<ReparacaoAssinatura> ReparacaoAssinaturas => Set<ReparacaoAssinatura>();
 
@@ -118,16 +108,6 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
         modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityUserLogin<Guid>>().ToTable("Auth_UserLogins");
         modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityUserToken<Guid>>().ToTable("Auth_UserTokens");
         modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityRoleClaim<Guid>>().ToTable("Auth_RoleClaims");
-
-        // Sprint 362 fix: a navegação Product.ModelTemplate usa a FK ModelId (nomes não batem
-        // a convenção EF), por isso a relação tem de ser mapeada explicitamente — senão o
-        // Include(p => p.ModelTemplate) não carrega nada e a herança (preço bateria, descrição)
-        // vem null no webhook. SetNull no delete: apagar o modelo não apaga as unidades.
-        modelBuilder.Entity<Product>()
-            .HasOne(p => p.ModelTemplate)
-            .WithMany(m => m.Units)
-            .HasForeignKey(p => p.ModelId)
-            .OnDelete(DeleteBehavior.SetNull);
 
         ApplyGlobalFilters(modelBuilder);
     }

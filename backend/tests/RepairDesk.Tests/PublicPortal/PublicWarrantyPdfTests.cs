@@ -4,8 +4,9 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using RepairDesk.Core.Enums;
-using RepairDesk.Services.External;
-using RepairDesk.Services.ServiceApiKeys;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Vendas;
 using RepairDesk.Tests.Auth;
 
@@ -27,21 +28,25 @@ public class PublicWarrantyPdfTests : IClassFixture<RepairDeskApiFactory>
     [Fact]
     public async Task Pdf_ValidSlug_ReturnsPdfBytes()
     {
-        // 1. Cria venda via checkout external para garantir garantia + slug.
-        var apiClient = await NewApiKeyClientAsync();
-        var checkout = await apiClient.PostAsJsonAsync("/api/external/checkout", new ExternalCheckoutRequest(
-            new ExternalCheckoutCliente("Cliente PDF", "+351912000000", "pdf@test.example", "504000004", null),
-            new[] { new CreateVendaItemRequest(null, "iPhone 12 Refurbished", 1, 30000, 0, 0m) },
-            PaymentMethod.MBWay,
-            EmitirFatura: false,
-            Notas: "PDF público test"));
-        checkout.EnsureSuccessStatusCode();
-        var body = (await checkout.Content.ReadFromJsonAsync<ExternalCheckoutResponse>())!;
-        body.GarantiaSlug.Should().NotBeNullOrEmpty();
+        // 1. Cria e paga uma venda: a garantia digital é emitida automaticamente (preferência default).
+        var client = await NewAuthedClientAsync();
+        var create = await client.PostAsJsonAsync("/api/vendas", new CreateVendaRequest(null,
+            new[] { new CreateVendaItemRequest(null, "Película vidro temperado", 1, 1500, 0, 23m) }, "PDF público test"));
+        create.EnsureSuccessStatusCode();
+        var venda = (await create.Content.ReadFromJsonAsync<VendaDto>())!;
+        (await client.PostAsJsonAsync($"/api/vendas/{venda.Id}/marcar-paga", new MarcarVendaPagaRequest(PaymentMethod.MBWay)))
+            .EnsureSuccessStatusCode();
+
+        string slug;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            slug = await db.Garantias.IgnoreQueryFilters().Where(g => g.VendaId == venda.Id).Select(g => g.Slug).SingleAsync();
+        }
 
         // 2. PDF público sem auth.
         var publicClient = _factory.CreateClient();
-        var resp = await publicClient.GetAsync($"/api/public/warranty/{body.GarantiaSlug}/pdf");
+        var resp = await publicClient.GetAsync($"/api/public/warranty/{slug}/pdf");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         resp.Content.Headers.ContentType?.MediaType.Should().Be("application/pdf");
         var bytes = await resp.Content.ReadAsByteArrayAsync();
@@ -53,23 +58,15 @@ public class PublicWarrantyPdfTests : IClassFixture<RepairDeskApiFactory>
         bytes[3].Should().Be(0x46);
     }
 
-    private async Task<HttpClient> NewApiKeyClientAsync()
+    private async Task<HttpClient> NewAuthedClientAsync()
     {
         var jwtClient = _factory.CreateClient();
         var login = await jwtClient.PostAsJsonAsync("/api/auth/login",
-            new { email = RepairDeskApiFactory.AdminEmail, password = RepairDeskApiFactory.AdminPassword });
+            new { login = RepairDeskApiFactory.AdminEmail, password = RepairDeskApiFactory.AdminPassword });
         login.EnsureSuccessStatusCode();
         var json = (await login.Content.ReadFromJsonAsync<LoginAuthResponse>())!;
         jwtClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", json.AccessToken);
-
-        var create = await jwtClient.PostAsJsonAsync("/api/service-keys",
-            new CreateServiceApiKeyRequest($"pdf-test-{Guid.NewGuid():N}"));
-        create.EnsureSuccessStatusCode();
-        var key = (await create.Content.ReadFromJsonAsync<CreateServiceApiKeyResponse>())!;
-
-        var apiClient = _factory.CreateClient();
-        apiClient.DefaultRequestHeaders.Add("X-Api-Key", key.PlainKey);
-        return apiClient;
+        return jwtClient;
     }
 
     private sealed record LoginAuthResponse(string AccessToken, string RefreshToken);

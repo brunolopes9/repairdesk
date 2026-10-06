@@ -3,14 +3,14 @@ using RepairDesk.Core.Abstractions;
 namespace RepairDesk.Core.Entities;
 
 /// <summary>
-/// Chave de API para integrações externas (loja online, importadores, automações).
+/// Chave de API para integrações externas (importadores, automações).
 /// Diferente de JWT de utilizador: scope é o tenant inteiro, sem expiração natural,
 /// revogável manualmente. Key armazenada como hash SHA256 — plain só é mostrada na criação.
 /// </summary>
 public class ServiceApiKey : BaseEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
-    /// <summary>Nome legível (ex: "Loja online produção", "Importador CSV mensal").</summary>
+    /// <summary>Nome legível (ex: "Importador de faturas n8n").</summary>
     public required string Name { get; set; }
     /// <summary>Prefixo visível para identificação na UI (ex: "rd_live_a1b2c3"). NÃO sensível.</summary>
     public required string KeyPrefix { get; set; }

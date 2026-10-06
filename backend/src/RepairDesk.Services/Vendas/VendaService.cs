@@ -4,12 +4,9 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
-using RepairDesk.Services.Billing;
-using RepairDesk.Services.Billing.InvoiceXpress;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Payments;
 using RepairDesk.Services.TenantPreferences;
-using RepairDesk.Services.Webhooks;
 
 namespace RepairDesk.Services.Vendas;
 
@@ -22,11 +19,8 @@ public interface IVendaService
     Task<IReadOnlyList<string>> ListFornecedoresAsync(CancellationToken ct = default);
     Task<VendaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<VendaDto> CreateAsync(CreateVendaRequest req, CancellationToken ct = default);
-    Task<EmitVendaFaturaResponse> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default);
-    Task<InvoiceDto> EmitirFaturaAsync(Guid id, CancellationToken ct = default);
+    Task<VendaDto> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default);
     Task<VendaDto> CancelarAsync(Guid id, CancellationToken ct = default);
-    Task<VendaDto> AnularFaturaAsync(Guid id, CancellationToken ct = default);
-    Task<VendaDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default);
     Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default);
 }
 
@@ -36,14 +30,9 @@ public class VendaService : IVendaService
     private readonly IPartRepository _parts;
     private readonly IClienteRepository _clientes;
     private readonly ITenantContext _tenant;
-    private readonly ITenantBillingSettingsRepository _billingSettings;
-    private readonly IBillingProvider _billing;
-    private readonly IMoloniClient _moloni;
-    private readonly IInvoiceXpressClient _invoiceXpress;
     private readonly IGarantiaRepository _garantias;
     private readonly ITenantRepository _tenants;
     private readonly IReparacaoRepository _reparacoes;
-    private readonly IWebhookPublisher _webhooks;
     private readonly ITenantPreferencesService _preferences;
     private readonly IPaymentService _payments;
 
@@ -52,14 +41,9 @@ public class VendaService : IVendaService
         IPartRepository parts,
         IClienteRepository clientes,
         ITenantContext tenant,
-        ITenantBillingSettingsRepository billingSettings,
-        IBillingProvider billing,
-        IMoloniClient moloni,
-        IInvoiceXpressClient invoiceXpress,
         IGarantiaRepository garantias,
         ITenantRepository tenants,
         IReparacaoRepository reparacoes,
-        IWebhookPublisher webhooks,
         ITenantPreferencesService preferences,
         IPaymentService payments)
     {
@@ -67,14 +51,9 @@ public class VendaService : IVendaService
         _parts = parts;
         _clientes = clientes;
         _tenant = tenant;
-        _billingSettings = billingSettings;
-        _billing = billing;
-        _moloni = moloni;
-        _invoiceXpress = invoiceXpress;
         _garantias = garantias;
         _tenants = tenants;
         _reparacoes = reparacoes;
-        _webhooks = webhooks;
         _preferences = preferences;
         _payments = payments;
     }
@@ -171,7 +150,7 @@ public class VendaService : IVendaService
                 EnsurePartSellable(part, itemReq.Quantidade);
             }
 
-            // IMEI obrigatorio para Smartphone/Tablet (Molano dropshipping refurbished).
+            // IMEI obrigatorio para Smartphone/Tablet (venda de equipamento).
             var requiresImei = part?.Categoria is PartCategoria.Smartphone or PartCategoria.Tablet;
             var imei = Clean(itemReq.Imei);
             var imei2 = Clean(itemReq.Imei2);
@@ -205,20 +184,10 @@ public class VendaService : IVendaService
         RecalculateTotals(venda);
         await _vendas.CreateWithNextNumeroAsync(venda, tenantId, ct);
 
-        await _webhooks.PublishAsync(tenantId, WebhookEvents.VendaCriada, new
-        {
-            vendaId = venda.Id,
-            vendaNumero = venda.Numero,
-            clienteId = venda.ClienteId,
-            origem = venda.Origem.ToString(),
-            totalCents = venda.TotalCents,
-            status = venda.Status.ToString(),
-        }, ct);
-
         return ToDto(venda);
     }
 
-    public async Task<EmitVendaFaturaResponse> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default)
+    public async Task<VendaDto> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default)
     {
         var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
         var prefs = await _preferences.GetAsync(ct);
@@ -274,36 +243,13 @@ public class VendaService : IVendaService
                 }
             }
 
-            if (_tenant.TenantId is { } publishTenantId)
-            {
-                await _webhooks.PublishAsync(publishTenantId, WebhookEvents.VendaPaga, new
-                {
-                    vendaId = venda.Id,
-                    vendaNumero = venda.Numero,
-                    clienteId = venda.ClienteId,
-                    totalCents = venda.TotalCents,
-                    paymentMethod = venda.PaymentMethod.ToString(),
-                    data = venda.Data,
-                }, ct);
-            }
-
             // DL 84/2021: emite garantia digital automática (3 anos default para consumo).
             if (prefs.Sales.VendaGarantia == GarantiaAutoMode.Sim)
                 await EmitirGarantiaVendaSeNecessarioAsync(venda, venda.Data, ct);
         }
 
-        InvoiceDto? invoice = null;
-        var emitirFatura = prefs.Sales.EmitirFatura switch
-        {
-            EmitirFaturaMode.Nunca => false,
-            EmitirFaturaMode.Automatico => true,
-            _ => req.EmitirFatura,
-        };
-        if (emitirFatura && await HasBillingProviderAsync(ct))
-            invoice = await EmitirFaturaAsync(venda.Id, ct);
-
         venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? venda;
-        return new EmitVendaFaturaResponse(ToDto(venda), invoice);
+        return ToDto(venda);
     }
 
     /// <summary>
@@ -339,25 +285,6 @@ public class VendaService : IVendaService
         };
         await _garantias.AddAsync(g, ct);
         await _garantias.SaveAsync(ct);
-
-        if (_tenant.TenantId is { } publishTenantId)
-        {
-            // Sprint 128/129: condicao dominante (a que ditou o período) — agora persistida
-            // no entity (g.CondicaoUsada) e reflectida no webhook para a loja.
-            await _webhooks.PublishAsync(publishTenantId, WebhookEvents.GarantiaEmitida, new
-            {
-                garantiaId = g.Id,
-                slug = g.Slug,
-                origem = "Venda",
-                vendaId = venda.Id,
-                vendaNumero = venda.Numero,
-                clienteId = venda.ClienteId,
-                dataInicio = g.DataInicio,
-                dataFim = g.DataFim,
-                diasGarantia = g.DiasGarantia,
-                condicaoUsada = g.CondicaoUsada.ToString(),
-            }, ct);
-        }
     }
 
     /// <summary>
@@ -409,19 +336,6 @@ public class VendaService : IVendaService
         _ => novoDias, // NaoAplicavel — assume novo, é o caso mais comum (acessórios, peças)
     };
 
-    public async Task<InvoiceDto> EmitirFaturaAsync(Guid id, CancellationToken ct = default)
-    {
-        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
-        if (venda.InvoiceExternalId is not null)
-            return new InvoiceDto(venda.InvoiceNumber ?? "Fatura emitida", venda.InvoicePdfUrl, venda.InvoiceEmittedAt ?? DateTime.UtcNow);
-        if (venda.Status != VendaStatus.Paga)
-            throw new ValidationException("venda_nao_paga", "So podes emitir fatura depois de marcar a venda como paga.");
-
-        return await _billing.EmitVendaInvoiceAsync(id, ct);
-    }
-
-    /// <summary>Limpa apenas referencias locais da fatura. Util quando o utilizador ja anulou a
-    /// fatura manualmente no painel Moloni (status 'Anulado') e so quer sincronizar com o RepairDesk.</summary>
     public async Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default)
     {
         // SearchAsync com pageSize generoso. 1000 vendas chega para vários meses.
@@ -431,7 +345,7 @@ public class VendaService : IVendaService
         csv.Row(
             "numero", "data", "cliente_nome", "cliente_nif",
             "total_eur", "iva_eur", "metodo_pagamento", "status",
-            "invoice_provider", "invoice_numero", "invoice_emitida_em",
+            "fatura_numero", "fatura_data",
             "notas");
 
         foreach (var v in rows)
@@ -471,12 +385,6 @@ public class VendaService : IVendaService
                 (ivaCents / 100m).ToString("0.00", CultureInfo.InvariantCulture),
                 paymentLabel,
                 statusLabel,
-                v.InvoiceProvider switch
-                {
-                    BillingProvider.Moloni => "Moloni",
-                    BillingProvider.InvoiceXpress => "InvoiceXpress",
-                    _ => "",
-                },
                 v.InvoiceNumber ?? "",
                 v.InvoiceEmittedAt?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "",
                 v.Notas ?? "");
@@ -485,182 +393,10 @@ public class VendaService : IVendaService
         return csv.ToUtf8WithBom();
     }
 
-    public async Task<VendaDto> LimparReferenciaFaturaAsync(Guid id, CancellationToken ct = default)
-    {
-        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
-        if (string.IsNullOrEmpty(venda.InvoiceExternalId))
-            throw new ConflictException("venda_sem_fatura", "Esta venda nao tem fatura para limpar.");
-
-        venda.InvoiceProvider = BillingProvider.None;
-        venda.InvoiceExternalId = null;
-        venda.InvoiceNumber = null;
-        venda.InvoicePdfUrl = null;
-        venda.InvoiceEmittedAt = null;
-        // Sprint 532: limpa também o recibo (senão fica o badge "liquidada" órfão).
-        venda.ReciboNumero = null;
-        venda.ReciboEmitidoEm = null;
-        await _vendas.SaveAsync(ct);
-        return ToDto(venda);
-    }
-
-    public async Task<VendaDto> AnularFaturaAsync(Guid id, CancellationToken ct = default)
-    {
-        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
-        if (string.IsNullOrEmpty(venda.InvoiceExternalId))
-            throw new ConflictException("venda_sem_fatura", "Esta venda nao tem fatura emitida para anular.");
-
-        // Estratégia: tentar documentCancel primeiro (1 documento, mais limpo). Se Moloni rejeitar
-        // (porque ja foi processado pela AT, etc), fallback para Nota de Credito.
-        if (_tenant.TenantId is { } tenantId)
-        {
-            var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
-            if (settings?.Provider == BillingProvider.Moloni && int.TryParse(venda.InvoiceExternalId, out var originalDocId))
-            {
-                var cancelled = await _moloni.CancelDocumentAsync(
-                    settings,
-                    originalDocId,
-                    $"Anulado via Mender — venda #{venda.Numero}",
-                    ct);
-
-                if (!cancelled)
-                {
-                    // Fallback: emite Nota de Credito (caso documentCancel nao seja aplicavel)
-                    var items = venda.Items.Select(i => new MoloniInvoiceDraftItem(
-                        i.Descricao,
-                        null,
-                        i.Quantidade,
-                        i.PrecoUnitarioCents,
-                        i.DescontoCents,
-                        i.IvaRate)).ToList();
-
-                    var customerId = settings.FallbackCustomerId ?? 0;
-                    if (customerId <= 0)
-                        throw new ValidationException("moloni_customer_fallback_missing", "Cliente fallback Moloni nao configurado.");
-
-                    await _moloni.InsertCreditNoteAsync(settings, new MoloniCreditNoteDraft(
-                        originalDocId,
-                        customerId,
-                        $"Venda #{venda.Numero}",
-                        items,
-                        $"Anulacao da Fatura {venda.InvoiceNumber} via Mender"
-                    ), ct);
-                }
-            }
-            else if (settings?.Provider == BillingProvider.InvoiceXpress && venda.InvoiceProvider == BillingProvider.InvoiceXpress)
-            {
-                var reason = $"Anulado via Mender - venda #{venda.Numero}";
-                var cancelled = await _invoiceXpress.CancelDocumentAsync(settings, venda.InvoiceExternalId, reason, ct);
-
-                if (!cancelled)
-                {
-                    var items = venda.Items.Select(i => new InvoiceXpressInvoiceDraftItem(
-                        i.Descricao,
-                        null,
-                        i.Quantidade,
-                        i.PrecoUnitarioCents,
-                        i.DescontoCents,
-                        i.IvaRate)).ToList();
-
-                    await _invoiceXpress.InsertCreditNoteAsync(settings, new InvoiceXpressCreditNoteDraft(
-                        venda.InvoiceExternalId,
-                        new InvoiceXpressClientDraft(
-                            string.IsNullOrWhiteSpace(venda.Cliente?.Nome) ? "Consumidor Final" : venda.Cliente.Nome,
-                            venda.Cliente?.Email,
-                            venda.Cliente?.Nif,
-                            venda.Cliente?.Telefone),
-                        $"Venda #{venda.Numero}",
-                        items,
-                        $"Anulacao da Fatura {venda.InvoiceNumber} via Mender"
-                    ), ct);
-                }
-            }
-        }
-
-        // Limpa referencias locais para a venda sair do Relatorio IVA do Mender
-        venda.InvoiceProvider = BillingProvider.None;
-        venda.InvoiceExternalId = null;
-        venda.InvoiceNumber = null;
-        venda.InvoicePdfUrl = null;
-        venda.InvoiceEmittedAt = null;
-        // Sprint 532: limpa também o recibo (senão fica o badge "liquidada" órfão).
-        venda.ReciboNumero = null;
-        venda.ReciboEmitidoEm = null;
-
-        await _vendas.SaveAsync(ct);
-        return ToDto(venda);
-    }
-
     public async Task<VendaDto> CancelarAsync(Guid id, CancellationToken ct = default)
     {
         var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
         if (venda.Status == VendaStatus.Cancelada) return ToDto(venda);
-
-        // Se ja tem fatura emitida no Moloni, anula primeiro (documentCancel ou NC).
-        // RepairDesk eh ponto central: 1 clique cancela tudo.
-        if (venda.InvoiceExternalId is not null && _tenant.TenantId is { } tenantId)
-        {
-            var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
-            if (settings?.Provider == BillingProvider.Moloni && int.TryParse(venda.InvoiceExternalId, out var originalDocId))
-            {
-                var cancelled = await _moloni.CancelDocumentAsync(
-                    settings,
-                    originalDocId,
-                    $"Cancelado via Mender — venda #{venda.Numero}",
-                    ct);
-
-                if (!cancelled)
-                {
-                    // Fallback: emite Nota de Credito
-                    var items = venda.Items.Select(i => new MoloniInvoiceDraftItem(
-                        i.Descricao, null, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents, i.IvaRate)).ToList();
-                    var customerId = settings.FallbackCustomerId ?? 0;
-                    if (customerId > 0)
-                    {
-                        await _moloni.InsertCreditNoteAsync(settings, new MoloniCreditNoteDraft(
-                            originalDocId, customerId, $"Venda #{venda.Numero}", items,
-                            $"Cancelamento da Fatura {venda.InvoiceNumber} via Mender"), ct);
-                    }
-                }
-            }
-            else if (settings?.Provider == BillingProvider.InvoiceXpress && venda.InvoiceProvider == BillingProvider.InvoiceXpress)
-            {
-                var reason = $"Cancelado via Mender - venda #{venda.Numero}";
-                var cancelled = await _invoiceXpress.CancelDocumentAsync(settings, venda.InvoiceExternalId, reason, ct);
-
-                if (!cancelled)
-                {
-                    var items = venda.Items.Select(i => new InvoiceXpressInvoiceDraftItem(
-                        i.Descricao,
-                        null,
-                        i.Quantidade,
-                        i.PrecoUnitarioCents,
-                        i.DescontoCents,
-                        i.IvaRate)).ToList();
-
-                    await _invoiceXpress.InsertCreditNoteAsync(settings, new InvoiceXpressCreditNoteDraft(
-                        venda.InvoiceExternalId,
-                        new InvoiceXpressClientDraft(
-                            string.IsNullOrWhiteSpace(venda.Cliente?.Nome) ? "Consumidor Final" : venda.Cliente.Nome,
-                            venda.Cliente?.Email,
-                            venda.Cliente?.Nif,
-                            venda.Cliente?.Telefone),
-                        $"Venda #{venda.Numero}",
-                        items,
-                        $"Cancelamento da Fatura {venda.InvoiceNumber} via Mender"
-                    ), ct);
-                }
-            }
-
-            // Limpa Invoice* locais (ja anulada/NC emitida no Moloni)
-            venda.InvoiceProvider = BillingProvider.None;
-            venda.InvoiceExternalId = null;
-            venda.InvoiceNumber = null;
-            venda.InvoicePdfUrl = null;
-            venda.InvoiceEmittedAt = null;
-            // Sprint 532: limpa também o recibo (badge "liquidada" não pode ficar órfão).
-            venda.ReciboNumero = null;
-            venda.ReciboEmitidoEm = null;
-        }
 
         if (venda.Status == VendaStatus.Paga)
         {
@@ -687,26 +423,7 @@ public class VendaService : IVendaService
         venda.Status = VendaStatus.Cancelada;
         await _vendas.SaveAsync(ct);
 
-        if (_tenant.TenantId is { } publishTenantId)
-        {
-            await _webhooks.PublishAsync(publishTenantId, WebhookEvents.VendaCancelada, new
-            {
-                vendaId = venda.Id,
-                vendaNumero = venda.Numero,
-                clienteId = venda.ClienteId,
-                totalCents = venda.TotalCents,
-                invoiceNumber = venda.InvoiceNumber,
-            }, ct);
-        }
-
         return ToDto(venda);
-    }
-
-    private async Task<bool> HasBillingProviderAsync(CancellationToken ct)
-    {
-        if (_tenant.TenantId is not { } tenantId) return false;
-        var settings = await _billingSettings.FindByTenantIdAsync(tenantId, ct);
-        return settings?.Provider is BillingProvider.Moloni or BillingProvider.InvoiceXpress;
     }
 
     private static void ValidateItemRequest(CreateVendaItemRequest item)
@@ -764,13 +481,8 @@ public class VendaService : IVendaService
             venda.IvaCents,
             venda.PaymentMethod,
             venda.Status,
-            venda.InvoiceProvider,
-            venda.InvoiceExternalId,
-            venda.InvoicePdfUrl,
             venda.InvoiceNumber,
             venda.InvoiceEmittedAt,
-            venda.ReciboNumero,
-            venda.ReciboEmitidoEm,
             venda.Notas,
             venda.Items.Select(i => new VendaItemDto(
                 i.Id,
@@ -790,13 +502,6 @@ public class VendaService : IVendaService
                 i.GarantiaFornecedorAteAo)).ToList(),
             venda.Origem);
     }
-
-    private static InvoiceXpressClientDraft ToInvoiceXpressClientDraft(Cliente? cliente)
-        => new(
-            string.IsNullOrWhiteSpace(cliente?.Nome) ? "Consumidor Final" : cliente.Nome,
-            cliente?.Email,
-            cliente?.Nif,
-            cliente?.Telefone);
 
     private static string? Clean(string? s)
         => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

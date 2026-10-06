@@ -26,7 +26,6 @@ export interface RepairDeskReparacao {
   notas: string | null;
   estadoPagamento: number;
   publicSlug: string | null;
-  invoiceExternalId: string | null;
   invoiceNumber: string | null;
 }
 
@@ -37,7 +36,6 @@ export interface RepairDeskVenda {
   status: number;
   paymentMethod: number;
   totalCents: number;
-  invoiceExternalId: string | null;
   invoiceNumber: string | null;
 }
 
@@ -77,25 +75,6 @@ export class RepairDeskApi {
     await this.post('/tenant-settings/me/onboarding/complete', {});
   }
 
-  async configureBilling(): Promise<void> {
-    await this.put('/tenant-settings/me/billing', {
-      provider: 1,
-      apiKey: 'e2e-api-key',
-      clientId: null,
-      clientSecret: null,
-      refreshToken: 'e2e-refresh-token',
-      companyId: 1,
-      defaultDocumentType: 0,
-      defaultSerieId: 1,
-      sandboxMode: true,
-      defaultProductId: 10,
-      defaultTaxId: 23,
-      defaultPaymentMethodId: 30,
-      defaultMaturityDateId: 40,
-      fallbackCustomerId: 50,
-      exemptionReason: null,
-    });
-  }
 
   createCliente(overrides: Partial<Json> = {}): Promise<RepairDeskCliente> {
     return this.post<RepairDeskCliente>('/clientes', {
@@ -175,27 +154,18 @@ export class RepairDeskApi {
     });
   }
 
-  emitRepairInvoice(id: string): Promise<{ number: string; pdfUrl: string | null; emittedAt: string }> {
-    return this.post(`/reparacoes/${id}/emitir-fatura`, {
-      vatPercent: 23,
-      paymentMethod: 'MBWay',
-    });
-  }
 
   listReparacoesPagasSemFatura(): Promise<RepairDeskReparacao[]> {
     return this.get('/reparacoes/pagas-sem-fatura?limit=100');
   }
 
-  bulkEmitReparacoes(ids: string[]): Promise<Array<{ id: string; success: boolean; invoiceNumber: string | null; errorMessage: string | null }>> {
-    return this.post('/reparacoes/bulk-emit-faturas', { ids });
-  }
 
   createVenda(payload: Json): Promise<RepairDeskVenda> {
     return this.post<RepairDeskVenda>('/vendas', payload);
   }
 
-  payVenda(id: string, paymentMethod = 2, emitirFatura = false): Promise<{ venda: RepairDeskVenda; invoice: Json | null }> {
-    return this.post(`/vendas/${id}/marcar-paga`, { paymentMethod, emitirFatura });
+  payVenda(id: string, paymentMethod = 2): Promise<RepairDeskVenda> {
+    return this.post(`/vendas/${id}/marcar-paga`, { paymentMethod });
   }
 
   getVenda(id: string): Promise<RepairDeskVenda> {

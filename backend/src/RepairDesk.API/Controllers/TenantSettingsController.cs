@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using RepairDesk.Services.Billing;
 using RepairDesk.Services.TenantSettings;
 
 namespace RepairDesk.API.Controllers;
@@ -11,12 +10,10 @@ namespace RepairDesk.API.Controllers;
 public class TenantSettingsController : ControllerBase
 {
     private readonly ITenantSettingsService _service;
-    private readonly ITenantBillingSettingsService _billing;
 
-    public TenantSettingsController(ITenantSettingsService service, ITenantBillingSettingsService billing)
+    public TenantSettingsController(ITenantSettingsService service)
     {
         _service = service;
-        _billing = billing;
     }
 
     [HttpGet("me")]
@@ -34,47 +31,4 @@ public class TenantSettingsController : ControllerBase
     [HttpPost("me/onboarding/complete")]
     public Task<OnboardingStatusDto> CompleteOnboarding(CancellationToken ct)
         => _service.CompleteOnboardingAsync(ct);
-
-    [HttpGet("me/billing")]
-    public Task<TenantBillingSettingsDto> GetBilling(CancellationToken ct)
-        => _billing.GetMineAsync(ct);
-
-    [HttpPut("me/billing")]
-    [Authorize(Roles = "Admin")]
-    public Task<TenantBillingSettingsDto> UpdateBilling([FromBody] UpdateTenantBillingSettingsRequest req, CancellationToken ct)
-        => _billing.UpdateMineAsync(req, ct);
-
-    [HttpPost("me/billing/test-connection")]
-    public Task<BillingConnectionTestDto> TestBillingConnection(CancellationToken ct)
-        => _billing.TestConnectionAsync(ct);
-
-    [HttpPost("me/billing/sync-series")]
-    public Task<IReadOnlyList<BillingSerieDto>> SyncBillingSeries(CancellationToken ct)
-        => _billing.SyncSeriesAsync(ct);
-
-    [HttpPost("me/billing/moloni/connect")]
-    [Authorize(Roles = "Admin")]
-    public Task<TenantBillingSettingsDto> ConnectMoloni([FromBody] ConnectMoloniRequest req, CancellationToken ct)
-        => _billing.ConnectMoloniAsync(req, ct);
-
-    [HttpPost("me/billing/moloni/disconnect")]
-    [Authorize(Roles = "Admin")]
-    public Task<TenantBillingSettingsDto> DisconnectMoloni(CancellationToken ct)
-        => _billing.DisconnectMoloniAsync(ct);
-
-    [HttpGet("me/billing/moloni/companies")]
-    public Task<IReadOnlyList<MoloniCompanyDto>> ListMoloniCompanies(CancellationToken ct)
-        => _billing.ListCompaniesAsync(ct);
-
-    [HttpPost("me/billing/moloni/auto-discover")]
-    public Task<MoloniAutoDiscoverResultDto> AutoDiscoverMoloni(CancellationToken ct)
-        => _billing.AutoDiscoverAsync(ct);
-
-    /// <summary>
-    /// Sprint 156: diagnóstico Moloni — valida cada ID configurado contra a API deles.
-    /// Diz ao Bruno qual ID específico está inválido quando emissões falham com "Database error".
-    /// </summary>
-    [HttpPost("me/billing/moloni/diagnose")]
-    public Task<MoloniDiagnoseResultDto> DiagnoseMoloni(CancellationToken ct)
-        => _billing.DiagnoseMoloniAsync(ct);
 }

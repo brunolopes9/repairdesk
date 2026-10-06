@@ -19,15 +19,9 @@ public class Venda : BaseEntity, ITenantEntity
     /// <summary>Sprint 70: canal de origem da venda (default Balcao).</summary>
     public VendaOrigem Origem { get; set; } = VendaOrigem.Balcao;
 
-    public BillingProvider InvoiceProvider { get; set; } = BillingProvider.None;
-    public string? InvoiceExternalId { get; set; }
-    public string? InvoicePdfUrl { get; set; }
+    /// <summary>Nº da fatura emitida fora do Mender (ex.: Moloni web) — registo manual.</summary>
     public string? InvoiceNumber { get; set; }
     public DateTime? InvoiceEmittedAt { get; set; }
-
-    // Sprint 528: recibo de liquidação emitido contra a fatura a crédito (ver Reparacao).
-    public string? ReciboNumero { get; set; }
-    public DateTime? ReciboEmitidoEm { get; set; }
 
     public string? Notas { get; set; }
     public List<VendaItem> Items { get; set; } = new();

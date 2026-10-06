@@ -12,11 +12,11 @@ public class Cliente : BaseEntity, ITenantEntity
     public string? Nif { get; set; }
     public string? Notas { get; set; }
 
-    /// <summary>Sprint 510: morada fiscal do cliente — usada na fatura Moloni (com NIF).</summary>
+    /// <summary>Sprint 510: morada fiscal do cliente — usada na fatura (com NIF).</summary>
     [MaxLength(200)]
     public string? Morada { get; set; }
 
-    /// <summary>Código postal PT (formato 0000-000). Validado antes de enviar ao Moloni.</summary>
+    /// <summary>Código postal PT (formato 0000-000). Validado no formulário.</summary>
     [MaxLength(20)]
     public string? CodigoPostal { get; set; }
 
