@@ -7,12 +7,16 @@ export interface UserInfo {
   requireChangePasswordOnNextLogin: boolean;
   /** Sprint 420: telefone do utilizador (opcional). */
   phoneNumber: string | null;
+  /** Username para login (null = só email). */
+  userName: string | null;
 }
 
 /** Sprint 420: payload PUT /api/auth/me. */
 export interface UpdateMeRequest {
   displayName: string;
   phoneNumber: string | null;
+  /** undefined = não mexe; "" = remove (login só por email). */
+  userName?: string;
 }
 
 export interface AuthResponse {
@@ -22,7 +26,8 @@ export interface AuthResponse {
 }
 
 export interface LoginRequest {
-  email: string;
+  /** Email ou username. */
+  login: string;
   password: string;
 }
 

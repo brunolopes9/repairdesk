@@ -44,7 +44,7 @@ public class AuthController : ControllerBase
     {
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
 
-        var user = await _users.FindByEmailAsync(req.Email);
+        var user = await _users.FindByLoginAsync(req.Identifier);
         if (user is null)
         {
             await LogFailedLoginAsync(req, null, "invalid_credentials", ip, ct);
@@ -67,7 +67,7 @@ public class AuthController : ControllerBase
         if (!passwordOk)
         {
             await _users.AccessFailedAsync(user);
-            _log.LogWarning("Failed login for {Email} from {Ip}", req.Email, ip);
+            _log.LogWarning("Failed login for {Login} from {Ip}", req.Identifier, ip);
             var code = await _users.IsLockedOutAsync(user) ? "locked_out" : "invalid_credentials";
             await LogFailedLoginAsync(req, user, code, ip, ct);
             return Unauthorized(new
@@ -182,6 +182,30 @@ public class AuthController : ControllerBase
         if (phone is not null && phone.Length > 30)
             return BadRequest(new { code = "phone_invalid" });
 
+        // UserName: null = não mexe; "" = volta a usar só o email; caso contrário valida e grava.
+        if (req.UserName is not null)
+        {
+            var userName = req.UserName.Trim().ToLowerInvariant();
+            if (userName.Length == 0)
+            {
+                userName = user.Email!;
+            }
+            else if (!UserNameRules.IsValid(userName))
+            {
+                return BadRequest(new { code = "username_invalid" });
+            }
+
+            if (!string.Equals(user.UserName, userName, StringComparison.OrdinalIgnoreCase))
+            {
+                var taken = await _users.FindByNameAsync(userName);
+                if (taken is not null && taken.Id != user.Id)
+                    return Conflict(new { code = "username_taken" });
+
+                user.UserName = userName;
+                await _users.UpdateNormalizedUserNameAsync(user);
+            }
+        }
+
         user.DisplayName = displayName;
         user.PhoneNumber = phone;
 
@@ -199,7 +223,7 @@ public class AuthController : ControllerBase
             AuditAction.Update,
             "AppUser",
             user.Id,
-            new { displayName = user.DisplayName, phoneNumber = user.PhoneNumber },
+            new { displayName = user.DisplayName, phoneNumber = user.PhoneNumber, userName = user.UserName },
             user.TenantId,
             user.Id,
             ct);
@@ -219,7 +243,7 @@ public class AuthController : ControllerBase
             AuditAction.LoginFailed,
             "Auth",
             user?.Id,
-            new { email = req.Email, ip, reason },
+            new { login = req.Identifier, ip, reason },
             user?.TenantId ?? Guid.Empty,
             user?.Id,
             ct);
@@ -253,5 +277,6 @@ public class AuthController : ControllerBase
     }
 
     private static UserInfo ToUserInfo(AppUser user, IEnumerable<string> roles)
-        => new(user.Id, user.Email!, user.DisplayName, user.TenantId, roles.ToList(), user.RequireChangePasswordOnNextLogin, user.PhoneNumber);
+        => new(user.Id, user.Email!, user.DisplayName, user.TenantId, roles.ToList(), user.RequireChangePasswordOnNextLogin, user.PhoneNumber,
+            string.Equals(user.UserName, user.Email, StringComparison.OrdinalIgnoreCase) ? null : user.UserName);
 }

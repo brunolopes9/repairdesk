@@ -65,7 +65,7 @@ export class RepairDeskApi {
   async login(): Promise<void> {
     const response = await this.request.post(`${e2eEnv.apiURL}/auth/login`, {
       data: {
-        email: e2eEnv.adminEmail,
+        login: e2eEnv.adminEmail,
         password: e2eEnv.adminPassword,
       },
     });

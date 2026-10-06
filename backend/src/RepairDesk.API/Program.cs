@@ -185,6 +185,12 @@ try
     builder.Services.AddScoped<ITokenService, JwtTokenService>();
     builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
     builder.Services.AddScoped<IRefreshTokenStore, RefreshTokenStore>();
+    // Emails transacionais (reset de palavra-passe) via Resend.
+    builder.Services.AddSingleton(RepairDesk.Infrastructure.Email.EmailOptions.FromConfiguration(builder.Configuration));
+    builder.Services.AddHttpClient<IEmailSender, RepairDesk.Infrastructure.Email.ResendEmailSender>(c =>
+        c.Timeout = TimeSpan.FromSeconds(15));
+    // Links de reset de palavra-passe expiram ao fim de 1 hora.
+    builder.Services.Configure<DataProtectionTokenProviderOptions>(o => o.TokenLifespan = TimeSpan.FromHours(1));
     builder.Services.AddScoped<IAuditLogger, EfAuditLogger>();
     builder.Services.AddScoped<IAuditRepository, AuditRepository>();
     builder.Services.AddScoped<IAuditService, AuditService>();
@@ -520,6 +526,21 @@ try
     builder.Services.AddRateLimiter(opt =>
     {
         opt.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        // Reset de palavra-passe tem quota própria: quem se esqueceu da passe normalmente já gastou
+        // as tentativas de login (auth-strict) e tem de conseguir pedir o link.
+        opt.AddPolicy("auth-reset", ctx =>
+        {
+            if (disableAuthRateLimits)
+                return RateLimitPartition.GetNoLimiter("auth-reset");
+            var key = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+        });
         opt.AddPolicy("auth-strict", ctx =>
         {
             if (disableAuthRateLimits)

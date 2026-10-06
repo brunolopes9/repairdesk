@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import { Lock, UserCircle } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { BackButton } from '../../components/ui';
@@ -21,6 +22,7 @@ export default function Perfil() {
   const { user, updateMe, changePassword } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [userName, setUserName] = useState('');
   const [pwOpen, setPwOpen] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -29,6 +31,7 @@ export default function Perfil() {
     if (!user) return;
     setDisplayName(user.displayName ?? '');
     setPhoneNumber(user.phoneNumber ?? '');
+    setUserName(user.userName ?? '');
   }, [user]);
 
   const save = useMutation({
@@ -36,9 +39,15 @@ export default function Perfil() {
       updateMe({
         displayName: displayName.trim(),
         phoneNumber: phoneNumber.trim() || null,
+        userName: userName.trim().toLowerCase(),
       }),
     onSuccess: () => toast.success('Perfil actualizado.'),
-    onError: (err) => toast.error(apiErrorMessage(err) || 'Erro ao guardar.'),
+    onError: (err) => {
+      const code = isAxiosError(err) ? (err.response?.data as { code?: string } | undefined)?.code : undefined;
+      if (code === 'username_taken') return toast.error('Esse nome de utilizador já está a ser usado.');
+      if (code === 'username_invalid') return toast.error('Utilizador inválido: 3 a 32 caracteres (letras, números, . - _).');
+      toast.error(apiErrorMessage(err) || 'Erro ao guardar.');
+    },
   });
 
   const pwMut = useMutation({
@@ -58,7 +67,8 @@ export default function Perfil() {
     'w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400 disabled:bg-zinc-50 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:disabled:bg-zinc-900';
   const dirty =
     displayName.trim() !== (user.displayName ?? '') ||
-    (phoneNumber.trim() || null) !== (user.phoneNumber ?? null);
+    (phoneNumber.trim() || null) !== (user.phoneNumber ?? null) ||
+    userName.trim().toLowerCase() !== (user.userName ?? '');
 
   return (
     <div className="space-y-5">
@@ -92,6 +102,17 @@ export default function Perfil() {
               onChange={(e) => setPhoneNumber(e.target.value)}
               maxLength={30}
               placeholder="+351 912 345 678"
+            />
+          </Field>
+          <Field label="Nome de utilizador" hint="Para entrares sem escrever o email. Vazio = só email.">
+            <input
+              className={input}
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              maxLength={32}
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="Ex: bruno"
             />
           </Field>
           <Field label="Email" hint="Para alterar contacta o admin.">

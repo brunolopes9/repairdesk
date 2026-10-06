@@ -93,6 +93,9 @@ services:
       # Cors: lista de origens permitidas em produção. Apertado em Sprint 249.
       Cors__AllowedOrigins__0: ${CORS_ORIGIN_PRIMARY:-https://app.mender.pt}
       Frontend__BaseUrl: ${FRONTEND_BASE_URL:-https://app.mender.pt}
+      # Emails transacionais (reset de palavra-passe) via Resend. Domínio mender.pt verificado no Resend.
+      Email__From: ${EMAIL_FROM:-Mender <no-reply@mender.pt>}
+      Email__ResendApiKey: ${RESEND_API_KEY:-}
     volumes:
       - photos_data:/data/photos
       # DataProtection keys (cifram tokens Moloni, refresh tokens). Volume persistente — critico.

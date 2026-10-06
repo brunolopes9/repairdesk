@@ -7,8 +7,8 @@ export async function loginViaUi(page: Page): Promise<void> {
   });
   await page.goto('/login');
   await dismissCookieBanner(page);
-  await page.getByLabel('Email').fill(e2eEnv.adminEmail);
-  await page.getByRole('textbox', { name: /^Password$/ }).fill(e2eEnv.adminPassword);
+  await page.getByLabel('Email ou utilizador').fill(e2eEnv.adminEmail);
+  await page.getByLabel('Palavra-passe', { exact: true }).fill(e2eEnv.adminPassword);
   await page.getByRole('button', { name: /^Entrar$/ }).click();
   await expect(page).not.toHaveURL(/\/login$/);
   await dismissCookieBanner(page);

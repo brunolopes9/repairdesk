@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:6f6dd1f6d30e6b77 -->
+<!-- roles-matrix-snapshot:92294a6ad3d5cffd -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -18,7 +18,8 @@ testes e esta matriz com snapshot.
 |---|---|---|
 | AuditController | `GET /api/audit*` | `Admin` |
 | BackupsController | `GET/POST /api/backups*` | `Admin` |
-| AuthController | `POST /api/auth/login`, `POST /api/auth/refresh` | `Anonymous` |
+| AuthController | `POST /api/auth/login` (email ou username), `POST /api/auth/refresh` | `Anonymous` |
+| PasswordResetController | `POST /api/auth/forgot-password`, `POST /api/auth/reset-password` | `Anonymous` + rate limit `auth-reset` |
 | AuthController | `POST /api/auth/logout`, `POST /api/auth/change-password`, `GET /api/auth/me` | `Authenticated` |
 | ClientesController | CRUD/export base + `GET /{id}/comunicacoes` (S453) | `Authenticated`; hard-delete `Admin` |
 | ClienteTagsController (S480) | `GET /api/cliente-tags`; `GET /api/cliente-tags/segmento`; `GET /api/cliente-tags/{id}/segmento`; `PUT /api/clientes/{id}/tags` | `Authenticated` |

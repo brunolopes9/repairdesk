@@ -50,6 +50,8 @@ const RelatorioNegocio = lazy(() => import('./pages/relatorios/Negocio'));
 const RelatorioProdutividade = lazy(() => import('./pages/relatorios/Produtividade'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
 const PortalCliente = lazy(() => import('./pages/PortalCliente'));
 const PortalGarantia = lazy(() => import('./pages/PortalGarantia'));
 const PedidoReparacao = lazy(() => import('./pages/PedidoReparacao'));
@@ -122,6 +124,8 @@ export default function App() {
             <Route path="/sub-processors" element={<SubProcessors />} />
 
             <Route path="/login" element={<Login />} />
+            <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+            <Route path="/auth/reset-password" element={<ResetPassword />} />
             <Route
               path="/auth/change-password"
               element={
