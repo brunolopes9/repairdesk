@@ -106,7 +106,9 @@ public sealed record SupplierInvoiceImportDto(
     string? FornecedorDefaultAction,
     // Sprint 543: categoria de Despesa aprendida/conhecida do fornecedor (valor numérico do enum
     // DespesaCategoria) — UI pré-seleciona no modal de aprovação. NULL = sem regra.
-    int? FornecedorDefaultDespesaCategoria = null);
+    int? FornecedorDefaultDespesaCategoria = null,
+    // Sprint 560: avisos da leitura e do documento — mostrados na inbox.
+    IReadOnlyList<string>? Warnings = null);
 
 public sealed record SupplierInvoiceItemDto(
     string Description,
@@ -281,6 +283,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // Sprint 171: validation rules pós-parse — rebaixa confidence se totais não batem etc.
         IReadOnlyList<string> parseWarnings;
         (parsed, parseWarnings) = ParseValidator.Apply(parsed);
+        parseWarnings = [.. parseWarnings, .. ParseValidator.DocumentWarnings(rawText)];
         if (parseWarnings.Count > 0)
             _logger.LogWarning("Parse validation warnings: {Warnings}", string.Join(" | ", parseWarnings));
 
@@ -466,7 +469,9 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                 x.CreatedAt,
                 x.PdfRelativePath,
                 items,
-                x.Fornecedor?.DefaultImportAction.ToString().ToLowerInvariant()));
+                x.Fornecedor?.DefaultImportAction.ToString().ToLowerInvariant(),
+                (int?)x.Fornecedor?.DefaultDespesaCategoria,
+                ParseWarnings(x.ParseWarningsJson)));
         }
         return dtos;
     }
@@ -666,6 +671,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // Sprint 171: validation pós-parse.
         IReadOnlyList<string> reprocessWarnings;
         (parsed, reprocessWarnings) = ParseValidator.Apply(parsed);
+        reprocessWarnings = [.. reprocessWarnings, .. ParseValidator.DocumentWarnings(rawText)];
 
         // Sprint 526: find-or-create fornecedor também no reprocess (re-corre importações órfãs).
         fornecedorId = await ResolveOrCreateFornecedorIdAsync(fornecedorId, fornecedorNameRaw, tenantId, ct);
@@ -807,7 +813,16 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // Compras·Fornecedores poder mostrar, por fatura, exactamente o que o parser extraiu.
         Items: ParseItemsLight(x.ParsedItemsJson),
         FornecedorDefaultAction: x.Fornecedor?.DefaultImportAction.ToString().ToLowerInvariant(),
-        FornecedorDefaultDespesaCategoria: (int?)x.Fornecedor?.DefaultDespesaCategoria);
+        FornecedorDefaultDespesaCategoria: (int?)x.Fornecedor?.DefaultDespesaCategoria,
+        Warnings: ParseWarnings(x.ParseWarningsJson));
+
+    /// <summary>Sprint 560: avisos da leitura (totais que não batem, documento de formação…) para a UI.</summary>
+    private static IReadOnlyList<string> ParseWarnings(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try { return JsonSerializer.Deserialize<List<string>>(json) ?? []; }
+        catch (JsonException) { return []; }
+    }
 
     /// <summary>
     /// Sprint 520: desserializa os items parseados SEM fuzzy matching (rápido, sem ir à BD) — para o

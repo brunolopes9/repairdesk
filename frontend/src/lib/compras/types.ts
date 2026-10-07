@@ -3,6 +3,8 @@ import type { RegimeIva } from '../fornecedores/api';
 /** Linha de compra = lote de stock. Valores em euros (decimais), calculados pelo motor de IVA do backend. */
 export interface CompraLinha {
   id: string;
+  /** Nº do lote (sequencial por empresa, como o nº de linha do Excel). */
+  numero: number;
   descricao: string;
   quantidade: number;
   quantidadeVendida: number;
@@ -26,6 +28,8 @@ export interface CompraLinha {
 
 export interface CompraDocumento {
   id: string;
+  /** Nº da compra (sequencial por empresa). */
+  numero: number;
   fornecedorId: string;
   fornecedorNome: string;
   regimeIva: RegimeIva;
@@ -93,6 +97,8 @@ export interface Paged<T> {
 
 export interface InventarioLinha {
   linhaId: string;
+  /** Nº do lote. */
+  numero: number;
   documentoId: string;
   fornecedor: string;
   data: string;
@@ -175,4 +181,57 @@ export interface ImportComprasResultado {
   documentosJaExistentes: number;
   linhas: number;
   avisos: string[];
+}
+
+// ---------- Sprint 560: faturas recebidas ↔ compras ----------
+
+export interface FaturaLinhaLida {
+  descricao: string;
+  quantidade: number;
+  total: number;
+  portes: boolean;
+}
+
+export interface FaturaLida {
+  importId: string;
+  fornecedorId: string | null;
+  fornecedor: string | null;
+  numero: string | null;
+  data: string | null;
+  total: number | null;
+  portes: number;
+  linhas: FaturaLinhaLida[];
+}
+
+export interface CandidatoCompra {
+  compraId: string;
+  numero: number;
+  referencia: string;
+  data: string;
+  faturaEmFalta: boolean;
+  portesAtuais: number;
+  totalDocumentoAtual: number | null;
+  totalLinhas: number;
+  motivo: 'mesma_fatura' | 'encomenda' | 'data';
+  /** Linhas da compra + portes da fatura − total da fatura (0 = bate certo). */
+  diferencaComFatura: number;
+  bateCerto: boolean;
+  jaDocumentada: boolean;
+  linhas: { numero: number; descricao: string; quantidade: number; precoUnitarioPago: number; totalPago: number }[];
+}
+
+export type SugestaoFatura = 'associar' | 'rever' | 'nova' | 'duplicada' | 'ilegivel';
+
+export interface CorrespondenciaFatura {
+  fatura: FaturaLida;
+  sugestao: SugestaoFatura;
+  compraSugeridaId: string | null;
+  candidatos: CandidatoCompra[];
+}
+
+export interface AssociacaoAutomatica {
+  associadas: number;
+  paraRever: number;
+  semCompra: number;
+  itens: { importId: string; numero: string | null; compraId: string | null; compraNumero: number | null; resultado: 'associada' | 'rever' | 'sem_compra' | 'duplicada'; erro: string | null }[];
 }

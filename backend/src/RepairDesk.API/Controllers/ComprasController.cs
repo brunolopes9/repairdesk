@@ -17,11 +17,13 @@ public class ComprasController : ControllerBase
 
     private readonly ICompraService _service;
     private readonly IComprasExcelImporter _importer;
+    private readonly ICompraFaturaService _faturas;
 
-    public ComprasController(ICompraService service, IComprasExcelImporter importer)
+    public ComprasController(ICompraService service, IComprasExcelImporter importer, ICompraFaturaService faturas)
     {
         _service = service;
         _importer = importer;
+        _faturas = faturas;
     }
 
     [HttpGet]
@@ -56,6 +58,23 @@ public class ComprasController : ControllerBase
         var dto = await _service.CreateFromImportAsync(importId, req, ct);
         return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
     }
+
+    /// <summary>Sprint 560: que compra(s) podem corresponder a uma fatura recebida, com a comparação.</summary>
+    [HttpGet("faturas-recebidas/{importId:guid}/correspondencia")]
+    public Task<CorrespondenciaFaturaDto> Correspondencia(Guid importId, CancellationToken ct)
+        => _faturas.CorrespondenciaAsync(importId, ct);
+
+    /// <summary>Sprint 560: liga a fatura recebida a uma compra existente (nº, data, totais e PDF da fatura).</summary>
+    [HttpPost("{id:guid}/associar-fatura/{importId:guid}")]
+    [Authorize(Roles = "Admin")]
+    public Task<CompraDocumentoDto> AssociarFatura(Guid id, Guid importId, CancellationToken ct)
+        => _faturas.AssociarAsync(id, importId, ct);
+
+    /// <summary>Sprint 560: associa sozinho todas as faturas pendentes que batem certo com uma única compra.</summary>
+    [HttpPost("faturas-recebidas/associar-automaticamente")]
+    [Authorize(Roles = "Admin")]
+    public Task<AssociacaoAutomaticaDto> AssociarAutomaticamente(CancellationToken ct)
+        => _faturas.AssociarAutomaticamenteAsync(ct);
 
     [HttpPut("{id:guid}")]
     public Task<CompraDocumentoDto> Update(Guid id, [FromBody] CompraDocumentoWriteRequest req, CancellationToken ct)

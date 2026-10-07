@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Plus, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, FileText, Plus, Save, Trash2 } from 'lucide-react';
 import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { apiErrorCode, apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
+import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { comprasApi } from '../../lib/compras/api';
 import type { CompraDocumento, CompraDocumentoWrite } from '../../lib/compras/types';
@@ -19,6 +20,8 @@ const TAXA_VENDA = 0.23;
 interface LinhaForm {
   key: string;
   id: string | null;
+  /** Nº do lote (null = linha nova, recebe nº ao gravar). */
+  numero: number | null;
   descricao: string;
   quantidade: string;
   preco: string;
@@ -43,7 +46,7 @@ interface DocForm {
 }
 
 const novaLinha = (): LinhaForm => ({
-  key: crypto.randomUUID(), id: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0,
+  key: crypto.randomUUID(), id: null, numero: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0,
 });
 
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -65,6 +68,7 @@ function fromDoc(doc: CompraDocumento): { form: DocForm; linhas: LinhaForm[] } {
     linhas: doc.linhas.map((l) => ({
       key: l.id,
       id: l.id,
+      numero: l.numero,
       descricao: l.descricao,
       quantidade: String(l.quantidade),
       preco: num(l.precoUnitarioPago),
@@ -243,13 +247,23 @@ export default function CompraEditor() {
     <form onSubmit={onSubmit} className="space-y-4">
       <BackButton to="/compras" label="Compras" />
       <PageHeader
-        title={isNew ? 'Nova compra' : `Compra ${existente.data?.numeroFatura ?? existente.data?.numerosEncomenda[0] ?? ''}`}
+        title={isNew ? 'Nova compra' : `Compra nº ${existente.data?.numero ?? ''} · ${existente.data?.numeroFatura ?? (existente.data?.numerosEncomenda[0] ? `Enc. ${existente.data.numerosEncomenda[0]}` : 'sem referência')}`}
         description="Uma fatura (ou encomenda) do fornecedor. Cada linha é um lote de stock."
         meta={existente.data?.faturaEmFalta && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Fatura em falta</span>
         )}
         actions={
           <>
+            {existente.data?.supplierInvoiceImportId && (
+              <Button
+                type="button"
+                variant="secondary"
+                leftIcon={<FileText size={15} />}
+                onClick={() => openPdfInNewTab(supplierInvoicesApi.pdfPath(existente.data!.supplierInvoiceImportId!)).catch((err) => toast.fromError(err, 'Não foi possível abrir o PDF.'))}
+              >
+                PDF {existente.data.faturaEmFalta ? 'da encomenda' : 'da fatura'}
+              </Button>
+            )}
             {!isNew && isAdmin && (
               <Button type="button" variant="ghost" leftIcon={<Trash2 size={15} />} onClick={() => setConfirmDelete(true)}>Apagar</Button>
             )}
@@ -342,6 +356,7 @@ export default function CompraEditor() {
           <table className="w-full min-w-[56rem] text-sm">
             <thead className="text-left text-xs text-zinc-500">
               <tr>
+                <th className="w-14 py-2 pr-2 font-medium">Lote</th>
                 <th className="py-2 pr-2 font-medium">Descrição</th>
                 <th className="w-16 py-2 pr-2 font-medium">Qtd</th>
                 <th className="w-24 py-2 pr-2 font-medium">Preço un. pago</th>
@@ -358,6 +373,7 @@ export default function CompraEditor() {
                 const c = calc.porLinha[i];
                 return (
                   <tr key={l.key} className="align-top">
+                    <td className="py-2 pr-2 pt-4 tabular-nums text-xs text-zinc-500">{l.numero ?? 'novo'}</td>
                     <td className="py-2 pr-2">
                       <input aria-label="Descrição" value={l.descricao} onChange={(e) => setLinha(l.key, { descricao: e.target.value })} className={inputCls} placeholder="Ecrã Samsung A15" maxLength={500} />
                       {l.movimentos > 0 && <span className="mt-1 block text-xs text-zinc-500">{l.movimentos} já saíram do stock</span>}

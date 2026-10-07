@@ -16,7 +16,7 @@ export default function InventarioLotesTab() {
   const linhas = useMemo(() => {
     const t = q.trim().toLowerCase();
     const all = inv.data ?? [];
-    return t ? all.filter((l) => `${l.descricao} ${l.fornecedor} ${l.referencia} ${l.localizacao ?? ''}`.toLowerCase().includes(t)) : all;
+    return t ? all.filter((l) => `${l.numero} ${l.descricao} ${l.fornecedor} ${l.referencia} ${l.localizacao ?? ''}`.toLowerCase().includes(t)) : all;
   }, [inv.data, q]);
 
   const totais = useMemo(() => linhas.reduce(
@@ -30,7 +30,7 @@ export default function InventarioLotesTab() {
       title={
         <label className="relative min-w-48 flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} pl-9`} placeholder="Procurar artigo, fornecedor, localização…" aria-label="Procurar" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} pl-9`} placeholder="Procurar nº do lote, artigo, fornecedor, localização…" aria-label="Procurar" />
         </label>
       }
       action={<span className="whitespace-nowrap text-sm text-zinc-500 tabular-nums">{totais.un} un. · {formatEur(totais.pago)} pago</span>}
@@ -44,8 +44,9 @@ export default function InventarioLotesTab() {
           <table className="w-full min-w-[52rem] text-sm">
             <thead className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800">
               <tr>
-                <th className="px-4 py-2 font-medium">Artigo</th>
                 <th className="px-4 py-2 font-medium">Lote</th>
+                <th className="px-4 py-2 font-medium">Artigo</th>
+                <th className="px-4 py-2 font-medium">Compra</th>
                 <th className="px-4 py-2 text-right font-medium">Stock</th>
                 <th className="px-4 py-2 text-right font-medium">Pago un.</th>
                 <th className="px-4 py-2 text-right font-medium">Venda c/ IVA</th>
@@ -54,9 +55,10 @@ export default function InventarioLotesTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {inv.isLoading && Array.from({ length: 5 }).map((_, i) => <tr key={i}><td colSpan={7}><SkeletonRow columns={7} /></td></tr>)}
+              {inv.isLoading && Array.from({ length: 5 }).map((_, i) => <tr key={i}><td colSpan={8}><SkeletonRow columns={8} /></td></tr>)}
               {linhas.map((l) => (
                 <tr key={l.linhaId}>
+                  <td className="px-4 py-3 tabular-nums text-zinc-500">{l.numero}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium">{l.descricao}</div>
                     {l.localizacao && <div className="text-xs text-zinc-500">{l.localizacao}</div>}

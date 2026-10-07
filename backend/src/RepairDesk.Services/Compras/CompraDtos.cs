@@ -5,6 +5,7 @@ namespace RepairDesk.Services.Compras;
 /// <summary>Linha de compra (= lote de stock) com todos os valores calculados por unidade e totais.</summary>
 public sealed record CompraLinhaDto(
     Guid Id,
+    int Numero,
     string Descricao,
     int Quantidade,
     int QuantidadeVendida,
@@ -29,6 +30,7 @@ public sealed record CompraLinhaDto(
 
 public sealed record CompraDocumentoDto(
     Guid Id,
+    int Numero,
     Guid FornecedorId,
     string FornecedorNome,
     RegimeIvaFornecedor RegimeIva,
@@ -80,6 +82,7 @@ public sealed record CompraDuplicadoDto(Guid Id, DateTime Data, string? NumeroFa
 /// <summary>Linha de inventário (lote com stock &gt; 0) — SPEC §4.5.</summary>
 public sealed record InventarioLinhaDto(
     Guid LinhaId,
+    int Numero,
     Guid DocumentoId,
     string Fornecedor,
     DateTime Data,

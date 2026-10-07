@@ -1,8 +1,12 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Camera, Download, FileText, Inbox, PackagePlus, ReceiptText, Upload, XCircle } from 'lucide-react';
+import { AlertTriangle, Camera, Download, FileText, Inbox, Link2, PackagePlus, ReceiptText, Upload, XCircle } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth/AuthContext';
+import { comprasApi } from '../../lib/compras/api';
+import type { AssociacaoAutomatica } from '../../lib/compras/types';
+import { CorrespondenciaBadge, CorrespondenciaModal, useCorrespondencia } from '../compras/CorrespondenciaFatura';
 import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest} from '../../lib/supplierInvoices/api';
 import { formatCents } from '../../lib/money';
 import { toast } from '../../lib/toast';
@@ -15,6 +19,8 @@ const inputCls = 'mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-whit
 export default function PorAprovarTab() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const isAdmin = useAuth().hasRole('Admin');
+  const [ligarTarget, setLigarTarget] = useState<string | null>(null);
   const pending = useQuery({
     queryKey: ['supplier-invoices-pending'],
     queryFn: () => supplierInvoicesApi.pending(100),
@@ -60,6 +66,60 @@ export default function PorAprovarTab() {
     },
     onError: (err) => toast.fromError(err, 'Falhou upload do PDF.'),
   });
+
+  // Sprint 560: vários PDFs de uma vez, um a um (sem rajadas ao servidor), e no fim liga sozinho às
+  // compras as faturas que batem certo. Erros por ficheiro são mostrados — nunca engolidos.
+  const [lote, setLote] = useState<{ feitos: number; total: number } | null>(null);
+  const ligarAuto = useMutation({
+    mutationFn: () => comprasApi.associarAutomaticamente(),
+    onSuccess: (r) => {
+      invalidarTudo();
+      resumoAssociacao(r);
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível ligar as faturas às compras.'),
+  });
+
+  function invalidarTudo() {
+    qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
+    qc.invalidateQueries({ queryKey: ['supplier-invoices-history'] });
+    qc.invalidateQueries({ queryKey: ['fatura-correspondencia'] });
+    qc.invalidateQueries({ queryKey: ['compras'] });
+  }
+
+  function resumoAssociacao(r: AssociacaoAutomatica) {
+    const duplicadas = r.itens.filter((i) => i.resultado === 'duplicada').length;
+    const partes = [
+      r.paraRever ? `${r.paraRever} para rever` : null,
+      r.semCompra ? `${r.semCompra} sem compra (criar nova)` : null,
+      duplicadas ? `${duplicadas} já registada(s)` : null,
+    ].filter(Boolean).join(' · ');
+    if (r.associadas > 0) toast.success(`${r.associadas} fatura(s) ligada(s) às compras`, partes || 'Tudo bateu certo.');
+    else toast.warning('Nenhuma fatura ligada automaticamente', partes || 'Não há faturas pendentes.');
+  }
+
+  async function uploadLote(files: File[]) {
+    if (files.length === 0) return;
+    setLote({ feitos: 0, total: files.length });
+    let novos = 0;
+    let duplicados = 0;
+    const falhados: string[] = [];
+    for (const [i, file] of files.entries()) {
+      try {
+        const r = await supplierInvoicesApi.uploadPdf(file);
+        if (r.wasDuplicate) duplicados++;
+        else novos++;
+      } catch {
+        falhados.push(file.name);
+      }
+      setLote({ feitos: i + 1, total: files.length });
+    }
+    setLote(null);
+    invalidarTudo();
+    if (falhados.length) toast.error(`${falhados.length} PDF(s) não foram lidos`, falhados.join(', '));
+    if (duplicados) toast.warning(`${duplicados} PDF(s) já tinham sido carregados`, 'Não foram duplicados.');
+    if (novos > 0 && isAdmin) ligarAuto.mutate();
+    else if (novos > 0) toast.success(`${novos} PDF(s) lidos`, 'Um administrador pode ligá-los às compras.');
+  }
 
   // Sprint 164: upload foto papel via Claude Vision.
   const uploadPhoto = useMutation({
@@ -186,8 +246,8 @@ export default function PorAprovarTab() {
                 // Sprint 543: multi-fatura — seleciona vários PDFs de uma vez (ex: mês inteiro de
                 // faturas Anthropic/CTT); cada um vira uma importação própria.
                 const files = Array.from(e.target.files ?? []);
-                for (const file of files) upload.mutate(file);
                 e.target.value = '';
+                void uploadLote(files);
               }}
             />
             <input
@@ -204,13 +264,26 @@ export default function PorAprovarTab() {
             <Button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              loading={upload.isPending}
+              loading={upload.isPending || lote !== null}
               variant="secondary"
               leftIcon={<Upload size={15} />}
-              title="Upload manual de PDF (sem precisar de n8n IMAP)"
+              title="Escolhe um ou vários PDFs de faturas — as que batem certo ligam-se sozinhas às compras"
             >
-              PDF
+              {lote ? `A ler ${lote.feitos}/${lote.total}…` : 'PDFs'}
             </Button>
+            {isAdmin && (
+              <Button
+                type="button"
+                variant="secondary"
+                leftIcon={<Link2 size={15} />}
+                loading={ligarAuto.isPending}
+                disabled={lote !== null}
+                onClick={() => ligarAuto.mutate()}
+                title="Liga às compras existentes todas as faturas pendentes que batem certo ao cêntimo"
+              >
+                Ligar às compras
+              </Button>
+            )}
             <Button
               type="button"
               onClick={() => photoInputRef.current?.click()}
@@ -267,7 +340,7 @@ export default function PorAprovarTab() {
             <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
               Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
             </p>
-            <ImportsTable data={failed} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+            <ImportsTable data={failed} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
           </section>
         )}
 
@@ -294,7 +367,7 @@ export default function PorAprovarTab() {
                   Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
                 </div>
               ) : ready.length > 0 ? (
-                <ImportsTable data={ready} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+                <ImportsTable data={ready} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
               ) : null
             ) : (
               history.isLoading ? (
@@ -313,6 +386,8 @@ export default function PorAprovarTab() {
           </div>
         </section>
       </DetailWorkspace>
+
+      {ligarTarget && <CorrespondenciaModal importId={ligarTarget} onClose={() => setLigarTarget(null)} />}
 
       {approveTarget && (
         <ApproveModal
@@ -360,9 +435,10 @@ export default function PorAprovarTab() {
 }
 
 function ImportsTable({
-  data, onPdf, onCompra, onDespesa, onReject,
+  data, onLigar, onPdf, onCompra, onDespesa, onReject,
 }: {
   data: SupplierInvoiceImport[];
+  onLigar: (importId: string) => void;
   onPdf: (id: string) => void;
   onCompra: (x: SupplierInvoiceImport) => void;
   onDespesa: (x: SupplierInvoiceImport) => void;
@@ -377,13 +453,13 @@ function ImportsTable({
             <th className="px-2 py-2 text-left">Documento</th>
             <th className="px-2 py-2 text-left">Data</th>
             <th className="px-2 py-2 text-right">Total</th>
-            <th className="px-2 py-2 text-left">Confidence</th>
+            <th className="px-2 py-2 text-left">Leitura · compra</th>
             <th className="px-2 py-2 text-right">Acções</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {data.map((x) => (
-            <ImportRow key={x.id} x={x} onPdf={onPdf} onCompra={onCompra} onDespesa={onDespesa} onReject={onReject} />
+            <ImportRow key={x.id} x={x} onLigar={onLigar} onPdf={onPdf} onCompra={onCompra} onDespesa={onDespesa} onReject={onReject} />
           ))}
         </tbody>
       </table>
@@ -392,9 +468,10 @@ function ImportsTable({
 }
 
 function ImportRow({
-  x, onPdf, onCompra, onDespesa, onReject,
+  x, onLigar, onPdf, onCompra, onDespesa, onReject,
 }: {
   x: SupplierInvoiceImport;
+  onLigar: (importId: string) => void;
   onPdf: (id: string) => void;
   onCompra: (x: SupplierInvoiceImport) => void;
   onDespesa: (x: SupplierInvoiceImport) => void;
@@ -402,6 +479,8 @@ function ImportRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasItems = x.items && x.items.length > 0;
+  const corr = useCorrespondencia(x.id, x.status === 'Pending');
+  const podeLigar = (corr.data?.candidatos.length ?? 0) > 0;
   return (
     <>
       <tr className={hasItems ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900' : ''} onClick={() => hasItems && setExpanded(!expanded)}>
@@ -412,12 +491,27 @@ function ImportRow({
         <td className="px-2 py-2">{x.documentNumber ?? <span className="text-zinc-400">—</span>}</td>
         <td className="px-2 py-2">{x.documentDate ? new Date(x.documentDate).toLocaleDateString('pt-PT') : <span className="text-zinc-400">—</span>}</td>
         <td className="px-2 py-2 text-right">{x.totalCents != null ? formatCents(x.totalCents) : <span className="text-zinc-400">—</span>}</td>
-        <td className="px-2 py-2"><ConfidenceBadge value={x.parseConfidence} /></td>
+        <td className="px-2 py-2">
+          <div className="flex flex-col items-start gap-1">
+            <ConfidenceBadge value={x.parseConfidence} />
+            {x.status === 'Pending' && <CorrespondenciaBadge data={corr.data} />}
+          </div>
+        </td>
         <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-end gap-1">
             <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
               <FileText size={14} />
             </button>
+            {podeLigar && (
+              <button
+                type="button"
+                onClick={() => onLigar(x.id)}
+                className="flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700"
+                title="Comparar com as compras já registadas e ligar a fatura à certa"
+              >
+                <Link2 size={14} /> Ligar
+              </button>
+            )}
             {/* Doc 94 Fase 3: peças/artigos → Compra (lotes de stock, editor pré-preenchido);
                 serviços, ferramentas, contas → Despesa. */}
             <button
@@ -442,6 +536,15 @@ function ImportRow({
           </div>
         </td>
       </tr>
+      {(x.warnings?.length ?? 0) > 0 && (
+        <tr>
+          <td colSpan={6} className="px-2 pb-2">
+            {x.warnings!.map((w, i) => (
+              <p key={i} className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400"><AlertTriangle size={13} className="mt-0.5 shrink-0" />{w}</p>
+            ))}
+          </td>
+        </tr>
+      )}
       {expanded && hasItems && (
         <tr className="bg-zinc-50/50 dark:bg-zinc-900/50">
           <td colSpan={6} className="px-4 py-3">

@@ -2,6 +2,8 @@ import { api } from '../api';
 import type {
   CompraDocumento,
   CompraDocumentoWrite,
+  AssociacaoAutomatica,
+  CorrespondenciaFatura,
   CompraFiltro,
   ImportComprasResultado,
   InventarioLinha,
@@ -39,6 +41,16 @@ export const comprasApi = {
   },
   simular(req: SimuladorRequest) {
     return api.post<SimuladorResponse>('/compras/simulador', req).then((r) => r.data);
+  },
+  /** Sprint 560: que compra corresponde a uma fatura recebida. */
+  correspondencia(importId: string) {
+    return api.get<CorrespondenciaFatura>(`/compras/faturas-recebidas/${importId}/correspondencia`).then((r) => r.data);
+  },
+  associarFatura(compraId: string, importId: string) {
+    return api.post<CompraDocumento>(`/compras/${compraId}/associar-fatura/${importId}`).then((r) => r.data);
+  },
+  associarAutomaticamente() {
+    return api.post<AssociacaoAutomatica>('/compras/faturas-recebidas/associar-automaticamente').then((r) => r.data);
   },
   importarExcel(ficheiro: File) {
     const form = new FormData();

@@ -6,9 +6,11 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Modal largo (ex.: comparações lado a lado). */
+  wide?: boolean;
 }
 
-export default function Modal({ open, title, onClose, children, footer }: Props) {
+export default function Modal({ open, title, onClose, children, footer, wide = false }: Props) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -27,7 +29,7 @@ export default function Modal({ open, title, onClose, children, footer }: Props)
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
       <div
-        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-2xl"
+        className={`flex max-h-[90vh] w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} flex-col rounded-t-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-2xl`}
         role="dialog"
         aria-modal="true"
       >

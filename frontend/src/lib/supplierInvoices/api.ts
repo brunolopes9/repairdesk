@@ -38,6 +38,8 @@ export interface SupplierInvoiceImport {
   fornecedorDefaultAction: 'auto' | 'stock' | 'despesa' | null;
   /** Sprint 543: categoria de Despesa aprendida/conhecida do fornecedor (valor do enum DespesaCategoria). */
   fornecedorDefaultDespesaCategoria: number | null;
+  /** Sprint 560: avisos da leitura (totais que não batem, documento de formação…). */
+  warnings?: string[] | null;
 }
 
 export interface ApproveSupplierInvoiceRequest {

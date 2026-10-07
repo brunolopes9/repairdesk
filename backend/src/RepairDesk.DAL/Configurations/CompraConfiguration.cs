@@ -35,6 +35,10 @@ public class CompraDocumentoConfiguration : IEntityTypeConfiguration<CompraDocum
         // Anti-duplicados e listagens: por fornecedor + nº fatura, e por data.
         builder.HasIndex(x => new { x.TenantId, x.FornecedorId, x.NumeroFatura });
         builder.HasIndex(x => new { x.TenantId, x.Data });
+        // Sprint 560: nº visível único por tenant; e um PDF importado só documenta uma compra.
+        builder.HasIndex(x => new { x.TenantId, x.Numero }).IsUnique();
+        builder.HasIndex(x => x.SupplierInvoiceImportId).IsUnique()
+            .HasFilter("[SupplierInvoiceImportId] IS NOT NULL AND [IsDeleted] = 0");
     }
 }
 
@@ -54,5 +58,6 @@ public class CompraLinhaConfiguration : IEntityTypeConfiguration<CompraLinha>
         builder.Ignore(x => x.QuantidadeEmStock);
 
         builder.HasIndex(x => new { x.TenantId, x.CompraDocumentoId });
+        builder.HasIndex(x => new { x.TenantId, x.Numero }).IsUnique();
     }
 }

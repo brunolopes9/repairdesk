@@ -203,3 +203,35 @@ o portal do cliente, as fotos e as garantias — agora ligados à **Venda do tip
   com backup automático antes.
 - Preferências: modelos WhatsApp/push passam a usar os nomes dos estados da Venda; nomes antigos gravados são
   convertidos ao ler (`TenantPreferencesDefaults.EstadoAliases`).
+
+## Faturas recebidas ↔ compras — notas (Sprint 560)
+
+Problema: as compras importadas do Excel pela encomenda ficam com "fatura em falta"; quando a fatura chega,
+"Faturas recebidas → Compra" criava uma compra **nova** (duplicado de stock). E o leitor antigo da Tudo4Mobile
+(feito para o resumo de encomenda do site) lia as faturas CloudInvoice como lixo com confiança "alta" — a IA
+nem era chamada.
+
+- **Leitores determinísticos** (`InvoiceLayoutParsers`): faturas CloudInvoice (Tudo4Mobile e outros PT — nº,
+  data de emissão, total, linhas c/ IVA, portes) e resumos de encomenda MobileSentrix (nº de encomenda, data,
+  total, linhas multi-linha, envio). Só dão confiança alta se as linhas somarem o total; nota de crédito fica
+  sempre para revisão. O leitor antigo da Tudo4Mobile já não diz "alta" sem nº e total.
+- Aviso de documento: PDFs com "Documento emitido para fins de formação" mostram aviso para confirmar no
+  e-Fatura (não baixa a confiança da leitura). Avisos passam a ir no DTO das faturas recebidas.
+- **Correspondência** (`CompraFaturaService`), por fornecedor: mesmo nº de fatura → mesmo nº de encomenda →
+  fatura em falta com data a ±10 dias. Bate certo = linhas da compra + portes da fatura = total da fatura
+  (a mesma `IvaEngine.Reconciliar` da "Dif."). Sugestão: `associar` (uma só compra e bate certo), `rever`,
+  `nova`, `duplicada` (2.ª cópia de fatura já documentada), `ilegivel`.
+- **Associar** grava nº e data da fatura (a data do IVA é a da fatura), total, portes e IVA dos portes da fatura,
+  e liga o PDF; fecha a importação na mesma transação; auditado com antes/depois. **Nunca mexe em linhas nem
+  stock** — se ficar diferença, a correção é humana com o PDF à frente. Um resumo de encomenda documenta a
+  compra mas ela continua "fatura em falta" (e pode ser substituído pela fatura verdadeira). Idempotente;
+  índice único impede o mesmo PDF em duas compras.
+- **Automático**: carregar vários PDFs (um a um, com progresso) e no fim `associar-automaticamente` liga só os
+  casos inequívocos; o resto aparece na inbox com etiqueta e o botão **Ligar** (comparação lado a lado).
+- **Nº visível**: `CompraDocumento.Numero` e `CompraLinha.Numero` (lote), sequenciais por tenant, nunca
+  reutilizados (backfill na migração por data), pesquisáveis; mostrados em Documentos, editor, Stock e no
+  seletor de lotes das vendas.
+- Fornecedores procurados pelo nome sem distinguir maiúsculas (o Excel criou "Tudo4mobile", a fatura diz
+  "Tudo4Mobile").
+- Validado com o Excel real + 13 PDFs reais: 9 ligadas sozinhas (as 3 "Dif." ficam a zero — os totais/portes
+  do Excel estavam errados, as linhas certas), 3 para rever, 1 compra nova que não estava no Excel.

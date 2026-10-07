@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { FileSpreadsheet, Plus, ReceiptText, Search } from 'lucide-react';
+import { FileCheck2, FileSpreadsheet, Plus, ReceiptText, Search } from 'lucide-react';
 import { Button, EmptyState, SectionCard, SkeletonRow } from '../../components/ui';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { comprasApi } from '../../lib/compras/api';
@@ -81,6 +81,7 @@ export default function DocumentosTab() {
           <table className="w-full min-w-[48rem] text-sm">
             <thead className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800">
               <tr>
+                <th className="px-4 py-2 font-medium">Nº</th>
                 <th className="px-4 py-2 font-medium">Data</th>
                 <th className="px-4 py-2 font-medium">Fornecedor</th>
                 <th className="px-4 py-2 font-medium">Documento</th>
@@ -91,9 +92,10 @@ export default function DocumentosTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {list.isLoading && Array.from({ length: 4 }).map((_, i) => <tr key={i}><td colSpan={7}><SkeletonRow columns={7} /></td></tr>)}
+              {list.isLoading && Array.from({ length: 4 }).map((_, i) => <tr key={i}><td colSpan={8}><SkeletonRow columns={8} /></td></tr>)}
               {items.map((d) => (
                 <tr key={d.id} className="transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <td className="px-4 py-3 tabular-nums text-zinc-500">{d.numero}</td>
                   <td className="px-4 py-3 tabular-nums">{formatDateOnly(d.data)}</td>
                   <td className="px-4 py-3">
                     {d.fornecedorNome}
@@ -105,6 +107,7 @@ export default function DocumentosTab() {
                     <Link to={`/compras/${d.id}`} className="font-medium text-brand-700 hover:underline dark:text-brand-300">
                       {d.numeroFatura ?? (d.numerosEncomenda.length ? `Enc. ${d.numerosEncomenda.join(', ')}` : 'Sem referência')}
                     </Link>
+                    {d.supplierInvoiceImportId && <FileCheck2 size={13} className="ml-1.5 inline text-emerald-600" aria-label="PDF da fatura associado" />}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{d.unidades}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{d.unidadesEmStock}</td>

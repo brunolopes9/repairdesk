@@ -19,8 +19,15 @@ public class FornecedorRepository : IFornecedorRepository
     public Task<Fornecedor?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.Fornecedores.FirstOrDefaultAsync(f => f.Id == id, ct);
 
+    /// <summary>
+    /// Sprint 560: sem distinguir maiúsculas ("Tudo4mobile" do Excel = "Tudo4Mobile" da fatura) de forma
+    /// explícita — não depender da collation da BD. Havendo repetidos, ganha o mais antigo.
+    /// </summary>
     public Task<Fornecedor?> FindByNameAsync(string name, CancellationToken ct = default)
-        => _db.Fornecedores.FirstOrDefaultAsync(f => f.Name == name, ct);
+    {
+        var alvo = name.Trim().ToUpper();
+        return _db.Fornecedores.Where(f => f.Name.ToUpper() == alvo).OrderBy(f => f.CreatedAt).FirstOrDefaultAsync(ct);
+    }
 
     public Task AddAsync(Fornecedor f, CancellationToken ct = default)
         => _db.Fornecedores.AddAsync(f, ct).AsTask();

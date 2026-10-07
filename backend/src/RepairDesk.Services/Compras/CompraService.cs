@@ -168,7 +168,7 @@ public class CompraService : ICompraService
             var q = l.QuantidadeEmStock;
             var doc = l.Documento!;
             return new InventarioLinhaDto(
-                l.Id, doc.Id, doc.Fornecedor?.Name ?? "—", doc.Data, Referencia(doc), doc.FaturaEmFalta,
+                l.Id, l.Numero, doc.Id, doc.Fornecedor?.Name ?? "—", doc.Data, Referencia(doc), doc.FaturaEmFalta,
                 l.Descricao, l.Localizacao, q, l.PrecoUnitarioPago,
                 q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado, l.TaxaIvaCompra);
         }).ToList();
@@ -341,10 +341,10 @@ public class CompraService : ICompraService
     {
         var fornecedor = d.Fornecedor;
         var ue = fornecedor?.RegimeIva == RegimeIvaFornecedor.UeAutoliquidacao;
-        var linhas = d.Linhas.OrderBy(l => l.CreatedAt).Select(l =>
+        var linhas = d.Linhas.OrderBy(l => l.Numero).ThenBy(l => l.CreatedAt).Select(l =>
         {
             var u = IvaEngine.Unidade(l.PrecoUnitarioPago, l.TaxaIvaCompra, l.LucroUnitario, TaxaVenda, ue);
-            return new CompraLinhaDto(l.Id, l.Descricao, l.Quantidade, l.QuantidadeVendida, l.QuantidadeAbatida,
+            return new CompraLinhaDto(l.Id, l.Numero, l.Descricao, l.Quantidade, l.QuantidadeVendida, l.QuantidadeAbatida,
                 l.QuantidadeEmStock, l.PrecoUnitarioPago, l.TaxaIvaCompra, l.LucroUnitario, l.Localizacao,
                 u.CustoSemIva, u.IvaPagoNaCompra, u.AutoliquidacaoUe, u.LucroComIva, u.PrecoVendaSemIva,
                 u.IvaDaVenda, u.PrecoFinalComIva, u.IvaAPagarEstado,
@@ -354,7 +354,7 @@ public class CompraService : ICompraService
         var totalLinhas = linhas.Sum(l => l.TotalPago);
         var rec = IvaEngine.Reconciliar(totalLinhas, d.PortesPagos, d.TotalDocumento);
         return new CompraDocumentoDto(
-            d.Id, d.FornecedorId, fornecedor?.Name ?? "—", fornecedor?.RegimeIva ?? RegimeIvaFornecedor.Nacional,
+            d.Id, d.Numero, d.FornecedorId, fornecedor?.Name ?? "—", fornecedor?.RegimeIva ?? RegimeIvaFornecedor.Nacional,
             d.Data, d.NumeroFatura,
             (d.NumerosEncomenda ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries),
             d.MetodoPagamento, d.PortesPagos, d.PortesIva, d.TotalDocumento, d.Notas, d.FaturaEmFalta,

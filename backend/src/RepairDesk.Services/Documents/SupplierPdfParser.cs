@@ -17,6 +17,10 @@ public static class SupplierPdfParser
         if (string.IsNullOrWhiteSpace(text))
             return new SupplierPdfParseResult(null, null, null, null, ParseConfidence.None, Array.Empty<SupplierPdfItem>());
 
+        // Sprint 560: layouts conhecidos (faturas CloudInvoice, resumos MobileSentrix) primeiro —
+        // leitura exata, sem heurísticas.
+        if (InvoiceLayoutParsers.TryParse(text) is { } layout) return layout;
+
         // Detecta fornecedor por substring no texto bruto.
         var supplier = DetectSupplier(text);
 
@@ -73,7 +77,9 @@ public static class SupplierPdfParser
             OrderId: orderId,
             TotalCents: orderTotal,
             DateAdded: date,
-            Confidence: ParseConfidence.High,
+            // Sprint 560: só é "High" se leu o essencial. Antes era sempre High, o que impedia a IA de
+            // tentar e deixava passar lixo (ex.: faturas CloudInvoice lidas como encomenda do site).
+            Confidence: orderId is not null && orderTotal is not null && items.Count > 0 ? ParseConfidence.High : ParseConfidence.Low,
             Items: items);
     }
 

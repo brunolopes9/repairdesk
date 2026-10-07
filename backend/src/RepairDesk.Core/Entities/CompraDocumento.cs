@@ -11,6 +11,9 @@ public class CompraDocumento : BaseEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
 
+    /// <summary>Nº sequencial por tenant, visível na UI ("Compra 13"). Atribuído ao gravar; nunca reutilizado.</summary>
+    public int Numero { get; set; }
+
     public Guid FornecedorId { get; set; }
     public Fornecedor? Fornecedor { get; set; }
 

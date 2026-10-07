@@ -14,6 +14,9 @@ public class CompraLinha : BaseEntity, ITenantEntity
     public Guid CompraDocumentoId { get; set; }
     public CompraDocumento? Documento { get; set; }
 
+    /// <summary>Nº do lote, sequencial por tenant ("Lote 112") — como o nº de linha do Excel. Nunca reutilizado.</summary>
+    public int Numero { get; set; }
+
     public required string Descricao { get; set; }
 
     public int Quantidade { get; set; }

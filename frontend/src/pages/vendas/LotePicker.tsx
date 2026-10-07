@@ -26,7 +26,7 @@ export default function LotePicker({
   const linhas = useMemo(() => {
     const t = q.trim().toLowerCase();
     const all = inv.data ?? [];
-    return t ? all.filter((l) => `${l.descricao} ${l.fornecedor} ${l.localizacao ?? ''}`.toLowerCase().includes(t)) : all;
+    return t ? all.filter((l) => `${l.numero} ${l.descricao} ${l.fornecedor} ${l.localizacao ?? ''}`.toLowerCase().includes(t)) : all;
   }, [inv.data, q]);
 
   return (
@@ -50,7 +50,7 @@ export default function LotePicker({
                   className="flex w-full items-start justify-between gap-3 px-1 py-2.5 text-left text-sm hover:bg-zinc-50 disabled:opacity-40 dark:hover:bg-zinc-800"
                 >
                   <span>
-                    <span className="block font-medium">{l.descricao}</span>
+                    <span className="block font-medium"><span className="mr-1.5 text-xs font-normal tabular-nums text-zinc-400">Lote {l.numero}</span>{l.descricao}</span>
                     <span className="block text-xs text-zinc-500">{l.fornecedor} · {disponivel} disponível{l.localizacao ? ` · ${l.localizacao}` : ''}</span>
                   </span>
                   <span className="text-right tabular-nums">

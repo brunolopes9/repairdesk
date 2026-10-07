@@ -75,5 +75,20 @@ public static class ParseValidator
         return (downgraded, validation.Warnings);
     }
 
+    /// <summary>
+    /// Sprint 560: avisos sobre o próprio documento (não sobre a leitura) — não baixam a confiança.
+    /// Ex.: o software certificado imprime "Documento emitido para fins de formação" em documentos de
+    /// teste, que não são comunicados à AT e não servem como fatura.
+    /// </summary>
+    public static IReadOnlyList<string> DocumentWarnings(string? rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText)) return [];
+        var warnings = new List<string>();
+        if (rawText.Contains("fins de formação", StringComparison.OrdinalIgnoreCase)
+            || rawText.Contains("fins de formacao", StringComparison.OrdinalIgnoreCase))
+            warnings.Add("O PDF diz \"Documento emitido para fins de formação\" — confirma no e-Fatura que esta fatura foi comunicada à AT.");
+        return warnings;
+    }
+
     private static string Truncate(string s, int max) => s.Length > max ? s[..max] + "…" : s;
 }
