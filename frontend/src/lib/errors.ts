@@ -75,5 +75,6 @@ export function apiErrorMessage(err: unknown): string {
 export function apiErrorCode(err: unknown): string | undefined {
   if (!isAxiosError(err)) return undefined;
   const data = err.response?.data as ProblemDetails | undefined;
-  return data?.code;
+  // O middleware do backend põe o código em `title` (ProblemDetails); `code` fica por compatibilidade.
+  return data?.code ?? data?.title;
 }

@@ -1121,7 +1121,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         {
             TenantId = tenantId,
             Name = nome.Length > 200 ? nome[..200] : nome,
-            IntraUe = IntraUeSuppliers.IsKnownIntraUe(nome),
+            RegimeIva = IntraUeSuppliers.IsKnownIntraUe(nome) ? RegimeIvaFornecedor.UeAutoliquidacao : RegimeIvaFornecedor.Nacional,
             // Sprint 543: 1ª fatura de fornecedor conhecido já vem com categoria sugerida.
             DefaultDespesaCategoria = KnownDespesaSuppliers.SuggestCategoria(nome),
             Active = true,

@@ -5,7 +5,7 @@ import Modal from '../../components/Modal';
 import { BackButton, Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonRow } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import { formatCents, formatDateOnly } from '../../lib/money';
-import { fornecedoresApi, type Fornecedor, type FornecedorWriteRequest } from '../../lib/fornecedores/api';
+import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor, type FornecedorWriteRequest, type RegimeIva } from '../../lib/fornecedores/api';
 
 const emptyForm: FornecedorWriteRequest = {
   name: '',
@@ -16,7 +16,8 @@ const emptyForm: FornecedorWriteRequest = {
   garantiaB2BDiasDefault: null,
   notas: null,
   active: true,
-  intraUe: false,
+  regimeIva: REGIME_IVA.Nacional,
+  pais: 'PT',
 };
 
 export default function Fornecedores() {
@@ -50,7 +51,8 @@ export default function Fornecedores() {
       garantiaB2BDiasDefault: f.garantiaB2BDiasDefault,
       notas: f.notas,
       active: f.active,
-      intraUe: f.intraUe,
+      regimeIva: f.regimeIva,
+      pais: f.pais,
     });
     setOpen(true);
   }
@@ -277,20 +279,33 @@ export default function Fornecedores() {
             <span className="mb-1 block text-xs font-medium text-zinc-500">Notas</span>
             <textarea rows={3} value={form.notas ?? ''} onChange={(e) => setForm({ ...form, notas: e.target.value || null })} className={`${inputCls} resize-none`} placeholder="Pagamento por Multibanco, devoluções até 14d..." />
           </label>
-          <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs dark:border-amber-900/40 dark:bg-amber-950/20">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={form.intraUe ?? false}
-              onChange={(e) => setForm({ ...form, intraUe: e.target.checked })}
-            />
-            <span>
-              <span className="font-medium text-amber-800 dark:text-amber-300">Fornecedor intra-UE (autoliquidação)</span>
-              <span className="mt-0.5 block text-amber-700/80 dark:text-amber-400/70">
-                Compras a fornecedores de outro país da UE. O IVA é autoliquidado e <strong>não conta como IVA dedutível</strong> no Relatório IVA.
-              </span>
-            </span>
-          </label>
+          <div className="grid grid-cols-[1fr_6rem] gap-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-zinc-500">Regime de IVA nas compras</span>
+              <select
+                value={form.regimeIva ?? REGIME_IVA.Nacional}
+                onChange={(e) => setForm({ ...form, regimeIva: Number(e.target.value) as RegimeIva })}
+                className={inputCls}
+              >
+                {Object.entries(REGIME_IVA_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-zinc-500">País</span>
+              <input
+                value={form.pais ?? ''}
+                maxLength={2}
+                onChange={(e) => setForm({ ...form, pais: e.target.value.toUpperCase() || null })}
+                className={inputCls}
+                placeholder="PT"
+              />
+            </label>
+          </div>
+          {form.regimeIva === REGIME_IVA.UeAutoliquidacao && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+              Faturas sem IVA: o IVA é autoliquidado na declaração (liquidado e deduzido ao mesmo tempo) — <strong>não reduz</strong> o IVA a pagar das vendas.
+            </p>
+          )}
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
             Activo (aparece em sugestões/autocomplete)

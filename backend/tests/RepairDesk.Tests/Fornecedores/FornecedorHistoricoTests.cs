@@ -20,7 +20,7 @@ public class FornecedorHistoricoTests
     public async Task Historico_AgregaComprasDespesasImportsEDefeito()
     {
         await using var db = NewDb();
-        var fornecedor = new Fornecedor { TenantId = Tenant, Name = "Tudo4Mobile", IntraUe = false };
+        var fornecedor = new Fornecedor { TenantId = Tenant, Name = "Tudo4Mobile", RegimeIva = RepairDesk.Core.Enums.RegimeIvaFornecedor.Nacional };
         var outro = new Fornecedor { TenantId = Tenant, Name = "Molano" };
         db.Fornecedores.AddRange(fornecedor, outro);
 

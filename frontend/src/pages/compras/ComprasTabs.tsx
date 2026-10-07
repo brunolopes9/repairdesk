@@ -1,40 +1,38 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader, ViewTabs } from '../../components/ui';
 import { supplierInvoicesApi } from '../../lib/supplierInvoices/api';
-import {
-  DESPESA_CATEGORIA,
-  STOCK_DESPESA_CATEGORIAS,
-} from '../../lib/despesas/types';
-import AprovadasTab from '../despesas/AprovadasTab';
 import PorAprovarTab from '../despesas/PorAprovarTab';
+import DocumentosTab from './DocumentosTab';
+import InventarioLotesTab from './InventarioLotesTab';
+import ResumoTab from './ResumoTab';
+import SimuladorTab from './SimuladorTab';
 
-type TabKey = 'pending' | 'approved';
+/** Doc 94 Fase 3: Compras = faturas de fornecedor → stock por lote, com IVA sempre calculado. */
+const TABS = [
+  { key: 'docs', label: 'Documentos' },
+  { key: 'stock', label: 'Stock' },
+  { key: 'resumo', label: 'Resumo IVA' },
+  { key: 'simulador', label: 'Simulador' },
+  { key: 'pending', label: 'Faturas recebidas' },
+] as const;
 
-const tabs: Array<{ key: TabKey; label: string }> = [
-  { key: 'pending', label: 'Por aprovar' },
-  { key: 'approved', label: 'Aprovadas' },
-];
+type TabKey = (typeof TABS)[number]['key'];
 
 function normalizeTab(value: string | null): TabKey {
-  if (value === 'pending' || value === 'approved') return value;
-  return 'pending';
+  return TABS.find((t) => t.key === value)?.key ?? 'docs';
 }
 
 export default function ComprasTabs() {
   const [params, setParams] = useSearchParams();
   const active = normalizeTab(params.get('tab'));
 
+  // Inbox de faturas lidas por IA (upload/email) à espera de aprovação.
   const pending = useQuery({
     queryKey: ['supplier-invoices-pending'],
     queryFn: () => supplierInvoicesApi.pending(100),
     refetchInterval: 30_000,
   });
-
-  const counts = useMemo(() => ({
-    pending: pending.data?.length ?? 0,
-  }), [pending.data]);
 
   function setTab(tab: TabKey) {
     const next = new URLSearchParams(params);
@@ -46,34 +44,24 @@ export default function ComprasTabs() {
     <div className="space-y-4">
       <PageHeader
         title="Compras"
-        description="Faturas de fornecedor, pecas, material e compras ligadas a stock."
-        meta={<span className="text-sm text-zinc-500">Inbox fornecedor + compras aprovadas para stock</span>}
+        description="Faturas de fornecedor. Cada linha é um lote de stock, com o preço de venda e o IVA calculados."
       />
 
       <ViewTabs
         value={active}
         onChange={(value) => setTab(value as TabKey)}
-        tabs={tabs.map((tab) => ({
-          key: tab.key,
-          label: tab.label,
-          meta: tab.key === 'pending' ? counts.pending : 'stock',
+        tabs={TABS.map((t) => ({
+          key: t.key,
+          label: t.label,
+          meta: t.key === 'pending' && pending.data?.length ? pending.data.length : undefined,
         }))}
       />
 
+      {active === 'docs' && <DocumentosTab />}
+      {active === 'stock' && <InventarioLotesTab />}
+      {active === 'resumo' && <ResumoTab />}
+      {active === 'simulador' && <SimuladorTab />}
       {active === 'pending' && <PorAprovarTab />}
-      {active === 'approved' && (
-        <AprovadasTab
-          title="Compras aprovadas"
-          description="Despesas aprovadas como stock: pecas, material e pecas usadas."
-          categoriaIn={STOCK_DESPESA_CATEGORIAS}
-          includeSupplierInvoiceImports
-          allowedCategorias={STOCK_DESPESA_CATEGORIAS}
-          initialCategoria={DESPESA_CATEGORIA.Pecas}
-          createLabel="Nova compra"
-          emptyTitle="Ainda nao ha compras aprovadas"
-          emptyDescription="As faturas aprovadas como stock aparecem aqui para consulta e edicao."
-        />
-      )}
     </div>
   );
 }

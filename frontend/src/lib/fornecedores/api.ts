@@ -1,5 +1,14 @@
 import { api } from '../api';
 
+/** Doc 94 Fase 3: regime de IVA nas compras ao fornecedor (espelha RegimeIvaFornecedor no backend). */
+export const REGIME_IVA = { Nacional: 0, UeAutoliquidacao: 1, ForaUe: 2 } as const;
+export type RegimeIva = (typeof REGIME_IVA)[keyof typeof REGIME_IVA];
+export const REGIME_IVA_LABEL: Record<RegimeIva, string> = {
+  0: 'Nacional (IVA 23%)',
+  1: 'UE — autoliquidação (0%)',
+  2: 'Fora da UE (importação)',
+};
+
 export interface Fornecedor {
   id: string;
   name: string;
@@ -13,6 +22,8 @@ export interface Fornecedor {
   active: boolean;
   createdAt: string;
   intraUe: boolean;
+  regimeIva: RegimeIva;
+  pais: string | null;
 }
 
 export interface FornecedorWriteRequest {
@@ -24,7 +35,8 @@ export interface FornecedorWriteRequest {
   garantiaB2BDiasDefault?: number | null;
   notas?: string | null;
   active: boolean;
-  intraUe?: boolean;
+  regimeIva?: RegimeIva;
+  pais?: string | null;
 }
 
 /** Sprint 548 (Doc 93 #3): histórico consolidado de um fornecedor. */

@@ -19,6 +19,9 @@ public class FornecedorConfiguration : IEntityTypeConfiguration<Fornecedor>
         builder.Property(x => x.Phone).HasMaxLength(50);
         builder.Property(x => x.Website).HasMaxLength(300);
         builder.Property(x => x.Notas).HasMaxLength(2000);
+        builder.Property(x => x.Pais).HasMaxLength(2);
+        builder.Property(x => x.RegimeIva).HasConversion<int>();
+        builder.Ignore(x => x.IntraUe);
 
         // Nome único por tenant — evita duplicados (Utopya vs utopya vs UTOPYA).
         builder.HasIndex(x => new { x.TenantId, x.Name })

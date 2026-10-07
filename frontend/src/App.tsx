@@ -27,6 +27,7 @@ const Trabalhos = lazy(() => import('./pages/trabalhos/Trabalhos'));
 const TrabalhoDetalhe = lazy(() => import('./pages/trabalhos/TrabalhoDetalhe'));
 const Despesas = lazy(() => import('./pages/despesas/Despesas'));
 const Compras = lazy(() => import('./pages/compras/Compras'));
+const CompraEditor = lazy(() => import('./pages/compras/CompraEditor'));
 const Cash = lazy(() => import('./pages/cash/Cash'));
 const Stock = lazy(() => import('./pages/stock/Stock'));
 const Vendas = lazy(() => import('./pages/vendas/Vendas'));
@@ -153,6 +154,8 @@ export default function App() {
               <Route path="/trabalhos/:id" element={<TrabalhoDetalhe />} />
               <Route path="/despesas" element={<Despesas />} />
               <Route path="/compras" element={<Compras />} />
+              <Route path="/compras/nova" element={<CompraEditor />} />
+              <Route path="/compras/:id" element={<CompraEditor />} />
               <Route path="/cash" element={<Cash />} />
               <Route path="/importacoes" element={<Navigate to="/compras?tab=pending" replace />} />
               <Route path="/vendas" element={<Vendas />} />

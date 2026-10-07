@@ -57,6 +57,9 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<ServiceApiKey> ServiceApiKeys => Set<ServiceApiKey>();
     public DbSet<Fornecedor> Fornecedores => Set<Fornecedor>();
+    // Doc 94 Fase 3: compras por lote (documento + linhas = lotes de stock).
+    public DbSet<CompraDocumento> ComprasDocumentos => Set<CompraDocumento>();
+    public DbSet<CompraLinha> ComprasLinhas => Set<CompraLinha>();
     // Sprint 147: faturas de fornecedor recebidas via endpoint ingest (n8n IMAP).
     public DbSet<SupplierInvoiceImport> SupplierInvoiceImports => Set<SupplierInvoiceImport>();
     // Sprint 157: mapping aprendido entre SKUs de fornecedor e Parts internos.

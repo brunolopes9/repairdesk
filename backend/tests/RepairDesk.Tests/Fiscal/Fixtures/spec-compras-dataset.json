@@ -1,0 +1,1064 @@
+{
+ "linhas": [
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 16.42,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 8.4,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 6.15,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 2.9,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 0.88,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 5.53,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 3,
+   "preco": 0.738,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 17.22,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 27.9,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 16.42,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 8.4,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 10.95,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 11.07,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 17.22,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 6.15,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 0.74,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 18.33,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 24,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 10.95,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 0.7,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 19.56,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 14.9,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 10.9,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 4.9,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 5,
+   "preco": 1.1,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 7.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 8.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 3.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 29.63,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 0.65,
+   "taxa": 0,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 4.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 9.45,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 36.9,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 0.861,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 15.99,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 4.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 4.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 26.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 1.75,
+   "taxa": 0,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 9.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 39.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 10.947,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 12.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 15.21,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 2.57,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 19.557,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 14.637,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 17.7735,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 4.45,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 29.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 27.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 55.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 5.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 29.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 34.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 29.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 6.765,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 9.84,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 1.23,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 1.845,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 2.3985,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 3,
+   "preco": 1.23,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 9.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 1.845,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 3.3825,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 1.845,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 1.23,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 6.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 4.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 10.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 2,
+   "preco": 2.45,
+   "taxa": 0,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 10.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 2.17,
+   "taxa": 0,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 9.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 10.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 49.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 17.097,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 4.92,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 4.92,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 8.61,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 1.845,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 1.23,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 0.861,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 2.45,
+   "taxa": 0,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 91.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 14.637,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 1.23,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 1.75,
+   "taxa": 0,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 25.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 1.75,
+   "taxa": 0,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 27.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 2,
+   "preco": 1.75,
+   "taxa": 0,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 46.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 5.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 19.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 4.2435,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 4.8585,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 7.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 37.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 0.86,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 4.23,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 1.89,
+   "taxa": 0,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 7.45,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 7.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 2.28,
+   "taxa": 0.23,
+   "lucro": 1
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 10.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 38.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 26.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 59.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 11.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 2.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 14.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 29.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 8.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 29.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": true,
+   "qtd": 1,
+   "preco": 38.95,
+   "taxa": 0,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 4.8585,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 6.765,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 6.15,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 6.765,
+   "taxa": 0.23,
+   "lucro": 5
+  },
+  {
+   "ue": false,
+   "qtd": 1,
+   "preco": 1.9557,
+   "taxa": 0.23,
+   "lucro": 5
+  }
+ ],
+ "documentos": [
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 3.92,
+   "ivaPortes": 0.73
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 3.92,
+   "ivaPortes": 0.73
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 3.92,
+   "ivaPortes": 0.73
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 11,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 9.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 3.92,
+   "ivaPortes": 0.73
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 10.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 10.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 10.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 8.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 9.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 14.9,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 9.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 6.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 9.95,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 4.4,
+   "ivaPortes": 0.82
+  },
+  {
+   "portes": 14.9,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 14.9,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  },
+  {
+   "portes": 5.5,
+   "ivaPortes": 0
+  }
+ ],
+ "despesas": [
+  {
+   "valor": 183,
+   "taxa": 0.23,
+   "dedutivel": true
+  },
+  {
+   "valor": 35.5,
+   "taxa": 0.23,
+   "dedutivel": true
+  },
+  {
+   "valor": 4.84,
+   "taxa": 0.23,
+   "dedutivel": true
+  },
+  {
+   "valor": 2.57,
+   "taxa": 0,
+   "dedutivel": false
+  }
+ ],
+ "_nota": "Dataset anonimizado do Excel Compras_Fornecedores (121 linhas, 47 documentos). A linha do LCD Poco F3 foi reposta a lucro 5 € (o Excel atual tem 10 € por um teste do João) para bater com os valores do SPEC §6.6."
+}

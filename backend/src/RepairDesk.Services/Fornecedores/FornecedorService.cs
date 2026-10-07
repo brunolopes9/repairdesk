@@ -26,7 +26,9 @@ public sealed record FornecedorDto(
     bool Active,
     DateTime CreatedAt,
     // Sprint 525: fornecedor intra-UE (autoliquidação) — compras não geram IVA dedutível em PT.
-    bool IntraUe = false);
+    bool IntraUe = false,
+    RegimeIvaFornecedor RegimeIva = RegimeIvaFornecedor.Nacional,
+    string? Pais = null);
 
 public sealed record FornecedorWriteRequest(
     string Name,
@@ -37,7 +39,10 @@ public sealed record FornecedorWriteRequest(
     int? GarantiaB2BDiasDefault,
     string? Notas,
     bool Active,
-    bool IntraUe = false);
+    bool IntraUe = false,
+    // Regime de IVA explícito; quando null, deriva de IntraUe (clientes antigos).
+    RegimeIvaFornecedor? RegimeIva = null,
+    string? Pais = null);
 
 public class FornecedorService : IFornecedorService
 {
@@ -79,7 +84,8 @@ public class FornecedorService : IFornecedorService
             GarantiaB2BDiasDefault = req.GarantiaB2BDiasDefault is > 0 ? req.GarantiaB2BDiasDefault : null,
             Notas = Clean(req.Notas),
             Active = req.Active,
-            IntraUe = req.IntraUe,
+            RegimeIva = ResolveRegime(req),
+            Pais = CleanPais(req.Pais),
         };
         await _repo.AddAsync(entity, ct);
         await _repo.SaveAsync(ct);
@@ -109,7 +115,8 @@ public class FornecedorService : IFornecedorService
         entity.GarantiaB2BDiasDefault = req.GarantiaB2BDiasDefault is > 0 ? req.GarantiaB2BDiasDefault : null;
         entity.Notas = Clean(req.Notas);
         entity.Active = req.Active;
-        entity.IntraUe = req.IntraUe;
+        entity.RegimeIva = ResolveRegime(req);
+        entity.Pais = CleanPais(req.Pais);
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(Fornecedor), entity.Id, new { entity.Name, entity.Active }, ct: ct);
         return ToDto(entity);
@@ -136,6 +143,19 @@ public class FornecedorService : IFornecedorService
         return name;
     }
 
+    private static RegimeIvaFornecedor ResolveRegime(FornecedorWriteRequest req)
+        => req.RegimeIva is { } r && Enum.IsDefined(r) ? r
+            : req.IntraUe ? RegimeIvaFornecedor.UeAutoliquidacao : RegimeIvaFornecedor.Nacional;
+
+    private static string? CleanPais(string? pais)
+    {
+        var p = Clean(pais)?.ToUpperInvariant();
+        if (p is null) return null;
+        if (p.Length != 2 || !p.All(char.IsAsciiLetterUpper))
+            throw new ValidationException("pais_invalido", "País em código de 2 letras (ex.: PT, NL, FR).");
+        return p;
+    }
+
     private static string? Clean(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
@@ -144,5 +164,5 @@ public class FornecedorService : IFornecedorService
     }
 
     private static FornecedorDto ToDto(Fornecedor f) =>
-        new(f.Id, f.Name, f.Code, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt, f.IntraUe);
+        new(f.Id, f.Name, f.Code, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt, f.IntraUe, f.RegimeIva, f.Pais);
 }

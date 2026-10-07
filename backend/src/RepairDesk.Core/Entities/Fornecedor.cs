@@ -1,4 +1,5 @@
 using RepairDesk.Core.Abstractions;
+using RepairDesk.Core.Enums;
 
 namespace RepairDesk.Core.Entities;
 
@@ -61,14 +62,21 @@ public class Fornecedor : BaseEntity, ITenantEntity
     public Enums.DespesaCategoria? DefaultDespesaCategoria { get; set; }
 
     /// <summary>
-    /// Sprint 525: fornecedor de fora de Portugal (aquisição intra-UE). Quando true, as compras a
-    /// este fornecedor são tratadas como AUTOLIQUIDAÇÃO (reverse charge): o IVA é liquidado E deduzido
-    /// pelo adquirente português = efeito ZERO; o IVA estrangeiro da fatura NÃO é dedutível em PT
-    /// (RITI art. 19.º, confirmado OCC). Carimba Despesa.ReverseCharge / PartMovimento.ReverseCharge
-    /// na aprovação para o Relatório IVA os tratar correctamente.
+    /// Regime de IVA das compras a este fornecedor (Nacional 23% / UE autoliquidação 0% / fora da UE).
+    /// Dá a taxa de IVA por defeito das linhas de compra. Na UE o adquirente autoliquida: liquida e
+    /// deduz o mesmo valor (efeito 0 €); o IVA estrangeiro da fatura NÃO é dedutível em PT (RITI art. 19.º).
     /// </summary>
-    public bool IntraUe { get; set; }
+    public RegimeIvaFornecedor RegimeIva { get; set; } = RegimeIvaFornecedor.Nacional;
 
+    /// <summary>País do fornecedor (ISO 3166-1 alpha-2, ex.: "PT", "NL", "FR").</summary>
+    public string? Pais { get; set; }
+
+    /// <summary>Atalho: compras intra-UE em autoliquidação (carimba ReverseCharge nas despesas/movimentos).</summary>
+    public bool IntraUe => RegimeIva == RegimeIvaFornecedor.UeAutoliquidacao;
+
+    /// <summary>Taxa de IVA por defeito das linhas de compra deste fornecedor (0,23 nacional; 0 UE/fora).</summary>
+    public decimal TaxaIvaCompraPorDefeito(decimal taxaNormal)
+        => RegimeIva == RegimeIvaFornecedor.Nacional ? taxaNormal : 0m;
 }
 
 public enum DefaultImportAction

@@ -16,6 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Fiscal/Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

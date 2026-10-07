@@ -314,6 +314,10 @@ try
     // Fornecedores (Sprint 120)
     builder.Services.AddScoped<IFornecedorRepository, RepairDesk.DAL.Persistence.FornecedorRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Fornecedores.IFornecedorService, RepairDesk.Services.Fornecedores.FornecedorService>();
+    // Doc 94 Fase 3: compras por lote + motor de IVA + importação do Excel de compras.
+    builder.Services.AddScoped<ICompraRepository, RepairDesk.DAL.Persistence.CompraRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Compras.ICompraService, RepairDesk.Services.Compras.CompraService>();
+    builder.Services.AddScoped<RepairDesk.Services.Compras.Import.IComprasExcelImporter, RepairDesk.Services.Compras.Import.ComprasExcelImporter>();
     // Sprint 175: retention cleanup diário às 3h UTC.
     builder.Services.AddHostedService<RepairDesk.API.HostedServices.SupplierInvoiceRetentionHostedService>();
     if (!builder.Environment.IsEnvironment("Testing"))
