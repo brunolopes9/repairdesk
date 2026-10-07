@@ -34,7 +34,7 @@ Menu: Dashboard · **Vendas** · **Compras** (inclui Stock) · **Despesas** · C
 |---|---|---|
 | 1 | Login por email **ou** username + "Esqueci a palavra-passe" (Resend) | ✅ |
 | 2 | Remover Moloni/faturação, loja (incl. Produtos/Catálogo e Molano), webhooks + migração de BD | ✅ |
-| 3 | **Perfil fiscal** (setup + PDF da declaração de atividade) + motor de IVA + Compras/Stock por lote + IA/email ligados ao modelo novo + seed Excel | ⏳ |
+| 3 | Motor de IVA + Compras/Stock por lote + IA/email ligados ao modelo novo + import do Excel (Sprint 556). *Perfil fiscal passou para a Fase 6, junto das Atividades.* | ✅ |
 | 4 | Vendas unificadas (reparação simples) + limpeza Balcão/Trabalhos/Reparações/Preços/Catálogo | ⏳ |
 | 5 | Despesas + IVA & Resultados + balancete trimestral | ⏳ |
 | 7 | Motor IRS + Segurança Social completo, recomendações por regras e agente no site (só explica o que o motor calcula) | ⏳ |
@@ -122,3 +122,24 @@ Removido (código + tabelas): Moloni/InvoiceXpress (emissão, anulação, recibo
 Mantido: `InvoiceNumber` + `InvoiceEmittedAt` em Reparação/Trabalho/Venda (registo manual do nº da fatura passada fora do Mender); lista "pagas sem fatura" passou a lembrete só de leitura; PDF de orçamento do Mender voltou aos Trabalhos.
 
 Migração `Sprint555RemoveFaturacaoLojaWebhooks`: 9 tabelas + colunas Invoice*/Estimate*/Recibo*. Novo `PreMigrationBackup`: com `Backup:Enabled=true`, faz backup antes de aplicar migrações pendentes e aborta o arranque se o backup falhar.
+
+## Fase 3 — notas (Sprint 556)
+
+- **Fornecedor** passa a ter `RegimeIva` (Nacional / UE autoliquidação / Fora UE) e `Pais`. A migração
+  copia o antigo `IntraUe` para `RegimeIva = UE` antes de apagar a coluna.
+- **Compras** = `CompraDocumento` (fatura ou encomenda) + `CompraLinha` (= lote de stock). Guarda-se só o
+  introduzido (quantidade, preço pago c/ IVA, taxa, lucro); tudo o resto vem do `IvaEngine`
+  (SPEC compras §3, testado contra o dataset do Excel ao cêntimo: SPEC §6).
+- Taxa de IVA na compra por defeito: 23% nacional, 0% UE. Lucro por defeito: 1 € películas/vidros, 5 € resto.
+- **Anti-duplicados**: mesmo fornecedor + mesmo nº de fatura (maiúsculas indiferentes) ou encomenda
+  repetida → 409 `compra_duplicada`; a UI mostra o aviso e permite "Gravar mesmo assim".
+- **Reconciliação**: linhas + portes vs total impresso (tolerância 0,01 €); "fatura em falta" quando
+  só há nº de encomenda — sem fatura o IVA não é dedutível.
+- **Faturas recebidas (IA, upload/email)**: deixam de criar `Part`s. Botão **Compra** abre o editor já
+  preenchido (linhas de portes → campo Portes; preço unitário = total da linha c/ IVA ÷ qtd) e grava via
+  `POST /api/compras/de-fatura/{importId}`, que fecha a importação na mesma transação. Botão **Despesa**
+  mantém-se para serviços/ferramentas/contas. Sem aprovação automática: a IA pode errar valores.
+- **Import do Excel** (`POST /api/compras/importar-excel`, Admin): folhas Fornecedores/Faturas/Compras,
+  idempotente. "Faturado = Sim" não marca venda — as vendas passam a ser registadas nas Vendas (Fase 4).
+- Ainda por fazer na Fase 4: vendas a consumir lotes (snapshot do custo/IVA), remover `Part`/stock antigo,
+  "Compras aprovadas" antigas (despesas de categoria stock) deixam de aparecer em Compras.

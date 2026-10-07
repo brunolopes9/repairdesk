@@ -47,16 +47,6 @@ public class SupplierInvoicesController : ControllerBase
     public Task<SupplierInvoiceImportDto> Reject(Guid id, [FromBody] RejectSupplierInvoiceRequest req, CancellationToken ct)
         => _service.RejectAsync(id, req.Reason, ct);
 
-    /// <summary>
-    /// Sprint 160: aprovar items como Stock. Por linha Bruno escolhe acção
-    /// (existing/new/skip). Cria/incrementa Parts + PartMovimentos.
-    /// SkuMapping aprende para próximas importações.
-    /// </summary>
-    [HttpPost("{id:guid}/approve-stock")]
-    [Authorize(Roles = "Admin")]
-    public Task<SupplierInvoiceImportDto> ApproveStock(Guid id, [FromBody] ApproveAsStockRequest req, CancellationToken ct)
-        => _service.ApproveAsStockAsync(id, req, ct);
-
     /// <summary>Sprint 163b: re-corre pipeline parser→fingerprint→LLM. Reset Status=Pending.</summary>
     [HttpPost("{id:guid}/reprocess")]
     [Authorize(Roles = "Admin")]

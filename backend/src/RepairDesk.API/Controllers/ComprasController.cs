@@ -48,6 +48,15 @@ public class ComprasController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
     }
 
+    /// <summary>Aprova uma fatura recebida (lida por IA) como compra — cria os lotes e fecha a importação.</summary>
+    [HttpPost("de-fatura/{importId:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<CompraDocumentoDto>> CreateFromImport(Guid importId, [FromBody] CompraDocumentoWriteRequest req, CancellationToken ct)
+    {
+        var dto = await _service.CreateFromImportAsync(importId, req, ct);
+        return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
+    }
+
     [HttpPut("{id:guid}")]
     public Task<CompraDocumentoDto> Update(Guid id, [FromBody] CompraDocumentoWriteRequest req, CancellationToken ct)
         => _service.UpdateAsync(id, req, ct);

@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Camera, CheckCircle2, Download, FileText, Inbox, Upload, XCircle } from 'lucide-react';
+import { AlertTriangle, Camera, Download, FileText, Inbox, PackagePlus, ReceiptText, Upload, XCircle } from 'lucide-react';
 import { api } from '../../lib/api';
-import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest, type ApproveAsStockItem } from '../../lib/supplierInvoices/api';
+import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest} from '../../lib/supplierInvoices/api';
 import { formatCents } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
@@ -13,6 +14,7 @@ const inputCls = 'mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-whit
 
 export default function PorAprovarTab() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const pending = useQuery({
     queryKey: ['supplier-invoices-pending'],
     queryFn: () => supplierInvoicesApi.pending(100),
@@ -20,7 +22,6 @@ export default function PorAprovarTab() {
   });
 
   const [approveTarget, setApproveTarget] = useState<SupplierInvoiceImport | null>(null);
-  const [stockTarget, setStockTarget] = useState<SupplierInvoiceImport | null>(null);
   const [rejectTarget, setRejectTarget] = useState<SupplierInvoiceImport | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [exportFrom, setExportFrom] = useState(() => {
@@ -93,19 +94,6 @@ export default function PorAprovarTab() {
     queryKey: ['supplier-invoices-history'],
     queryFn: () => supplierInvoicesApi.history(100),
     enabled: tab === 'history',
-  });
-
-  // Sprint 160b: aprovar como stock — cria Parts + PartMovimentos + SkuMapping.
-  const approveStock = useMutation({
-    mutationFn: (req: { id: string; items: ApproveAsStockItem[]; learnDefaultAction?: boolean }) =>
-      supplierInvoicesApi.approveAsStock(req.id, { items: req.items, learnDefaultAction: req.learnDefaultAction }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
-      qc.invalidateQueries({ queryKey: ['parts'] });
-      toast.success('Aprovada — items adicionados ao stock.');
-      setStockTarget(null);
-    },
-    onError: (err) => toast.fromError(err, 'Não foi possível aprovar como stock.'),
   });
 
   async function openPdf(id: string) {
@@ -279,7 +267,7 @@ export default function PorAprovarTab() {
             <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
               Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
             </p>
-            <ImportsTable data={failed} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+            <ImportsTable data={failed} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
           </section>
         )}
 
@@ -306,7 +294,7 @@ export default function PorAprovarTab() {
                   Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
                 </div>
               ) : ready.length > 0 ? (
-                <ImportsTable data={ready} onPdf={openPdf} onApproveStock={setStockTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+                <ImportsTable data={ready} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
               ) : null
             ) : (
               history.isLoading ? (
@@ -335,15 +323,6 @@ export default function PorAprovarTab() {
             qc.invalidateQueries({ queryKey: ['despesas'] });
             setApproveTarget(null);
           }}
-        />
-      )}
-
-      {stockTarget && (
-        <ApproveStockModal
-          target={stockTarget}
-          onClose={() => setStockTarget(null)}
-          onSubmit={(items, learnRule) => approveStock.mutate({ id: stockTarget.id, items, learnDefaultAction: learnRule })}
-          submitting={approveStock.isPending}
         />
       )}
 
@@ -381,11 +360,12 @@ export default function PorAprovarTab() {
 }
 
 function ImportsTable({
-  data, onPdf, onApproveStock, onReject,
+  data, onPdf, onCompra, onDespesa, onReject,
 }: {
   data: SupplierInvoiceImport[];
   onPdf: (id: string) => void;
-  onApproveStock: (x: SupplierInvoiceImport) => void;
+  onCompra: (x: SupplierInvoiceImport) => void;
+  onDespesa: (x: SupplierInvoiceImport) => void;
   onReject: (x: SupplierInvoiceImport) => void;
 }) {
   return (
@@ -403,7 +383,7 @@ function ImportsTable({
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {data.map((x) => (
-            <ImportRow key={x.id} x={x} onPdf={onPdf} onApproveStock={onApproveStock} onReject={onReject} />
+            <ImportRow key={x.id} x={x} onPdf={onPdf} onCompra={onCompra} onDespesa={onDespesa} onReject={onReject} />
           ))}
         </tbody>
       </table>
@@ -412,11 +392,12 @@ function ImportsTable({
 }
 
 function ImportRow({
-  x, onPdf, onApproveStock, onReject,
+  x, onPdf, onCompra, onDespesa, onReject,
 }: {
   x: SupplierInvoiceImport;
   onPdf: (id: string) => void;
-  onApproveStock: (x: SupplierInvoiceImport) => void;
+  onCompra: (x: SupplierInvoiceImport) => void;
+  onDespesa: (x: SupplierInvoiceImport) => void;
   onReject: (x: SupplierInvoiceImport) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -437,17 +418,23 @@ function ImportRow({
             <button type="button" onClick={() => onPdf(x.id)} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800" title="Abrir PDF">
               <FileText size={14} />
             </button>
-            {/* Sprint 181: 1 botão único 'Aprovar'. Modal classifica items automáticamente
-                (stock/despesa/skip) e Bruno só override se necessário. Removido o '🧾 Despesa
-                overhead' que duplicava IVA no relatório. */}
+            {/* Doc 94 Fase 3: peças/artigos → Compra (lotes de stock, editor pré-preenchido);
+                serviços, ferramentas, contas → Despesa. */}
             <button
               type="button"
-              onClick={() => onApproveStock(x)}
-              className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 flex items-center gap-1"
-              title="Revê items e confirma — sistema classifica automáticamente"
-              disabled={!x.items || x.items.length === 0}
+              onClick={() => onCompra(x)}
+              className="flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+              title="Peças/artigos para revenda: abre a compra já preenchida para rever"
             >
-              <CheckCircle2 size={14} /> Aprovar
+              <PackagePlus size={14} /> Compra
+            </button>
+            <button
+              type="button"
+              onClick={() => onDespesa(x)}
+              className="flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              title="Serviços, ferramentas, contas: regista como despesa"
+            >
+              <ReceiptText size={14} /> Despesa
             </button>
             <button type="button" onClick={() => onReject(x)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800/40 dark:bg-zinc-900 dark:text-rose-300" title="Rejeitar">
               <XCircle size={14} />
@@ -735,240 +722,3 @@ function ApproveModal({
   );
 }
 
-// Sprint 160b: modal para aprovar items como stock (Parts).
-// Cada linha: dropdown action (existing partId / new sku+name / skip).
-// Para "existing", mostra fuzzy match top 1 como sugestão default (do Sprint 158).
-function ApproveStockModal({
-  target, onClose, onSubmit, submitting,
-}: {
-  target: SupplierInvoiceImport;
-  onClose: () => void;
-  onSubmit: (items: ApproveAsStockItem[], learnRule: boolean) => void;
-  submitting: boolean;
-}) {
-  // Sprint 163c: detecta items de transporte/portes — default action=skip.
-  // Bruno não cria stock para shipping costs, é overhead.
-
-  // Estado inicial: default action conforme heurística + regra aprendida do fornecedor (Sprint 184).
-  const supplierRule = target.fornecedorDefaultAction ?? 'auto';
-  const initial: ApproveAsStockItem[] = (target.items ?? []).map((it) => {
-    const top = it.suggestions[0];
-    const lineUnit = it.quantity > 0 ? Math.round(it.lineTotalCents / it.quantity) : it.lineTotalCents;
-    let action: ApproveAsStockItem['action'];
-    switch (it.suggestedKind) {
-      case 'Phone':
-      case 'Service':
-        action = 'despesa';
-        break;
-      case 'Shipping':
-        action = 'skip';
-        break;
-      case 'Part':
-      case 'Unknown':
-      default:
-        if (supplierRule === 'despesa' && it.suggestedKind === 'Unknown') action = 'despesa';
-        else if (top && top.score >= 0.7) action = 'existing';
-        else action = 'new';
-        break;
-    }
-    return {
-      description: it.description,
-      quantity: it.quantity,
-      unitCostCents: lineUnit,
-      action,
-      existingPartId: top && top.score >= 0.7 ? top.partId : null,
-      newSku: '',
-      newName: it.description.slice(0, 100),
-      newMarca: it.brand ?? null,
-      newModelo: it.model ?? null,
-      supplierSku: null,
-    };
-  });
-  const [items, setItems] = useState<ApproveAsStockItem[]>(initial);
-  const [learnRule, setLearnRule] = useState(false);
-
-  function patch(i: number, p: Partial<ApproveAsStockItem>) {
-    setItems((arr) => arr.map((x, j) => (j === i ? { ...x, ...p } : x)));
-  }
-
-  const validItems = items.filter((x) => x.action !== 'skip');
-  // Sprint 163d+181: SKU opcional (auto-gera no backend) + suporte despesa (não exige Part).
-  const canSubmit = validItems.length > 0
-    && validItems.every((x) =>
-      (x.action === 'existing' && x.existingPartId)
-      || (x.action === 'new' && (x.newName ?? '').trim().length > 0)
-      || x.action === 'despesa');
-
-  return (
-    <Modal
-      open
-      title={`Confirmar importação — ${target.fornecedorName ?? 'fornecedor'}`}
-      onClose={onClose}
-      footer={<>
-        <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">Cancelar</button>
-        <button
-          type="button"
-          disabled={!canSubmit || submitting}
-          onClick={() => onSubmit(items, learnRule)}
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
-        >
-          {submitting ? 'A confirmar…' : `Confirmar ${validItems.length} item(s)`}
-        </button>
-      </>}
-    >
-      <div className="space-y-3 text-sm">
-        <p className="text-xs text-zinc-500">
-          Cada linha tem classificação automática (Stock / Despesa / Skip). Revê o dropdown
-          e ajusta se necessário. Stock cria PartMovimento Entrada (entra no inventário);
-          Despesa cria Despesa avulsa Categoria=Peças (não vai para stock).
-        </p>
-        {/* Sprint 184: regra aprendida (se existe) + checkbox para aprender nova. */}
-        {supplierRule !== 'auto' && supplierRule !== null && (
-          <div className="rounded bg-blue-50 px-3 py-2 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
-            ℹ️ Regra aprendida para <strong>{target.fornecedorName}</strong>:
-            items defaultam a <strong>{supplierRule === 'stock' ? '📦 Stock' : '🧾 Despesa avulsa'}</strong>.
-            Podes editar abaixo.
-          </div>
-        )}
-        {target.fornecedorId && (
-          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-400">
-            <input type="checkbox" checked={learnRule} onChange={(e) => setLearnRule(e.target.checked)} />
-            <span>
-              Lembrar regra para próximas faturas de <strong>{target.fornecedorName}</strong>
-              {' '}(actualiza o default action baseado na maioria dos items abaixo)
-            </span>
-          </label>
-        )}
-        <ul className="space-y-3">
-          {items.map((it, i) => {
-            const original = target.items![i];
-            return (
-              <li key={i} className={`rounded-md border p-3 ${it.action === 'skip' ? 'border-zinc-200 bg-zinc-50/50 dark:border-zinc-800 dark:bg-zinc-900/50' : 'border-zinc-200 dark:border-zinc-700'}`}>
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      {it.description}
-                      {original.suggestedKind !== 'Unknown' && (
-                        <span className="contents">
-                        <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">
-                          {original.suggestedKind}
-                        </span>
-                        <span className="hidden" aria-hidden="true">
-                          {original.suggestedKind}
-                          🚚 transporte
-                        </span>
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
-                      <span>{it.quantity}× a</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={(it.unitCostCents / 100).toFixed(2)}
-                        onChange={(e) => {
-                          const euros = Number.parseFloat(e.target.value);
-                          if (Number.isFinite(euros) && euros >= 0) patch(i, { unitCostCents: Math.round(euros * 100) });
-                        }}
-                        className="w-20 rounded border border-zinc-300 px-1 py-0.5 text-right text-xs dark:border-zinc-700 dark:bg-zinc-900"
-                        title="Edita se o LLM extraiu o valor errado. Default é o total da linha (com IVA), que é o que pagaste."
-                      />
-                      <span>€ = {formatCents(it.quantity * it.unitCostCents)}</span>
-                    </div>
-                  </div>
-                  <select
-                    value={it.action}
-                    onChange={(e) => patch(i, { action: e.target.value as 'existing' | 'new' | 'despesa' | 'skip' })}
-                    className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
-                  >
-                    <option value="existing">📦 Stock — ligar a Part existente</option>
-                    <option value="new">📦 Stock — criar Part nova</option>
-                    <option value="despesa">🧾 Despesa avulsa (não cria stock)</option>
-                    <option value="skip">⊘ Skip (não importar)</option>
-                  </select>
-                </div>
-
-                {it.action === 'existing' && (
-                  <div className="space-y-1">
-                    <label className="block text-[11px] font-medium text-zinc-500">Sugestões fuzzy:</label>
-                    {original.suggestions.length === 0 ? (
-                      <div className="text-xs italic text-rose-600">Sem matches — usa "Criar Part nova" ou cola PartId manualmente.</div>
-                    ) : (
-                      <div className="space-y-1">
-                        {original.suggestions.map((s) => (
-                          <label key={s.partId} className="flex cursor-pointer items-center gap-2 rounded bg-zinc-50 px-2 py-1 text-xs dark:bg-zinc-800/50">
-                            <input
-                              type="radio"
-                              name={`part-${i}`}
-                              checked={it.existingPartId === s.partId}
-                              onChange={() => patch(i, { existingPartId: s.partId })}
-                            />
-                            <span className="font-mono text-zinc-600 dark:text-zinc-300">{s.partSku}</span>
-                            <span className="flex-1 truncate">{s.partName}</span>
-                            <span className="rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium dark:bg-zinc-700">
-                              {Math.round(s.score * 100)}%
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {it.action === 'new' && (
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <label className="block">
-                      <span className="text-zinc-500">SKU <span className="text-[10px] text-zinc-400">(opcional · auto-gera)</span></span>
-                      <input
-                        value={it.newSku ?? ''}
-                        onChange={(e) => patch(i, { newSku: e.target.value })}
-                        placeholder="Auto · ou ex: LCD-HUA-P20L"
-                        className={inputCls}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-zinc-500">Nome *</span>
-                      <input
-                        value={it.newName ?? ''}
-                        onChange={(e) => patch(i, { newName: e.target.value })}
-                        className={inputCls}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-zinc-500">Marca</span>
-                      <input
-                        value={it.newMarca ?? ''}
-                        onChange={(e) => patch(i, { newMarca: e.target.value })}
-                        className={inputCls}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-zinc-500">Modelo</span>
-                      <input
-                        value={it.newModelo ?? ''}
-                        onChange={(e) => patch(i, { newModelo: e.target.value })}
-                        className={inputCls}
-                      />
-                    </label>
-                  </div>
-                )}
-
-                {it.action !== 'skip' && (
-                  <label className="mt-2 block text-[11px]">
-                    <span className="text-zinc-500">SKU do fornecedor (opcional — para o sistema aprender mapping):</span>
-                    <input
-                      value={it.supplierSku ?? ''}
-                      onChange={(e) => patch(i, { supplierSku: e.target.value })}
-                      placeholder="ex: 137491 (T4M), INV-1023347 (Utopya)"
-                      className={inputCls}
-                    />
-                  </label>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </Modal>
-  );
-}

@@ -12,6 +12,8 @@ public interface ICompraService
     Task<PagedResult<CompraDocumentoDto>> SearchAsync(CompraFiltro filtro, int page, int pageSize, CancellationToken ct = default);
     Task<CompraDocumentoDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<CompraDocumentoDto> CreateAsync(CompraDocumentoWriteRequest req, CancellationToken ct = default);
+    /// <summary>Aprova uma fatura lida por IA (upload/email) como compra: cria o documento e fecha a importação.</summary>
+    Task<CompraDocumentoDto> CreateFromImportAsync(Guid importId, CompraDocumentoWriteRequest req, CancellationToken ct = default);
     Task<CompraDocumentoDto> UpdateAsync(Guid id, CompraDocumentoWriteRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<InventarioLinhaDto>> InventarioAsync(CancellationToken ct = default);
@@ -29,13 +31,16 @@ public class CompraService : ICompraService
 
     private readonly ICompraRepository _repo;
     private readonly IFornecedorRepository _fornecedores;
+    private readonly ISupplierInvoiceImportRepository _imports;
     private readonly ITenantContext _tenant;
     private readonly IAuditLogger _audit;
 
-    public CompraService(ICompraRepository repo, IFornecedorRepository fornecedores, ITenantContext tenant, IAuditLogger audit)
+    public CompraService(ICompraRepository repo, IFornecedorRepository fornecedores, ISupplierInvoiceImportRepository imports,
+        ITenantContext tenant, IAuditLogger audit)
     {
         _repo = repo;
         _fornecedores = fornecedores;
+        _imports = imports;
         _tenant = tenant;
         _audit = audit;
     }
@@ -53,7 +58,19 @@ public class CompraService : ICompraService
     public async Task<CompraDocumentoDto> GetAsync(Guid id, CancellationToken ct = default)
         => ToDto(await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("CompraDocumento", id));
 
-    public async Task<CompraDocumentoDto> CreateAsync(CompraDocumentoWriteRequest req, CancellationToken ct = default)
+    public Task<CompraDocumentoDto> CreateAsync(CompraDocumentoWriteRequest req, CancellationToken ct = default)
+        => CreateInternalAsync(req, null, ct);
+
+    public async Task<CompraDocumentoDto> CreateFromImportAsync(Guid importId, CompraDocumentoWriteRequest req, CancellationToken ct = default)
+    {
+        var import = await _imports.FindByIdAsync(importId, ct) ?? throw new NotFoundException("SupplierInvoiceImport", importId);
+        if (import.TenantId != _tenant.TenantId) throw new NotFoundException("SupplierInvoiceImport", importId);
+        if (import.Status is SupplierInvoiceImportStatus.Approved or SupplierInvoiceImportStatus.Rejected)
+            throw new ConflictException("importacao_fechada", "Esta fatura já foi aprovada ou rejeitada.");
+        return await CreateInternalAsync(req, import, ct);
+    }
+
+    private async Task<CompraDocumentoDto> CreateInternalAsync(CompraDocumentoWriteRequest req, SupplierInvoiceImport? import, CancellationToken ct)
     {
         if (_tenant.TenantId is not { } tenantId)
             throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
@@ -67,10 +84,19 @@ public class CompraService : ICompraService
         foreach (var l in req.Linhas)
             doc.Linhas.Add(NewLinha(tenantId, l, fornecedor));
 
+        if (import is not null)
+        {
+            // Mesmo DbContext (scoped): documento + fecho da importação gravam na mesma transação.
+            doc.SupplierInvoiceImportId = import.Id;
+            import.Status = SupplierInvoiceImportStatus.Approved;
+            import.ProcessedAt = DateTime.UtcNow;
+            import.FornecedorId ??= fornecedor.Id;
+        }
+
         await _repo.AddAsync(doc, ct);
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Create, nameof(CompraDocumento), doc.Id,
-            new { fornecedor = fornecedor.Name, doc.NumeroFatura, linhas = doc.Linhas.Count }, ct: ct);
+            new { fornecedor = fornecedor.Name, doc.NumeroFatura, linhas = doc.Linhas.Count, importId = import?.Id }, ct: ct);
         return ToDto(doc);
     }
 

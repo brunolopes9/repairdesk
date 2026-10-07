@@ -21,6 +21,10 @@ export const comprasApi = {
   create(req: CompraDocumentoWrite) {
     return api.post<CompraDocumento>('/compras', req).then((r) => r.data);
   },
+  /** Aprova uma fatura recebida (lida por IA) como compra. */
+  createFromImport(importId: string, req: CompraDocumentoWrite) {
+    return api.post<CompraDocumento>(`/compras/de-fatura/${importId}`, req).then((r) => r.data);
+  },
   update(id: string, req: CompraDocumentoWrite) {
     return api.put<CompraDocumento>(`/compras/${id}`, req).then((r) => r.data);
   },

@@ -4,6 +4,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using RepairDesk.Core.Entities;
+using RepairDesk.DAL.Persistence;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
@@ -168,6 +172,48 @@ public class ComprasApiTests : IClassFixture<RepairDeskApiFactory>
         var fornecedores = await client.GetFromJsonAsync<List<FornecedorDto>>("/api/fornecedores");
         fornecedores!.Single(f => f.Name == $"MobileSentrix {sufixo}").RegimeIva.Should().Be(RegimeIvaFornecedor.UeAutoliquidacao);
         fornecedores.Single(f => f.Name == $"MobileSentrix {sufixo}").Pais.Should().Be("NL");
+    }
+
+    [Fact]
+    public async Task DeFatura_CriaCompraLigadaEFechaAImportacao()
+    {
+        var client = await AuthedClient();
+        var ue = await CriarFornecedor(client, RegimeIvaFornecedor.UeAutoliquidacao);
+        Guid importId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var import = new SupplierInvoiceImport
+            {
+                TenantId = RepairDeskApiFactory.TenantId,
+                FornecedorNameRaw = "Utopya",
+                PdfSha256 = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"),
+                PdfRelativePath = "2026/10/utopya/fatura.pdf",
+                ParsedTotalCents = 9195,
+            };
+            db.SupplierInvoiceImports.Add(import);
+            await db.SaveChangesAsync();
+            importId = import.Id;
+        }
+
+        var req = Doc(ue, "UT-" + Guid.NewGuid().ToString("N")[..6],
+            new CompraLinhaWriteRequest(null, "Display Samsung S23", 1, 91.95m, null, null, null));
+        var resp = await client.PostAsJsonAsync($"/api/compras/de-fatura/{importId}", req);
+        resp.StatusCode.Should().Be(HttpStatusCode.Created, await resp.Content.ReadAsStringAsync());
+        var doc = (await resp.Content.ReadFromJsonAsync<CompraDocumentoDto>())!;
+        doc.SupplierInvoiceImportId.Should().Be(importId);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var import = await db.SupplierInvoiceImports.IgnoreQueryFilters().SingleAsync(i => i.Id == importId);
+            import.Status.Should().Be(SupplierInvoiceImportStatus.Approved);
+            import.FornecedorId.Should().Be(ue);
+        }
+
+        // Segunda aprovação da mesma fatura → 409.
+        var outra = await client.PostAsJsonAsync($"/api/compras/de-fatura/{importId}", req with { IgnorarDuplicado = true });
+        outra.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
     // ---------- helpers ----------

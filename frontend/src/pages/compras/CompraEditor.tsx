@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Plus, Save, Trash2 } from 'lucide-react';
 import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
@@ -10,6 +10,7 @@ import { comprasApi } from '../../lib/compras/api';
 import type { CompraDocumento, CompraDocumentoWrite } from '../../lib/compras/types';
 import { formatEur, formatPct, lucroPorDefeito, parseDecimal, previewUnidade } from '../../lib/compras/format';
 import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor } from '../../lib/fornecedores/api';
+import { supplierInvoicesApi, type SupplierInvoiceImport } from '../../lib/supplierInvoices/api';
 import { inputCls, labelCls } from './ui';
 
 /** Taxa normal de IVA nas vendas (o servidor usa FiscalDefaults.TaxaIvaNormal). */
@@ -75,15 +76,52 @@ function fromDoc(doc: CompraDocumento): { form: DocForm; linhas: LinhaForm[] } {
   };
 }
 
+/** Fatura lida por IA → rascunho de compra. Linhas de portes passam para o campo Portes. */
+function fromImport(x: SupplierInvoiceImport): { form: Partial<DocForm>; linhas: LinhaForm[] } {
+  const items = x.items ?? [];
+  const portes = items.filter((i) => i.suggestedKind === 'Shipping').reduce((s, i) => s + i.lineTotalCents, 0);
+  return {
+    form: {
+      fornecedorId: x.fornecedorId ?? '',
+      data: x.documentDate?.slice(0, 10) ?? hoje(),
+      numeroFatura: x.documentNumber ?? '',
+      portes: portes ? num(portes / 100) : '',
+      total: x.totalCents != null ? num(x.totalCents / 100) : '',
+      notas: 'Importada de fatura recebida (IA).',
+    },
+    linhas: items
+      .filter((i) => i.suggestedKind !== 'Shipping')
+      .map((i) => {
+        const qtd = Math.max(1, i.quantity);
+        return {
+          ...novaLinha(),
+          descricao: i.description,
+          quantidade: String(qtd),
+          // A IA devolve o total da linha COM IVA → preço unitário pago (c/ IVA).
+          preco: num(Math.round(i.lineTotalCents / qtd) / 100),
+        };
+      }),
+  };
+}
+
 export default function CompraEditor() {
   const { id } = useParams<{ id: string }>();
   const isNew = !id;
+  const [params] = useSearchParams();
+  const faturaId = isNew ? params.get('fatura') : null;
   const navigate = useNavigate();
   const qc = useQueryClient();
   const isAdmin = useAuth().hasRole('Admin');
 
   const fornecedores = useQuery({ queryKey: ['fornecedores', false], queryFn: () => fornecedoresApi.list(false) });
   const existente = useQuery({ queryKey: ['compra', id], queryFn: () => comprasApi.get(id!), enabled: !isNew });
+  const faturas = useQuery({
+    queryKey: ['supplier-invoices-pending'],
+    queryFn: () => supplierInvoicesApi.pending(100),
+    enabled: !!faturaId,
+  });
+  const fatura = faturaId ? faturas.data?.find((f) => f.id === faturaId) : undefined;
+  const faturaAplicada = useRef(false);
 
   const [form, setForm] = useState<DocForm>({
     fornecedorId: '', data: hoje(), numeroFatura: '', encomendas: '', metodoPagamento: '', portes: '', portesIva: '', total: '', notas: '',
@@ -98,6 +136,14 @@ export default function CompraEditor() {
     setForm(s.form);
     setLinhas(s.linhas.length ? s.linhas : [novaLinha()]);
   }, [existente.data]);
+
+  useEffect(() => {
+    if (!fatura || faturaAplicada.current) return;
+    faturaAplicada.current = true;
+    const s = fromImport(fatura);
+    setForm((f) => ({ ...f, ...s.form }));
+    if (s.linhas.length) setLinhas(s.linhas);
+  }, [fatura]);
 
   const fornecedor: Fornecedor | undefined = fornecedores.data?.find((f) => f.id === form.fornecedorId);
   const regime = fornecedor?.regimeIva ?? REGIME_IVA.Nacional;
@@ -148,11 +194,13 @@ export default function CompraEditor() {
   const save = useMutation({
     mutationFn: (ignorarDuplicado: boolean) => {
       const req = buildRequest(ignorarDuplicado);
+      if (faturaId) return comprasApi.createFromImport(faturaId, req);
       return isNew ? comprasApi.create(req) : comprasApi.update(id!, req);
     },
     onSuccess: (doc) => {
       setDuplicado(null);
       qc.invalidateQueries({ queryKey: ['compras'] });
+      if (faturaId) qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
       qc.setQueryData(['compra', doc.id], doc);
       toast.success(isNew ? 'Compra registada' : 'Compra atualizada', `${doc.unidades} unidade(s) · ${formatEur(doc.totalCalculado)}`);
       if (isNew) navigate(`/compras/${doc.id}`, { replace: true });
@@ -211,6 +259,14 @@ export default function CompraEditor() {
           </>
         }
       />
+
+      {faturaId && (
+        <div className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm text-brand-900 dark:border-brand-900/50 dark:bg-brand-950/30 dark:text-brand-200">
+          {fatura
+            ? <>Preenchido a partir da fatura recebida{fatura.fornecedorName ? <> de <strong>{fatura.fornecedorName}</strong></> : null}. Revê as linhas, o IVA e o fornecedor antes de registar.</>
+            : faturas.isLoading ? 'A carregar a fatura recebida…' : 'Esta fatura já não está pendente (foi aprovada ou rejeitada).'}
+        </div>
+      )}
 
       {duplicado && (
         <div role="alert" className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">

@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:06fef50b06ca01f2 -->
+<!-- roles-matrix-snapshot:a03298dc4339faa2 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -29,14 +29,14 @@ testes e esta matriz com snapshot.
 | DashboardController | `GET /api/dashboard/avisos-pendentes` (S460), `GET /devices-garantia-a-expirar` (S467) | `Authenticated` |
 | DevicesController (S461+S464) | `GET/POST/PUT/DELETE /api/devices*` + `GET /api/devices/by-imei/{imei}` — asset registry | `Authenticated` |
 | ComprasController (S556) | `GET /api/compras*` (lista, detalhe, inventário, resumo), `POST/PUT /api/compras*`, `POST /api/compras/simulador` | `Authenticated` |
-| ComprasController (S556) | `DELETE /api/compras/{id}`, `POST /api/compras/importar-excel` | `Admin` |
+| ComprasController (S556) | `DELETE /api/compras/{id}`, `POST /api/compras/importar-excel`, `POST /api/compras/de-fatura/{importId}` (aprovar fatura lida por IA) | `Admin` |
 | PublicPortalController / PublicWarrantyController | `GET/POST /api/public/*` | `Anonymous` + rate limit `public-portal` |
 | RelatoriosController | `GET /api/relatorios/*` (inclui Sprint 187 taxa-defeito-fornecedor) | `Authenticated` |
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |
 | UsersController | `POST /api/users/{id}/revoke-sessions`, `POST /api/users/{id}/deactivate` | `Admin` |
 | **Sprint 243 (Doc 72 Fase A) — operações fiscais/credenciais/estruturais** | | |
 | TrabalhosController | `DELETE /{id}`, `reabrir` | `Admin` |
-| SupplierInvoicesController | `approve`, `reject`, `approve-stock`, `reprocess` | `Admin` |
+| SupplierInvoicesController | `approve` (despesa), `reject`, `reprocess` | `Admin` |
 | DespesasController | `POST`, `PUT`, `DELETE`, `POST /{id}/converter-stock` (afecta IVA dedutível) | `Admin` |
 | PartsController | `POST /{id}/movimento` (ajuste manual stock), `POST /import` | `Admin` |
 | TenantPreferencesController | `PUT /`, `POST /reset/{group}` | `Admin` |
