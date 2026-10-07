@@ -78,6 +78,6 @@ public sealed record WhatsAppNotificationStatusDto(bool JaEnviado);
 public sealed record CreateWhatsAppNotificationLogRequest(
     Guid EntityId,
     string TemplateKey,
-    string EntityType = "Reparacao",
+    string EntityType = "Venda",
     string? Phone = null,
     int? Estado = null);

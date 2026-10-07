@@ -1,28 +1,23 @@
 import { test, expect } from '../support/fixtures';
+import { VENDA_ESTADO } from '../support/api';
 import { e2eEnv } from '../support/env';
 
 test('portal publico mostra estado, fotos e garantia da reparacao', async ({ api, browser }) => {
   await api.completeOnboarding();
 
   const cliente = await api.createCliente({ nome: 'Cliente Portal E2E', telefone: '918888888' });
-  const reparacao = await api.createReparacao(cliente.id, {
-    equipamento: 'Samsung S24 E2E',
-    avaria: 'Vidro traseiro partido',
-    orcamentoCents: 11900,
-  });
+  const reparacao = await api.createReparacao(cliente.id, 'Samsung S24 E2E', 'Vidro traseiro partido', 11900);
+  expect(reparacao.publicSlug).toBeTruthy();
 
   await api.uploadRepairPhoto(reparacao.id, 0, 'Antes E2E');
   await api.uploadRepairPhoto(reparacao.id, 2, 'Depois E2E');
-  await api.changeEstado(reparacao.id, 1);
-  await api.changeEstado(reparacao.id, 4);
-  await api.changeEstado(reparacao.id, 5);
-
-  const detalhe = await api.getRepair(reparacao.id);
-  expect(detalhe.reparacao.publicSlug).toBeTruthy();
+  await api.mudarEstado(reparacao.id, VENDA_ESTADO.EmCurso);
+  await api.mudarEstado(reparacao.id, VENDA_ESTADO.Pronta);
+  await api.mudarEstado(reparacao.id, VENDA_ESTADO.Entregue, 2);
 
   const anonymous = await browser.newContext({ locale: 'pt-PT', timezoneId: 'Europe/Lisbon' });
   const portal = await anonymous.newPage();
-  await portal.goto(`${e2eEnv.baseURL}/r/${detalhe.reparacao.publicSlug}`);
+  await portal.goto(`${e2eEnv.baseURL}/r/${reparacao.publicSlug}`);
 
   await expect(portal.getByText(/Estado actual/i)).toBeVisible();
   await expect(portal.getByText(/Entregue/i).first()).toBeVisible();

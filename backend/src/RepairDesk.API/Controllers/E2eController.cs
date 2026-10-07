@@ -47,23 +47,17 @@ public sealed class E2eController : ControllerBase
             await DeleteAsync(deleted, "systemSettings", _db.SystemSettings.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "refreshTokens", _db.RefreshTokens.IgnoreQueryFilters(), ct);
 
+            await DeleteAsync(deleted, "vendaFotos", _db.VendaFotos.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "vendaAssinaturas", _db.VendaAssinaturas.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "vendaComunicacoes", _db.VendaComunicacoes.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "garantias", _db.Garantias.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "avaliacoes", _db.Avaliacoes.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "vendaEstadoLogs", _db.VendaEstadoLogs.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "vendaItems", _db.VendaItems.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "vendas", _db.Vendas.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "comprasLinhas", _db.ComprasLinhas.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "comprasDocumentos", _db.ComprasDocumentos.IgnoreQueryFilters(), ct);
-
-            await DeleteAsync(deleted, "partMovimentos", _db.PartMovimentos.IgnoreQueryFilters(), ct);
-            await DeleteAsync(deleted, "parts", _db.Parts.IgnoreQueryFilters(), ct);
-
-            await DeleteAsync(deleted, "reparacaoFotos", _db.ReparacaoFotos.IgnoreQueryFilters(), ct);
-            await DeleteAsync(deleted, "garantias", _db.Garantias.IgnoreQueryFilters(), ct);
-            await DeleteAsync(deleted, "avaliacoes", _db.Avaliacoes.IgnoreQueryFilters(), ct);
-            await DeleteAsync(deleted, "diagnosticoExecucaoItems", _db.DiagnosticoExecucaoItems.IgnoreQueryFilters(), ct);
-            await DeleteAsync(deleted, "diagnosticoExecucoes", _db.DiagnosticoExecucoes.IgnoreQueryFilters(), ct);
-            await DeleteAsync(deleted, "equipmentFieldValues", _db.EquipmentFieldValues.IgnoreQueryFilters(), ct);
-            await DeleteAsync(deleted, "reparacaoEstadoLogs", _db.ReparacaoEstadoLogs.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "despesas", _db.Despesas.IgnoreQueryFilters(), ct);
-            await DeleteAsync(deleted, "reparacoes", _db.Reparacoes.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "clientes", _db.Clientes.IgnoreQueryFilters(), ct);
 
             await ResetSeedTenantAsync(ct);

@@ -13,8 +13,6 @@ public class Garantia : BaseEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
 
-    public Guid? ReparacaoId { get; set; }
-    public Reparacao? Reparacao { get; set; }
 
     public Guid? VendaId { get; set; }
     public Venda? Venda { get; set; }

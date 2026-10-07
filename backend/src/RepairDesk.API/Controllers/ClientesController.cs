@@ -44,10 +44,10 @@ public class ClientesController : ControllerBase
     /// nos últimos N contactos" sem ter que abrir cada reparação.
     /// </summary>
     [HttpGet("{id:guid}/comunicacoes")]
-    public async Task<ActionResult<IReadOnlyList<RepairDesk.Services.Comunicacoes.ReparacaoComunicacaoDto>>> Comunicacoes(
+    public async Task<ActionResult<IReadOnlyList<RepairDesk.Services.Comunicacoes.VendaComunicacaoDto>>> Comunicacoes(
         Guid id,
         [FromQuery] int take = 50,
-        [FromServices] RepairDesk.Services.Comunicacoes.IReparacaoComunicacaoService comunicacoes = null!,
+        [FromServices] RepairDesk.Services.Comunicacoes.IVendaComunicacaoService comunicacoes = null!,
         CancellationToken ct = default)
         => Ok(await comunicacoes.ListByClienteAsync(id, take, ct));
 

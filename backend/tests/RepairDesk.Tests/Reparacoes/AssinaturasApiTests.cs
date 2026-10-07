@@ -5,8 +5,10 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Services.Clientes;
-using RepairDesk.Services.Reparacoes;
 using RepairDesk.Tests.Auth;
+using RepairDesk.Tests.Support;
+using RepairDesk.Services.Vendas;
+using RepairDesk.Services.Reparacoes;
 
 namespace RepairDesk.Tests.Reparacoes;
 
@@ -34,18 +36,18 @@ public class AssinaturasApiTests : IClassFixture<RepairDeskApiFactory>
         var client = await NewAuthedClientAsync();
         var rep = await CreateReparacaoAsync(client);
 
-        var resp = await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/assinaturas", new SaveReq("entrada", PngDataUrl));
+        var resp = await client.PostAsJsonAsync($"/api/vendas/{rep.Id}/assinaturas", new SaveReq("entrada", PngDataUrl));
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var dto = (await resp.Content.ReadFromJsonAsync<AssinaturaDto>())!;
         dto.Tipo.Should().Be("entrada");
 
-        var list = await client.GetFromJsonAsync<List<AssinaturaDto>>($"/api/reparacoes/{rep.Id}/assinaturas");
+        var list = await client.GetFromJsonAsync<List<AssinaturaDto>>($"/api/vendas/{rep.Id}/assinaturas");
         list!.Should().ContainSingle(a => a.Tipo == "entrada");
 
         // Recaptura: substitui (não duplica) e avança o timestamp.
-        var resp2 = await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/assinaturas", new SaveReq("entrada", PngDataUrl));
+        var resp2 = await client.PostAsJsonAsync($"/api/vendas/{rep.Id}/assinaturas", new SaveReq("entrada", PngDataUrl));
         resp2.StatusCode.Should().Be(HttpStatusCode.OK);
-        var list2 = await client.GetFromJsonAsync<List<AssinaturaDto>>($"/api/reparacoes/{rep.Id}/assinaturas");
+        var list2 = await client.GetFromJsonAsync<List<AssinaturaDto>>($"/api/vendas/{rep.Id}/assinaturas");
         list2!.Count(a => a.Tipo == "entrada").Should().Be(1);
         list2.Single(a => a.Tipo == "entrada").AssinadaEm.Should().BeOnOrAfter(dto.AssinadaEm);
     }
@@ -56,10 +58,10 @@ public class AssinaturasApiTests : IClassFixture<RepairDeskApiFactory>
         var client = await NewAuthedClientAsync();
         var rep = await CreateReparacaoAsync(client);
 
-        (await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/assinaturas", new SaveReq("entrada", PngDataUrl))).EnsureSuccessStatusCode();
-        (await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/assinaturas", new SaveReq("entrega", PngDataUrl))).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync($"/api/vendas/{rep.Id}/assinaturas", new SaveReq("entrada", PngDataUrl))).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync($"/api/vendas/{rep.Id}/assinaturas", new SaveReq("entrega", PngDataUrl))).EnsureSuccessStatusCode();
 
-        var list = await client.GetFromJsonAsync<List<AssinaturaDto>>($"/api/reparacoes/{rep.Id}/assinaturas");
+        var list = await client.GetFromJsonAsync<List<AssinaturaDto>>($"/api/vendas/{rep.Id}/assinaturas");
         list!.Select(a => a.Tipo).Should().BeEquivalentTo(new[] { "entrada", "entrega" });
     }
 
@@ -70,16 +72,16 @@ public class AssinaturasApiTests : IClassFixture<RepairDeskApiFactory>
         var rep = await CreateReparacaoAsync(client);
 
         // Tipo desconhecido.
-        var badTipo = await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/assinaturas", new SaveReq("levantamento", PngDataUrl));
+        var badTipo = await client.PostAsJsonAsync($"/api/vendas/{rep.Id}/assinaturas", new SaveReq("levantamento", PngDataUrl));
         badTipo.StatusCode.Should().Be((HttpStatusCode)422);
 
         // Data-URL que não é PNG.
-        var badUrl = await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/assinaturas", new SaveReq("entrada", "data:image/jpeg;base64,AAAA"));
+        var badUrl = await client.PostAsJsonAsync($"/api/vendas/{rep.Id}/assinaturas", new SaveReq("entrada", "data:image/jpeg;base64,AAAA"));
         badUrl.StatusCode.Should().Be((HttpStatusCode)422);
 
         // Base64 com conteúdo que não tem magic bytes PNG.
         var fakePng = $"data:image/png;base64,{Convert.ToBase64String(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 })}";
-        var badMagic = await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/assinaturas", new SaveReq("entrada", fakePng));
+        var badMagic = await client.PostAsJsonAsync($"/api/vendas/{rep.Id}/assinaturas", new SaveReq("entrada", fakePng));
         badMagic.StatusCode.Should().Be((HttpStatusCode)422);
     }
 
@@ -87,7 +89,7 @@ public class AssinaturasApiTests : IClassFixture<RepairDeskApiFactory>
     public async Task Save_ReparacaoInexistente_404()
     {
         var client = await NewAuthedClientAsync();
-        var resp = await client.PostAsJsonAsync($"/api/reparacoes/{Guid.NewGuid()}/assinaturas", new SaveReq("entrada", PngDataUrl));
+        var resp = await client.PostAsJsonAsync($"/api/vendas/{Guid.NewGuid()}/assinaturas", new SaveReq("entrada", PngDataUrl));
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -97,9 +99,9 @@ public class AssinaturasApiTests : IClassFixture<RepairDeskApiFactory>
         // Smoke do caminho PDF + assinatura (renderer estampa a imagem em vez da linha vazia).
         var client = await NewAuthedClientAsync();
         var rep = await CreateReparacaoAsync(client);
-        (await client.PostAsJsonAsync($"/api/reparacoes/{rep.Id}/assinaturas", new SaveReq("entrada", PngDataUrl))).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync($"/api/vendas/{rep.Id}/assinaturas", new SaveReq("entrada", PngDataUrl))).EnsureSuccessStatusCode();
 
-        var pdf = await client.GetAsync($"/api/reparacoes/{rep.Id}/entrada.pdf");
+        var pdf = await client.GetAsync($"/api/vendas/{rep.Id}/entrada.pdf");
         pdf.StatusCode.Should().Be(HttpStatusCode.OK);
         var bytes = await pdf.Content.ReadAsByteArrayAsync();
         System.Text.Encoding.ASCII.GetString(bytes, 0, 4).Should().Be("%PDF");
@@ -118,16 +120,5 @@ public class AssinaturasApiTests : IClassFixture<RepairDeskApiFactory>
         return client;
     }
 
-    private static async Task<ReparacaoDto> CreateReparacaoAsync(HttpClient client)
-    {
-        var cli = await client.PostAsJsonAsync("/api/clientes",
-            new CreateClienteRequest("Cliente Assin " + Guid.NewGuid().ToString("N")[..6], "912555111", null, null, null));
-        cli.EnsureSuccessStatusCode();
-        var cliente = (await cli.Content.ReadFromJsonAsync<ClienteDto>())!;
-
-        var resp = await client.PostAsJsonAsync("/api/reparacoes",
-            new CreateReparacaoRequest(cliente.Id, "iPhone 13", "Ecrã partido", null, 7000, null));
-        resp.EnsureSuccessStatusCode();
-        return (await resp.Content.ReadFromJsonAsync<ReparacaoDto>())!;
-    }
+    private static Task<VendaDto> CreateReparacaoAsync(HttpClient client) => TestReparacoes.CriarAsync(client);
 }

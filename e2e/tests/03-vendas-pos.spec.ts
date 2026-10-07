@@ -1,28 +1,26 @@
 import { test, expect } from '../support/fixtures';
+import { VENDA_ESTADO, VENDA_TIPO } from '../support/api';
 import { openAppPage } from '../support/ui';
 
-test('POS vende dois artigos com MBWay e decrementa stock', async ({ api, page }) => {
+test('venda de produto entregue tira unidades do lote de stock', async ({ api, page }) => {
   await api.completeOnboarding();
 
-  const cliente = await api.createCliente({ nome: 'Cliente E2E POS', telefone: '919999999' });
-  const cabo = await api.createPart({ nome: 'E2E Cabo USB-C', sku: 'E2E-CABO-USBC', qtdStock: 5, custoUnitarioCents: 990 });
-  const pelicula = await api.createPart({ nome: 'E2E Pelicula iPhone', sku: 'E2E-PELICULA', qtdStock: 3, custoUnitarioCents: 1290 });
+  const cliente = await api.createCliente({ nome: 'Cliente E2E Venda', telefone: '919999999' });
+  const lote = await api.createLote('E2E Pelicula iPhone', 3, 1.29);
 
-  await openAppPage(page, '/vendas');
-  await page.getByRole('button', { name: /E2E Cabo USB-C/i }).click();
-  await page.getByRole('button', { name: /E2E Pelicula iPhone/i }).click();
-  await page.getByPlaceholder(/Anonimo|pesquisar cliente/i).fill(cliente.nome);
-  await page.getByRole('button', { name: /Cliente E2E POS/i }).click();
-  await page.getByRole('button', { name: /Cobrar/i }).click();
+  await api.createVenda({
+    tipo: VENDA_TIPO.Produto,
+    clienteId: cliente.id,
+    equipamento: null,
+    problema: null,
+    notas: null,
+    linhas: [{ id: null, compraLinhaId: lote, descricao: null, quantidade: 2, precoUnitarioCents: 1000 }],
+    estado: VENDA_ESTADO.Entregue,
+    paymentMethod: 2,
+  });
 
-  await expect(page.getByText(/Venda #\d+ paga/i)).toBeVisible();
+  expect(await api.stockDoLote(lote)).toBe(1);
 
-  const caboDepois = await api.getPart(cabo.id);
-  const peliculaDepois = await api.getPart(pelicula.id);
-  expect(caboDepois.qtdStock).toBe(4);
-  expect(peliculaDepois.qtdStock).toBe(2);
-
-  await page.reload();
-  await expect(page.getByText('Cliente E2E POS')).toBeVisible();
-  await expect(page.getByText(/Paga/i).first()).toBeVisible();
+  await openAppPage(page, '/vendas?vista=entregues');
+  await expect(page.getByText('Cliente E2E Venda')).toBeVisible();
 });

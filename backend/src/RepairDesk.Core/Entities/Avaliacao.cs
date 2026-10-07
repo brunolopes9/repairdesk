@@ -9,8 +9,8 @@ namespace RepairDesk.Core.Entities;
 public class Avaliacao : BaseEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
-    public Guid ReparacaoId { get; set; }
-    public Reparacao? Reparacao { get; set; }
+    public Guid VendaId { get; set; }
+    public Venda? Venda { get; set; }
 
     /// <summary>1 a 5 estrelas.</summary>
     public int Score { get; set; }

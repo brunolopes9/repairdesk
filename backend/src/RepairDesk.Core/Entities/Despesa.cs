@@ -15,8 +15,6 @@ public class Despesa : BaseEntity, ITenantEntity
     public string? Notas { get; set; }
 
 
-    public Guid? ReparacaoId { get; set; }
-    public Reparacao? Reparacao { get; set; }
 
     /// <summary>
     /// Sprint 176: flag para distinguir COGS (peça consumida em reparação) de OpEx

@@ -42,7 +42,7 @@ public static class IcsBuilder
     /// </summary>
     public static byte[] BuildCalendar(
         IEnumerable<Appointment> appointments,
-        IEnumerable<Reparacao> reparacoesComEta,
+        IEnumerable<Venda> reparacoesComEta,
         string? calendarName = null)
     {
         var sb = new StringBuilder();
@@ -79,15 +79,15 @@ public static class IcsBuilder
     }
 
     /// <summary>
-    /// Sprint 446: reparação com PrevistoEntregueEm → VEVENT 30min como placeholder
-    /// (sem duração real, é só um lembrete "telemóvel X tem de estar pronto a esta hora").
-    /// STATUS depende do RepairStatus: Pronto=CONFIRMED; Cancelado=CANCELLED; resto=TENTATIVE.
+    /// Sprint 446 / Doc 94: reparação (Venda tipo Reparação) com previsão de entrega → VEVENT de 30 min
+    /// como lembrete. STATUS: Pronta/Entregue=CONFIRMED; Cancelada=CANCELLED; resto=TENTATIVE.
     /// </summary>
-    private static void AppendReparacaoEvent(StringBuilder sb, Reparacao r)
+    private static void AppendReparacaoEvent(StringBuilder sb, Venda r)
     {
-        if (r.PrevistoEntregueEm is not { } eta) return;
+        if (r.PrevistoPara is not { } eta) return;
         var start = DateTime.SpecifyKind(eta, DateTimeKind.Utc);
         var end = start.AddMinutes(30);
+        var equipamento = r.Equipamento ?? "Reparação";
         AppendRawIcsLine(sb, "BEGIN:VEVENT");
         // Prefixo "rep-" garante que o UID não colide com Appointments.
         AppendIcsProperty(sb, "UID", $"rep-{r.Id}@mender");
@@ -96,26 +96,24 @@ public static class IcsBuilder
         AppendRawIcsLine(sb, $"DTEND:{ToIcsUtc(end)}");
         AppendRawIcsLine(sb, $"STATUS:{ToIcsStatusForReparacao(r.Estado)}");
         var cliente = r.Cliente?.Nome ?? "Sem cliente";
-        AppendIcsProperty(sb, "SUMMARY", $"Reparação #{r.Numero} · {r.Equipamento} ({cliente})");
+        AppendIcsProperty(sb, "SUMMARY", $"Reparação #{r.Numero} · {equipamento} ({cliente})");
         var lines = new List<string>
         {
             $"Cliente: {cliente}",
-            $"Equipamento: {r.Equipamento}",
+            $"Equipamento: {equipamento}",
             $"Estado: {r.Estado}",
-            $"Avaria: {r.Avaria}",
         };
-        if (!string.IsNullOrWhiteSpace(r.Imei)) lines.Add($"IMEI: {r.Imei}");
+        if (!string.IsNullOrWhiteSpace(r.Problema)) lines.Add($"Avaria: {r.Problema}");
         if (r.Cliente?.Telefone is { Length: > 0 } tel) lines.Add($"Telefone: {tel}");
         AppendIcsProperty(sb, "DESCRIPTION", string.Join("\n", lines));
-        if (!string.IsNullOrWhiteSpace(r.Equipamento))
-            AppendIcsProperty(sb, "LOCATION", r.Equipamento);
+        AppendIcsProperty(sb, "LOCATION", equipamento);
         AppendRawIcsLine(sb, "END:VEVENT");
     }
 
-    private static string ToIcsStatusForReparacao(RepairStatus s) => s switch
+    private static string ToIcsStatusForReparacao(VendaEstado s) => s switch
     {
-        RepairStatus.Cancelado => "CANCELLED",
-        RepairStatus.Pronto or RepairStatus.Entregue => "CONFIRMED",
+        VendaEstado.Cancelada => "CANCELLED",
+        VendaEstado.Pronta or VendaEstado.Entregue => "CONFIRMED",
         _ => "TENTATIVE",
     };
 

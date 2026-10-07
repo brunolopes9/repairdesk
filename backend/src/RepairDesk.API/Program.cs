@@ -15,16 +15,11 @@ using RepairDesk.Infrastructure.Storage;
 using RepairDesk.Services.Auth;
 using RepairDesk.Services.Audit;
 using RepairDesk.Services.Clientes;
-using RepairDesk.Services.Dashboard;
 using RepairDesk.Services.Despesas;
 using RepairDesk.Services.Documents;
-using RepairDesk.Services.Diagnostico;
-using RepairDesk.Services.EquipmentFields;
-using RepairDesk.Services.Parts;
 using RepairDesk.Services.Push;
 using RepairDesk.Services.PublicPortal;
 using RepairDesk.Services.Reparacoes;
-using RepairDesk.Services.Relatorios;
 using RepairDesk.Services.TenantSettings;
 using RepairDesk.Services.TenantPreferences;
 using RepairDesk.Services.Vendas;
@@ -211,17 +206,10 @@ try
     builder.Services.AddScoped<FluentValidation.IValidator<CreateClienteRequest>, CreateClienteValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateClienteRequest>, UpdateClienteValidator>();
 
-    // Reparações
-    builder.Services.AddScoped<IReparacaoRepository, ReparacaoRepository>();
-    builder.Services.AddScoped<IEquipmentFieldRepository, EquipmentFieldRepository>();
-    builder.Services.AddScoped<IEquipmentFieldService, EquipmentFieldService>();
-    builder.Services.AddScoped<IReparacaoService, ReparacaoService>();
+    // Reparações (Venda tipo Reparação) — extras: assinatura, fotos, portal, garantia.
     // Sprint 551: assinatura do cliente (canvas) na entrada/entrega.
-    builder.Services.AddScoped<IReparacaoAssinaturaRepository, ReparacaoAssinaturaRepository>();
+    builder.Services.AddScoped<IVendaAssinaturaRepository, VendaAssinaturaRepository>();
     builder.Services.AddScoped<IAssinaturaService, AssinaturaService>();
-    builder.Services.AddScoped<FluentValidation.IValidator<CreateReparacaoRequest>, CreateReparacaoValidator>();
-    builder.Services.AddScoped<FluentValidation.IValidator<UpdateReparacaoRequest>, UpdateReparacaoValidator>();
-    builder.Services.AddScoped<FluentValidation.IValidator<ChangeEstadoRequest>, ChangeEstadoValidator>();
 
 
     // Despesas
@@ -230,18 +218,14 @@ try
     builder.Services.AddScoped<FluentValidation.IValidator<CreateDespesaRequest>, CreateDespesaValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateDespesaRequest>, UpdateDespesaValidator>();
 
-    // Dashboard
-    builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
-    builder.Services.AddScoped<IDashboardService, DashboardService>();
-    builder.Services.AddScoped<IDashboardKpiHojeService, DashboardKpiHojeService>();
 
-    // Vendas / POS
+    // Dashboard (Doc 94)
+    builder.Services.AddScoped<RepairDesk.Services.Dashboard.IPainelService, RepairDesk.Services.Dashboard.PainelService>();
+
+    // Vendas
     builder.Services.AddScoped<IVendaRepository, VendaRepository>();
     builder.Services.AddScoped<IVendaService, VendaService>();
 
-    // Relatorios fiscais
-    builder.Services.AddScoped<IRelatorioNegocioRepository, RelatorioNegocioRepository>();
-    builder.Services.AddScoped<IRelatorioNegocioService, RelatorioNegocioService>();
 
     // Documents (PDF orçamento)
     QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
@@ -279,23 +263,15 @@ try
         builder.Services.AddHostedService<PushNotificationWorker>();
         builder.Services.AddHostedService<PushSubscriptionCleanupWorker>();
         builder.Services.AddHostedService<StaffPushWorker>();
-        // Sprint 392 (Doc 84): 4.º gatilho — digest diário de reparações paradas há +N dias.
-        builder.Services.AddHostedService<RepairDesk.API.HostedServices.StalledRepairsHostedService>();
         // Sprint 428 (Doc 90 cross-feature): digest diário de tarefas internas atrasadas.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueTasksHostedService>();
         // Sprint 441 (Doc 91 follow-up): digest diário de reparações Pronto há +N dias sem ser levantadas.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ReadyForPickupHostedService>();
-        // Sprint 458 (Doc 91 ponto 3 — lembretes): digest diário de reparações em estado
-        // comunicável há > 8h sem comunicação Outbound. Fecha o loop com os CTAs S456/S457.
-        builder.Services.AddHostedService<RepairDesk.API.HostedServices.ClienteNotificarPendingHostedService>();
         // Sprint 468 (Doc 90 Tier 2 #6 — cross-sell): digest Devices em fim de garantia
         // fabricante (próximos N dias). Combina com widget S467 no Dashboard.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.DeviceGarantiaFabricanteExpiryHostedService>();
     }
 
-    // Diagnóstico guiado + Health Score
-    builder.Services.AddScoped<IDiagnosticoRepository, RepairDesk.DAL.Persistence.DiagnosticoRepository>();
-    builder.Services.AddScoped<IDiagnosticoService, DiagnosticoService>();
 
     // Garantia + Avaliações
     builder.Services.AddScoped<IGarantiaRepository, RepairDesk.DAL.Persistence.GarantiaRepository>();
@@ -318,8 +294,6 @@ try
         builder.Services.AddHostedService<RefreshTokenCleanupHostedService>();
     // Sprint 147: ingest de faturas de fornecedor via n8n IMAP
     builder.Services.AddScoped<ISupplierInvoiceImportRepository, RepairDesk.DAL.Persistence.SupplierInvoiceImportRepository>();
-    // Sprint 157: SKU mapping tabela aprendida — fornecedor → Part interno.
-    builder.Services.AddScoped<ISkuMappingRepository, RepairDesk.DAL.Persistence.SkuMappingRepository>();
     // Sprint 162: supplier fingerprinting (detect fornecedor antes do parser).
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierFingerprintingService, RepairDesk.Services.Documents.SupplierFingerprintingService>();
     // Sprint 163: LLM fallback parser (Claude Haiku) com PII redaction. Configured via ANTHROPIC_API_KEY env.
@@ -338,8 +312,8 @@ try
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();
     builder.Services.AddScoped<RepairDesk.Services.InternalTasks.IInternalTaskService, RepairDesk.Services.InternalTasks.InternalTaskService>();
     // Sprint 452 (Doc 91 ponto 1): Conversas omnicanal v1 — registo de comunicações por reparação.
-    builder.Services.AddScoped<IReparacaoComunicacaoRepository, RepairDesk.DAL.Persistence.ReparacaoComunicacaoRepository>();
-    builder.Services.AddScoped<RepairDesk.Services.Comunicacoes.IReparacaoComunicacaoService, RepairDesk.Services.Comunicacoes.ReparacaoComunicacaoService>();
+    builder.Services.AddScoped<IVendaComunicacaoRepository, RepairDesk.DAL.Persistence.VendaComunicacaoRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Comunicacoes.IVendaComunicacaoService, RepairDesk.Services.Comunicacoes.VendaComunicacaoService>();
     // Sprint 461 (Doc 90 Tier 2 #6 — Asset registry): equipamentos persistentes do cliente.
     builder.Services.AddScoped<IDeviceRepository, RepairDesk.DAL.Persistence.DeviceRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Devices.IDeviceService, RepairDesk.Services.Devices.DeviceService>();
@@ -347,13 +321,6 @@ try
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 
-    // Sprint 344 (Doc 83 Pillar 3): assinaturas digitais ligadas a reparações.
-    builder.Services.AddScoped<ISignatureRepository, RepairDesk.DAL.Persistence.SignatureRepository>();
-    // Sprint 346 (Doc 83 Pillar 6): tags categóricas para reparações.
-    builder.Services.AddScoped<IReparacaoTagRepository, RepairDesk.DAL.Persistence.ReparacaoTagRepository>();
-    // Sprint 349 (Doc 83 Pillar 6): time tracker por reparação.
-    builder.Services.AddScoped<IReparacaoTimeEntryRepository, RepairDesk.DAL.Persistence.ReparacaoTimeEntryRepository>();
-    // Sprint 353 (Doc 83 Pillar 5): kits de peças.
     // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
     builder.Services.AddScoped<IRepairRequestRepository, RepairDesk.DAL.Persistence.RepairRequestRepository>();
     // Sprint 390 (Doc 04): lookup TAC→modelo offline. Base num JSON em disco (mountar volume em prod
@@ -384,15 +351,9 @@ try
 
     // Tabela de preços
 
-    // Stock de peças
-    builder.Services.AddScoped<IPartRepository, PartRepository>();
-    builder.Services.AddScoped<IPartService, PartService>();
-    builder.Services.AddScoped<FluentValidation.IValidator<CreatePartRequest>, CreatePartValidator>();
-    builder.Services.AddScoped<FluentValidation.IValidator<UpdatePartRequest>, UpdatePartValidator>();
-    builder.Services.AddScoped<FluentValidation.IValidator<CreatePartMovimentoRequest>, CreatePartMovimentoValidator>();
 
     // Fotos (storage abstracto — default: local filesystem)
-    builder.Services.AddScoped<IReparacaoFotoRepository, RepairDesk.DAL.Persistence.ReparacaoFotoRepository>();
+    builder.Services.AddScoped<IVendaFotoRepository, RepairDesk.DAL.Persistence.VendaFotoRepository>();
     var storageProvider = builder.Configuration["Storage:Provider"]?.Trim().ToLowerInvariant() ?? "local";
     switch (storageProvider)
     {

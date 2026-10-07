@@ -9,8 +9,6 @@ import {
   Receipt,
   Banknote,
   ShoppingCart,
-  FileText,
-  BarChart3,
   ChevronDown,
   ClipboardList,
   CalendarClock,
@@ -32,7 +30,6 @@ import {
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
 import HealthIndicator from './HealthIndicator';
-import ActiveTimerBanner from './ActiveTimerBanner';
 import { AssistantWidget } from './AssistantWidget';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
 import { repairRequestsApi } from '../lib/repairRequests/api';
@@ -73,14 +70,6 @@ const nav: NavItem[] = [
   { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   // Sprint 422 (Doc 90 Tier 2 #7): TODO list interna.
   { to: '/tarefas', label: 'Tarefas', icon: ClipboardList },
-  {
-    label: 'Relatorios',
-    icon: FileText,
-    children: [
-      { to: '/relatorios/negocio', label: 'Negocio', icon: BarChart3 },
-      { to: '/relatorios/produtividade', label: 'Produtividade', icon: BarChart3, adminOnly: true },
-    ],
-  },
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
   // Sprint 240: agrupar tudo de configuração num único dropdown "Definições" — antes eram
   // 6 items soltos na sidebar (Preferências, Webhooks, Fornecedores, Automações, Uso de IA,
@@ -213,7 +202,7 @@ export default function Layout() {
             {/* Sprint 379: ação primária no topo (como o mockup) */}
             <button
               type="button"
-              onClick={() => navigate('/reparacoes?new=1')}
+              onClick={() => navigate('/vendas/nova?tipo=1')}
               className="flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700"
             >
               <Plus size={16} strokeWidth={2.5} />
@@ -277,7 +266,6 @@ export default function Layout() {
           </div>
         </div>
         {/* Sprint 351: banner global quando há timer activo. */}
-        <ActiveTimerBanner />
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 pb-24 pt-6 sm:pl-[15.5rem] sm:pr-6">

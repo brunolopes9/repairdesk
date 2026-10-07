@@ -3,9 +3,9 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
-using RepairDesk.Services.EquipmentFields;
 using RepairDesk.Services.Push;
 using RepairDesk.Services.TenantPreferences;
+using RepairDesk.Services.Vendas;
 
 namespace RepairDesk.Services.PublicPortal;
 
@@ -21,50 +21,49 @@ public interface IPublicPortalService
     Task<PublicPagamentoDto> IniciarPagamentoMbWayAsync(string slug, string telefone, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Portal público do cliente (/r/{slug}) — Doc 94 Fase 4c: assenta na Venda do tipo Reparação.
+/// Mostra estado, linha temporal, fotos públicas, orçamento (aceitar/recusar), garantia, conversa
+/// com a loja, pagamento MB Way e avaliação. NUNCA expõe custos, lucro, IVA a pagar ou notas internas.
+/// </summary>
 public class PublicPortalService : IPublicPortalService
 {
-    private readonly IReparacaoRepository _repo;
+    private readonly IVendaRepository _vendas;
+    private readonly IVendaService _vendaService;
     private readonly ITenantRepository _tenants;
-    private readonly IDiagnosticoRepository _diagnostico;
     private readonly IGarantiaRepository _garantias;
     private readonly IAvaliacaoRepository _avaliacoes;
-    private readonly IReparacaoFotoRepository _fotos;
-    private readonly IEquipmentFieldService _equipmentFields;
-    private readonly IVendaRepository _vendas;
+    private readonly IVendaFotoRepository _fotos;
     private readonly ITenantPreferencesService _preferences;
-    private readonly IReparacaoComunicacaoRepository _comunicacoes;
+    private readonly IVendaComunicacaoRepository _comunicacoes;
     private readonly IStaffPushQueue _push;
     private readonly Payments.IPaymentService _payments;
     private readonly Payments.Ifthenpay.IfthenpayOptions _ifthenpay;
 
     public PublicPortalService(
-        IReparacaoRepository repo,
+        IVendaRepository vendas,
+        IVendaService vendaService,
         ITenantRepository tenants,
-        IDiagnosticoRepository diagnostico,
         IGarantiaRepository garantias,
         IAvaliacaoRepository avaliacoes,
-        IReparacaoFotoRepository fotos,
-        IEquipmentFieldService equipmentFields,
-        IVendaRepository vendas,
+        IVendaFotoRepository fotos,
         ITenantPreferencesService preferences,
-        IReparacaoComunicacaoRepository comunicacoes,
+        IVendaComunicacaoRepository comunicacoes,
         IStaffPushQueue push,
         Payments.IPaymentService payments,
         Payments.Ifthenpay.IfthenpayOptions ifthenpay)
     {
-        _payments = payments;
-        _ifthenpay = ifthenpay;
-        _repo = repo;
+        _vendas = vendas;
+        _vendaService = vendaService;
         _tenants = tenants;
-        _diagnostico = diagnostico;
         _garantias = garantias;
         _avaliacoes = avaliacoes;
         _fotos = fotos;
-        _equipmentFields = equipmentFields;
-        _vendas = vendas;
         _preferences = preferences;
         _comunicacoes = comunicacoes;
         _push = push;
+        _payments = payments;
+        _ifthenpay = ifthenpay;
     }
 
     public async Task<PublicGarantiaDto> GetGarantiaBySlugAsync(string slug, CancellationToken ct = default)
@@ -72,49 +71,28 @@ public class PublicPortalService : IPublicPortalService
         if (string.IsNullOrWhiteSpace(slug) || slug.Length > 32)
             throw new NotFoundException("Garantia", slug);
 
-        var g = await _garantias.FindBySlugAsync(slug, ct)
-            ?? throw new NotFoundException("Garantia", slug);
-
+        var g = await _garantias.FindBySlugAsync(slug, ct) ?? throw new NotFoundException("Garantia", slug);
         var tenant = await _tenants.FindByIdAsync(g.TenantId, ct);
         var agora = DateTime.UtcNow;
         var diasRestantes = (int)Math.Max(0, (g.DataFim - agora).TotalDays);
         var activa = !g.Anulada && agora >= g.DataInicio && agora <= g.DataFim;
 
-        string equipamentoPublico;
-        string origem;
-        string? documentoRef;
-        string? numeroFatura;
-        IReadOnlyList<PublicGarantiaItemDto>? items;
-
-        if (g.SourceType == GarantiaSourceType.Venda && g.Venda is not null)
-        {
-            var primeiro = g.Venda.Items.FirstOrDefault();
-            equipamentoPublico = primeiro?.Descricao ?? "Artigos vendidos";
-            origem = "Venda";
-            documentoRef = $"Venda #{g.Venda.Numero:D5}";
-            numeroFatura = g.Venda.InvoiceNumber;
-            items = g.Venda.Items
-                .Select(i => new PublicGarantiaItemDto(
-                    i.Descricao,
-                    i.Quantidade,
-                    i.PrecoUnitarioCents,
-                    i.TotalCents,
+        var v = g.Venda;
+        var reparacao = g.SourceType == GarantiaSourceType.Reparacao;
+        var equipamentoPublico = reparacao
+            ? v?.Equipamento ?? "Equipamento"
+            : v?.Items.FirstOrDefault()?.Descricao ?? "Artigos vendidos";
+        var items = !reparacao && v is not null
+            ? v.Items.Select(i => new PublicGarantiaItemDto(
+                    i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.TotalCents,
                     string.IsNullOrEmpty(i.Imei) ? null : ImeiValidator.Mask(i.Imei)))
-                .ToList();
-        }
-        else
-        {
-            equipamentoPublico = g.Reparacao?.Equipamento ?? "Equipamento";
-            origem = "Reparacao";
-            documentoRef = g.Reparacao is not null ? $"Reparação #{g.Reparacao.Numero:D5}" : null;
-            numeroFatura = null;
-            items = null;
-        }
+                .ToList()
+            : null;
 
         return new PublicGarantiaDto(
             Slug: g.Slug,
             EquipamentoPublico: equipamentoPublico,
-            Loja: tenant?.LegalName ?? tenant?.Name ?? "Oficina",
+            Loja: tenant?.LegalName ?? tenant?.Name ?? "Loja",
             LogoUrl: tenant?.LogoUrl,
             DataInicio: g.DataInicio,
             DataFim: g.DataFim,
@@ -124,9 +102,9 @@ public class PublicPortalService : IPublicPortalService
             DiasRestantes: diasRestantes,
             Cobertura: g.Cobertura,
             Exclusoes: g.Exclusoes,
-            Origem: origem,
-            DocumentoReferencia: documentoRef,
-            NumeroFatura: numeroFatura,
+            Origem: reparacao ? "Reparacao" : "Venda",
+            DocumentoReferencia: v is null ? null : $"{(reparacao ? "Reparação" : "Venda")} #{v.Numero:D5}",
+            NumeroFatura: v?.InvoiceNumber,
             Items: items,
             LojaEmail: tenant?.Email,
             LojaTelefone: tenant?.Phone);
@@ -134,30 +112,23 @@ public class PublicPortalService : IPublicPortalService
 
     public async Task<AvaliacaoSubmittedDto> SubmeterAvaliacaoAsync(string repairSlug, int score, string? comentario, bool publicarTestemunho, CancellationToken ct = default)
     {
-        if (score < 1 || score > 5)
+        if (score is < 1 or > 5)
             throw new ValidationException("score_invalido", "Score deve ser entre 1 e 5.");
-        if (string.IsNullOrWhiteSpace(repairSlug))
-            throw new NotFoundException("Reparacao", repairSlug);
-
-        var rep = await _repo.FindByPublicSlugWithTimelineAsync(repairSlug, ct)
-            ?? throw new NotFoundException("Reparacao", repairSlug);
-
-        if (rep.Estado != RepairStatus.Entregue)
+        var v = await FindAsync(repairSlug, ct);
+        if (v.Estado != VendaEstado.Entregue)
             throw new ConflictException("nao_entregue", "Esta reparação ainda não foi entregue.");
-
-        var existente = await _avaliacoes.FindByReparacaoAsync(rep.Id, ct);
-        if (existente is not null)
+        if (await _avaliacoes.FindByVendaAsync(v.Id, ct) is not null)
             throw new ConflictException("ja_avaliado", "Esta reparação já foi avaliada.");
 
-        var tenant = await _tenants.FindByIdAsync(rep.TenantId, ct);
-        var prefs = await _preferences.GetForTenantAsync(rep.TenantId, ct);
+        var tenant = await _tenants.FindByIdAsync(v.TenantId, ct);
+        var prefs = await _preferences.GetForTenantAsync(v.TenantId, ct);
         var googleReviewUrl = prefs.Portal.GoogleReviewUrl ?? tenant?.GoogleReviewUrl;
         var dirigirGoogle = score >= prefs.Portal.GoogleReviewMinScore && !string.IsNullOrWhiteSpace(googleReviewUrl);
 
         var avaliacao = new Avaliacao
         {
-            TenantId = rep.TenantId,
-            ReparacaoId = rep.Id,
+            TenantId = v.TenantId,
+            VendaId = v.Id,
             Score = score,
             Comentario = string.IsNullOrWhiteSpace(comentario) ? null : comentario.Trim(),
             PublicarTestemunho = publicarTestemunho,
@@ -165,310 +136,179 @@ public class PublicPortalService : IPublicPortalService
         };
         await _avaliacoes.AddAsync(avaliacao, ct);
         await _avaliacoes.SaveAsync(ct);
-
         return new AvaliacaoSubmittedDto(score, avaliacao.Comentario, dirigirGoogle ? googleReviewUrl : null);
     }
 
     public async Task<PublicRepairDto> GetBySlugAsync(string slug, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(slug) || slug.Length > 32)
-            throw new NotFoundException("Reparacao", slug);
-
-        var rep = await _repo.FindByPublicSlugWithTimelineAsync(slug, ct)
-            ?? throw new NotFoundException("Reparacao", slug);
-        var prefs = await _preferences.GetForTenantAsync(rep.TenantId, ct);
-
-        // Compliance: não revelar reparações > 2 anos
-        if (rep.RecebidoEm() < DateTime.UtcNow.AddYears(-2))
-            throw new NotFoundException("Reparacao", slug);
-
-        var tenant = await _tenants.FindByIdAsync(rep.TenantId, ct);
-        var diag = await _diagnostico.FindExecucaoByReparacaoAsync(rep.Id, ct);
-        var garantia = await _garantias.FindByReparacaoAsync(rep.Id, ct);
-        var avaliacao = await _avaliacoes.FindByReparacaoAsync(rep.Id, ct);
-        var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
-        var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
-        var cobertura = await ResolveCoberturaGarantiaAsync(rep, ct);
-        var conversa = await LoadConversaAsync(rep.Id, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura, prefs.Portal, conversa);
-    }
-
-    /// <summary>
-    /// Sprint 482: fio de conversa do portal. Só comunicações tipo PortalCliente — cliente
-    /// (Inbound) + respostas do staff (Outbound). Cronológico ascendente (chat-style).
-    /// </summary>
-    private async Task<IReadOnlyList<PublicConversaMsg>> LoadConversaAsync(Guid reparacaoId, CancellationToken ct)
-    {
-        var all = await _comunicacoes.ListByReparacaoAsync(reparacaoId, ct);
-        return all
-            .Where(c => c.Tipo == ComunicacaoTipo.PortalCliente)
-            .OrderBy(c => c.CreatedAt)
-            .Select(c => new PublicConversaMsg(
-                DeStaff: c.Direcao == ComunicacaoDirecao.Outbound,
-                Texto: c.Texto,
-                Em: c.CreatedAt))
-            .ToList();
-    }
-
-    /// <summary>
-    /// Sprint 88: indica ao cliente se esta reparação está coberta pela garantia da venda
-    /// anterior do mesmo equipamento. Só expõe quando a garantia está activa.
-    /// </summary>
-    private async Task<PublicCoberturaGarantia?> ResolveCoberturaGarantiaAsync(Reparacao rep, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(rep.Imei)) return null;
-        var vendaRow = await _vendas.FindVendaByImeiAsync(rep.Imei, ct);
-        if (vendaRow is null || vendaRow.Data >= rep.CreatedAt) return null;
-
-        var garantiaVenda = await _garantias.FindByVendaAsync(vendaRow.VendaId, ct);
-        var agora = DateTime.UtcNow;
-        var activa = garantiaVenda is not null
-            && !garantiaVenda.Anulada
-            && agora >= garantiaVenda.DataInicio
-            && agora <= garantiaVenda.DataFim;
-        if (!activa || garantiaVenda is null) return null;
-
-        return new PublicCoberturaGarantia(
-            garantiaVenda.Slug,
-            garantiaVenda.DataFim,
-            (int)Math.Max(0, (garantiaVenda.DataFim - agora).TotalDays));
-    }
+        => await BuildDtoAsync(await FindAsync(slug, ct), ct);
 
     public async Task<PublicRepairDto> AprovarOrcamentoAsync(string slug, bool aceitar, CancellationToken ct = default)
     {
-        var rep = await _repo.FindByPublicSlugWithTimelineAsync(slug, ct)
-            ?? throw new NotFoundException("Reparacao", slug);
-        var prefs = await _preferences.GetForTenantAsync(rep.TenantId, ct);
-
+        var v = await FindAsync(slug, ct);
+        var prefs = await _preferences.GetForTenantAsync(v.TenantId, ct);
         if (!prefs.Portal.PermitirAprovarOrcamento)
-            throw new ForbiddenException("orcamento_aprovacao_desactivada", "A aprovacao online de orcamentos esta desactivada nesta loja.");
+            throw new ForbiddenException("orcamento_aprovacao_desactivada", "A aprovação online de orçamentos está desativada nesta loja.");
+        if (v.Estado != VendaEstado.Orcamento)
+            throw new ConflictException("ja_aprovado", "Este orçamento já foi respondido.");
+        if (v.TotalCents <= 0)
+            throw new ConflictException("sem_orcamento", "Esta reparação ainda não tem orçamento para aprovar.");
 
-        if (rep.OrcamentoCents is null)
-            throw new ConflictException("sem_orcamento", "Esta reparação não tem orçamento para aprovar.");
-        if (rep.OrcamentoAprovado)
-            throw new ConflictException("ja_aprovado", "Este orçamento já foi aprovado anteriormente.");
+        // Mesma regra de stock que no balcão: aceitar consome as peças; recusar cancela sem mexer.
+        await _vendaService.MudarEstadoAsync(v.Id, new MudarEstadoVendaRequest(aceitar ? VendaEstado.EmCurso : VendaEstado.Cancelada), ct);
 
-        rep.OrcamentoAprovado = aceitar;
-        if (!aceitar)
-        {
-            rep.Estado = Core.Enums.RepairStatus.Cancelado;
-            rep.EstadoSince = DateTime.UtcNow;
-        }
-        await _repo.SaveAsync(ct);
+        var nome = v.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente";
+        await _push.EnqueueAsync(new StaffPushJob(
+            v.TenantId,
+            aceitar ? $"✅ {nome} aceitou o orçamento" : $"❌ {nome} recusou o orçamento",
+            $"Reparação #{v.Numero:D5} · {v.TotalCents / 100m:F2}€",
+            $"/vendas/{v.Id}",
+            $"orcamento-{v.Id}"), ct);
 
-        var tenant = await _tenants.FindByIdAsync(rep.TenantId, ct);
-        var diag = await _diagnostico.FindExecucaoByReparacaoAsync(rep.Id, ct);
-        var garantia = await _garantias.FindByReparacaoAsync(rep.Id, ct);
-        var avaliacao = await _avaliacoes.FindByReparacaoAsync(rep.Id, ct);
-        var fotos = await _fotos.ListPublicByReparacaoIdAsync(rep.Id, ct);
-        var campos = await _equipmentFields.GetValuesAsync(rep.Id, visibleInPortalOnly: true, ct);
-        var cobertura = await ResolveCoberturaGarantiaAsync(rep, ct);
-        var conversa = await LoadConversaAsync(rep.Id, ct);
-        return ToDto(rep, tenant, diag, garantia, avaliacao is not null, fotos, campos, cobertura, prefs.Portal, conversa);
+        return await BuildDtoAsync(await FindAsync(slug, ct), ct);
     }
 
     public async Task SubmeterMensagemAsync(string slug, string texto, CancellationToken ct = default)
     {
-        // Sprint 480: cliente envia mensagem via portal. Cria comunicação Inbound + push staff.
-        // CreatedByUserId = Guid.Empty é sentinela "portal cliente" — UI distingue pelo tipo PortalCliente.
         var trimmed = (texto ?? string.Empty).Trim();
         if (trimmed.Length is < 1 or > 2000)
             throw new ValidationException("texto_invalido", "Mensagem obrigatória (1 a 2000 caracteres).");
 
-        if (string.IsNullOrWhiteSpace(slug) || slug.Length > 32)
-            throw new NotFoundException("Reparacao", slug ?? "");
-
-        var rep = await _repo.FindByPublicSlugWithTimelineAsync(slug, ct)
-            ?? throw new NotFoundException("Reparacao", slug);
-
-        // Compliance: não aceitar mensagens em reparações arquivadas (> 2 anos) — alinhado com GetBySlug.
-        if (rep.RecebidoEm() < DateTime.UtcNow.AddYears(-2))
-            throw new NotFoundException("Reparacao", slug);
-
-        // Reparações em estado terminal (Entregue/Cancelado) não recebem nova conversa.
-        if (rep.Estado is RepairStatus.Entregue or RepairStatus.Cancelado)
+        var v = await FindAsync(slug, ct);
+        if (v.Estado is VendaEstado.Entregue or VendaEstado.Cancelada)
             throw new ConflictException("estado_fechado", "Esta reparação já foi fechada. Contacte-nos pelo telefone ou WhatsApp da loja.");
+        if (v.ClienteId is not { } clienteId)
+            throw new ConflictException("sem_cliente", "Esta reparação não tem cliente associado.");
 
-        var entry = new ReparacaoComunicacao
+        // CreatedByUserId = Guid.Empty é a sentinela "portal cliente" — a UI distingue pelo tipo PortalCliente.
+        await _comunicacoes.AddAsync(new VendaComunicacao
         {
-            Id = Guid.NewGuid(),
-            TenantId = rep.TenantId,
-            ReparacaoId = rep.Id,
-            ClienteId = rep.ClienteId,
+            TenantId = v.TenantId,
+            VendaId = v.Id,
+            ClienteId = clienteId,
             Tipo = ComunicacaoTipo.PortalCliente,
             Direcao = ComunicacaoDirecao.Inbound,
             Texto = trimmed,
             CreatedByUserId = Guid.Empty,
-        };
-        await _comunicacoes.AddAsync(entry, ct);
+        }, ct);
         await _comunicacoes.SaveAsync(ct);
 
-        var nome = rep.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente";
+        var nome = v.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente";
         var preview = trimmed.Length > 80 ? trimmed[..80] + "…" : trimmed;
-        await _push.EnqueueAsync(new StaffPushJob(
-            rep.TenantId,
-            $"💬 {nome} respondeu no portal",
-            preview,
-            $"/reparacoes/{rep.Id}",
-            $"portal-msg-{rep.Id}"), ct);
+        await _push.EnqueueAsync(new StaffPushJob(v.TenantId, $"💬 {nome} respondeu no portal", preview, $"/vendas/{v.Id}", $"portal-msg-{v.Id}"), ct);
     }
 
     public async Task<PublicPagamentoDto> IniciarPagamentoMbWayAsync(string slug, string telefone, CancellationToken ct = default)
     {
-        // Sprint 493: pagamento MBWay da reparação pelo portal. Money-sensitive — validações estritas.
-        if (string.IsNullOrWhiteSpace(slug) || slug.Length > 32)
-            throw new NotFoundException("Reparacao", slug ?? "");
-
-        // Telefone PT: 9 dígitos começados por 9 (após limpar espaços/+351).
+        // Money-sensitive — validações estritas. Telefone PT: 9 dígitos começados por 9.
         var digits = new string((telefone ?? "").Where(char.IsDigit).ToArray());
         if (digits.StartsWith("351") && digits.Length == 12) digits = digits[3..];
         if (digits.Length != 9 || digits[0] != '9')
             throw new ValidationException("telefone_invalido", "Indica um número de telemóvel português válido (9 dígitos).");
-
         if (!_ifthenpay.IsConfigured || string.IsNullOrWhiteSpace(_ifthenpay.MBWayKey))
-            throw new ConflictException("mbway_indisponivel", "Esta loja ainda não tem pagamento MBWay activo. Paga no balcão.");
+            throw new ConflictException("mbway_indisponivel", "Esta loja ainda não tem pagamento MBWay ativo. Paga na loja.");
 
-        var rep = await _repo.FindByPublicSlugWithTimelineAsync(slug, ct)
-            ?? throw new NotFoundException("Reparacao", slug);
-
-        if (rep.RecebidoEm() < DateTime.UtcNow.AddYears(-2))
-            throw new NotFoundException("Reparacao", slug);
-        if (rep.EstadoPagamento == PaymentStatus.Pago)
-            throw new ConflictException("ja_pago", "Esta reparação já está paga.");
-        if (rep.Estado == RepairStatus.Cancelado)
+        var v = await FindAsync(slug, ct);
+        if (v.Estado == VendaEstado.Cancelada)
             throw new ConflictException("cancelada", "Esta reparação foi cancelada.");
+        if (v.Estado == VendaEstado.Orcamento)
+            throw new ConflictException("orcamento_pendente", "Aceita primeiro o orçamento.");
 
-        var amount = rep.PrecoFinalCents ?? rep.OrcamentoCents ?? 0;
+        var pagamentos = await _payments.GetByVendaAsync(v.Id, ct);
+        if (v.Estado == VendaEstado.Entregue || pagamentos.Any(p => p.Status == PaymentStatus.Pago))
+            throw new ConflictException("ja_pago", "Esta reparação já está paga.");
+        var amount = v.TotalCents;
         if (amount <= 0)
-            throw new ConflictException("sem_valor", "Ainda não há valor definido para pagar. Aguarda o orçamento da loja.");
+            throw new ConflictException("sem_valor", "Ainda não há valor definido para pagar.");
 
-        // Anti-spam de push MBWay: não reenviar se já há um pedido pendente recente (janela 4 min).
-        var existentes = await _payments.GetByReparacaoAsync(rep.Id, ct);
+        // Anti-spam de push MBWay: não reenviar se já há um pedido pendente recente.
         var agora = DateTime.UtcNow;
-        var pendenteRecente = existentes.FirstOrDefault(p =>
-            p.Status == PaymentStatus.NaoPago
-            && p.Method == PaymentMethod.MBWay
-            && p.ProviderRef != null
-            && (p.ExpiresAt == null || p.ExpiresAt > agora));
-        if (pendenteRecente is not null)
+        var pendente = pagamentos.FirstOrDefault(p =>
+            p.Status == PaymentStatus.NaoPago && p.Method == PaymentMethod.MBWay
+            && p.ProviderRef != null && (p.ExpiresAt == null || p.ExpiresAt > agora));
+        if (pendente is not null)
             return new PublicPagamentoDto("pendente", amount,
-                "Já enviámos um pedido MBWay. Confirma na app (até 4 min) ou tenta novamente depois.",
-                pendenteRecente.ExpiresAt);
+                "Já enviámos um pedido MBWay. Confirma na app (até 4 min) ou tenta novamente depois.", pendente.ExpiresAt);
 
-        var tenant = await _tenants.FindByIdAsync(rep.TenantId, ct);
-        var descricao = $"Reparação #{rep.Numero:D5}" + (tenant is not null ? $" · {tenant.LegalName ?? tenant.Name}" : "");
-
+        var tenant = await _tenants.FindByIdAsync(v.TenantId, ct);
         var payment = await _payments.InitiateAsync(
             new PaymentInitiationRequest(
-                TenantId: rep.TenantId,
-                VendaId: null,
+                TenantId: v.TenantId,
+                VendaId: v.Id,
                 Method: PaymentMethod.MBWay,
                 AmountCents: amount,
                 CustomerPhone: digits,
-                CustomerEmail: rep.Cliente?.Email,
-                Description: descricao,
-                ReparacaoId: rep.Id),
+                CustomerEmail: v.Cliente?.Email,
+                Description: $"Reparação #{v.Numero:D5}" + (tenant is not null ? $" · {tenant.LegalName ?? tenant.Name}" : "")),
             PaymentProvider.Ifthenpay, ct);
-
         if (string.IsNullOrWhiteSpace(payment.ProviderRef))
-            throw new ConflictException("mbway_falhou", "Não foi possível iniciar o MBWay. Tenta novamente ou paga no balcão.");
+            throw new ConflictException("mbway_falhou", "Não foi possível iniciar o MBWay. Tenta novamente ou paga na loja.");
 
-        // Push staff: cliente iniciou pagamento (visibilidade no balcão).
         await _push.EnqueueAsync(new StaffPushJob(
-            rep.TenantId,
-            "💳 Pagamento MBWay iniciado",
-            $"Reparação #{rep.Numero:D5} · {amount / 100m:F2}€ — a aguardar confirmação",
-            $"/reparacoes/{rep.Id}",
-            $"mbway-{rep.Id}"), ct);
+            v.TenantId, "💳 Pagamento MBWay iniciado",
+            $"Reparação #{v.Numero:D5} · {amount / 100m:F2}€ — a aguardar confirmação",
+            $"/vendas/{v.Id}", $"mbway-{v.Id}"), ct);
 
-        return new PublicPagamentoDto("pendente", amount,
-            "Abre a app MBWay e confirma o pagamento (até 4 minutos).",
-            payment.ExpiresAt);
+        return new PublicPagamentoDto("pendente", amount, "Abre a app MBWay e confirma o pagamento (até 4 minutos).", payment.ExpiresAt);
     }
 
-    private static PublicRepairDto ToDto(
-        Reparacao rep,
-        Tenant? tenant,
-        DiagnosticoExecucao? diag,
-        Garantia? garantia,
-        bool jaAvaliado,
-        IReadOnlyList<ReparacaoFoto> fotos,
-        IReadOnlyList<EquipmentFieldValueDto> campos,
-        PublicCoberturaGarantia? cobertura,
-        PortalPrefs portal,
-        IReadOnlyList<PublicConversaMsg> conversa)
+    // ---------- helpers ----------
+
+    private async Task<Venda> FindAsync(string slug, CancellationToken ct)
     {
-        var primeiroNome = rep.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente";
-        var loja = new PublicLoja(
-            tenant?.LegalName ?? tenant?.Name ?? "Oficina",
-            tenant?.Phone,
-            tenant?.Email,
-            tenant?.Website,
-            tenant?.LogoUrl);
+        if (string.IsNullOrWhiteSpace(slug) || slug.Length > 32)
+            throw new NotFoundException("Reparacao", slug ?? "");
+        var v = await _vendas.FindByPublicSlugAsync(slug.Trim(), ct) ?? throw new NotFoundException("Reparacao", slug);
+        // Compliance: não revelar reparações com mais de 2 anos.
+        if (v.Tipo != VendaTipo.Reparacao || v.CreatedAt < DateTime.UtcNow.AddYears(-2))
+            throw new NotFoundException("Reparacao", slug);
+        return v;
+    }
+
+    private async Task<PublicRepairDto> BuildDtoAsync(Venda v, CancellationToken ct)
+    {
+        var prefs = await _preferences.GetForTenantAsync(v.TenantId, ct);
+        var portal = prefs.Portal;
+        var tenant = await _tenants.FindByIdAsync(v.TenantId, ct);
+        var garantia = await _garantias.FindByVendaAsync(v.Id, ct);
+        var jaAvaliado = await _avaliacoes.FindByVendaAsync(v.Id, ct) is not null;
+        var fotos = await _fotos.ListPublicByVendaIdAsync(v.Id, ct);
+        var comunicacoes = await _comunicacoes.ListByVendaAsync(v.Id, ct);
+        var pago = v.Estado == VendaEstado.Entregue
+            || (await _payments.GetByVendaAsync(v.Id, ct)).Any(p => p.Status == PaymentStatus.Pago);
 
         var timeline = portal.MostrarTimeline
-            ? rep.Timeline
-                .OrderBy(t => t.MudouEm)
-                .Select(t => new PublicTimelineEntry(PublicEstadoMapper.From(t.EstadoTo), t.MudouEm))
-                .ToList()
+            ? v.Timeline.OrderBy(t => t.MudouEm).Select(t => new PublicTimelineEntry(PublicEstadoMapper.From(t.EstadoTo), t.MudouEm)).ToList()
             : [];
-
-        // Diagnóstico só exposto se está completado (caso contrário pode confundir cliente)
-        int? healthScore = null;
-        var destaques = new List<string>();
-        if (portal.MostrarDiagnostico && diag is not null && diag.CompletadoEm.HasValue)
-        {
-            healthScore = diag.Score;
-            destaques = diag.Items
-                .Where(i => i.Resultado == DiagnosticoResultado.Avaria || i.Resultado == DiagnosticoResultado.Marginal)
-                .OrderBy(i => i.Ordem)
-                .Select(i => i.Resultado == DiagnosticoResultado.Marginal ? $"⚠️ {i.Label}" : $"❌ {i.Label}")
-                .Take(8)
-                .ToList();
-        }
+        var orcamentoVisivel = portal.MostrarOrcamento && v.TotalCents > 0;
+        var precoFinal = orcamentoVisivel && v.Estado is VendaEstado.Pronta or VendaEstado.Entregue;
 
         return new PublicRepairDto(
-            Slug: rep.PublicSlug!,
-            EquipamentoPublico: rep.Equipamento,
-            AvariaPublica: rep.Avaria,
-            Diagnostico: portal.MostrarDiagnostico ? rep.Diagnostico : null,
-            Estado: PublicEstadoMapper.From(rep.Estado),
-            EstadoSince: rep.EstadoSince,
-            RecebidoEm: rep.RecebidoEm(),
-            EntregueEm: rep.EntregueEm,
-            OrcamentoCents: portal.MostrarOrcamento ? rep.OrcamentoCents : null,
-            OrcamentoAprovado: portal.MostrarOrcamento && rep.OrcamentoAprovado,
-            TemPrecoFinal: portal.MostrarOrcamento && rep.PrecoFinalCents.HasValue,
-            PrecoFinalCents: portal.MostrarOrcamento ? rep.PrecoFinalCents : null,
-            Loja: loja,
-            ClientePrimeiroNome: primeiroNome,
+            Slug: v.PublicSlug!,
+            EquipamentoPublico: v.Equipamento ?? "Equipamento",
+            AvariaPublica: v.Problema ?? "",
+            Estado: PublicEstadoMapper.From(v.Estado),
+            EstadoSince: v.Timeline.OrderBy(t => t.MudouEm).LastOrDefault()?.MudouEm ?? v.CreatedAt,
+            RecebidoEm: v.CreatedAt,
+            EntregueEm: v.Estado == VendaEstado.Entregue ? v.Data : null,
+            OrcamentoCents: orcamentoVisivel ? v.TotalCents : null,
+            OrcamentoAprovado: orcamentoVisivel && v.Estado is not (VendaEstado.Orcamento or VendaEstado.Cancelada),
+            TemPrecoFinal: precoFinal,
+            PrecoFinalCents: precoFinal ? v.TotalCents : null,
+            Loja: new PublicLoja(tenant?.LegalName ?? tenant?.Name ?? "Loja", tenant?.Phone, tenant?.Email, tenant?.Website, tenant?.LogoUrl),
+            ClientePrimeiroNome: v.Cliente?.Nome?.Split(' ').FirstOrDefault() ?? "Cliente",
             Timeline: timeline,
-            HealthScore: healthScore,
-            DiagnosticoDestaques: destaques,
             GarantiaSlug: portal.MostrarGarantia ? garantia?.Slug : null,
             JaAvaliado: !portal.MostrarAvaliacao || jaAvaliado,
             Fotos: portal.MostrarFotos
                 ? fotos.Select(f => new PublicFotoDto(f.Id, (int)f.Tipo, f.Legenda, f.CreatedAt)).ToList()
                 : [],
-            CamposEquipamento: campos
-                .Where(c => !string.IsNullOrWhiteSpace(c.Value))
-                .Select(c => new PublicEquipmentFieldDto(c.Label, c.Value, c.Ordem))
+            Conversa: comunicacoes
+                .Where(c => c.Tipo == ComunicacaoTipo.PortalCliente)
+                .OrderBy(c => c.CreatedAt)
+                .Select(c => new PublicConversaMsg(c.Direcao == ComunicacaoDirecao.Outbound, c.Texto, c.CreatedAt))
                 .ToList(),
-            CoberturaGarantia: portal.MostrarGarantia ? cobertura : null,
-            Conversa: conversa,
-            // Sprint 487: ETA só faz sentido enquanto está em curso. Em Pronto/Entregue/Cancelado
-            // a previsão deixa de ser útil (já chegou ao fim) e pode confundir.
-            PrevistoEntregueEm: rep.Estado is RepairStatus.Entregue or RepairStatus.Cancelado or RepairStatus.Pronto
-                ? null
-                : rep.PrevistoEntregueEm,
-            // Sprint 494: estado de pagamento. Só revela "pago" quando o orçamento é
-            // visível no portal — sem MostrarOrcamento, valores e pagamento ficam ocultos.
-            Pago: portal.MostrarOrcamento && rep.EstadoPagamento == PaymentStatus.Pago);
+            // ETA só enquanto está em curso.
+            PrevistoEntregueEm: v.Estado is VendaEstado.EmCurso or VendaEstado.AEsperaPeca ? v.PrevistoPara : null,
+            Pago: portal.MostrarOrcamento && pago);
     }
-}
-
-internal static class ReparacaoExtensions
-{
-    public static DateTime RecebidoEm(this Reparacao r) =>
-        r.Timeline.OrderBy(t => t.MudouEm).FirstOrDefault()?.MudouEm ?? r.CreatedAt;
 }

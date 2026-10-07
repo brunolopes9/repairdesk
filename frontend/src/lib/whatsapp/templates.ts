@@ -1,8 +1,8 @@
-// Templates WhatsApp por estado de reparação.
+// Templates WhatsApp por estado da reparação (Venda do tipo Reparação — Doc 94 Fase 4c).
 // Conteúdo derivado de Contexto/11-WhatsApp-Templates.md.
 // Modo "padrão" PT-PT (tratamento por tu) — variantes informal/profissional adiados.
 
-import type { RepairStatus } from '../reparacoes/types';
+import { VENDA_ESTADO, type VendaEstado } from '../vendas/types';
 import type { TenantPreferencesRoot } from '../tenantPreferences/types';
 
 export interface WhatsAppVars {
@@ -19,15 +19,14 @@ export interface WhatsAppVars {
   data_pronto?: string;
 }
 
+/** Chaves iguais aos estados da Venda no backend (TenantPreferencesDefaults). */
 export type TemplateKey =
-  | 'Recebido'
-  | 'Diagnostico'
   | 'Orcamento'
-  | 'AguardaPeca'
-  | 'EmReparacao'
-  | 'Pronto'
+  | 'AEsperaPeca'
+  | 'EmCurso'
+  | 'Pronta'
   | 'Entregue'
-  | 'Cancelado'
+  | 'Cancelada'
   | 'LembreteLevantamento'
   | 'PedidoReview'
   | 'PrazoDerrapou';
@@ -56,21 +55,7 @@ function pecaFallback(v: WhatsAppVars): string {
 }
 
 export const TEMPLATES: Record<TemplateKey, TemplateMeta> = {
-  Recebido: {
-    key: 'Recebido',
-    label: 'Confirmar recepção',
-    hint: 'Acabámos de receber o equipamento na loja.',
-    build: (v) =>
-      `Olá ${v.cliente_nome}, confirmamos a entrada do teu ${v.equipamento} na ${v.loja_nome ?? 'loja'}. Vamos registar tudo e começar a análise; assim que houver novidades falamos contigo por aqui.`,
-  },
 
-  Diagnostico: {
-    key: 'Diagnostico',
-    label: 'Em diagnóstico',
-    hint: 'Estamos a analisar o equipamento.',
-    build: (v) =>
-      `Olá ${v.cliente_nome}, o teu ${v.equipamento} está em diagnóstico. Estamos a testar com cuidado para perceber a origem do problema e voltamos a contactar assim que tivermos uma conclusão.`,
-  },
 
   Orcamento: {
     key: 'Orcamento',
@@ -83,24 +68,24 @@ export const TEMPLATES: Record<TemplateKey, TemplateMeta> = {
     },
   },
 
-  AguardaPeca: {
-    key: 'AguardaPeca',
+  AEsperaPeca: {
+    key: 'AEsperaPeca',
     label: 'Aguarda peça',
     hint: 'Encomendámos a peça, aguarda chegada.',
     build: (v) =>
       `Olá ${v.cliente_nome}, a reparação do teu ${v.equipamento} está a aguardar a chegada de ${pecaFallback(v)}. A previsão atual é ${prazoFallback(v)}; avisamos-te assim que chegar.`,
   },
 
-  EmReparacao: {
-    key: 'EmReparacao',
+  EmCurso: {
+    key: 'EmCurso',
     label: 'Em reparação',
     hint: 'Estamos a trabalhar nele agora.',
     build: (v) =>
       `Olá ${v.cliente_nome}, começámos a reparação do teu ${v.equipamento}. Se tudo correr dentro do previsto, voltamos a falar contigo até ${prazoFallback(v)}.`,
   },
 
-  Pronto: {
-    key: 'Pronto',
+  Pronta: {
+    key: 'Pronta',
     label: 'Pronto para levantar',
     hint: 'Cliente pode passar a levantar.',
     build: (v) => {
@@ -117,8 +102,8 @@ export const TEMPLATES: Record<TemplateKey, TemplateMeta> = {
       `Olá ${v.cliente_nome}, obrigado por teres confiado em nós para tratar do teu ${v.equipamento}. Se notares alguma coisa estranha nos próximos dias, responde por aqui.`,
   },
 
-  Cancelado: {
-    key: 'Cancelado',
+  Cancelada: {
+    key: 'Cancelada',
     label: 'Confirmar cancelamento',
     hint: 'Reparação cancelada, combinar levantamento do equipamento.',
     build: (v) =>
@@ -196,53 +181,27 @@ export function templatesFromPreferences(preferences?: TenantPreferencesRoot | n
 }
 
 /**
- * Lista de templates relevantes para o estado actual da reparação.
+ * Lista de templates relevantes para o estado atual da reparação.
  * Ordem: o mais provável primeiro.
  */
-export function templatesForState(estado: RepairStatus, opts: TemplateOptions = {}): TemplateMeta[] {
+export function templatesForState(estado: VendaEstado, opts: TemplateOptions = {}): TemplateMeta[] {
   const t = templatesFromPreferences(opts.preferences);
   const staleThreshold = opts.staleThreshold ?? opts.preferences?.communication.staleDaysThreshold ?? 7;
   const isStale = (opts.staleDays ?? 0) >= staleThreshold;
 
   switch (estado) {
-    case 0: // Recebido
-      return [t.Recebido, t.Diagnostico, t.Orcamento, t.PrazoDerrapou];
-    case 1: // Diagnostico
-      return [t.Diagnostico, t.Orcamento, t.PrazoDerrapou];
-    case 2: // AguardaPeca
-      return [t.AguardaPeca, t.PrazoDerrapou];
-    case 3: // EmReparacao
-      return [t.EmReparacao, t.PrazoDerrapou];
-    case 4: // Pronto
-      return isStale ? [t.LembreteLevantamento, t.Pronto] : [t.Pronto, t.LembreteLevantamento];
-    case 5: // Entregue
+    case VENDA_ESTADO.Orcamento:
+      return [t.Orcamento, t.PrazoDerrapou];
+    case VENDA_ESTADO.EmCurso:
+      return [t.EmCurso, t.PrazoDerrapou];
+    case VENDA_ESTADO.AEsperaPeca:
+      return [t.AEsperaPeca, t.PrazoDerrapou];
+    case VENDA_ESTADO.Pronta:
+      return isStale ? [t.LembreteLevantamento, t.Pronta] : [t.Pronta, t.LembreteLevantamento];
+    case VENDA_ESTADO.Entregue:
       return [t.Entregue, t.PedidoReview];
-    case 6: // Cancelado
-      return [t.Cancelado];
-    case 7: // Orcamento
-      return [t.Orcamento, t.PrazoDerrapou];
-    default:
-      return Object.values(t);
-  }
-}
-
-/**
- * Templates relevantes para o estado de um Trabalho (não-reparação).
- * TrabalhoStatus: 0=Orcamento, 1=Aceite, 2=EmExecucao, 3=Concluido, 4=Cancelado.
- */
-export function templatesForTrabalhoStatus(status: number): TemplateMeta[] {
-  const t = TEMPLATES;
-  switch (status) {
-    case 0: // Orcamento
-      return [t.Orcamento, t.PrazoDerrapou];
-    case 1: // Aceite
-      return [t.EmReparacao, t.PrazoDerrapou];
-    case 2: // EmExecucao
-      return [t.EmReparacao, t.PrazoDerrapou, t.Pronto];
-    case 3: // Concluido
-      return [t.Pronto, t.Entregue, t.LembreteLevantamento, t.PedidoReview];
-    case 4: // Cancelado
-      return [t.Cancelado];
+    case VENDA_ESTADO.Cancelada:
+      return [t.Cancelada];
     default:
       return Object.values(t);
   }

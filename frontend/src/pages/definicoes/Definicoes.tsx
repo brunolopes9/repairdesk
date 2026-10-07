@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { AlertTriangle, CheckCircle2, Clock3, Cloud, Copy, Cpu, DatabaseBackup, HardDrive, Key, Loader2, Plus, RefreshCw, RotateCcw, Settings, ShieldCheck, Star, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, Cloud, Copy, DatabaseBackup, HardDrive, Key, Loader2, Plus, RefreshCw, RotateCcw, Settings, ShieldCheck, Star } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { EmptyState, PageHeader, SkeletonCard, SkeletonRow } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
@@ -10,14 +10,6 @@ import { toast } from '../../lib/toast';
 import { validateNif } from '../../lib/nif/validator';
 import { validateIban } from '../../lib/iban/validator';
 import { backupApi, formatBytes, type BackupFileDto, type BackupHealthStatus, type BackupSnapshotDto } from '../../lib/admin/backup';
-import { equipmentFieldTemplatesApi, toUpsert } from '../../lib/equipmentFields/api';
-import {
-  DEVICE_CATEGORY_LABEL,
-  EQUIPMENT_FIELD_TYPE,
-  EQUIPMENT_FIELD_TYPE_LABEL,
-  type EquipmentFieldTemplate,
-  type UpsertEquipmentFieldTemplate,
-} from '../../lib/equipmentFields/types';
 import {
   REGIME_FISCAL_LABELS,
   type RegimeFiscal,
@@ -32,7 +24,6 @@ const SECTIONS = [
   { id: 'fiscal', label: 'Fiscal' },
   { id: 'pagamentos', label: 'Pagamentos' },
   { id: 'posvenda', label: 'Pós-venda' },
-  { id: 'campos', label: 'Campos personalizados' },
   { id: 'aparencia', label: 'Aparência' },
   { id: 'apikeys', label: 'Chaves de API' },
   { id: 'backups', label: 'Backups' },
@@ -167,7 +158,6 @@ export default function Definicoes() {
         {section === 'fiscal' && <FiscalSection form={form} update={update} />}
         {section === 'pagamentos' && <PagamentosSection form={form} update={update} />}
         {section === 'posvenda' && <PosVendaSection form={form} update={update} />}
-        {section === 'campos' && <CamposPersonalizadosSection />}
         {section === 'aparencia' && <AparenciaSection form={form} update={update} />}
         {section === 'apikeys' && <ApiKeysSection />}
         {section === 'backups' && <BackupsSection />}
@@ -546,203 +536,6 @@ function PosVendaSection({
           />
         </Field>
       </div>
-    </div>
-  );
-}
-
-function CamposPersonalizadosSection() {
-  const qc = useQueryClient();
-  const templates = useQuery({
-    queryKey: ['equipment-field-templates'],
-    queryFn: () => equipmentFieldTemplatesApi.list(true),
-  });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<UpsertEquipmentFieldTemplate | null>(null);
-
-  useEffect(() => {
-    if (!templates.data || templates.data.length === 0 || selectedId) return;
-    const first = templates.data[0];
-    setSelectedId(first.id);
-    setDraft(toUpsert(first));
-  }, [selectedId, templates.data]);
-
-  function pick(template: EquipmentFieldTemplate) {
-    setSelectedId(template.id);
-    setDraft(toUpsert(template));
-  }
-
-  function newTemplate() {
-    setSelectedId(null);
-    setDraft({
-      nome: 'Laptop',
-      categoria: 2,
-      isActive: true,
-      fields: [
-        { label: 'Marca', type: EQUIPMENT_FIELD_TYPE.Text, options: [], required: false, ordem: 0, visibleInPortal: true },
-        { label: 'Modelo', type: EQUIPMENT_FIELD_TYPE.Text, options: [], required: false, ordem: 1, visibleInPortal: true },
-      ],
-    });
-  }
-
-  const save = useMutation({
-    mutationFn: () => {
-      if (!draft) throw new Error('Sem template para guardar.');
-      return selectedId ? equipmentFieldTemplatesApi.update(selectedId, draft) : equipmentFieldTemplatesApi.create(draft);
-    },
-    onSuccess: (saved) => {
-      toast.success('Template guardado');
-      setSelectedId(saved.id);
-      setDraft(toUpsert(saved));
-      qc.invalidateQueries({ queryKey: ['equipment-field-templates'] });
-      qc.invalidateQueries({ queryKey: ['equipment-field-templates-active'] });
-    },
-    onError: (err) => toast.fromError(err, 'Não foi possível guardar o template.'),
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: string) => equipmentFieldTemplatesApi.remove(id),
-    onSuccess: () => {
-      toast.success('Template apagado');
-      setSelectedId(null);
-      setDraft(null);
-      qc.invalidateQueries({ queryKey: ['equipment-field-templates'] });
-      qc.invalidateQueries({ queryKey: ['equipment-field-templates-active'] });
-    },
-    onError: (err) => toast.fromError(err, 'Não foi possível apagar. Se estiver em uso, desactiva-o.'),
-  });
-
-  const updateDraft = (patch: Partial<UpsertEquipmentFieldTemplate>) =>
-    setDraft((d) => d ? { ...d, ...patch } : d);
-
-  const updateField = (index: number, patch: Partial<UpsertEquipmentFieldTemplate['fields'][number]>) =>
-    setDraft((d) => {
-      if (!d) return d;
-      const fields = d.fields.map((f, i) => i === index ? { ...f, ...patch } : f);
-      return { ...d, fields };
-    });
-
-  const addField = () =>
-    setDraft((d) => d ? {
-      ...d,
-      fields: [...d.fields, { label: '', type: EQUIPMENT_FIELD_TYPE.Text, options: [], required: false, ordem: d.fields.length, visibleInPortal: true }],
-    } : d);
-
-  const removeField = (index: number) =>
-    setDraft((d) => d ? { ...d, fields: d.fields.filter((_, i) => i !== index).map((f, i) => ({ ...f, ordem: i })) } : d);
-
-  return (
-    <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
-      <aside className="space-y-2">
-        <button
-          type="button"
-          onClick={newTemplate}
-          className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          <Plus size={14} /> Novo template
-        </button>
-        {templates.isLoading && (
-          <div className="space-y-2">
-            <SkeletonRow columns={1} />
-            <SkeletonRow columns={1} />
-            <SkeletonRow columns={1} />
-          </div>
-        )}
-        <ul className="space-y-1">
-          {templates.data?.map((template) => (
-            <li key={template.id}>
-              <button
-                type="button"
-                onClick={() => pick(template)}
-                className={`min-h-11 w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
-                  selectedId === template.id
-                    ? 'border-brand-300 bg-brand-50 text-brand-900 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-200'
-                    : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800'
-                }`}
-              >
-                <span className="block font-medium">{template.nome}</span>
-                <span className="text-[11px] text-zinc-500">
-                  {DEVICE_CATEGORY_LABEL[template.categoria] ?? 'Outro'} · {template.fields.length} campos
-                  {!template.isActive && ' · inactivo'}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </aside>
-
-      {draft ? (
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-[1fr_180px_120px]">
-            <Field label="Nome do template">
-              <input value={draft.nome} onChange={(e) => updateDraft({ nome: e.target.value })} className={inputCls} />
-            </Field>
-            <Field label="Categoria">
-              <select value={draft.categoria} onChange={(e) => updateDraft({ categoria: Number(e.target.value) })} className={inputCls}>
-                {Object.entries(DEVICE_CATEGORY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </Field>
-            <label className="flex min-h-11 items-center gap-2 text-sm sm:mt-6">
-              <input type="checkbox" checked={draft.isActive} onChange={(e) => updateDraft({ isActive: e.target.checked })} className="scale-125 sm:scale-100" />
-              Activo
-            </label>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="flex items-center gap-2 text-sm font-semibold"><Cpu size={15} /> Campos</h3>
-              <button type="button" onClick={addField} disabled={draft.fields.length >= 20} className="min-h-10 rounded-md border border-zinc-200 px-3 py-2 text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:hover:bg-zinc-800">
-                + Campo
-              </button>
-            </div>
-
-            {draft.fields.map((field, index) => (
-              <div key={field.id ?? index} className="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800 md:grid-cols-[1fr_130px_1fr_auto]">
-                <input value={field.label} onChange={(e) => updateField(index, { label: e.target.value })} placeholder="Label" className={inputCls} />
-                <select value={field.type} onChange={(e) => updateField(index, { type: Number(e.target.value) as typeof field.type })} className={inputCls}>
-                  {Object.entries(EQUIPMENT_FIELD_TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-                <input
-                  value={field.options.join(', ')}
-                  disabled={field.type !== EQUIPMENT_FIELD_TYPE.Select}
-                  onChange={(e) => updateField(index, { options: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })}
-                  placeholder="Opções, separadas por vírgula"
-                  className={inputCls}
-                />
-                <button type="button" onClick={() => removeField(index)} className="grid h-10 w-10 place-items-center rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" title="Remover campo">
-                  <Trash2 size={15} />
-                </button>
-                <div className="flex flex-wrap gap-4 text-xs text-zinc-600 dark:text-zinc-300 md:col-span-4">
-                  <label className="flex min-h-10 items-center gap-2"><input type="checkbox" checked={field.required} onChange={(e) => updateField(index, { required: e.target.checked })} className="scale-125 sm:scale-100" /> Obrigatório</label>
-                  <label className="flex min-h-10 items-center gap-2"><input type="checkbox" checked={field.visibleInPortal} onChange={(e) => updateField(index, { visibleInPortal: e.target.checked })} className="scale-125 sm:scale-100" /> Visível no portal/PDF</label>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-col-reverse justify-between gap-2 sm:flex-row">
-            <button
-              type="button"
-              disabled={!selectedId || remove.isPending}
-              onClick={() => selectedId && remove.mutate(selectedId)}
-              className="min-h-11 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"
-            >
-              Apagar
-            </button>
-            <button
-              type="button"
-              disabled={!draft.nome.trim() || save.isPending}
-              onClick={() => save.mutate()}
-              className="min-h-11 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-            >
-              {save.isPending ? 'A guardar...' : 'Guardar template'}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          Escolhe um template ou cria um novo.
-        </div>
-      )}
     </div>
   );
 }

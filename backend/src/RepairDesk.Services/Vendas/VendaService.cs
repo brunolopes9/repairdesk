@@ -14,7 +14,6 @@ public interface IVendaService
 {
     Task<PagedResult<VendaDto>> SearchAsync(VendaFiltro filtro, int page, int pageSize, CancellationToken ct = default);
     Task<VendaImeiLookupDto?> ImeiLookupAsync(string imei, CancellationToken ct = default);
-    Task<IReadOnlyList<VendaReparacaoRelacionadaDto>> GetReparacoesRelacionadasAsync(Guid vendaId, CancellationToken ct = default);
     Task<VendaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<VendaDto> CreateAsync(VendaWriteRequest req, CancellationToken ct = default);
     Task<VendaDto> UpdateAsync(Guid id, VendaWriteRequest req, CancellationToken ct = default);
@@ -46,9 +45,9 @@ public class VendaService : IVendaService
     private readonly ITenantContext _tenant;
     private readonly IGarantiaRepository _garantias;
     private readonly ITenantRepository _tenants;
-    private readonly IReparacaoRepository _reparacoes;
     private readonly ITenantPreferencesService _preferences;
     private readonly IAuditLogger _audit;
+    private readonly Push.IPushNotificationQueue _push;
 
     public VendaService(
         IVendaRepository vendas,
@@ -57,9 +56,9 @@ public class VendaService : IVendaService
         ITenantContext tenant,
         IGarantiaRepository garantias,
         ITenantRepository tenants,
-        IReparacaoRepository reparacoes,
         ITenantPreferencesService preferences,
-        IAuditLogger audit)
+        IAuditLogger audit,
+        Push.IPushNotificationQueue push)
     {
         _vendas = vendas;
         _compras = compras;
@@ -67,22 +66,22 @@ public class VendaService : IVendaService
         _tenant = tenant;
         _garantias = garantias;
         _tenants = tenants;
-        _reparacoes = reparacoes;
         _preferences = preferences;
         _audit = audit;
+        _push = push;
     }
 
     private static decimal TaxaVendaNormalPct => FiscalDefaults.TaxaIvaNormal * 100m;
 
     public static bool ConsomeStock(VendaEstado estado)
-        => estado is VendaEstado.AEsperaPeca or VendaEstado.Pronta or VendaEstado.Entregue;
+        => estado is VendaEstado.EmCurso or VendaEstado.AEsperaPeca or VendaEstado.Pronta or VendaEstado.Entregue;
 
     public async Task<PagedResult<VendaDto>> SearchAsync(VendaFiltro filtro, int page, int pageSize, CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
         var (items, total) = await _vendas.SearchAsync(filtro, page, pageSize, ct);
-        return new PagedResult<VendaDto>(items.Select(ToDto).ToList(), page, pageSize, total);
+        return new PagedResult<VendaDto>(items.Select(v => ToDto(v)).ToList(), page, pageSize, total);
     }
 
     public async Task<VendaImeiLookupDto?> ImeiLookupAsync(string imei, CancellationToken ct = default)
@@ -94,23 +93,12 @@ public class VendaService : IVendaService
         return new VendaImeiLookupDto(row.VendaId, row.Numero, row.Data, row.Descricao, row.ClienteNome);
     }
 
-    public async Task<IReadOnlyList<VendaReparacaoRelacionadaDto>> GetReparacoesRelacionadasAsync(Guid vendaId, CancellationToken ct = default)
-    {
-        var venda = await _vendas.FindByIdWithItemsAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
-        var imeis = venda.Items.Select(i => i.Imei).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToList();
-        var resultado = new List<VendaReparacaoRelacionadaDto>();
-        foreach (var imei in imeis)
-        {
-            var reparacoes = await _reparacoes.SearchByImeiAsync(imei, excludeId: null, ct);
-            resultado.AddRange(reparacoes.Where(r => r.CreatedAt > venda.Data).Select(r => new VendaReparacaoRelacionadaDto(
-                r.Id, r.Numero, r.CreatedAt, r.Equipamento, r.Imei ?? imei, (int)r.Estado,
-                (int)Math.Round((r.CreatedAt - venda.Data).TotalDays), r.OrcamentoCents)));
-        }
-        return resultado.OrderByDescending(r => r.RecebidoEm).ToList();
-    }
-
     public async Task<VendaDto> GetAsync(Guid id, CancellationToken ct = default)
-        => ToDto(await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id));
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        var garantia = await _garantias.FindByVendaAsync(id, ct);
+        return ToDto(venda, garantia?.Slug);
+    }
 
     public async Task<VendaDto> CreateAsync(VendaWriteRequest req, CancellationToken ct = default)
     {
@@ -124,6 +112,8 @@ public class VendaService : IVendaService
 
         var venda = new Venda { TenantId = tenantId, Estado = estado };
         await ApplyHeaderAsync(venda, req, ct);
+        if (venda.Tipo == VendaTipo.Reparacao) venda.PublicSlug = PublicSlugGenerator.New();
+        venda.Timeline.Add(new VendaEstadoLog { TenantId = tenantId, EstadoTo = estado, MudouEm = DateTime.UtcNow });
         var lotes = await LoadLotesAsync(req.Linhas, [], ct);
         ApplyLinhas(venda, req.Linhas, lotes);
         if (ConsomeStock(estado)) ConsumirStock(venda, lotes);
@@ -131,10 +121,11 @@ public class VendaService : IVendaService
         RecalculateTotals(venda);
 
         await _vendas.CreateWithNextNumeroAsync(venda, tenantId, ct);
-        if (estado == VendaEstado.Entregue) await EmitirGarantiaSeAplicavelAsync(venda, ct);
+        string? garantiaSlug = null;
+        if (estado == VendaEstado.Entregue) garantiaSlug = await EmitirGarantiaSeAplicavelAsync(venda, ct);
         await _audit.LogAsync(AuditAction.Create, nameof(Venda), venda.Id,
             new { venda.Numero, venda.Tipo, venda.Estado, venda.TotalCents }, ct: ct);
-        return ToDto(venda);
+        return ToDto(venda, garantiaSlug);
     }
 
     public async Task<VendaDto> UpdateAsync(Guid id, VendaWriteRequest req, CancellationToken ct = default)
@@ -176,6 +167,7 @@ public class VendaService : IVendaService
         if (!ConsomeStock(de) && ConsomeStock(para)) ConsumirStock(venda, lotes);
 
         venda.Estado = para;
+        _vendas.AddEstadoLog(new VendaEstadoLog { TenantId = venda.TenantId, VendaId = venda.Id, EstadoFrom = de, EstadoTo = para, MudouEm = DateTime.UtcNow });
         if (para == VendaEstado.Entregue)
         {
             MarcarEntregue(venda, req.PaymentMethod, lotes);
@@ -183,9 +175,14 @@ public class VendaService : IVendaService
         }
 
         await _vendas.SaveAsync(ct);
-        if (para == VendaEstado.Entregue) await EmitirGarantiaSeAplicavelAsync(venda, ct);
+        string? garantiaSlug = para == VendaEstado.Entregue
+            ? await EmitirGarantiaSeAplicavelAsync(venda, ct)
+            : (await _garantias.FindByVendaAsync(venda.Id, ct))?.Slug;
         await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new { venda.Numero, de, para }, ct: ct);
-        return ToDto(venda);
+        // Reparações: avisa o cliente (web push do portal) — o worker filtra pelos estados permitidos.
+        if (venda.Tipo == VendaTipo.Reparacao && venda.PublicSlug is not null)
+            await _push.EnqueueStatusChangedAsync(new Push.RepairStatusChangedPushJob(venda.Id), ct);
+        return ToDto(venda, garantiaSlug);
     }
 
     public async Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default)
@@ -224,6 +221,9 @@ public class VendaService : IVendaService
         venda.Equipamento = Clean(req.Equipamento, 200);
         venda.Problema = Clean(req.Problema, 2000);
         venda.Notas = Clean(req.Notas, 2000);
+        venda.PrevistoPara = req.PrevistoPara is { } p ? DateTime.SpecifyKind(p, DateTimeKind.Utc) : null;
+        if (venda.Tipo == VendaTipo.Reparacao && venda.PublicSlug is null && venda.Id != Guid.Empty)
+            venda.PublicSlug = PublicSlugGenerator.New();
     }
 
     private async Task<Dictionary<Guid, CompraLinha>> LoadLotesAsync(
@@ -325,13 +325,38 @@ public class VendaService : IVendaService
             if (lotes.TryGetValue(item.CompraLinhaId!.Value, out var lote)) SnapshotLote(item, lote);
     }
 
-    private async Task EmitirGarantiaSeAplicavelAsync(Venda venda, CancellationToken ct)
+    /// <summary>Garantia automática ao entregar: produto (DL 84/2021) ou reparação (defaults do tenant). Devolve o slug.</summary>
+    private async Task<string?> EmitirGarantiaSeAplicavelAsync(Venda venda, CancellationToken ct)
     {
-        // Garantia legal de bens (DL 84/2021) só nas vendas de produtos.
-        if (venda.Tipo != VendaTipo.Produto) return;
         var prefs = await _preferences.GetAsync(ct);
-        if (prefs.Sales.VendaGarantia == GarantiaAutoMode.Sim)
-            await EmitirGarantiaVendaSeNecessarioAsync(venda, venda.Data, ct);
+        if (venda.Tipo == VendaTipo.Produto && prefs.Sales.VendaGarantia == GarantiaAutoMode.Sim)
+            return await EmitirGarantiaVendaSeNecessarioAsync(venda, venda.Data, ct);
+        if (venda.Tipo == VendaTipo.Reparacao && prefs.Repairs.GarantiaAutomatica == GarantiaAutoMode.Sim)
+            return await EmitirGarantiaReparacaoSeNecessarioAsync(venda, venda.Data, ct);
+        return null;
+    }
+
+    private async Task<string?> EmitirGarantiaReparacaoSeNecessarioAsync(Venda venda, DateTime agora, CancellationToken ct)
+    {
+        var existente = await _garantias.FindByVendaAsync(venda.Id, ct);
+        if (existente is not null) return existente.Slug;
+        var tenant = _tenant.TenantId is { } tid ? await _tenants.FindByIdAsync(tid, ct) : await _tenants.FindByIdAsync(venda.TenantId, ct);
+        var dias = tenant?.GarantiaDiasDefault ?? 90;
+        var g = new Garantia
+        {
+            TenantId = venda.TenantId,
+            VendaId = venda.Id,
+            SourceType = GarantiaSourceType.Reparacao,
+            Slug = PublicSlugGenerator.New(),
+            DataInicio = agora,
+            DataFim = agora.AddDays(dias),
+            DiasGarantia = dias,
+            Cobertura = tenant?.GarantiaCoberturaDefault ?? "Reparação efetuada e peças substituídas.",
+            Exclusoes = tenant?.GarantiaExclusoesDefault ?? "Danos por queda, líquidos, uso indevido ou intervenção de terceiros.",
+        };
+        await _garantias.AddAsync(g, ct);
+        await _garantias.SaveAsync(ct);
+        return g.Slug;
     }
 
     /// <summary>Contas da linha pelo motor de IVA (SPEC §3.3). Serviço = custo 0 e IVA de compra 0.</summary>
@@ -353,10 +378,10 @@ public class VendaService : IVendaService
     /// entre os items (DL 84/2021 — bens móveis consumo). Configurável por tenant.
     /// Idempotente: se já existe, não faz nada.
     /// </summary>
-    private async Task EmitirGarantiaVendaSeNecessarioAsync(Venda venda, DateTime agora, CancellationToken ct)
+    private async Task<string?> EmitirGarantiaVendaSeNecessarioAsync(Venda venda, DateTime agora, CancellationToken ct)
     {
         var existente = await _garantias.FindByVendaAsync(venda.Id, ct);
-        if (existente is not null) return;
+        if (existente is not null) return existente.Slug;
 
         var tenant = _tenant.TenantId is { } tid ? await _tenants.FindByIdAsync(tid, ct) : null;
         var dias = ResolveGarantiaDiasFromItems(venda, tenant);
@@ -368,6 +393,7 @@ public class VendaService : IVendaService
 
         var g = new Garantia
         {
+            TenantId = venda.TenantId,
             VendaId = venda.Id,
             SourceType = GarantiaSourceType.Venda,
             Slug = PublicSlugGenerator.New(),
@@ -380,6 +406,7 @@ public class VendaService : IVendaService
         };
         await _garantias.AddAsync(g, ct);
         await _garantias.SaveAsync(ct);
+        return g.Slug;
     }
 
     /// <summary>
@@ -451,7 +478,7 @@ public class VendaService : IVendaService
         return csv.ToUtf8WithBom();
     }
 
-    private static VendaDto ToDto(Venda venda)
+    private static VendaDto ToDto(Venda venda, string? garantiaSlug = null)
     {
         var cliente = venda.Cliente is null || venda.ClienteId is null
             ? null
@@ -470,7 +497,7 @@ public class VendaService : IVendaService
             items.Sum(i => i.IvaAPagarEstado), items.Sum(i => i.Lucro),
             venda.PaymentMethod, venda.InvoiceNumber, venda.InvoiceEmittedAt,
             venda.Estado == VendaEstado.Entregue && venda.InvoiceNumber is null,
-            venda.Notas, items);
+            venda.Notas, items, venda.PublicSlug, venda.PrevistoPara, garantiaSlug);
     }
 
     private static string? Clean(string? s, int max)

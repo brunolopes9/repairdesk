@@ -10,7 +10,6 @@ namespace RepairDesk.Services.Garantias;
 
 public interface IGarantiaService
 {
-    Task<GarantiaAdminDto?> GetByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
     Task<GarantiaAdminDto?> GetByVendaAsync(Guid vendaId, CancellationToken ct = default);
     Task<GarantiaAdminDto> AnularAsync(Guid id, string motivo, CancellationToken ct = default);
     Task<(byte[] Pdf, string Filename)> RenderPdfAsync(Guid id, string portalBaseUrl, CancellationToken ct = default);
@@ -26,7 +25,6 @@ public sealed record GarantiaAdminDto(
     Guid Id,
     string Slug,
     GarantiaSourceType SourceType,
-    Guid? ReparacaoId,
     Guid? VendaId,
     DateTime DataInicio,
     DateTime DataFim,
@@ -112,11 +110,11 @@ public class GarantiaService : IGarantiaService
         }
         else
         {
-            equipamento = g.Reparacao?.Equipamento ?? "Equipamento reparado";
+            equipamento = g.Venda?.Equipamento ?? "Equipamento reparado";
             origemLabel = "Garantia de reparação";
-            docRef = g.Reparacao is not null ? $"Reparação #{g.Reparacao.Numero:D5}" : "Reparação";
-            clienteNome = g.Reparacao?.Cliente?.Nome;
-            clienteNif = g.Reparacao?.Cliente?.Nif;
+            docRef = g.Venda is not null ? $"Reparação #{g.Venda.Numero:D5}" : "Reparação";
+            clienteNome = g.Venda?.Cliente?.Nome;
+            clienteNif = g.Venda?.Cliente?.Nif;
         }
 
         var portalUrl = $"{portalBaseUrl.TrimEnd('/')}/g/{g.Slug}";
@@ -143,12 +141,6 @@ public class GarantiaService : IGarantiaService
         CondicaoArtigo.Usado => "Usado",
         _ => null, // NaoAplicavel — não mostra (caso default ou Reparação)
     };
-
-    public async Task<GarantiaAdminDto?> GetByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
-    {
-        var g = await _repo.FindByReparacaoAsync(reparacaoId, ct);
-        return g is null ? null : ToDto(g);
-    }
 
     public async Task<GarantiaAdminDto?> GetByVendaAsync(Guid vendaId, CancellationToken ct = default)
     {
@@ -188,7 +180,7 @@ public class GarantiaService : IGarantiaService
         var diasRestantes = (int)Math.Max(0, (g.DataFim - agora).TotalDays);
         var activa = !g.Anulada && agora >= g.DataInicio && agora <= g.DataFim;
         return new GarantiaAdminDto(
-            g.Id, g.Slug, g.SourceType, g.ReparacaoId, g.VendaId,
+            g.Id, g.Slug, g.SourceType, g.VendaId,
             g.DataInicio, g.DataFim, g.DiasGarantia, diasRestantes,
             activa, g.Anulada, g.MotivoAnulacao, g.Cobertura, g.Exclusoes);
     }

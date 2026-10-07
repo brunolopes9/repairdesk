@@ -6,41 +6,36 @@ namespace RepairDesk.Services.Documents;
 
 public interface ILabelPdfService
 {
-    Task<(byte[] Pdf, string Filename)> ForReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
+    Task<(byte[] Pdf, string Filename)> ForVendaAsync(Guid vendaId, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Sprint 347 (Doc 83 Pillar 4): produz PDF de etiqueta 62×29mm para uma reparação.
+/// Sprint 347 / Doc 94: produz PDF de etiqueta 62×29mm para uma reparação (Venda tipo Reparação).
 /// QR aponta para portal cliente (publicSlug) quando existe, senão para número interno.
 /// </summary>
 public class LabelPdfService : ILabelPdfService
 {
-    private readonly IReparacaoRepository _reparacoes;
-    private readonly IClienteRepository _clientes;
+    private readonly IVendaRepository _vendas;
     private readonly ITenantRepository _tenants;
     private readonly ITenantContext _tenantContext;
     private readonly IConfiguration _config;
 
     public LabelPdfService(
-        IReparacaoRepository reparacoes,
-        IClienteRepository clientes,
+        IVendaRepository vendas,
         ITenantRepository tenants,
         ITenantContext tenantContext,
         IConfiguration config)
     {
-        _reparacoes = reparacoes;
-        _clientes = clientes;
+        _vendas = vendas;
         _tenants = tenants;
         _tenantContext = tenantContext;
         _config = config;
     }
 
-    public async Task<(byte[] Pdf, string Filename)> ForReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
+    public async Task<(byte[] Pdf, string Filename)> ForVendaAsync(Guid vendaId, CancellationToken ct = default)
     {
-        var rep = await _reparacoes.FindByIdAsync(reparacaoId, ct)
-            ?? throw new NotFoundException("Reparacao", reparacaoId);
-        var cliente = await _clientes.FindByIdAsync(rep.ClienteId, ct)
-            ?? throw new NotFoundException("Cliente", rep.ClienteId);
+        var rep = await _vendas.FindByIdAsync(vendaId, ct)
+            ?? throw new NotFoundException("Venda", vendaId);
 
         string? tenantNome = null;
         if (_tenantContext.TenantId is { } tenantId)
@@ -53,10 +48,10 @@ public class LabelPdfService : ILabelPdfService
 
         var data = new LabelPdfData(
             Numero: $"#{rep.Numero:D5}",
-            ClienteNome: cliente.Nome,
-            ClienteTelefone: cliente.Telefone,
-            Equipamento: rep.Equipamento,
-            Imei: rep.Imei,
+            ClienteNome: rep.Cliente?.Nome ?? "Consumidor final",
+            ClienteTelefone: rep.Cliente?.Telefone,
+            Equipamento: rep.Equipamento ?? rep.Problema ?? "Equipamento",
+            Imei: null,
             QrPayload: qrPayload,
             TenantNome: tenantNome);
 

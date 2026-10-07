@@ -14,29 +14,22 @@ public class GarantiaRepository : IGarantiaRepository
 
     public Task<Garantia?> FindByIdWithSourceAsync(Guid id, CancellationToken ct = default)
         => _db.Garantias
-            .Include(g => g.Reparacao)
-                .ThenInclude(r => r!.Cliente)
             .Include(g => g.Venda)
                 .ThenInclude(v => v!.Cliente)
             .Include(g => g.Venda)
                 .ThenInclude(v => v!.Items)
             .FirstOrDefaultAsync(g => g.Id == id, ct);
 
-    /// <summary>Lookup público — sem filtro de tenant. Carrega Reparação OU Venda conforme origem.</summary>
+    /// <summary>Lookup público — sem filtro de tenant.</summary>
     public Task<Garantia?> FindBySlugAsync(string slug, CancellationToken ct = default)
         => _db.Garantias
             .IgnoreQueryFilters()
-            .Include(g => g.Reparacao)
-                .ThenInclude(r => r!.Cliente)
             .Include(g => g.Venda)
                 .ThenInclude(v => v!.Cliente)
             .Include(g => g.Venda)
                 .ThenInclude(v => v!.Items)
             .Where(g => !g.IsDeleted)
             .FirstOrDefaultAsync(g => g.Slug == slug, ct);
-
-    public Task<Garantia?> FindByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
-        => _db.Garantias.FirstOrDefaultAsync(g => g.ReparacaoId == reparacaoId, ct);
 
     public Task<Garantia?> FindByVendaAsync(Guid vendaId, CancellationToken ct = default)
         => _db.Garantias.FirstOrDefaultAsync(g => g.VendaId == vendaId, ct);
@@ -53,10 +46,8 @@ public class GarantiaRepository : IGarantiaRepository
         var expiraramHoje = await todas.CountAsync(g => g.DataFim >= agora.Date && g.DataFim < hojeFim, ct);
         var anuladas = await _db.Garantias.AsNoTracking().CountAsync(g => g.Anulada, ct);
 
-        // Top próximas a expirar — inclui dados de origem (Reparacao ou Venda) e cliente
+        // Top próximas a expirar — inclui a venda de origem e o cliente
         var proximas = await _db.Garantias.AsNoTracking()
-            .Include(g => g.Reparacao)
-                .ThenInclude(r => r!.Cliente)
             .Include(g => g.Venda)
                 .ThenInclude(v => v!.Cliente)
             .Include(g => g.Venda)
@@ -69,23 +60,15 @@ public class GarantiaRepository : IGarantiaRepository
         var rows = proximas.Select(g =>
         {
             var dias = (int)Math.Max(0, (g.DataFim - agora).TotalDays);
-            if (g.VendaId is not null && g.Venda is not null)
-            {
-                var primeiro = g.Venda.Items.FirstOrDefault()?.Descricao;
-                return new GarantiaProximaExpirarRow(
-                    g.Id, g.Slug, g.DataFim, dias,
-                    "Venda", $"Venda #{g.Venda.Numero:D5}",
-                    primeiro ?? "Artigos vendidos",
-                    g.Venda.Cliente?.Nome,
-                    g.Venda.Cliente?.Telefone);
-            }
+            var v = g.Venda;
+            var reparacao = v?.Tipo == Core.Enums.VendaTipo.Reparacao;
             return new GarantiaProximaExpirarRow(
                 g.Id, g.Slug, g.DataFim, dias,
-                "Reparacao",
-                g.Reparacao is not null ? $"Reparação #{g.Reparacao.Numero:D5}" : null,
-                g.Reparacao?.Equipamento,
-                g.Reparacao?.Cliente?.Nome,
-                g.Reparacao?.Cliente?.Telefone);
+                reparacao ? "Reparacao" : "Venda",
+                v is null ? null : $"{(reparacao ? "Reparação" : "Venda")} #{v.Numero:D5}",
+                reparacao ? v!.Equipamento : v?.Items.FirstOrDefault()?.Descricao ?? "Artigos vendidos",
+                v?.Cliente?.Nome,
+                v?.Cliente?.Telefone);
         }).ToList();
 
         return new GarantiasResumoRow(activas, expiramEmJanela, expiraramHoje, anuladas, rows);
@@ -104,14 +87,14 @@ public class AvaliacaoRepository : IAvaliacaoRepository
     private readonly AppDbContext _db;
     public AvaliacaoRepository(AppDbContext db) => _db = db;
 
-    public Task<Avaliacao?> FindByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
-        => _db.Avaliacoes.FirstOrDefaultAsync(a => a.ReparacaoId == reparacaoId, ct);
+    public Task<Avaliacao?> FindByVendaAsync(Guid vendaId, CancellationToken ct = default)
+        => _db.Avaliacoes.FirstOrDefaultAsync(a => a.VendaId == vendaId, ct);
 
     public async Task<IReadOnlyList<Avaliacao>> ListRecentesAsync(int take, CancellationToken ct = default)
         => await _db.Avaliacoes
             .AsNoTracking()
-            .Include(a => a.Reparacao)
-            .ThenInclude(r => r!.Cliente)
+            .Include(a => a.Venda)
+            .ThenInclude(v => v!.Cliente)
             .OrderByDescending(a => a.CreatedAt)
             .Take(take)
             .ToListAsync(ct);

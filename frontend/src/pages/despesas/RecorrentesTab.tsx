@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, Plus, Repeat } from 'lucide-react';
 import { Button, EmptyState, SkeletonCard } from '../../components/ui';
-import { DespesaFormModal } from '../../components/DespesasImputadas';
+import { DespesaFormModal } from '../../components/DespesaFormModal';
 import { despesasApi } from '../../lib/despesas/api';
 import { DESPESA_LABEL, type Despesa } from '../../lib/despesas/types';
 import { formatCents, formatDateOnly } from '../../lib/money';

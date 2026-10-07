@@ -23,6 +23,16 @@ export const vendasApi = {
   reciboUrl(id: string) {
     return `${api.defaults.baseURL ?? ''}/vendas/${id}/recibo.pdf`;
   },
+  listAssinaturas(id: string) {
+    return api.get<AssinaturaVenda[]>(`/vendas/${id}/assinaturas`).then((r) => r.data);
+  },
+  saveAssinatura(id: string, tipo: 'entrada' | 'entrega', dataUrl: string) {
+    return api.post<AssinaturaVenda>(`/vendas/${id}/assinaturas`, { tipo, dataUrl }).then((r) => r.data);
+  },
+  /** PDFs da venda (path relativo ao baseURL, para openPdfInNewTab). */
+  pdfPath(id: string, doc: 'orcamento' | 'entrada' | 'entrega' | 'label') {
+    return `/vendas/${id}/${doc}.pdf`;
+  },
   imeiLookup(imei: string) {
     return api
       .get<VendaImeiLookup>(`/vendas/imei-lookup/${encodeURIComponent(imei)}`)
@@ -40,4 +50,9 @@ export interface VendaImeiLookup {
   data: string;
   descricao: string;
   clienteNome: string | null;
+}
+
+export interface AssinaturaVenda {
+  tipo: 'entrada' | 'entrega';
+  assinadaEm: string;
 }

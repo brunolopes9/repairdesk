@@ -27,7 +27,7 @@ public class PhotoExportLinkService : IPhotoExportLinkService
     {
         var expires = expiresAt.ToUnixTimeSeconds();
         var sig = Sign(fotoId, expires);
-        return $"/api/reparacoes/fotos/{fotoId}/export-content?expires={expires}&sig={Uri.EscapeDataString(sig)}";
+        return $"/api/vendas/fotos/{fotoId}/export-content?expires={expires}&sig={Uri.EscapeDataString(sig)}";
     }
 
     public void Validate(Guid fotoId, long expires, string signature)

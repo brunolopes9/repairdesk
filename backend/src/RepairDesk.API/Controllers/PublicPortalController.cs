@@ -41,7 +41,7 @@ public class PublicPortalController : ControllerBase
 
     /// <summary>
     /// Sprint 480: cliente envia mensagem ao staff a partir do portal público. Cria uma
-    /// <c>ReparacaoComunicacao</c> Inbound (tipo PortalCliente) e enfileira um push para o staff.
+    /// <c>VendaComunicacao</c> Inbound (tipo PortalCliente) e enfileira um push para o staff.
     /// Rate-limit `public-portal` (60/min) já cobre flood.
     /// </summary>
     [HttpPost("{slug}/mensagem")]

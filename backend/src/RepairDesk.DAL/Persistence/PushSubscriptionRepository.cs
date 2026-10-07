@@ -11,22 +11,21 @@ public class PushSubscriptionRepository : IPushSubscriptionRepository
 
     public PushSubscriptionRepository(AppDbContext db) => _db = db;
 
-    public Task<PushSubscription?> FindByEndpointAsync(Guid reparacaoId, string endpoint, CancellationToken ct = default)
-        => _db.PushSubscriptions.FirstOrDefaultAsync(x => x.ReparacaoId == reparacaoId && x.Endpoint == endpoint, ct);
+    public Task<PushSubscription?> FindByEndpointAsync(Guid vendaId, string endpoint, CancellationToken ct = default)
+        => _db.PushSubscriptions.FirstOrDefaultAsync(x => x.VendaId == vendaId && x.Endpoint == endpoint, ct);
 
-    public async Task<IReadOnlyList<PushSubscription>> ListByReparacaoIdAsync(Guid reparacaoId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<PushSubscription>> ListByVendaIdAsync(Guid vendaId, CancellationToken ct = default)
         => await _db.PushSubscriptions
-            .Where(x => x.ReparacaoId == reparacaoId)
+            .Where(x => x.VendaId == vendaId)
             .OrderBy(x => x.CreatedAt)
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<PushSubscription>> ListDeliveredOlderThanAsync(DateTime deliveredBefore, CancellationToken ct = default)
         => await _db.PushSubscriptions
-            .Include(x => x.Reparacao)
-            .Where(x => x.Reparacao != null
-                && x.Reparacao.Estado == RepairStatus.Entregue
-                && x.Reparacao.EntregueEm != null
-                && x.Reparacao.EntregueEm < deliveredBefore)
+            .Include(x => x.Venda)
+            .Where(x => x.Venda != null
+                && x.Venda.Estado == VendaEstado.Entregue
+                && x.Venda.Data < deliveredBefore)
             .ToListAsync(ct);
 
     public async Task AddAsync(PushSubscription subscription, CancellationToken ct = default)

@@ -6,7 +6,7 @@
  * antes de enviar (Outlook/Gmail/etc), igual ao fluxo WhatsApp.
  */
 
-import type { RepairStatus } from '../reparacoes/types';
+import { VENDA_ESTADO, type VendaEstado } from '../vendas/types';
 
 export interface EmailVars {
   cliente_nome: string;
@@ -152,17 +152,15 @@ export const EMAIL_TEMPLATES: Record<EmailTemplateKey, EmailTemplateMeta> = {
   },
 };
 
-export function emailTemplatesForState(estado: RepairStatus, opts: { staleDays?: number } = {}): EmailTemplateMeta[] {
+export function emailTemplatesForState(estado: VendaEstado, opts: { staleDays?: number } = {}): EmailTemplateMeta[] {
   const t = EMAIL_TEMPLATES;
   const isStale = (opts.staleDays ?? 0) >= 7;
   switch (estado) {
-    case 0: return [t.Recebido, t.Diagnostico, t.Orcamento];
-    case 1: return [t.Diagnostico, t.Orcamento];
-    case 2: return [t.AguardaPeca];
-    case 3: return [t.EmReparacao];
-    case 4: return isStale ? [t.LembreteLevantamento, t.Pronto] : [t.Pronto, t.LembreteLevantamento];
-    case 6: return [t.Cancelado];
-    case 7: return [t.Orcamento];
+    case VENDA_ESTADO.Orcamento: return [t.Recebido, t.Orcamento];
+    case VENDA_ESTADO.EmCurso: return [t.EmReparacao];
+    case VENDA_ESTADO.AEsperaPeca: return [t.AguardaPeca];
+    case VENDA_ESTADO.Pronta: return isStale ? [t.LembreteLevantamento, t.Pronto] : [t.Pronto, t.LembreteLevantamento];
+    case VENDA_ESTADO.Cancelada: return [t.Cancelado];
     default: return Object.values(t);
   }
 }

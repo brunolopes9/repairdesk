@@ -1,0 +1,878 @@
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, CalendarClock, CheckCircle2, Flag, Inbox, Mail, MessageCircle, Phone, Plus, Save, Search, StickyNote, Wrench, X } from 'lucide-react';
+import {
+  repairRequestsApi,
+  REPAIR_REQUEST_ESTADO,
+  REPAIR_REQUEST_PRIORIDADE,
+  REPAIR_REQUEST_ORIGEM,
+  REPAIR_REQUEST_ORIGEM_LABEL,
+  type RepairRequestDto,
+  type RepairRequestEstado,
+  type RepairRequestPrioridade,
+  type RepairRequestOrigem,
+} from '../../lib/repairRequests/api';
+import { toast } from '../../lib/toast';
+import Modal from '../../components/Modal';
+import { formatDate } from '../../lib/money';
+import { liveListOptions } from '../../lib/queryOptions';
+import { displayPhone } from '../../lib/phone/formatter';
+
+/**
+ * Sprint 354 (Doc 83 Pillar 9): backoffice dos pedidos de reparação submetidos
+ * via widget público. Converter cria a reparação (lookup-or-create cliente).
+ */
+export default function PedidosOnline() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [filtro, setFiltro] = useState<RepairRequestEstado>(REPAIR_REQUEST_ESTADO.Pendente);
+  // Sprint 438: filtro adicional por canal de entrada. "all" mostra todos.
+  const [origemFiltro, setOrigemFiltro] = useState<RepairRequestOrigem | 'all'>('all');
+  const [slaFilter, setSlaFilter] = useState<'all' | 'overdue' | 'followup'>('all');
+  const [search, setSearch] = useState('');
+
+  const list = useQuery({
+    queryKey: ['repair-requests', filtro],
+    queryFn: () => repairRequestsApi.list(filtro),
+    ...liveListOptions,
+  });
+
+  const allRequests = useQuery({
+    queryKey: ['repair-requests', 'all'],
+    queryFn: () => repairRequestsApi.list(),
+    ...liveListOptions,
+  });
+
+  const converterMut = useMutation({
+    mutationFn: (id: string) => repairRequestsApi.converter(id),
+    onSuccess: (req) => {
+      toast.success('Pedido convertido em reparação.');
+      qc.invalidateQueries({ queryKey: ['repair-requests'] });
+      qc.invalidateQueries({ queryKey: ['repair-requests-count'] });
+      if (req.vendaId) navigate(`/vendas/${req.vendaId}`);
+    },
+    onError: (err) => toast.fromError(err, 'Erro a converter pedido.'),
+  });
+
+  const rejeitarMut = useMutation({
+    mutationFn: ({ id, motivo }: { id: string; motivo?: string }) =>
+      repairRequestsApi.rejeitar(id, motivo),
+    onSuccess: () => {
+      toast.success('Pedido rejeitado.');
+      qc.invalidateQueries({ queryKey: ['repair-requests'] });
+      qc.invalidateQueries({ queryKey: ['repair-requests-count'] });
+    },
+    onError: (err) => toast.fromError(err, 'Erro a rejeitar pedido.'),
+  });
+
+  const triagemMut = useMutation({
+    mutationFn: (vars: { id: string; notasInternas: string | null; prioridade: RepairRequestPrioridade; followUpAt: string | null }) =>
+      repairRequestsApi.updateTriagem(vars.id, { notasInternas: vars.notasInternas, prioridade: vars.prioridade, followUpAt: vars.followUpAt }),
+    onSuccess: () => {
+      toast.success('Triagem guardada.');
+      qc.invalidateQueries({ queryKey: ['repair-requests'] });
+    },
+    onError: (err) => toast.fromError(err, 'Erro a guardar triagem.'),
+  });
+
+  // Sprint 439: criar pedido manual para leads offline.
+  const [showNovo, setShowNovo] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<RepairRequestDto | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const novoMut = useMutation({
+    mutationFn: repairRequestsApi.createManual,
+    onSuccess: () => {
+      toast.success('Pedido registado.');
+      setShowNovo(false);
+      qc.invalidateQueries({ queryKey: ['repair-requests'] });
+      qc.invalidateQueries({ queryKey: ['repair-requests-count'] });
+    },
+    onError: (err) => toast.fromError(err, 'Erro a registar pedido.'),
+  });
+
+  function askRejeitar(request: RepairRequestDto) {
+    setRejectTarget(request);
+    setRejectReason('');
+  }
+
+  function closeRejectModal() {
+    setRejectTarget(null);
+    setRejectReason('');
+  }
+
+  function submitReject() {
+    if (!rejectTarget) return;
+    rejeitarMut.mutate(
+      { id: rejectTarget.id, motivo: rejectReason.trim() || undefined },
+      { onSuccess: closeRejectModal },
+    );
+  }
+
+  const tabs: { label: string; value: RepairRequestEstado }[] = [
+    { label: 'Pendentes', value: REPAIR_REQUEST_ESTADO.Pendente },
+    { label: 'Convertidos', value: REPAIR_REQUEST_ESTADO.Convertido },
+    { label: 'Rejeitados', value: REPAIR_REQUEST_ESTADO.Rejeitado },
+  ];
+  const counts = {
+    pendentes: (allRequests.data ?? []).filter((r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente).length,
+    convertidos: (allRequests.data ?? []).filter((r) => r.estado === REPAIR_REQUEST_ESTADO.Convertido).length,
+    rejeitados: (allRequests.data ?? []).filter((r) => r.estado === REPAIR_REQUEST_ESTADO.Rejeitado).length,
+    atrasados: (allRequests.data ?? []).filter(
+      (r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente && isOverdueRequest(r),
+    ).length,
+    followUps: (allRequests.data ?? []).filter(
+      (r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente && isFollowUpDue(r),
+    ).length,
+    urgentes: (allRequests.data ?? []).filter(
+      (r) => r.estado === REPAIR_REQUEST_ESTADO.Pendente && r.prioridade === REPAIR_REQUEST_PRIORIDADE.Urgente,
+    ).length,
+  };
+
+  // Sprint 442: breakdown por canal nos últimos 30d — derivado de dados já carregados.
+  // Mostra ao Bruno qual canal traz mais leads e onde investir esforço de marketing.
+  const origemBreakdown = useMemo(() => {
+    const cutoff = Date.now() - 30 * 86_400_000;
+    const recents = (allRequests.data ?? []).filter((r) => new Date(r.createdAt).getTime() >= cutoff);
+    const map = new Map<RepairRequestOrigem, number>();
+    for (const r of recents) map.set(r.origem, (map.get(r.origem) ?? 0) + 1);
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([origem, count]) => ({ origem, count }));
+  }, [allRequests.data]);
+
+  // Pendentes ordenam por prioridade desc, depois mais antigos primeiro (SLA implícito).
+  // Outras tabs mantém ordem natural (server already sorted by date).
+  let rows = (list.data ?? []).slice();
+  if (origemFiltro !== 'all') {
+    rows = rows.filter((r) => r.origem === origemFiltro);
+  }
+  if (search.trim()) {
+    rows = rows.filter((r) => matchesRequestSearch(r, search));
+  }
+  if (filtro === REPAIR_REQUEST_ESTADO.Pendente && slaFilter === 'overdue') {
+    rows = rows.filter(isOverdueRequest);
+  }
+  if (filtro === REPAIR_REQUEST_ESTADO.Pendente && slaFilter === 'followup') {
+    rows = rows.filter(isFollowUpDue);
+  }
+  if (filtro === REPAIR_REQUEST_ESTADO.Pendente) {
+    rows.sort((a, b) => {
+      if (a.prioridade !== b.prioridade) return b.prioridade - a.prioridade;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Pedidos online</h1>
+          <p className="text-sm text-zinc-500">Inbox unificada: widget público, telefone, email, balcão.</p>
+        </div>
+        <button
+          type="button" onClick={() => setShowNovo(true)}
+          className="inline-flex items-center gap-1.5 self-start rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+        >
+          <Plus size={14} /> Novo pedido
+        </button>
+      </header>
+
+      {showNovo && (
+        <NovoPedidoModal
+          isSaving={novoMut.isPending}
+          onClose={() => setShowNovo(false)}
+          onSave={(payload) => novoMut.mutate(payload)}
+        />
+      )}
+
+      <Modal
+        open={!!rejectTarget}
+        title="Rejeitar pedido"
+        onClose={closeRejectModal}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeRejectModal}
+              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={submitReject}
+              disabled={rejeitarMut.isPending}
+              className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+            >
+              {rejeitarMut.isPending ? 'A rejeitar...' : 'Rejeitar pedido'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Este pedido fica arquivado como rejeitado e nao cria reparacao nem orcamento.
+          </p>
+          {rejectTarget && (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950/50">
+              <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                {rejectTarget.nome} · {rejectTarget.equipamento}
+              </div>
+              <div className="mt-0.5 line-clamp-2 text-xs text-zinc-500">{rejectTarget.descricao}</div>
+            </div>
+          )}
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Motivo interno (opcional)
+            </span>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={4}
+              maxLength={500}
+              placeholder="Ex.: duplicado, cliente ja resolveu, spam, sem contacto valido..."
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          </label>
+        </div>
+      </Modal>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <SummaryCard
+          icon={Inbox}
+          label="Por tratar"
+          value={counts.pendentes}
+          tone="amber"
+          helper="Contactar, qualificar e converter."
+        />
+        <SummaryCard
+          icon={CheckCircle2}
+          label="Convertidos"
+          value={counts.convertidos}
+          tone="emerald"
+          helper="Ja viraram reparacao."
+        />
+        <SummaryCard
+          icon={AlertTriangle}
+          label="Atrasados"
+          value={counts.atrasados}
+          tone="rose"
+          helper="Pendentes ha mais de 48h."
+        />
+        <SummaryCard
+          icon={CalendarClock}
+          label="Follow-up"
+          value={counts.followUps}
+          tone="sky"
+          helper="Voltar a contactar agora."
+        />
+        <SummaryCard
+          icon={X}
+          label="Rejeitados"
+          value={counts.rejeitados}
+          tone="zinc"
+          helper="Ruido, spam ou sem seguimento."
+        />
+      </div>
+
+      {origemBreakdown.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-900">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Por canal · 30d</span>
+          {origemBreakdown.map(({ origem, count }) => (
+            <span
+              key={origem}
+              className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 dark:border-zinc-700 dark:bg-zinc-800/60"
+            >
+              <span className="font-medium text-zinc-700 dark:text-zinc-200">{REPAIR_REQUEST_ORIGEM_LABEL[origem]}</span>
+              <span className="tabular-nums text-zinc-500">{count}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="relative">
+        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Pesquisar lead por nome, telefone, email, equipamento ou avaria..."
+          className="h-11 w-full rounded-xl border border-zinc-300 bg-white pl-9 pr-10 text-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:ring-brand-950"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            title="Limpar pesquisa"
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex gap-1">
+          {tabs.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => {
+                setFiltro(t.value);
+                if (t.value !== REPAIR_REQUEST_ESTADO.Pendente) setSlaFilter('all');
+              }}
+              className={`px-3 py-1.5 text-sm ${filtro === t.value ? 'border-b-2 border-brand-600 font-medium text-brand-700 dark:text-brand-400' : 'text-zinc-500'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {filtro === REPAIR_REQUEST_ESTADO.Pendente && (
+          <button
+            type="button"
+            onClick={() => setSlaFilter((value) => (value === 'overdue' ? 'all' : 'overdue'))}
+            className={`mb-1 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition ${
+              slaFilter === 'overdue'
+                ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300'
+                : 'border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <AlertTriangle size={12} />
+            Atrasados 48h ({counts.atrasados})
+          </button>
+        )}
+        {filtro === REPAIR_REQUEST_ESTADO.Pendente && (
+          <button
+            type="button"
+            onClick={() => setSlaFilter((value) => (value === 'followup' ? 'all' : 'followup'))}
+            className={`mb-1 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition ${
+              slaFilter === 'followup'
+                ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300'
+                : 'border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <CalendarClock size={12} />
+            Follow-up ({counts.followUps})
+          </button>
+        )}
+        <label className="flex items-center gap-1.5 pb-1 text-[11px] text-zinc-500">
+          Canal
+          <select
+            value={origemFiltro}
+            onChange={(e) => setOrigemFiltro(e.target.value === 'all' ? 'all' : (Number(e.target.value) as RepairRequestOrigem))}
+            className="rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <option value="all">Todos</option>
+            <option value={REPAIR_REQUEST_ORIGEM.Widget}>Widget</option>
+            <option value={REPAIR_REQUEST_ORIGEM.Telefone}>Telefone</option>
+            <option value={REPAIR_REQUEST_ORIGEM.Email}>Email</option>
+            <option value={REPAIR_REQUEST_ORIGEM.WhatsApp}>WhatsApp</option>
+            <option value={REPAIR_REQUEST_ORIGEM.BalcaoFisico}>Balcão</option>
+            <option value={REPAIR_REQUEST_ORIGEM.Outro}>Outro</option>
+          </select>
+        </label>
+      </div>
+
+      {filtro === REPAIR_REQUEST_ESTADO.Pendente && counts.urgentes > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
+          <AlertTriangle size={14} className="flex-none" />
+          <span>
+            {counts.urgentes === 1
+              ? '1 pedido marcado como Urgente — trata primeiro.'
+              : `${counts.urgentes} pedidos marcados como Urgentes — trata primeiro.`}
+          </span>
+        </div>
+      )}
+
+      <div className="grid gap-2">
+        {list.isLoading && <p className="text-sm text-zinc-500">A carregar…</p>}
+        {rows.length === 0 && !list.isLoading && (
+          <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+            {slaFilter === 'overdue'
+              ? 'Sem pedidos atrasados neste momento.'
+              : slaFilter === 'followup'
+                ? 'Sem follow-ups vencidos neste momento.'
+                : search.trim()
+                  ? 'Sem pedidos para essa pesquisa.'
+                : 'Sem pedidos nesta categoria.'}
+          </div>
+        )}
+        {rows.map((r) => (
+          <PedidoCard
+            key={r.id}
+            request={r}
+            isConverting={converterMut.isPending}
+            isSavingTriagem={triagemMut.isPending}
+            onConverterReparacao={() => converterMut.mutate(r.id)}
+            onRejeitar={() => askRejeitar(r)}
+            onSaveTriagem={(notas, prioridade, followUpAt) =>
+              triagemMut.mutate({ id: r.id, notasInternas: notas, prioridade, followUpAt })
+            }
+            onAbrirTrabalho={(vendaId) => navigate(`/vendas/${vendaId}`)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sprint 436: card individual com triagem inline (prioridade + notas).
+ * Componente próprio para isolar local state do form, evitar re-render do mundo
+ * sempre que se escreve uma nota.
+ */
+function PedidoCard({
+  request,
+  isConverting,
+  isSavingTriagem,
+  onConverterReparacao,
+  onRejeitar,
+  onSaveTriagem,
+  onAbrirTrabalho,
+}: {
+  request: RepairRequestDto;
+  isConverting: boolean;
+  isSavingTriagem: boolean;
+  onConverterReparacao: () => void;
+  onRejeitar: () => void;
+  onSaveTriagem: (notas: string | null, prioridade: RepairRequestPrioridade, followUpAt: string | null) => void;
+  onAbrirTrabalho: (trabId: string) => void;
+}) {
+  const [notas, setNotas] = useState(request.notasInternas ?? '');
+  const [prioridade, setPrioridade] = useState<RepairRequestPrioridade>(request.prioridade);
+  const [followUpLocal, setFollowUpLocal] = useState(toDateTimeLocalValue(request.followUpAt));
+  const isPendente = request.estado === REPAIR_REQUEST_ESTADO.Pendente;
+  const dirty =
+    (notas.trim() || null) !== (request.notasInternas ?? null) ||
+    prioridade !== request.prioridade ||
+    followUpLocal !== toDateTimeLocalValue(request.followUpAt);
+
+  const borderTone = prioridadeBorder(request.prioridade);
+
+  return (
+    <div className={`rounded-lg border bg-white p-3 dark:bg-zinc-900 ${borderTone}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="font-medium">
+              {request.nome} · <span className="font-normal text-zinc-600 dark:text-zinc-400">{request.equipamento}</span>
+            </div>
+            {isPendente && <PrioridadeBadge prioridade={request.prioridade} />}
+          </div>
+          <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-zinc-500">
+            {request.telefone && <span className="inline-flex items-center gap-1"><Phone size={10} /> {displayPhone(request.telefone)}</span>}
+            {request.email && <span className="inline-flex items-center gap-1"><Mail size={10} /> {request.email}</span>}
+            <span>{formatDate(request.createdAt)}</span>
+            <span className="text-zinc-400">via {REPAIR_REQUEST_ORIGEM_LABEL[request.origem]}</span>
+            {request.followUpAt && (
+              <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 ${
+                isFollowUpDue(request)
+                  ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300'
+                  : 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800'
+              }`}>
+                <CalendarClock size={10} /> Follow-up {formatDate(request.followUpAt)}
+              </span>
+            )}
+          </div>
+          <p className="mt-1.5 whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300">{request.descricao}</p>
+          {request.motivoRejeicao && <p className="mt-1 text-xs italic text-rose-600">Rejeitado: {request.motivoRejeicao}</p>}
+          {!isPendente && request.notasInternas && (
+            <p className="mt-1 inline-flex items-start gap-1 text-xs text-zinc-500">
+              <StickyNote size={11} className="mt-0.5 flex-none" />
+              <span className="whitespace-pre-line">{request.notasInternas}</span>
+            </p>
+          )}
+          <LeadContactActions request={request} />
+        </div>
+        {isPendente && (
+          <div className="flex shrink-0 flex-col gap-1">
+            <button
+              type="button" disabled={isConverting}
+              onClick={onConverterReparacao}
+              title="Cria a reparação em Orçamento (cliente, equipamento e avaria preenchidos)"
+              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <Wrench size={12} /> Reparação
+            </button>
+            <button
+              type="button" onClick={onRejeitar}
+              className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            >
+              <X size={12} /> Rejeitar
+            </button>
+          </div>
+        )}
+        {!isPendente && request.vendaId && (
+          <button
+            type="button" onClick={() => onAbrirTrabalho(request.vendaId!)}
+            className="shrink-0 text-xs text-brand-600 hover:underline"
+          >
+            Ver reparação →
+          </button>
+        )}
+      </div>
+
+      {isPendente && (
+        <div className="mt-3 grid gap-2 border-t border-zinc-100 pt-2 dark:border-zinc-800 sm:grid-cols-[160px_220px_1fr_auto]">
+          <label className="flex items-center gap-1.5 text-xs">
+            <Flag size={12} className="text-zinc-400" />
+            <select
+              value={prioridade}
+              onChange={(e) => setPrioridade(Number(e.target.value) as RepairRequestPrioridade)}
+              className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <option value={REPAIR_REQUEST_PRIORIDADE.Baixa}>Baixa</option>
+              <option value={REPAIR_REQUEST_PRIORIDADE.Normal}>Normal</option>
+              <option value={REPAIR_REQUEST_PRIORIDADE.Alta}>Alta</option>
+              <option value={REPAIR_REQUEST_PRIORIDADE.Urgente}>Urgente</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-xs">
+            <CalendarClock size={12} className="text-zinc-400" />
+            <input
+              type="datetime-local"
+              value={followUpLocal}
+              onChange={(e) => setFollowUpLocal(e.target.value)}
+              className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              title="Quando voltar a contactar este lead"
+            />
+          </label>
+          <textarea
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            placeholder="Notas internas (cliente já ligou, espera confirmação, etc.) — não visíveis ao cliente"
+            rows={2}
+            maxLength={2000}
+            className="w-full rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          <button
+            type="button"
+            disabled={!dirty || isSavingTriagem}
+            onClick={() => onSaveTriagem(notas.trim() ? notas.trim() : null, prioridade, fromDateTimeLocalValue(followUpLocal))}
+            className="inline-flex items-center justify-center gap-1 self-start rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-40 dark:border-brand-900/60 dark:bg-brand-950/30 dark:text-brand-300"
+          >
+            <Save size={12} /> Guardar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PrioridadeBadge({ prioridade }: { prioridade: RepairRequestPrioridade }) {
+  if (prioridade === REPAIR_REQUEST_PRIORIDADE.Normal) return null;
+  const map: Record<number, { label: string; cls: string }> = {
+    [REPAIR_REQUEST_PRIORIDADE.Baixa]: { label: 'Baixa', cls: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+    [REPAIR_REQUEST_PRIORIDADE.Alta]: { label: 'Alta', cls: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300' },
+    [REPAIR_REQUEST_PRIORIDADE.Urgente]: { label: 'Urgente', cls: 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300' },
+  };
+  const tone = map[prioridade];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${tone.cls}`}>
+      <Flag size={9} /> {tone.label}
+    </span>
+  );
+}
+
+/**
+ * Sprint 439: modal simples para staff registar lead que entrou por canal
+ * offline (telefone, balcão). Mantém o mesmo modelo de RepairRequest — depois
+ * o pedido aparece na inbox e segue o mesmo fluxo de triagem/conversão.
+ */
+function NovoPedidoModal({
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  onClose: () => void;
+  onSave: (payload: {
+    nome: string;
+    telefone: string | null;
+    email: string | null;
+    equipamento: string;
+    descricao: string;
+    origem: RepairRequestOrigem;
+    prioridade?: RepairRequestPrioridade;
+    notasInternas?: string | null;
+    followUpAt?: string | null;
+  }) => void;
+  isSaving: boolean;
+}) {
+  const [nome, setNome] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [email, setEmail] = useState('');
+  const [equipamento, setEquipamento] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [origem, setOrigem] = useState<RepairRequestOrigem>(REPAIR_REQUEST_ORIGEM.Telefone);
+  const [prioridade, setPrioridade] = useState<RepairRequestPrioridade>(REPAIR_REQUEST_PRIORIDADE.Normal);
+  const [followUpLocal, setFollowUpLocal] = useState('');
+  const [notas, setNotas] = useState('');
+
+  const valid =
+    nome.trim().length >= 2 &&
+    equipamento.trim().length >= 2 &&
+    descricao.trim().length >= 5 &&
+    (telefone.trim().length > 0 || email.trim().length > 0);
+
+  function handleSave() {
+    if (!valid) return;
+    onSave({
+      nome: nome.trim(),
+      telefone: telefone.trim() || null,
+      email: email.trim() || null,
+      equipamento: equipamento.trim(),
+      descricao: descricao.trim(),
+      origem,
+      prioridade,
+      notasInternas: notas.trim() ? notas.trim() : null,
+      followUpAt: fromDateTimeLocalValue(followUpLocal),
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-800 dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Novo pedido (offline)</h2>
+            <p className="text-xs text-zinc-500">Lead recebido por telefone, balcão ou outro canal.</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="grid gap-2.5">
+          <Field label="Nome">
+            <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} className={inputCls} placeholder="Ex.: João Silva" />
+          </Field>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <Field label="Telefone">
+              <input value={telefone} onChange={(e) => setTelefone(e.target.value)} maxLength={32} className={inputCls} placeholder="912 345 678" />
+            </Field>
+            <Field label="Email">
+              <input value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} className={inputCls} placeholder="joao@email.pt" type="email" />
+            </Field>
+          </div>
+          <Field label="Equipamento">
+            <input value={equipamento} onChange={(e) => setEquipamento(e.target.value)} maxLength={120} className={inputCls} placeholder="Ex.: iPhone 13" />
+          </Field>
+          <Field label="Descrição / avaria">
+            <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} maxLength={2000} rows={3} className={inputCls} placeholder="Ex.: ecrã partido, quer estimativa antes de trazer" />
+          </Field>
+          <div className="grid gap-2.5 sm:grid-cols-3">
+            <Field label="Canal">
+              <select value={origem} onChange={(e) => setOrigem(Number(e.target.value) as RepairRequestOrigem)} className={inputCls}>
+                <option value={REPAIR_REQUEST_ORIGEM.Telefone}>Telefone</option>
+                <option value={REPAIR_REQUEST_ORIGEM.Email}>Email</option>
+                <option value={REPAIR_REQUEST_ORIGEM.WhatsApp}>WhatsApp</option>
+                <option value={REPAIR_REQUEST_ORIGEM.BalcaoFisico}>Balcão</option>
+                <option value={REPAIR_REQUEST_ORIGEM.Outro}>Outro</option>
+              </select>
+            </Field>
+            <Field label="Prioridade">
+              <select value={prioridade} onChange={(e) => setPrioridade(Number(e.target.value) as RepairRequestPrioridade)} className={inputCls}>
+                <option value={REPAIR_REQUEST_PRIORIDADE.Baixa}>Baixa</option>
+                <option value={REPAIR_REQUEST_PRIORIDADE.Normal}>Normal</option>
+                <option value={REPAIR_REQUEST_PRIORIDADE.Alta}>Alta</option>
+                <option value={REPAIR_REQUEST_PRIORIDADE.Urgente}>Urgente</option>
+              </select>
+            </Field>
+            <Field label="Follow-up">
+              <input
+                type="datetime-local"
+                value={followUpLocal}
+                onChange={(e) => setFollowUpLocal(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
+          </div>
+          <Field label="Notas internas (opcional)">
+            <textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={2000} rows={2} className={inputCls} placeholder="Ex.: cliente vai trazer amanhã ao final do dia" />
+          </Field>
+        </div>
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!valid || isSaving}
+            className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {isSaving ? 'A guardar…' : 'Registar pedido'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const inputCls =
+  'w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900';
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-0.5 block text-[11px] font-medium text-zinc-600 dark:text-zinc-400">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function prioridadeBorder(prioridade: RepairRequestPrioridade): string {
+  if (prioridade === REPAIR_REQUEST_PRIORIDADE.Urgente)
+    return 'border-rose-300 dark:border-rose-900/60';
+  if (prioridade === REPAIR_REQUEST_PRIORIDADE.Alta)
+    return 'border-amber-300 dark:border-amber-900/60';
+  return 'border-zinc-200 dark:border-zinc-700';
+}
+
+function isOverdueRequest(request: RepairRequestDto): boolean {
+  const createdAt = new Date(request.createdAt).getTime();
+  if (!Number.isFinite(createdAt)) return false;
+  return Date.now() - createdAt >= 48 * 60 * 60 * 1000;
+}
+
+/**
+ * Sprint 448 (Codex parallel): pedido tem follow-up marcado e já passou da data.
+ * Permite filtrar leads que o staff prometeu voltar a contactar mas ainda não o fez.
+ */
+function isFollowUpDue(request: RepairRequestDto): boolean {
+  if (!request.followUpAt) return false;
+  const t = new Date(request.followUpAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  return t <= Date.now();
+}
+
+function toDateTimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function fromDateTimeLocalValue(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function matchesRequestSearch(request: RepairRequestDto, rawQuery: string): boolean {
+  const query = normalizeSearch(rawQuery);
+  if (!query) return true;
+  const queryDigits = onlyDigits(rawQuery);
+  const phoneDigits = onlyDigits(request.telefone ?? '');
+  const fields = [
+    request.nome,
+    request.email ?? '',
+    request.telefone ?? '',
+    request.equipamento,
+    request.descricao,
+    REPAIR_REQUEST_ORIGEM_LABEL[request.origem],
+  ];
+
+  return fields.some((field) => normalizeSearch(field).includes(query)) ||
+    (queryDigits.length >= 3 && phoneDigits.includes(queryDigits));
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .toLocaleLowerCase('pt-PT')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function onlyDigits(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
+function LeadContactActions({ request }: { request: RepairRequestDto }) {
+  const waPhone = whatsappPhone(request.telefone);
+  const subject = `Pedido de reparacao - ${request.equipamento}`;
+  const body = `Ola ${request.nome},\n\nRecebemos o teu pedido sobre ${request.equipamento}. Consegues trazer o equipamento a loja ou enviar mais detalhes?\n\nObrigado.`;
+  const whatsappText = `Ola ${request.nome}, e da LopesTech. Recebemos o teu pedido sobre ${request.equipamento}. Consegues trazer o equipamento a loja ou enviar mais detalhes?`;
+
+  if (!request.telefone && !request.email) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {request.telefone && (
+        <a
+          href={`tel:${request.telefone}`}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          <Phone size={12} /> Ligar
+        </a>
+      )}
+      {waPhone && (
+        <a
+          href={`https://wa.me/${waPhone}?text=${encodeURIComponent(whatsappText)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+        >
+          <MessageCircle size={12} /> WhatsApp
+        </a>
+      )}
+      {request.email && (
+        <a
+          href={`mailto:${request.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 dark:border-brand-900/60 dark:bg-brand-950/30 dark:text-brand-300"
+        >
+          <Mail size={12} /> Email
+        </a>
+      )}
+    </div>
+  );
+}
+
+function whatsappPhone(raw: string | null): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 9 && digits.startsWith('9')) return `351${digits}`;
+  if (digits.length === 12 && digits.startsWith('351')) return digits;
+  return digits.length >= 9 ? digits : null;
+}
+
+function SummaryCard({
+  icon: Icon,
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  icon: typeof Inbox;
+  label: string;
+  value: number;
+  helper: string;
+  tone: 'amber' | 'emerald' | 'rose' | 'sky' | 'zinc';
+}) {
+  const toneClass = {
+    amber: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300',
+    rose: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300',
+    sky: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300',
+    zinc: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300',
+  }[tone];
+
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{label}</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+          <div className="mt-1 text-xs text-zinc-500">{helper}</div>
+        </div>
+        <div className={`rounded-lg border p-2 ${toneClass}`}>
+          <Icon size={16} />
+        </div>
+      </div>
+    </div>
+  );
+}

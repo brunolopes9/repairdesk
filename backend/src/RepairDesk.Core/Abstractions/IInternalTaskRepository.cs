@@ -9,7 +9,7 @@ public interface IInternalTaskRepository
     Task<IReadOnlyList<InternalTask>> ListAsync(
         InternalTaskStatus? status,
         Guid? assignedToUserId,
-        Guid? reparacaoId,
+        Guid? vendaId,
         CancellationToken ct = default);
 
     Task<InternalTask?> FindByIdAsync(Guid id, CancellationToken ct = default);

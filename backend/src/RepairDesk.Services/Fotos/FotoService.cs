@@ -8,14 +8,14 @@ namespace RepairDesk.Services.Fotos;
 
 public interface IFotoService
 {
-    Task<IReadOnlyList<FotoDto>> ListByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
-    Task<FotoDto> UploadAsync(Guid reparacaoId, Stream content, string fileName, string contentType, long size, FotoTipo tipo, string? legenda, CancellationToken ct = default);
+    Task<IReadOnlyList<FotoDto>> ListByVendaAsync(Guid vendaId, CancellationToken ct = default);
+    Task<FotoDto> UploadAsync(Guid vendaId, Stream content, string fileName, string contentType, long size, FotoTipo tipo, string? legenda, CancellationToken ct = default);
     Task<(Stream Content, string ContentType, string FileName)> DownloadAsync(Guid fotoId, CancellationToken ct = default);
     Task<FotoDto> UpdateAsync(Guid fotoId, UpdateFotoRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid fotoId, CancellationToken ct = default);
 
     /// <summary>Lista fotos públicas (visíveis no portal). Usado pelo PublicPortalService.</summary>
-    Task<IReadOnlyList<FotoDto>> ListPublicAsync(Guid reparacaoId, CancellationToken ct = default);
+    Task<IReadOnlyList<FotoDto>> ListPublicAsync(Guid vendaId, CancellationToken ct = default);
     Task<(Stream Content, string ContentType)> DownloadPublicAsync(Guid fotoId, CancellationToken ct = default);
 }
 
@@ -28,30 +28,30 @@ public class FotoService : IFotoService
     };
     private const long MaxSize = 10 * 1024 * 1024; // 10 MB
 
-    private readonly IReparacaoFotoRepository _repo;
-    private readonly IReparacaoRepository _reparacoes;
+    private readonly IVendaFotoRepository _repo;
+    private readonly IVendaRepository _vendas;
     private readonly IPhotoStorage _storage;
     private readonly ITenantContext _tenant;
 
     public FotoService(
-        IReparacaoFotoRepository repo,
-        IReparacaoRepository reparacoes,
+        IVendaFotoRepository repo,
+        IVendaRepository vendas,
         IPhotoStorage storage,
         ITenantContext tenant)
     {
         _repo = repo;
-        _reparacoes = reparacoes;
+        _vendas = vendas;
         _storage = storage;
         _tenant = tenant;
     }
 
-    public async Task<IReadOnlyList<FotoDto>> ListByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<FotoDto>> ListByVendaAsync(Guid vendaId, CancellationToken ct = default)
     {
-        var rows = await _repo.ListByReparacaoAsync(reparacaoId, ct);
+        var rows = await _repo.ListByVendaAsync(vendaId, ct);
         return rows.Select(ToDto).ToList();
     }
 
-    public async Task<FotoDto> UploadAsync(Guid reparacaoId, Stream content, string fileName, string contentType, long size, FotoTipo tipo, string? legenda, CancellationToken ct = default)
+    public async Task<FotoDto> UploadAsync(Guid vendaId, Stream content, string fileName, string contentType, long size, FotoTipo tipo, string? legenda, CancellationToken ct = default)
     {
         if (!AllowedTypes.Contains(contentType))
             throw new ValidationException("file_type_invalid", "Apenas JPEG/PNG/WebP são aceites.");
@@ -60,8 +60,8 @@ public class FotoService : IFotoService
         if (size <= 0)
             throw new ValidationException("file_empty", "Ficheiro vazio.");
 
-        var rep = await _reparacoes.FindByIdAsync(reparacaoId, ct)
-            ?? throw new NotFoundException("Reparacao", reparacaoId);
+        var rep = await _vendas.FindByIdAsync(vendaId, ct)
+            ?? throw new NotFoundException("Venda", vendaId);
         if (!_tenant.HasTenant)
             throw new ForbiddenException("no_tenant", "Sem contexto de tenant.");
 
@@ -76,13 +76,13 @@ public class FotoService : IFotoService
             };
 
         var fotoId = Guid.NewGuid();
-        var storageKey = $"tenants/{rep.TenantId}/reparacoes/{rep.Id}/{fotoId}{extension}";
+        var storageKey = $"tenants/{rep.TenantId}/vendas/{rep.Id}/{fotoId}{extension}";
         await _storage.UploadAsync(storageKey, content, contentType, ct);
 
-        var foto = new ReparacaoFoto
+        var foto = new VendaFoto
         {
             Id = fotoId,
-            ReparacaoId = rep.Id,
+            VendaId = rep.Id,
             StorageKey = storageKey,
             FileName = FileNameSanitizer.Safe(fileName),
             ContentType = contentType,
@@ -127,9 +127,9 @@ public class FotoService : IFotoService
         await _repo.SaveAsync(ct);
     }
 
-    public async Task<IReadOnlyList<FotoDto>> ListPublicAsync(Guid reparacaoId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<FotoDto>> ListPublicAsync(Guid vendaId, CancellationToken ct = default)
     {
-        var rows = await _repo.ListPublicByReparacaoIdAsync(reparacaoId, ct);
+        var rows = await _repo.ListPublicByVendaIdAsync(vendaId, ct);
         return rows.Select(ToDto).ToList();
     }
 
@@ -144,8 +144,8 @@ public class FotoService : IFotoService
         return (stream, foto.ContentType);
     }
 
-    private static FotoDto ToDto(ReparacaoFoto f) => new(
-        f.Id, f.ReparacaoId, f.FileName, f.ContentType, f.Size,
+    private static FotoDto ToDto(VendaFoto f) => new(
+        f.Id, f.VendaId, f.FileName, f.ContentType, f.Size,
         f.Tipo, f.Ordem, f.Legenda, f.VisivelNoPortal, f.CreatedAt);
 
     // Sprint 248: SafeFileName promovido para Common.FileNameSanitizer.Safe.

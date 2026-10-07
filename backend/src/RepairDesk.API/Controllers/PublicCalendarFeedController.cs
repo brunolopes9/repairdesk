@@ -70,16 +70,18 @@ public sealed class PublicCalendarFeedController : ControllerBase
         // Filtro de estado: tudo excepto Cancelado (já não é relevante) e Orçamento (rascunho).
         // Entregue continua a aparecer se o ETA original cair na janela — mostra histórico
         // recente sem inflacionar muito. Include Cliente para nome+telefone na DESCRIPTION.
-        var reparacoesComEta = await _db.Reparacoes
+        var reparacoesComEta = await _db.Vendas
             .IgnoreQueryFilters()
             .Include(r => r.Cliente)
             .Where(r => r.TenantId == tenant.Id
-                     && r.PrevistoEntregueEm != null
-                     && r.PrevistoEntregueEm >= fromUtc
-                     && r.PrevistoEntregueEm < toUtc
-                     && r.Estado != RepairStatus.Cancelado
-                     && r.Estado != RepairStatus.Orcamento)
-            .OrderBy(r => r.PrevistoEntregueEm)
+                     && !r.IsDeleted
+                     && r.Tipo == VendaTipo.Reparacao
+                     && r.PrevistoPara != null
+                     && r.PrevistoPara >= fromUtc
+                     && r.PrevistoPara < toUtc
+                     && r.Estado != VendaEstado.Cancelada
+                     && r.Estado != VendaEstado.Orcamento)
+            .OrderBy(r => r.PrevistoPara)
             .ToListAsync(ct);
 
         var bytes = IcsBuilder.BuildCalendar(items, reparacoesComEta, calendarName: $"Mender — {tenant.Name}");

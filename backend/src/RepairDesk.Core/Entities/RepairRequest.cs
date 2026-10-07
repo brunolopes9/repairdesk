@@ -21,8 +21,6 @@ public class RepairRequest : BaseEntity, ITenantEntity
     public RepairRequestEstado Estado { get; set; } = RepairRequestEstado.Pendente;
 
     /// <summary>Quando convertido em reparação, aponta para a Reparacao criada.</summary>
-    public Guid? ReparacaoId { get; set; }
-    public Reparacao? Reparacao { get; set; }
 
     /// <summary>Doc 94 Fase 4: quando convertido numa Venda de reparação (orçamento), aponta para ela.</summary>
     public Guid? VendaId { get; set; }

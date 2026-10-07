@@ -1,370 +1,59 @@
 import { api } from '../api';
+import type { VendaEstado, VendaTipo } from '../vendas/types';
 
-export interface DashboardKpis {
-  receitaCentsMes: number;
-  despesasCentsMes: number;
-  lucroCentsMes: number;
-  vendasHojeCents: number;
-  vendasMesCents: number;
-  reparacoesAbertas: number;
-  trabalhosAbertos: number;
-  reparacoesEntreguesMes: number;
-  trabalhosConcluidosMes: number;
+/** Doc 94: Dashboard do modelo novo. Valores em euros (decimais), calculados pelo motor de IVA. */
+export interface PainelMes {
+  de: string;
+  ate: string;
+  vendas: number;
+  faturado: number;
+  ivaNasVendas: number;
+  ivaAEntregar: number;
+  lucroVendas: number;
+  despesas: number;
 }
 
-export interface CategoriaBreakdown {
-  label: string;
-  count: number;
-  totalCents: number;
+export interface PainelEmCurso {
+  orcamentos: number;
+  emCurso: number;
+  aEsperaPeca: number;
+  prontas: number;
 }
 
-export interface TopCliente {
-  id: string;
-  nome: string;
-  totalCents: number;
-  trabalhos: number;
+export interface PainelAlertas {
+  faturasPorRegistar: number;
+  comprasSemFatura: number;
+  comprasComDiferenca: number;
+  faturasRecebidasPorAprovar: number;
 }
 
-export interface TopProdutoVendido {
-  partId: string | null;
-  descricao: string;
-  quantidade: number;
-  totalCents: number;
+export interface PainelStock {
+  unidades: number;
+  valorPago: number;
+  lucroSeVenderTudo: number;
 }
 
-export interface DashboardResponse {
-  kpis: DashboardKpis;
-  receitaPorCategoria: CategoriaBreakdown[];
-  despesaPorCategoria: CategoriaBreakdown[];
-  topClientes: TopCliente[];
-  topProdutosVendidos: TopProdutoVendido[];
-}
-
-export interface DashboardKpisHojeResponse {
-  reparacoesEmCurso: number;
-  valorAReceberCents: number;
-  stockCriticoCount: number;
-  receita7d: number[];
-  reparacoesEntregues7d: number;
-  lucroEstimado7dCents: number;
-  tempoMedioReparacaoHoras: number | null;
-  topReparacoesLucrativas30d: DashboardTopReparacaoLucrativa[];
-  topPecasUsadas30d: DashboardTopPecaUsada[];
-}
-
-export interface DashboardTopReparacaoLucrativa {
+export interface PainelVendaResumo {
   id: string;
   numero: number;
-  equipamento: string;
-  clienteNome: string | null;
-  receitaCents: number;
-  custoPecasCents: number;
-  lucroCents: number;
+  tipo: VendaTipo;
+  estado: VendaEstado;
+  cliente: string | null;
+  descricao: string | null;
+  previstoPara: string | null;
+  totalCents: number;
 }
 
-export interface DashboardTopPecaUsada {
-  partId: string;
-  nome: string;
-  sku: string | null;
-  quantidade: number;
-}
-
-export interface CategoriaFinanceira {
-  label: string;
-  count: number;
-  receitaCents: number;
-  custoCents: number;
-  lucroCents: number;
-}
-
-export interface FinanceiroResponse {
-  receitaRealizadaCents: number;
-  custoImputadoCents: number;
-  lucroRealizadoCents: number;
-  receitaPendenteCents: number;
-  investimentoStockCents: number;
-  porCategoria: CategoriaFinanceira[];
-  periodoDe: string;
-  periodoAte: string;
+export interface Painel {
+  mes: PainelMes;
+  emCurso: PainelEmCurso;
+  alertas: PainelAlertas;
+  stock: PainelStock;
+  proximasEntregas: PainelVendaResumo[];
 }
 
 export const dashboardApi = {
-  kpisHoje(dia?: string) {
-    return api
-      .get<DashboardKpisHojeResponse>('/dashboard/kpis-hoje', { params: dia ? { dia } : undefined })
-      .then((r) => r.data);
-  },
-  current() {
-    return api.get<DashboardResponse>('/dashboard').then((r) => r.data);
-  },
-  range(fromIso: string, toIso: string) {
-    return api
-      .get<DashboardResponse>('/dashboard', { params: { from: fromIso, to: toIso } })
-      .then((r) => r.data);
-  },
-  financeiroCurrent() {
-    return api.get<FinanceiroResponse>('/dashboard/financeiro').then((r) => r.data);
-  },
-  financeiroRange(fromIso: string, toIso: string) {
-    return api
-      .get<FinanceiroResponse>('/dashboard/financeiro', { params: { from: fromIso, to: toIso } })
-      .then((r) => r.data);
-  },
-  alertas() {
-    return api.get<AlertasResponse>('/dashboard/alertas').then((r) => r.data);
-  },
-  // Sprint 460 (Doc 91 follow-up): reparações em estado comunicável sem outbound.
-  avisosPendentes(horas = 8, limit = 20) {
-    return api
-      .get<AvisosPendentesResponse>('/dashboard/avisos-pendentes', { params: { horas, limit } })
-      .then((r) => r.data);
-  },
-  // Sprint 467: Devices com garantia fabricante a expirar (oportunidade cross-sell).
-  devicesGarantiaAExpirar(days = 30, limit = 30) {
-    return api
-      .get<DevicesGarantiaAExpirarResponse>('/dashboard/devices-garantia-a-expirar', { params: { days, limit } })
-      .then((r) => r.data);
-  },
-  // Sprint 483 (Doc 91): mensagens de clientes no portal por responder.
-  mensagensPorResponder(limit = 20) {
-    return api
-      .get<MensagensPorResponderResponse>('/dashboard/mensagens-por-responder', { params: { limit } })
-      .then((r) => r.data);
-  },
-  tendencia(meses = 6) {
-    return api.get<TendenciaResponse>('/dashboard/tendencia', { params: { meses } }).then((r) => r.data);
-  },
-  // Sprint 429: cash flow chart Dashboard (Doc 88 IDEIAS 1).
-  cashflow(days = 30) {
-    return api.get<CashflowResponse>('/dashboard/cashflow', { params: { days } }).then((r) => r.data);
-  },
-  topReparacoesCurrent(limit = 5) {
-    return api.get<TopReparacoesResponse>('/dashboard/top-reparacoes', { params: { limit } }).then((r) => r.data);
-  },
-  topReparacoesRange(fromIso: string, toIso: string, limit = 5) {
-    return api
-      .get<TopReparacoesResponse>('/dashboard/top-reparacoes', { params: { from: fromIso, to: toIso, limit } })
-      .then((r) => r.data);
-  },
-  avaliacoes() {
-    return api.get<AvaliacoesDashboardResponse>('/dashboard/avaliacoes').then((r) => r.data);
-  },
-  garantiasResumo(dias = 30, limit = 8) {
-    return api
-      .get<GarantiasResumoResponse>('/dashboard/garantias-resumo', { params: { dias, limit } })
-      .then((r) => r.data);
-  },
-  reparacoesEmGarantia(dias = 90, limit = 30) {
-    return api
-      .get<ReparacoesEmGarantiaResponse>('/dashboard/reparacoes-em-garantia', { params: { dias, limit } })
-      .then((r) => r.data);
-  },
-  reparacoesEmGarantiaCsv(dias = 90) {
-    return api
-      .get<Blob>('/dashboard/reparacoes-em-garantia/export.csv', {
-        params: { dias },
-        responseType: 'blob',
-      })
-      .then((r) => r.data);
+  get() {
+    return api.get<Painel>('/dashboard').then((r) => r.data);
   },
 };
-
-export interface ReparacaoEmGarantia {
-  reparacaoId: string;
-  reparacaoNumero: number;
-  recebidoEm: string;
-  equipamento: string;
-  imei: string;
-  vendaId: string;
-  vendaNumero: number;
-  vendaData: string;
-  clienteNome: string | null;
-  orcamentoCents: number | null;
-}
-
-export interface ReparacoesEmGarantiaResponse {
-  totalReparacoes: number;
-  totalEntregues: number;
-  totalPorcento: number;
-  valorOrcamentoCents: number;
-  itens: ReparacaoEmGarantia[];
-}
-
-export interface GarantiaProximaExpirar {
-  id: string;
-  slug: string;
-  dataFim: string;
-  diasRestantes: number;
-  origem: 'Reparacao' | 'Venda';
-  documentoReferencia: string | null;
-  equipamentoOuArtigo: string | null;
-  clienteNome: string | null;
-  clienteTelefone: string | null;
-}
-
-export interface GarantiasResumoResponse {
-  activas: number;
-  expiramEm30Dias: number;
-  expiraramHoje: number;
-  anuladas: number;
-  proximasAExpirar: GarantiaProximaExpirar[];
-}
-
-export interface AvaliacaoRecente {
-  id: string;
-  reparacaoId: string;
-  reparacaoNumero: number;
-  clienteNome: string;
-  equipamento: string;
-  score: number;
-  comentario: string | null;
-  criadaEm: string;
-}
-
-export interface AvaliacoesDashboardResponse {
-  mediaScore: number | null;
-  total: number;
-  distribuicao: Record<string, number>; // {"1": 0, "2": 1, ...}
-  promoters: number;
-  detractors: number;
-  nps: number;
-  recentes: AvaliacaoRecente[];
-}
-
-export interface ItemPorCobrar {
-  id: string;
-  numero: number;
-  titulo: string;
-  clienteNome: string | null;
-  valorCents: number;
-  concluidoEm: string | null;
-}
-
-export interface DespesaOrfa {
-  id: string;
-  descricao: string;
-  categoria: number;
-  valorCents: number;
-  data: string;
-  fornecedor: string | null;
-}
-
-export interface AlertasResponse {
-  trabalhosNaoPagos: ItemPorCobrar[];
-  reparacoesNaoPagas: ItemPorCobrar[];
-  despesasOrfas: DespesaOrfa[];
-  totalPorCobrarCents: number;
-  totalDespesasOrfasCents: number;
-}
-
-// Sprint 460: reparações em estado comunicável sem outbound.
-export interface AvisoPendenteItem {
-  reparacaoId: string;
-  numero: number;
-  estado: number;
-  equipamento: string;
-  clienteNome: string | null;
-  clienteTelefone: string | null;
-  estadoSince: string;
-  horasEmEstado: number;
-}
-export interface AvisosPendentesResponse {
-  items: AvisoPendenteItem[];
-  totalCount: number;
-  horasLimite: number;
-}
-
-// Sprint 467: devices com garantia fabricante a expirar.
-export interface DeviceGarantiaItem {
-  deviceId: string;
-  clienteId: string;
-  clienteNome: string;
-  tipo: string;
-  marca: string | null;
-  modelo: string | null;
-  apelido: string | null;
-  imei: string | null;
-  garantiaFabricanteUntil: string; // ISO date "yyyy-MM-dd"
-}
-export interface DevicesGarantiaAExpirarResponse {
-  items: DeviceGarantiaItem[];
-  totalCount: number;
-  diasJanela: number;
-}
-
-// Sprint 483: mensagens de clientes no portal por responder.
-export interface MensagemPorResponderItem {
-  reparacaoId: string;
-  numero: number;
-  estado: number;
-  equipamento: string;
-  clienteNome: string | null;
-  ultimaMensagem: string;
-  em: string;
-  horasEspera: number;
-}
-export interface MensagensPorResponderResponse {
-  items: MensagemPorResponderItem[];
-  totalCount: number;
-}
-
-export interface MesFinanceiro {
-  ano: number;
-  mes: number;
-  receitaCents: number;
-  custoCents: number;
-  lucroCents: number;
-}
-
-export interface TendenciaResponse {
-  meses: MesFinanceiro[];
-}
-
-// Sprint 429: cash flow diário Dashboard.
-export interface CashflowDay {
-  date: string;
-  receitaCents: number;
-  despesaCents: number;
-  netCents: number;
-}
-
-export interface CashflowResponse {
-  days: CashflowDay[];
-}
-
-export interface ReparacaoTop {
-  id: string;
-  numero: number;
-  equipamento: string;
-  clienteNome: string | null;
-  receitaCents: number;
-  custoCents: number;
-  lucroCents: number;
-}
-
-export interface TopReparacoesResponse {
-  items: ReparacaoTop[];
-}
-
-export type Period = 'this-month' | 'last-month' | 'last-90' | 'this-year';
-
-export function periodRange(period: Period): { from: Date; to: Date; label: string } {
-  const now = new Date();
-  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const startOfYear = new Date(now.getFullYear(), 0, 1);
-  const startOfNextYear = new Date(now.getFullYear() + 1, 0, 1);
-
-  switch (period) {
-    case 'this-month':
-      return { from: startOfThisMonth, to: startOfNextMonth, label: 'Este mês' };
-    case 'last-month':
-      return { from: startOfLastMonth, to: startOfThisMonth, label: 'Mês anterior' };
-    case 'last-90':
-      return { from: ninetyDaysAgo, to: now, label: '90 dias' };
-    case 'this-year':
-      return { from: startOfYear, to: startOfNextYear, label: 'Este ano' };
-  }
-}

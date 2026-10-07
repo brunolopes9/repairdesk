@@ -7,13 +7,13 @@ import {
   type EmailTemplateMeta,
   type EmailVars,
 } from '../lib/email/templates';
-import type { RepairStatus } from '../lib/reparacoes/types';
+import type { VendaEstado } from '../lib/vendas/types';
 import { toast } from '../lib/toast';
 
 interface Props {
   email: string;
   vars: EmailVars;
-  estado?: RepairStatus;
+  estado?: VendaEstado;
   staleDays?: number;
   showAll?: boolean;
   size?: 'sm' | 'md';

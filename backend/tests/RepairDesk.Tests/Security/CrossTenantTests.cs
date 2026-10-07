@@ -35,7 +35,7 @@ public class CrossTenantTests : IClassFixture<RepairDeskApiFactory>
         var ids = await SeedTenantBScenarioAsync();
         var client = await NewTenantAAdminClient();
 
-        var response = await client.GetAsync($"/api/reparacoes/{ids.ReparacaoId}");
+        var response = await client.GetAsync($"/api/vendas/{ids.ReparacaoId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -128,15 +128,16 @@ public class CrossTenantTests : IClassFixture<RepairDeskApiFactory>
             Nome = $"Cliente Tenant B {suffix}",
             Telefone = "912345678"
         };
-        var reparacao = new Reparacao
+        var reparacao = new Venda
         {
             Id = Guid.NewGuid(),
             TenantId = tenantId,
             Numero = Random.Shared.Next(50_000, 90_000),
+            Tipo = VendaTipo.Reparacao,
             ClienteId = cliente.Id,
             Equipamento = "iPhone 13",
-            Avaria = "Teste cross-tenant",
-            Estado = RepairStatus.Recebido,
+            Problema = "Teste cross-tenant",
+            Estado = VendaEstado.Orcamento,
             PublicSlug = $"r{suffix[..10]}"
         };
         var venda = new Venda

@@ -135,9 +135,8 @@ public sealed class IfthenpayProvider : IPaymentProvider
             FailureReason: null));
     }
 
-    // Sprint 493: orderId de correlação — venda OU reparação. Máx 32 chars (limite IFTHENPAY).
-    private static string BuildOrderId(PaymentInitiationRequest request) =>
-        request.ReparacaoId is { } r ? $"rep-{r:N}"[..32] : $"venda-{request.VendaId:N}"[..32];
+    // Sprint 493: orderId de correlação da venda. Máx 32 chars (limite IFTHENPAY).
+    private static string BuildOrderId(PaymentInitiationRequest request) => $"venda-{request.VendaId:N}"[..32];
 
     private static string NormalizePhone(string phone)
     {

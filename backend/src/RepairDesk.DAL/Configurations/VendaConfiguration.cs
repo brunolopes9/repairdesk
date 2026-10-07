@@ -5,8 +5,17 @@ using RepairDesk.Core.Enums;
 
 namespace RepairDesk.DAL.Configurations;
 
-public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeConfiguration<VendaItem>
+public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeConfiguration<VendaItem>, IEntityTypeConfiguration<VendaEstadoLog>
 {
+    public void Configure(EntityTypeBuilder<VendaEstadoLog> builder)
+    {
+        builder.ToTable("VendaEstadoLogs");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.EstadoFrom).HasConversion<int?>();
+        builder.Property(x => x.EstadoTo).HasConversion<int>();
+        builder.HasIndex(x => new { x.TenantId, x.VendaId, x.MudouEm });
+    }
+
     public void Configure(EntityTypeBuilder<Venda> builder)
     {
         builder.ToTable("Vendas");
@@ -19,6 +28,13 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
         builder.Property(x => x.Estado).HasConversion<int>();
         builder.Property(x => x.Equipamento).HasMaxLength(200);
         builder.Property(x => x.Problema).HasMaxLength(2000);
+        builder.Property(x => x.PublicSlug).HasMaxLength(32);
+        builder.HasIndex(x => x.PublicSlug).IsUnique().HasFilter("[PublicSlug] IS NOT NULL");
+
+        builder.HasMany(x => x.Timeline)
+            .WithOne(x => x.Venda)
+            .HasForeignKey(x => x.VendaId)
+            .OnDelete(DeleteBehavior.Cascade);
         builder.Property(x => x.InvoiceNumber).HasMaxLength(120);
         builder.Property(x => x.Notas).HasMaxLength(2000);
 
@@ -61,13 +77,7 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
             .OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => new { x.TenantId, x.CompraLinhaId }).HasFilter("[CompraLinhaId] IS NOT NULL");
 
-        builder.HasOne(x => x.Part)
-            .WithMany()
-            .HasForeignKey(x => x.PartId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         builder.HasIndex(x => new { x.TenantId, x.VendaId });
-        builder.HasIndex(x => new { x.TenantId, x.PartId }).HasFilter("[PartId] IS NOT NULL");
         // Index para lookup rapido de IMEI vendido antes (anti-duplicacao + procura)
         builder.HasIndex(x => new { x.TenantId, x.Imei }).HasFilter("[Imei] IS NOT NULL");
     }

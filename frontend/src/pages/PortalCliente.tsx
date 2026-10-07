@@ -14,7 +14,6 @@ import {
   MessageCircle,
   Phone,
   Receipt,
-  Search,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -122,7 +121,7 @@ export default function PortalCliente() {
           <OrcamentoCard
             valorCents={data.orcamentoCents}
             equipamento={data.equipamentoPublico}
-            diagnostico={data.diagnostico}
+            diagnostico={null}
             aprovado={data.orcamentoAprovado}
             decidir={decidir.mutate}
             pending={decidir.isPending}
@@ -134,66 +133,16 @@ export default function PortalCliente() {
         {data.estado === PUBLIC_ESTADO.Pronto &&
           data.temPrecoFinal &&
           data.precoFinalCents != null &&
-          !data.coberturaGarantia &&
           !data.pago && (
             <PagamentoMbWayCard slug={data.slug} valorCents={data.precoFinalCents} />
           )}
-
-        {data.coberturaGarantia && (
-          <div className="rounded-2xl border border-emerald-300 bg-emerald-50/70 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
-            <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-                <ShieldCheck size={18} strokeWidth={2} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
-                  ✓ Reparação coberta pela garantia
-                </div>
-                <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200/80">
-                  Este equipamento foi comprado aqui anteriormente e ainda está dentro do período de garantia
-                  ({data.coberturaGarantia.diasRestantes} {data.coberturaGarantia.diasRestantes === 1 ? 'dia restante' : 'dias restantes'},
-                  até {new Date(data.coberturaGarantia.dataFimGarantia).toLocaleDateString('pt-PT')}).
-                  A reparação não terá custos para si.
-                </p>
-                <a
-                  href={`/g/${data.coberturaGarantia.garantiaSlug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-700 hover:underline dark:text-emerald-300"
-                >
-                  Ver garantia →
-                </a>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {data.diagnostico && data.estado !== PUBLIC_ESTADO.Orcamento && (
-          <Card titulo="Diagnóstico" icon={Search}>
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">{data.diagnostico}</p>
-          </Card>
-        )}
 
         <Card titulo="O teu equipamento" icon={Smartphone}>
           <div className="text-sm">
             <div className="font-medium">{data.equipamentoPublico}</div>
             <div className="mt-1 text-zinc-500">{data.avariaPublica}</div>
           </div>
-          {data.camposEquipamento?.length > 0 && (
-            <dl className="mt-3 grid grid-cols-1 gap-2 rounded-xl bg-zinc-50 p-3 text-sm dark:bg-zinc-950 sm:grid-cols-2">
-              {data.camposEquipamento.map((field) => (
-                <div key={`${field.label}-${field.ordem}`}>
-                  <dt className="text-[11px] uppercase tracking-wide text-zinc-500">{field.label}</dt>
-                  <dd className="font-medium text-zinc-800 dark:text-zinc-100">{field.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
         </Card>
-
-        {data.healthScore != null && (
-          <HealthScoreCard score={data.healthScore} destaques={data.diagnosticoDestaques} />
-        )}
 
         {data.fotos && data.fotos.length > 0 && (
           <FotosPublicCard fotos={data.fotos} />
@@ -644,47 +593,6 @@ function AvaliacaoCard({ slug }: { slug: string }) {
   );
 }
 
-function HealthScoreCard({ score, destaques }: { score: number; destaques: string[] }) {
-  const tone = score >= 80 ? 'emerald' : score >= 50 ? 'amber' : 'rose';
-  const toneCls =
-    tone === 'emerald'
-      ? 'from-emerald-500/25 to-emerald-500/5 text-emerald-700 dark:text-emerald-300'
-      : tone === 'amber'
-        ? 'from-amber-500/25 to-amber-500/5 text-amber-700 dark:text-amber-300'
-        : 'from-rose-500/25 to-rose-500/5 text-rose-700 dark:text-rose-300';
-  const msg = score >= 80
-    ? 'Equipamento em bom estado geral.'
-    : score >= 50
-      ? 'Equipamento com alguns pontos a verificar.'
-      : 'Equipamento precisa de atenção em vários pontos.';
-  return (
-    <section className={`mt-4 rounded-2xl border border-zinc-200/70 bg-gradient-to-br ${toneCls.split(' text')[0]} p-5 shadow-sm dark:border-zinc-800/70`}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-wider text-zinc-500">Diagnóstico</div>
-          <h3 className="text-sm font-semibold mt-0.5">Health Score</h3>
-          <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-300">{msg}</p>
-        </div>
-        <div className="text-right">
-          <div className={`text-5xl font-semibold tabular-nums ${toneCls.split(' ').slice(2).join(' ')}`}>
-            {score}
-            <span className="text-base font-normal text-zinc-500">/100</span>
-          </div>
-        </div>
-      </div>
-      {destaques.length > 0 && (
-        <div className="mt-4 rounded-xl bg-white/70 p-3 dark:bg-zinc-900/70">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Pontos a destacar</div>
-          <ul className="space-y-0.5 text-xs text-zinc-700 dark:text-zinc-300">
-            {destaques.map((d, i) => (
-              <li key={i}>{d}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </section>
-  );
-}
 
 function MensagemCard({
   slug,

@@ -13,13 +13,10 @@ public class DespesaRepository : IDespesaRepository
     public Task<Despesa?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.Despesas.FirstOrDefaultAsync(d => d.Id == id, ct);
 
-    public async Task<int> SumByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default)
-        => await _db.Despesas.Where(d => d.ReparacaoId == reparacaoId).SumAsync(d => (int?)d.ValorCents, ct) ?? 0;
-
     public async Task<(IReadOnlyList<Despesa> Items, int Total)> SearchAsync(
         string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
         bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
-        Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
+        bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
     {
         var q = _db.Despesas.AsNoTracking().AsQueryable();
         var supplierImportDespesaIds = _db.SupplierInvoiceImports
@@ -41,7 +38,6 @@ public class DespesaRepository : IDespesaRepository
         if (excludeSupplierInvoiceImports) q = q.Where(d => !supplierImportDespesaIds.Contains(d.Id));
         if (from is not null) q = q.Where(d => d.Data >= from.Value);
         if (to is not null) q = q.Where(d => d.Data <= to.Value);
-        if (reparacaoId is not null) q = q.Where(d => d.ReparacaoId == reparacaoId.Value);
         if (isRecorrente is not null) q = q.Where(d => d.IsRecorrente == isRecorrente.Value);
 
         if (!string.IsNullOrWhiteSpace(query))

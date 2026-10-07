@@ -9,43 +9,28 @@ export interface RepairDeskCliente {
   telefone: string | null;
 }
 
-export interface RepairDeskReparacao {
-  id: string;
-  numero: number;
-  cliente: RepairDeskCliente;
-  equipamento: string;
-  avaria: string;
-  imei: string | null;
-  diagnostico: string | null;
-  estado: number;
-  orcamentoCents: number | null;
-  orcamentoAprovado: boolean;
-  precoFinalCents: number | null;
-  custoPecasCents: number;
-  horasGastas: number;
-  notas: string | null;
-  estadoPagamento: number;
-  publicSlug: string | null;
-  invoiceNumber: string | null;
-}
-
+/** Doc 94: reparação, serviço ou produto — tudo é uma Venda. */
 export interface RepairDeskVenda {
   id: string;
   numero: number;
+  tipo: number;
+  estado: number;
   cliente: RepairDeskCliente | null;
-  status: number;
-  paymentMethod: number;
+  equipamento: string | null;
   totalCents: number;
   invoiceNumber: string | null;
+  publicSlug: string | null;
+  garantiaSlug: string | null;
 }
 
-export interface RepairDeskPart {
-  id: string;
-  nome: string;
-  sku: string | null;
-  qtdStock: number;
-  custoUnitarioCents: number;
+export interface RepairDeskLote {
+  linhaId: string;
+  descricao: string;
+  quantidadeEmStock: number;
 }
+
+export const VENDA_TIPO = { Produto: 0, Reparacao: 1, Servico: 2 } as const;
+export const VENDA_ESTADO = { Orcamento: 0, AEsperaPeca: 1, Pronta: 2, Entregue: 3, Cancelada: 4, EmCurso: 5 } as const;
 
 export class RepairDeskApi {
   private accessToken: string | null = null;
@@ -87,101 +72,65 @@ export class RepairDeskApi {
     });
   }
 
-  createPart(overrides: Partial<Json> = {}): Promise<RepairDeskPart> {
-    const stamp = Date.now();
-    return this.post<RepairDeskPart>('/parts', {
-      sku: `E2E-${stamp}`,
-      nome: `Artigo E2E ${stamp}`,
-      categoria: 99,
-      marca: 'E2E',
-      modelo: null,
-      priceTableEntryId: null,
-      qtdStock: 5,
-      qtdMinima: 1,
-      custoUnitarioCents: 1299,
-      fornecedor: 'E2E',
-      localArmazenamento: 'Balcao',
+  /** Cria um fornecedor nacional e uma compra com um lote de stock; devolve o id do lote. */
+  async createLote(descricao: string, quantidade: number, precoUnitarioPago: number): Promise<string> {
+    const fornecedor = await this.post<{ id: string }>('/fornecedores', {
+      name: `Fornecedor E2E ${Date.now()}`,
+      active: true,
+      regimeIva: 0,
+      pais: 'PT',
+    });
+    const compra = await this.post<{ linhas: { id: string }[] }>('/compras', {
+      fornecedorId: fornecedor.id,
+      data: new Date().toISOString().slice(0, 10),
+      numeroFatura: `FT E2E ${Date.now()}`,
+      numerosEncomenda: null,
+      metodoPagamento: null,
+      portesPagos: 0,
+      portesIva: null,
+      totalDocumento: null,
       notas: null,
-      ...overrides,
+      linhas: [{ id: null, descricao, quantidade, precoUnitarioPago, taxaIvaCompra: null, lucroUnitario: null, localizacao: null }],
     });
+    return compra.linhas[0].id;
   }
 
-  getPart(id: string): Promise<RepairDeskPart> {
-    return this.get<RepairDeskPart>(`/parts/${id}`);
+  async stockDoLote(loteId: string): Promise<number> {
+    const inventario = await this.get<RepairDeskLote[]>('/compras/inventario');
+    return inventario.find((l) => l.linhaId === loteId)?.quantidadeEmStock ?? 0;
   }
-
-  createReparacao(clienteId: string, overrides: Partial<Json> = {}): Promise<RepairDeskReparacao> {
-    return this.post<RepairDeskReparacao>('/reparacoes', {
-      clienteId,
-      equipamento: `iPhone E2E ${Date.now()}`,
-      avaria: 'Ecra partido',
-      imei: null,
-      orcamentoCents: 8900,
-      notas: null,
-      estadoInicial: 0,
-      equipmentFieldTemplateId: null,
-      fields: null,
-      ...overrides,
-    });
-  }
-
-  getRepair(id: string): Promise<{ reparacao: RepairDeskReparacao; timeline: Json[] }> {
-    return this.get<{ reparacao: RepairDeskReparacao; timeline: Json[] }>(`/reparacoes/${id}`);
-  }
-
-  changeEstado(id: string, estado: number, notas: string | null = null): Promise<RepairDeskReparacao> {
-    return this.post<RepairDeskReparacao>(`/reparacoes/${id}/estado`, { estado, notas });
-  }
-
-  async setRepairPayment(id: string, estadoPagamento: number): Promise<RepairDeskReparacao> {
-    const detail = await this.getRepair(id);
-    const r = detail.reparacao;
-    return this.put<RepairDeskReparacao>(`/reparacoes/${id}`, {
-      clienteId: r.cliente.id,
-      equipamento: r.equipamento,
-      avaria: r.avaria,
-      imei: r.imei,
-      diagnostico: r.diagnostico,
-      orcamentoCents: r.orcamentoCents,
-      orcamentoAprovado: r.orcamentoAprovado,
-      precoFinalCents: r.precoFinalCents ?? r.orcamentoCents,
-      custoPecasCents: r.custoPecasCents,
-      horasGastas: r.horasGastas,
-      notas: r.notas,
-      estadoPagamento,
-      equipmentFieldTemplateId: null,
-      fields: null,
-    });
-  }
-
-
-  listReparacoesPagasSemFatura(): Promise<RepairDeskReparacao[]> {
-    return this.get('/reparacoes/pagas-sem-fatura?limit=100');
-  }
-
 
   createVenda(payload: Json): Promise<RepairDeskVenda> {
     return this.post<RepairDeskVenda>('/vendas', payload);
   }
 
-  payVenda(id: string, paymentMethod = 2): Promise<RepairDeskVenda> {
-    return this.post(`/vendas/${id}/marcar-paga`, { paymentMethod });
+  /** Reparação em Orçamento com uma linha de mão de obra. */
+  createReparacao(clienteId: string, equipamento: string, problema: string, valorCents: number): Promise<RepairDeskVenda> {
+    return this.createVenda({
+      tipo: VENDA_TIPO.Reparacao,
+      clienteId,
+      equipamento,
+      problema,
+      notas: null,
+      linhas: [{ id: null, compraLinhaId: null, descricao: 'Mão de obra', quantidade: 1, precoUnitarioCents: valorCents }],
+      estado: VENDA_ESTADO.Orcamento,
+    });
+  }
+
+  mudarEstado(id: string, estado: number, paymentMethod: number | null = null): Promise<RepairDeskVenda> {
+    return this.post<RepairDeskVenda>(`/vendas/${id}/estado`, { estado, paymentMethod });
   }
 
   getVenda(id: string): Promise<RepairDeskVenda> {
     return this.get<RepairDeskVenda>(`/vendas/${id}`);
   }
 
-  cancelVenda(id: string): Promise<RepairDeskVenda> {
-    return this.post<RepairDeskVenda>(`/vendas/${id}/cancelar`, {});
-  }
-
-  async uploadRepairPhoto(reparacaoId: string, tipo: 0 | 1 | 2, legenda: string): Promise<Json> {
+  async uploadRepairPhoto(vendaId: string, tipo: 0 | 1 | 2, legenda: string): Promise<Json> {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
       'base64',
     );
-    const response = await this.request.post(`${e2eEnv.apiURL}/reparacoes/${reparacaoId}/fotos`, {
+    const response = await this.request.post(`${e2eEnv.apiURL}/vendas/${vendaId}/fotos`, {
       headers: this.authHeaders(),
       multipart: {
         tipo: String(tipo),
@@ -204,9 +153,6 @@ export class RepairDeskApi {
     return this.expectJson(this.request.post(`${e2eEnv.apiURL}${path}`, { headers: this.authHeaders(), data }), `POST ${path}`);
   }
 
-  private put<T = Json>(path: string, data: Json): Promise<T> {
-    return this.expectJson(this.request.put(`${e2eEnv.apiURL}${path}`, { headers: this.authHeaders(), data }), `PUT ${path}`);
-  }
 
   private authHeaders(): Record<string, string> {
     if (!this.accessToken) throw new Error('RepairDeskApi.login() must run before authenticated calls.');

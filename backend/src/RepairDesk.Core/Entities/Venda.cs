@@ -21,6 +21,11 @@ public class Venda : BaseEntity, ITenantEntity
     public string? Equipamento { get; set; }
     /// <summary>Reparação: avaria descrita pelo cliente. Serviço: o que foi pedido.</summary>
     public string? Problema { get; set; }
+    /// <summary>Slug do portal do cliente (/r/{slug}) — gerado ao criar uma reparação.</summary>
+    public string? PublicSlug { get; set; }
+    /// <summary>Previsão de entrega mostrada ao cliente no portal enquanto está em curso.</summary>
+    public DateTime? PrevistoPara { get; set; }
+    public List<VendaEstadoLog> Timeline { get; set; } = new();
 
     /// <summary>Nº da fatura emitida fora do Mender (ex.: Moloni web) — registo manual.</summary>
     public string? InvoiceNumber { get; set; }

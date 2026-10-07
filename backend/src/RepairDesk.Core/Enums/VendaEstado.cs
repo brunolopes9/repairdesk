@@ -12,4 +12,6 @@ public enum VendaEstado
     /// <summary>Entregue e paga — a data da venda (<c>Venda.Data</c>) é este momento.</summary>
     Entregue = 3,
     Cancelada = 4,
+    /// <summary>Orçamento aceite, trabalho a decorrer ("Em reparação" nas reparações). Valor 5 por compatibilidade.</summary>
+    EmCurso = 5,
 }

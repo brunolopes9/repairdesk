@@ -16,22 +16,22 @@ public sealed record InternalTaskDto(
     string? AssignedToDisplayName,
     Guid CreatedByUserId,
     DateTime CreatedAt,
-    Guid? ReparacaoId,
-    int? ReparacaoNumero);
+    Guid? VendaId,
+    int? VendaNumero);
 
 public sealed record CreateInternalTaskRequest(
     string Title,
     string? Description,
     DateTime? DueAt,
     Guid? AssignedToUserId,
-    Guid? ReparacaoId);
+    Guid? VendaId);
 
 public sealed record UpdateInternalTaskRequest(
     string Title,
     string? Description,
     DateTime? DueAt,
     Guid? AssignedToUserId,
-    Guid? ReparacaoId);
+    Guid? VendaId);
 
 public sealed record ChangeInternalTaskStatusRequest(InternalTaskStatus Status);
 
@@ -40,7 +40,7 @@ public interface IInternalTaskService
     Task<IReadOnlyList<InternalTaskDto>> ListAsync(
         InternalTaskStatus? status,
         Guid? assignedToUserId,
-        Guid? reparacaoId,
+        Guid? vendaId,
         CancellationToken ct = default);
     Task<InternalTaskDto> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<InternalTaskDto> CreateAsync(CreateInternalTaskRequest req, CancellationToken ct = default);
@@ -71,10 +71,10 @@ public sealed class InternalTaskService : IInternalTaskService
     public async Task<IReadOnlyList<InternalTaskDto>> ListAsync(
         InternalTaskStatus? status,
         Guid? assignedToUserId,
-        Guid? reparacaoId,
+        Guid? vendaId,
         CancellationToken ct = default)
     {
-        var list = await _repo.ListAsync(status, assignedToUserId, reparacaoId, ct);
+        var list = await _repo.ListAsync(status, assignedToUserId, vendaId, ct);
         return list.Select(ToDto).ToList();
     }
 
@@ -100,7 +100,7 @@ public sealed class InternalTaskService : IInternalTaskService
             Description = TrimOrNull(req.Description),
             DueAt = req.DueAt is null ? null : DateTime.SpecifyKind(req.DueAt.Value, DateTimeKind.Utc),
             AssignedToUserId = req.AssignedToUserId,
-            ReparacaoId = req.ReparacaoId,
+            VendaId = req.VendaId,
             CreatedByUserId = uid,
             Status = InternalTaskStatus.Pendente,
         };
@@ -108,7 +108,7 @@ public sealed class InternalTaskService : IInternalTaskService
         await _repo.SaveAsync(ct);
 
         await _audit.LogAsync(AuditAction.Create, "InternalTask", task.Id,
-            new { title, task.AssignedToUserId, task.ReparacaoId }, task.TenantId, uid, ct);
+            new { title, task.AssignedToUserId, task.VendaId }, task.TenantId, uid, ct);
 
         return (await GetByIdAsync(task.Id, ct))!;
     }
@@ -124,11 +124,11 @@ public sealed class InternalTaskService : IInternalTaskService
         t.Description = TrimOrNull(req.Description);
         t.DueAt = req.DueAt is null ? null : DateTime.SpecifyKind(req.DueAt.Value, DateTimeKind.Utc);
         t.AssignedToUserId = req.AssignedToUserId;
-        t.ReparacaoId = req.ReparacaoId;
+        t.VendaId = req.VendaId;
         await _repo.SaveAsync(ct);
 
         await _audit.LogAsync(AuditAction.Update, "InternalTask", t.Id,
-            new { t.Title, t.AssignedToUserId, t.ReparacaoId }, t.TenantId, _user.UserId, ct);
+            new { t.Title, t.AssignedToUserId, t.VendaId }, t.TenantId, _user.UserId, ct);
 
         return ToDto((await _repo.FindByIdAsync(id, ct))!);
     }
@@ -171,6 +171,6 @@ public sealed class InternalTaskService : IInternalTaskService
         t.AssignedToUser?.DisplayName,
         t.CreatedByUserId,
         t.CreatedAt,
-        t.ReparacaoId,
-        t.Reparacao?.Numero);
+        t.VendaId,
+        t.Venda?.Numero);
 }

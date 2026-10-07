@@ -15,17 +15,17 @@ public class InternalTaskRepository : IInternalTaskRepository
     public async Task<IReadOnlyList<InternalTask>> ListAsync(
         InternalTaskStatus? status,
         Guid? assignedToUserId,
-        Guid? reparacaoId,
+        Guid? vendaId,
         CancellationToken ct = default)
     {
         var q = _db.InternalTasks
             .AsNoTracking()
             .Include(t => t.AssignedToUser)
-            .Include(t => t.Reparacao)
+            .Include(t => t.Venda)
             .AsQueryable();
         if (status is { } s) q = q.Where(t => t.Status == s);
         if (assignedToUserId is { } u) q = q.Where(t => t.AssignedToUserId == u);
-        if (reparacaoId is { } r) q = q.Where(t => t.ReparacaoId == r);
+        if (vendaId is { } r) q = q.Where(t => t.VendaId == r);
         // Pendentes primeiro (por DueAt asc; sem DueAt no fim), depois resto por CreatedAt desc.
         return await q
             .OrderBy(t => t.Status == InternalTaskStatus.Pendente ? 0 : 1)
@@ -37,7 +37,7 @@ public class InternalTaskRepository : IInternalTaskRepository
     public Task<InternalTask?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.InternalTasks
             .Include(t => t.AssignedToUser)
-            .Include(t => t.Reparacao)
+            .Include(t => t.Venda)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
 
     public async Task AddAsync(InternalTask task, CancellationToken ct = default)

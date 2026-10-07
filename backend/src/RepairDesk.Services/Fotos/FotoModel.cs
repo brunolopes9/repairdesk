@@ -4,7 +4,7 @@ namespace RepairDesk.Services.Fotos;
 
 public sealed record FotoDto(
     Guid Id,
-    Guid ReparacaoId,
+    Guid VendaId,
     string FileName,
     string ContentType,
     long Size,

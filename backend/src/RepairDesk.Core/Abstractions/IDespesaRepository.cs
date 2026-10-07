@@ -6,7 +6,6 @@ namespace RepairDesk.Core.Abstractions;
 public interface IDespesaRepository
 {
     Task<Despesa?> FindByIdAsync(Guid id, CancellationToken ct = default);
-    Task<int> SumByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
     Task<(IReadOnlyList<Despesa> Items, int Total)> SearchAsync(
         string? query,
         DespesaCategoria? categoria,
@@ -15,7 +14,6 @@ public interface IDespesaRepository
         bool excludeSupplierInvoiceImports,
         DateTime? from,
         DateTime? to,
-        Guid? reparacaoId,
         bool? isRecorrente,
         int page,
         int pageSize,

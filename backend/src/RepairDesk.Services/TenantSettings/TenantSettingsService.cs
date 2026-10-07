@@ -17,18 +17,18 @@ public class TenantSettingsService : ITenantSettingsService
 {
     private readonly ITenantRepository _repo;
     private readonly IClienteRepository _clientes;
-    private readonly IReparacaoRepository _reparacoes;
+    private readonly IVendaRepository _vendas;
     private readonly ITenantContext _tenantContext;
 
     public TenantSettingsService(
         ITenantRepository repo,
         IClienteRepository clientes,
-        IReparacaoRepository reparacoes,
+        IVendaRepository vendas,
         ITenantContext tenantContext)
     {
         _repo = repo;
         _clientes = clientes;
-        _reparacoes = reparacoes;
+        _vendas = vendas;
         _tenantContext = tenantContext;
     }
 
@@ -127,7 +127,7 @@ public class TenantSettingsService : ITenantSettingsService
     {
         var empresaCompleta = !string.IsNullOrWhiteSpace(tenant.Name);
         var clienteCriado = await _clientes.AnyAsync(ct);
-        var reparacaoCriada = await _reparacoes.AnyAsync(ct);
+        var reparacaoCriada = await _vendas.AnyAsync(ct);
         var completed = tenant.OnboardingCompletado;
         var currentStep = completed
             ? 5

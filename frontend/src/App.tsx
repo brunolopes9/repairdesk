@@ -21,12 +21,9 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Clientes = lazy(() => import('./pages/clientes/Clientes'));
 const ClienteCampanhas = lazy(() => import('./pages/clientes/ClienteCampanhas'));
 const ClienteDetalhe = lazy(() => import('./pages/clientes/ClienteDetalhe'));
-const Reparacoes = lazy(() => import('./pages/reparacoes/Reparacoes'));
-const ReparacaoDetalhe = lazy(() => import('./pages/reparacoes/ReparacaoDetalhe'));
 const Despesas = lazy(() => import('./pages/despesas/Despesas'));
 const Compras = lazy(() => import('./pages/compras/Compras'));
 const CompraEditor = lazy(() => import('./pages/compras/CompraEditor'));
-const Stock = lazy(() => import('./pages/stock/Stock'));
 const Vendas = lazy(() => import('./pages/vendas/Vendas'));
 const VendaEditor = lazy(() => import('./pages/vendas/VendaEditor'));
 const Auditoria = lazy(() => import('./pages/auditoria/Auditoria'));
@@ -38,8 +35,6 @@ const Fornecedores = lazy(() => import('./pages/definicoes/Fornecedores'));
 const Automacoes = lazy(() => import('./pages/definicoes/Automacoes'));
 const LlmUsage = lazy(() => import('./pages/definicoes/LlmUsage'));
 const UsersDefinicoes = lazy(() => import('./pages/definicoes/Users'));
-const RelatorioNegocio = lazy(() => import('./pages/relatorios/Negocio'));
-const RelatorioProdutividade = lazy(() => import('./pages/relatorios/Produtividade'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
@@ -48,7 +43,7 @@ const PortalCliente = lazy(() => import('./pages/PortalCliente'));
 const PortalGarantia = lazy(() => import('./pages/PortalGarantia'));
 const PedidoReparacao = lazy(() => import('./pages/PedidoReparacao'));
 const Agendar = lazy(() => import('./pages/Agendar'));
-const PedidosOnline = lazy(() => import('./pages/reparacoes/PedidosOnline'));
+const PedidosOnline = lazy(() => import('./pages/pedidos/PedidosOnline'));
 const Agendamentos = lazy(() => import('./pages/agendamentos/Agendamentos'));
 const PoliticaPrivacidade = lazy(() => import('./pages/legal/PoliticaPrivacidade'));
 const Termos = lazy(() => import('./pages/legal/Termos'));
@@ -141,8 +136,8 @@ export default function App() {
               <Route path="/clientes" element={<Clientes />} />
               <Route path="/clientes/campanhas" element={<ClienteCampanhas />} />
               <Route path="/clientes/:id" element={<ClienteDetalhe />} />
-              <Route path="/reparacoes" element={<Reparacoes />} />
-              <Route path="/reparacoes/:id" element={<ReparacaoDetalhe />} />
+              <Route path="/reparacoes" element={<Navigate to="/vendas?tipo=1" replace />} />
+              <Route path="/reparacoes/:id" element={<Navigate to="/vendas?tipo=1" replace />} />
               <Route path="/trabalhos" element={<Navigate to="/vendas?tipo=2" replace />} />
               <Route path="/despesas" element={<Despesas />} />
               <Route path="/compras" element={<Compras />} />
@@ -153,17 +148,15 @@ export default function App() {
               <Route path="/vendas" element={<Vendas />} />
               <Route path="/vendas/nova" element={<VendaEditor />} />
               <Route path="/vendas/:id" element={<VendaEditor />} />
-              <Route path="/stock" element={<Stock />} />
+              <Route path="/stock" element={<Navigate to="/compras?tab=stock" replace />} />
               <Route path="/precos" element={<Navigate to="/compras?tab=simulador" replace />} />
-              <Route path="/relatorios/iva" element={<Navigate to="/relatorios/negocio" replace />} />
-              <Route path="/relatorios/negocio" element={<RelatorioNegocio />} />
-              <Route path="/relatorios/produtividade" element={<RelatorioProdutividade />} />
+              <Route path="/relatorios/*" element={<Navigate to="/compras?tab=resumo" replace />} />
               <Route path="/pedidos-online" element={<PedidosOnline />} />
               <Route path="/agendamentos" element={<Agendamentos />} />
               <Route path="/compras-operacao" element={<Navigate to="/compras" replace />} />
               <Route path="/documentos" element={<Navigate to="/vendas" replace />} />
               <Route path="/balcao" element={<Navigate to="/vendas/nova?tipo=0" replace />} />
-              <Route path="/catalogo" element={<Navigate to="/stock" replace />} />
+              <Route path="/catalogo" element={<Navigate to="/compras?tab=stock" replace />} />
               <Route path="/inventario" element={<Navigate to="/compras?tab=stock" replace />} />
               <Route path="/tarefas" element={<Tarefas />} />
               <Route path="/auditoria" element={<Auditoria />} />
@@ -175,7 +168,7 @@ export default function App() {
               <Route path="/definicoes/automacoes" element={<Automacoes />} />
               <Route path="/definicoes/llm-usage" element={<LlmUsage />} />
               <Route path="/definicoes/utilizadores" element={<UsersDefinicoes />} />
-              <Route path="/produtos" element={<Navigate to="/stock" replace />} />
+              <Route path="/produtos" element={<Navigate to="/compras?tab=stock" replace />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

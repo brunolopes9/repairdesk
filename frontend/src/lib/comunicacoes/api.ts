@@ -21,7 +21,7 @@ export type ComunicacaoDirecao = (typeof ComunicacaoDirecao)[keyof typeof Comuni
 
 export interface ReparacaoComunicacao {
   id: string;
-  reparacaoId: string;
+  vendaId: string;
   clienteId: string;
   tipo: ComunicacaoTipo;
   direcao: ComunicacaoDirecao;
@@ -37,12 +37,12 @@ export interface CreateComunicacaoForm {
 }
 
 export const comunicacoesApi = {
-  list: (reparacaoId: string) =>
-    api.get<ReparacaoComunicacao[]>(`/reparacoes/${reparacaoId}/comunicacoes`).then((r) => r.data),
-  create: (reparacaoId: string, form: CreateComunicacaoForm) =>
-    api.post<ReparacaoComunicacao>(`/reparacoes/${reparacaoId}/comunicacoes`, form).then((r) => r.data),
-  remove: (reparacaoId: string, id: string) =>
-    api.delete(`/reparacoes/${reparacaoId}/comunicacoes/${id}`),
+  list: (vendaId: string) =>
+    api.get<ReparacaoComunicacao[]>(`/vendas/${vendaId}/comunicacoes`).then((r) => r.data),
+  create: (vendaId: string, form: CreateComunicacaoForm) =>
+    api.post<ReparacaoComunicacao>(`/vendas/${vendaId}/comunicacoes`, form).then((r) => r.data),
+  remove: (vendaId: string, id: string) =>
+    api.delete(`/vendas/${vendaId}/comunicacoes/${id}`),
 };
 
 export const COMUNICACAO_TIPO_LABEL: Record<ComunicacaoTipo, string> = {

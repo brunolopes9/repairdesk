@@ -28,10 +28,8 @@ import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/u
 import { isAxiosError } from 'axios';
 import { clientesApi, type ImportClientesResponse } from '../../lib/clientes/api';
 import { clienteTagsApi } from '../../lib/clienteTags/api';
-import { reparacoesApi } from '../../lib/reparacoes/api';
 import { vendasApi } from '../../lib/vendas/api';
-import { STATUS_LABEL } from '../../lib/reparacoes/types';
-import { VENDA_ESTADO } from '../../lib/vendas/types';
+import { VENDA_ESTADO, VENDA_ESTADO_LABEL, VENDA_TIPO, VENDA_TIPO_LABEL } from '../../lib/vendas/types';
 import { downloadFile } from '../../lib/downloadPdf';
 import { displayPhone } from '../../lib/phone/formatter';
 import { validateNif } from '../../lib/nif/validator';
@@ -693,11 +691,6 @@ function ClienteInspector({
   onEdit: (c: Cliente) => void;
   onOpen: (id: string) => void;
 }) {
-  const reparacoes = useQuery({
-    queryKey: ['cliente-inspector-reps', cliente?.id],
-    queryFn: () => reparacoesApi.list({ clienteId: cliente!.id, pageSize: 100 }),
-    enabled: !!cliente,
-  });
   const vendas = useQuery({
     queryKey: ['cliente-inspector-vendas', cliente?.id],
     queryFn: () => vendasApi.list({ clienteId: cliente!.id, pageSize: 100 }),
@@ -713,32 +706,22 @@ function ClienteInspector({
     );
   }
 
-  const reps = reparacoes.data?.items ?? [];
+  // Doc 94: reparações, serviços e produtos são todos Vendas.
   const vds = vendas.data?.items ?? [];
-  const repsPagas = reps.filter((r) => r.estado === 5);
   const vendasPagas = vds.filter((v) => v.estado === VENDA_ESTADO.Entregue);
-  const totalGasto =
-    repsPagas.reduce((s, r) => s + (r.precoFinalCents ?? r.orcamentoCents ?? 0), 0) +
-    vendasPagas.reduce((s, v) => s + v.totalCents, 0);
-  const abertos = reps.filter((r) => r.estado !== 5 && r.estado !== 6).length;
+  const totalGasto = vendasPagas.reduce((s, v) => s + v.totalCents, 0);
+  const abertos = vds.filter((v) => v.estado !== VENDA_ESTADO.Entregue && v.estado !== VENDA_ESTADO.Cancelada).length;
 
   type Activity = { key: string; date: string; icon: ReactNode; title: string; sub: string; value: number; href: string };
   const activity: Activity[] = [
-    ...reps.map((r) => ({
-      key: `r-${r.id}`,
-      date: r.recebidoEm,
-      icon: <Wrench size={14} className="text-sky-600 dark:text-sky-300" />,
-      title: `Reparação #${r.numero}`,
-      sub: `${r.equipamento} · ${STATUS_LABEL[r.estado]}`,
-      value: r.precoFinalCents ?? r.orcamentoCents ?? 0,
-      href: `/reparacoes/${r.id}`,
-    })),
     ...vds.map((v) => ({
       key: `v-${v.id}`,
-      date: v.data,
-      icon: <ShoppingBag size={14} className="text-emerald-600 dark:text-emerald-300" />,
-      title: `Venda #${v.numero}`,
-      sub: 'Balcão',
+      date: v.estado === VENDA_ESTADO.Entregue ? v.data : v.createdAt,
+      icon: v.tipo === VENDA_TIPO.Reparacao
+        ? <Wrench size={14} className="text-sky-600 dark:text-sky-300" />
+        : <ShoppingBag size={14} className="text-emerald-600 dark:text-emerald-300" />,
+      title: `${VENDA_TIPO_LABEL[v.tipo]} #${v.numero}`,
+      sub: `${v.equipamento ?? v.problema ?? v.items[0]?.descricao ?? ''} · ${VENDA_ESTADO_LABEL[v.estado]}`,
       value: v.totalCents,
       href: `/vendas/${v.id}`,
     })),
@@ -747,7 +730,7 @@ function ClienteInspector({
     .slice(0, 6);
 
   const phone = cliente.telefone?.replace(/\s/g, '') ?? '';
-  const loadingHist = reparacoes.isLoading || vendas.isLoading;
+  const loadingHist = vendas.isLoading;
 
   return (
     <aside className="space-y-4 rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 xl:sticky xl:top-4 xl:self-start">
@@ -832,7 +815,7 @@ function ClienteInspector({
         </div>
         <div className="rounded-lg bg-zinc-50 px-3 py-2.5 dark:bg-zinc-800/50">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Reparações</div>
-          <div className="text-lg font-bold tabular-nums">{loadingHist ? '…' : reps.length}</div>
+          <div className="text-lg font-bold tabular-nums">{loadingHist ? '…' : vds.filter((v) => v.tipo === VENDA_TIPO.Reparacao).length}</div>
         </div>
       </div>
 

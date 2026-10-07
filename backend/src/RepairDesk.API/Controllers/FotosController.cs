@@ -7,7 +7,7 @@ using RepairDesk.Services.Fotos;
 namespace RepairDesk.API.Controllers;
 
 [ApiController]
-[Route("api/reparacoes/{reparacaoId:guid}/fotos")]
+[Route("api/vendas/{vendaId:guid}/fotos")]
 [Authorize]
 public class FotosController : ControllerBase
 {
@@ -21,13 +21,13 @@ public class FotosController : ControllerBase
     }
 
     [HttpGet]
-    public Task<IReadOnlyList<FotoDto>> List(Guid reparacaoId, CancellationToken ct)
-        => _service.ListByReparacaoAsync(reparacaoId, ct);
+    public Task<IReadOnlyList<FotoDto>> List(Guid vendaId, CancellationToken ct)
+        => _service.ListByVendaAsync(vendaId, ct);
 
     [HttpPost]
     [RequestSizeLimit(10 * 1024 * 1024 + 8192)] // 10 MB + header overhead
     public async Task<ActionResult<FotoDto>> Upload(
-        Guid reparacaoId,
+        Guid vendaId,
         [FromForm] IFormFile file,
         [FromForm] FotoTipo tipo = FotoTipo.Antes,
         [FromForm] string? legenda = null,
@@ -41,13 +41,13 @@ public class FotosController : ControllerBase
         await using var raw = file.OpenReadStream();
         var validated = await _fileValidator.ValidateAsync(raw, file.ContentType, FileKind.Image, ct);
         using var stream = new MemoryStream(validated.Buffer);
-        var dto = await _service.UploadAsync(reparacaoId, stream, file.FileName, validated.DetectedMime, validated.Buffer.Length, tipo, legenda, ct);
+        var dto = await _service.UploadAsync(vendaId, stream, file.FileName, validated.DetectedMime, validated.Buffer.Length, tipo, legenda, ct);
         return Ok(dto);
     }
 }
 
 [ApiController]
-[Route("api/reparacoes/fotos")]
+[Route("api/vendas/fotos")]
 [Authorize]
 public class FotosItemController : ControllerBase
 {

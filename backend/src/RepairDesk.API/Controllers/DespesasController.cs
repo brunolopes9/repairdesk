@@ -21,14 +21,13 @@ public class DespesasController : ControllerBase
         [FromQuery(Name = "categoria_in")] string? categoriaIn,
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
-        [FromQuery] Guid? reparacaoId,
         [FromQuery] bool? isRecorrente,
         [FromQuery(Name = "include_supplier_invoice_imports")] bool includeSupplierInvoiceImports,
         [FromQuery(Name = "exclude_supplier_invoice_imports")] bool excludeSupplierInvoiceImports,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
-        => _service.SearchAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, reparacaoId, isRecorrente, page, pageSize, ct);
+        => _service.SearchAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<DespesaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
@@ -56,14 +55,6 @@ public class DespesasController : ControllerBase
         await _service.DeleteAsync(id, ct);
         return NoContent();
     }
-
-    // Sprint 540: tirar uma compra de inventário do limbo "Despesa-Peças" (invisível no Stock)
-    // e materializá-la como Part + movimento de entrada. Move com efeito fiscal nulo (a despesa
-    // é removida para não contar a compra duas vezes no IVA). Admin-only, como o resto.
-    [HttpPost("{id:guid}/converter-stock")]
-    [Authorize(Roles = "Admin")]
-    public Task<ConvertDespesaToStockResult> ConverterStock(Guid id, [FromBody] ConvertDespesaToStockRequest req, CancellationToken ct)
-        => _service.ConvertToStockAsync(id, req, ct);
 
     private static IReadOnlyCollection<DespesaCategoria>? ParseCategoriaIn(string? raw)
     {

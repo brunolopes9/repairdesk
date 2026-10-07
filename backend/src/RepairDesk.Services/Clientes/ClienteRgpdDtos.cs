@@ -3,35 +3,32 @@ using RepairDesk.Services.Audit;
 
 namespace RepairDesk.Services.Clientes;
 
+/// <summary>Portabilidade RGPD (art. 20.º): tudo o que a loja tem sobre o cliente, em JSON.</summary>
 public sealed record ClientePortableExportDto(
     DateTime ExportedAt,
     string FormatVersion,
     ClienteExportDto Cliente,
-    IReadOnlyList<ReparacaoExportDto> Reparacoes,
-    IReadOnlyList<DespesaExportDto> Despesas,
+    IReadOnlyList<VendaExportDto> Vendas,
     IReadOnlyList<FotoExportDto> Fotos,
+    IReadOnlyList<ComunicacaoExportDto> Comunicacoes,
     IReadOnlyList<GarantiaExportDto> Garantias,
     IReadOnlyList<AvaliacaoExportDto> Avaliacoes,
-    IReadOnlyList<PartMovimentoExportDto> PartMovimentos,
-    IReadOnlyList<VendaExportDto> Vendas,
     IReadOnlyList<AuditEntryDto> AuditEntries);
 
 public sealed record ClienteExportDto(Guid Id, string Nome, string? Telefone, string? Email, string? Nif, string? Notas, DateTime CreatedAt, DateTime? UpdatedAt);
-public sealed record ReparacaoExportDto(Guid Id, int Numero, string Equipamento, string? Imei, string Avaria, string? Diagnostico, RepairStatus Estado, DateTime EstadoSince, DateTime CreatedAt, DateTime? EntregueEm, int? OrcamentoCents, bool OrcamentoAprovado, int? PrecoFinalCents, int CustoPecasCents, decimal HorasGastas, string? Notas, PaymentStatus EstadoPagamento, string? PublicSlug, IReadOnlyList<EstadoLogExportDto> Timeline);
-public sealed record EstadoLogExportDto(Guid Id, RepairStatus? EstadoFrom, RepairStatus EstadoTo, DateTime MudouEm, Guid? UserId, string? Notas);
-public sealed record DespesaExportDto(Guid Id, string Descricao, DespesaCategoria Categoria, int ValorCents, DateTime Data, string? Fornecedor, string? NumeroEncomenda, string? Notas, Guid? ReparacaoId, DateTime CreatedAt);
-public sealed record FotoExportDto(Guid Id, Guid ReparacaoId, string FileName, string ContentType, long Size, FotoTipo Tipo, int Ordem, string? Legenda, bool VisivelNoPortal, string SignedUrl, DateTimeOffset SignedUrlExpiresAt, DateTime CreatedAt);
-public sealed record GarantiaExportDto(Guid Id, Guid? ReparacaoId, Guid? VendaId, GarantiaSourceType SourceType, string Slug, DateTime DataInicio, DateTime DataFim, int DiasGarantia, string? Cobertura, string? Exclusoes, bool Anulada, string? MotivoAnulacao);
-public sealed record AvaliacaoExportDto(Guid Id, Guid ReparacaoId, int Score, string? Comentario, bool PublicarTestemunho, bool PedidoGoogleReview, DateTime CreatedAt);
-public sealed record PartMovimentoExportDto(Guid Id, Guid PartId, string? PartNome, string? PartSku, int Quantidade, int StockAntes, int StockDepois, PartMovimentoMotivo Motivo, Guid? ReparacaoId, string? Notas, DateTime CreatedAt);
+public sealed record EstadoLogExportDto(Guid Id, VendaEstado? EstadoFrom, VendaEstado EstadoTo, DateTime MudouEm);
+public sealed record FotoExportDto(Guid Id, Guid VendaId, string FileName, string ContentType, long Size, FotoTipo Tipo, int Ordem, string? Legenda, bool VisivelNoPortal, string SignedUrl, DateTimeOffset SignedUrlExpiresAt, DateTime CreatedAt);
+public sealed record ComunicacaoExportDto(Guid Id, Guid VendaId, ComunicacaoTipo Tipo, ComunicacaoDirecao Direcao, string Texto, DateTime CreatedAt);
+public sealed record GarantiaExportDto(Guid Id, Guid? VendaId, GarantiaSourceType SourceType, string Slug, DateTime DataInicio, DateTime DataFim, int DiasGarantia, string? Cobertura, string? Exclusoes, bool Anulada, string? MotivoAnulacao);
+public sealed record AvaliacaoExportDto(Guid Id, Guid VendaId, int Score, string? Comentario, bool PublicarTestemunho, bool PedidoGoogleReview, DateTime CreatedAt);
 public sealed record VendaExportDto(
-    Guid Id, int Numero, DateTime Data, int TotalCents, int IvaCents,
-    PaymentMethod PaymentMethod, VendaEstado Estado,
-    string? InvoiceNumber, DateTime? InvoiceEmittedAt, string? Notas,
-    IReadOnlyList<VendaItemExportDto> Items);
+    Guid Id, int Numero, VendaTipo Tipo, VendaEstado Estado, DateTime Data, DateTime CreatedAt,
+    string? Equipamento, string? Problema, int TotalCents, int IvaCents,
+    PaymentMethod PaymentMethod, string? InvoiceNumber, DateTime? InvoiceEmittedAt, string? Notas,
+    IReadOnlyList<VendaItemExportDto> Items,
+    IReadOnlyList<EstadoLogExportDto> Timeline);
 public sealed record VendaItemExportDto(
-    Guid Id, Guid? PartId, string? PartSku, string Descricao,
-    int Quantidade, int PrecoUnitarioCents, int DescontoCents, decimal IvaRate, int TotalCents);
+    Guid Id, string Descricao, int Quantidade, int PrecoUnitarioCents, int DescontoCents, decimal IvaRate, int TotalCents, string? Imei);
 
 public sealed record HardDeleteClienteRequest(string Confirm, string? Motivo);
-public sealed record HardDeleteClienteResponse(Guid ClienteId, string Nome, DateTime DeletedAt, int Reparacoes, int Despesas, int Fotos, int Vendas);
+public sealed record HardDeleteClienteResponse(Guid ClienteId, string Nome, DateTime DeletedAt, int Reparacoes, int Fotos, int Vendas);

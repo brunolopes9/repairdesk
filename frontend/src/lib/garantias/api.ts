@@ -10,7 +10,6 @@ export interface GarantiaAdminDto {
   id: string;
   slug: string;
   sourceType: GarantiaSourceType;
-  reparacaoId: string | null;
   vendaId: string | null;
   dataInicio: string;
   dataFim: string;
@@ -24,15 +23,6 @@ export interface GarantiaAdminDto {
 }
 
 export const garantiasApi = {
-  byReparacao(reparacaoId: string) {
-    return api
-      .get<GarantiaAdminDto>(`/garantias/by-reparacao/${reparacaoId}`)
-      .then((r) => r.data)
-      .catch((err) => {
-        if (err?.response?.status === 404) return null;
-        throw err;
-      });
-  },
   byVenda(vendaId: string) {
     return api
       .get<GarantiaAdminDto>(`/garantias/by-venda/${vendaId}`)

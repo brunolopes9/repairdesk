@@ -8,7 +8,7 @@ import {
   type TemplateMeta,
   type WhatsAppVars,
 } from '../lib/whatsapp/templates';
-import type { RepairStatus } from '../lib/reparacoes/types';
+import type { VendaEstado } from '../lib/vendas/types';
 import { tenantPreferencesApi } from '../lib/tenantPreferences/api';
 import { whatsappNotificationsApi } from '../lib/whatsapp/notifications';
 import { toast } from '../lib/toast';
@@ -17,7 +17,7 @@ interface Props {
   phone: string;
   vars: WhatsAppVars;
   /** Estado de Reparação para escolher templates contextuais (ignorado se `customList` for passado). */
-  estado?: RepairStatus;
+  estado?: VendaEstado;
   /** Dias desde que entrou no estado actual — usado para escolher template (ex: Lembrete se >7 dias em Pronto). */
   staleDays?: number;
   /** Mostrar todos os templates, não só os contextuais. Default: false. */
@@ -41,7 +41,7 @@ export default function WhatsAppMenu({
   showAll = false,
   customList,
   entityId,
-  entityType = 'Reparacao',
+  entityType = 'Venda',
   size = 'sm',
 }: Props) {
   const [open, setOpen] = useState(false);

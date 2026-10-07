@@ -29,7 +29,7 @@ export default function Tarefas() {
 
   const tasks = list.data ?? [];
   const overdueCount = tasks.filter((t) => t.status === InternalTaskStatus.Pendente && t.dueAt && new Date(t.dueAt).getTime() < Date.now()).length;
-  const linkedCount = tasks.filter((t) => t.reparacaoId).length;
+  const linkedCount = tasks.filter((t) => t.vendaId).length;
   const upcomingCount = tasks.filter((t) => t.dueAt && new Date(t.dueAt).getTime() >= Date.now()).length;
 
   const create = useMutation({
@@ -233,9 +233,9 @@ function TaskRow({
           {task.assignedToDisplayName && (
             <span className="rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">@{task.assignedToDisplayName}</span>
           )}
-          {task.reparacaoNumero && task.reparacaoId && (
-            <Link to={`/reparacoes/${task.reparacaoId}`} className="rounded bg-brand-50 px-1.5 py-0.5 text-brand-700 hover:underline dark:bg-brand-950/40 dark:text-brand-300">
-              Reparação #{task.reparacaoNumero}
+          {task.vendaNumero && task.vendaId && (
+            <Link to={`/vendas/${task.vendaId}`} className="rounded bg-brand-50 px-1.5 py-0.5 text-brand-700 hover:underline dark:bg-brand-950/40 dark:text-brand-300">
+              Venda #{task.vendaNumero}
             </Link>
           )}
         </div>

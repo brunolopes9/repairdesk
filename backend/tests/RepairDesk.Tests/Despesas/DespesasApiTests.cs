@@ -29,8 +29,7 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
                 Data: DateTime.UtcNow,
                 Fornecedor: "Mobiltrust",
                 NumeroEncomenda: null,
-                Notas: null,
-                ReparacaoId: null));
+                Notas: null));
 
         resp.StatusCode.Should().Be(HttpStatusCode.Created);
         var dto = await resp.Content.ReadFromJsonAsync<DespesaDto>();
@@ -43,7 +42,7 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
         var resp = await client.PostAsJsonAsync("/api/despesas",
-            new CreateDespesaRequest("X", DespesaCategoria.Outro, 0, null, null, null, null, null));
+            new CreateDespesaRequest("X", DespesaCategoria.Outro, 0, null, null, null, null));
         resp.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
@@ -125,7 +124,7 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
         int? periodicidadeMeses = null)
     {
         var resp = await client.PostAsJsonAsync("/api/despesas",
-            new CreateDespesaRequest($"Desp-{Guid.NewGuid():N}", cat, cents, null, null, null, null, null, false, isRecorrente, periodicidadeMeses));
+            new CreateDespesaRequest($"Desp-{Guid.NewGuid():N}", cat, cents, null, null, null, null, false, isRecorrente, periodicidadeMeses));
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<DespesaDto>())!;
     }

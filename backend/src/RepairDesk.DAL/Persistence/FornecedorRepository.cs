@@ -34,14 +34,12 @@ public class FornecedorRepository : IFornecedorRepository
         var f = await _db.Fornecedores.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (f is null) return null;
 
-        // Compras de stock: entradas × custo, match por Part.Fornecedor (string snapshot — a mesma
-        // convenção do Top Fornecedores do relatório Negócio).
-        var comprasStock = await _db.PartMovimentos
+        // Compras de stock (Doc 94 Fase 3): linhas dos documentos de compra deste fornecedor, em cêntimos.
+        var comprasStockEuros = await _db.ComprasLinhas
             .AsNoTracking()
-            .Where(m => m.Quantidade > 0
-                && m.Motivo == Core.Enums.PartMovimentoMotivo.Entrada
-                && m.Part != null && m.Part.Fornecedor == f.Name)
-            .SumAsync(m => (long?)(m.Quantidade * m.Part!.CustoUnitarioCents), ct) ?? 0;
+            .Where(l => l.Documento != null && l.Documento.FornecedorId == id)
+            .SumAsync(l => (decimal?)(l.Quantidade * l.PrecoUnitarioPago), ct) ?? 0m;
+        var comprasStock = (long)Math.Round(comprasStockEuros * 100m, MidpointRounding.AwayFromZero);
 
         var despesas = await _db.Despesas
             .AsNoTracking()
@@ -59,31 +57,17 @@ public class FornecedorRepository : IFornecedorRepository
             .DefaultIfEmpty(null)
             .Max();
 
-        // Taxa de defeito a 12 meses — mesma técnica do GetTaxaDefeitoFornecedorAsync: cruzar em
-        // memória os IMEIs vendidos deste fornecedor com reparações posteriores (volume pequeno).
+        // Unidades deste fornecedor vendidas nos últimos 12 meses (via lotes). A taxa de defeito por IMEI
+        // dependia das Reparações antigas — fica a 0 até existir registo de garantias por lote.
         var desde = DateTime.UtcNow.AddMonths(-12);
-        var vendidos = await _db.VendaItems
+        var vendidosCount = await _db.VendaItems
             .AsNoTracking()
-            .Where(vi => vi.FornecedorNome == f.Name && vi.Imei != null && vi.Venda!.Data >= desde)
-            .Select(vi => new { vi.Imei, DataVenda = vi.Venda!.Data })
-            .ToListAsync(ct);
-        var comReparacao = 0;
-        if (vendidos.Count > 0)
-        {
-            var imeis = vendidos.Select(v => v.Imei!).Distinct().ToList();
-            var minCreatedByImei = (await _db.Reparacoes
-                    .AsNoTracking()
-                    .Where(r => r.Imei != null && imeis.Contains(r.Imei))
-                    .GroupBy(r => r.Imei!)
-                    .Select(g => new { Imei = g.Key, MinCreatedAt = g.Min(r => r.CreatedAt) })
-                    .ToListAsync(ct))
-                .ToDictionary(x => x.Imei, x => x.MinCreatedAt);
-            comReparacao = vendidos.Count(v =>
-                minCreatedByImei.TryGetValue(v.Imei!, out var min) && min > v.DataVenda);
-        }
-        var taxa = vendidos.Count == 0
-            ? 0m
-            : Math.Round(comReparacao * 100m / vendidos.Count, 2, MidpointRounding.AwayFromZero);
+            .Where(vi => vi.CompraLinha != null && vi.CompraLinha.Documento != null
+                && vi.CompraLinha.Documento.FornecedorId == id
+                && vi.Venda != null && vi.Venda.Estado == Core.Enums.VendaEstado.Entregue && vi.Venda.Data >= desde)
+            .SumAsync(vi => (int?)vi.Quantidade, ct) ?? 0;
+        const int comReparacao = 0;
+        const decimal taxa = 0m;
 
         return new FornecedorHistorico(
             f.Id,
@@ -97,7 +81,7 @@ public class FornecedorRepository : IFornecedorRepository
             ImportsTotal: imports.Count,
             ImportsPendentes: imports.Count(i => i.Status == SupplierInvoiceImportStatus.Pending),
             ultimaCompra,
-            ItensVendidos12m: vendidos.Count,
+            ItensVendidos12m: vendidosCount,
             ItensComReparacao12m: comReparacao,
             TaxaDefeitoPct12m: taxa,
             UltimasFaturas: imports

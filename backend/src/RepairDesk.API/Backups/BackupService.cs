@@ -323,7 +323,7 @@ public sealed class BackupService : IBackupService
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var capturedAt = _clock.GetUtcNow();
 
-        var reparacoes = await db.Reparacoes.CountAsync(ct);
+        var reparacoes = await db.Vendas.CountAsync(v => v.Tipo == RepairDesk.Core.Enums.VendaTipo.Reparacao, ct);
         var clientes = await db.Clientes.CountAsync(ct);
         var compras = await db.ComprasDocumentos.CountAsync(ct);
         var vendas = await db.Vendas.CountAsync(ct);

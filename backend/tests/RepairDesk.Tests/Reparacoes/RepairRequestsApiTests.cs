@@ -21,7 +21,7 @@ public class RepairRequestsApiTests : IClassFixture<RepairDeskApiFactory>
     private sealed record SubmitRequest(string Nome, string? Email, string? Telefone, string Equipamento, string Descricao, string? Website);
     private sealed record RequestDto(
         Guid Id, string Nome, string? Email, string? Telefone, string Equipamento,
-        string Descricao, int Estado, Guid? ReparacaoId, string? MotivoRejeicao, DateTime CreatedAt,
+        string Descricao, int Estado, string? MotivoRejeicao, DateTime CreatedAt,
         string? NotasInternas, int Prioridade, DateTime? FollowUpAt, Guid? VendaId, int Origem);
     // Sprint 436+438+439 payloads para os tests.
     private sealed record TriagemRequest(string? NotasInternas, int Prioridade, DateTime? FollowUpAt = null);
@@ -98,7 +98,7 @@ public class RepairRequestsApiTests : IClassFixture<RepairDeskApiFactory>
         conv.StatusCode.Should().Be(HttpStatusCode.OK);
         var convertido = await conv.Content.ReadFromJsonAsync<RequestDto>();
         convertido!.Estado.Should().Be(1); // Convertido
-        convertido.ReparacaoId.Should().NotBeNull();
+        convertido.VendaId.Should().NotBeNull();
 
         // Segunda conversão deve falhar (já tratado).
         var conv2 = await admin.PostAsync($"/api/repair-requests/{pedido.Id}/converter", null);
@@ -190,7 +190,6 @@ public class RepairRequestsApiTests : IClassFixture<RepairDeskApiFactory>
         var convertido = (await conv.Content.ReadFromJsonAsync<RequestDto>())!;
         convertido.Estado.Should().Be(1); // Convertido
         convertido.VendaId.Should().NotBeNull();
-        convertido.ReparacaoId.Should().BeNull("este caminho cria uma Venda, não a Reparação antiga");
 
         var venda = await admin.GetFromJsonAsync<RepairDesk.Services.Vendas.VendaDto>($"/api/vendas/{convertido.VendaId}");
         venda!.Tipo.Should().Be(RepairDesk.Core.Enums.VendaTipo.Reparacao);

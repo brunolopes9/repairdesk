@@ -24,15 +24,14 @@ public class FornecedorHistoricoTests
         var outro = new Fornecedor { TenantId = Tenant, Name = "Molano" };
         db.Fornecedores.AddRange(fornecedor, outro);
 
-        // Compras de stock: 2 entradas deste fornecedor (1×4000 + 2×1000) + 1 de OUTRO (fora).
-        var p1 = new Part { TenantId = Tenant, Nome = "Ecrã iPhone", Sku = "E1", CustoUnitarioCents = 4000, Fornecedor = "Tudo4Mobile" };
-        var p2 = new Part { TenantId = Tenant, Nome = "Bateria", Sku = "B1", CustoUnitarioCents = 1000, Fornecedor = "Tudo4Mobile" };
-        var p3 = new Part { TenantId = Tenant, Nome = "Chassis", Sku = "C1", CustoUnitarioCents = 9000, Fornecedor = "Molano" };
-        db.Parts.AddRange(p1, p2, p3);
-        db.PartMovimentos.AddRange(
-            new PartMovimento { TenantId = Tenant, Part = p1, Quantidade = 1, Motivo = PartMovimentoMotivo.Entrada },
-            new PartMovimento { TenantId = Tenant, Part = p2, Quantidade = 2, Motivo = PartMovimentoMotivo.Entrada },
-            new PartMovimento { TenantId = Tenant, Part = p3, Quantidade = 1, Motivo = PartMovimentoMotivo.Entrada });
+        // Compras de stock (lotes): 1×40 € + 2×10 € deste fornecedor + 1×90 € de OUTRO (fora).
+        var doc = new CompraDocumento { TenantId = Tenant, Fornecedor = fornecedor, Data = DateTime.UtcNow.AddMonths(-4), NumeroFatura = "FT 99" };
+        var ecra = new CompraLinha { TenantId = Tenant, Descricao = "Ecrã iPhone", Quantidade = 1, PrecoUnitarioPago = 40m, TaxaIvaCompra = 0.23m };
+        doc.Linhas.Add(ecra);
+        doc.Linhas.Add(new CompraLinha { TenantId = Tenant, Descricao = "Bateria", Quantidade = 2, PrecoUnitarioPago = 10m, TaxaIvaCompra = 0.23m });
+        var docOutro = new CompraDocumento { TenantId = Tenant, Fornecedor = outro, Data = DateTime.UtcNow.AddMonths(-4), NumeroFatura = "X 1" };
+        docOutro.Linhas.Add(new CompraLinha { TenantId = Tenant, Descricao = "Chassis", Quantidade = 1, PrecoUnitarioPago = 90m, TaxaIvaCompra = 0.23m });
+        db.ComprasDocumentos.AddRange(doc, docOutro);
 
         // Despesa deste fornecedor (porte) + COGS (fora) + de outro fornecedor (fora).
         db.Despesas.AddRange(
@@ -57,22 +56,14 @@ public class FornecedorHistoricoTests
                 Status = SupplierInvoiceImportStatus.Pending,
             });
 
-        // Defeito 12m: 2 IMEIs vendidos deste fornecedor; 1 voltou em reparação DEPOIS da venda.
-        var clienteId = Guid.NewGuid();
-        db.Clientes.Add(new Cliente { Id = clienteId, TenantId = Tenant, Nome = "Ana", Telefone = "910000000" });
+        // Vendido nos últimos 12 meses: 1 ecrã deste fornecedor (via lote).
         db.Vendas.Add(new Venda
         {
             TenantId = Tenant, Numero = 1, Estado = VendaEstado.Entregue, Data = DateTime.UtcNow.AddMonths(-3),
             Items = new List<VendaItem>
             {
-                new() { TenantId = Tenant, Descricao = "iPhone A", Quantidade = 1, PrecoUnitarioCents = 30000, IvaRate = 23m, FornecedorNome = "Tudo4Mobile", Imei = "111111111111119" },
-                new() { TenantId = Tenant, Descricao = "iPhone B", Quantidade = 1, PrecoUnitarioCents = 30000, IvaRate = 23m, FornecedorNome = "Tudo4Mobile", Imei = "222222222222226" },
+                new() { TenantId = Tenant, Descricao = "Ecrã iPhone", Quantidade = 1, PrecoUnitarioCents = 6000, IvaRate = 23m, CompraLinha = ecra },
             },
-        });
-        db.Reparacoes.Add(new Reparacao
-        {
-            TenantId = Tenant, Numero = 1, ClienteId = clienteId, Equipamento = "iPhone A", Avaria = "Ecrã",
-            Imei = "111111111111119",
         });
         await db.SaveChangesAsync();
 
@@ -81,14 +72,14 @@ public class FornecedorHistoricoTests
 
         h.Should().NotBeNull();
         h!.Nome.Should().Be("Tudo4Mobile");
-        h.ComprasStockCents.Should().Be(4000 + 2 * 1000);   // só entradas deste fornecedor
+        h.ComprasStockCents.Should().Be(4000 + 2 * 1000);   // só lotes deste fornecedor
         h.DespesasCents.Should().Be(500);                    // COGS e outros fornecedores fora
         h.ImportsTotal.Should().Be(2);
         h.ImportsPendentes.Should().Be(1);
         h.UltimaCompraEm.Should().Be(new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
-        h.ItensVendidos12m.Should().Be(2);
-        h.ItensComReparacao12m.Should().Be(1);
-        h.TaxaDefeitoPct12m.Should().Be(50m);
+        h.ItensVendidos12m.Should().Be(1);
+        h.ItensComReparacao12m.Should().Be(0);
+        h.TaxaDefeitoPct12m.Should().Be(0m);
         h.UltimasFaturas.Should().HaveCount(2);
         h.UltimasFaturas[0].Numero.Should().Be("FT 101");    // mais recente primeiro
     }

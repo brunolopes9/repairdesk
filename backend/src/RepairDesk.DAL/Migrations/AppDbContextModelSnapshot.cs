@@ -394,9 +394,6 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<bool>("PublicarTestemunho")
                         .HasColumnType("bit");
 
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<int>("Score")
                         .HasColumnType("int");
 
@@ -409,9 +406,12 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("VendaId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("ReparacaoId")
+                    b.HasIndex("VendaId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
 
@@ -768,9 +768,6 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int?>("PeriodicidadeMeses")
                         .HasColumnType("int");
 
-                    b.Property<Guid?>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<bool>("ReverseCharge")
                         .HasColumnType("bit");
 
@@ -788,16 +785,11 @@ namespace RepairDesk.DAL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ReparacaoId");
-
                     b.HasIndex("TenantId", "Categoria");
 
                     b.HasIndex("TenantId", "Data");
 
                     b.HasIndex("TenantId", "IsRecorrente");
-
-                    b.HasIndex("TenantId", "ReparacaoId")
-                        .HasFilter("[ReparacaoId] IS NOT NULL");
 
                     b.ToTable("Despesas", (string)null);
                 });
@@ -868,375 +860,6 @@ namespace RepairDesk.DAL.Migrations
                     b.HasIndex("ClienteId");
 
                     b.ToTable("Devices");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.DiagnosticoExecucao", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Categoria")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("CompletadoEm")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("NotasGerais")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int?>("Score")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("TemplateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("TemplateNomeSnapshot")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReparacaoId")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("TemplateId");
-
-                    b.ToTable("DiagnosticoExecucoes", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.DiagnosticoExecucaoItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Descricao")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid>("ExecucaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Grupo")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Notas")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("Ordem")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Peso")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Resultado")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ExecucaoId", "Ordem");
-
-                    b.ToTable("DiagnosticoExecucaoItems", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.DiagnosticoTemplate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("Activo")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("Categoria")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDefault")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "Categoria", "IsDefault")
-                        .HasFilter("[IsDefault] = 1 AND [IsDeleted] = 0");
-
-                    b.ToTable("DiagnosticoTemplates", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.DiagnosticoTemplateItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Descricao")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Grupo")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("Ordem")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Peso")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TemplateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TemplateId", "Ordem");
-
-                    b.ToTable("DiagnosticoTemplateItems", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.EquipmentFieldDefinition", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("OptionsJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Ordem")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("Required")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("TemplateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("VisibleInPortal")
-                        .HasColumnType("bit");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TemplateId");
-
-                    b.HasIndex("TenantId", "TemplateId", "Ordem");
-
-                    b.ToTable("EquipmentFieldDefinitions", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.EquipmentFieldTemplate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Categoria")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("Ordem")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "Nome")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "IsActive", "Ordem");
-
-                    b.ToTable("EquipmentFieldTemplates", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.EquipmentFieldValue", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("FieldDefinitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Value")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FieldDefinitionId");
-
-                    b.HasIndex("ReparacaoId", "FieldDefinitionId")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "ReparacaoId");
-
-                    b.ToTable("EquipmentFieldValues", (string)null);
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.Fornecedor", b =>
@@ -1369,9 +992,6 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<Guid?>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -1394,10 +1014,6 @@ namespace RepairDesk.DAL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ReparacaoId")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0 AND [ReparacaoId] IS NOT NULL");
-
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
@@ -1406,10 +1022,7 @@ namespace RepairDesk.DAL.Migrations
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0 AND [VendaId] IS NOT NULL");
 
-                    b.ToTable("Garantias", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_Garantias_OneSource", "([ReparacaoId] IS NOT NULL AND [VendaId] IS NULL) OR ([ReparacaoId] IS NULL AND [VendaId] IS NOT NULL)");
-                        });
+                    b.ToTable("Garantias", (string)null);
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.InternalTask", b =>
@@ -1442,9 +1055,6 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<Guid?>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -1461,11 +1071,14 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("VendaId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AssignedToUserId");
 
-                    b.HasIndex("ReparacaoId");
+                    b.HasIndex("VendaId");
 
                     b.ToTable("InternalTasks");
                 });
@@ -1536,158 +1149,6 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("LlmUsage", (string)null);
                 });
 
-            modelBuilder.Entity("RepairDesk.Core.Entities.Part", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("Activo")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("Categoria")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("CustoUnitarioCents")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Fornecedor")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LocalArmazenamento")
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<string>("Marca")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Modelo")
-                        .HasMaxLength(140)
-                        .HasColumnType("nvarchar(140)");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Notas")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<int>("QtdMinima")
-                        .HasColumnType("int");
-
-                    b.Property<int>("QtdStock")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Sku")
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "Sku")
-                        .IsUnique()
-                        .HasFilter("[Sku] IS NOT NULL AND [IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "Categoria", "Marca");
-
-                    b.HasIndex("TenantId", "QtdStock", "QtdMinima");
-
-                    b.ToTable("Parts", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.PartMovimento", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("Motivo")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Notas")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<Guid>("PartId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Quantidade")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("ReverseCharge")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("StockAntes")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StockDepois")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("VendaId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PartId");
-
-                    b.HasIndex("ReparacaoId");
-
-                    b.HasIndex("VendaId");
-
-                    b.HasIndex("TenantId", "ReparacaoId")
-                        .HasFilter("[ReparacaoId] IS NOT NULL");
-
-                    b.HasIndex("TenantId", "VendaId")
-                        .HasFilter("[VendaId] IS NOT NULL");
-
-                    b.HasIndex("TenantId", "PartId", "CreatedAt");
-
-                    b.ToTable("PartMovimentos", (string)null);
-                });
-
             modelBuilder.Entity("RepairDesk.Core.Entities.Payment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1729,9 +1190,6 @@ namespace RepairDesk.DAL.Migrations
 
                     b.Property<string>("ProviderRef")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -1795,9 +1253,6 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1807,13 +1262,16 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("VendaId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("ReparacaoId", "Endpoint")
+                    b.HasIndex("TenantId", "VendaId");
+
+                    b.HasIndex("VendaId", "Endpoint")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "ReparacaoId");
 
                     b.ToTable("PushSubscriptions", (string)null);
                 });
@@ -1932,9 +1390,6 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("Prioridade")
                         .HasColumnType("int");
 
-                    b.Property<Guid?>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("SourceIp")
                         .HasColumnType("nvarchar(max)");
 
@@ -1955,480 +1410,9 @@ namespace RepairDesk.DAL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ReparacaoId");
-
                     b.HasIndex("VendaId");
 
                     b.ToTable("RepairRequests");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.Reparacao", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("AssignedToUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Avaria")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<int?>("Categoria")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("ClienteId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("CustoPecasCents")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Diagnostico")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTime?>("EntregueEm")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Equipamento")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid?>("EquipmentFieldTemplateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Estado")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EstadoFisicoInicial")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("EstadoPagamento")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("EstadoSince")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("HorasGastas")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("decimal(8,2)");
-
-                    b.Property<string>("Imei")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<DateTime?>("InvoiceEmittedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("InvoiceNumber")
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Notas")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<int>("Numero")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("OrcamentoAprovado")
-                        .HasColumnType("bit");
-
-                    b.Property<int?>("OrcamentoCents")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PrecoFinalCents")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("PrevistoEntregueEm")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("PublicSlug")
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
-
-                    b.Property<int>("SinalCents")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedToUserId");
-
-                    b.HasIndex("ClienteId");
-
-                    b.HasIndex("EquipmentFieldTemplateId");
-
-                    b.HasIndex("PublicSlug")
-                        .IsUnique()
-                        .HasFilter("[PublicSlug] IS NOT NULL");
-
-                    b.HasIndex("TenantId", "ClienteId");
-
-                    b.HasIndex("TenantId", "EquipmentFieldTemplateId")
-                        .HasFilter("[EquipmentFieldTemplateId] IS NOT NULL");
-
-                    b.HasIndex("TenantId", "Estado");
-
-                    b.HasIndex("TenantId", "Numero")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
-
-                    b.ToTable("Reparacoes", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoAssinatura", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("AssinadaEm")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<byte[]>("PngBytes")
-                        .IsRequired()
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Tipo")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReparacaoId");
-
-                    b.ToTable("ReparacaoAssinaturas");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoComunicacao", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ClienteId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Direcao")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Texto")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Tipo")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReparacaoId");
-
-                    b.ToTable("ReparacaoComunicacoes");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoEstadoLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int?>("EstadoFrom")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EstadoTo")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("MudouEm")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Notas")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReparacaoId");
-
-                    b.HasIndex("TenantId", "ReparacaoId", "MudouEm");
-
-                    b.ToTable("ReparacaoEstadoLogs", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoFoto", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Legenda")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("Ordem")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<long>("Size")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("StorageKey")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Tipo")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("VisivelNoPortal")
-                        .HasColumnType("bit");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StorageKey")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("ReparacaoId", "Tipo", "Ordem");
-
-                    b.ToTable("ReparacaoFotos", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoTag", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CorHex")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ReparacaoTags");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoTagAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ReparacaoTagId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReparacaoId");
-
-                    b.HasIndex("ReparacaoTagId");
-
-                    b.ToTable("ReparacaoTagAssignments");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoTimeEntry", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("EndedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Notas")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReparacaoId");
-
-                    b.ToTable("ReparacaoTimeEntries");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.ServiceApiKey", b =>
@@ -2493,135 +1477,6 @@ namespace RepairDesk.DAL.Migrations
                     b.HasIndex("TenantId", "CreatedAt");
 
                     b.ToTable("ServiceApiKeys", (string)null);
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.SignatureCapture", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AssinanteContacto")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("AssinanteNome")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("CapturedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ImagemDataUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("RemoteIp")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("ReparacaoId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("SignedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Tipo")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CapturedByUserId");
-
-                    b.HasIndex("ReparacaoId");
-
-                    b.ToTable("SignatureCaptures");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.SkuMapping", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Confidence")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("CreatedFromImportId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Notas")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("SupplierCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("SupplierProductName")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("SupplierSku")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid>("TargetId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("TargetType")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("UseCount")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedFromImportId");
-
-                    b.HasIndex("TenantId", "SupplierCode", "SupplierSku")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "TargetType", "TargetId");
-
-                    b.ToTable("SkuMappings", (string)null);
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.StaffPushSubscription", b =>
@@ -3082,9 +1937,16 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("PrevistoPara")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Problema")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PublicSlug")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -3105,6 +1967,10 @@ namespace RepairDesk.DAL.Migrations
 
                     b.HasIndex("ClienteId");
 
+                    b.HasIndex("PublicSlug")
+                        .IsUnique()
+                        .HasFilter("[PublicSlug] IS NOT NULL");
+
                     b.HasIndex("TenantId", "Data");
 
                     b.HasIndex("TenantId", "Estado");
@@ -3114,6 +1980,217 @@ namespace RepairDesk.DAL.Migrations
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Vendas", (string)null);
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.VendaAssinatura", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AssinadaEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("PngBytes")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("VendaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VendaId");
+
+                    b.ToTable("VendaAssinaturas");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.VendaComunicacao", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Direcao")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("VendaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VendaId");
+
+                    b.ToTable("VendaComunicacoes");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.VendaEstadoLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("EstadoFrom")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EstadoTo")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("MudouEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("VendaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VendaId");
+
+                    b.HasIndex("TenantId", "VendaId", "MudouEm");
+
+                    b.ToTable("VendaEstadoLogs", (string)null);
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.VendaFoto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Legenda")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("int");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("VendaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("VisivelNoPortal")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("VendaId", "Tipo", "Ordem");
+
+                    b.ToTable("VendaFotos", (string)null);
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.VendaItem", b =>
@@ -3170,9 +2247,6 @@ namespace RepairDesk.DAL.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
-                    b.Property<Guid?>("PartId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<int>("PrecoUnitarioCents")
                         .HasColumnType("int");
 
@@ -3199,8 +2273,6 @@ namespace RepairDesk.DAL.Migrations
 
                     b.HasIndex("CompraLinhaId");
 
-                    b.HasIndex("PartId");
-
                     b.HasIndex("VendaId");
 
                     b.HasIndex("TenantId", "CompraLinhaId")
@@ -3208,9 +2280,6 @@ namespace RepairDesk.DAL.Migrations
 
                     b.HasIndex("TenantId", "Imei")
                         .HasFilter("[Imei] IS NOT NULL");
-
-                    b.HasIndex("TenantId", "PartId")
-                        .HasFilter("[PartId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "VendaId");
 
@@ -3346,13 +2415,13 @@ namespace RepairDesk.DAL.Migrations
 
             modelBuilder.Entity("RepairDesk.Core.Entities.Avaliacao", b =>
                 {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
+                    b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
                         .WithMany()
-                        .HasForeignKey("ReparacaoId")
+                        .HasForeignKey("VendaId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Reparacao");
+                    b.Navigation("Venda");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.ClienteTagAssignment", b =>
@@ -3396,16 +2465,6 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Documento");
                 });
 
-            modelBuilder.Entity("RepairDesk.Core.Entities.Despesa", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Reparacao");
-                });
-
             modelBuilder.Entity("RepairDesk.Core.Entities.Device", b =>
                 {
                     b.HasOne("RepairDesk.Core.Entities.Cliente", "Cliente")
@@ -3417,89 +2476,12 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Cliente");
                 });
 
-            modelBuilder.Entity("RepairDesk.Core.Entities.DiagnosticoExecucao", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("RepairDesk.Core.Entities.DiagnosticoTemplate", "Template")
-                        .WithMany()
-                        .HasForeignKey("TemplateId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Reparacao");
-
-                    b.Navigation("Template");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.DiagnosticoExecucaoItem", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.DiagnosticoExecucao", "Execucao")
-                        .WithMany("Items")
-                        .HasForeignKey("ExecucaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Execucao");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.DiagnosticoTemplateItem", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.DiagnosticoTemplate", "Template")
-                        .WithMany("Items")
-                        .HasForeignKey("TemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Template");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.EquipmentFieldDefinition", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.EquipmentFieldTemplate", "Template")
-                        .WithMany("Fields")
-                        .HasForeignKey("TemplateId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Template");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.EquipmentFieldValue", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.EquipmentFieldDefinition", "FieldDefinition")
-                        .WithMany("Values")
-                        .HasForeignKey("FieldDefinitionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany("EquipmentFieldValues")
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("FieldDefinition");
-
-                    b.Navigation("Reparacao");
-                });
-
             modelBuilder.Entity("RepairDesk.Core.Entities.Garantia", b =>
                 {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
                     b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
                         .WithMany()
                         .HasForeignKey("VendaId")
                         .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Reparacao");
 
                     b.Navigation("Venda");
                 });
@@ -3510,36 +2492,11 @@ namespace RepairDesk.DAL.Migrations
                         .WithMany()
                         .HasForeignKey("AssignedToUserId");
 
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId");
-
-                    b.Navigation("AssignedToUser");
-
-                    b.Navigation("Reparacao");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.PartMovimento", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Part", "Part")
-                        .WithMany("Movimentos")
-                        .HasForeignKey("PartId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
                         .WithMany()
-                        .HasForeignKey("VendaId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("VendaId");
 
-                    b.Navigation("Part");
-
-                    b.Navigation("Reparacao");
+                    b.Navigation("AssignedToUser");
 
                     b.Navigation("Venda");
                 });
@@ -3555,153 +2512,22 @@ namespace RepairDesk.DAL.Migrations
 
             modelBuilder.Entity("RepairDesk.Core.Entities.PushSubscription", b =>
                 {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Reparacao");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.RepairRequest", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId");
-
                     b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
                         .WithMany()
-                        .HasForeignKey("VendaId");
-
-                    b.Navigation("Reparacao");
+                        .HasForeignKey("VendaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Venda");
                 });
 
-            modelBuilder.Entity("RepairDesk.Core.Entities.Reparacao", b =>
+            modelBuilder.Entity("RepairDesk.Core.Entities.RepairRequest", b =>
                 {
-                    b.HasOne("RepairDesk.Core.Entities.AppUser", "AssignedToUser")
+                    b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
                         .WithMany()
-                        .HasForeignKey("AssignedToUserId");
+                        .HasForeignKey("VendaId");
 
-                    b.HasOne("RepairDesk.Core.Entities.Cliente", "Cliente")
-                        .WithMany()
-                        .HasForeignKey("ClienteId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("RepairDesk.Core.Entities.EquipmentFieldTemplate", "EquipmentFieldTemplate")
-                        .WithMany()
-                        .HasForeignKey("EquipmentFieldTemplateId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("AssignedToUser");
-
-                    b.Navigation("Cliente");
-
-                    b.Navigation("EquipmentFieldTemplate");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoAssinatura", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Reparacao");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoComunicacao", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Reparacao");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoEstadoLog", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany("Timeline")
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Reparacao");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoFoto", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Reparacao");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoTagAssignment", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany("TagAssignments")
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("RepairDesk.Core.Entities.ReparacaoTag", "ReparacaoTag")
-                        .WithMany("Assignments")
-                        .HasForeignKey("ReparacaoTagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Reparacao");
-
-                    b.Navigation("ReparacaoTag");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoTimeEntry", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Reparacao");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.SignatureCapture", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.AppUser", "CapturedByUser")
-                        .WithMany()
-                        .HasForeignKey("CapturedByUserId");
-
-                    b.HasOne("RepairDesk.Core.Entities.Reparacao", "Reparacao")
-                        .WithMany()
-                        .HasForeignKey("ReparacaoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CapturedByUser");
-
-                    b.Navigation("Reparacao");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.SkuMapping", b =>
-                {
-                    b.HasOne("RepairDesk.Core.Entities.SupplierInvoiceImport", "CreatedFromImport")
-                        .WithMany()
-                        .HasForeignKey("CreatedFromImportId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("CreatedFromImport");
+                    b.Navigation("Venda");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.SupplierInvoiceImport", b =>
@@ -3742,17 +2568,56 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Cliente");
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.VendaAssinatura", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
+                        .WithMany()
+                        .HasForeignKey("VendaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Venda");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.VendaComunicacao", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
+                        .WithMany()
+                        .HasForeignKey("VendaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Venda");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.VendaEstadoLog", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
+                        .WithMany("Timeline")
+                        .HasForeignKey("VendaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Venda");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.VendaFoto", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
+                        .WithMany()
+                        .HasForeignKey("VendaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Venda");
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.VendaItem", b =>
                 {
                     b.HasOne("RepairDesk.Core.Entities.CompraLinha", "CompraLinha")
                         .WithMany()
                         .HasForeignKey("CompraLinhaId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("RepairDesk.Core.Entities.Part", "Part")
-                        .WithMany()
-                        .HasForeignKey("PartId")
-                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
                         .WithMany("Items")
@@ -3761,8 +2626,6 @@ namespace RepairDesk.DAL.Migrations
                         .IsRequired();
 
                     b.Navigation("CompraLinha");
-
-                    b.Navigation("Part");
 
                     b.Navigation("Venda");
                 });
@@ -3782,48 +2645,11 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Linhas");
                 });
 
-            modelBuilder.Entity("RepairDesk.Core.Entities.DiagnosticoExecucao", b =>
-                {
-                    b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.DiagnosticoTemplate", b =>
-                {
-                    b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.EquipmentFieldDefinition", b =>
-                {
-                    b.Navigation("Values");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.EquipmentFieldTemplate", b =>
-                {
-                    b.Navigation("Fields");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.Part", b =>
-                {
-                    b.Navigation("Movimentos");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.Reparacao", b =>
-                {
-                    b.Navigation("EquipmentFieldValues");
-
-                    b.Navigation("TagAssignments");
-
-                    b.Navigation("Timeline");
-                });
-
-            modelBuilder.Entity("RepairDesk.Core.Entities.ReparacaoTag", b =>
-                {
-                    b.Navigation("Assignments");
-                });
-
             modelBuilder.Entity("RepairDesk.Core.Entities.Venda", b =>
                 {
                     b.Navigation("Items");
+
+                    b.Navigation("Timeline");
                 });
 #pragma warning restore 612, 618
         }

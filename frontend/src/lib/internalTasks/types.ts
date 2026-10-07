@@ -19,8 +19,8 @@ export interface InternalTask {
   assignedToDisplayName: string | null;
   createdByUserId: string;
   createdAt: string;
-  reparacaoId: string | null;
-  reparacaoNumero: number | null;
+  vendaId: string | null;
+  vendaNumero: number | null;
 }
 
 export interface CreateInternalTaskForm {
@@ -28,7 +28,7 @@ export interface CreateInternalTaskForm {
   description?: string | null;
   dueAt?: string | null;
   assignedToUserId?: string | null;
-  reparacaoId?: string | null;
+  vendaId?: string | null;
 }
 
 export type UpdateInternalTaskForm = CreateInternalTaskForm;

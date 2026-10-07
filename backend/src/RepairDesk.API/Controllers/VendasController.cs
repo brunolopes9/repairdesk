@@ -4,6 +4,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Documents;
+using RepairDesk.Services.Reparacoes;
 using RepairDesk.Services.Vendas;
 
 namespace RepairDesk.API.Controllers;
@@ -50,11 +51,6 @@ public class VendasController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
-    /// <summary>Reparações cujo IMEI bate com itens desta venda (criadas depois) — o equipamento voltou?</summary>
-    [HttpGet("{id:guid}/reparacoes-relacionadas")]
-    public Task<IReadOnlyList<VendaReparacaoRelacionadaDto>> ReparacoesRelacionadas(Guid id, CancellationToken ct)
-        => _service.GetReparacoesRelacionadasAsync(id, ct);
-
     [HttpPost]
     public async Task<ActionResult<VendaDto>> Create([FromBody] VendaWriteRequest req, CancellationToken ct)
     {
@@ -88,6 +84,41 @@ public class VendasController : ControllerBase
         return File(pdf, "application/pdf", filename);
     }
 
+    /// <summary>Reparação: etiqueta 62×29mm com QR para o portal (impressora térmica).</summary>
+    [HttpGet("{id:guid}/label.pdf")]
+    public async Task<IActionResult> LabelPdf(Guid id, [FromServices] ILabelPdfService labels, CancellationToken ct)
+    {
+        var (pdf, filename) = await labels.ForVendaAsync(id, ct);
+        return File(pdf, "application/pdf", filename);
+    }
+
+    /// <summary>Reparação: "Comprovativo de entrada" do equipamento (com assinatura do cliente, se recolhida).</summary>
+    [HttpGet("{id:guid}/entrada.pdf")]
+    public async Task<IActionResult> EntradaPdf(Guid id, [FromServices] IEntradaPdfService entrada, CancellationToken ct)
+    {
+        var (pdf, filename) = await entrada.ForVendaAsync(id, ct);
+        return File(pdf, "application/pdf", filename);
+    }
+
+    /// <summary>Reparação: "Recibo de entrega" do equipamento (não é fatura).</summary>
+    [HttpGet("{id:guid}/entrega.pdf")]
+    public async Task<IActionResult> EntregaPdf(Guid id, [FromServices] IEntregaPdfService entrega, CancellationToken ct)
+    {
+        var (pdf, filename) = await entrega.ForVendaAsync(id, ct);
+        return File(pdf, "application/pdf", filename);
+    }
+
+    /// <summary>Assinatura do cliente (canvas → PNG) na entrada ou entrega. Recapturar substitui.</summary>
+    [HttpPost("{id:guid}/assinaturas")]
+    public Task<AssinaturaDto> SaveAssinatura(
+        Guid id, [FromBody] SaveAssinaturaRequest req, [FromServices] IAssinaturaService assinaturas, CancellationToken ct)
+        => assinaturas.SaveAsync(id, req.Tipo, req.DataUrl, ct);
+
+    [HttpGet("{id:guid}/assinaturas")]
+    public Task<IReadOnlyList<AssinaturaDto>> ListAssinaturas(
+        Guid id, [FromServices] IAssinaturaService assinaturas, CancellationToken ct)
+        => assinaturas.ListAsync(id, ct);
+
     [HttpGet("{id:guid}/recibo.pdf")]
     public async Task<IActionResult> ReciboPdf(Guid id, CancellationToken ct)
     {
@@ -104,4 +135,6 @@ public class VendasController : ControllerBase
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
         return File(bytes, "text/csv; charset=utf-8", $"vendas_{stamp}.csv");
     }
+
+    public sealed record SaveAssinaturaRequest(string Tipo, string DataUrl);
 }

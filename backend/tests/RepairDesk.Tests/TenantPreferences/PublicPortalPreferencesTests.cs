@@ -4,7 +4,6 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.DAL.Persistence;
-using RepairDesk.Services.EquipmentFields;
 using RepairDesk.Services.PublicPortal;
 using RepairDesk.Services.TenantPreferences;
 
@@ -18,10 +17,10 @@ public class PublicPortalPreferencesTests
         var tenantId = Guid.NewGuid();
         await using var db = NewDb(tenantId);
         var rep = await SeedRepairAsync(db, tenantId);
-        db.ReparacaoFotos.Add(new ReparacaoFoto
+        db.VendaFotos.Add(new VendaFoto
         {
             TenantId = tenantId,
-            ReparacaoId = rep.Id,
+            VendaId = rep.Id,
             StorageKey = "photo.jpg",
             FileName = "photo.jpg",
             ContentType = "image/jpeg",
@@ -83,9 +82,9 @@ public class PublicPortalPreferencesTests
 
         await service.SubmeterMensagemAsync(rep.PublicSlug!, "Posso passar amanhã às 17h?");
 
-        var saved = await db.ReparacaoComunicacoes.SingleAsync();
-        saved.ReparacaoId.Should().Be(rep.Id);
-        saved.ClienteId.Should().Be(rep.ClienteId);
+        var saved = await db.VendaComunicacoes.SingleAsync();
+        saved.VendaId.Should().Be(rep.Id);
+        saved.ClienteId.Should().Be(rep.ClienteId!.Value);
         saved.Tipo.Should().Be(ComunicacaoTipo.PortalCliente);
         saved.Direcao.Should().Be(ComunicacaoDirecao.Inbound);
         saved.Texto.Should().Be("Posso passar amanhã às 17h?");
@@ -113,8 +112,7 @@ public class PublicPortalPreferencesTests
         var tenantId = Guid.NewGuid();
         await using var db = NewDb(tenantId);
         var rep = await SeedRepairAsync(db, tenantId);
-        rep.Estado = RepairStatus.Entregue;
-        rep.EntregueEm = DateTime.UtcNow;
+        rep.Estado = VendaEstado.Entregue;
         await db.SaveChangesAsync();
         var service = NewService(db, tenantId, TenantPreferencesDefaults.Create());
 
@@ -148,16 +146,16 @@ public class PublicPortalPreferencesTests
         // Mensagem do cliente (Inbound, PortalCliente) — deve aparecer.
         await service_SubmeterMensagem(db, tenantId, rep.PublicSlug!, "Quando fica pronto?");
         // Resposta staff (Outbound, PortalCliente) — deve aparecer.
-        db.ReparacaoComunicacoes.Add(new ReparacaoComunicacao
+        db.VendaComunicacoes.Add(new VendaComunicacao
         {
-            TenantId = tenantId, ReparacaoId = rep.Id, ClienteId = rep.ClienteId,
+            TenantId = tenantId, VendaId = rep.Id, ClienteId = rep.ClienteId!.Value,
             Tipo = ComunicacaoTipo.PortalCliente, Direcao = ComunicacaoDirecao.Outbound,
             Texto = "Amanhã ao fim do dia.", CreatedByUserId = Guid.NewGuid(),
         });
         // Nota interna de telefone — NÃO deve aparecer no portal.
-        db.ReparacaoComunicacoes.Add(new ReparacaoComunicacao
+        db.VendaComunicacoes.Add(new VendaComunicacao
         {
-            TenantId = tenantId, ReparacaoId = rep.Id, ClienteId = rep.ClienteId,
+            TenantId = tenantId, VendaId = rep.Id, ClienteId = rep.ClienteId!.Value,
             Tipo = ComunicacaoTipo.Telefone, Direcao = ComunicacaoDirecao.Interna,
             Texto = "Cliente parece chato, cobrar adiantado.", CreatedByUserId = Guid.NewGuid(),
         });
@@ -209,17 +207,15 @@ public class PublicPortalPreferencesTests
     }
 
     [Fact]
-    public async Task PaymentService_ConfirmaPagamentoReparacao_MarcaPaga()
+    public async Task PaymentService_ConfirmaPagamentoReparacao_AvisaLojaEPortalMostraPago()
     {
-        // Núcleo do fluxo de dinheiro: webhook confirma → reparação fica Paga.
+        // Núcleo do fluxo de dinheiro: webhook confirma → loja avisada e o portal mostra "pago".
         var tenantId = Guid.NewGuid();
         await using var db = NewDb(tenantId);
         var rep = await SeedRepairAsync(db, tenantId);
-        rep.EstadoPagamento.Should().NotBe(PaymentStatus.Pago);
-
         db.Payments.Add(new RepairDesk.Core.Entities.Payment
         {
-            Id = Guid.NewGuid(), TenantId = tenantId, ReparacaoId = rep.Id,
+            Id = Guid.NewGuid(), TenantId = tenantId, VendaId = rep.Id,
             Method = PaymentMethod.MBWay, Provider = PaymentProvider.Ifthenpay,
             AmountCents = 12000, Status = PaymentStatus.NaoPago, ProviderRef = "req-abc-123",
         });
@@ -229,19 +225,16 @@ public class PublicPortalPreferencesTests
         var payments = new RepairDesk.Services.Payments.PaymentService(
             new PaymentRepository(db),
             Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(),
-            new ReparacaoRepository(db),
+            new VendaRepository(db),
             push);
 
         await payments.ApplyStatusUpdateAsync("req-abc-123",
             new RepairDesk.Core.Abstractions.PaymentStatusSnapshot(PaymentStatus.Pago, DateTime.UtcNow, null));
 
-        var fresh = await new ReparacaoRepository(db).FindByIdAsync(rep.Id);
-        fresh!.EstadoPagamento.Should().Be(PaymentStatus.Pago);
-
-        // Sprint 495: a loja é notificada quando o dinheiro entra.
         push.Jobs.Should().ContainSingle()
             .Which.Should().Match<RepairDesk.Services.Push.StaffPushJob>(j =>
                 j.TenantId == tenantId && j.Body.Contains("120") && j.Body.Contains("MBWay"));
+        (await NewService(db, tenantId, TenantPreferencesDefaults.Create()).GetBySlugAsync(rep.PublicSlug!)).Pago.Should().BeTrue();
     }
 
     [Fact]
@@ -253,7 +246,7 @@ public class PublicPortalPreferencesTests
         var rep = await SeedRepairAsync(db, tenantId);
         db.Payments.Add(new RepairDesk.Core.Entities.Payment
         {
-            Id = Guid.NewGuid(), TenantId = tenantId, ReparacaoId = rep.Id,
+            Id = Guid.NewGuid(), TenantId = tenantId, VendaId = rep.Id,
             Method = PaymentMethod.MBWay, Provider = PaymentProvider.Ifthenpay,
             AmountCents = 12000, Status = PaymentStatus.NaoPago, ProviderRef = "req-dup",
         });
@@ -262,7 +255,7 @@ public class PublicPortalPreferencesTests
         var push = new CapturingPushQueue();
         var payments = new RepairDesk.Services.Payments.PaymentService(
             new PaymentRepository(db), Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(),
-            new ReparacaoRepository(db), push);
+            new VendaRepository(db), push);
 
         var snap = new RepairDesk.Core.Abstractions.PaymentStatusSnapshot(PaymentStatus.Pago, DateTime.UtcNow, null);
         await payments.ApplyStatusUpdateAsync("req-dup", snap);
@@ -281,7 +274,7 @@ public class PublicPortalPreferencesTests
 
         (await service.GetBySlugAsync(rep.PublicSlug!)).Pago.Should().BeFalse();
 
-        rep.EstadoPagamento = PaymentStatus.Pago;
+        rep.Estado = VendaEstado.Entregue;
         await db.SaveChangesAsync();
 
         (await service.GetBySlugAsync(rep.PublicSlug!)).Pago.Should().BeTrue();
@@ -294,7 +287,7 @@ public class PublicPortalPreferencesTests
         var tenantId = Guid.NewGuid();
         await using var db = NewDb(tenantId);
         var rep = await SeedRepairAsync(db, tenantId);
-        rep.EstadoPagamento = PaymentStatus.Pago;
+        rep.Estado = VendaEstado.Entregue;
         await db.SaveChangesAsync();
         var prefs = TenantPreferencesDefaults.Create();
         prefs = prefs with { Portal = prefs.Portal with { MostrarOrcamento = false } };
@@ -303,57 +296,46 @@ public class PublicPortalPreferencesTests
         (await service.GetBySlugAsync(rep.PublicSlug!)).Pago.Should().BeFalse();
     }
 
-    private static async Task<Reparacao> SeedRepairAsync(AppDbContext db, Guid tenantId)
+    private static async Task<Venda> SeedRepairAsync(AppDbContext db, Guid tenantId)
     {
         var tenant = new Tenant { Id = tenantId, Name = "LopesTech" };
         var cliente = new Cliente { TenantId = tenantId, Nome = "Bruno Lopes", Telefone = "910000000" };
-        var rep = new Reparacao
+        var rep = new Venda
         {
             TenantId = tenantId,
+            Tipo = VendaTipo.Reparacao,
+            Estado = VendaEstado.Orcamento,
             Cliente = cliente,
             ClienteId = cliente.Id,
             Numero = 1,
             Equipamento = "iPhone 13",
-            Avaria = "Ecra partido",
-            Diagnostico = "Trocar ecra",
-            Estado = RepairStatus.Orcamento,
-            EstadoSince = DateTime.UtcNow,
-            OrcamentoCents = 12000,
-            PrecoFinalCents = 12000,
+            Problema = "Ecra partido",
+            TotalCents = 12000,
             PublicSlug = $"slug{Guid.NewGuid():N}"[..12],
         };
-        rep.Timeline.Add(new ReparacaoEstadoLog
-        {
-            TenantId = tenantId,
-            Reparacao = rep,
-            ReparacaoId = rep.Id,
-            EstadoTo = RepairStatus.Orcamento,
-            MudouEm = DateTime.UtcNow,
-        });
+        rep.Items.Add(new VendaItem { TenantId = tenantId, Descricao = "Ecrã + mão de obra", Quantidade = 1, PrecoUnitarioCents = 12000, IvaRate = 23m });
+        rep.Timeline.Add(new VendaEstadoLog { TenantId = tenantId, EstadoTo = VendaEstado.Orcamento, MudouEm = DateTime.UtcNow });
         db.Tenants.Add(tenant);
         db.Clientes.Add(cliente);
-        db.Reparacoes.Add(rep);
+        db.Vendas.Add(rep);
         await db.SaveChangesAsync();
         return rep;
     }
 
     private static PublicPortalService NewService(AppDbContext db, Guid tenantId, TenantPreferencesRoot prefs)
     {
-        var tenantContext = new TestTenantContext(tenantId);
-        var reparacoes = new ReparacaoRepository(db);
+        var vendas = new VendaRepository(db);
         return new PublicPortalService(
-            reparacoes,
+            vendas,
+            null!, // IVendaService: só usado ao aceitar/recusar o orçamento (coberto nos testes de API)
             new TenantRepository(db),
-            new DiagnosticoRepository(db),
             new GarantiaRepository(db),
             new AvaliacaoRepository(db),
-            new ReparacaoFotoRepository(db),
-            new EquipmentFieldService(new EquipmentFieldRepository(db), reparacoes, tenantContext),
-            new VendaRepository(db),
+            new VendaFotoRepository(db),
             new FakeTenantPreferencesService(prefs),
-            new ReparacaoComunicacaoRepository(db),
+            new VendaComunicacaoRepository(db),
             new RepairDesk.Services.Push.StaffPushQueue(),
-            new RepairDesk.Services.Payments.PaymentService(new PaymentRepository(db), Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(), reparacoes, new RepairDesk.Services.Push.StaffPushQueue()),
+            new RepairDesk.Services.Payments.PaymentService(new PaymentRepository(db), Array.Empty<RepairDesk.Core.Abstractions.IPaymentProvider>(), vendas, new RepairDesk.Services.Push.StaffPushQueue()),
             new RepairDesk.Services.Payments.Ifthenpay.IfthenpayOptions());
     }
 

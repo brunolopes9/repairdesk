@@ -21,9 +21,9 @@ public class WhatsAppNotificationLogRepositoryTests
         {
             TenantId = tenantId,
             EntityId = repairId,
-            EntityType = "Reparacao",
+            EntityType = "Venda",
             TemplateKey = "Pronto",
-            Estado = RepairStatus.Pronto,
+            Estado = VendaEstado.Pronta,
             Phone = "+351910000000",
         });
         await repo.SaveAsync();
@@ -46,7 +46,7 @@ public class WhatsAppNotificationLogRepositoryTests
             {
                 TenantId = tenantA,
                 EntityId = repairId,
-                EntityType = "Reparacao",
+                EntityType = "Venda",
                 TemplateKey = "Pronto",
             });
             await repoA.SaveAsync();

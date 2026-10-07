@@ -24,7 +24,7 @@ public class WhatsAppNotificationsController : ControllerBase
     public async Task<WhatsAppNotificationStatusDto> Sent(
         [FromQuery] Guid entityId,
         [FromQuery] string templateKey,
-        [FromQuery] string entityType = "Reparacao",
+        [FromQuery] string entityType = "Venda",
         CancellationToken ct = default)
     {
         Validate(entityId, templateKey, entityType);
@@ -49,8 +49,8 @@ public class WhatsAppNotificationsController : ControllerBase
             EntityType = entityType,
             EntityId = request.EntityId,
             TemplateKey = templateKey,
-            Estado = request.Estado is { } estado && Enum.IsDefined(typeof(RepairStatus), estado)
-                ? (RepairStatus)estado
+            Estado = request.Estado is { } estado && Enum.IsDefined(typeof(VendaEstado), estado)
+                ? (VendaEstado)estado
                 : null,
             Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
             SentAtUtc = DateTime.UtcNow,

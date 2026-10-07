@@ -108,7 +108,7 @@ public class ImportInteligenteDespesasTests
     private static SupplierInvoiceImportService NewService(AppDbContext db)
     {
         var despesas = new DespesaService(
-            new DespesaRepository(db), new PartRepository(db),
+            new DespesaRepository(db),
             new CreateDespesaValidator(), new UpdateDespesaValidator());
         // ApproveAsync/GetAsync só tocam em repo+despesas+audit — as deps de parsing/storage não
         // entram neste caminho (null! deliberado; rebenta alto se algum refactor as passar a usar).
@@ -118,8 +118,6 @@ public class ImportInteligenteDespesasTests
             new FornecedorRepository(db),
             storage: null!,
             despesas,
-            skuMappings: null!,
-            new PartRepository(db),
             fingerprinting: null!,
             llmParser: null!,
             new NoOpAudit(),

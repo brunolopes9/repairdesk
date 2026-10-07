@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:4c2886e4817330dc -->
+<!-- roles-matrix-snapshot:e17757b7ea34c4db -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -24,34 +24,27 @@ testes e esta matriz com snapshot.
 | ClientesController | CRUD/export base + `GET /{id}/comunicacoes` (S453) | `Authenticated`; hard-delete `Admin` |
 | ClienteTagsController (S480) | `GET /api/cliente-tags`; `GET /api/cliente-tags/segmento`; `GET /api/cliente-tags/{id}/segmento`; `PUT /api/clientes/{id}/tags` | `Authenticated` |
 | ClienteTagsController (S480) | `POST/PUT/DELETE /api/cliente-tags*` (segmentos CRM do tenant) | `Admin` |
-| ReparacaoComunicacoesController (S452) | `GET/POST/DELETE /api/reparacoes/{id}/comunicacoes` | `Authenticated` |
-| ReparacoesController | `GET /{id}/entrada.pdf` (S450), `GET /{id}/entrega.pdf` (S451), `POST`+`GET /{id}/assinaturas` (S551 — assinatura cliente no balcão) | `Authenticated` |
-| DashboardController | `GET /api/dashboard/avisos-pendentes` (S460), `GET /devices-garantia-a-expirar` (S467) | `Authenticated` |
+| VendaComunicacoesController (S452/S559) | `GET/POST/DELETE /api/vendas/{id}/comunicacoes` | `Authenticated` |
+| DashboardController (S559) | `GET /api/dashboard` (resumo do mês, em curso, alertas, stock) | `Authenticated` |
 | DevicesController (S461+S464) | `GET/POST/PUT/DELETE /api/devices*` + `GET /api/devices/by-imei/{imei}` — asset registry | `Authenticated` |
 | ComprasController (S556) | `GET /api/compras*` (lista, detalhe, inventário, resumo), `POST/PUT /api/compras*`, `POST /api/compras/simulador` | `Authenticated` |
 | ComprasController (S556) | `DELETE /api/compras/{id}`, `POST /api/compras/importar-excel`, `POST /api/compras/de-fatura/{importId}` (aprovar fatura lida por IA) | `Admin` |
-| VendasController (S557) | `GET/POST/PUT /api/vendas*`, `POST /{id}/estado`, `PUT /{id}/fatura`, `recibo.pdf`, `export.csv` | `Authenticated`; `estado = Cancelada` (repõe stock) só `Admin` (verificado na action) |
+| VendasController (S557/S559) | `GET/POST/PUT /api/vendas*`, `POST /{id}/estado`, `PUT /{id}/fatura`, PDFs (`orcamento`, `entrada`, `entrega`, `label`, `recibo`), `GET/POST /{id}/assinaturas`, fotos `/api/vendas/{id}/fotos`, `export.csv` | `Authenticated`; `estado = Cancelada` (repõe stock) só `Admin` (verificado na action) |
 | PublicPortalController / PublicWarrantyController | `GET/POST /api/public/*` | `Anonymous` + rate limit `public-portal` |
-| RelatoriosController | `GET /api/relatorios/*` (inclui Sprint 187 taxa-defeito-fornecedor) | `Authenticated` |
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |
 | UsersController | `POST /api/users/{id}/revoke-sessions`, `POST /api/users/{id}/deactivate` | `Admin` |
 | **Sprint 243 (Doc 72 Fase A) — operações fiscais/credenciais/estruturais** | | |
 | SupplierInvoicesController | `approve` (despesa), `reject`, `reprocess` | `Admin` |
 | DespesasController | `POST`, `PUT`, `DELETE`, `POST /{id}/converter-stock` (afecta IVA dedutível) | `Admin` |
-| PartsController | `POST /{id}/movimento` (ajuste manual stock), `POST /import` | `Admin` |
 | TenantPreferencesController | `PUT /`, `POST /reset/{group}` | `Admin` |
 | LlmUsageController | `POST/DELETE /anthropic-key` (BYOK credencial) | `Admin` |
 | AutomacoesController | `POST /ingest-email/regenerate` | `Admin` |
 | **Sprint 244 (Doc 72 Fase B) — configuração comercial/estrutural** | | |
-| DiagnosticoController | `POST/DELETE /templates` (execuções por reparação ficam Authenticated) | `Admin` |
 | ClientesController | `DELETE /{id}` (soft-delete), `POST /import` | `Admin` |
 | **Sprint 300 (Doc 80 Pillar A.1) — POS PT controlo de caixa** | | |
 | **Sprint 311 (Doc 72 Fase D) — roles granulares fundação** | | |
 | UsersController | `GET/PUT /{id}/roles` (gestão roles do tenant) | `Admin` |
-| ReparacoesController | `PUT /{id}/assign` (atribuir técnico a reparação) | `Admin` |
 | **Sprint 344 (Doc 83 Pillar 3) — assinaturas digitais** | | |
-| SignaturesController | `GET/POST /api/reparacoes/{id}/signatures` | `Authenticated` |
-| SignaturesController | `DELETE /{signatureId}` | `Admin` |
 | **Sprint 420-422 (Doc 90) — perfil próprio, inventário, tarefas internas** | | |
 | AuthController | `PUT /api/auth/me` (DisplayName + PhoneNumber próprios) | `Authenticated` |
 | InternalTasksController | `GET/POST/PUT/DELETE /api/internal-tasks*` (TODO list por staff) | `Authenticated` |

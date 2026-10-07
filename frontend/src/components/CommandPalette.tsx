@@ -22,7 +22,8 @@ import {
   Wrench,
 } from 'lucide-react';
 import { clientesApi } from '../lib/clientes/api';
-import { reparacoesApi } from '../lib/reparacoes/api';
+import { vendasApi } from '../lib/vendas/api';
+import { VENDA_TIPO_LABEL } from '../lib/vendas/types';
 
 interface Command {
   id: string;
@@ -67,10 +68,10 @@ export default function CommandPalette() {
     staleTime: 60_000,
   });
 
-  // Search reparações server-side. Top 5 matches.
+  // Vendas (reparações, serviços, produtos) server-side. Top 5 matches.
   const reparacoesSearch = useQuery({
-    queryKey: ['palette-reparacoes', debouncedQuery],
-    queryFn: () => reparacoesApi.list({ q: debouncedQuery, pageSize: 5 }),
+    queryKey: ['palette-vendas', debouncedQuery],
+    queryFn: () => vendasApi.list({ q: debouncedQuery, pageSize: 5 }),
     enabled: shouldSearch,
     staleTime: 60_000,
   });
@@ -123,12 +124,12 @@ export default function CommandPalette() {
     }));
 
     const reparacaoCmds: Command[] = (reparacoesSearch.data?.items ?? []).slice(0, 5).map((r) => ({
-      id: `reparacao-${r.id}`,
-      label: `#${r.numero} · ${r.equipamento}`,
+      id: `venda-${r.id}`,
+      label: `${VENDA_TIPO_LABEL[r.tipo]} #${r.numero} · ${r.equipamento ?? r.problema ?? r.items[0]?.descricao ?? ''}`,
       hint: r.cliente?.nome ?? 'sem cliente',
       icon: Wrench,
-      keywords: [String(r.numero), r.equipamento, r.cliente?.nome ?? '', r.imei ?? ''],
-      action: () => navigate(`/reparacoes/${r.id}`),
+      keywords: [String(r.numero), r.equipamento ?? '', r.cliente?.nome ?? '', r.invoiceNumber ?? ''],
+      action: () => navigate(`/vendas/${r.id}`),
     }));
 
     return [...matchedCommands, ...clienteCmds, ...reparacaoCmds];

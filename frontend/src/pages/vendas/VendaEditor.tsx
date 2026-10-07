@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Boxes, CheckCircle2, Save, Trash2, Wrench, XCircle } from 'lucide-react';
+import { AlertTriangle, Boxes, CheckCircle2, FileText, Save, Trash2, Wrench, XCircle } from 'lucide-react';
 import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { apiErrorMessage } from '../../lib/errors';
+import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { toast } from '../../lib/toast';
 import { formatEur, parseDecimal, previewVenda } from '../../lib/compras/format';
 import type { InventarioLinha } from '../../lib/compras/types';
@@ -16,6 +17,7 @@ import {
   VENDA_ESTADO,
   VENDA_ESTADO_COLOR,
   VENDA_ESTADO_LABEL,
+  VENDA_FLUXO,
   VENDA_TIPO,
   VENDA_TIPO_LABEL,
   type PaymentMethod,
@@ -26,6 +28,7 @@ import {
 } from '../../lib/vendas/types';
 import ClienteSelect, { type ClienteEscolhido } from './ClienteSelect';
 import LotePicker from './LotePicker';
+import ReparacaoExtras from './ReparacaoExtras';
 
 const IVA_NORMAL = 23;
 
@@ -61,8 +64,6 @@ function linhasFrom(v: Venda): LinhaForm[] {
   }));
 }
 
-/** Próximo passo natural de cada estado (os outros ficam no menu de estados). */
-const FLUXO: VendaEstado[] = [VENDA_ESTADO.Orcamento, VENDA_ESTADO.AEsperaPeca, VENDA_ESTADO.Pronta, VENDA_ESTADO.Entregue];
 
 export default function VendaEditor() {
   const { id } = useParams<{ id: string }>();
@@ -81,6 +82,7 @@ export default function VendaEditor() {
   const [equipamento, setEquipamento] = useState('');
   const [problema, setProblema] = useState('');
   const [notas, setNotas] = useState('');
+  const [previsto, setPrevisto] = useState('');
   const [linhas, setLinhas] = useState<LinhaForm[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pagamento, setPagamento] = useState<PaymentMethod>(PAYMENT_METHOD.MBWay);
@@ -95,6 +97,7 @@ export default function VendaEditor() {
     setEquipamento(venda.equipamento ?? '');
     setProblema(venda.problema ?? '');
     setNotas(venda.notas ?? '');
+    setPrevisto(venda.previstoPara ? venda.previstoPara.slice(0, 10) : '');
     setLinhas(linhasFrom(venda));
     setFatura(venda.invoiceNumber ?? '');
     if (venda.invoiceEmittedAt) setFaturaData(venda.invoiceEmittedAt.slice(0, 10));
@@ -126,6 +129,7 @@ export default function VendaEditor() {
       equipamento: equipamento.trim() || null,
       problema: problema.trim() || null,
       notas: notas.trim() || null,
+      previstoPara: previsto ? new Date(`${previsto}T18:00:00`).toISOString() : null,
       linhas: linhas.map((l) => ({
         id: l.id,
         compraLinhaId: l.compraLinhaId,
@@ -210,7 +214,8 @@ export default function VendaEditor() {
   if (!isNew && existente.isError) return <p className="text-sm text-rose-600">{apiErrorMessage(existente.error)}</p>;
 
   const estadoAtual = venda?.estado ?? VENDA_ESTADO.Orcamento;
-  const proximos = FLUXO.filter((e) => e > estadoAtual);
+  // Próximos passos na ordem natural (os números do enum não são a ordem — EmCurso = 5).
+  const proximos = VENDA_FLUXO.slice(VENDA_FLUXO.indexOf(estadoAtual) + 1);
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -218,10 +223,19 @@ export default function VendaEditor() {
       <PageHeader
         title={isNew ? `Nova ${VENDA_TIPO_LABEL[tipo].toLowerCase()}` : `${VENDA_TIPO_LABEL[venda!.tipo]} #${venda!.numero}`}
         meta={venda && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VENDA_ESTADO_COLOR[venda.estado]}`}>{VENDA_ESTADO_LABEL[venda.estado]}</span>}
-        actions={!fechada && (
+        actions={(
+          <>
+          {venda && (
+            <Button type="button" variant="secondary" leftIcon={<FileText size={15} />} onClick={() => openPdfInNewTab(vendasApi.pdfPath(venda.id, 'orcamento'))}>
+              Orçamento PDF
+            </Button>
+          )}
+          {!fechada && (
           <Button type="submit" variant={isNew ? 'secondary' : 'primary'} loading={guardar.isPending && guardar.variables !== VENDA_ESTADO.Entregue} disabled={!podeGravar} leftIcon={<Save size={15} />}>
             {isNew ? 'Guardar orçamento' : 'Guardar'}
           </Button>
+          )}
+          </>
         )}
       />
 
@@ -268,7 +282,13 @@ export default function VendaEditor() {
               <input value={problema} onChange={(e) => setProblema(e.target.value)} className={inputCls} placeholder={tipo === VENDA_TIPO.Reparacao ? 'Ecrã partido, não carrega…' : 'Website institucional com 5 páginas'} maxLength={2000} disabled={fechada} />
             </label>
           )}
-          <label className="block md:col-span-2">
+          {tipo !== VENDA_TIPO.Produto && (
+            <label className="block">
+              <span className={labelCls}>Previsão de entrega</span>
+              <input type="date" value={previsto} onChange={(e) => setPrevisto(e.target.value)} className={inputCls} disabled={fechada} />
+            </label>
+          )}
+          <label className={`block ${tipo === VENDA_TIPO.Produto ? 'md:col-span-2' : ''}`}>
             <span className={labelCls}>Notas</span>
             <input value={notas} onChange={(e) => setNotas(e.target.value)} className={inputCls} maxLength={2000} disabled={fechada} />
           </label>
@@ -424,6 +444,8 @@ export default function VendaEditor() {
           )}
         </div>
       )}
+
+      {venda && venda.tipo === VENDA_TIPO.Reparacao && <ReparacaoExtras venda={venda} />}
 
       <LotePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={addLote} reservado={reservado} />
     </form>

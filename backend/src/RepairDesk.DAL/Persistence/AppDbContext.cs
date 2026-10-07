@@ -30,23 +30,13 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 480: customer segment tags.
     public DbSet<ClienteTag> ClienteTags => Set<ClienteTag>();
     public DbSet<ClienteTagAssignment> ClienteTagAssignments => Set<ClienteTagAssignment>();
-    public DbSet<Reparacao> Reparacoes => Set<Reparacao>();
-    public DbSet<ReparacaoEstadoLog> ReparacaoEstadoLogs => Set<ReparacaoEstadoLog>();
     public DbSet<Despesa> Despesas => Set<Despesa>();
-    public DbSet<DiagnosticoTemplate> DiagnosticoTemplates => Set<DiagnosticoTemplate>();
-    public DbSet<DiagnosticoTemplateItem> DiagnosticoTemplateItems => Set<DiagnosticoTemplateItem>();
-    public DbSet<DiagnosticoExecucao> DiagnosticoExecucoes => Set<DiagnosticoExecucao>();
-    public DbSet<DiagnosticoExecucaoItem> DiagnosticoExecucaoItems => Set<DiagnosticoExecucaoItem>();
     public DbSet<Garantia> Garantias => Set<Garantia>();
     public DbSet<Avaliacao> Avaliacoes => Set<Avaliacao>();
-    public DbSet<ReparacaoFoto> ReparacaoFotos => Set<ReparacaoFoto>();
-    public DbSet<EquipmentFieldTemplate> EquipmentFieldTemplates => Set<EquipmentFieldTemplate>();
-    public DbSet<EquipmentFieldDefinition> EquipmentFieldDefinitions => Set<EquipmentFieldDefinition>();
-    public DbSet<EquipmentFieldValue> EquipmentFieldValues => Set<EquipmentFieldValue>();
-    public DbSet<Part> Parts => Set<Part>();
-    public DbSet<PartMovimento> PartMovimentos => Set<PartMovimento>();
+    public DbSet<VendaFoto> VendaFotos => Set<VendaFoto>();
     public DbSet<Venda> Vendas => Set<Venda>();
     public DbSet<VendaItem> VendaItems => Set<VendaItem>();
+    public DbSet<VendaEstadoLog> VendaEstadoLogs => Set<VendaEstadoLog>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
     public DbSet<StaffPushSubscription> StaffPushSubscriptions => Set<StaffPushSubscription>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
@@ -61,19 +51,14 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 147: faturas de fornecedor recebidas via endpoint ingest (n8n IMAP).
     public DbSet<SupplierInvoiceImport> SupplierInvoiceImports => Set<SupplierInvoiceImport>();
     // Sprint 157: mapping aprendido entre SKUs de fornecedor e Parts internos.
-    public DbSet<SkuMapping> SkuMappings => Set<SkuMapping>();
     // Sprint 167a: tracking de uso LLM Anthropic per-tenant.
     public DbSet<LlmUsage> LlmUsage => Set<LlmUsage>();
     // Sprint 300 (Doc 80 Pillar A.1): POS PT — controlo de caixa.
     // Sprint 303: transacções de pagamento (Mock/IFTHENPAY) ligadas a Vendas.
     public DbSet<Payment> Payments => Set<Payment>();
     // Sprint 344 (Doc 83 Pillar 3): assinaturas digitais ligadas a Reparações.
-    public DbSet<SignatureCapture> SignatureCaptures => Set<SignatureCapture>();
     // Sprint 346 (Doc 83 Pillar 6): tags categóricas para reparações (Urgente, Em garantia, etc).
-    public DbSet<ReparacaoTag> ReparacaoTags => Set<ReparacaoTag>();
-    public DbSet<ReparacaoTagAssignment> ReparacaoTagAssignments => Set<ReparacaoTagAssignment>();
     // Sprint 349 (Doc 83 Pillar 6): time tracker por reparação.
-    public DbSet<ReparacaoTimeEntry> ReparacaoTimeEntries => Set<ReparacaoTimeEntry>();
     // Sprint 353 (Doc 83 Pillar 5): kits de peças (bundles aplicáveis a reparação).
     // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
     public DbSet<RepairRequest> RepairRequests => Set<RepairRequest>();
@@ -83,12 +68,12 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<InternalTask> InternalTasks => Set<InternalTask>();
     // Sprint 435 (Doc 90 screenshot Services): catálogo de mão-de-obra/serviços.
     // Sprint 452 (Doc 91 ponto 1): registo de comunicações com cliente por reparação.
-    public DbSet<ReparacaoComunicacao> ReparacaoComunicacoes => Set<ReparacaoComunicacao>();
+    public DbSet<VendaComunicacao> VendaComunicacoes => Set<VendaComunicacao>();
     // Sprint 461 (Doc 90 Tier 2 #6): asset registry — equipamentos persistentes do cliente.
     public DbSet<Device> Devices => Set<Device>();
     // Sprint 546 (Doc 93 #1): avenças — faturação recorrente a clientes (mensalidades software).
     // Sprint 551 (Doc 80/93): assinatura do cliente (canvas) na entrada/entrega do equipamento.
-    public DbSet<ReparacaoAssinatura> ReparacaoAssinaturas => Set<ReparacaoAssinatura>();
+    public DbSet<VendaAssinatura> VendaAssinaturas => Set<VendaAssinatura>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

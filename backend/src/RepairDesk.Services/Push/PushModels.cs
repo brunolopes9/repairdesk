@@ -15,7 +15,7 @@ public sealed record PushSubscriptionResultDto(bool Subscribed);
 
 public sealed record VapidPublicKeyDto(string PublicKey);
 
-public sealed record RepairStatusChangedPushJob(Guid ReparacaoId);
+public sealed record RepairStatusChangedPushJob(Guid VendaId);
 
 // Sprint 366: notificação push para os dispositivos de staff de um tenant.
 public sealed record StaffPushJob(Guid TenantId, string Title, string Body, string Url, string Tag);
@@ -31,4 +31,4 @@ internal sealed record PushNotificationPayload(
     string Body,
     string Url,
     string Tag,
-    RepairStatus Estado);
+    VendaEstado Estado);

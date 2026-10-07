@@ -35,7 +35,7 @@ Menu: Dashboard · **Vendas** · **Compras** (inclui Stock) · **Despesas** · C
 | 1 | Login por email **ou** username + "Esqueci a palavra-passe" (Resend) | ✅ |
 | 2 | Remover Moloni/faturação, loja (incl. Produtos/Catálogo e Molano), webhooks + migração de BD | ✅ |
 | 3 | Motor de IVA + Compras/Stock por lote + IA/email ligados ao modelo novo + import do Excel (Sprint 556). *Perfil fiscal passou para a Fase 6, junto das Atividades.* | ✅ |
-| 4 | Vendas unificadas (reparação simples) + limpeza Balcão/Trabalhos/Reparações/Preços/Catálogo. 4a ✅ (Sprint 557: Vendas novas, Balcão removido da UI); 4b ✅ (Sprint 558: caixa, Preços, Contagens, Kits, catálogo de Serviços e Trabalhos apagados); 4c ⏳ (Reparações antigas + Peças `Part`) | 🟡 |
+| 4 | Vendas unificadas (reparação simples) + limpeza Balcão/Trabalhos/Reparações/Preços/Catálogo. 4a ✅ (Sprint 557: Vendas novas, Balcão removido da UI); 4b ✅ (Sprint 558: caixa, Preços, Contagens, Kits, catálogo de Serviços e Trabalhos apagados); 4c ✅ (Sprint 559: Reparações antigas e Peças apagadas; extras passam para a Venda) | ✅ |
 | 5 | Despesas + IVA & Resultados + balancete trimestral | ⏳ |
 | 7 | Motor IRS + Segurança Social completo, recomendações por regras e agente no site (só explica o que o motor calcula) | ⏳ |
 | 6 | Atividades + Finanças + import `Gestao_Financeira_v10.xlsx` (só Informática, Trading, despesas e fixas) | ⏳ |
@@ -173,3 +173,33 @@ Vendas do tipo Serviço). `Despesa.TrabalhoId` apagado; `RepairRequest.TrabalhoI
 O PDF de orçamento passou a ser da Venda (`GET /api/vendas/{id}/orcamento.pdf`). O Dashboard e o relatório
 de negócio antigos deixaram de somar Trabalhos (contadores a 0) — serão refeitos na Fase 5.
 Ficam para a 4c: `Part`/`PartMovimento`/SkuMapping e as Reparações antigas (dependem umas das outras).
+
+## Fase 4c — notas (Sprint 559)
+
+Decisão do Bruno (2026-10-07): apagar as Reparações antigas; **ficam** o PDF de entrada/entrega com assinatura,
+o portal do cliente, as fotos e as garantias — agora ligados à **Venda do tipo Reparação**.
+
+- Venda ganha `PublicSlug` (portal `/r/{slug}`, gerado nas reparações), `PrevistoPara` (ETA no portal e no
+  calendário) e histórico `VendaEstadoLog` (linha temporal do portal). Novo estado **Em curso** (`EmCurso = 5`):
+  é o estado de um orçamento aceite (no balcão ou pelo cliente no portal); a ordem do fluxo é
+  Orçamento → Em curso → À espera de peça → Pronta → Entregue & paga.
+- Renomeados e religados à Venda: `VendaFoto`, `VendaAssinatura`, `VendaComunicacao`; `Avaliacao`,
+  `PushSubscription` e `InternalTask` passam a `VendaId`; `Garantia` só tem `VendaId` (`SourceType` distingue
+  produto de reparação); `Payment` perde `ReparacaoId`.
+- Garantia de reparação emitida ao entregar (dias/cobertura do tenant); garantia de produto como antes (DL 84/2021).
+- Portal: aceitar o orçamento chama `VendaService.MudarEstado(EmCurso)` — consome as peças como no balcão;
+  recusar cancela. MB Way pelo portal fica ligado à Venda (o pagamento confirmado avisa a loja; "Entregue & paga"
+  continua a ser marcado ao levantar).
+- PDFs na Venda: `orcamento.pdf`, `entrada.pdf`, `entrega.pdf`, `label.pdf` (QR do portal).
+- Apagado: `Reparacao`, `ReparacaoEstadoLog`, etiquetas e cronómetro da reparação, `SignatureCapture` (duplicava a
+  assinatura S551), diagnóstico guiado, campos de equipamento, `Part`/`PartMovimento`/`SkuMapping`,
+  relatórios antigos (Negócio/Produtividade — substituídos por "IVA & Resultados" na Fase 5), Dashboard antigo e
+  lembretes "reparações paradas"/"clientes por notificar". Despesas deixam de se ligar a reparações.
+- Dashboard novo (`GET /api/dashboard`): faturado do mês, IVA a entregar e lucro (motor de IVA), despesas do mês,
+  em curso por estado, alertas (faturas por registar, compras sem fatura/com diferença, faturas recebidas por
+  aprovar), stock por lote e próximas entregas.
+- Migração `Sprint559ReparacoesComoVendas`: limpa antes de mudar as FKs (avaliações e subscrições push das
+  reparações antigas, garantias/pagamentos só de reparações, tarefas ficam sem ligação) — "recomeçar limpo",
+  com backup automático antes.
+- Preferências: modelos WhatsApp/push passam a usar os nomes dos estados da Venda; nomes antigos gravados são
+  convertidos ao ler (`TenantPreferencesDefaults.EstadoAliases`).

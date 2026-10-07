@@ -5,8 +5,9 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Services.Clientes;
-using RepairDesk.Services.Reparacoes;
 using RepairDesk.Tests.Auth;
+using RepairDesk.Tests.Support;
+using RepairDesk.Services.Vendas;
 
 namespace RepairDesk.Tests.Reparacoes;
 
@@ -20,7 +21,7 @@ public class ReparacaoComunicacoesApiTests : IClassFixture<RepairDeskApiFactory>
     private readonly RepairDeskApiFactory _factory;
     public ReparacaoComunicacoesApiTests(RepairDeskApiFactory factory) => _factory = factory;
 
-    private sealed record CommDto(Guid Id, Guid ReparacaoId, Guid ClienteId, int Tipo, int Direcao, string Texto, Guid CreatedByUserId, DateTime CreatedAt);
+    private sealed record CommDto(Guid Id, Guid VendaId, Guid ClienteId, int Tipo, int Direcao, string Texto, Guid CreatedByUserId, DateTime CreatedAt);
     private sealed record CreateCommReq(int Tipo, int Direcao, string Texto);
 
     [Fact]
@@ -30,15 +31,15 @@ public class ReparacaoComunicacoesApiTests : IClassFixture<RepairDeskApiFactory>
         var (_, rep) = await CreateClienteEReparacaoAsync(client);
 
         var resp = await client.PostAsJsonAsync(
-            $"/api/reparacoes/{rep.Id}/comunicacoes",
+            $"/api/vendas/{rep.Id}/comunicacoes",
             new CreateCommReq(Tipo: 1, Direcao: 0, Texto: "cliente ligou às 10h, perguntou estado")); // Telefone, Inbound
         resp.StatusCode.Should().Be(HttpStatusCode.Created);
         var created = (await resp.Content.ReadFromJsonAsync<CommDto>())!;
-        created.ReparacaoId.Should().Be(rep.Id);
+        created.VendaId.Should().Be(rep.Id);
         created.Tipo.Should().Be(1);
         created.Direcao.Should().Be(0);
 
-        var list = await client.GetFromJsonAsync<List<CommDto>>($"/api/reparacoes/{rep.Id}/comunicacoes");
+        var list = await client.GetFromJsonAsync<List<CommDto>>($"/api/vendas/{rep.Id}/comunicacoes");
         list!.Should().ContainSingle(c => c.Id == created.Id && c.Texto.Contains("perguntou estado"));
     }
 
@@ -49,7 +50,7 @@ public class ReparacaoComunicacoesApiTests : IClassFixture<RepairDeskApiFactory>
         var (_, rep) = await CreateClienteEReparacaoAsync(client);
 
         var resp = await client.PostAsJsonAsync(
-            $"/api/reparacoes/{rep.Id}/comunicacoes",
+            $"/api/vendas/{rep.Id}/comunicacoes",
             new CreateCommReq(Tipo: 0, Direcao: 2, Texto: "   ")); // só whitespace
         resp.StatusCode.Should().Be((HttpStatusCode)422);
     }
@@ -59,7 +60,7 @@ public class ReparacaoComunicacoesApiTests : IClassFixture<RepairDeskApiFactory>
     {
         var client = await NewAuthedClientAsync();
         var resp = await client.PostAsJsonAsync(
-            $"/api/reparacoes/{Guid.NewGuid()}/comunicacoes",
+            $"/api/vendas/{Guid.NewGuid()}/comunicacoes",
             new CreateCommReq(Tipo: 0, Direcao: 2, Texto: "nota qualquer"));
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -71,14 +72,14 @@ public class ReparacaoComunicacoesApiTests : IClassFixture<RepairDeskApiFactory>
         var (_, rep) = await CreateClienteEReparacaoAsync(client);
 
         var post = await client.PostAsJsonAsync(
-            $"/api/reparacoes/{rep.Id}/comunicacoes",
+            $"/api/vendas/{rep.Id}/comunicacoes",
             new CreateCommReq(Tipo: 2, Direcao: 1, Texto: "enviei WhatsApp com link de pagamento"));
         var created = (await post.Content.ReadFromJsonAsync<CommDto>())!;
 
-        var del = await client.DeleteAsync($"/api/reparacoes/{rep.Id}/comunicacoes/{created.Id}");
+        var del = await client.DeleteAsync($"/api/vendas/{rep.Id}/comunicacoes/{created.Id}");
         del.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var list = await client.GetFromJsonAsync<List<CommDto>>($"/api/reparacoes/{rep.Id}/comunicacoes");
+        var list = await client.GetFromJsonAsync<List<CommDto>>($"/api/vendas/{rep.Id}/comunicacoes");
         list!.Should().NotContain(c => c.Id == created.Id);
     }
 
@@ -93,9 +94,9 @@ public class ReparacaoComunicacoesApiTests : IClassFixture<RepairDeskApiFactory>
 
         var marker1 = Guid.NewGuid().ToString("N")[..6];
         var marker2 = Guid.NewGuid().ToString("N")[..6];
-        await client.PostAsJsonAsync($"/api/reparacoes/{rep1.Id}/comunicacoes",
+        await client.PostAsJsonAsync($"/api/vendas/{rep1.Id}/comunicacoes",
             new CreateCommReq(Tipo: 1, Direcao: 0, Texto: $"chamada {marker1}"));
-        await client.PostAsJsonAsync($"/api/reparacoes/{rep2.Id}/comunicacoes",
+        await client.PostAsJsonAsync($"/api/vendas/{rep2.Id}/comunicacoes",
             new CreateCommReq(Tipo: 3, Direcao: 1, Texto: $"email {marker2}"));
 
         var byCliente = await client.GetFromJsonAsync<List<CommDto>>($"/api/clientes/{cliente.Id}/comunicacoes");
@@ -111,11 +112,11 @@ public class ReparacaoComunicacoesApiTests : IClassFixture<RepairDeskApiFactory>
 
         var (clienteA, repA) = await CreateClienteEReparacaoAsync(adminA);
         var marker = Guid.NewGuid().ToString("N")[..8];
-        await adminA.PostAsJsonAsync($"/api/reparacoes/{repA.Id}/comunicacoes",
+        await adminA.PostAsJsonAsync($"/api/vendas/{repA.Id}/comunicacoes",
             new CreateCommReq(Tipo: 0, Direcao: 2, Texto: $"iso {marker}"));
 
         // Tenant B não consegue ler a reparação de A → 404.
-        var resp = await adminB.GetAsync($"/api/reparacoes/{repA.Id}/comunicacoes");
+        var resp = await adminB.GetAsync($"/api/vendas/{repA.Id}/comunicacoes");
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
         // Tenant B também não consegue ver as comunicações do cliente A.
@@ -154,15 +155,10 @@ public class ReparacaoComunicacoesApiTests : IClassFixture<RepairDeskApiFactory>
         return (await resp.Content.ReadFromJsonAsync<ClienteDto>())!;
     }
 
-    private static async Task<ReparacaoDto> CreateReparacaoAsync(HttpClient client, Guid clienteId, string equipamento = "iPhone 13")
-    {
-        var resp = await client.PostAsJsonAsync("/api/reparacoes",
-            new CreateReparacaoRequest(clienteId, equipamento, "Avaria genérica", null, 7000, null));
-        resp.EnsureSuccessStatusCode();
-        return (await resp.Content.ReadFromJsonAsync<ReparacaoDto>())!;
-    }
+    private static Task<VendaDto> CreateReparacaoAsync(HttpClient client, Guid clienteId, string equipamento = "iPhone 13")
+        => TestReparacoes.CriarAsync(client, equipamento, clienteId: clienteId);
 
-    private async Task<(ClienteDto Cliente, ReparacaoDto Reparacao)> CreateClienteEReparacaoAsync(HttpClient client)
+    private async Task<(ClienteDto Cliente, VendaDto Reparacao)> CreateClienteEReparacaoAsync(HttpClient client)
     {
         var cliente = await CreateClienteAsync(client);
         var rep = await CreateReparacaoAsync(client, cliente.Id);

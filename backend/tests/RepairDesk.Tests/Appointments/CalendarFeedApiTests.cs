@@ -118,38 +118,14 @@ public class CalendarFeedApiTests : IClassFixture<RepairDeskApiFactory>
         var clienteDto = await cliente.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var clienteId = clienteDto!["id"].ToString()!;
 
-        // Cria reparação.
-        var rep = await admin.PostAsJsonAsync("/api/reparacoes", new
-        {
-            ClienteId = clienteId,
-            Equipamento = $"Samsung A52 {marker}",
-            Avaria = "Não liga",
-        });
-        rep.EnsureSuccessStatusCode();
-        var repDto = await rep.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-        var repId = repDto!["id"].ToString()!;
-
-        // Define ETA via PUT genérico /api/reparacoes/{id} (campo PrevistoEntregueEm
-        // foi adicionado em S419). O update overwrites todos os campos — copiamos
-        // os mínimos obrigatórios da reparação criada.
+        // Cria reparação (Venda tipo Reparação) já aceite e com previsão de entrega.
         var eta = DateTime.UtcNow.AddDays(2).Date.AddHours(14);
-        var etaResp = await admin.PutAsJsonAsync($"/api/reparacoes/{repId}", new
-        {
-            Equipamento = $"Samsung A52 {marker}",
-            Avaria = "Não liga",
-            Imei = (string?)null,
-            Diagnostico = (string?)null,
-            OrcamentoCents = (int?)null,
-            OrcamentoAprovado = false,
-            PrecoFinalCents = (int?)null,
-            CustoPecasCents = 0,
-            HorasGastas = 0m,
-            Notas = (string?)null,
-            EstadoPagamento = 0,
-            ClienteId = clienteId,
-            PrevistoEntregueEm = eta,
-        });
-        etaResp.EnsureSuccessStatusCode();
+        var rep = await admin.PostAsJsonAsync("/api/vendas", new RepairDesk.Services.Vendas.VendaWriteRequest(
+            RepairDesk.Core.Enums.VendaTipo.Reparacao, Guid.Parse(clienteId), $"Samsung A52 {marker}", "Não liga", null,
+            [new RepairDesk.Services.Vendas.VendaLinhaWriteRequest(null, null, "Mão de obra", 1, 4000)],
+            RepairDesk.Core.Enums.VendaEstado.EmCurso, null, eta));
+        rep.EnsureSuccessStatusCode();
+        var repId = (await rep.Content.ReadFromJsonAsync<RepairDesk.Services.Vendas.VendaDto>())!.Id;
 
         // Buscar feed.
         var feed = (await admin.GetFromJsonAsync<FeedInfo>("/api/automacoes/calendar-feed"))!;

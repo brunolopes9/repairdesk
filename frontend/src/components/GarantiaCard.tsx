@@ -7,24 +7,19 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { toast } from '../lib/toast';
 import Modal from './Modal';
 
-type Props =
-  | { kind: 'reparacao'; reparacaoId: string }
-  | { kind: 'venda'; vendaId: string };
+/** Doc 94: toda a garantia nasce de uma Venda (produto ou reparação). */
+type Props = { vendaId: string };
 
 /// Card reutilizável que mostra a garantia digital de uma Reparação ou Venda.
 /// Permite copiar o link público e anular com motivo (audit log).
 export default function GarantiaCard(props: Props) {
   const qc = useQueryClient();
   const { hasRole } = useAuth();
-  const queryKey = props.kind === 'reparacao'
-    ? ['garantia-reparacao', props.reparacaoId]
-    : ['garantia-venda', props.vendaId];
+  const queryKey = ['garantia-venda', props.vendaId];
 
   const garantia = useQuery({
     queryKey,
-    queryFn: () => props.kind === 'reparacao'
-      ? garantiasApi.byReparacao(props.reparacaoId)
-      : garantiasApi.byVenda(props.vendaId),
+    queryFn: () => garantiasApi.byVenda(props.vendaId),
   });
 
   const [anularOpen, setAnularOpen] = useState(false);

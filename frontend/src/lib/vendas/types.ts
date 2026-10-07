@@ -6,10 +6,11 @@ export type VendaTipo = (typeof VENDA_TIPO)[keyof typeof VENDA_TIPO];
 export const VENDA_TIPO_LABEL: Record<VendaTipo, string> = { 0: 'Produto', 1: 'Reparação', 2: 'Serviço' };
 
 /** Espelha VendaEstado. Orçamento não mexe no stock; Cancelada devolve-o. */
-export const VENDA_ESTADO = { Orcamento: 0, AEsperaPeca: 1, Pronta: 2, Entregue: 3, Cancelada: 4 } as const;
+export const VENDA_ESTADO = { Orcamento: 0, AEsperaPeca: 1, Pronta: 2, Entregue: 3, Cancelada: 4, EmCurso: 5 } as const;
 export type VendaEstado = (typeof VENDA_ESTADO)[keyof typeof VENDA_ESTADO];
 export const VENDA_ESTADO_LABEL: Record<VendaEstado, string> = {
   0: 'Orçamento',
+  5: 'Em curso',
   1: 'À espera de peça',
   2: 'Pronta',
   3: 'Entregue & paga',
@@ -17,6 +18,7 @@ export const VENDA_ESTADO_LABEL: Record<VendaEstado, string> = {
 };
 export const VENDA_ESTADO_COLOR: Record<VendaEstado, string> = {
   0: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  5: 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
   1: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
   2: 'bg-brand-100 text-brand-800 dark:bg-brand-950/40 dark:text-brand-300',
   3: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
@@ -77,6 +79,9 @@ export interface VendaItem {
   lucro: number;
 }
 
+/** Ordem natural do fluxo (os números do enum não são a ordem). */
+export const VENDA_FLUXO: VendaEstado[] = [0, 5, 1, 2, 3];
+
 export interface Venda {
   id: string;
   numero: number;
@@ -98,6 +103,10 @@ export interface Venda {
   faturaPorRegistar: boolean;
   notas: string | null;
   items: VendaItem[];
+  /** Reparações: slug do portal do cliente (/r/{slug}). */
+  publicSlug: string | null;
+  previstoPara: string | null;
+  garantiaSlug: string | null;
 }
 
 export interface VendaLinhaWrite {
@@ -121,6 +130,7 @@ export interface VendaWrite {
   /** Só na criação. */
   estado?: VendaEstado;
   paymentMethod?: PaymentMethod | null;
+  previstoPara?: string | null;
 }
 
 export interface VendaFiltro {

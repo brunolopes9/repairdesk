@@ -40,9 +40,7 @@ public sealed record PaymentInitiationRequest(
     int AmountCents,
     string? CustomerPhone = null,
     string? CustomerEmail = null,
-    string? Description = null,
-    /// <summary>Sprint 493: alternativa a VendaId — pagamento de reparação (portal cliente).</summary>
-    Guid? ReparacaoId = null);
+    string? Description = null);
 
 public sealed record PaymentInitiation(
     PaymentStatus Status,

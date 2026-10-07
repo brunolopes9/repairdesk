@@ -33,15 +33,13 @@ public class AdminOnlyEndpointsTests : IClassFixture<RepairDeskApiFactory>
     [InlineData("POST", "/api/supplier-invoices/00000000-0000-0000-0000-000000000001/reprocess")]
     [InlineData("POST", "/api/despesas")]
     [InlineData("DELETE", "/api/despesas/00000000-0000-0000-0000-000000000001")]
-    [InlineData("POST", "/api/parts/00000000-0000-0000-0000-000000000001/movimento")]
-    [InlineData("POST", "/api/parts/import")]
+
     [InlineData("PUT", "/api/tenant-settings/me/preferences")]
     [InlineData("POST", "/api/llm-usage/anthropic-key")]
     [InlineData("DELETE", "/api/llm-usage/anthropic-key")]
     [InlineData("POST", "/api/automacoes/ingest-email/regenerate")]
     // Sprint 244 Fase B — configuração comercial/estrutural
-    [InlineData("POST", "/api/diagnostico/templates")]
-    [InlineData("DELETE", "/api/diagnostico/templates/00000000-0000-0000-0000-000000000001")]
+
     [InlineData("DELETE", "/api/clientes/00000000-0000-0000-0000-000000000001")]
     [InlineData("POST", "/api/clientes/import")]
     public async Task NonAdminUser_GetsForbidden_OnAdminOnlyEndpoint(string method, string path)

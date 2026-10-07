@@ -22,7 +22,6 @@ public class Payment : BaseEntity, ITenantEntity
 
     /// <summary>Sprint 493: reparação paga via portal MBWay (alternativa a VendaId). Coluna simples,
     /// sem FK navegável — integridade garantida no serviço.</summary>
-    public Guid? ReparacaoId { get; set; }
 
     public PaymentMethod Method { get; set; }
     public PaymentProvider Provider { get; set; } = PaymentProvider.Manual;

@@ -37,11 +37,11 @@ public class PushNotificationWorker : BackgroundService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var service = scope.ServiceProvider.GetRequiredService<IPushNotificationService>();
-                await service.SendRepairStatusChangedAsync(job.ReparacaoId, stoppingToken);
+                await service.SendRepairStatusChangedAsync(job.VendaId, stoppingToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Push notification job failed for repair {RepairId}", job.ReparacaoId);
+                _logger.LogError(ex, "Push notification job failed for repair {RepairId}", job.VendaId);
             }
         }
     }

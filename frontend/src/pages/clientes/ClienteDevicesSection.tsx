@@ -7,7 +7,8 @@ import { Button } from '../../components/ui/Button';
 import { toast } from '../../lib/toast';
 import { apiErrorMessage } from '../../lib/errors';
 import { devicesApi, type Device, type CreateDeviceForm, type UpdateDeviceForm } from '../../lib/devices/api';
-import { reparacoesApi } from '../../lib/reparacoes/api';
+import { vendasApi } from '../../lib/vendas/api';
+import { VENDA_TIPO } from '../../lib/vendas/types';
 
 /**
  * Sprint 462 (Doc 90 Tier 2 #6 — UI do asset registry): gestão de equipamentos
@@ -148,11 +149,10 @@ function DeviceCard({ device, onEdit, onDelete }: { device: Device; onEdit: () =
     ? new Date(device.garantiaFabricanteUntil) >= new Date()
     : false;
 
-  // Sprint 472: histórico de reparações deste Device via lookup IMEI (reuso S65).
-  // Devolve count e items mais recentes. Só ativo se há IMEI.
+  // Sprint 472 / Doc 94: reparações (Vendas) cujo equipamento menciona este IMEI.
   const historico = useQuery({
     queryKey: ['device-reparacoes-historico', device.id, device.imei],
-    queryFn: () => reparacoesApi.historicoImei(device.imei!),
+    queryFn: () => vendasApi.list({ q: device.imei!, tipo: VENDA_TIPO.Reparacao, pageSize: 5 }),
     enabled: !!device.imei,
     staleTime: 60_000,
   });
@@ -226,7 +226,7 @@ function DeviceCard({ device, onEdit, onDelete }: { device: Device; onEdit: () =
           </span>
           {historico.data.items.length > 0 && (
             <Link
-              to={`/reparacoes/${historico.data.items[0].id}`}
+              to={`/vendas/${historico.data.items[0].id}`}
               className="text-brand-700 hover:underline dark:text-brand-300"
             >
               ver última →

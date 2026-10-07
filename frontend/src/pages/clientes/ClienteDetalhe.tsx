@@ -10,10 +10,8 @@ import type { ClienteEquipamento } from '../../lib/clientes/types';
 import { devicesApi } from '../../lib/devices/api';
 import { ClienteComunicacoesSection } from './ClienteComunicacoesSection';
 import { ClienteDevicesSection } from './ClienteDevicesSection';
-import { reparacoesApi } from '../../lib/reparacoes/api';
-import { STATUS_COLOR, STATUS_LABEL, type Reparacao } from '../../lib/reparacoes/types';
 import { vendasApi } from '../../lib/vendas/api';
-import { VENDA_ESTADO, VENDA_ESTADO_COLOR, VENDA_ESTADO_LABEL, type Venda } from '../../lib/vendas/types';
+import { VENDA_ESTADO, VENDA_ESTADO_COLOR, VENDA_ESTADO_LABEL, VENDA_TIPO, type Venda } from '../../lib/vendas/types';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import ClienteFormView from './ClienteForm';
@@ -28,12 +26,6 @@ export default function ClienteDetalhe() {
   const cliente = useQuery({
     queryKey: ['cliente', id],
     queryFn: () => clientesApi.get(id!),
-    enabled: !!id,
-  });
-
-  const reparacoes = useQuery({
-    queryKey: ['cliente-reparacoes', id],
-    queryFn: () => reparacoesApi.list({ clienteId: id, pageSize: 100 }),
     enabled: !!id,
   });
 
@@ -104,7 +96,7 @@ export default function ClienteDetalhe() {
     onSuccess: (res) => {
       toast.success(
         'Cliente apagado definitivamente',
-        `${res.reparacoes} reparação(ões), ${res.vendas} venda(s), ${res.despesas} despesa(s) e ${res.fotos} foto(s) removidos.`,
+        `${res.vendas} venda(s) (${res.reparacoes} reparação(ões)) e ${res.fotos} foto(s) removidos.`,
       );
       qc.invalidateQueries({ queryKey: ['clientes'] });
       qc.invalidateQueries({ queryKey: ['audit'] });
@@ -130,30 +122,20 @@ export default function ClienteDetalhe() {
   if (cliente.isError || !cliente.data) return <div className="text-sm text-red-600">Cliente não encontrado.</div>;
 
   const c = cliente.data;
-  const reps = reparacoes.data?.items ?? [];
-  const vds = vendas.data?.items ?? [];
+  // Doc 94: reparações são Vendas do tipo Reparação.
+  const todas = vendas.data?.items ?? [];
+  const reps = todas.filter((v) => v.tipo === VENDA_TIPO.Reparacao);
+  const vds = todas.filter((v) => v.tipo !== VENDA_TIPO.Reparacao);
   const eqs = equipamentos.data ?? [];
   const hardDeleteExpected = `APAGAR ${c.nome}`;
   const canHardDelete = hardDeleteConfirm === hardDeleteExpected;
 
   // KPIs
-  const repsPagas = reps.filter((r) => r.estado === 5);
-  const vendasPagas = vds.filter((v) => v.estado === VENDA_ESTADO.Entregue);
-  const totalGasto =
-    repsPagas.reduce((s, r) => s + (r.precoFinalCents ?? r.orcamentoCents ?? 0), 0) +
-    vendasPagas.reduce((s, v) => s + v.totalCents, 0);
-  const lucroTotal =
-    repsPagas.reduce((s, r) => s + r.lucroCents, 0) +
-    vendasPagas.reduce((s, v) => s + Math.round(v.lucro * 100), 0);
-  const ultimaVisita = [
-    ...reps.map((x) => x.recebidoEm),
-    ...vds.map((x) => x.data),
-  ]
-    .sort()
-    .at(-1);
-  const abertosCount =
-    reps.filter((r) => r.estado !== 5 && r.estado !== 6).length +
-    vds.filter((v) => v.estado !== VENDA_ESTADO.Entregue && v.estado !== VENDA_ESTADO.Cancelada).length;
+  const vendasPagas = todas.filter((v) => v.estado === VENDA_ESTADO.Entregue);
+  const totalGasto = vendasPagas.reduce((s, v) => s + v.totalCents, 0);
+  const lucroTotal = vendasPagas.reduce((s, v) => s + Math.round(v.lucro * 100), 0);
+  const ultimaVisita = todas.map((x) => x.createdAt).sort().at(-1);
+  const abertosCount = todas.filter((v) => v.estado !== VENDA_ESTADO.Entregue && v.estado !== VENDA_ESTADO.Cancelada).length;
 
   const cleanPhone = c.telefone?.replace(/\s/g, '') ?? '';
   const contactos30d = ((comunicacoesRecentes.data ?? []).filter((com) => {
@@ -465,7 +447,7 @@ export default function ClienteDetalhe() {
           <p className="mt-2 text-xs text-zinc-500">Sem reparações registadas.</p>
         ) : (
           <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
-            {reps.map((r) => <RepRow key={r.id} r={r} />)}
+            {reps.map((v) => <VendaRow key={v.id} v={v} />)}
           </ul>
         )}
       </section>
@@ -649,7 +631,7 @@ function EquipamentoCard({ eq }: { eq: ClienteEquipamento }) {
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         {eq.ultimaReparacaoId && (
           <Link
-            to={`/reparacoes/${eq.ultimaReparacaoId}`}
+            to={`/vendas/${eq.ultimaReparacaoId}`}
             className="rounded-md border border-zinc-200 px-2 py-1 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
           >
             Reparacao #{eq.ultimaReparacaoNumero}
@@ -668,40 +650,6 @@ function EquipamentoCard({ eq }: { eq: ClienteEquipamento }) {
   );
 }
 
-function RepRow({ r }: { r: Reparacao }) {
-  return (
-    <li>
-      <Link to={`/reparacoes/${r.id}`} className="flex min-h-14 items-center justify-between gap-3 px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-zinc-500">#{r.numero}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[r.estado]}`}>
-              {STATUS_LABEL[r.estado]}
-            </span>
-            <span className="text-[11px] text-zinc-500">{formatDateOnly(r.recebidoEm)}</span>
-          </div>
-          <div className="mt-0.5 truncate font-medium">{r.equipamento}</div>
-          <div className="text-[11px] text-zinc-500 line-clamp-1">{r.avaria}</div>
-          {/* Nº da fatura registada na reparação. */}
-          {r.invoiceNumber && (
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
-              {r.invoiceNumber && (
-                <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-                  📄 {r.invoiceNumber}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="text-right">
-          <div className="font-medium">{formatCents(r.precoFinalCents ?? r.orcamentoCents)}</div>
-          {r.estado === 5 && <div className="text-[11px] text-emerald-600 dark:text-emerald-400">Lucro: {formatCents(r.lucroCents)}</div>}
-        </div>
-      </Link>
-    </li>
-  );
-}
-
 function VendaRow({ v }: { v: Venda }) {
   const statusLabel = VENDA_ESTADO_LABEL[v.estado];
   const statusColor = VENDA_ESTADO_COLOR[v.estado];
@@ -712,13 +660,13 @@ function VendaRow({ v }: { v: Venda }) {
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono text-zinc-500">#{v.numero}</span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor}`}>{statusLabel}</span>
-            <span className="text-[11px] text-zinc-500">{formatDateOnly(v.data)}</span>
+            <span className="text-[11px] text-zinc-500">{formatDateOnly(v.estado === VENDA_ESTADO.Entregue ? v.data : v.createdAt)}</span>
             {v.invoiceNumber && (
               <span className="text-[10px] text-zinc-400">{v.invoiceNumber}</span>
             )}
           </div>
           <div className="mt-0.5 truncate text-[11px] text-zinc-500">
-            {v.items.length} artigo{v.items.length === 1 ? '' : 's'}
+            {v.equipamento ?? v.problema ?? `${v.items.length} artigo${v.items.length === 1 ? '' : 's'}`}
           </div>
         </div>
         <div className="text-right font-medium">{formatCents(v.totalCents)}</div>

@@ -15,8 +15,9 @@ using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Audit;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Despesas;
-using RepairDesk.Services.Reparacoes;
 using RepairDesk.Tests.Auth;
+using RepairDesk.Tests.Support;
+using RepairDesk.Services.Vendas;
 
 namespace RepairDesk.Tests.Rgpd;
 
@@ -32,7 +33,6 @@ public class AuditRgpdApiTests : IClassFixture<RepairDeskApiFactory>
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
         var cliente = await CreateClienteAsync(client);
         var reparacao = await CreateReparacaoAsync(client, cliente.Id);
-        var despesa = await CreateDespesaAsync(client, reparacao.Id);
         var fotoId = await AddFotoMetadataAsync(reparacao.Id);
 
         var resp = await client.GetAsync($"/api/clientes/{cliente.Id}/exportar");
@@ -49,10 +49,9 @@ public class AuditRgpdApiTests : IClassFixture<RepairDeskApiFactory>
         dto.Should().NotBeNull();
         dto!.Cliente.Id.Should().Be(cliente.Id);
         dto.Cliente.Nome.Should().Be(cliente.Nome);
-        dto.Reparacoes.Should().ContainSingle(r => r.Id == reparacao.Id);
-        dto.Despesas.Should().ContainSingle(d => d.Id == despesa.Id);
+        dto.Vendas.Should().ContainSingle(r => r.Id == reparacao.Id && r.Tipo == RepairDesk.Core.Enums.VendaTipo.Reparacao);
         dto.Fotos.Should().ContainSingle(f => f.Id == fotoId);
-        dto.Fotos[0].SignedUrl.Should().Contain($"/api/reparacoes/fotos/{fotoId}/export-content");
+        dto.Fotos[0].SignedUrl.Should().Contain($"/api/vendas/fotos/{fotoId}/export-content");
         dto.Fotos[0].SignedUrlExpiresAt.Should().BeAfter(DateTimeOffset.UtcNow.AddDays(6));
         dto.AuditEntries.Should().Contain(a => a.EntityType == "Cliente" && a.EntityId == cliente.Id);
     }
@@ -63,7 +62,6 @@ public class AuditRgpdApiTests : IClassFixture<RepairDeskApiFactory>
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
         var cliente = await CreateClienteAsync(client);
         var reparacao = await CreateReparacaoAsync(client, cliente.Id);
-        var despesa = await CreateDespesaAsync(client, reparacao.Id);
         var fotoId = await AddFotoMetadataAsync(reparacao.Id);
 
         var bad = await DeleteJsonAsync(client, $"/api/clientes/{cliente.Id}/hard-delete",
@@ -77,7 +75,6 @@ public class AuditRgpdApiTests : IClassFixture<RepairDeskApiFactory>
         var deleted = await resp.Content.ReadFromJsonAsync<HardDeleteClienteResponse>();
         deleted!.ClienteId.Should().Be(cliente.Id);
         deleted.Reparacoes.Should().Be(1);
-        deleted.Despesas.Should().Be(1);
         deleted.Fotos.Should().Be(1);
 
         var getCliente = await client.GetAsync($"/api/clientes/{cliente.Id}");
@@ -86,9 +83,8 @@ public class AuditRgpdApiTests : IClassFixture<RepairDeskApiFactory>
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.Clientes.IgnoreQueryFilters().AnyAsync(c => c.Id == cliente.Id)).Should().BeFalse();
-        (await db.Reparacoes.IgnoreQueryFilters().AnyAsync(r => r.Id == reparacao.Id)).Should().BeFalse();
-        (await db.Despesas.IgnoreQueryFilters().AnyAsync(d => d.Id == despesa.Id)).Should().BeFalse();
-        (await db.ReparacaoFotos.IgnoreQueryFilters().AnyAsync(f => f.Id == fotoId)).Should().BeFalse();
+        (await db.Vendas.IgnoreQueryFilters().AnyAsync(r => r.Id == reparacao.Id)).Should().BeFalse();
+        (await db.VendaFotos.IgnoreQueryFilters().AnyAsync(f => f.Id == fotoId)).Should().BeFalse();
 
         var audit = await client.GetFromJsonAsync<PagedResult<AuditEntryDto>>($"/api/audit?entityType=Cliente&entityId={cliente.Id}");
         audit!.Items.Should().ContainSingle(a => a.Action == AuditAction.HardDelete && a.EntityId == cliente.Id);
@@ -138,11 +134,11 @@ public class AuditRgpdApiTests : IClassFixture<RepairDeskApiFactory>
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var foto = new ReparacaoFoto
+        var foto = new VendaFoto
         {
             TenantId = RepairDeskApiFactory.TenantId,
-            ReparacaoId = reparacaoId,
-            StorageKey = $"tenants/{RepairDeskApiFactory.TenantId}/reparacoes/{reparacaoId}/{Guid.NewGuid():N}.jpg",
+            VendaId = reparacaoId,
+            StorageKey = $"tenants/{RepairDeskApiFactory.TenantId}/vendas/{reparacaoId}/{Guid.NewGuid():N}.jpg",
             FileName = "antes.jpg",
             ContentType = "image/jpeg",
             Size = 123,
@@ -151,7 +147,7 @@ public class AuditRgpdApiTests : IClassFixture<RepairDeskApiFactory>
             Legenda = "Antes",
             VisivelNoPortal = true,
         };
-        db.ReparacaoFotos.Add(foto);
+        db.VendaFotos.Add(foto);
         await db.SaveChangesAsync();
         return foto.Id;
     }
@@ -165,21 +161,8 @@ public class AuditRgpdApiTests : IClassFixture<RepairDeskApiFactory>
         return (await resp.Content.ReadFromJsonAsync<ClienteDto>())!;
     }
 
-    private static async Task<ReparacaoDto> CreateReparacaoAsync(HttpClient client, Guid clienteId)
-    {
-        var resp = await client.PostAsJsonAsync("/api/reparacoes",
-            new CreateReparacaoRequest(clienteId, "iPhone 13", "Ecrã partido", "359123456789012", 12000, "Teste RGPD"));
-        resp.EnsureSuccessStatusCode();
-        return (await resp.Content.ReadFromJsonAsync<ReparacaoDto>())!;
-    }
-
-    private static async Task<DespesaDto> CreateDespesaAsync(HttpClient client, Guid reparacaoId)
-    {
-        var resp = await client.PostAsJsonAsync("/api/despesas",
-            new CreateDespesaRequest("Peça RGPD", DespesaCategoria.Pecas, 3500, DateTime.UtcNow, "Fornecedor", null, null, reparacaoId));
-        resp.EnsureSuccessStatusCode();
-        return (await resp.Content.ReadFromJsonAsync<DespesaDto>())!;
-    }
+    private static Task<VendaDto> CreateReparacaoAsync(HttpClient client, Guid clienteId)
+        => TestReparacoes.CriarAsync(client, clienteId: clienteId);
 
     private static async Task<HttpResponseMessage> DeleteJsonAsync<T>(HttpClient client, string url, T payload)
     {

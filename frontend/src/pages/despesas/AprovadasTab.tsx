@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tansta
 import { Banknote, CalendarClock, FileText, Layers3, PackagePlus, Plus, ReceiptText, Repeat2, Search, TrendingDown } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard } from '../../components/ui';
-import { DespesaFormModal } from '../../components/DespesasImputadas';
+import { DespesaFormModal } from '../../components/DespesaFormModal';
 import { despesasApi } from '../../lib/despesas/api';
 import {
   DESPESA_CATEGORIA,
@@ -139,14 +139,12 @@ export default function AprovadasTab({
     let pageTotalCents = 0;
     let recurringCount = 0;
     let cogsCount = 0;
-    let linkedCount = 0;
     let supplierCount = 0;
 
     for (const item of items) {
       pageTotalCents += item.valorCents;
       if (item.isRecorrente) recurringCount += 1;
       if (item.isCogs) cogsCount += 1;
-      if (item.reparacaoId) linkedCount += 1;
       if (item.fornecedor) supplierCount += 1;
 
       const current = byCategory.get(item.categoria) ?? { count: 0, totalCents: 0 };
@@ -160,7 +158,6 @@ export default function AprovadasTab({
       pageTotalCents,
       recurringCount,
       cogsCount,
-      linkedCount,
       supplierCount,
       topCategories: Array.from(byCategory.entries())
         .sort((a, b) => b[1].totalCents - a[1].totalCents)
@@ -194,8 +191,8 @@ export default function AprovadasTab({
         <ExpenseMetric icon={<Repeat2 size={16} />} label="Recorrentes" value={String(expenseStats.recurringCount)} tone="blue" />
         <ExpenseMetric
           icon={<Layers3 size={16} />}
-          label={workspaceMode === 'compras' ? 'COGS' : 'Ligados'}
-          value={String(workspaceMode === 'compras' ? expenseStats.cogsCount : expenseStats.linkedCount)}
+          label={workspaceMode === 'compras' ? 'COGS' : 'Com fornecedor'}
+          value={String(workspaceMode === 'compras' ? expenseStats.cogsCount : expenseStats.supplierCount)}
           tone="amber"
         />
       </div>
@@ -323,11 +320,6 @@ export default function AprovadasTab({
                     {DESPESA_LABEL[d.categoria]}
                   </span>
                   <span className="text-xs text-zinc-500">{formatDateOnly(d.data)}</span>
-                  {d.reparacaoId && (
-                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                      reparação
-                    </span>
-                  )}
                   {d.isRecorrente && (
                     <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                       recorrente

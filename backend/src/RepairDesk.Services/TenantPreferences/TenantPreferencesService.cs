@@ -178,6 +178,13 @@ public sealed class TenantPreferencesService : ITenantPreferencesService
             {
                 if (string.IsNullOrWhiteSpace(item.Key)) continue;
                 var key = item.Key.Trim();
+                // Preferências antigas usam os nomes da Reparação antiga — converte para os estados da Venda;
+                // os que deixaram de existir (Recebido/Diagnóstico) são descartados.
+                if (TenantPreferencesDefaults.EstadoAliases.TryGetValue(key, out var novo))
+                {
+                    if (key is "Recebido" or "Diagnostico") continue;
+                    key = novo;
+                }
                 var template = item.Value ?? templates.GetValueOrDefault(key, new WhatsAppStateTemplate(true, string.Empty, templates.Count * 10));
                 var text = (template.Texto ?? string.Empty).Trim();
                 if (text.Length > 2000) text = text[..2000];
@@ -249,10 +256,11 @@ public sealed class TenantPreferencesService : ITenantPreferencesService
     {
         if (states is null || states.Length == 0) return defaults;
 
-        var valid = Enum.GetNames<RepairStatus>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var valid = Enum.GetNames<VendaEstado>().ToHashSet(StringComparer.OrdinalIgnoreCase);
         return states
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
+            .Select(x => TenantPreferencesDefaults.EstadoAliases.TryGetValue(x, out var novo) ? novo : x)
             .Where(valid.Contains)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();

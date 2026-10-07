@@ -49,7 +49,6 @@ export interface RepairRequestDto {
   equipamento: string;
   descricao: string;
   estado: RepairRequestEstado;
-  reparacaoId: string | null;
   motivoRejeicao: string | null;
   createdAt: string;
   notasInternas: string | null;

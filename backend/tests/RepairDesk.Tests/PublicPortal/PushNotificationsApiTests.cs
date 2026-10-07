@@ -10,8 +10,9 @@ using RepairDesk.Core.Enums;
 using RepairDesk.DAL.Persistence;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Push;
-using RepairDesk.Services.Reparacoes;
 using RepairDesk.Tests.Auth;
+using RepairDesk.Tests.Support;
+using RepairDesk.Services.Vendas;
 
 namespace RepairDesk.Tests.PublicPortal;
 
@@ -48,7 +49,7 @@ public class PushNotificationsApiTests : IClassFixture<RepairDeskApiFactory>
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var saved = await db.PushSubscriptions.SingleAsync(x => x.ReparacaoId == reparacao.Id);
+            var saved = await db.PushSubscriptions.SingleAsync(x => x.VendaId == reparacao.Id);
             saved.Endpoint.Should().Be(subscription.Endpoint);
             saved.P256dh.Should().Be(subscription.Keys.P256dh);
             saved.Auth.Should().Be(subscription.Keys.Auth);
@@ -65,7 +66,7 @@ public class PushNotificationsApiTests : IClassFixture<RepairDeskApiFactory>
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            (await db.PushSubscriptions.CountAsync(x => x.ReparacaoId == reparacao.Id)).Should().Be(0);
+            (await db.PushSubscriptions.CountAsync(x => x.VendaId == reparacao.Id)).Should().Be(0);
         }
     }
 
@@ -117,19 +118,7 @@ public class PushNotificationsApiTests : IClassFixture<RepairDeskApiFactory>
         return client;
     }
 
-    private static async Task<ReparacaoDto> CreateRepair(HttpClient client)
-    {
-        var phone = "9" + Random.Shared.Next(10000000, 99999999);
-        var clienteResp = await client.PostAsJsonAsync("/api/clientes",
-            new CreateClienteRequest($"Cliente Push {Guid.NewGuid():N}", phone, null, null, null));
-        clienteResp.EnsureSuccessStatusCode();
-        var cliente = (await clienteResp.Content.ReadFromJsonAsync<ClienteDto>())!;
-
-        var repResp = await client.PostAsJsonAsync("/api/reparacoes",
-            new CreateReparacaoRequest(cliente.Id, "iPhone 12", "Ecrã partido", null, 8900, null, RepairStatus.Recebido));
-        repResp.EnsureSuccessStatusCode();
-        return (await repResp.Content.ReadFromJsonAsync<ReparacaoDto>())!;
-    }
+    private static Task<VendaDto> CreateRepair(HttpClient client) => TestReparacoes.CriarAsync(client, "iPhone 12");
 
     private sealed class RecordingWebPushSender : IWebPushSender
     {

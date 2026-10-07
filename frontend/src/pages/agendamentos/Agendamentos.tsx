@@ -14,12 +14,11 @@ import {
   type AppointmentStatus,
   type CreateAppointmentRequest,
 } from '../../lib/appointments/api';
-import { reparacoesApi } from '../../lib/reparacoes/api';
-import type { Reparacao } from '../../lib/reparacoes/types';
+import { vendasApi } from '../../lib/vendas/api';
+import { VENDA_TIPO, type Venda } from '../../lib/vendas/types';
 
 // Sprint 419: estados em curso (0=Recebido, 1=Diagnóstico, 2=AguardaPeça, 3=EmReparação, 4=Pronto).
 // Reparações nestes estados com previstoEntregueEm aparecem como overlay no calendário.
-const REPAIR_OVERLAY_STATES: number[] = [0, 1, 2, 3, 4];
 
 const STATUS_STYLE: Record<AppointmentStatus, string> = {
   Agendado: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
@@ -126,20 +125,19 @@ export default function Agendamentos() {
     }
   }
 
-  // Sprint 419: overlay de reparações com ETA. Carrega só estados em-curso e filtra client-side por range visível.
+  // Sprint 419 / Doc 94: overlay de reparações (Vendas) em curso com previsão de entrega na semana visível.
   const reparacoesList = useQuery({
-    queryKey: ['reparacoes', 'overlay-eta'],
-    queryFn: () => reparacoesApi.list({ pageSize: 100 }),
+    queryKey: ['vendas', 'overlay-eta'],
+    queryFn: () => vendasApi.list({ tipo: VENDA_TIPO.Reparacao, emCurso: true, pageSize: 100 }),
     staleTime: 30_000,
   });
-  const reparacoesEta = useMemo<Reparacao[]>(() => {
+  const reparacoesEta = useMemo<Venda[]>(() => {
     const all = reparacoesList.data?.items ?? [];
     const fromMs = new Date(range.from).getTime();
     const toMs = new Date(range.to).getTime();
     return all.filter((r) => {
-      if (!r.previstoEntregueEm) return false;
-      if (!REPAIR_OVERLAY_STATES.includes(r.estado)) return false;
-      const t = new Date(r.previstoEntregueEm).getTime();
+      if (!r.previstoPara) return false;
+      const t = new Date(r.previstoPara).getTime();
       return t >= fromMs && t < toMs;
     });
   }, [reparacoesList.data, range.from, range.to]);
@@ -292,7 +290,7 @@ export default function Agendamentos() {
             const next = NEXT_STATUS[a.status]?.[0];
             if (next) statusMut.mutate({ id: a.id, status: next });
           }}
-          onRepairClick={(r) => navigate(`/reparacoes/${r.id}`)}
+          onRepairClick={(r) => navigate(`/vendas/${r.id}`)}
         />
       )}
 
@@ -370,11 +368,11 @@ function WeekGrid({
   onNext: () => void;
   onToday: () => void;
   appointments: Appointment[];
-  reparacoesEta: Reparacao[];
+  reparacoesEta: Venda[];
   loading: boolean;
   onSlotClick: (iso: string) => void;
   onCardClick: (a: Appointment) => void;
-  onRepairClick: (r: Reparacao) => void;
+  onRepairClick: (r: Venda) => void;
 }) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const weekEnd = addDays(weekStart, 6);
@@ -397,10 +395,10 @@ function WeekGrid({
 
   // Sprint 419: index reparações com ETA por slot (mesma estrutura).
   const repairSlotMap = useMemo(() => {
-    const m = new Map<string, Reparacao[]>();
+    const m = new Map<string, Venda[]>();
     for (const r of reparacoesEta) {
-      if (!r.previstoEntregueEm) continue;
-      const dt = new Date(r.previstoEntregueEm);
+      if (!r.previstoPara) continue;
+      const dt = new Date(r.previstoPara);
       const di = (dt.getDay() + 6) % 7;
       const k = `${di}-${dt.getHours()}`;
       (m.get(k) ?? m.set(k, []).get(k)!).push(r);
@@ -483,11 +481,11 @@ function WeekGrid({
                         key={`r-${r.id}`}
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onRepairClick(r); }}
-                        title={`Reparação #${r.numero} · ${r.cliente.nome} · ${r.equipamento} — ETA ${hhmm(r.previstoEntregueEm!)}`}
+                        title={`Reparação #${r.numero} · ${r.cliente?.nome ?? ''} · ${r.equipamento ?? ''} — ETA ${hhmm(r.previstoPara!)}`}
                         className="m-0.5 flex w-[calc(100%-4px)] items-center gap-1 rounded-md border border-dashed border-orange-400 bg-orange-50 px-1.5 py-1 text-left text-[11px] leading-tight text-orange-800 shadow-sm transition hover:shadow dark:border-orange-500/60 dark:bg-orange-950/40 dark:text-orange-300"
                       >
                         <Wrench size={11} className="flex-none" />
-                        <span className="truncate font-semibold">#{r.numero} {r.cliente.nome}</span>
+                        <span className="truncate font-semibold">#{r.numero} {r.cliente?.nome ?? r.equipamento}</span>
                       </button>
                     ))}
                   </div>

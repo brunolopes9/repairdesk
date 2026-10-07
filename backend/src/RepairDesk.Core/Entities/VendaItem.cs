@@ -9,8 +9,6 @@ public class VendaItem : BaseEntity, ITenantEntity
     public Guid VendaId { get; set; }
     public Venda? Venda { get; set; }
 
-    public Guid? PartId { get; set; }
-    public Part? Part { get; set; }
 
     /// <summary>Doc 94 Fase 4: lote de stock de onde saiu (null = serviço / mão de obra).</summary>
     public Guid? CompraLinhaId { get; set; }

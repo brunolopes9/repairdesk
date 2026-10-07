@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
+using RepairDesk.Core.Enums;
 
 namespace RepairDesk.DAL.Persistence;
 
@@ -23,15 +24,15 @@ public class ClienteRepository : IClienteRepository
     {
         take = Math.Clamp(take, 1, 50);
 
-        var reparacoes = await _db.Reparacoes
+        var reparacoes = await _db.Vendas
             .AsNoTracking()
-            .Where(r => r.ClienteId == clienteId)
-            .Select(r => new ClienteEquipamentoSource(
-                r.Equipamento,
-                r.Imei,
-                r.CreatedAt,
-                r.Id,
-                r.Numero,
+            .Where(v => v.ClienteId == clienteId && v.Tipo == VendaTipo.Reparacao && v.Equipamento != null)
+            .Select(v => new ClienteEquipamentoSource(
+                v.Equipamento!,
+                null,
+                v.CreatedAt,
+                v.Id,
+                v.Numero,
                 null,
                 null))
             .ToListAsync(ct);

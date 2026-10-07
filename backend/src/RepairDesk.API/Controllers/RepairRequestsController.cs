@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
-using RepairDesk.Services.Reparacoes;
 using RepairDesk.Services.Vendas;
 
 namespace RepairDesk.API.Controllers;
@@ -19,7 +18,6 @@ public sealed class RepairRequestsController : ControllerBase
 {
     private readonly IRepairRequestRepository _repo;
     private readonly IClienteService _clientes;
-    private readonly IReparacaoService _reparacoes;
     private readonly IVendaService _vendas;
     private readonly IAuditLogger _audit;
     private readonly ITenantContext _tenant;
@@ -28,7 +26,6 @@ public sealed class RepairRequestsController : ControllerBase
     public RepairRequestsController(
         IRepairRequestRepository repo,
         IClienteService clientes,
-        IReparacaoService reparacoes,
         IVendaService vendas,
         IAuditLogger audit,
         ITenantContext tenant,
@@ -36,7 +33,6 @@ public sealed class RepairRequestsController : ControllerBase
     {
         _repo = repo;
         _clientes = clientes;
-        _reparacoes = reparacoes;
         _vendas = vendas;
         _audit = audit;
         _tenant = tenant;
@@ -45,7 +41,7 @@ public sealed class RepairRequestsController : ControllerBase
 
     public sealed record RequestDto(
         Guid Id, string Nome, string? Email, string? Telefone, string Equipamento,
-        string Descricao, RepairRequestEstado Estado, Guid? ReparacaoId,
+        string Descricao, RepairRequestEstado Estado,
         string? MotivoRejeicao, DateTime CreatedAt,
         // Sprint 436 (Doc 91 follow-up Codex): triagem.
         string? NotasInternas, RepairRequestPrioridade Prioridade,
@@ -89,43 +85,11 @@ public sealed class RepairRequestsController : ControllerBase
     public async Task<ActionResult<int>> CountPendentes(CancellationToken ct) =>
         Ok(await _repo.CountPendentesAsync(ct));
 
-    /// <summary>Converte o pedido numa reparação real (lookup-or-create cliente).</summary>
-    [HttpPost("{id:guid}/converter")]
-    public async Task<ActionResult<RequestDto>> Converter(Guid id, CancellationToken ct)
-    {
-        var req = await _repo.FindByIdAsync(id, ct);
-        if (req is null) return NotFound();
-        if (req.Estado != RepairRequestEstado.Pendente)
-            return Conflict(new { code = "not_pendente", message = "Pedido já foi tratado." });
-
-        // Lookup-or-create cliente por telefone/email.
-        var lookup = await _clientes.LookupOrCreateAsync(
-            new CreateClienteRequest(req.Nome, req.Telefone, req.Email, null, "Criado via widget de pedido online."), ct);
-
-        var rep = await _reparacoes.CreateAsync(new CreateReparacaoRequest(
-            ClienteId: lookup.Cliente.Id,
-            Equipamento: req.Equipamento,
-            Avaria: req.Descricao,
-            Imei: null,
-            OrcamentoCents: null,
-            Notas: "Pedido submetido online pelo cliente.",
-            EstadoInicial: RepairStatus.Recebido), ct);
-
-        req.Estado = RepairRequestEstado.Convertido;
-        req.ReparacaoId = rep.Id;
-        req.FollowUpAt = null;
-        await _repo.SaveAsync(ct);
-
-        if (_tenant.TenantId is { } tid)
-            await _audit.LogAsync(AuditAction.Create, "RepairRequest", req.Id, new { ConvertedTo = rep.Id }, tid, _user.UserId, ct);
-
-        return Ok(MapDto(req));
-    }
-
     /// <summary>
     /// Doc 94 Fase 4: converte o pedido numa Venda de reparação em Orçamento (cliente, equipamento e
     /// avaria já preenchidos). Não mexe no stock — só passa a contar quando o orçamento é aceite.
     /// </summary>
+    [HttpPost("{id:guid}/converter")]
     [HttpPost("{id:guid}/converter-em-venda")]
     public async Task<ActionResult<RequestDto>> ConverterEmVenda(Guid id, CancellationToken ct)
     {
@@ -262,6 +226,6 @@ public sealed class RepairRequestsController : ControllerBase
 
     private static RequestDto MapDto(Core.Entities.RepairRequest r) =>
         new(r.Id, r.Nome, r.Email, r.Telefone, r.Equipamento, r.Descricao,
-            r.Estado, r.ReparacaoId, r.MotivoRejeicao, r.CreatedAt,
+            r.Estado, r.MotivoRejeicao, r.CreatedAt,
             r.NotasInternas, r.Prioridade, r.FollowUpAt, r.VendaId, r.Origem);
 }

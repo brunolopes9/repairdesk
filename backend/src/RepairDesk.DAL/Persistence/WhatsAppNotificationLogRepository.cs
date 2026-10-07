@@ -10,7 +10,7 @@ public class WhatsAppNotificationLogRepository : IWhatsAppNotificationLogReposit
 
     public WhatsAppNotificationLogRepository(AppDbContext db) => _db = db;
 
-    public Task<bool> ExistsAsync(Guid entityId, string templateKey, string entityType = "Reparacao", CancellationToken ct = default)
+    public Task<bool> ExistsAsync(Guid entityId, string templateKey, string entityType = "Venda", CancellationToken ct = default)
         => _db.WhatsAppNotificationLogs
             .AsNoTracking()
             .AnyAsync(x => x.EntityId == entityId

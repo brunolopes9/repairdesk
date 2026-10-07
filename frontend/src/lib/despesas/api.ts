@@ -11,7 +11,6 @@ interface ListFilters {
   excludeSupplierInvoiceImports?: boolean;
   from?: string;
   to?: string;
-  reparacaoId?: string;
   isRecorrente?: boolean;
   page?: number;
   pageSize?: number;
@@ -29,7 +28,6 @@ export const despesasApi = {
           exclude_supplier_invoice_imports: filters.excludeSupplierInvoiceImports || undefined,
           from: filters.from || undefined,
           to: filters.to || undefined,
-          reparacaoId: filters.reparacaoId || undefined,
           isRecorrente: filters.isRecorrente ?? undefined,
           page: filters.page ?? 1,
           pageSize: filters.pageSize ?? 20,

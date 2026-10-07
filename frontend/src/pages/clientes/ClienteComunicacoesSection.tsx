@@ -96,7 +96,7 @@ function Row({ entry }: { entry: ReparacaoComunicacao }) {
             <span>{new Date(entry.createdAt).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}</span>
             <span>·</span>
             <Link
-              to={`/reparacoes/${entry.reparacaoId}`}
+              to={`/vendas/${entry.vendaId}`}
               className="inline-flex items-center gap-0.5 text-brand-600 hover:underline dark:text-brand-400"
             >
               reparação <ArrowRight size={10} />

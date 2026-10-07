@@ -12,13 +12,6 @@ public class GarantiasController : ControllerBase
     private readonly IGarantiaService _service;
     public GarantiasController(IGarantiaService service) => _service = service;
 
-    [HttpGet("by-reparacao/{reparacaoId:guid}")]
-    public async Task<ActionResult<GarantiaAdminDto>> GetByReparacao(Guid reparacaoId, CancellationToken ct)
-    {
-        var g = await _service.GetByReparacaoAsync(reparacaoId, ct);
-        return g is null ? NotFound() : Ok(g);
-    }
-
     [HttpGet("by-venda/{vendaId:guid}")]
     public async Task<ActionResult<GarantiaAdminDto>> GetByVenda(Guid vendaId, CancellationToken ct)
     {

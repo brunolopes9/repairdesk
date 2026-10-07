@@ -9,7 +9,6 @@ public interface IPaymentRepository
     Task<Payment?> GetByProviderRefAsync(string providerRef, CancellationToken ct = default);
     Task<IReadOnlyList<Payment>> GetByVendaAsync(Guid vendaId, CancellationToken ct = default);
     /// <summary>Sprint 493: pagamentos de uma reparação (portal MBWay).</summary>
-    Task<IReadOnlyList<Payment>> GetByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
     Task AddAsync(Payment payment, CancellationToken ct = default);
     Task UpdateAsync(Payment payment, CancellationToken ct = default);
 }

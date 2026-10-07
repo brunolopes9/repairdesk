@@ -15,11 +15,11 @@ import {
 } from '../lib/fotos/api';
 
 interface Props {
-  reparacaoId: string;
+  vendaId: string;
   readOnly?: boolean;
 }
 
-export default function FotosReparacao({ reparacaoId, readOnly = false }: Props) {
+export default function FotosReparacao({ vendaId, readOnly = false }: Props) {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -28,14 +28,14 @@ export default function FotosReparacao({ reparacaoId, readOnly = false }: Props)
   const [lightbox, setLightbox] = useState<Foto | null>(null);
 
   const list = useQuery({
-    queryKey: ['fotos', reparacaoId],
-    queryFn: () => fotosApi.list(reparacaoId),
+    queryKey: ['fotos', vendaId],
+    queryFn: () => fotosApi.list(vendaId),
   });
 
   const upload = useMutation({
-    mutationFn: ({ file, tipo }: { file: File; tipo: FotoTipo }) => fotosApi.upload(reparacaoId, file, tipo),
+    mutationFn: ({ file, tipo }: { file: File; tipo: FotoTipo }) => fotosApi.upload(vendaId, file, tipo),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['fotos', reparacaoId] });
+      qc.invalidateQueries({ queryKey: ['fotos', vendaId] });
       setError(null);
     },
     onError: (err) => {
@@ -45,7 +45,7 @@ export default function FotosReparacao({ reparacaoId, readOnly = false }: Props)
 
   const remove = useMutation({
     mutationFn: (id: string) => fotosApi.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['fotos', reparacaoId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fotos', vendaId] }),
   });
 
   function handleFiles(files: FileList | null) {
@@ -181,7 +181,7 @@ export default function FotosReparacao({ reparacaoId, readOnly = false }: Props)
         <EditFotoModal
           foto={editing}
           onClose={() => setEditing(null)}
-          onSaved={() => { setEditing(null); qc.invalidateQueries({ queryKey: ['fotos', reparacaoId] }); }}
+          onSaved={() => { setEditing(null); qc.invalidateQueries({ queryKey: ['fotos', vendaId] }); }}
         />
       )}
     </section>

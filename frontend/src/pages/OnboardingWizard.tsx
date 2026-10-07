@@ -8,8 +8,8 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { useAuth } from '../lib/auth/AuthContext';
 import { clientesApi } from '../lib/clientes/api';
 import type { ClienteForm } from '../lib/clientes/types';
-import { reparacoesApi } from '../lib/reparacoes/api';
-import { REPAIR_STATUS, STATUS_LABEL } from '../lib/reparacoes/types';
+import { vendasApi } from '../lib/vendas/api';
+import { VENDA_ESTADO, VENDA_ESTADO_LABEL, VENDA_TIPO } from '../lib/vendas/types';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
 import type { UpdateTenantSettings } from '../lib/tenantSettings/types';
 import { toast } from '../lib/toast';
@@ -144,20 +144,24 @@ export default function OnboardingWizard() {
 
   const createRepair = useMutation({
     mutationFn: (payload: { clienteId: string; demo?: boolean }) =>
-      reparacoesApi.create({
+      vendasApi.create({
+        tipo: VENDA_TIPO.Reparacao,
         clienteId: payload.clienteId,
-        equipamento: payload.demo ? 'iPhone 11' : repairForm.equipamento,
-        avaria: payload.demo ? 'Ecrã partido' : repairForm.avaria,
-        imei: payload.demo ? null : clean(repairForm.imei),
-        orcamentoCents: payload.demo ? 8900 : parseEuroToCents(repairForm.orcamento),
+        equipamento: payload.demo ? 'iPhone 11' : [repairForm.equipamento, clean(repairForm.imei)].filter(Boolean).join(' · '),
+        problema: payload.demo ? 'Ecrã partido' : repairForm.avaria,
         notas: payload.demo
           ? 'Demo criada automaticamente pelo onboarding. Pode ser apagada quando quiseres.'
           : clean(repairForm.notas),
-        estadoInicial: REPAIR_STATUS.Recebido,
+        // Orçamento = linha de mão de obra com o valor indicado (pode ser ajustada depois).
+        linhas: (() => {
+          const cents = payload.demo ? 8900 : parseEuroToCents(repairForm.orcamento);
+          return cents ? [{ id: null, compraLinhaId: null, descricao: 'Reparação', quantidade: 1, precoUnitarioCents: cents }] : [];
+        })(),
+        estado: VENDA_ESTADO.Orcamento,
       }),
     onSuccess: (rep) => {
       setReparacaoId(rep.id);
-      qc.invalidateQueries({ queryKey: ['reparacoes'] });
+      qc.invalidateQueries({ queryKey: ['vendas'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['onboarding-status'] });
     },
@@ -581,7 +585,7 @@ function RepairStep({
             <input className={inputCls} value={form.orcamento} onChange={(e) => update('orcamento', e.target.value)} placeholder="89,00" inputMode="decimal" />
           </Field>
           <Field label="Estado inicial">
-            <input className={inputCls} value={STATUS_LABEL[REPAIR_STATUS.Recebido]} disabled />
+            <input className={inputCls} value={VENDA_ESTADO_LABEL[VENDA_ESTADO.Orcamento]} disabled />
           </Field>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -628,7 +632,7 @@ function DashboardTourStep({ reparacaoId, onContinue }: { reparacaoId: string | 
       </div>
       <div className="flex flex-wrap gap-2">
         {reparacaoId && (
-          <Link to={`/reparacoes/${reparacaoId}`}>
+          <Link to={`/vendas/${reparacaoId}`}>
             <Button variant="secondary" type="button">Ver a minha reparação</Button>
           </Link>
         )}

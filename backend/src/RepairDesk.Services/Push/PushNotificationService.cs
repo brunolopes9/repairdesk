@@ -15,7 +15,7 @@ public interface IPushNotificationService
     Task<VapidPublicKeyDto> GetVapidPublicKeyAsync(CancellationToken ct = default);
     Task<PushSubscriptionResultDto> SubscribeAsync(string slug, BrowserPushSubscriptionDto request, CancellationToken ct = default);
     Task<PushSubscriptionResultDto> UnsubscribeAsync(string slug, UnsubscribePushRequest request, CancellationToken ct = default);
-    Task<int> SendRepairStatusChangedAsync(Guid reparacaoId, CancellationToken ct = default);
+    Task<int> SendRepairStatusChangedAsync(Guid vendaId, CancellationToken ct = default);
     Task<int> PurgeDeliveredOlderThanAsync(CancellationToken ct = default);
 }
 
@@ -23,7 +23,7 @@ public class PushNotificationService : IPushNotificationService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly IReparacaoRepository _reparacoes;
+    private readonly IVendaRepository _vendas;
     private readonly IPushSubscriptionRepository _subscriptions;
     private readonly IVapidKeyProvider _vapid;
     private readonly IWebPushSender _sender;
@@ -31,14 +31,14 @@ public class PushNotificationService : IPushNotificationService
     private readonly ILogger<PushNotificationService> _logger;
 
     public PushNotificationService(
-        IReparacaoRepository reparacoes,
+        IVendaRepository vendas,
         IPushSubscriptionRepository subscriptions,
         IVapidKeyProvider vapid,
         IWebPushSender sender,
         IOptions<PushOptions> options,
         ILogger<PushNotificationService> logger)
     {
-        _reparacoes = reparacoes;
+        _vendas = vendas;
         _subscriptions = subscriptions;
         _vapid = vapid;
         _sender = sender;
@@ -57,8 +57,8 @@ public class PushNotificationService : IPushNotificationService
         ValidateSubscription(request);
         var rep = await FindRepairBySlugAsync(slug, ct);
 
-        if (rep.Estado == RepairStatus.Entregue && rep.EntregueEm is { } entregueEm
-            && entregueEm < DateTime.UtcNow.AddDays(-_options.Value.DeliveredRetentionDays))
+        if (rep.Estado == VendaEstado.Entregue
+            && rep.Data < DateTime.UtcNow.AddDays(-_options.Value.DeliveredRetentionDays))
         {
             throw new ConflictException("push_reparacao_expirada", "Esta reparação já foi entregue há demasiado tempo para receber notificações.");
         }
@@ -69,7 +69,7 @@ public class PushNotificationService : IPushNotificationService
             await _subscriptions.AddAsync(new RepairDesk.Core.Entities.PushSubscription
             {
                 TenantId = rep.TenantId,
-                ReparacaoId = rep.Id,
+                VendaId = rep.Id,
                 Endpoint = request.Endpoint.Trim(),
                 P256dh = request.Keys.P256dh.Trim(),
                 Auth = request.Keys.Auth.Trim(),
@@ -102,16 +102,16 @@ public class PushNotificationService : IPushNotificationService
         return new PushSubscriptionResultDto(false);
     }
 
-    public async Task<int> SendRepairStatusChangedAsync(Guid reparacaoId, CancellationToken ct = default)
+    public async Task<int> SendRepairStatusChangedAsync(Guid vendaId, CancellationToken ct = default)
     {
         if (!_options.Value.Enabled)
             return 0;
 
-        var rep = await _reparacoes.FindByIdAsync(reparacaoId, ct);
+        var rep = await _vendas.FindByIdAsync(vendaId, ct);
         if (rep is null || string.IsNullOrWhiteSpace(rep.PublicSlug))
             return 0;
 
-        var subscriptions = await _subscriptions.ListByReparacaoIdAsync(reparacaoId, ct);
+        var subscriptions = await _subscriptions.ListByVendaIdAsync(vendaId, ct);
         if (subscriptions.Count == 0)
             return 0;
 
@@ -137,13 +137,13 @@ public class PushNotificationService : IPushNotificationService
             catch (Exception ex) when (IsExpiredSubscription(ex))
             {
                 _subscriptions.Remove(subscription);
-                _logger.LogInformation(ex, "Removed expired push subscription for repair {RepairId}", reparacaoId);
+                _logger.LogInformation(ex, "Removed expired push subscription for repair {RepairId}", vendaId);
             }
             catch (Exception ex)
             {
                 subscription.LastErrorAt = DateTime.UtcNow;
                 subscription.LastError = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
-                _logger.LogWarning(ex, "Failed to send push notification for repair {RepairId}", reparacaoId);
+                _logger.LogWarning(ex, "Failed to send push notification for repair {RepairId}", vendaId);
             }
         }
 
@@ -163,13 +163,13 @@ public class PushNotificationService : IPushNotificationService
         return old.Count;
     }
 
-    private async Task<Reparacao> FindRepairBySlugAsync(string slug, CancellationToken ct)
+    private async Task<Venda> FindRepairBySlugAsync(string slug, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(slug) || slug.Length > 32)
-            throw new NotFoundException("Reparacao", slug);
+            throw new NotFoundException("Venda", slug);
 
-        return await _reparacoes.FindByPublicSlugWithTimelineAsync(slug.Trim(), ct)
-            ?? throw new NotFoundException("Reparacao", slug);
+        return await _vendas.FindByPublicSlugAsync(slug.Trim(), ct)
+            ?? throw new NotFoundException("Venda", slug);
     }
 
     private static void ValidateSubscription(BrowserPushSubscriptionDto request)
@@ -192,26 +192,23 @@ public class PushNotificationService : IPushNotificationService
         }
     }
 
-    private static PushNotificationPayload BuildPayload(Reparacao rep)
+    private static PushNotificationPayload BuildPayload(Venda rep)
     {
+        var equipamento = rep.Equipamento ?? "equipamento";
         var title = rep.Estado switch
         {
-            RepairStatus.Pronto => $"A tua reparação {rep.Equipamento} está pronta",
-            RepairStatus.Entregue => $"Reparação {rep.Equipamento} entregue",
-            RepairStatus.Cancelado => $"Atualização da reparação {rep.Equipamento}",
-            _ => $"Atualização da reparação {rep.Equipamento}",
+            VendaEstado.Pronta => $"A tua reparação {equipamento} está pronta",
+            VendaEstado.Entregue => $"Reparação {equipamento} entregue",
+            _ => $"Atualização da reparação {equipamento}",
         };
 
         var body = rep.Estado switch
         {
-            RepairStatus.Orcamento => "A loja deixou uma atualização no orçamento.",
-            RepairStatus.Recebido => "O equipamento já deu entrada na loja.",
-            RepairStatus.Diagnostico => "O técnico está a analisar o equipamento.",
-            RepairStatus.AguardaPeca => "A reparação está à espera de peça.",
-            RepairStatus.EmReparacao => "A reparação está em curso.",
-            RepairStatus.Pronto => "Podes passar na loja para levantar quando te der jeito.",
-            RepairStatus.Entregue => "Obrigado pela confiança.",
-            RepairStatus.Cancelado => "Consulta o portal para veres o estado atualizado.",
+            VendaEstado.Orcamento => "A loja deixou uma atualização no orçamento.",
+            VendaEstado.EmCurso => "A reparação está em curso.",
+            VendaEstado.AEsperaPeca => "A reparação está à espera de peça.",
+            VendaEstado.Pronta => "Podes passar na loja para levantar quando te der jeito.",
+            VendaEstado.Entregue => "Obrigado pela confiança.",
             _ => "Consulta o portal para veres o estado atualizado.",
         };
 

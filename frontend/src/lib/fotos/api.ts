@@ -22,7 +22,7 @@ export const FOTO_TIPO_COLOR: Record<FotoTipo, string> = {
 
 export interface Foto {
   id: string;
-  reparacaoId: string;
+  vendaId: string;
   fileName: string;
   contentType: string;
   size: number;
@@ -34,29 +34,29 @@ export interface Foto {
 }
 
 export const fotosApi = {
-  list(reparacaoId: string) {
-    return api.get<Foto[]>(`/reparacoes/${reparacaoId}/fotos`).then((r) => r.data);
+  list(vendaId: string) {
+    return api.get<Foto[]>(`/vendas/${vendaId}/fotos`).then((r) => r.data);
   },
-  async upload(reparacaoId: string, file: File, tipo: FotoTipo, legenda?: string | null) {
+  async upload(vendaId: string, file: File, tipo: FotoTipo, legenda?: string | null) {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('tipo', String(tipo));
     if (legenda) fd.append('legenda', legenda);
-    const r = await api.post<Foto>(`/reparacoes/${reparacaoId}/fotos`, fd, {
+    const r = await api.post<Foto>(`/vendas/${vendaId}/fotos`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return r.data;
   },
   update(fotoId: string, payload: { tipo: FotoTipo; ordem: number; legenda: string | null; visivelNoPortal: boolean }) {
-    return api.put<Foto>(`/reparacoes/fotos/${fotoId}`, payload).then((r) => r.data);
+    return api.put<Foto>(`/vendas/fotos/${fotoId}`, payload).then((r) => r.data);
   },
   remove(fotoId: string) {
-    return api.delete(`/reparacoes/fotos/${fotoId}`).then(() => undefined);
+    return api.delete(`/vendas/fotos/${fotoId}`).then(() => undefined);
   },
   contentUrl(fotoId: string) {
     // O backend valida auth (cookie ou header). Como axios envia Authorization
     // header, vamos buscar como blob.
-    return api.get(`/reparacoes/fotos/${fotoId}/content`, { responseType: 'blob' })
+    return api.get(`/vendas/fotos/${fotoId}/content`, { responseType: 'blob' })
       .then((r) => URL.createObjectURL(r.data as Blob));
   },
 };

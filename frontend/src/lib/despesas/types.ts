@@ -58,7 +58,6 @@ export interface Despesa {
   fornecedor: string | null;
   numeroEncomenda: string | null;
   notas: string | null;
-  reparacaoId: string | null;
   createdAt: string;
   // Sprint 176: COGS flag - peca consumida em reparacao (nao OpEx para IVA report).
   isCogs: boolean;
@@ -74,7 +73,6 @@ export interface CreateDespesaForm {
   fornecedor: string | null;
   numeroEncomenda: string | null;
   notas: string | null;
-  reparacaoId: string | null;
   isCogs: boolean;
   isRecorrente: boolean;
   periodicidadeMeses: number | null;

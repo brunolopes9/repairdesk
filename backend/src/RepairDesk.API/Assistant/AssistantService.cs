@@ -108,7 +108,7 @@ public sealed class AssistantService : IAssistantService
                 properties = new
                 {
                     days = new { type = "integer", description = "Janela em dias a contar de hoje (default 30)" },
-                    estado = new { type = "string", description = "Filtra por estado: Recebido, Diagnostico, AguardaPeca, EmReparacao, Pronto, Entregue, Cancelado, Orcamento" },
+                    estado = new { type = "string", description = "Filtra por estado: Orcamento, EmCurso, AEsperaPeca, Pronta, Entregue, Cancelada" },
                     equipamento_contains = new { type = "string", description = "Filtra reparações cujo equipamento contém este texto (ex: 'Samsung')" },
                 },
             },
@@ -150,7 +150,7 @@ public sealed class AssistantService : IAssistantService
                 properties = new
                 {
                     query = new { type = "string", description = "Texto a procurar no equipamento, avaria ou nome do cliente" },
-                    estado = new { type = "string", description = "Recebido, Diagnostico, AguardaPeca, EmReparacao, Pronto, Entregue, Cancelado, Orcamento" },
+                    estado = new { type = "string", description = "Orcamento, EmCurso, AEsperaPeca, Pronta, Entregue, Cancelada" },
                     days = new { type = "integer", description = "Só reparações criadas nos últimos N dias (opcional)" },
                 },
             },
@@ -191,19 +191,24 @@ public sealed class AssistantService : IAssistantService
             {
                 var query = GetString(input, "query");
                 var lowOnly = GetBool(input, "low_stock_only");
-                var q = _db.Parts.AsNoTracking().Where(p => p.Activo);
+                var q = _db.ComprasLinhas.AsNoTracking()
+                    .Where(l => l.Quantidade - l.QuantidadeVendida - l.QuantidadeAbatida > 0);
                 if (!string.IsNullOrWhiteSpace(query))
                 {
                     var term = query.Trim();
-                    q = q.Where(p => p.Nome.Contains(term)
-                        || (p.Marca != null && p.Marca.Contains(term))
-                        || (p.Modelo != null && p.Modelo.Contains(term)));
+                    q = q.Where(l => l.Descricao.Contains(term));
                 }
                 if (lowOnly == true)
-                    q = q.Where(p => p.QtdMinima > 0 && p.QtdStock <= p.QtdMinima);
+                    q = q.Where(l => l.Quantidade - l.QuantidadeVendida - l.QuantidadeAbatida <= 1);
 
-                var items = await q.OrderBy(p => p.QtdStock).Take(25)
-                    .Select(p => new { p.Nome, p.Marca, p.Modelo, p.QtdStock, p.QtdMinima })
+                var items = await q.OrderBy(l => l.Descricao).Take(25)
+                    .Select(l => new
+                    {
+                        l.Descricao,
+                        em_stock = l.Quantidade - l.QuantidadeVendida - l.QuantidadeAbatida,
+                        preco_pago_euros = l.PrecoUnitarioPago,
+                        fornecedor = l.Documento != null && l.Documento.Fornecedor != null ? l.Documento.Fornecedor.Name : null,
+                    })
                     .ToListAsync(ct);
                 return JsonSerializer.Serialize(new { count = items.Count, items });
             }
@@ -211,17 +216,17 @@ public sealed class AssistantService : IAssistantService
             {
                 var days = GetInt(input, "days") ?? 30;
                 var since = DateTime.UtcNow.AddDays(-Math.Clamp(days, 1, 366));
-                var q = _db.Reparacoes.AsNoTracking().Where(r => r.CreatedAt >= since);
+                var q = _db.Vendas.AsNoTracking().Where(r => r.Tipo == VendaTipo.Reparacao && r.CreatedAt >= since);
 
                 var estadoStr = GetString(input, "estado");
-                if (!string.IsNullOrWhiteSpace(estadoStr) && Enum.TryParse<RepairStatus>(estadoStr, true, out var estado))
+                if (!string.IsNullOrWhiteSpace(estadoStr) && Enum.TryParse<VendaEstado>(estadoStr, true, out var estado))
                     q = q.Where(r => r.Estado == estado);
 
                 var contains = GetString(input, "equipamento_contains");
                 if (!string.IsNullOrWhiteSpace(contains))
                 {
                     var term = contains.Trim();
-                    q = q.Where(r => r.Equipamento.Contains(term));
+                    q = q.Where(r => r.Equipamento != null && r.Equipamento.Contains(term));
                 }
 
                 var porEstado = await q.GroupBy(r => r.Estado)
@@ -261,34 +266,35 @@ public sealed class AssistantService : IAssistantService
                     .Select(c => new
                     {
                         c.Id, c.Nome, c.Telefone, c.Email, c.Nif, c.NotaImportante,
-                        reparacoes = _db.Reparacoes.Count(r => r.ClienteId == c.Id),
+                        reparacoes = _db.Vendas.Count(r => r.ClienteId == c.Id && r.Tipo == VendaTipo.Reparacao),
                     })
                     .ToListAsync(ct);
                 return JsonSerializer.Serialize(new { count = clientes.Count, clientes });
             }
             case "search_reparacoes":
             {
-                var q = _db.Reparacoes.AsNoTracking().AsQueryable();
+                var q = _db.Vendas.AsNoTracking().Where(r => r.Tipo == VendaTipo.Reparacao);
                 var days = GetInt(input, "days");
                 if (days is { } d)
                     q = q.Where(r => r.CreatedAt >= DateTime.UtcNow.AddDays(-Math.Clamp(d, 1, 366)));
                 var estadoStr = GetString(input, "estado");
-                if (!string.IsNullOrWhiteSpace(estadoStr) && Enum.TryParse<RepairStatus>(estadoStr, true, out var estado))
+                if (!string.IsNullOrWhiteSpace(estadoStr) && Enum.TryParse<VendaEstado>(estadoStr, true, out var estado))
                     q = q.Where(r => r.Estado == estado);
                 var query = GetString(input, "query")?.Trim();
                 if (!string.IsNullOrWhiteSpace(query))
-                    q = q.Where(r => r.Equipamento.Contains(query) || r.Avaria.Contains(query)
+                    q = q.Where(r => (r.Equipamento != null && r.Equipamento.Contains(query))
+                        || (r.Problema != null && r.Problema.Contains(query))
                         || (r.Cliente != null && r.Cliente.Nome.Contains(query)));
 
                 var reps = await q.OrderByDescending(r => r.CreatedAt).Take(20)
                     .Select(r => new
                     {
+                        numero = r.Numero,
                         cliente = r.Cliente != null ? r.Cliente.Nome : null,
                         r.Equipamento,
-                        r.Avaria,
+                        avaria = r.Problema,
                         estado = r.Estado.ToString(),
-                        orcamento_euros = r.OrcamentoCents != null ? Math.Round(r.OrcamentoCents.Value / 100.0, 2) : (double?)null,
-                        preco_final_euros = r.PrecoFinalCents != null ? Math.Round(r.PrecoFinalCents.Value / 100.0, 2) : (double?)null,
+                        total_euros = Math.Round(r.TotalCents / 100.0, 2),
                         criada = r.CreatedAt.ToString("yyyy-MM-dd"),
                     })
                     .ToListAsync(ct);

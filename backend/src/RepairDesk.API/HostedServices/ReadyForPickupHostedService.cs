@@ -69,9 +69,10 @@ public sealed class ReadyForPickupHostedService : BackgroundService
         var cutoff = DateTime.UtcNow.AddDays(-days);
 
         // Reparações em Pronto há mais de N dias.
-        var porTenant = await db.Reparacoes
+        var porTenant = await db.Vendas
             .IgnoreQueryFilters()
-            .Where(r => r.Estado == RepairStatus.Pronto && r.EstadoSince < cutoff)
+            .Where(r => !r.IsDeleted && r.Tipo == VendaTipo.Reparacao && r.Estado == VendaEstado.Pronta
+                && r.Timeline.Where(t => t.EstadoTo == VendaEstado.Pronta).Max(t => (DateTime?)t.MudouEm) < cutoff)
             .GroupBy(r => r.TenantId)
             .Select(g => new { TenantId = g.Key, Count = g.Count() })
             .ToListAsync(ct);
@@ -88,7 +89,7 @@ public sealed class ReadyForPickupHostedService : BackgroundService
                 t.TenantId,
                 "Por levantar",
                 body,
-                "/reparacoes?estado=4",
+                "/vendas?tipo=1",
                 "ready-for-pickup"), ct);
         }
     }

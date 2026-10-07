@@ -22,9 +22,9 @@ public sealed class InternalTasksController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<InternalTaskDto>>> List(
         [FromQuery] InternalTaskStatus? status,
         [FromQuery] Guid? assignedToUserId,
-        [FromQuery] Guid? reparacaoId,
+        [FromQuery] Guid? vendaId,
         CancellationToken ct)
-        => Ok(await _service.ListAsync(status, assignedToUserId, reparacaoId, ct));
+        => Ok(await _service.ListAsync(status, assignedToUserId, vendaId, ct));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<InternalTaskDto>> Get(Guid id, CancellationToken ct)

@@ -2,13 +2,13 @@ import { api } from '../api';
 import type { CreateInternalTaskForm, InternalTask, InternalTaskStatus, UpdateInternalTaskForm } from './types';
 
 export const internalTasksApi = {
-  list: (filters: { status?: InternalTaskStatus; assignedToUserId?: string; reparacaoId?: string } = {}) =>
+  list: (filters: { status?: InternalTaskStatus; assignedToUserId?: string; vendaId?: string } = {}) =>
     api
       .get<InternalTask[]>('/internal-tasks', {
         params: {
           status: filters.status,
           assignedToUserId: filters.assignedToUserId,
-          reparacaoId: filters.reparacaoId,
+          vendaId: filters.vendaId,
         },
       })
       .then((r) => r.data),

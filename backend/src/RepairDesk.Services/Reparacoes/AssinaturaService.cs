@@ -8,10 +8,10 @@ namespace RepairDesk.Services.Reparacoes;
 public interface IAssinaturaService
 {
     /// <summary>Guarda (ou substitui) a assinatura de entrada/entrega de uma reparação.</summary>
-    Task<AssinaturaDto> SaveAsync(Guid reparacaoId, string tipo, string dataUrl, CancellationToken ct = default);
+    Task<AssinaturaDto> SaveAsync(Guid vendaId, string tipo, string dataUrl, CancellationToken ct = default);
 
     /// <summary>Estado das assinaturas da reparação (sem os bytes — só tipo + quando).</summary>
-    Task<IReadOnlyList<AssinaturaDto>> ListAsync(Guid reparacaoId, CancellationToken ct = default);
+    Task<IReadOnlyList<AssinaturaDto>> ListAsync(Guid vendaId, CancellationToken ct = default);
 }
 
 public sealed record AssinaturaDto(string Tipo, DateTime AssinadaEm);
@@ -30,19 +30,19 @@ public sealed class AssinaturaService : IAssinaturaService
     private const string PngDataUrlPrefix = "data:image/png;base64,";
     private static readonly byte[] PngMagic = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 
-    private readonly IReparacaoAssinaturaRepository _assinaturas;
-    private readonly IReparacaoRepository _reparacoes;
+    private readonly IVendaAssinaturaRepository _assinaturas;
+    private readonly IVendaRepository _vendas;
 
-    public AssinaturaService(IReparacaoAssinaturaRepository assinaturas, IReparacaoRepository reparacoes)
+    public AssinaturaService(IVendaAssinaturaRepository assinaturas, IVendaRepository vendas)
     {
         _assinaturas = assinaturas;
-        _reparacoes = reparacoes;
+        _vendas = vendas;
     }
 
-    public async Task<AssinaturaDto> SaveAsync(Guid reparacaoId, string tipo, string dataUrl, CancellationToken ct = default)
+    public async Task<AssinaturaDto> SaveAsync(Guid vendaId, string tipo, string dataUrl, CancellationToken ct = default)
     {
-        var rep = await _reparacoes.FindByIdAsync(reparacaoId, ct)
-            ?? throw new NotFoundException("Reparacao", reparacaoId);
+        var rep = await _vendas.FindByIdAsync(vendaId, ct)
+            ?? throw new NotFoundException("Venda", vendaId);
 
         var tipoEnum = ParseTipo(tipo);
         var png = DecodePng(dataUrl);
@@ -56,10 +56,10 @@ public sealed class AssinaturaService : IAssinaturaService
             return new AssinaturaDto(tipoEnum.ToString().ToLowerInvariant(), existente.AssinadaEm);
         }
 
-        var nova = new ReparacaoAssinatura
+        var nova = new VendaAssinatura
         {
             TenantId = rep.TenantId,
-            ReparacaoId = rep.Id,
+            VendaId = rep.Id,
             Tipo = tipoEnum,
             PngBytes = png,
             AssinadaEm = DateTime.UtcNow,
@@ -69,11 +69,11 @@ public sealed class AssinaturaService : IAssinaturaService
         return new AssinaturaDto(tipoEnum.ToString().ToLowerInvariant(), nova.AssinadaEm);
     }
 
-    public async Task<IReadOnlyList<AssinaturaDto>> ListAsync(Guid reparacaoId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<AssinaturaDto>> ListAsync(Guid vendaId, CancellationToken ct = default)
     {
-        _ = await _reparacoes.FindByIdAsync(reparacaoId, ct)
-            ?? throw new NotFoundException("Reparacao", reparacaoId);
-        var rows = await _assinaturas.ListByReparacaoAsync(reparacaoId, ct);
+        _ = await _vendas.FindByIdAsync(vendaId, ct)
+            ?? throw new NotFoundException("Venda", vendaId);
+        var rows = await _assinaturas.ListByVendaAsync(vendaId, ct);
         return rows.Select(a => new AssinaturaDto(a.Tipo.ToString().ToLowerInvariant(), a.AssinadaEm)).ToList();
     }
 

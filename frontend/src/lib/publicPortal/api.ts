@@ -72,7 +72,6 @@ export interface PublicRepairDto {
   slug: string;
   equipamentoPublico: string;
   avariaPublica: string;
-  diagnostico: string | null;
   estado: PublicEstado;
   estadoSince: string;
   recebidoEm: string;
@@ -84,14 +83,10 @@ export interface PublicRepairDto {
   loja: PublicLoja;
   clientePrimeiroNome: string;
   timeline: PublicTimelineEntry[];
-  healthScore: number | null;
-  diagnosticoDestaques: string[];
   garantiaSlug: string | null;
   jaAvaliado: boolean;
   fotos: PublicFotoDto[];
-  camposEquipamento: PublicEquipmentFieldDto[];
   /** Sprint 88: cobertura por garantia de venda anterior, quando aplicável. */
-  coberturaGarantia: PublicCoberturaGarantia | null;
   /** Sprint 482: fio de conversa do portal (cliente + respostas do staff). */
   conversa: PublicConversaMsg[];
   /** Sprint 487: previsão de entrega (ETA) — null quando já entregue/cancelado/pronto. */

@@ -31,6 +31,6 @@ public class InternalTask : BaseEntity, ITenantEntity
     public Guid CreatedByUserId { get; set; }
 
     /// <summary>Opcional: tarefa associada a uma reparação específica.</summary>
-    public Guid? ReparacaoId { get; set; }
-    public Reparacao? Reparacao { get; set; }
+    public Guid? VendaId { get; set; }
+    public Venda? Venda { get; set; }
 }

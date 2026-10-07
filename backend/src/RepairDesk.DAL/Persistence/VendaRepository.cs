@@ -65,7 +65,7 @@ public class VendaRepository : IVendaRepository
         if (clienteId is { } cid) q = q.Where(v => v.ClienteId == cid);
         if (filtro.Tipo is { } tipo) q = q.Where(v => v.Tipo == tipo);
         if (filtro.Estado is { } estado) q = q.Where(v => v.Estado == estado);
-        if (filtro.EmCurso) q = q.Where(v => v.Estado == VendaEstado.Orcamento || v.Estado == VendaEstado.AEsperaPeca || v.Estado == VendaEstado.Pronta);
+        if (filtro.EmCurso) q = q.Where(v => v.Estado == VendaEstado.Orcamento || v.Estado == VendaEstado.EmCurso || v.Estado == VendaEstado.AEsperaPeca || v.Estado == VendaEstado.Pronta);
         if (filtro.FaturaPorRegistar) q = q.Where(v => v.Estado == VendaEstado.Entregue && v.InvoiceNumber == null);
         if (!string.IsNullOrWhiteSpace(filtro.Q))
         {
@@ -89,11 +89,6 @@ public class VendaRepository : IVendaRepository
         return (items, total);
     }
 
-    public async Task<int> SumPaidBetweenAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
-        => await _db.Vendas
-            .Where(v => v.Estado == VendaEstado.Entregue && v.Data >= fromUtc && v.Data < toUtc)
-            .SumAsync(v => v.TotalCents, ct);
-
     public async Task<IReadOnlyList<string>> ListDistinctFornecedoresAsync(CancellationToken ct = default)
         => await _db.VendaItems
             .AsNoTracking()
@@ -103,22 +98,18 @@ public class VendaRepository : IVendaRepository
             .OrderBy(s => s)
             .ToListAsync(ct);
 
-    public async Task<IReadOnlyList<TopVendaItemRow>> TopItemsByRevenueAsync(DateTime fromUtc, DateTime toUtc, int limit, CancellationToken ct = default)
-        => await _db.VendaItems
-            .AsNoTracking()
-            .Where(i => i.Venda != null
-                        && i.Venda.Estado == VendaEstado.Entregue
-                        && i.Venda.Data >= fromUtc
-                        && i.Venda.Data < toUtc)
-            .GroupBy(i => new { i.PartId, i.Descricao })
-            .Select(g => new TopVendaItemRow(
-                g.Key.PartId,
-                g.Key.Descricao,
-                g.Sum(x => x.Quantidade),
-                g.Sum(x => Math.Max(0, x.Quantidade * x.PrecoUnitarioCents - x.DescontoCents))))
-            .OrderByDescending(i => i.TotalCents)
-            .Take(limit)
-            .ToListAsync(ct);
+    public void AddEstadoLog(VendaEstadoLog log) => _db.VendaEstadoLogs.Add(log);
+
+    public Task<Venda?> FindByPublicSlugAsync(string slug, CancellationToken ct = default)
+        => _db.Vendas
+            .IgnoreQueryFilters()
+            .Include(v => v.Cliente)
+            .Include(v => v.Items)
+            .Include(v => v.Timeline.OrderBy(t => t.MudouEm))
+            .Where(v => !v.IsDeleted)
+            .FirstOrDefaultAsync(v => v.PublicSlug == slug, ct);
+
+    public Task<bool> AnyAsync(CancellationToken ct = default) => _db.Vendas.AnyAsync(ct);
 
     public async Task<VendaImeiLookupRow?> FindVendaByImeiAsync(string imei, CancellationToken ct = default)
     {

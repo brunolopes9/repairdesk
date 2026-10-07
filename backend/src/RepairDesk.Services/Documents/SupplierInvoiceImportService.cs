@@ -114,18 +114,7 @@ public sealed record SupplierInvoiceItemDto(
     int LineTotalCents,
     string? Brand,
     string? Model,
-    string SuggestedKind,
-    // Sprint 158: matches sugeridos (top 3 Part candidatos por fuzzy + 1 auto match se mapping existe).
-    IReadOnlyList<SkuMatchSuggestion> Suggestions);
-
-public sealed record SkuMatchSuggestion(
-    Guid PartId,
-    string PartName,
-    string PartSku,
-    /// <summary>0..1 — quanto maior, melhor match.</summary>
-    double Score,
-    /// <summary>"auto" (já mapeado), "fuzzy" (similaridade nome).</summary>
-    string MatchType);
+    string SuggestedKind);
 
 public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 {
@@ -134,8 +123,6 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
     private readonly IFornecedorRepository _fornecedores;
     private readonly ISupplierInvoiceStorage _storage;
     private readonly Despesas.IDespesaService _despesas;
-    private readonly ISkuMappingRepository _skuMappings;
-    private readonly IPartRepository _parts;
     private readonly ISupplierFingerprintingService _fingerprinting;
     private readonly IAnthropicSupplierParser _llmParser;
     private readonly IAuditLogger _audit;
@@ -147,8 +134,6 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         IFornecedorRepository fornecedores,
         ISupplierInvoiceStorage storage,
         Despesas.IDespesaService despesas,
-        ISkuMappingRepository skuMappings,
-        IPartRepository parts,
         ISupplierFingerprintingService fingerprinting,
         IAnthropicSupplierParser llmParser,
         IAuditLogger audit,
@@ -159,8 +144,6 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         _fornecedores = fornecedores;
         _storage = storage;
         _despesas = despesas;
-        _skuMappings = skuMappings;
-        _parts = parts;
         _fingerprinting = fingerprinting;
         _llmParser = llmParser;
         _audit = audit;
@@ -467,15 +450,10 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 
         var entities = await _repo.ListPendingAsync(tenantId, take, ct);
 
-        // Sprint 158: pré-carrega lista de Parts uma vez para fuzzy matching de todos os items.
-        // Não usa AsQueryable() para evitar lazy load issues — Bruno tipicamente tem <500 Parts.
-        var (allParts, _) = await _parts.SearchAsync(null, null, null, false, 1, 500, ct);
-        var partHaystack = allParts.Select(p => (Id: p.Id, Name: $"{p.Nome} {p.Marca} {p.Modelo}".Trim())).ToList();
-
         var dtos = new List<SupplierInvoiceImportDto>(entities.Count);
         foreach (var x in entities)
         {
-            var items = await BuildItemsWithMatchesAsync(x, tenantId, partHaystack, ct);
+            var items = BuildItems(x);
             dtos.Add(new SupplierInvoiceImportDto(
                 x.Id,
                 x.FornecedorId,
@@ -493,16 +471,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         return dtos;
     }
 
-    /// <summary>
-    /// Sprint 158: para cada item parseado, sugere top 3 matches Part candidatos:
-    /// 1) Auto match — se SkuMapping existe (já aprovado antes), score 1.0.
-    /// 2) Fuzzy match — top 3 por Jaccard + Levenshtein no nome.
-    /// </summary>
-    private async Task<IReadOnlyList<SupplierInvoiceItemDto>?> BuildItemsWithMatchesAsync(
-        SupplierInvoiceImport entity,
-        Guid tenantId,
-        List<(Guid Id, string Name)> partHaystack,
-        CancellationToken ct)
+    /// <summary>Itens lidos (parser/IA) com a classificação sugerida (peça, portes, serviço…).</summary>
+    private static IReadOnlyList<SupplierInvoiceItemDto>? BuildItems(SupplierInvoiceImport entity)
     {
         if (string.IsNullOrWhiteSpace(entity.ParsedItemsJson)) return null;
         SupplierPdfItem[]? items;
@@ -513,26 +483,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         catch { return null; }
         if (items is null) return null;
 
-        var supplierCode = entity.Fornecedor?.Code ?? entity.FornecedorNameRaw ?? "unknown";
-        var result = new List<SupplierInvoiceItemDto>(items.Length);
-        foreach (var item in items)
-        {
-            var suggestions = new List<SkuMatchSuggestion>();
-
-            // 1. Auto match: o parser não tem supplierSku per-item ainda (Sprint futuro adiciona).
-            //    Por ora só fazemos fuzzy.
-
-            // 2. Fuzzy match.
-            var candidates = PartFuzzyMatcher.Find(item.Description, partHaystack, topN: 3, minScore: 0.35);
-            foreach (var c in candidates)
-            {
-                // Procurar Part para preencher SKU.
-                var part = await _parts.FindByIdAsync(c.TargetId, ct);
-                if (part is null) continue;
-                suggestions.Add(new SkuMatchSuggestion(c.TargetId, c.TargetName, part.Sku ?? "", c.Score, "fuzzy"));
-            }
-
-            result.Add(new SupplierInvoiceItemDto(
+        return items.Select(item => new SupplierInvoiceItemDto(
                 item.Description,
                 item.Quantity,
                 item.LineTotalCents,
@@ -540,10 +491,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                 item.Model,
                 ClassifyItemDescription(
                     item.Description,
-                    item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString(),
-                suggestions));
-        }
-        return result;
+                    item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString()))
+            .ToList();
     }
 
     public static SupplierItemKind ClassifyItemDescription(string desc)
@@ -616,8 +565,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             Data: req.Data ?? entity.ParsedDocumentDate ?? entity.CreatedAt,
             Fornecedor: req.Fornecedor ?? entity.FornecedorNameRaw,
             NumeroEncomenda: req.NumeroEncomenda ?? entity.ParsedDocumentNumber,
-            Notas: req.Notas,
-            ReparacaoId: null), ct);
+            Notas: req.Notas), ct);
 
         entity.Status = SupplierInvoiceImportStatus.Approved;
         entity.DespesaId = despesa.Id;
@@ -878,8 +826,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             item.LineTotalCents,
             item.Brand,
             item.Model,
-            ClassifyItemDescription(item.Description, item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString(),
-            Array.Empty<SkuMatchSuggestion>())).ToList();
+            ClassifyItemDescription(item.Description, item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString())).ToList();
     }
 
     private static string ComputeSha256(byte[] bytes)

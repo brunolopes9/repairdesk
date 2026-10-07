@@ -27,7 +27,9 @@ public sealed record VendaWriteRequest(
     IReadOnlyList<VendaLinhaWriteRequest> Linhas,
     /// <summary>Só na criação: estado inicial (por omissão Orçamento; venda ao balcão = Entregue).</summary>
     VendaEstado? Estado = null,
-    PaymentMethod? PaymentMethod = null);
+    PaymentMethod? PaymentMethod = null,
+    /// <summary>Previsão de entrega mostrada ao cliente no portal.</summary>
+    DateTime? PrevistoPara = null);
 
 public sealed record MudarEstadoVendaRequest(VendaEstado Estado, PaymentMethod? PaymentMethod = null);
 
@@ -73,7 +75,12 @@ public sealed record VendaDto(
     DateTime? InvoiceEmittedAt,
     bool FaturaPorRegistar,
     string? Notas,
-    IReadOnlyList<VendaItemDto> Items);
+    IReadOnlyList<VendaItemDto> Items,
+    /// <summary>Slug do portal do cliente (/r/{slug}) — só reparações.</summary>
+    string? PublicSlug = null,
+    DateTime? PrevistoPara = null,
+    /// <summary>Slug da garantia emitida (/g/{slug}), se existir.</summary>
+    string? GarantiaSlug = null);
 
 public sealed record VendaImeiLookupDto(
     Guid VendaId,
@@ -82,12 +89,3 @@ public sealed record VendaImeiLookupDto(
     string Descricao,
     string? ClienteNome);
 
-public sealed record VendaReparacaoRelacionadaDto(
-    Guid ReparacaoId,
-    int ReparacaoNumero,
-    DateTime RecebidoEm,
-    string Equipamento,
-    string Imei,
-    int Estado,
-    int DiasDesdeAVenda,
-    int? OrcamentoCents);

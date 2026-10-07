@@ -10,8 +10,6 @@ public interface IPaymentService
     Task<Payment> InitiateAsync(PaymentInitiationRequest request, PaymentProvider provider, CancellationToken ct = default);
     Task<Payment?> GetAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<Payment>> GetByVendaAsync(Guid vendaId, CancellationToken ct = default);
-    /// <summary>Sprint 493: pagamentos de uma reparação (portal MBWay).</summary>
-    Task<IReadOnlyList<Payment>> GetByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
 
     /// <summary>
     /// Aplica actualização de estado (chamado pelo webhook ou por polling).
@@ -28,14 +26,14 @@ public sealed class PaymentService : IPaymentService
 {
     private readonly IPaymentRepository _repo;
     private readonly IReadOnlyDictionary<PaymentProvider, IPaymentProvider> _providers;
-    private readonly IReparacaoRepository _reparacoes;
+    private readonly IVendaRepository _vendas;
     private readonly IStaffPushQueue _push;
 
-    public PaymentService(IPaymentRepository repo, IEnumerable<IPaymentProvider> providers, IReparacaoRepository reparacoes, IStaffPushQueue push)
+    public PaymentService(IPaymentRepository repo, IEnumerable<IPaymentProvider> providers, IVendaRepository vendas, IStaffPushQueue push)
     {
         _repo = repo;
         _providers = providers.ToDictionary(p => p.Provider);
-        _reparacoes = reparacoes;
+        _vendas = vendas;
         _push = push;
     }
 
@@ -58,7 +56,6 @@ public sealed class PaymentService : IPaymentService
             Id = Guid.NewGuid(),
             TenantId = request.TenantId,
             VendaId = request.VendaId,
-            ReparacaoId = request.ReparacaoId,
             Method = request.Method,
             Provider = provider,
             AmountCents = request.AmountCents,
@@ -80,9 +77,6 @@ public sealed class PaymentService : IPaymentService
     public Task<IReadOnlyList<Payment>> GetByVendaAsync(Guid vendaId, CancellationToken ct = default) =>
         _repo.GetByVendaAsync(vendaId, ct);
 
-    public Task<IReadOnlyList<Payment>> GetByReparacaoAsync(Guid reparacaoId, CancellationToken ct = default) =>
-        _repo.GetByReparacaoAsync(reparacaoId, ct);
-
     public async Task<Payment> ApplyStatusUpdateAsync(string providerRef, PaymentStatusSnapshot snapshot, CancellationToken ct = default)
     {
         var payment = await _repo.GetByProviderRefAsync(providerRef, ct)
@@ -100,26 +94,20 @@ public sealed class PaymentService : IPaymentService
 
         await _repo.UpdateAsync(payment, ct);
 
-        // Sprint 493: pagamento de reparação confirmado pelo portal → marca a reparação como Paga.
-        // (Vendas têm o seu próprio fluxo de marcação; aqui só tratamos reparações.)
-        if (snapshot.Status == PaymentStatus.Pago && payment.ReparacaoId is { } repId)
+        // Pagamento online (portal) confirmado → avisa a loja. A venda continua no seu estado:
+        // "Entregue & paga" só quando o equipamento é levantado (o portal mostra "pago").
+        if (snapshot.Status == PaymentStatus.Pago && payment.VendaId is { } vendaId)
         {
-            var rep = await _reparacoes.FindByIdAsync(repId, ct);
-            if (rep is not null && rep.EstadoPagamento != PaymentStatus.Pago)
+            var venda = await _vendas.FindByIdAsync(vendaId, ct);
+            if (venda is not null)
             {
-                rep.EstadoPagamento = PaymentStatus.Pago;
-                await _reparacoes.SaveAsync(ct);
-
-                // Sprint 495: fecha o ciclo operacional — a loja é notificada quando o
-                // dinheiro entra (mirror do push "iniciado" do portal). Tag distinta para
-                // não ser substituída pela notificação de iniciação.
                 var metodo = payment.Method == PaymentMethod.MBWay ? "MBWay" : "Multibanco";
                 await _push.EnqueueAsync(new StaffPushJob(
-                    rep.TenantId,
+                    venda.TenantId,
                     "✅ Pagamento recebido",
-                    $"Reparação #{rep.Numero:D5} · {payment.AmountCents / 100m:F2}€ pago por {metodo}",
-                    $"/reparacoes/{rep.Id}",
-                    $"pay-ok-{rep.Id}"), ct);
+                    $"Venda #{venda.Numero:D5} · {payment.AmountCents / 100m:F2}€ pago por {metodo}",
+                    $"/vendas/{venda.Id}",
+                    $"pay-ok-{venda.Id}"), ct);
             }
         }
         return payment;
