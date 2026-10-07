@@ -11,8 +11,6 @@ public class Part : BaseEntity, ITenantEntity
     public PartCategoria Categoria { get; set; } = PartCategoria.Outro;
     public string? Marca { get; set; }
     public string? Modelo { get; set; }
-    public Guid? PriceTableEntryId { get; set; }
-    public PriceTableEntry? PriceTableEntry { get; set; }
     public int QtdStock { get; set; }
     public int QtdMinima { get; set; }
     public int CustoUnitarioCents { get; set; }

@@ -6,7 +6,6 @@ public sealed record ClienteRgpdData(
     Cliente Cliente,
     IReadOnlyList<Reparacao> Reparacoes,
     IReadOnlyList<ReparacaoEstadoLog> Timeline,
-    IReadOnlyList<Trabalho> Trabalhos,
     IReadOnlyList<Despesa> Despesas,
     IReadOnlyList<ReparacaoFoto> Fotos,
     IReadOnlyList<Garantia> Garantias,

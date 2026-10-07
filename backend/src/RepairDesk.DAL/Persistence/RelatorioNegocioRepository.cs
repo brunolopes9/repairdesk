@@ -35,15 +35,6 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
             })
             .ToListAsync(ct);
 
-        var trabalhosPagos = await _db.Trabalhos
-            .AsNoTracking()
-            .Where(t => t.TenantId == tenantId
-                && t.Status == TrabalhoStatus.Concluido
-                && t.DataConclusao != null
-                && t.DataConclusao >= fromUtc && t.DataConclusao < toUtc
-                && t.EstadoPagamento == PaymentStatus.Pago)
-            .Select(t => t.PrecoFinalCents ?? t.OrcamentoCents ?? 0)
-            .ToListAsync(ct);
 
         var vendasPagas = await _db.Vendas
             .AsNoTracking()
@@ -186,7 +177,7 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
 
         return new RelatorioNegocioSnapshot(
             ReceitaReparacoesCents: reparacoesPagas.Sum(r => r.ReceitaCents),
-            ReceitaTrabalhosCents: trabalhosPagos.Sum(),
+            ReceitaTrabalhosCents: 0, // Trabalhos absorvidos pelas Vendas (Doc 94 Fase 4)
             ReceitaVendasCents: vendasPagas.Sum(v => v.TotalCents),
             ReparacoesPagasCount: reparacoesPagas.Count,
             CustoPecasCents: custoPecasCents,
@@ -304,15 +295,6 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
             .Select(r => new { r.ClienteId, Nome = r.Cliente!.Nome, Receita = (long)(r.PrecoFinalCents ?? r.OrcamentoCents ?? 0) })
             .ToListAsync(ct);
 
-        var trabalhos = await _db.Trabalhos
-            .AsNoTracking()
-            .Where(t => t.TenantId == tenantId
-                && t.Status == TrabalhoStatus.Concluido
-                && t.DataConclusao != null && t.DataConclusao >= fromUtc && t.DataConclusao < toUtc
-                && t.EstadoPagamento == PaymentStatus.Pago
-                && t.ClienteId != null && t.Cliente != null)
-            .Select(t => new { ClienteId = t.ClienteId!.Value, Nome = t.Cliente!.Nome, Receita = (long)(t.PrecoFinalCents ?? t.OrcamentoCents ?? 0) })
-            .ToListAsync(ct);
 
         var vendas = await _db.Vendas
             .AsNoTracking()
@@ -335,7 +317,6 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
             porCliente[id] = (atual.Nome, atual.Receita + Math.Max(0, receita), atual.Docs + 1);
         }
         foreach (var r in reparacoes) Add(r.ClienteId, r.Nome, r.Receita);
-        foreach (var t in trabalhos) Add(t.ClienteId, t.Nome, t.Receita);
         foreach (var v in vendas) Add(v.ClienteId, v.Nome, v.Receita);
 
         return porCliente

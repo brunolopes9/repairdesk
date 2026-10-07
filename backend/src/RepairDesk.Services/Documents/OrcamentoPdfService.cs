@@ -9,13 +9,14 @@ namespace RepairDesk.Services.Documents;
 public interface IOrcamentoPdfService
 {
     Task<(byte[] Pdf, string Filename)> ForReparacaoAsync(Guid reparacaoId, CancellationToken ct = default);
-    Task<(byte[] Pdf, string Filename)> ForTrabalhoAsync(Guid trabalhoId, CancellationToken ct = default);
+    /// <summary>Doc 94 Fase 4: orçamento de uma Venda (reparação, serviço ou produto) para enviar ao cliente.</summary>
+    Task<(byte[] Pdf, string Filename)> ForVendaAsync(Guid vendaId, CancellationToken ct = default);
 }
 
 public class OrcamentoPdfService : IOrcamentoPdfService
 {
     private readonly IReparacaoRepository _reparacoes;
-    private readonly ITrabalhoRepository _trabalhos;
+    private readonly IVendaRepository _vendas;
     private readonly IClienteRepository _clientes;
     private readonly IDespesaRepository _despesas;
     private readonly ITenantRepository _tenants;
@@ -26,7 +27,7 @@ public class OrcamentoPdfService : IOrcamentoPdfService
 
     public OrcamentoPdfService(
         IReparacaoRepository reparacoes,
-        ITrabalhoRepository trabalhos,
+        IVendaRepository vendas,
         IClienteRepository clientes,
         IDespesaRepository despesas,
         ITenantRepository tenants,
@@ -36,7 +37,7 @@ public class OrcamentoPdfService : IOrcamentoPdfService
         IPartRepository parts)
     {
         _reparacoes = reparacoes;
-        _trabalhos = trabalhos;
+        _vendas = vendas;
         _clientes = clientes;
         _despesas = despesas;
         _tenants = tenants;
@@ -139,42 +140,31 @@ public class OrcamentoPdfService : IOrcamentoPdfService
         return (pdf, $"Orcamento_R-{rep.Numero:D5}.pdf");
     }
 
-    public async Task<(byte[] Pdf, string Filename)> ForTrabalhoAsync(Guid trabalhoId, CancellationToken ct = default)
+    public async Task<(byte[] Pdf, string Filename)> ForVendaAsync(Guid vendaId, CancellationToken ct = default)
     {
-        var t = await _trabalhos.FindByIdAsync(trabalhoId, ct)
-            ?? throw new NotFoundException("Trabalho", trabalhoId);
-        Cliente? cliente = null;
-        if (t.ClienteId is not null)
-            cliente = await _clientes.FindByIdAsync(t.ClienteId.Value, ct);
-
+        var v = await _vendas.FindByIdWithItemsAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
         var emissor = await BuildEmissorAsync(ct);
-        var totalDespesas = await _despesas.SumByTrabalhoAsync(t.Id, ct);
-        var precoTotal = t.PrecoFinalCents ?? t.OrcamentoCents ?? 0;
-        var linhas = new List<OrcamentoLinha>();
-        if (totalDespesas > 0)
-        {
-            linhas.Add(new OrcamentoLinha("Material e despesas", totalDespesas));
-            var maoDeObra = Math.Max(0, precoTotal - totalDespesas);
-            if (maoDeObra > 0) linhas.Add(new OrcamentoLinha("Serviço / mão-de-obra", maoDeObra));
-        }
+        var linhas = v.Items.OrderBy(i => i.CreatedAt)
+            .Select(i => new OrcamentoLinha(i.Quantidade > 1 ? $"{i.Quantidade} × {i.Descricao}" : i.Descricao, i.TotalCents))
+            .ToList();
 
         var data = new OrcamentoData(
-            Numero: $"T-{t.Numero:D5}",
-            Tipo: "Trabalho",
+            Numero: $"V-{v.Numero:D5}",
+            Tipo: v.Tipo switch { Core.Enums.VendaTipo.Reparacao => "Reparação", Core.Enums.VendaTipo.Servico => "Serviço", _ => "Venda" },
             Data: DateTime.UtcNow,
             ValidoAte: DateTime.UtcNow.AddDays(30),
             Emissor: emissor,
-            Cliente: cliente is not null
-                ? new OrcamentoCliente(cliente.Nome, cliente.Telefone, cliente.Email, cliente.Nif)
+            Cliente: v.Cliente is not null
+                ? new OrcamentoCliente(v.Cliente.Nome, v.Cliente.Telefone, v.Cliente.Email, v.Cliente.Nif)
                 : new OrcamentoCliente("(cliente a definir)", null, null, null),
-            Titulo: t.Titulo,
-            Descricao: t.Descricao,
+            Titulo: v.Equipamento ?? v.Problema ?? "Orçamento",
+            Descricao: v.Equipamento is not null ? v.Problema : null,
             Linhas: linhas,
-            TotalCents: precoTotal,
-            Observacoes: t.Notas);
+            TotalCents: v.TotalCents,
+            Observacoes: v.Notas);
 
         var pdf = OrcamentoPdfRenderer.Render(data);
-        return (pdf, $"Orcamento_T-{t.Numero:D5}.pdf");
+        return (pdf, $"Orcamento_V-{v.Numero:D5}.pdf");
     }
 
     private async Task<OrcamentoEmissor> BuildEmissorAsync(CancellationToken ct)

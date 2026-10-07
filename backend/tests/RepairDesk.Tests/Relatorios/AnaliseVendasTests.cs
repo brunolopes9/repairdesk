@@ -85,12 +85,11 @@ public class AnaliseVendasTests
             TenantId = Tenant, Numero = 1, Estado = VendaEstado.Entregue, Data = Dentro, ClienteId = anaId,
             Items = new List<VendaItem> { new() { TenantId = Tenant, Descricao = "Capa", Quantidade = 1, PrecoUnitarioCents = 5000, IvaRate = 23m } },
         });
-        // Rui: trabalho concluído pago (300€).
-        db.Trabalhos.Add(new Trabalho
+        // Rui: serviço (website) entregue — 300€.
+        db.Vendas.Add(new Venda
         {
-            TenantId = Tenant, Numero = 1, Titulo = "Website", ClienteId = ruiId,
-            Status = TrabalhoStatus.Concluido, DataConclusao = Dentro, EstadoPagamento = PaymentStatus.Pago,
-            PrecoFinalCents = 30000,
+            TenantId = Tenant, Numero = 9, Tipo = VendaTipo.Servico, Estado = VendaEstado.Entregue, Data = Dentro, ClienteId = ruiId,
+            Items = new List<VendaItem> { new() { TenantId = Tenant, Descricao = "Website", Quantidade = 1, PrecoUnitarioCents = 30000, IvaRate = 23m } },
         });
         // FORA: reparação da Ana entregue mas NÃO paga.
         db.Reparacoes.Add(new Reparacao

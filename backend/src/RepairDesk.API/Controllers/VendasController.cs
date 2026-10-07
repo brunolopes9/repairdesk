@@ -16,11 +16,13 @@ public class VendasController : ControllerBase
 {
     private readonly IVendaService _service;
     private readonly IVendaPdfService _pdf;
+    private readonly IOrcamentoPdfService _orcamento;
 
-    public VendasController(IVendaService service, IVendaPdfService pdf)
+    public VendasController(IVendaService service, IVendaPdfService pdf, IOrcamentoPdfService orcamento)
     {
         _service = service;
         _pdf = pdf;
+        _orcamento = orcamento;
     }
 
     [HttpGet]
@@ -77,6 +79,14 @@ public class VendasController : ControllerBase
     [HttpPut("{id:guid}/fatura")]
     public Task<VendaDto> RegistarFatura(Guid id, [FromBody] RegistarFaturaRequest req, CancellationToken ct)
         => _service.RegistarFaturaAsync(id, req, ct);
+
+    /// <summary>Orçamento em PDF para enviar ao cliente (não é documento fiscal).</summary>
+    [HttpGet("{id:guid}/orcamento.pdf")]
+    public async Task<IActionResult> OrcamentoPdf(Guid id, CancellationToken ct)
+    {
+        var (pdf, filename) = await _orcamento.ForVendaAsync(id, ct);
+        return File(pdf, "application/pdf", filename);
+    }
 
     [HttpGet("{id:guid}/recibo.pdf")]
     public async Task<IActionResult> ReciboPdf(Guid id, CancellationToken ct)

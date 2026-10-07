@@ -65,7 +65,7 @@ public sealed record BackupListResult(
 public sealed record BackupSnapshotDto(
     int Reparacoes,
     int Clientes,
-    int Trabalhos,
+    int Compras,
     int Vendas,
     int Despesas,
     DateTimeOffset CapturedAt);

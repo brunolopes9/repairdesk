@@ -35,7 +35,7 @@ Menu: Dashboard · **Vendas** · **Compras** (inclui Stock) · **Despesas** · C
 | 1 | Login por email **ou** username + "Esqueci a palavra-passe" (Resend) | ✅ |
 | 2 | Remover Moloni/faturação, loja (incl. Produtos/Catálogo e Molano), webhooks + migração de BD | ✅ |
 | 3 | Motor de IVA + Compras/Stock por lote + IA/email ligados ao modelo novo + import do Excel (Sprint 556). *Perfil fiscal passou para a Fase 6, junto das Atividades.* | ✅ |
-| 4 | Vendas unificadas (reparação simples) + limpeza Balcão/Trabalhos/Reparações/Preços/Catálogo. 4a ✅ (Sprint 557: Vendas novas, Balcão removido da UI); 4b ⏳ (apagar caixa, Peças, Preços, Contagens, Kits, Trabalhos); 4c ⏳ (Reparações antigas) | 🟡 |
+| 4 | Vendas unificadas (reparação simples) + limpeza Balcão/Trabalhos/Reparações/Preços/Catálogo. 4a ✅ (Sprint 557: Vendas novas, Balcão removido da UI); 4b ✅ (Sprint 558: caixa, Preços, Contagens, Kits, catálogo de Serviços e Trabalhos apagados); 4c ⏳ (Reparações antigas + Peças `Part`) | 🟡 |
 | 5 | Despesas + IVA & Resultados + balancete trimestral | ⏳ |
 | 7 | Motor IRS + Segurança Social completo, recomendações por regras e agente no site (só explica o que o motor calcula) | ⏳ |
 | 6 | Atividades + Finanças + import `Gestao_Financeira_v10.xlsx` (só Informática, Trading, despesas e fixas) | ⏳ |
@@ -162,3 +162,14 @@ Migração `Sprint555RemoveFaturacaoLojaWebhooks`: 9 tabelas + colunas Invoice*/
   Relatórios · Auditoria · Definições. Balcão (POS + caixa + fecho Z) removido do frontend.
 - Por decidir com o Bruno antes da 4c: que extras das Reparações antigas ficam (PDF entrada/entrega com
   assinatura, portal do cliente, fotos, garantias de reparação).
+
+## Fase 4b — notas (Sprint 558)
+
+Apagado (código + tabelas, migração `Sprint558RemoveCaixaPrecosTrabalhos`): caixa do Balcão (`CashMovements`,
+`DailyClosings`, Z-reports), tabela de Preços (`PriceTableEntries`), Contagens físicas (`StockTakes`), Kits de
+peças (`PartKits`), catálogo de Serviços (`ServiceItems`) e **Trabalhos** (software/websites passam a ser
+Vendas do tipo Serviço). `Despesa.TrabalhoId` apagado; `RepairRequest.TrabalhoId` → `VendaId`
+("Converter em orçamento" nos Pedidos online cria uma Venda de reparação em Orçamento).
+O PDF de orçamento passou a ser da Venda (`GET /api/vendas/{id}/orcamento.pdf`). O Dashboard e o relatório
+de negócio antigos deixaram de somar Trabalhos (contadores a 0) — serão refeitos na Fase 5.
+Ficam para a 4c: `Part`/`PartMovimento`/SkuMapping e as Reparações antigas (dependem umas das outras).

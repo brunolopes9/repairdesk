@@ -12,13 +12,6 @@ import { ClienteComunicacoesSection } from './ClienteComunicacoesSection';
 import { ClienteDevicesSection } from './ClienteDevicesSection';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { STATUS_COLOR, STATUS_LABEL, type Reparacao } from '../../lib/reparacoes/types';
-import { trabalhosApi } from '../../lib/trabalhos/api';
-import {
-  CATEGORIA_LABEL,
-  TRABALHO_STATUS_COLOR,
-  TRABALHO_STATUS_LABEL,
-  type Trabalho,
-} from '../../lib/trabalhos/types';
 import { vendasApi } from '../../lib/vendas/api';
 import { VENDA_ESTADO, VENDA_ESTADO_COLOR, VENDA_ESTADO_LABEL, type Venda } from '../../lib/vendas/types';
 import { formatCents, formatDateOnly } from '../../lib/money';
@@ -41,12 +34,6 @@ export default function ClienteDetalhe() {
   const reparacoes = useQuery({
     queryKey: ['cliente-reparacoes', id],
     queryFn: () => reparacoesApi.list({ clienteId: id, pageSize: 100 }),
-    enabled: !!id,
-  });
-
-  const trabalhos = useQuery({
-    queryKey: ['cliente-trabalhos', id],
-    queryFn: () => trabalhosApi.list({ clienteId: id, pageSize: 100 }),
     enabled: !!id,
   });
 
@@ -107,7 +94,7 @@ export default function ClienteDetalhe() {
     onSuccess: (blob) => {
       const nome = cliente.data?.nome ?? 'cliente';
       downloadBlob(blob, `mender-${safeFileName(nome)}-rgpd.json`);
-      toast.success('Exportação RGPD gerada', 'O JSON inclui cliente, reparações, trabalhos, fotos e auditoria.');
+      toast.success('Exportação RGPD gerada', 'O JSON inclui cliente, reparações, vendas, fotos e auditoria.');
     },
     onError: (err) => toast.fromError(err, 'Não foi possível exportar os dados do cliente.'),
   });
@@ -117,7 +104,7 @@ export default function ClienteDetalhe() {
     onSuccess: (res) => {
       toast.success(
         'Cliente apagado definitivamente',
-        `${res.reparacoes} reparação(ões), ${res.trabalhos} trabalho(s), ${res.vendas} venda(s), ${res.despesas} despesa(s) e ${res.fotos} foto(s) removidos.`,
+        `${res.reparacoes} reparação(ões), ${res.vendas} venda(s), ${res.despesas} despesa(s) e ${res.fotos} foto(s) removidos.`,
       );
       qc.invalidateQueries({ queryKey: ['clientes'] });
       qc.invalidateQueries({ queryKey: ['audit'] });
@@ -144,7 +131,6 @@ export default function ClienteDetalhe() {
 
   const c = cliente.data;
   const reps = reparacoes.data?.items ?? [];
-  const trabs = trabalhos.data?.items ?? [];
   const vds = vendas.data?.items ?? [];
   const eqs = equipamentos.data ?? [];
   const hardDeleteExpected = `APAGAR ${c.nome}`;
@@ -152,25 +138,22 @@ export default function ClienteDetalhe() {
 
   // KPIs
   const repsPagas = reps.filter((r) => r.estado === 5);
-  const trabsPagos = trabs.filter((t) => t.status === 3); // TRABALHO_STATUS.Concluido
   const vendasPagas = vds.filter((v) => v.estado === VENDA_ESTADO.Entregue);
   const totalGasto =
     repsPagas.reduce((s, r) => s + (r.precoFinalCents ?? r.orcamentoCents ?? 0), 0) +
-    trabsPagos.reduce((s, t) => s + (t.precoFinalCents ?? t.orcamentoCents ?? 0), 0) +
     vendasPagas.reduce((s, v) => s + v.totalCents, 0);
   const lucroTotal =
     repsPagas.reduce((s, r) => s + r.lucroCents, 0) +
-    trabsPagos.reduce((s, t) => s + t.lucroCents, 0);
+    vendasPagas.reduce((s, v) => s + Math.round(v.lucro * 100), 0);
   const ultimaVisita = [
     ...reps.map((x) => x.recebidoEm),
-    ...trabs.map((x) => x.createdAt),
     ...vds.map((x) => x.data),
   ]
     .sort()
     .at(-1);
   const abertosCount =
     reps.filter((r) => r.estado !== 5 && r.estado !== 6).length +
-    trabs.filter((t) => t.status !== 3 && t.status !== 4).length;
+    vds.filter((v) => v.estado !== VENDA_ESTADO.Entregue && v.estado !== VENDA_ESTADO.Cancelada).length;
 
   const cleanPhone = c.telefone?.replace(/\s/g, '') ?? '';
   const contactos30d = ((comunicacoesRecentes.data ?? []).filter((com) => {
@@ -180,7 +163,7 @@ export default function ClienteDetalhe() {
   })).length;
   const clienteTabs: Array<{ key: ClienteTab; label: string; meta?: string }> = [
     { key: 'perfil', label: 'Perfil', meta: String(eqs.length + (devicesAtivos.data ?? []).length) },
-    { key: 'historico', label: 'Histórico', meta: String(reps.length + trabs.length + vds.length) },
+    { key: 'historico', label: 'Histórico', meta: String(reps.length + vds.length) },
     { key: 'comunicacao', label: 'Comunicação', meta: String(contactos30d) },
     { key: 'rgpd', label: 'RGPD' },
   ];
@@ -487,20 +470,6 @@ export default function ClienteDetalhe() {
         )}
       </section>
 
-      {/* Trabalhos */}
-      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Trabalhos <span className="text-zinc-500">· {trabs.length}</span></h2>
-        </div>
-        {trabs.length === 0 ? (
-          <p className="mt-2 text-xs text-zinc-500">Sem trabalhos registados.</p>
-        ) : (
-          <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
-            {trabs.map((t) => <TrabRow key={t.id} t={t} />)}
-          </ul>
-        )}
-      </section>
-
       {/* Vendas */}
       <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-center justify-between">
@@ -551,7 +520,7 @@ export default function ClienteDetalhe() {
         </>}
       >
         <p className="text-sm">
-          Apagar <strong>{c.nome}</strong>? O histórico de reparações/trabalhos fica preservado mas o cliente deixa de aparecer nas listas.
+          Apagar <strong>{c.nome}</strong>? O histórico de reparações/vendas fica preservado mas o cliente deixa de aparecer nas listas.
         </p>
       </Modal>
 
@@ -589,7 +558,7 @@ export default function ClienteDetalhe() {
       >
         <div className="space-y-3 text-sm">
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-200">
-            Isto remove fisicamente <strong>{c.nome}</strong>, reparações, trabalhos, despesas, fotos e histórico relacionado.
+            Isto remove fisicamente <strong>{c.nome}</strong>, reparações, vendas, despesas, fotos e histórico relacionado.
             Não é soft-delete e não há recuperação pela aplicação.
           </div>
           <label className="block">
@@ -758,25 +727,3 @@ function VendaRow({ v }: { v: Venda }) {
   );
 }
 
-function TrabRow({ t }: { t: Trabalho }) {
-  return (
-    <li>
-      <Link to={`/trabalhos/${t.id}`} className="flex min-h-14 items-center justify-between gap-3 px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-zinc-500">#{t.numero}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${TRABALHO_STATUS_COLOR[t.status]}`}>
-              {TRABALHO_STATUS_LABEL[t.status]}
-            </span>
-            <span className="text-[11px] text-zinc-500">{CATEGORIA_LABEL[t.categoria]}</span>
-          </div>
-          <div className="mt-0.5 truncate font-medium">{t.titulo}</div>
-        </div>
-        <div className="text-right">
-          <div className="font-medium">{formatCents(t.precoFinalCents ?? t.orcamentoCents)}</div>
-          {t.status === 3 && <div className="text-[11px] text-emerald-600 dark:text-emerald-400">Lucro: {formatCents(t.lucroCents)}</div>}
-        </div>
-      </Link>
-    </li>
-  );
-}

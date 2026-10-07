@@ -64,7 +64,6 @@ export interface HardDeleteClienteResponse {
   nome: string;
   deletedAt: string;
   reparacoes: number;
-  trabalhos: number;
   despesas: number;
   fotos: number;
   vendas: number;

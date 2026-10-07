@@ -4,9 +4,7 @@ import { isAxiosError } from 'axios';
 import Modal from './Modal';
 import { despesasApi } from '../lib/despesas/api';
 import { reparacoesApi } from '../lib/reparacoes/api';
-import { trabalhosApi } from '../lib/trabalhos/api';
 import { REPAIR_STATUS } from '../lib/reparacoes/types';
-import { TRABALHO_STATUS } from '../lib/trabalhos/types';
 import {
   DESPESA_CATEGORIA,
   DESPESA_LABEL,
@@ -17,22 +15,21 @@ import { formatCents, formatDateOnly, parseEuros } from '../lib/money';
 import { SkeletonRow } from './ui';
 
 interface Props {
-  trabalhoId?: string;
   reparacaoId?: string;
   invalidateKeys?: readonly unknown[][];
   /** Quando true, oculta botões de adicionar/remover/editar — só leitura. */
   readOnly?: boolean;
 }
 
-export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateKeys = [], readOnly = false }: Props) {
+export default function DespesasImputadas({ reparacaoId, invalidateKeys = [], readOnly = false }: Props) {
   const qc = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Despesa | null>(null);
 
-  const queryKey = ['despesas-imputadas', trabalhoId ?? null, reparacaoId ?? null] as const;
+  const queryKey = ['despesas-imputadas', reparacaoId ?? null] as const;
   const list = useQuery({
     queryKey,
-    queryFn: () => despesasApi.list({ trabalhoId, reparacaoId, pageSize: 50 }),
+    queryFn: () => despesasApi.list({ reparacaoId, pageSize: 50 }),
   });
 
   function invalidate() {
@@ -57,7 +54,7 @@ export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateK
   const titulo = isRep ? 'Compras ao fornecedor' : 'Despesas imputadas';
   const emptyMsg = isRep
     ? 'Encomendas específicas para esta reparação (ex: Touch+Frame Samsung A15 da Tudo4Mobile). Diferente de "Peças do stock" — aqui são compras ao fornecedor com nº de encomenda e custo de transporte.'
-    : 'Adiciona despesas diretamente ligadas a este trabalho.';
+    : 'Adiciona despesas diretamente ligadas.';
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -137,7 +134,6 @@ export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateK
 
       <DespesaFormModal
         open={modalOpen}
-        trabalhoId={trabalhoId}
         reparacaoId={reparacaoId}
         onClose={() => setModalOpen(false)}
         onSaved={() => { invalidate(); setModalOpen(false); }}
@@ -146,7 +142,6 @@ export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateK
       <DespesaFormModal
         open={!!editing}
         editing={editing}
-        trabalhoId={trabalhoId}
         reparacaoId={reparacaoId}
         onClose={() => setEditing(null)}
         onSaved={() => { invalidate(); setEditing(null); }}
@@ -158,7 +153,6 @@ export default function DespesasImputadas({ trabalhoId, reparacaoId, invalidateK
 export function DespesaFormModal({
   open,
   editing,
-  trabalhoId,
   reparacaoId,
   initialRecorrente = false,
   initialCategoria = DESPESA_CATEGORIA.Pecas,
@@ -168,7 +162,6 @@ export function DespesaFormModal({
 }: {
   open: boolean;
   editing?: Despesa | null;
-  trabalhoId?: string;
   reparacaoId?: string;
   initialRecorrente?: boolean;
   initialCategoria?: DespesaCategoria;
@@ -187,8 +180,8 @@ export function DespesaFormModal({
   const [periodicidadeMeses, setPeriodicidadeMeses] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
   // Linkagem opcional só aparece quando não há trabalhoId/reparacaoId via props
-  const showLinkPicker = !trabalhoId && !reparacaoId && !editing;
-  const [linkType, setLinkType] = useState<'none' | 'reparacao' | 'trabalho'>('none');
+  const showLinkPicker = !reparacaoId && !editing;
+  const [linkType, setLinkType] = useState<'none' | 'reparacao'>('none');
   const [linkId, setLinkId] = useState<string>('');
 
   const reparacoesAbertas = useQuery({
@@ -196,17 +189,9 @@ export function DespesaFormModal({
     queryFn: () => reparacoesApi.list({ pageSize: 100 }),
     enabled: open && showLinkPicker,
   });
-  const trabalhosAbertos = useQuery({
-    queryKey: ['despesa-link-trabalhos'],
-    queryFn: () => trabalhosApi.list({ pageSize: 100 }),
-    enabled: open && showLinkPicker,
-  });
 
   const reparacaoOptions = (reparacoesAbertas.data?.items ?? []).filter(
     (r) => r.estado !== REPAIR_STATUS.Cancelado,
-  );
-  const trabalhoOptions = (trabalhosAbertos.data?.items ?? []).filter(
-    (t) => t.status !== TRABALHO_STATUS.Cancelado,
   );
 
   useEffect(() => {
@@ -247,10 +232,6 @@ export function DespesaFormModal({
         fornecedor: fornecedor.trim() || null,
         numeroEncomenda: numeroEncomenda.trim() || null,
         notas: notas.trim() || null,
-        trabalhoId:
-          editing?.trabalhoId ??
-          trabalhoId ??
-          (showLinkPicker && linkType === 'trabalho' && linkId ? linkId : null),
         reparacaoId:
           editing?.reparacaoId ??
           reparacaoId ??
@@ -353,7 +334,6 @@ export function DespesaFormModal({
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button type="button" onClick={() => { setLinkType('none'); setLinkId(''); }} className={`min-h-11 flex-1 rounded-md border px-3 py-2 text-xs transition ${linkType === 'none' ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-300' : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}>Stock / overhead</button>
                 <button type="button" onClick={() => { setLinkType('reparacao'); setLinkId(''); }} className={`min-h-11 flex-1 rounded-md border px-3 py-2 text-xs transition ${linkType === 'reparacao' ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-300' : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}>Reparação</button>
-                <button type="button" onClick={() => { setLinkType('trabalho'); setLinkId(''); }} className={`min-h-11 flex-1 rounded-md border px-3 py-2 text-xs transition ${linkType === 'trabalho' ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-300' : 'border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}>Trabalho</button>
               </div>
               {linkType === 'reparacao' && (
                 <select value={linkId} onChange={e => setLinkId(e.target.value)} className={inputCls}>
@@ -363,16 +343,8 @@ export function DespesaFormModal({
                   ))}
                 </select>
               )}
-              {linkType === 'trabalho' && (
-                <select value={linkId} onChange={e => setLinkId(e.target.value)} className={inputCls}>
-                  <option value="">— escolhe trabalho —</option>
-                  {trabalhoOptions.map(t => (
-                    <option key={t.id} value={t.id}>#{t.numero} · {t.titulo}</option>
-                  ))}
-                </select>
-              )}
               <p className="text-[11px] text-zinc-500">
-                Associa para o custo entrar no lucro real desse trabalho. Deixa em "Stock / overhead" se for compra para inventário ou despesa geral (renda, internet…).
+                Associa para o custo entrar no lucro real dessa reparação. Deixa em "Stock / overhead" se for compra para inventário ou despesa geral (renda, internet…).
               </p>
             </div>
           </Field>

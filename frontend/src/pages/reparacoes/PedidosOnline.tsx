@@ -55,15 +55,14 @@ export default function PedidosOnline() {
     onError: (err) => toast.fromError(err, 'Erro a converter pedido.'),
   });
 
-  // Sprint 437: segundo caminho — quando o cliente só quer estimativa, criamos
-  // um Trabalho (status Orçamento) em vez de uma Reparacao física.
+  // Doc 94 Fase 4: o pedido vira uma Venda de reparação em Orçamento.
   const converterTrabMut = useMutation({
-    mutationFn: (id: string) => repairRequestsApi.converterEmTrabalho(id),
+    mutationFn: (id: string) => repairRequestsApi.converterEmVenda(id),
     onSuccess: (req) => {
       toast.success('Pedido convertido em orçamento.');
       qc.invalidateQueries({ queryKey: ['repair-requests'] });
       qc.invalidateQueries({ queryKey: ['repair-requests-count'] });
-      if (req.trabalhoId) navigate(`/trabalhos/${req.trabalhoId}`);
+      if (req.vendaId) navigate(`/vendas/${req.vendaId}`);
     },
     onError: (err) => toast.fromError(err, 'Erro a converter em orçamento.'),
   });
@@ -423,7 +422,7 @@ export default function PedidosOnline() {
               triagemMut.mutate({ id: r.id, notasInternas: notas, prioridade, followUpAt })
             }
             onAbrirReparacao={(repId) => navigate(`/reparacoes/${repId}`)}
-            onAbrirTrabalho={(trabId) => navigate(`/trabalhos/${trabId}`)}
+            onAbrirTrabalho={(vendaId) => navigate(`/vendas/${vendaId}`)}
           />
         ))}
       </div>
@@ -537,9 +536,9 @@ function PedidoCard({
             Ver reparação →
           </button>
         )}
-        {!isPendente && !request.reparacaoId && request.trabalhoId && (
+        {!isPendente && !request.reparacaoId && request.vendaId && (
           <button
-            type="button" onClick={() => onAbrirTrabalho(request.trabalhoId!)}
+            type="button" onClick={() => onAbrirTrabalho(request.vendaId!)}
             className="shrink-0 text-xs text-brand-600 hover:underline"
           >
             Ver orçamento →

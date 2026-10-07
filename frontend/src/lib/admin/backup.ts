@@ -7,7 +7,7 @@ export type BackupHealthStatus = 'Green' | 'Yellow' | 'Red' | 0 | 1 | 2;
 export interface BackupSnapshotDto {
   reparacoes: number;
   clientes: number;
-  trabalhos: number;
+  compras: number;
   vendas: number;
   despesas: number;
   capturedAt: string;

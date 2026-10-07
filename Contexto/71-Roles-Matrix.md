@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:fe81ef6fa7c668ba -->
+<!-- roles-matrix-snapshot:4c2886e4817330dc -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -36,7 +36,6 @@ testes e esta matriz com snapshot.
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |
 | UsersController | `POST /api/users/{id}/revoke-sessions`, `POST /api/users/{id}/deactivate` | `Admin` |
 | **Sprint 243 (Doc 72 Fase A) — operações fiscais/credenciais/estruturais** | | |
-| TrabalhosController | `DELETE /{id}`, `reabrir` | `Admin` |
 | SupplierInvoicesController | `approve` (despesa), `reject`, `reprocess` | `Admin` |
 | DespesasController | `POST`, `PUT`, `DELETE`, `POST /{id}/converter-stock` (afecta IVA dedutível) | `Admin` |
 | PartsController | `POST /{id}/movimento` (ajuste manual stock), `POST /import` | `Admin` |
@@ -44,12 +43,9 @@ testes e esta matriz com snapshot.
 | LlmUsageController | `POST/DELETE /anthropic-key` (BYOK credencial) | `Admin` |
 | AutomacoesController | `POST /ingest-email/regenerate` | `Admin` |
 | **Sprint 244 (Doc 72 Fase B) — configuração comercial/estrutural** | | |
-| PriceTableController | `POST /`, `PUT/DELETE /{id}`, `POST /import` | `Admin` |
 | DiagnosticoController | `POST/DELETE /templates` (execuções por reparação ficam Authenticated) | `Admin` |
 | ClientesController | `DELETE /{id}` (soft-delete), `POST /import` | `Admin` |
 | **Sprint 300 (Doc 80 Pillar A.1) — POS PT controlo de caixa** | | |
-| CashController | `GET /today`, `/by-date/{date}`, `/recent`, `POST /open`, `POST /movement`, `GET /{id}/zreport.pdf` | `Authenticated` |
-| CashController | `POST /{id}/close` (fecho caixa impacta relatórios fiscais) | `Admin` |
 | **Sprint 311 (Doc 72 Fase D) — roles granulares fundação** | | |
 | UsersController | `GET/PUT /{id}/roles` (gestão roles do tenant) | `Admin` |
 | ReparacoesController | `PUT /{id}/assign` (atribuir técnico a reparação) | `Admin` |
@@ -58,13 +54,10 @@ testes e esta matriz com snapshot.
 | SignaturesController | `DELETE /{signatureId}` | `Admin` |
 | **Sprint 420-422 (Doc 90) — perfil próprio, inventário, tarefas internas** | | |
 | AuthController | `PUT /api/auth/me` (DisplayName + PhoneNumber próprios) | `Authenticated` |
-| StockTakesController | `GET/POST /api/stock-takes*` (inventário físico mexe stock real) | `Admin` |
 | InternalTasksController | `GET/POST/PUT/DELETE /api/internal-tasks*` (TODO list por staff) | `Authenticated` |
 | **Sprint 435-439 (Doc 91) — catálogo serviços + inbox pedidos online** | | |
-| ServiceItemsController | `GET /api/services` | `Authenticated` |
-| ServiceItemsController | `POST/PUT/DELETE /api/services*` (catálogo mão-de-obra) | `Admin` |
 | RepairRequestsController | `PUT /{id}/triagem` (notas internas + prioridade) | `Authenticated` |
-| RepairRequestsController | `POST /{id}/converter-em-trabalho` (cria orçamento) | `Authenticated` |
+| RepairRequestsController | `POST /{id}/converter-em-venda` (cria reparação em orçamento) | `Authenticated` |
 | RepairRequestsController | `POST /manual` (registar lead offline) | `Authenticated` |
 | **Sprint 443 (Doc 91 ponto 3) — calendar subscription** | | |
 | AutomacoesController | `GET /api/automacoes/calendar-feed` (token URL) | `Authenticated` |

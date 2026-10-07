@@ -15,8 +15,6 @@ import {
   Plus,
   Search,
   Stethoscope,
-  Tags,
-  Timer,
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
@@ -40,7 +38,6 @@ import { vendasApi } from '../../lib/vendas/api';
 import { devicesApi } from '../../lib/devices/api';
 import { liveListOptions } from '../../lib/queryOptions';
 import { garantiasApi } from '../../lib/garantias/api';
-import { precosApi, type PriceTableEntry } from '../../lib/precos/api';
 import { downloadFile } from '../../lib/downloadPdf';
 import {
   STATUS_LABEL,
@@ -786,7 +783,6 @@ function CreateReparacaoModal({
   const [orcamento, setOrcamento] = useState('');
   const [comoOrcamento, setComoOrcamento] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [precoSugerirOpen, setPrecoSugerirOpen] = useState(false);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [fieldValues, setFieldValues] = useState<EquipmentFieldValuesMap>({});
 
@@ -1085,13 +1081,6 @@ function CreateReparacaoModal({
             placeholder="ex: iPhone 13 Pro Max"
             className={inputCls}
           />
-          <button
-            type="button"
-            onClick={() => setPrecoSugerirOpen(true)}
-            className="mt-1 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-400"
-          >
-            <Tags size={12} strokeWidth={2} /> Sugerir da tabela de preços
-          </button>
         </Field>
         <Field label="Avaria reportada" required>
           <textarea
@@ -1294,18 +1283,6 @@ function CreateReparacaoModal({
           setClienteSearch(c.nome);
         }}
       />
-      <SugerirPrecoModal
-        open={precoSugerirOpen}
-        onClose={() => setPrecoSugerirOpen(false)}
-        onPicked={(picked) => {
-          setPrecoSugerirOpen(false);
-          // Preencher equipamento (mantém o existente se já estiver preenchido)
-          if (!equipamento.trim()) setEquipamento(`${picked.marca} ${picked.modelo}`);
-          if (!avaria.trim()) setAvaria(picked.servico);
-          // Sempre overrida orçamento (intenção clara)
-          setOrcamento((picked.pvpCents / 100).toFixed(2));
-        }}
-      />
     </Modal>
   );
 }
@@ -1470,85 +1447,6 @@ function KanbanBoard({
 
 // ============ Sugerir Preço Modal ============
 
-function SugerirPrecoModal({
-  open,
-  onClose,
-  onPicked,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onPicked: (entry: PriceTableEntry) => void;
-}) {
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebouncedValue(search, 200);
-
-  const list = useQuery({
-    queryKey: ['precos-sugerir', debouncedSearch],
-    queryFn: () => precosApi.list({ q: debouncedSearch || undefined, pageSize: 30 }),
-    enabled: open && debouncedSearch.length >= 2,
-  });
-
-  return (
-    <Modal
-      open={open}
-      title="Sugerir da tabela de preços"
-      onClose={() => { setSearch(''); onClose(); }}
-    >
-      <div className="space-y-3">
-        <input
-          autoFocus
-          type="search"
-          placeholder="Pesquisar marca, modelo ou serviço… (ex: iPhone 13 ecrã)"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-        />
-        {debouncedSearch.length < 2 && (
-          <p className="text-xs text-zinc-500">Escreve pelo menos 2 caracteres para procurar.</p>
-        )}
-        {debouncedSearch.length >= 2 && list.data && list.data.items.length === 0 && (
-          <div className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-xs text-zinc-500 dark:border-zinc-700">
-            Nenhuma combinacao encontrada. Adiciona esta combinacao em <a href="/precos" target="_blank" className="rounded-sm text-brand-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">/precos</a>.
-          </div>
-        )}
-        {list.data && list.data.items.length > 0 && (
-          <ul className="max-h-80 overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-            {list.data.items.map((e) => (
-              <li key={e.id}>
-                <button
-                  type="button"
-                  onClick={() => onPicked(e)}
-                  className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium">{e.marca} {e.modelo}</div>
-                    <div className="text-xs text-zinc-500">
-                      {e.servico}
-                      {e.tempoEstimadoMin && <span className="ml-2 inline-flex items-center gap-0.5"><Timer size={11} strokeWidth={2} /> {e.tempoEstimadoMin}m</span>}
-                      {e.margemPct != null && <span className="ml-2">{e.margemPct}% margem</span>}
-                    </div>
-                  </div>
-                  <span className="font-semibold tabular-nums text-brand-600 dark:text-brand-400">
-                    {formatCents(e.pvpCents)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-function useDebouncedValue<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
 
 // Transições válidas para drag-drop (subset relaxado das VALID_TRANSITIONS,
 // só para os 6 estados Kanban). Espelha lógica do backend IsValidTransition.

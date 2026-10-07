@@ -21,16 +21,8 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
             .ToListAsync(ct);
         var reparacaoIds = reparacoes.Select(r => r.Id).ToArray();
 
-        var trabalhos = await _db.Trabalhos.AsNoTracking()
-            .Where(t => t.ClienteId == clienteId)
-            .OrderBy(t => t.Numero)
-            .ToListAsync(ct);
-        var trabalhoIds = trabalhos.Select(t => t.Id).ToArray();
-
         var despesas = await _db.Despesas.AsNoTracking()
-            .Where(d =>
-                (d.ReparacaoId != null && reparacaoIds.Contains(d.ReparacaoId.Value)) ||
-                (d.TrabalhoId != null && trabalhoIds.Contains(d.TrabalhoId.Value)))
+            .Where(d => d.ReparacaoId != null && reparacaoIds.Contains(d.ReparacaoId.Value))
             .OrderBy(d => d.Data)
             .ToListAsync(ct);
 
@@ -73,7 +65,6 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
         var relatedIds = new HashSet<Guid>(
             new[] { cliente.Id }
                 .Concat(reparacaoIds)
-                .Concat(trabalhoIds)
                 .Concat(despesas.Select(d => d.Id))
                 .Concat(timeline.Select(t => t.Id))
                 .Concat(fotos.Select(f => f.Id))
@@ -88,7 +79,7 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
             .OrderBy(a => a.CreatedAt)
             .ToListAsync(ct);
 
-        return new ClienteRgpdData(cliente, reparacoes, timeline, trabalhos, despesas, fotos, garantias, avaliacoes, partMovimentos, vendas, audit);
+        return new ClienteRgpdData(cliente, reparacoes, timeline, despesas, fotos, garantias, avaliacoes, partMovimentos, vendas, audit);
     }
 
     public async Task HardDeleteAsync(ClienteRgpdData data, CancellationToken ct = default)
@@ -96,7 +87,6 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
         using var _ = _db.HardDeleteScope();
 
         var reparacaoIds = data.Reparacoes.Select(r => r.Id).ToArray();
-        var trabalhoIds = data.Trabalhos.Select(t => t.Id).ToArray();
 
         var vendas = await _db.Vendas.Include(v => v.Items)
             .Where(v => v.ClienteId == data.Cliente.Id).ToListAsync(ct);
@@ -108,21 +98,18 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
             (m.ReparacaoId != null && reparacaoIds.Contains(m.ReparacaoId.Value)) ||
             (m.VendaId != null && vendaIds.Contains(m.VendaId.Value))).ToListAsync(ct);
         var despesas = await _db.Despesas.Where(d =>
-            (d.ReparacaoId != null && reparacaoIds.Contains(d.ReparacaoId.Value)) ||
-            (d.TrabalhoId != null && trabalhoIds.Contains(d.TrabalhoId.Value))).ToListAsync(ct);
+            d.ReparacaoId != null && reparacaoIds.Contains(d.ReparacaoId.Value)).ToListAsync(ct);
         var garantias = await _db.Garantias.Where(g =>
             (g.ReparacaoId != null && reparacaoIds.Contains(g.ReparacaoId.Value)) ||
             (g.VendaId != null && vendaIds.Contains(g.VendaId.Value))).ToListAsync(ct);
         var avaliacoes = await _db.Avaliacoes.Where(a => reparacaoIds.Contains(a.ReparacaoId)).ToListAsync(ct);
         var timeline = await _db.ReparacaoEstadoLogs.Where(t => reparacaoIds.Contains(t.ReparacaoId)).ToListAsync(ct);
         var reparacoes = await _db.Reparacoes.Where(r => r.ClienteId == data.Cliente.Id).ToListAsync(ct);
-        var trabalhos = await _db.Trabalhos.Where(t => t.ClienteId == data.Cliente.Id).ToListAsync(ct);
         var cliente = await _db.Clientes.FirstAsync(c => c.Id == data.Cliente.Id, ct);
 
         var relatedIds = new HashSet<Guid>(
             new[] { cliente.Id }
                 .Concat(reparacoes.Select(r => r.Id))
-                .Concat(trabalhos.Select(t => t.Id))
                 .Concat(despesas.Select(d => d.Id))
                 .Concat(timeline.Select(t => t.Id))
                 .Concat(fotos.Select(f => f.Id))
@@ -145,7 +132,6 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
         _db.VendaItems.RemoveRange(vendaItems);
         _db.Vendas.RemoveRange(vendas);
         _db.Reparacoes.RemoveRange(reparacoes);
-        _db.Trabalhos.RemoveRange(trabalhos);
         _db.Clientes.Remove(cliente);
         await _db.SaveChangesAsync(ct);
     }

@@ -44,7 +44,6 @@ public class ClienteRgpdService : IClienteRgpdService
             "repairdesk-client-export-v2",
             ToCliente(data.Cliente),
             data.Reparacoes.Select(r => ToReparacao(r, data.Timeline.Where(t => t.ReparacaoId == r.Id))).ToList(),
-            data.Trabalhos.Select(ToTrabalho).ToList(),
             data.Despesas.Select(ToDespesa).ToList(),
             data.Fotos.Select(f => ToFoto(f, baseUrl, expiresAt)).ToList(),
             data.Garantias.Select(ToGarantia).ToList(),
@@ -73,7 +72,6 @@ public class ClienteRgpdService : IClienteRgpdService
             data.Cliente.Nome,
             DateTime.UtcNow,
             data.Reparacoes.Count,
-            data.Trabalhos.Count,
             data.Despesas.Count,
             data.Fotos.Count,
             data.Vendas.Count);
@@ -83,7 +81,6 @@ public class ClienteRgpdService : IClienteRgpdService
             cliente = data.Cliente.Nome,
             motivo = req.Motivo,
             response.Reparacoes,
-            response.Trabalhos,
             response.Despesas,
             response.Fotos,
             response.Vendas,
@@ -100,12 +97,8 @@ public class ClienteRgpdService : IClienteRgpdService
             r.OrcamentoCents, r.OrcamentoAprovado, r.PrecoFinalCents, r.CustoPecasCents, r.HorasGastas, r.Notas, r.EstadoPagamento,
             r.PublicSlug, timeline.Select(t => new EstadoLogExportDto(t.Id, t.EstadoFrom, t.EstadoTo, t.MudouEm, t.UserId, t.Notas)).ToList());
 
-    private static TrabalhoExportDto ToTrabalho(Trabalho t) =>
-        new(t.Id, t.Numero, t.Titulo, t.Descricao, t.Categoria, t.Status, t.DataInicio, t.DataConclusao, t.OrcamentoCents,
-            t.PrecoFinalCents, t.HorasGastas, t.Notas, t.EstadoPagamento, t.CreatedAt);
-
     private static DespesaExportDto ToDespesa(Despesa d) =>
-        new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas, d.TrabalhoId, d.ReparacaoId, d.CreatedAt);
+        new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas, d.ReparacaoId, d.CreatedAt);
 
     private FotoExportDto ToFoto(ReparacaoFoto f, string baseUrl, DateTimeOffset expiresAt)
     {

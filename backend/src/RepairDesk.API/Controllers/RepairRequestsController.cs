@@ -4,7 +4,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Reparacoes;
-using RepairDesk.Services.Trabalhos;
+using RepairDesk.Services.Vendas;
 
 namespace RepairDesk.API.Controllers;
 
@@ -20,7 +20,7 @@ public sealed class RepairRequestsController : ControllerBase
     private readonly IRepairRequestRepository _repo;
     private readonly IClienteService _clientes;
     private readonly IReparacaoService _reparacoes;
-    private readonly ITrabalhoService _trabalhos;
+    private readonly IVendaService _vendas;
     private readonly IAuditLogger _audit;
     private readonly ITenantContext _tenant;
     private readonly ICurrentUser _user;
@@ -29,7 +29,7 @@ public sealed class RepairRequestsController : ControllerBase
         IRepairRequestRepository repo,
         IClienteService clientes,
         IReparacaoService reparacoes,
-        ITrabalhoService trabalhos,
+        IVendaService vendas,
         IAuditLogger audit,
         ITenantContext tenant,
         ICurrentUser user)
@@ -37,7 +37,7 @@ public sealed class RepairRequestsController : ControllerBase
         _repo = repo;
         _clientes = clientes;
         _reparacoes = reparacoes;
-        _trabalhos = trabalhos;
+        _vendas = vendas;
         _audit = audit;
         _tenant = tenant;
         _user = user;
@@ -50,8 +50,8 @@ public sealed class RepairRequestsController : ControllerBase
         // Sprint 436 (Doc 91 follow-up Codex): triagem.
         string? NotasInternas, RepairRequestPrioridade Prioridade,
         DateTime? FollowUpAt,
-        // Sprint 437 (Doc 91 follow-up Codex): segundo caminho de conversão.
-        Guid? TrabalhoId,
+        // Doc 94 Fase 4: convertido numa Venda de reparação (orçamento).
+        Guid? VendaId,
         // Sprint 438 (Doc 91 follow-up Codex): canal de entrada.
         RepairRequestOrigem Origem);
 
@@ -123,11 +123,11 @@ public sealed class RepairRequestsController : ControllerBase
     }
 
     /// <summary>
-    /// Sprint 437 (Doc 91): converte em Trabalho (orçamento) em vez de Reparacao.
-    /// Útil quando o cliente quer só uma estimativa antes de trazer o equipamento.
+    /// Doc 94 Fase 4: converte o pedido numa Venda de reparação em Orçamento (cliente, equipamento e
+    /// avaria já preenchidos). Não mexe no stock — só passa a contar quando o orçamento é aceite.
     /// </summary>
-    [HttpPost("{id:guid}/converter-em-trabalho")]
-    public async Task<ActionResult<RequestDto>> ConverterEmTrabalho(Guid id, CancellationToken ct)
+    [HttpPost("{id:guid}/converter-em-venda")]
+    public async Task<ActionResult<RequestDto>> ConverterEmVenda(Guid id, CancellationToken ct)
     {
         var req = await _repo.FindByIdAsync(id, ct);
         if (req is null) return NotFound();
@@ -137,25 +137,22 @@ public sealed class RepairRequestsController : ControllerBase
         var lookup = await _clientes.LookupOrCreateAsync(
             new CreateClienteRequest(req.Nome, req.Telefone, req.Email, null, "Criado via widget de pedido online."), ct);
 
-        var titulo = string.IsNullOrWhiteSpace(req.Equipamento)
-            ? $"Orçamento — {req.Nome}"
-            : $"{req.Equipamento} — {req.Nome}";
-
-        var trabalho = await _trabalhos.CreateAsync(new CreateTrabalhoRequest(
+        var venda = await _vendas.CreateAsync(new VendaWriteRequest(
+            Tipo: VendaTipo.Reparacao,
             ClienteId: lookup.Cliente.Id,
-            Titulo: titulo,
-            Descricao: req.Descricao,
-            Categoria: JobCategory.Outro,
-            OrcamentoCents: null,
-            Notas: "Pedido submetido online pelo cliente."), ct);
+            Equipamento: req.Equipamento,
+            Problema: req.Descricao,
+            Notas: "Pedido submetido online pelo cliente.",
+            Linhas: [],
+            Estado: VendaEstado.Orcamento), ct);
 
         req.Estado = RepairRequestEstado.Convertido;
-        req.TrabalhoId = trabalho.Id;
+        req.VendaId = venda.Id;
         req.FollowUpAt = null;
         await _repo.SaveAsync(ct);
 
         if (_tenant.TenantId is { } tid)
-            await _audit.LogAsync(AuditAction.Create, "RepairRequest", req.Id, new { ConvertedToTrabalho = trabalho.Id }, tid, _user.UserId, ct);
+            await _audit.LogAsync(AuditAction.Create, "RepairRequest", req.Id, new { ConvertedToVenda = venda.Id }, tid, _user.UserId, ct);
 
         return Ok(MapDto(req));
     }
@@ -266,5 +263,5 @@ public sealed class RepairRequestsController : ControllerBase
     private static RequestDto MapDto(Core.Entities.RepairRequest r) =>
         new(r.Id, r.Nome, r.Email, r.Telefone, r.Equipamento, r.Descricao,
             r.Estado, r.ReparacaoId, r.MotivoRejeicao, r.CreatedAt,
-            r.NotasInternas, r.Prioridade, r.FollowUpAt, r.TrabalhoId, r.Origem);
+            r.NotasInternas, r.Prioridade, r.FollowUpAt, r.VendaId, r.Origem);
 }

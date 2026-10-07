@@ -55,7 +55,8 @@ export interface RepairRequestDto {
   notasInternas: string | null;
   prioridade: RepairRequestPrioridade;
   followUpAt: string | null;
-  trabalhoId: string | null;
+  /** Doc 94 Fase 4: venda de reparação criada a partir do pedido. */
+  vendaId: string | null;
   origem: RepairRequestOrigem;
 }
 
@@ -70,8 +71,8 @@ export const repairRequestsApi = {
   converter(id: string) {
     return api.post<RepairRequestDto>(`/repair-requests/${id}/converter`, {}).then((r) => r.data);
   },
-  converterEmTrabalho(id: string) {
-    return api.post<RepairRequestDto>(`/repair-requests/${id}/converter-em-trabalho`, {}).then((r) => r.data);
+  converterEmVenda(id: string) {
+    return api.post<RepairRequestDto>(`/repair-requests/${id}/converter-em-venda`, {}).then((r) => r.data);
   },
   rejeitar(id: string, motivo?: string) {
     return api.post<RepairRequestDto>(`/repair-requests/${id}/rejeitar`, { motivo: motivo ?? null }).then((r) => r.data);

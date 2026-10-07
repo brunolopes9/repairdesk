@@ -9,7 +9,7 @@ namespace RepairDesk.Services.Despesas;
 
 public interface IDespesaService
 {
-    Task<PagedResult<DespesaDto>> SearchAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, Guid? trabalhoId, Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<DespesaDto>> SearchAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default);
     Task<DespesaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<DespesaDto> CreateAsync(CreateDespesaRequest req, CancellationToken ct = default);
     Task<DespesaDto> UpdateAsync(Guid id, UpdateDespesaRequest req, CancellationToken ct = default);
@@ -39,11 +39,11 @@ public class DespesaService : IDespesaService
     public async Task<PagedResult<DespesaDto>> SearchAsync(
         string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
         bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
-        Guid? trabalhoId, Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
+        Guid? reparacaoId, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var (items, total) = await _repo.SearchAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, trabalhoId, reparacaoId, isRecorrente, page, pageSize, ct);
+        var (items, total) = await _repo.SearchAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, reparacaoId, isRecorrente, page, pageSize, ct);
         return new PagedResult<DespesaDto>(items.Select(ToDto).ToList(), page, pageSize, total);
     }
 
@@ -66,7 +66,6 @@ public class DespesaService : IDespesaService
             Fornecedor = req.Fornecedor?.Trim(),
             NumeroEncomenda = req.NumeroEncomenda?.Trim(),
             Notas = req.Notas?.Trim(),
-            TrabalhoId = req.TrabalhoId,
             ReparacaoId = req.ReparacaoId,
             IsCogs = req.IsCogs,
             IsRecorrente = req.IsRecorrente,
@@ -90,7 +89,6 @@ public class DespesaService : IDespesaService
         d.Fornecedor = req.Fornecedor?.Trim();
         d.NumeroEncomenda = req.NumeroEncomenda?.Trim();
         d.Notas = req.Notas?.Trim();
-        d.TrabalhoId = req.TrabalhoId;
         d.ReparacaoId = req.ReparacaoId;
         d.IsCogs = req.IsCogs;
         d.IsRecorrente = req.IsRecorrente;
@@ -181,5 +179,5 @@ public class DespesaService : IDespesaService
 
     private static DespesaDto ToDto(Despesa d) =>
         new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas,
-            d.TrabalhoId, d.ReparacaoId, d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses);
+            d.ReparacaoId, d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses);
 }

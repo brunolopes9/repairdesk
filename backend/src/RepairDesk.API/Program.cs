@@ -27,7 +27,6 @@ using RepairDesk.Services.Reparacoes;
 using RepairDesk.Services.Relatorios;
 using RepairDesk.Services.TenantSettings;
 using RepairDesk.Services.TenantPreferences;
-using RepairDesk.Services.Trabalhos;
 using RepairDesk.Services.Vendas;
 using Serilog;
 
@@ -224,11 +223,6 @@ try
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateReparacaoRequest>, UpdateReparacaoValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<ChangeEstadoRequest>, ChangeEstadoValidator>();
 
-    // Trabalhos
-    builder.Services.AddScoped<ITrabalhoRepository, TrabalhoRepository>();
-    builder.Services.AddScoped<ITrabalhoService, TrabalhoService>();
-    builder.Services.AddScoped<FluentValidation.IValidator<CreateTrabalhoRequest>, CreateTrabalhoValidator>();
-    builder.Services.AddScoped<FluentValidation.IValidator<UpdateTrabalhoRequest>, UpdateTrabalhoValidator>();
 
     // Despesas
     builder.Services.AddScoped<IDespesaRepository, DespesaRepository>();
@@ -340,8 +334,6 @@ try
     // Sprint 371: agendamentos (booking).
     builder.Services.AddScoped<IAppointmentRepository, RepairDesk.DAL.Persistence.AppointmentRepository>();
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
-    builder.Services.AddScoped<IStockTakeRepository, RepairDesk.DAL.Persistence.StockTakeRepository>();
-    builder.Services.AddScoped<RepairDesk.Services.StockTakes.IStockTakeService, RepairDesk.Services.StockTakes.StockTakeService>();
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();
     builder.Services.AddScoped<RepairDesk.Services.InternalTasks.IInternalTaskService, RepairDesk.Services.InternalTasks.InternalTaskService>();
@@ -362,7 +354,6 @@ try
     // Sprint 349 (Doc 83 Pillar 6): time tracker por reparação.
     builder.Services.AddScoped<IReparacaoTimeEntryRepository, RepairDesk.DAL.Persistence.ReparacaoTimeEntryRepository>();
     // Sprint 353 (Doc 83 Pillar 5): kits de peças.
-    builder.Services.AddScoped<IPartKitRepository, RepairDesk.DAL.Persistence.PartKitRepository>();
     // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
     builder.Services.AddScoped<IRepairRequestRepository, RepairDesk.DAL.Persistence.RepairRequestRepository>();
     // Sprint 390 (Doc 04): lookup TAC→modelo offline. Base num JSON em disco (mountar volume em prod
@@ -392,8 +383,6 @@ try
     }
 
     // Tabela de preços
-    builder.Services.AddScoped<IPriceTableRepository, RepairDesk.DAL.Persistence.PriceTableRepository>();
-    builder.Services.AddScoped<RepairDesk.Services.PriceTable.IPriceTableService, RepairDesk.Services.PriceTable.PriceTableService>();
 
     // Stock de peças
     builder.Services.AddScoped<IPartRepository, PartRepository>();
@@ -421,10 +410,6 @@ try
     // Sprint 246 (Doc 73): validador central de uploads por magic bytes.
     builder.Services.AddSingleton<RepairDesk.Services.Files.IFileValidator, RepairDesk.Services.Files.FileValidator>();
 
-    // Sprint 300 (Doc 80 Pillar A.1): controlo de caixa POS PT.
-    builder.Services.AddScoped<RepairDesk.API.Cash.ICashService, RepairDesk.API.Cash.CashService>();
-    // Sprint 302 (Doc 80 Pillar A.1): PDF Z-report.
-    builder.Services.AddScoped<RepairDesk.API.Cash.IZReportPdfService, RepairDesk.API.Cash.ZReportPdfService>();
 
     // Backups (scheduler only registers when enabled; admin endpoint remains available)
     builder.Services.AddSingleton<IBackupFileSystem, BackupFileSystem>();

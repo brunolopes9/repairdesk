@@ -24,13 +24,10 @@ public class RepairRequest : BaseEntity, ITenantEntity
     public Guid? ReparacaoId { get; set; }
     public Reparacao? Reparacao { get; set; }
 
-    /// <summary>
-    /// Sprint 437 (Doc 91 follow-up): quando convertido em orçamento (em vez de
-    /// reparação), aponta para o Trabalho criado. Mutuamente exclusivo com
-    /// ReparacaoId na prática — staff escolhe um caminho ou outro.
-    /// </summary>
-    public Guid? TrabalhoId { get; set; }
-    public Trabalho? Trabalho { get; set; }
+    /// <summary>Doc 94 Fase 4: quando convertido numa Venda de reparação (orçamento), aponta para ela.</summary>
+    public Guid? VendaId { get; set; }
+    public Venda? Venda { get; set; }
+
 
     /// <summary>Motivo da rejeição (opcional) — para histórico interno.</summary>
     public string? MotivoRejeicao { get; set; }

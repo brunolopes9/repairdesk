@@ -30,7 +30,6 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
                 Fornecedor: "Mobiltrust",
                 NumeroEncomenda: null,
                 Notas: null,
-                TrabalhoId: null,
                 ReparacaoId: null));
 
         resp.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -44,7 +43,7 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
         var resp = await client.PostAsJsonAsync("/api/despesas",
-            new CreateDespesaRequest("X", DespesaCategoria.Outro, 0, null, null, null, null, null, null));
+            new CreateDespesaRequest("X", DespesaCategoria.Outro, 0, null, null, null, null, null));
         resp.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
@@ -89,20 +88,6 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
-    public async Task Update_AllowsLinkingToTrabalho()
-    {
-        var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
-        var d = await CreateOne(client, DespesaCategoria.Pecas, 2500);
-        var trabalhoId = Guid.NewGuid(); // We'll just attempt linking; update should accept
-
-        var resp = await client.PutAsJsonAsync($"/api/despesas/{d.Id}",
-            new UpdateDespesaRequest(d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas, trabalhoId, null));
-        resp.EnsureSuccessStatusCode();
-        var updated = await resp.Content.ReadFromJsonAsync<DespesaDto>();
-        updated!.TrabalhoId.Should().Be(trabalhoId);
-    }
-
-    [Fact]
     public async Task TenantIsolation_DespesasScoped()
     {
         var clientA = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
@@ -140,7 +125,7 @@ public class DespesasApiTests : IClassFixture<RepairDeskApiFactory>
         int? periodicidadeMeses = null)
     {
         var resp = await client.PostAsJsonAsync("/api/despesas",
-            new CreateDespesaRequest($"Desp-{Guid.NewGuid():N}", cat, cents, null, null, null, null, null, null, false, isRecorrente, periodicidadeMeses));
+            new CreateDespesaRequest($"Desp-{Guid.NewGuid():N}", cat, cents, null, null, null, null, null, false, isRecorrente, periodicidadeMeses));
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<DespesaDto>())!;
     }

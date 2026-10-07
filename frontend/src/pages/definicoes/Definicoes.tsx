@@ -1448,7 +1448,7 @@ function SnapshotPanel({
         <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
           <SnapshotStat label="Reparacoes" value={snapshot.reparacoes} />
           <SnapshotStat label="Clientes" value={snapshot.clientes} />
-          <SnapshotStat label="Trabalhos" value={snapshot.trabalhos} />
+          <SnapshotStat label="Compras" value={snapshot.compras} />
           <SnapshotStat label="Vendas" value={snapshot.vendas} />
           <SnapshotStat label="Despesas" value={snapshot.despesas} />
         </dl>

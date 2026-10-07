@@ -22,7 +22,7 @@ public class RepairRequestsApiTests : IClassFixture<RepairDeskApiFactory>
     private sealed record RequestDto(
         Guid Id, string Nome, string? Email, string? Telefone, string Equipamento,
         string Descricao, int Estado, Guid? ReparacaoId, string? MotivoRejeicao, DateTime CreatedAt,
-        string? NotasInternas, int Prioridade, DateTime? FollowUpAt, Guid? TrabalhoId, int Origem);
+        string? NotasInternas, int Prioridade, DateTime? FollowUpAt, Guid? VendaId, int Origem);
     // Sprint 436+438+439 payloads para os tests.
     private sealed record TriagemRequest(string? NotasInternas, int Prioridade, DateTime? FollowUpAt = null);
     private sealed record ManualRequest(string Nome, string? Telefone, string? Email, string Equipamento, string Descricao, int Origem, int? Prioridade, string? NotasInternas, DateTime? FollowUpAt = null);
@@ -179,21 +179,26 @@ public class RepairRequestsApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
-    public async Task Sprint437_ConverterEmTrabalho_CriaTrabalho_E_MarcaConvertido()
+    public async Task ConverterEmVenda_CriaReparacaoEmOrcamento_E_MarcaConvertido()
     {
         var admin = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
         var marker = Guid.NewGuid().ToString("N")[..8];
         var pedido = await CreateManualPedidoAsync(admin, marker, equipamento: "MacBook Pro");
 
-        var conv = await admin.PostAsync($"/api/repair-requests/{pedido.Id}/converter-em-trabalho", null);
+        var conv = await admin.PostAsync($"/api/repair-requests/{pedido.Id}/converter-em-venda", null);
         conv.StatusCode.Should().Be(HttpStatusCode.OK);
         var convertido = (await conv.Content.ReadFromJsonAsync<RequestDto>())!;
         convertido.Estado.Should().Be(1); // Convertido
-        convertido.TrabalhoId.Should().NotBeNull();
-        convertido.ReparacaoId.Should().BeNull("este caminho cria Trabalho, não Reparacao");
+        convertido.VendaId.Should().NotBeNull();
+        convertido.ReparacaoId.Should().BeNull("este caminho cria uma Venda, não a Reparação antiga");
+
+        var venda = await admin.GetFromJsonAsync<RepairDesk.Services.Vendas.VendaDto>($"/api/vendas/{convertido.VendaId}");
+        venda!.Tipo.Should().Be(RepairDesk.Core.Enums.VendaTipo.Reparacao);
+        venda.Estado.Should().Be(RepairDesk.Core.Enums.VendaEstado.Orcamento);
+        venda.Equipamento.Should().Be("MacBook Pro");
 
         // Segunda conversão deve falhar (já tratado).
-        var conv2 = await admin.PostAsync($"/api/repair-requests/{pedido.Id}/converter-em-trabalho", null);
+        var conv2 = await admin.PostAsync($"/api/repair-requests/{pedido.Id}/converter-em-venda", null);
         conv2.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 

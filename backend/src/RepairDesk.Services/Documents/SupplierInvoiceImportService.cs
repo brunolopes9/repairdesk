@@ -617,7 +617,6 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             Fornecedor: req.Fornecedor ?? entity.FornecedorNameRaw,
             NumeroEncomenda: req.NumeroEncomenda ?? entity.ParsedDocumentNumber,
             Notas: req.Notas,
-            TrabalhoId: null,
             ReparacaoId: null), ct);
 
         entity.Status = SupplierInvoiceImportStatus.Approved;

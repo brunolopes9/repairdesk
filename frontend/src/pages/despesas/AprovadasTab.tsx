@@ -146,7 +146,7 @@ export default function AprovadasTab({
       pageTotalCents += item.valorCents;
       if (item.isRecorrente) recurringCount += 1;
       if (item.isCogs) cogsCount += 1;
-      if (item.trabalhoId || item.reparacaoId) linkedCount += 1;
+      if (item.reparacaoId) linkedCount += 1;
       if (item.fornecedor) supplierCount += 1;
 
       const current = byCategory.get(item.categoria) ?? { count: 0, totalCents: 0 };
@@ -323,9 +323,9 @@ export default function AprovadasTab({
                     {DESPESA_LABEL[d.categoria]}
                   </span>
                   <span className="text-xs text-zinc-500">{formatDateOnly(d.data)}</span>
-                  {(d.trabalhoId || d.reparacaoId) && (
+                  {d.reparacaoId && (
                     <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                      {d.reparacaoId ? 'reparacao' : 'trabalho'}
+                      reparação
                     </span>
                   )}
                   {d.isRecorrente && (

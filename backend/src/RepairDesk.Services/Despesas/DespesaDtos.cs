@@ -10,7 +10,6 @@ public sealed record CreateDespesaRequest(
     string? Fornecedor,
     string? NumeroEncomenda,
     string? Notas,
-    Guid? TrabalhoId,
     Guid? ReparacaoId,
     bool IsCogs = false,
     bool IsRecorrente = false,
@@ -26,7 +25,6 @@ public sealed record UpdateDespesaRequest(
     string? Fornecedor,
     string? NumeroEncomenda,
     string? Notas,
-    Guid? TrabalhoId,
     Guid? ReparacaoId,
     bool IsCogs = false,
     bool IsRecorrente = false,
@@ -41,7 +39,6 @@ public sealed record DespesaDto(
     string? Fornecedor,
     string? NumeroEncomenda,
     string? Notas,
-    Guid? TrabalhoId,
     Guid? ReparacaoId,
     DateTime CreatedAt,
     // Sprint 176/177: COGS flag — peça consumida em reparação (não OpEx).

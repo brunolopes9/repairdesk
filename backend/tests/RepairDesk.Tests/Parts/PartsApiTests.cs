@@ -29,7 +29,6 @@ public class PartsApiTests : IClassFixture<RepairDeskApiFactory>
             PartCategoria.Bateria,
             "Apple",
             "iPhone 12",
-            null,
             QtdStock: 5,
             QtdMinima: 2,
             CustoUnitarioCents: 1800,
@@ -64,7 +63,6 @@ public class PartsApiTests : IClassFixture<RepairDeskApiFactory>
             PartCategoria.Ecra,
             "Samsung",
             "A52",
-            null,
             QtdStock: 3,
             QtdMinima: 1,
             CustoUnitarioCents: 4200,
@@ -92,8 +90,8 @@ public class PartsApiTests : IClassFixture<RepairDeskApiFactory>
     {
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
         var marker = Guid.NewGuid().ToString("N")[..6];
-        var low = await CreatePartAsync(client, new CreatePartRequest("LOW-" + marker, "Peça baixa " + marker, PartCategoria.Conector, "Apple", "iPhone 11", null, 1, 2, 900, null, null, null));
-        var ok = await CreatePartAsync(client, new CreatePartRequest("OK-" + marker, "Peça ok " + marker, PartCategoria.Conector, "Apple", "iPhone 11", null, 8, 2, 900, null, null, null));
+        var low = await CreatePartAsync(client, new CreatePartRequest("LOW-" + marker, "Peça baixa " + marker, PartCategoria.Conector, "Apple", "iPhone 11", 1, 2, 900, null, null, null));
+        var ok = await CreatePartAsync(client, new CreatePartRequest("OK-" + marker, "Peça ok " + marker, PartCategoria.Conector, "Apple", "iPhone 11", 8, 2, 900, null, null, null));
 
         var result = await client.GetFromJsonAsync<PagedResult<PartDto>>($"/api/parts?q={marker}&lowStockOnly=true");
 
@@ -107,8 +105,8 @@ public class PartsApiTests : IClassFixture<RepairDeskApiFactory>
         var clientB = await NewAuthedClient(RepairDeskApiFactory.SecondAdminEmail);
         var marker = "ISO-" + Guid.NewGuid().ToString("N")[..8];
 
-        var inA = await CreatePartAsync(clientA, new CreatePartRequest(marker + "-A", "Peça A " + marker, PartCategoria.Outro, null, null, null, 5, 1, 100, null, null, null));
-        var inB = await CreatePartAsync(clientB, new CreatePartRequest(marker + "-B", "Peça B " + marker, PartCategoria.Outro, null, null, null, 5, 1, 100, null, null, null));
+        var inA = await CreatePartAsync(clientA, new CreatePartRequest(marker + "-A", "Peça A " + marker, PartCategoria.Outro, null, null, 5, 1, 100, null, null, null));
+        var inB = await CreatePartAsync(clientB, new CreatePartRequest(marker + "-B", "Peça B " + marker, PartCategoria.Outro, null, null, 5, 1, 100, null, null, null));
 
         var listA = await clientA.GetFromJsonAsync<PagedResult<PartDto>>($"/api/parts?q={marker}");
         listA!.Items.Select(p => p.Id).Should().Contain(inA.Id).And.NotContain(inB.Id);
@@ -127,7 +125,7 @@ public class PartsApiTests : IClassFixture<RepairDeskApiFactory>
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
         var part = await CreatePartAsync(client, new CreatePartRequest(
             "REG198-" + Guid.NewGuid().ToString("N")[..6], "Test net zero",
-            PartCategoria.Outro, null, null, null, QtdStock: 1, QtdMinima: 1,
+            PartCategoria.Outro, null, null, QtdStock: 1, QtdMinima: 1,
             CustoUnitarioCents: 100, Fornecedor: null, LocalArmazenamento: null, Notas: null));
 
         var cliente = await CreateClienteAsync(client);
@@ -153,7 +151,7 @@ public class PartsApiTests : IClassFixture<RepairDeskApiFactory>
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
         var part = await CreatePartAsync(client, new CreatePartRequest(
             "REG208-" + Guid.NewGuid().ToString("N")[..6], "Test deleted rep",
-            PartCategoria.Outro, null, null, null, QtdStock: 1, QtdMinima: 1,
+            PartCategoria.Outro, null, null, QtdStock: 1, QtdMinima: 1,
             CustoUnitarioCents: 100, Fornecedor: null, LocalArmazenamento: null, Notas: null));
 
         var cliente = await CreateClienteAsync(client);
@@ -180,7 +178,7 @@ public class PartsApiTests : IClassFixture<RepairDeskApiFactory>
         var client = await NewAuthedClient(RepairDeskApiFactory.AdminEmail);
         var part = await CreatePartAsync(client, new CreatePartRequest(
             "ORPH-" + Guid.NewGuid().ToString("N")[..6], "Test orphan",
-            PartCategoria.Outro, null, null, null, 1, 1, 100, null, null, null));
+            PartCategoria.Outro, null, null, 1, 1, 100, null, null, null));
 
         var cliente = await CreateClienteAsync(client);
         var rep = await CreateReparacaoAsync(client, cliente.Id);

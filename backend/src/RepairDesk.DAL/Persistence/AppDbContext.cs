@@ -32,7 +32,6 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<ClienteTagAssignment> ClienteTagAssignments => Set<ClienteTagAssignment>();
     public DbSet<Reparacao> Reparacoes => Set<Reparacao>();
     public DbSet<ReparacaoEstadoLog> ReparacaoEstadoLogs => Set<ReparacaoEstadoLog>();
-    public DbSet<Trabalho> Trabalhos => Set<Trabalho>();
     public DbSet<Despesa> Despesas => Set<Despesa>();
     public DbSet<DiagnosticoTemplate> DiagnosticoTemplates => Set<DiagnosticoTemplate>();
     public DbSet<DiagnosticoTemplateItem> DiagnosticoTemplateItems => Set<DiagnosticoTemplateItem>();
@@ -40,7 +39,6 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<DiagnosticoExecucaoItem> DiagnosticoExecucaoItems => Set<DiagnosticoExecucaoItem>();
     public DbSet<Garantia> Garantias => Set<Garantia>();
     public DbSet<Avaliacao> Avaliacoes => Set<Avaliacao>();
-    public DbSet<PriceTableEntry> PriceTableEntries => Set<PriceTableEntry>();
     public DbSet<ReparacaoFoto> ReparacaoFotos => Set<ReparacaoFoto>();
     public DbSet<EquipmentFieldTemplate> EquipmentFieldTemplates => Set<EquipmentFieldTemplate>();
     public DbSet<EquipmentFieldDefinition> EquipmentFieldDefinitions => Set<EquipmentFieldDefinition>();
@@ -67,8 +65,6 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 167a: tracking de uso LLM Anthropic per-tenant.
     public DbSet<LlmUsage> LlmUsage => Set<LlmUsage>();
     // Sprint 300 (Doc 80 Pillar A.1): POS PT — controlo de caixa.
-    public DbSet<CashMovement> CashMovements => Set<CashMovement>();
-    public DbSet<DailyClosing> DailyClosings => Set<DailyClosing>();
     // Sprint 303: transacções de pagamento (Mock/IFTHENPAY) ligadas a Vendas.
     public DbSet<Payment> Payments => Set<Payment>();
     // Sprint 344 (Doc 83 Pillar 3): assinaturas digitais ligadas a Reparações.
@@ -79,18 +75,13 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 349 (Doc 83 Pillar 6): time tracker por reparação.
     public DbSet<ReparacaoTimeEntry> ReparacaoTimeEntries => Set<ReparacaoTimeEntry>();
     // Sprint 353 (Doc 83 Pillar 5): kits de peças (bundles aplicáveis a reparação).
-    public DbSet<PartKit> PartKits => Set<PartKit>();
-    public DbSet<PartKitItem> PartKitItems => Set<PartKitItem>();
     // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
     public DbSet<RepairRequest> RepairRequests => Set<RepairRequest>();
     // Sprint 359 (Doc 83): templates de modelo (conteúdo partilhado por variantes).
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico — sessão + linhas contadas.
-    public DbSet<StockTake> StockTakes => Set<StockTake>();
-    public DbSet<StockTakeItem> StockTakeItems => Set<StockTakeItem>();
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas (TODO list por utilizador).
     public DbSet<InternalTask> InternalTasks => Set<InternalTask>();
     // Sprint 435 (Doc 90 screenshot Services): catálogo de mão-de-obra/serviços.
-    public DbSet<ServiceItem> ServiceItems => Set<ServiceItem>();
     // Sprint 452 (Doc 91 ponto 1): registo de comunicações com cliente por reparação.
     public DbSet<ReparacaoComunicacao> ReparacaoComunicacoes => Set<ReparacaoComunicacao>();
     // Sprint 461 (Doc 90 Tier 2 #6): asset registry — equipamentos persistentes do cliente.

@@ -14,8 +14,6 @@ public class Despesa : BaseEntity, ITenantEntity
     public string? NumeroEncomenda { get; set; }
     public string? Notas { get; set; }
 
-    public Guid? TrabalhoId { get; set; }
-    public Trabalho? Trabalho { get; set; }
 
     public Guid? ReparacaoId { get; set; }
     public Reparacao? Reparacao { get; set; }

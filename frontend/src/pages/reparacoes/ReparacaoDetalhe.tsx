@@ -34,7 +34,6 @@ import { ReparacaoOtherDevicesSection } from './ReparacaoOtherDevicesSection';
 import SignaturePadModal from '../../components/signatures/SignaturePadModal';
 import EmailMenu from '../../components/EmailMenu';
 import ReparacaoTimer from '../../components/reparacoes/ReparacaoTimer';
-import ApplyKitButton from '../../components/reparacoes/ApplyKitButton';
 import { signaturesApi } from '../../lib/signatures/api';
 import { SIGNATURE_TYPE, SIGNATURE_TYPE_LABEL, type SignatureType as SigType } from '../../lib/signatures/types';
 import type { ReparacaoVendaOrigem } from '../../lib/reparacoes/types';
@@ -1004,7 +1003,6 @@ export default function ReparacaoDetalhe() {
           Bruno reportou: conseguia eliminar peças mesmo após reparação fechada. */}
       {/* Sprint 353: botão Aplicar Kit ao lado das peças. */}
       <div className="flex justify-end">
-        <ApplyKitButton reparacaoId={r.id} disabled={isLocked} />
       </div>
       <PecasReparacao reparacaoId={r.id} readOnly={isLocked} />
           </>

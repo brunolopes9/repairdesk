@@ -19,11 +19,6 @@ public class DespesaConfiguration : IEntityTypeConfiguration<Despesa>
         builder.Property(x => x.Categoria).HasConversion<int>();
         builder.Property(x => x.IsRecorrente).HasDefaultValue(false);
 
-        builder.HasOne(x => x.Trabalho)
-            .WithMany()
-            .HasForeignKey(x => x.TrabalhoId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         builder.HasOne(x => x.Reparacao)
             .WithMany()
             .HasForeignKey(x => x.ReparacaoId)
@@ -32,7 +27,6 @@ public class DespesaConfiguration : IEntityTypeConfiguration<Despesa>
         builder.HasIndex(x => new { x.TenantId, x.Data });
         builder.HasIndex(x => new { x.TenantId, x.Categoria });
         builder.HasIndex(x => new { x.TenantId, x.IsRecorrente });
-        builder.HasIndex(x => new { x.TenantId, x.TrabalhoId }).HasFilter("[TrabalhoId] IS NOT NULL");
         builder.HasIndex(x => new { x.TenantId, x.ReparacaoId }).HasFilter("[ReparacaoId] IS NOT NULL");
     }
 }

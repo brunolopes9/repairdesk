@@ -97,7 +97,6 @@ public class PartService : IPartService
             Categoria = req.Categoria,
             Marca = TrimOrNull(req.Marca),
             Modelo = TrimOrNull(req.Modelo),
-            PriceTableEntryId = req.PriceTableEntryId,
             QtdStock = req.QtdStock,
             QtdMinima = req.QtdMinima,
             CustoUnitarioCents = req.CustoUnitarioCents,
@@ -128,7 +127,6 @@ public class PartService : IPartService
         part.Categoria = req.Categoria;
         part.Marca = TrimOrNull(req.Marca);
         part.Modelo = TrimOrNull(req.Modelo);
-        part.PriceTableEntryId = req.PriceTableEntryId;
         part.QtdStock = req.QtdStock;
         part.QtdMinima = req.QtdMinima;
         part.CustoUnitarioCents = req.CustoUnitarioCents;
@@ -295,7 +293,6 @@ public class PartService : IPartService
                     ParseCategoria(Get(iCategoria)),
                     Get(iMarca),
                     Get(iModelo),
-                    null,
                     ParseInt(Get(iStock)) ?? 0,
                     ParseInt(Get(iMin)) ?? 0,
                     ParseEuros(Get(iCusto)) ?? 0,
@@ -422,7 +419,6 @@ public class PartService : IPartService
             p.Categoria,
             p.Marca,
             p.Modelo,
-            p.PriceTableEntryId,
             p.QtdStock,
             p.QtdMinima,
             p.CustoUnitarioCents,

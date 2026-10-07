@@ -176,7 +176,7 @@ public class AuditRgpdApiTests : IClassFixture<RepairDeskApiFactory>
     private static async Task<DespesaDto> CreateDespesaAsync(HttpClient client, Guid reparacaoId)
     {
         var resp = await client.PostAsJsonAsync("/api/despesas",
-            new CreateDespesaRequest("Peça RGPD", DespesaCategoria.Pecas, 3500, DateTime.UtcNow, "Fornecedor", null, null, null, reparacaoId));
+            new CreateDespesaRequest("Peça RGPD", DespesaCategoria.Pecas, 3500, DateTime.UtcNow, "Fornecedor", null, null, reparacaoId));
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<DespesaDto>())!;
     }

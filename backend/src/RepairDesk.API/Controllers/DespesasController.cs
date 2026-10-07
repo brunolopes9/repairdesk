@@ -21,7 +21,6 @@ public class DespesasController : ControllerBase
         [FromQuery(Name = "categoria_in")] string? categoriaIn,
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
-        [FromQuery] Guid? trabalhoId,
         [FromQuery] Guid? reparacaoId,
         [FromQuery] bool? isRecorrente,
         [FromQuery(Name = "include_supplier_invoice_imports")] bool includeSupplierInvoiceImports,
@@ -29,7 +28,7 @@ public class DespesasController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
-        => _service.SearchAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, trabalhoId, reparacaoId, isRecorrente, page, pageSize, ct);
+        => _service.SearchAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, reparacaoId, isRecorrente, page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<DespesaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);

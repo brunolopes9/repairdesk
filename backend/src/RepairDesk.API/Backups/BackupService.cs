@@ -325,11 +325,11 @@ public sealed class BackupService : IBackupService
 
         var reparacoes = await db.Reparacoes.CountAsync(ct);
         var clientes = await db.Clientes.CountAsync(ct);
-        var trabalhos = await db.Trabalhos.CountAsync(ct);
+        var compras = await db.ComprasDocumentos.CountAsync(ct);
         var vendas = await db.Vendas.CountAsync(ct);
         var despesas = await db.Despesas.CountAsync(ct);
 
-        return new BackupSnapshotDto(reparacoes, clientes, trabalhos, vendas, despesas, capturedAt);
+        return new BackupSnapshotDto(reparacoes, clientes, compras, vendas, despesas, capturedAt);
     }
 
     private async Task WriteRestoreAuditAsync(

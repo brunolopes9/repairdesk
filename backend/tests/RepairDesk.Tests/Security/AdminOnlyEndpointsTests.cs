@@ -28,7 +28,6 @@ public class AdminOnlyEndpointsTests : IClassFixture<RepairDeskApiFactory>
 
     [Theory]
     // Sprint 243 Fase A — operações fiscais e estruturais P0
-    [InlineData("DELETE", "/api/trabalhos/00000000-0000-0000-0000-000000000001")]
     [InlineData("POST", "/api/supplier-invoices/00000000-0000-0000-0000-000000000001/approve")]
     [InlineData("POST", "/api/supplier-invoices/00000000-0000-0000-0000-000000000001/reject")]
     [InlineData("POST", "/api/supplier-invoices/00000000-0000-0000-0000-000000000001/reprocess")]
@@ -41,9 +40,6 @@ public class AdminOnlyEndpointsTests : IClassFixture<RepairDeskApiFactory>
     [InlineData("DELETE", "/api/llm-usage/anthropic-key")]
     [InlineData("POST", "/api/automacoes/ingest-email/regenerate")]
     // Sprint 244 Fase B — configuração comercial/estrutural
-    [InlineData("POST", "/api/price-table")]
-    [InlineData("POST", "/api/price-table/import")]
-    [InlineData("DELETE", "/api/price-table/00000000-0000-0000-0000-000000000001")]
     [InlineData("POST", "/api/diagnostico/templates")]
     [InlineData("DELETE", "/api/diagnostico/templates/00000000-0000-0000-0000-000000000001")]
     [InlineData("DELETE", "/api/clientes/00000000-0000-0000-0000-000000000001")]

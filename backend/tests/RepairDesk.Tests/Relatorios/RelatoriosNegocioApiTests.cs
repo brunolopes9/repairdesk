@@ -48,8 +48,8 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
 
         report!.ReceitaTotalCents.Should().Be(22_000);
         report.ReceitaReparacoesCents.Should().Be(10_000);
-        report.ReceitaTrabalhosCents.Should().Be(5_000);
-        report.ReceitaVendasCents.Should().Be(7_000);
+        report.ReceitaTrabalhosCents.Should().Be(0);   // Trabalhos absorvidos pelas Vendas (Doc 94 Fase 4)
+        report.ReceitaVendasCents.Should().Be(12_000);
         report.CustoPecasCents.Should().Be(2_000);
         report.OpexCents.Should().Be(3_000);
         // Sprint 550: IVA embutido = serviços 15000×23/123 (2805) + venda sem linhas 7000×23/123 (1309).
@@ -215,17 +215,16 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
             Notas = Prefix,
         };
         db.AddRange(cliente, reparacao, part, movimento,
-            new Trabalho
+            new Venda
             {
                 TenantId = tenantId,
                 Numero = 3202,
+                Tipo = VendaTipo.Servico,
                 Cliente = cliente,
                 ClienteId = cliente.Id,
-                Titulo = $"{Prefix} Trabalho Base",
-                Status = TrabalhoStatus.Concluido,
-                DataConclusao = date,
-                PrecoFinalCents = 5_000,
-                EstadoPagamento = PaymentStatus.Pago,
+                Data = date,
+                TotalCents = 5_000,
+                Estado = VendaEstado.Entregue,
             },
             new Venda
             {
@@ -336,7 +335,6 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
 
         db.Despesas.RemoveRange(db.Despesas.IgnoreQueryFilters().Where(d => d.TenantId == tenantId && d.Data >= from && d.Data < to));
         db.Reparacoes.RemoveRange(db.Reparacoes.IgnoreQueryFilters().Where(r => r.TenantId == tenantId && r.EntregueEm >= from && r.EntregueEm < to));
-        db.Trabalhos.RemoveRange(db.Trabalhos.IgnoreQueryFilters().Where(t => t.TenantId == tenantId && t.DataConclusao >= from && t.DataConclusao < to));
         db.Vendas.RemoveRange(db.Vendas.IgnoreQueryFilters().Where(v => v.TenantId == tenantId && v.Data >= from && v.Data < to));
         db.Parts.RemoveRange(db.Parts.IgnoreQueryFilters().Where(p => p.TenantId == tenantId && p.Nome.StartsWith(Prefix)));
         db.Clientes.RemoveRange(db.Clientes.IgnoreQueryFilters().Where(c => c.TenantId == tenantId && c.Nome.StartsWith(Prefix)));

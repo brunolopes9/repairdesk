@@ -21,16 +21,10 @@ public class PartConfiguration : IEntityTypeConfiguration<Part>
         builder.Property(x => x.LocalArmazenamento).HasMaxLength(120);
         builder.Property(x => x.Notas).HasMaxLength(1000);
 
-        builder.HasOne(x => x.PriceTableEntry)
-            .WithMany()
-            .HasForeignKey(x => x.PriceTableEntryId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         builder.HasIndex(x => new { x.TenantId, x.Sku })
             .IsUnique()
             .HasFilter("[Sku] IS NOT NULL AND [IsDeleted] = 0");
         builder.HasIndex(x => new { x.TenantId, x.Categoria, x.Marca });
         builder.HasIndex(x => new { x.TenantId, x.QtdStock, x.QtdMinima });
-        builder.HasIndex(x => new { x.TenantId, x.PriceTableEntryId }).HasFilter("[PriceTableEntryId] IS NOT NULL");
     }
 }
