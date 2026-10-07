@@ -1,28 +1,24 @@
 import { api } from '../api';
-import type { PaymentProvider } from '../payments/types';
-import type { CreateVendaRequest, PaymentMethod, Venda, VendasPage } from './types';
+import type { PaymentMethod, Venda, VendaEstado, VendaFiltro, VendasPage, VendaWrite } from './types';
 
 export const vendasApi = {
-  list(params: { from?: string; to?: string; clienteId?: string; page?: number; pageSize?: number } = {}) {
+  list(params: VendaFiltro = {}) {
     return api.get<VendasPage>('/vendas', { params }).then((r) => r.data);
   },
   get(id: string) {
     return api.get<Venda>(`/vendas/${id}`).then((r) => r.data);
   },
-  create(payload: CreateVendaRequest) {
+  create(payload: VendaWrite) {
     return api.post<Venda>('/vendas', payload).then((r) => r.data);
   },
-  marcarPaga(id: string, paymentMethod: PaymentMethod, provider?: PaymentProvider) {
-    // provider opcional: null/undefined → Manual (sem Payment record). Mock/Ifthenpay cria
-    // Payment row automático (Sprint 303 Fase A+). Quando frontend já criou Payment via
-    // /api/payments, passa undefined para evitar registo duplicado.
-    return api.post<Venda>(
-      `/vendas/${id}/marcar-paga`,
-      { paymentMethod, provider }
-    ).then((r) => r.data);
+  update(id: string, payload: VendaWrite) {
+    return api.put<Venda>(`/vendas/${id}`, payload).then((r) => r.data);
   },
-  cancelar(id: string) {
-    return api.post<Venda>(`/vendas/${id}/cancelar`).then((r) => r.data);
+  mudarEstado(id: string, estado: VendaEstado, paymentMethod?: PaymentMethod) {
+    return api.post<Venda>(`/vendas/${id}/estado`, { estado, paymentMethod }).then((r) => r.data);
+  },
+  registarFatura(id: string, invoiceNumber: string | null, invoiceEmittedAt: string | null) {
+    return api.put<Venda>(`/vendas/${id}/fatura`, { invoiceNumber, invoiceEmittedAt }).then((r) => r.data);
   },
   reciboUrl(id: string) {
     return `${api.defaults.baseURL ?? ''}/vendas/${id}/recibo.pdf`;
@@ -36,15 +32,6 @@ export const vendasApi = {
         throw err;
       });
   },
-  reparacoesRelacionadas(vendaId: string) {
-    return api
-      .get<VendaReparacaoRelacionada[]>(`/vendas/${vendaId}/reparacoes-relacionadas`)
-      .then((r) => r.data);
-  },
-  /** Para autocomplete de fornecedor no formulário de criar venda. */
-  fornecedores() {
-    return api.get<string[]>('/vendas/fornecedores').then((r) => r.data);
-  },
 };
 
 export interface VendaImeiLookup {
@@ -53,16 +40,4 @@ export interface VendaImeiLookup {
   data: string;
   descricao: string;
   clienteNome: string | null;
-}
-
-export interface VendaReparacaoRelacionada {
-  reparacaoId: string;
-  reparacaoNumero: number;
-  recebidoEm: string;
-  equipamento: string;
-  imei: string;
-  /** RepairStatus enum: 0=Recebido, 1=Diagnostico, ..., 5=Entregue, 6=Cancelado */
-  estado: number;
-  diasDesdeAVenda: number;
-  orcamentoCents: number | null;
 }

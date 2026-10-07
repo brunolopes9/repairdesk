@@ -92,8 +92,10 @@ public sealed record InventarioLinhaDto(
     decimal TotalPago,
     decimal TotalSemIva,
     decimal PrecoFinalComIva,
+    // Totais do que está em stock (quantidade × por unidade).
     decimal Lucro,
-    decimal IvaAPagarEstado);
+    decimal IvaAPagarEstado,
+    decimal TaxaIvaCompra);
 
 public sealed record ResumoColunaDto(
     int Unidades,

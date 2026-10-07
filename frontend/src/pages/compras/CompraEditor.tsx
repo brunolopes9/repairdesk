@@ -11,7 +11,7 @@ import type { CompraDocumento, CompraDocumentoWrite } from '../../lib/compras/ty
 import { formatEur, formatPct, lucroPorDefeito, parseDecimal, previewUnidade } from '../../lib/compras/format';
 import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor } from '../../lib/fornecedores/api';
 import { supplierInvoicesApi, type SupplierInvoiceImport } from '../../lib/supplierInvoices/api';
-import { inputCls, labelCls } from './ui';
+import { inputCls, labelCls } from '../../components/ui/formClasses';
 
 /** Taxa normal de IVA nas vendas (o servidor usa FiscalDefaults.TaxaIvaNormal). */
 const TAXA_VENDA = 0.23;

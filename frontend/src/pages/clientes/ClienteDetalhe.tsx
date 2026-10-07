@@ -20,7 +20,7 @@ import {
   type Trabalho,
 } from '../../lib/trabalhos/types';
 import { vendasApi } from '../../lib/vendas/api';
-import { VENDA_STATUS, type Venda } from '../../lib/vendas/types';
+import { VENDA_ESTADO, VENDA_ESTADO_COLOR, VENDA_ESTADO_LABEL, type Venda } from '../../lib/vendas/types';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import ClienteFormView from './ClienteForm';
@@ -153,7 +153,7 @@ export default function ClienteDetalhe() {
   // KPIs
   const repsPagas = reps.filter((r) => r.estado === 5);
   const trabsPagos = trabs.filter((t) => t.status === 3); // TRABALHO_STATUS.Concluido
-  const vendasPagas = vds.filter((v) => v.status === VENDA_STATUS.Paga);
+  const vendasPagas = vds.filter((v) => v.estado === VENDA_ESTADO.Entregue);
   const totalGasto =
     repsPagas.reduce((s, r) => s + (r.precoFinalCents ?? r.orcamentoCents ?? 0), 0) +
     trabsPagos.reduce((s, t) => s + (t.precoFinalCents ?? t.orcamentoCents ?? 0), 0) +
@@ -734,14 +734,8 @@ function RepRow({ r }: { r: Reparacao }) {
 }
 
 function VendaRow({ v }: { v: Venda }) {
-  const statusLabel =
-    v.status === VENDA_STATUS.Paga ? 'Paga'
-      : v.status === VENDA_STATUS.Cancelada ? 'Cancelada'
-      : 'Pendente';
-  const statusColor =
-    v.status === VENDA_STATUS.Paga ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-      : v.status === VENDA_STATUS.Cancelada ? 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
-      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+  const statusLabel = VENDA_ESTADO_LABEL[v.estado];
+  const statusColor = VENDA_ESTADO_COLOR[v.estado];
   return (
     <li>
       <Link to={`/vendas/${v.id}`} className="flex min-h-14 items-center justify-between gap-3 px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">

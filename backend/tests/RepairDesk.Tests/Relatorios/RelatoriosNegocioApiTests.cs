@@ -141,7 +141,7 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
                     Numero = 3401,
                     Data = date,
                     TotalCents = 99_999,
-                    Status = VendaStatus.Pendente,
+                    Estado = VendaEstado.Pronta,
                 },
                 new Venda
                 {
@@ -149,7 +149,7 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
                     Numero = 3402,
                     Data = date,
                     TotalCents = 1_500,
-                    Status = VendaStatus.Paga,
+                    Estado = VendaEstado.Entregue,
                 });
             await db.SaveChangesAsync();
         }
@@ -233,7 +233,7 @@ public class RelatoriosNegocioApiTests : IClassFixture<RepairDeskApiFactory>
                 Numero = 3203,
                 Data = date,
                 TotalCents = 7_000,
-                Status = VendaStatus.Paga,
+                Estado = VendaEstado.Entregue,
             },
             new Despesa
             {

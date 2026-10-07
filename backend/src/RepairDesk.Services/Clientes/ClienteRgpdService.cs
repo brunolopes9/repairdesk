@@ -124,7 +124,7 @@ public class ClienteRgpdService : IClienteRgpdService
         new(m.Id, m.PartId, m.Part?.Nome, m.Part?.Sku, m.Quantidade, m.StockAntes, m.StockDepois, m.Motivo, m.ReparacaoId, m.Notas, m.CreatedAt);
 
     private static VendaExportDto ToVenda(Venda v) =>
-        new(v.Id, v.Numero, v.Data, v.TotalCents, v.IvaCents, v.PaymentMethod, v.Status,
+        new(v.Id, v.Numero, v.Data, v.TotalCents, v.IvaCents, v.PaymentMethod, v.Estado,
             v.InvoiceNumber, v.InvoiceEmittedAt, v.Notas,
             v.Items.Select(i => new VendaItemExportDto(
                 i.Id, i.PartId, i.Part?.Sku, i.Descricao,

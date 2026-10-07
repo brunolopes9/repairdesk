@@ -48,7 +48,7 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
         var vendasPagas = await _db.Vendas
             .AsNoTracking()
             .Where(v => v.TenantId == tenantId
-                && v.Status == VendaStatus.Paga
+                && v.Estado == VendaEstado.Entregue
                 && v.Data >= fromUtc && v.Data < toUtc)
             .Select(v => new { v.Id, v.TotalCents })
             .ToListAsync(ct);
@@ -60,7 +60,7 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
             .AsNoTracking()
             .Where(i => i.TenantId == tenantId
                 && i.Venda != null
-                && i.Venda.Status == VendaStatus.Paga
+                && i.Venda.Estado == VendaEstado.Entregue
                 && i.Venda.Data >= fromUtc && i.Venda.Data < toUtc)
             .Select(i => new
             {
@@ -261,7 +261,7 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
         var linhas = await _db.Vendas
             .AsNoTracking()
             .Where(v => v.TenantId == tenantId
-                && v.Status == VendaStatus.Paga
+                && v.Estado == VendaEstado.Entregue
                 && v.Data >= fromUtc && v.Data < toUtc)
             .SelectMany(v => v.Items)
             .Select(i => new
@@ -317,7 +317,7 @@ public sealed class RelatorioNegocioRepository : IRelatorioNegocioRepository
         var vendas = await _db.Vendas
             .AsNoTracking()
             .Where(v => v.TenantId == tenantId
-                && v.Status == VendaStatus.Paga
+                && v.Estado == VendaEstado.Entregue
                 && v.Data >= fromUtc && v.Data < toUtc
                 && v.ClienteId != null && v.Cliente != null)
             .Select(v => new

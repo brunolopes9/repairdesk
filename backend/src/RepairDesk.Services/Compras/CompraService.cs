@@ -170,7 +170,7 @@ public class CompraService : ICompraService
             return new InventarioLinhaDto(
                 l.Id, doc.Id, doc.Fornecedor?.Name ?? "—", doc.Data, Referencia(doc), doc.FaturaEmFalta,
                 l.Descricao, l.Localizacao, q, l.PrecoUnitarioPago,
-                q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado);
+                q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado, l.TaxaIvaCompra);
         }).ToList();
     }
 

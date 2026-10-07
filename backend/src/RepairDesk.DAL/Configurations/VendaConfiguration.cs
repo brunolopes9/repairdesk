@@ -15,8 +15,10 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
         builder.Property(x => x.TenantId).IsRequired();
         builder.Property(x => x.Numero).IsRequired();
         builder.Property(x => x.PaymentMethod).HasConversion<int>();
-        builder.Property(x => x.Status).HasConversion<int>();
-        builder.Property(x => x.Origem).HasConversion<int>().HasDefaultValue(VendaOrigem.Balcao);
+        builder.Property(x => x.Tipo).HasConversion<int>();
+        builder.Property(x => x.Estado).HasConversion<int>();
+        builder.Property(x => x.Equipamento).HasMaxLength(200);
+        builder.Property(x => x.Problema).HasMaxLength(2000);
         builder.Property(x => x.InvoiceNumber).HasMaxLength(120);
         builder.Property(x => x.Notas).HasMaxLength(2000);
 
@@ -34,7 +36,7 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
             .IsUnique()
             .HasFilter("[IsDeleted] = 0");
         builder.HasIndex(x => new { x.TenantId, x.Data });
-        builder.HasIndex(x => new { x.TenantId, x.Status });
+        builder.HasIndex(x => new { x.TenantId, x.Estado });
     }
 
     public void Configure(EntityTypeBuilder<VendaItem> builder)
@@ -49,7 +51,15 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
         builder.Property(x => x.Imei2).HasMaxLength(16);
         builder.Property(x => x.FornecedorNome).HasMaxLength(200);
         builder.Property(x => x.Condicao).HasConversion<int>().HasDefaultValue(CondicaoArtigo.NaoAplicavel);
+        builder.Property(x => x.CustoUnitarioPago).HasPrecision(12, 4);
+        builder.Property(x => x.TaxaIvaCompra).HasPrecision(5, 4);
         builder.Ignore(x => x.TotalCents);
+
+        builder.HasOne(x => x.CompraLinha)
+            .WithMany()
+            .HasForeignKey(x => x.CompraLinhaId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.TenantId, x.CompraLinhaId }).HasFilter("[CompraLinhaId] IS NOT NULL");
 
         builder.HasOne(x => x.Part)
             .WithMany()

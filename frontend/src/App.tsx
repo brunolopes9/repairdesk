@@ -28,9 +28,9 @@ const TrabalhoDetalhe = lazy(() => import('./pages/trabalhos/TrabalhoDetalhe'));
 const Despesas = lazy(() => import('./pages/despesas/Despesas'));
 const Compras = lazy(() => import('./pages/compras/Compras'));
 const CompraEditor = lazy(() => import('./pages/compras/CompraEditor'));
-const Cash = lazy(() => import('./pages/cash/Cash'));
 const Stock = lazy(() => import('./pages/stock/Stock'));
 const Vendas = lazy(() => import('./pages/vendas/Vendas'));
+const VendaEditor = lazy(() => import('./pages/vendas/VendaEditor'));
 const Auditoria = lazy(() => import('./pages/auditoria/Auditoria'));
 const Inventario = lazy(() => import('./pages/inventario/Inventario'));
 const Tarefas = lazy(() => import('./pages/tarefas/Tarefas'));
@@ -56,7 +56,6 @@ const PedidoReparacao = lazy(() => import('./pages/PedidoReparacao'));
 const Agendar = lazy(() => import('./pages/Agendar'));
 const PedidosOnline = lazy(() => import('./pages/reparacoes/PedidosOnline'));
 const Agendamentos = lazy(() => import('./pages/agendamentos/Agendamentos'));
-const Balcao = lazy(() => import('./pages/balcao/Balcao'));
 const PoliticaPrivacidade = lazy(() => import('./pages/legal/PoliticaPrivacidade'));
 const Termos = lazy(() => import('./pages/legal/Termos'));
 const Cookies = lazy(() => import('./pages/legal/Cookies'));
@@ -156,9 +155,11 @@ export default function App() {
               <Route path="/compras" element={<Compras />} />
               <Route path="/compras/nova" element={<CompraEditor />} />
               <Route path="/compras/:id" element={<CompraEditor />} />
-              <Route path="/cash" element={<Cash />} />
+              <Route path="/cash" element={<Navigate to="/vendas" replace />} />
               <Route path="/importacoes" element={<Navigate to="/compras?tab=pending" replace />} />
               <Route path="/vendas" element={<Vendas />} />
+              <Route path="/vendas/nova" element={<VendaEditor />} />
+              <Route path="/vendas/:id" element={<VendaEditor />} />
               <Route path="/stock" element={<Stock />} />
               <Route path="/precos" element={<Precos />} />
               <Route path="/relatorios/iva" element={<Navigate to="/relatorios/negocio" replace />} />
@@ -168,7 +169,7 @@ export default function App() {
               <Route path="/agendamentos" element={<Agendamentos />} />
               <Route path="/compras-operacao" element={<Navigate to="/compras" replace />} />
               <Route path="/documentos" element={<Navigate to="/vendas" replace />} />
-              <Route path="/balcao" element={<Balcao />} />
+              <Route path="/balcao" element={<Navigate to="/vendas/nova?tipo=0" replace />} />
               <Route path="/catalogo" element={<Navigate to="/stock" replace />} />
               <Route path="/inventario" element={<Inventario />} />
               <Route path="/tarefas" element={<Tarefas />} />

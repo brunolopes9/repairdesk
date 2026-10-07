@@ -5,69 +5,85 @@ using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
 using RepairDesk.Services.Clientes;
-using RepairDesk.Services.Payments;
+using RepairDesk.Services.Fiscal;
 using RepairDesk.Services.TenantPreferences;
 
 namespace RepairDesk.Services.Vendas;
 
 public interface IVendaService
 {
-    Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<VendaDto>> SearchAsync(VendaFiltro filtro, int page, int pageSize, CancellationToken ct = default);
     Task<VendaImeiLookupDto?> ImeiLookupAsync(string imei, CancellationToken ct = default);
     Task<IReadOnlyList<VendaReparacaoRelacionadaDto>> GetReparacoesRelacionadasAsync(Guid vendaId, CancellationToken ct = default);
-    /// <summary>Para autocomplete UI Vendas — lista de fornecedores que já apareceram em vendas anteriores.</summary>
-    Task<IReadOnlyList<string>> ListFornecedoresAsync(CancellationToken ct = default);
     Task<VendaDto> GetAsync(Guid id, CancellationToken ct = default);
-    Task<VendaDto> CreateAsync(CreateVendaRequest req, CancellationToken ct = default);
-    Task<VendaDto> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default);
-    Task<VendaDto> CancelarAsync(Guid id, CancellationToken ct = default);
+    Task<VendaDto> CreateAsync(VendaWriteRequest req, CancellationToken ct = default);
+    Task<VendaDto> UpdateAsync(Guid id, VendaWriteRequest req, CancellationToken ct = default);
+    Task<VendaDto> MudarEstadoAsync(Guid id, MudarEstadoVendaRequest req, CancellationToken ct = default);
+    Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default);
     Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Vendas unificadas (Doc 94 Fase 4, SPEC §2.4 + §5.3 + §5.5): reparação, serviço ou produto, com
+/// linhas de serviço ou de lote de stock.
+///
+/// Stock: Orçamento não mexe no stock. Nos estados À espera de peça / Pronta / Entregue as unidades
+/// estão fora dos lotes (<c>CompraLinha.QuantidadeVendida</c>); Cancelada devolve-as. Ao editar,
+/// liberta as linhas antigas e volta a consumir as novas — tudo no mesmo SaveChanges.
+///
+/// Snapshot: custo e taxa de IVA do lote são copiados para a linha e refrescados ao passar a
+/// Entregue, para os relatórios não mudarem se a compra for editada depois (SPEC §2.4).
+///
+/// "Não existe venda sem fatura": Entregue sem nº de fatura fica em "Fatura por registar" (alerta).
+/// </summary>
 public class VendaService : IVendaService
 {
+    private const int MaxLinhas = 200;
+
     private readonly IVendaRepository _vendas;
-    private readonly IPartRepository _parts;
+    private readonly ICompraRepository _compras;
     private readonly IClienteRepository _clientes;
     private readonly ITenantContext _tenant;
     private readonly IGarantiaRepository _garantias;
     private readonly ITenantRepository _tenants;
     private readonly IReparacaoRepository _reparacoes;
     private readonly ITenantPreferencesService _preferences;
-    private readonly IPaymentService _payments;
+    private readonly IAuditLogger _audit;
 
     public VendaService(
         IVendaRepository vendas,
-        IPartRepository parts,
+        ICompraRepository compras,
         IClienteRepository clientes,
         ITenantContext tenant,
         IGarantiaRepository garantias,
         ITenantRepository tenants,
         IReparacaoRepository reparacoes,
         ITenantPreferencesService preferences,
-        IPaymentService payments)
+        IAuditLogger audit)
     {
         _vendas = vendas;
-        _parts = parts;
+        _compras = compras;
         _clientes = clientes;
         _tenant = tenant;
         _garantias = garantias;
         _tenants = tenants;
         _reparacoes = reparacoes;
         _preferences = preferences;
-        _payments = payments;
+        _audit = audit;
     }
 
-    public async Task<PagedResult<VendaDto>> SearchAsync(DateTime? fromUtc, DateTime? toUtc, Guid? clienteId, int page, int pageSize, CancellationToken ct = default)
+    private static decimal TaxaVendaNormalPct => FiscalDefaults.TaxaIvaNormal * 100m;
+
+    public static bool ConsomeStock(VendaEstado estado)
+        => estado is VendaEstado.AEsperaPeca or VendaEstado.Pronta or VendaEstado.Entregue;
+
+    public async Task<PagedResult<VendaDto>> SearchAsync(VendaFiltro filtro, int page, int pageSize, CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var (items, total) = await _vendas.SearchAsync(fromUtc, toUtc, clienteId, page, pageSize, ct);
+        var (items, total) = await _vendas.SearchAsync(filtro, page, pageSize, ct);
         return new PagedResult<VendaDto>(items.Select(ToDto).ToList(), page, pageSize, total);
     }
-
-    public Task<IReadOnlyList<string>> ListFornecedoresAsync(CancellationToken ct = default)
-        => _vendas.ListDistinctFornecedoresAsync(ct);
 
     public async Task<VendaImeiLookupDto?> ImeiLookupAsync(string imei, CancellationToken ct = default)
     {
@@ -81,179 +97,258 @@ public class VendaService : IVendaService
     public async Task<IReadOnlyList<VendaReparacaoRelacionadaDto>> GetReparacoesRelacionadasAsync(Guid vendaId, CancellationToken ct = default)
     {
         var venda = await _vendas.FindByIdWithItemsAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
-        var imeis = venda.Items
-            .SelectMany(i => new[] { i.Imei, i.Imei2 })
-            .Where(s => !string.IsNullOrWhiteSpace(s))
-            .Select(s => s!)
-            .Distinct()
-            .ToList();
-        if (imeis.Count == 0) return Array.Empty<VendaReparacaoRelacionadaDto>();
-
-        // Para cada IMEI da venda, lookup reparações pós-data da venda.
+        var imeis = venda.Items.Select(i => i.Imei).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToList();
         var resultado = new List<VendaReparacaoRelacionadaDto>();
         foreach (var imei in imeis)
         {
             var reparacoes = await _reparacoes.SearchByImeiAsync(imei, excludeId: null, ct);
-            foreach (var r in reparacoes.Where(r => r.CreatedAt > venda.Data))
-            {
-                resultado.Add(new VendaReparacaoRelacionadaDto(
-                    r.Id, r.Numero, r.CreatedAt, r.Equipamento, r.Imei ?? imei,
-                    (int)r.Estado,
-                    (int)Math.Round((r.CreatedAt - venda.Data).TotalDays),
-                    r.OrcamentoCents));
-            }
+            resultado.AddRange(reparacoes.Where(r => r.CreatedAt > venda.Data).Select(r => new VendaReparacaoRelacionadaDto(
+                r.Id, r.Numero, r.CreatedAt, r.Equipamento, r.Imei ?? imei, (int)r.Estado,
+                (int)Math.Round((r.CreatedAt - venda.Data).TotalDays), r.OrcamentoCents)));
         }
         return resultado.OrderByDescending(r => r.RecebidoEm).ToList();
     }
 
     public async Task<VendaDto> GetAsync(Guid id, CancellationToken ct = default)
-    {
-        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
-        return ToDto(venda);
-    }
+        => ToDto(await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id));
 
-    public async Task<VendaDto> CreateAsync(CreateVendaRequest req, CancellationToken ct = default)
+    public async Task<VendaDto> CreateAsync(VendaWriteRequest req, CancellationToken ct = default)
     {
         if (_tenant.TenantId is not { } tenantId)
             throw new ValidationException("no_tenant_context", "Sem contexto de tenant.");
-        if (req.Items.Count == 0)
-            throw new ValidationException("venda_sem_items", "Adiciona pelo menos uma linha ao carrinho.");
-        var prefs = await _preferences.GetAsync(ct);
-        var defaultCondicao = Enum.IsDefined(typeof(CondicaoArtigo), prefs.Sales.DefaultCondicaoArtigo)
-            ? (CondicaoArtigo)prefs.Sales.DefaultCondicaoArtigo
-            : CondicaoArtigo.NaoAplicavel;
+        var estado = req.Estado ?? VendaEstado.Orcamento;
+        if (estado == VendaEstado.Cancelada)
+            throw new ValidationException("estado_invalido", "Uma venda nova não pode nascer cancelada.");
+        if (estado == VendaEstado.Entregue && req.Linhas.Count == 0)
+            throw new ValidationException("venda_sem_linhas", "Adiciona pelo menos uma linha antes de entregar.");
 
-        Cliente? cliente = null;
-        if (req.ClienteId is not null)
-            cliente = await _clientes.FindByIdAsync(req.ClienteId.Value, ct)
-                ?? throw new NotFoundException("Cliente", req.ClienteId.Value);
-
-        var venda = new Venda
-        {
-            ClienteId = cliente?.Id,
-            Cliente = cliente,
-            Data = DateTime.UtcNow,
-            Status = VendaStatus.Pendente,
-            Notas = Clean(req.Notas),
-            Origem = req.Origem ?? VendaOrigem.Balcao,
-        };
-
-        foreach (var itemReq in req.Items)
-        {
-            ValidateItemRequest(itemReq);
-            Part? part = null;
-
-            if (itemReq.PartId is not null)
-            {
-                part = await _parts.FindByIdAsync(itemReq.PartId.Value, ct)
-                    ?? throw new NotFoundException("Part", itemReq.PartId.Value);
-                EnsurePartSellable(part, itemReq.Quantidade);
-            }
-
-            // IMEI obrigatorio para Smartphone/Tablet (venda de equipamento).
-            var requiresImei = part?.Categoria is PartCategoria.Smartphone or PartCategoria.Tablet;
-            var imei = Clean(itemReq.Imei);
-            var imei2 = Clean(itemReq.Imei2);
-            if (requiresImei && string.IsNullOrEmpty(imei))
-                throw new ValidationException("imei_obrigatorio",
-                    $"IMEI obrigatorio para {part?.Nome ?? "Smartphone/Tablet"}.");
-            if (!string.IsNullOrEmpty(imei) && !ImeiValidator.IsValid(imei))
-                throw new ValidationException("imei_invalido",
-                    "IMEI invalido — verifica os digitos (Luhn check falhou).");
-            if (!string.IsNullOrEmpty(imei2) && !ImeiValidator.IsValid(imei2))
-                throw new ValidationException("imei2_invalido",
-                    "IMEI secundario invalido — verifica os digitos.");
-
-            venda.Items.Add(new VendaItem
-            {
-                PartId = part?.Id,
-                Part = part,
-                Descricao = Clean(itemReq.Descricao) ?? part?.Nome ?? "Artigo",
-                Quantidade = itemReq.Quantidade,
-                PrecoUnitarioCents = itemReq.PrecoUnitarioCents,
-                DescontoCents = itemReq.DescontoCents,
-                IvaRate = itemReq.IvaRate,
-                Imei = imei is null ? null : ImeiValidator.Normalize(imei),
-                Imei2 = imei2 is null ? null : ImeiValidator.Normalize(imei2),
-                FornecedorNome = Clean(itemReq.FornecedorNome),
-                Condicao = itemReq.Condicao ?? defaultCondicao,
-                GarantiaFornecedorAteAo = itemReq.GarantiaFornecedorAteAo,
-            });
-        }
-
+        var venda = new Venda { TenantId = tenantId, Estado = estado };
+        await ApplyHeaderAsync(venda, req, ct);
+        var lotes = await LoadLotesAsync(req.Linhas, [], ct);
+        ApplyLinhas(venda, req.Linhas, lotes);
+        if (ConsomeStock(estado)) ConsumirStock(venda, lotes);
+        if (estado == VendaEstado.Entregue) MarcarEntregue(venda, req.PaymentMethod, lotes);
         RecalculateTotals(venda);
-        await _vendas.CreateWithNextNumeroAsync(venda, tenantId, ct);
 
+        await _vendas.CreateWithNextNumeroAsync(venda, tenantId, ct);
+        if (estado == VendaEstado.Entregue) await EmitirGarantiaSeAplicavelAsync(venda, ct);
+        await _audit.LogAsync(AuditAction.Create, nameof(Venda), venda.Id,
+            new { venda.Numero, venda.Tipo, venda.Estado, venda.TotalCents }, ct: ct);
         return ToDto(venda);
     }
 
-    public async Task<VendaDto> MarcarPagaAsync(Guid id, MarcarVendaPagaRequest req, CancellationToken ct = default)
+    public async Task<VendaDto> UpdateAsync(Guid id, VendaWriteRequest req, CancellationToken ct = default)
     {
         var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
-        var prefs = await _preferences.GetAsync(ct);
-        if (venda.Status == VendaStatus.Cancelada)
-            throw new ConflictException("venda_cancelada", "Venda cancelada nao pode ser marcada como paga.");
+        if (venda.Estado is VendaEstado.Entregue or VendaEstado.Cancelada)
+            throw new ConflictException("venda_fechada",
+                "Venda entregue ou cancelada não pode ser alterada (a fatura já foi emitida). Cancela e cria outra se for preciso.");
 
-        if (venda.Status != VendaStatus.Paga)
-        {
-            foreach (var item in venda.Items.Where(i => i.PartId is not null))
-            {
-                var part = await _parts.FindByIdAsync(item.PartId!.Value, ct)
-                    ?? throw new NotFoundException("Part", item.PartId.Value);
-                EnsurePartSellable(part, item.Quantidade);
+        await ApplyHeaderAsync(venda, req, ct);
+        var lotes = await LoadLotesAsync(req.Linhas, venda.Items, ct);
+        var consome = ConsomeStock(venda.Estado);
+        if (consome) LibertarStock(venda, lotes);
+        ApplyLinhas(venda, req.Linhas, lotes);
+        if (consome) ConsumirStock(venda, lotes);
+        RecalculateTotals(venda);
 
-                var before = part.QtdStock;
-                var after = before - item.Quantidade;
-                part.QtdStock = after;
-                _parts.AddMovimento(new PartMovimento
-                {
-                    PartId = part.Id,
-                    Quantidade = -item.Quantidade,
-                    StockAntes = before,
-                    StockDepois = after,
-                    Motivo = PartMovimentoMotivo.VendaCliente,
-                    VendaId = venda.Id,
-                    Notas = $"Venda #{venda.Numero:D5}",
-                });
-            }
-
-            venda.Status = VendaStatus.Paga;
-            venda.PaymentMethod = req.PaymentMethod;
-            venda.Data = DateTime.UtcNow;
-            RecalculateTotals(venda);
-            await _vendas.SaveAsync(ct);
-
-            // Sprint 303: regista Payment via provider (default Manual). Manual não consulta
-            // provider externo — só persiste linha Pago síncrono. Mock/Ifthenpay passam pelo IPaymentProvider.
-            if (req.Provider is { } chosenProvider && _tenant.TenantId is { } payTenantId)
-            {
-                try
-                {
-                    await _payments.InitiateAsync(new PaymentInitiationRequest(
-                        TenantId: payTenantId,
-                        VendaId: venda.Id,
-                        Method: req.PaymentMethod,
-                        AmountCents: venda.TotalCents,
-                        Description: $"Venda #{venda.Numero:D5}"), chosenProvider, ct);
-                }
-                catch (InvalidOperationException)
-                {
-                    // Provider não registado ou método não suportado — falha silenciosa em vez
-                    // de bloquear a venda. Caller pode chamar /api/payments separadamente.
-                }
-            }
-
-            // DL 84/2021: emite garantia digital automática (3 anos default para consumo).
-            if (prefs.Sales.VendaGarantia == GarantiaAutoMode.Sim)
-                await EmitirGarantiaVendaSeNecessarioAsync(venda, venda.Data, ct);
-        }
-
-        venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? venda;
+        await _vendas.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new { venda.Numero, venda.TotalCents }, ct: ct);
         return ToDto(venda);
     }
 
+    public async Task<VendaDto> MudarEstadoAsync(Guid id, MudarEstadoVendaRequest req, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        var de = venda.Estado;
+        var para = req.Estado;
+        if (de == para) return ToDto(venda);
+        if (de == VendaEstado.Cancelada)
+            throw new ConflictException("venda_cancelada", "Venda cancelada não pode mudar de estado.");
+        if (de == VendaEstado.Entregue && para != VendaEstado.Cancelada)
+            throw new ConflictException("venda_entregue",
+                "Venda entregue só pode ser cancelada (emite a nota de crédito no programa de faturação).");
+        if (para == VendaEstado.Entregue && venda.Items.Count == 0)
+            throw new ValidationException("venda_sem_linhas", "Adiciona pelo menos uma linha antes de entregar.");
+
+        var lotes = await LoadLotesAsync([], venda.Items, ct);
+        if (ConsomeStock(de) && !ConsomeStock(para)) LibertarStock(venda, lotes);
+        if (!ConsomeStock(de) && ConsomeStock(para)) ConsumirStock(venda, lotes);
+
+        venda.Estado = para;
+        if (para == VendaEstado.Entregue)
+        {
+            MarcarEntregue(venda, req.PaymentMethod, lotes);
+            RecalculateTotals(venda);
+        }
+
+        await _vendas.SaveAsync(ct);
+        if (para == VendaEstado.Entregue) await EmitirGarantiaSeAplicavelAsync(venda, ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new { venda.Numero, de, para }, ct: ct);
+        return ToDto(venda);
+    }
+
+    public async Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        var numero = Clean(req.InvoiceNumber, 120);
+        venda.InvoiceNumber = numero;
+        venda.InvoiceEmittedAt = numero is null
+            ? null
+            : DateTime.SpecifyKind((req.InvoiceEmittedAt ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
+        await _vendas.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new { venda.Numero, venda.InvoiceNumber }, ct: ct);
+        return ToDto(venda);
+    }
+
+    // ---------- regras ----------
+
+    private async Task ApplyHeaderAsync(Venda venda, VendaWriteRequest req, CancellationToken ct)
+    {
+        if (req.Linhas is null || req.Linhas.Count > MaxLinhas)
+            throw new ValidationException("linhas_invalidas", $"Máximo {MaxLinhas} linhas por venda.");
+        if (req.ClienteId is { } clienteId)
+        {
+            venda.Cliente = await _clientes.FindByIdAsync(clienteId, ct) ?? throw new NotFoundException("Cliente", clienteId);
+            venda.ClienteId = clienteId;
+        }
+        else
+        {
+            venda.Cliente = null;
+            venda.ClienteId = null;
+        }
+        if (req.Tipo == VendaTipo.Reparacao && venda.ClienteId is null)
+            throw new ValidationException("cliente_obrigatorio", "Uma reparação precisa de cliente (para o avisar quando estiver pronta).");
+
+        venda.Tipo = req.Tipo;
+        venda.Equipamento = Clean(req.Equipamento, 200);
+        venda.Problema = Clean(req.Problema, 2000);
+        venda.Notas = Clean(req.Notas, 2000);
+    }
+
+    private async Task<Dictionary<Guid, CompraLinha>> LoadLotesAsync(
+        IReadOnlyList<VendaLinhaWriteRequest> novas, IEnumerable<VendaItem> atuais, CancellationToken ct)
+    {
+        var ids = novas.Select(l => l.CompraLinhaId).Concat(atuais.Select(i => i.CompraLinhaId))
+            .OfType<Guid>().Distinct().ToList();
+        if (ids.Count == 0) return [];
+        var lotes = (await _compras.FindLinhasAsync(ids, ct)).ToDictionary(l => l.Id);
+        foreach (var pedido in novas.Select(l => l.CompraLinhaId).OfType<Guid>())
+            if (!lotes.ContainsKey(pedido)) throw new NotFoundException("CompraLinha", pedido);
+        return lotes;
+    }
+
+    private static void ApplyLinhas(Venda venda, IReadOnlyList<VendaLinhaWriteRequest> linhas, Dictionary<Guid, CompraLinha> lotes)
+    {
+        var pedidas = linhas.Where(l => l.Id is not null).Select(l => l.Id!.Value).ToHashSet();
+        venda.Items.RemoveAll(i => !pedidas.Contains(i.Id));
+
+        foreach (var l in linhas)
+        {
+            Validate(l);
+            var item = l.Id is { } itemId
+                ? venda.Items.FirstOrDefault(i => i.Id == itemId)
+                    ?? throw new ValidationException("linha_inexistente", "Linha não pertence a esta venda.")
+                : null;
+            if (item is null)
+            {
+                item = new VendaItem { TenantId = venda.TenantId, Descricao = string.Empty };
+                venda.Items.Add(item);
+            }
+
+            CompraLinha? lote = l.CompraLinhaId is { } loteId ? lotes[loteId] : null;
+            if (item.CompraLinhaId != lote?.Id || item.CustoUnitarioPago is null) SnapshotLote(item, lote);
+            item.CompraLinhaId = lote?.Id;
+            item.CompraLinha = lote;
+            item.Descricao = Clean(l.Descricao, 300) ?? lote?.Descricao
+                ?? throw new ValidationException("descricao_obrigatoria", "Linha de serviço precisa de descrição.");
+            item.Quantidade = l.Quantidade;
+            item.PrecoUnitarioCents = l.PrecoUnitarioCents;
+            item.DescontoCents = l.DescontoCents;
+            item.IvaRate = l.IvaRate ?? TaxaVendaNormalPct;
+            item.Imei = NormalizeImei(l.Imei);
+        }
+    }
+
+    private static void Validate(VendaLinhaWriteRequest l)
+    {
+        if (l.Quantidade < 1) throw new ValidationException("quantidade_invalida", "Quantidade tem de ser pelo menos 1.");
+        if (l.PrecoUnitarioCents < 0) throw new ValidationException("preco_invalido", "Preço não pode ser negativo.");
+        if (l.DescontoCents < 0 || l.DescontoCents > l.Quantidade * l.PrecoUnitarioCents)
+            throw new ValidationException("desconto_invalido", "Desconto entre 0 e o total da linha.");
+        if (l.IvaRate is < 0 or > 100) throw new ValidationException("iva_invalido", "Taxa de IVA entre 0 e 100%.");
+    }
+
+    private static string? NormalizeImei(string? imei)
+    {
+        var clean = Clean(imei, 20);
+        if (clean is null) return null;
+        if (!ImeiValidator.IsValid(clean))
+            throw new ValidationException("imei_invalido", "IMEI inválido — verifica os dígitos.");
+        return ImeiValidator.Normalize(clean);
+    }
+
+    private static void SnapshotLote(VendaItem item, CompraLinha? lote)
+    {
+        item.CustoUnitarioPago = lote?.PrecoUnitarioPago;
+        item.TaxaIvaCompra = lote?.TaxaIvaCompra;
+    }
+
+    private static void ConsumirStock(Venda venda, Dictionary<Guid, CompraLinha> lotes)
+    {
+        foreach (var grupo in venda.Items.Where(i => i.CompraLinhaId is not null).GroupBy(i => i.CompraLinhaId!.Value))
+        {
+            var lote = lotes[grupo.Key];
+            var qtd = grupo.Sum(i => i.Quantidade);
+            if (lote.QuantidadeEmStock < qtd)
+                throw new ValidationException("stock_insuficiente",
+                    $"\"{lote.Descricao}\": só há {lote.QuantidadeEmStock} em stock (pedido {qtd}).");
+            lote.QuantidadeVendida += qtd;
+        }
+    }
+
+    private static void LibertarStock(Venda venda, Dictionary<Guid, CompraLinha> lotes)
+    {
+        foreach (var grupo in venda.Items.Where(i => i.CompraLinhaId is not null).GroupBy(i => i.CompraLinhaId!.Value))
+        {
+            if (!lotes.TryGetValue(grupo.Key, out var lote)) continue;
+            lote.QuantidadeVendida = Math.Max(0, lote.QuantidadeVendida - grupo.Sum(i => i.Quantidade));
+        }
+    }
+
+    private static void MarcarEntregue(Venda venda, PaymentMethod? metodo, Dictionary<Guid, CompraLinha> lotes)
+    {
+        venda.Data = DateTime.UtcNow;
+        if (metodo is { } m) venda.PaymentMethod = m;
+        // Snapshot definitivo: o custo que conta é o do momento da venda.
+        foreach (var item in venda.Items.Where(i => i.CompraLinhaId is not null))
+            if (lotes.TryGetValue(item.CompraLinhaId!.Value, out var lote)) SnapshotLote(item, lote);
+    }
+
+    private async Task EmitirGarantiaSeAplicavelAsync(Venda venda, CancellationToken ct)
+    {
+        // Garantia legal de bens (DL 84/2021) só nas vendas de produtos.
+        if (venda.Tipo != VendaTipo.Produto) return;
+        var prefs = await _preferences.GetAsync(ct);
+        if (prefs.Sales.VendaGarantia == GarantiaAutoMode.Sim)
+            await EmitirGarantiaVendaSeNecessarioAsync(venda, venda.Data, ct);
+    }
+
+    /// <summary>Contas da linha pelo motor de IVA (SPEC §3.3). Serviço = custo 0 e IVA de compra 0.</summary>
+    public static CalculoVenda Calcular(VendaItem i)
+        => IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, i.TaxaIvaCompra ?? 0m, i.IvaRate / 100m);
+
+    private static void RecalculateTotals(Venda venda)
+    {
+        venda.TotalCents = venda.Items.Sum(i => i.TotalCents);
+        venda.IvaCents = venda.Items.Sum(CalculateIvaCents);
+    }
+
+    private static int CalculateIvaCents(VendaItem item)
+        => (int)Math.Round(Calcular(item).IvaDaVenda * 100m, MidpointRounding.AwayFromZero);
+
     /// <summary>
-    /// Emite garantia automática para a Venda ao marcar paga.
+    /// Emite garantia automática para a Venda ao ser entregue.
     /// Sprint 127: período é resolvido a partir do <see cref="CondicaoArtigo"/> mais favorável
     /// entre os items (DL 84/2021 — bens móveis consumo). Configurável por tenant.
     /// Idempotente: se já existe, não faz nada.
@@ -289,8 +384,7 @@ public class VendaService : IVendaService
 
     /// <summary>
     /// Sprint 128: identifica a CondicaoArtigo que ditou o período da garantia (a do item
-    /// com o Max das dias). Útil para mostrar contexto na garantia digital ("3 anos · refurbished").
-    /// Vendas sem items devolvem <see cref="CondicaoArtigo.NaoAplicavel"/>.
+    /// com o Max das dias). Vendas sem items devolvem <see cref="CondicaoArtigo.NaoAplicavel"/>.
     /// </summary>
     public static CondicaoArtigo ResolveCondicaoDominante(Venda venda, Tenant? tenant)
     {
@@ -306,10 +400,8 @@ public class VendaService : IVendaService
     }
 
     /// <summary>
-    /// Sprint 127: resolve o período de garantia para uma Venda em função das condições dos items.
-    /// Aplica o MAIOR período entre as condições presentes — favorável ao consumidor e sempre
-    /// conforme com DL 84/2021 (excede o mínimo legal). Items sem condição (NaoAplicavel) ou
-    /// vendas sem items usam o default do tenant (campo Novo).
+    /// Sprint 127: período de garantia de uma Venda em função das condições dos items — o MAIOR
+    /// período entre as condições presentes (favorável ao consumidor, DL 84/2021).
     /// </summary>
     public static int ResolveGarantiaDiasFromItems(Venda venda, Tenant? tenant)
     {
@@ -320,11 +412,7 @@ public class VendaService : IVendaService
 
         var items = venda.Items;
         if (items is null || items.Count == 0) return defaultDias;
-
-        var diasPorItem = items
-            .Select(it => DiasParaCondicao(it.Condicao, defaultDias, openBox, recondicionado, usado))
-            .ToList();
-        return diasPorItem.Count == 0 ? defaultDias : diasPorItem.Max();
+        return items.Max(it => DiasParaCondicao(it.Condicao, defaultDias, openBox, recondicionado, usado));
     }
 
     public static int DiasParaCondicao(CondicaoArtigo condicao, int novoDias, int openBoxDias, int recondicionadoDias, int usadoDias) => condicao switch
@@ -338,132 +426,29 @@ public class VendaService : IVendaService
 
     public async Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default)
     {
-        // SearchAsync com pageSize generoso. 1000 vendas chega para vários meses.
-        var (rows, _) = await _vendas.SearchAsync(fromUtc, toUtc, null, 1, 1000, ct);
-
+        var (rows, _) = await _vendas.SearchAsync(new VendaFiltro(fromUtc, toUtc, Estado: VendaEstado.Entregue), 1, 5000, ct);
         var csv = new CsvBuilder();
-        csv.Row(
-            "numero", "data", "cliente_nome", "cliente_nif",
-            "total_eur", "iva_eur", "metodo_pagamento", "status",
-            "fatura_numero", "fatura_data",
-            "notas");
-
+        csv.Row("numero", "data", "tipo", "cliente_nome", "cliente_nif", "total_eur", "iva_eur", "iva_a_pagar_eur",
+            "lucro_eur", "metodo_pagamento", "fatura_numero", "fatura_data", "notas");
         foreach (var v in rows)
         {
-            // Calcular IVA total da venda a partir dos items
-            var totalCents = v.Items.Sum(i => Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents));
-            var ivaCents = v.Items.Sum(i =>
-            {
-                if (i.IvaRate <= 0) return 0;
-                var gross = Math.Max(0, i.Quantidade * i.PrecoUnitarioCents - i.DescontoCents);
-                return (int)Math.Round(gross - gross / (1m + i.IvaRate / 100m));
-            });
-
-            var statusLabel = v.Status switch
-            {
-                VendaStatus.Pendente => "Pendente",
-                VendaStatus.Paga => "Paga",
-                VendaStatus.Cancelada => "Cancelada",
-                _ => v.Status.ToString(),
-            };
-            var paymentLabel = v.PaymentMethod switch
-            {
-                PaymentMethod.Dinheiro => "Numerario",
-                PaymentMethod.Multibanco => "Multibanco",
-                PaymentMethod.MBWay => "MBWay",
-                PaymentMethod.TransferenciaBancaria => "Transferencia",
-                PaymentMethod.Cartao => "Cartao",
-                _ => "Outro",
-            };
-
+            var calc = v.Items.Select(Calcular).ToList();
             csv.Row(
                 v.Numero,
                 v.Data.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                v.Tipo.ToString(),
                 v.Cliente?.Nome ?? "",
                 v.Cliente?.Nif ?? "",
-                (totalCents / 100m).ToString("0.00", CultureInfo.InvariantCulture),
-                (ivaCents / 100m).ToString("0.00", CultureInfo.InvariantCulture),
-                paymentLabel,
-                statusLabel,
+                (v.TotalCents / 100m).ToString("0.00", CultureInfo.InvariantCulture),
+                IvaEngine.Euros(calc.Sum(c => c.IvaDaVenda)).ToString("0.00", CultureInfo.InvariantCulture),
+                IvaEngine.Euros(calc.Sum(c => c.IvaAPagarEstado)).ToString("0.00", CultureInfo.InvariantCulture),
+                IvaEngine.Euros(calc.Sum(c => c.Lucro)).ToString("0.00", CultureInfo.InvariantCulture),
+                v.PaymentMethod.ToString(),
                 v.InvoiceNumber ?? "",
                 v.InvoiceEmittedAt?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "",
                 v.Notas ?? "");
         }
-
         return csv.ToUtf8WithBom();
-    }
-
-    public async Task<VendaDto> CancelarAsync(Guid id, CancellationToken ct = default)
-    {
-        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
-        if (venda.Status == VendaStatus.Cancelada) return ToDto(venda);
-
-        if (venda.Status == VendaStatus.Paga)
-        {
-            foreach (var item in venda.Items.Where(i => i.PartId is not null))
-            {
-                var part = await _parts.FindByIdAsync(item.PartId!.Value, ct)
-                    ?? throw new NotFoundException("Part", item.PartId.Value);
-                var before = part.QtdStock;
-                var after = before + item.Quantidade;
-                part.QtdStock = after;
-                _parts.AddMovimento(new PartMovimento
-                {
-                    PartId = part.Id,
-                    Quantidade = item.Quantidade,
-                    StockAntes = before,
-                    StockDepois = after,
-                    Motivo = PartMovimentoMotivo.Devolucao,
-                    VendaId = venda.Id,
-                    Notas = $"Cancelamento venda #{venda.Numero:D5}",
-                });
-            }
-        }
-
-        venda.Status = VendaStatus.Cancelada;
-        await _vendas.SaveAsync(ct);
-
-        return ToDto(venda);
-    }
-
-    private static void ValidateItemRequest(CreateVendaItemRequest item)
-    {
-        if (item.Quantidade <= 0)
-            throw new ValidationException("quantidade_invalida", "Quantidade deve ser superior a zero.");
-        if (item.PrecoUnitarioCents < 0)
-            throw new ValidationException("preco_invalido", "Preco unitario nao pode ser negativo.");
-        if (item.DescontoCents < 0)
-            throw new ValidationException("desconto_invalido", "Desconto nao pode ser negativo.");
-        if (item.DescontoCents > item.Quantidade * item.PrecoUnitarioCents)
-            throw new ValidationException("desconto_excessivo", "Desconto nao pode exceder o total da linha.");
-        if (item.IvaRate < 0 || item.IvaRate > 100)
-            throw new ValidationException("iva_invalido", "IVA deve estar entre 0 e 100.");
-        if (item.PartId is null && string.IsNullOrWhiteSpace(item.Descricao))
-            throw new ValidationException("descricao_obrigatoria", "Linha sem stock precisa de descricao.");
-    }
-
-    private static void EnsurePartSellable(Part part, int quantity)
-    {
-        if (!part.Activo)
-            throw new ConflictException("part_inactive", "Peca inactiva nao pode ser vendida.");
-        if (part.QtdStock <= 0)
-            throw new ValidationException("stock_zero", $"{part.Nome} esta sem stock.");
-        if (part.QtdStock < quantity)
-            throw new ValidationException("stock_insuficiente", $"{part.Nome} so tem {part.QtdStock} unidade(s) em stock.");
-    }
-
-    private static void RecalculateTotals(Venda venda)
-    {
-        venda.TotalCents = venda.Items.Sum(i => i.TotalCents);
-        venda.IvaCents = venda.Items.Sum(CalculateIvaCents);
-    }
-
-    private static int CalculateIvaCents(VendaItem item)
-    {
-        if (item.IvaRate <= 0) return 0;
-        var total = item.TotalCents;
-        var net = total / (1 + item.IvaRate / 100m);
-        return (int)Math.Round(total - net, MidpointRounding.AwayFromZero);
     }
 
     private static VendaDto ToDto(Venda venda)
@@ -471,38 +456,27 @@ public class VendaService : IVendaService
         var cliente = venda.Cliente is null || venda.ClienteId is null
             ? null
             : new VendaClienteResumo(venda.Cliente.Id, venda.Cliente.Nome, venda.Cliente.Telefone ?? string.Empty);
+        var items = venda.Items.OrderBy(i => i.CreatedAt).Select(i =>
+        {
+            var c = Calcular(i);
+            return new VendaItemDto(i.Id, i.CompraLinhaId, i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents,
+                i.IvaRate, i.TotalCents, CalculateIvaCents(i), i.Imei, i.CustoUnitarioPago, i.TaxaIvaCompra,
+                c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro);
+        }).ToList();
 
         return new VendaDto(
-            venda.Id,
-            venda.Numero,
-            venda.Data,
-            cliente,
-            venda.TotalCents,
-            venda.IvaCents,
-            venda.PaymentMethod,
-            venda.Status,
-            venda.InvoiceNumber,
-            venda.InvoiceEmittedAt,
-            venda.Notas,
-            venda.Items.Select(i => new VendaItemDto(
-                i.Id,
-                i.PartId,
-                i.Part?.Sku,
-                i.Descricao,
-                i.Quantidade,
-                i.PrecoUnitarioCents,
-                i.DescontoCents,
-                i.IvaRate,
-                i.TotalCents,
-                CalculateIvaCents(i),
-                i.Imei,
-                i.Imei2,
-                i.FornecedorNome,
-                i.Condicao,
-                i.GarantiaFornecedorAteAo)).ToList(),
-            venda.Origem);
+            venda.Id, venda.Numero, venda.Tipo, venda.Estado, venda.Data, venda.CreatedAt, cliente,
+            venda.Equipamento, venda.Problema, venda.TotalCents, venda.IvaCents,
+            items.Sum(i => i.IvaAPagarEstado), items.Sum(i => i.Lucro),
+            venda.PaymentMethod, venda.InvoiceNumber, venda.InvoiceEmittedAt,
+            venda.Estado == VendaEstado.Entregue && venda.InvoiceNumber is null,
+            venda.Notas, items);
     }
 
-    private static string? Clean(string? s)
-        => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+    private static string? Clean(string? s, int max)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        var t = s.Trim();
+        return t.Length > max ? t[..max] : t;
+    }
 }

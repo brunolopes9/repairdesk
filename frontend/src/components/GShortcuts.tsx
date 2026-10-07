@@ -25,12 +25,11 @@ type ShortcutTarget = {
 const NAV_KEYS: Record<string, ShortcutTarget> = {
   d: { to: '/', label: 'Dashboard' },
   c: { to: '/clientes', label: 'Clientes' },
-  r: { to: '/reparacoes', label: 'Reparações' },
-  t: { to: '/trabalhos', label: 'Trabalhos' },
-  b: { to: '/balcao', label: 'Balcão' },
+  v: { to: '/vendas', label: 'Vendas' },
+  o: { to: '/compras', label: 'Compras' },
+  s: { to: '/compras?tab=stock', label: 'Stock' },
   e: { to: '/despesas', label: 'Despesas' },
-  s: { to: '/stock', label: 'Stock' },
-  p: { to: '/precos', label: 'Preços' },
+  t: { to: '/tarefas', label: 'Tarefas' },
   a: { to: '/auditoria', label: 'Auditoria' },
   i: { to: '/definicoes', label: 'Definições' },
 };

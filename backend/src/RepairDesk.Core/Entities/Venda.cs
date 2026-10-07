@@ -15,9 +15,12 @@ public class Venda : BaseEntity, ITenantEntity
     public int TotalCents { get; set; }
     public int IvaCents { get; set; }
     public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.Outro;
-    public VendaStatus Status { get; set; } = VendaStatus.Pendente;
-    /// <summary>Sprint 70: canal de origem da venda (default Balcao).</summary>
-    public VendaOrigem Origem { get; set; } = VendaOrigem.Balcao;
+    public VendaTipo Tipo { get; set; } = VendaTipo.Produto;
+    public VendaEstado Estado { get; set; } = VendaEstado.Orcamento;
+    /// <summary>Reparação: equipamento (marca, modelo, IMEI/nº série).</summary>
+    public string? Equipamento { get; set; }
+    /// <summary>Reparação: avaria descrita pelo cliente. Serviço: o que foi pedido.</summary>
+    public string? Problema { get; set; }
 
     /// <summary>Nº da fatura emitida fora do Mender (ex.: Moloni web) — registo manual.</summary>
     public string? InvoiceNumber { get; set; }

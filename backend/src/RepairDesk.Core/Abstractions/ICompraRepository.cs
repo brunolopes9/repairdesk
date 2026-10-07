@@ -21,6 +21,8 @@ public interface ICompraRepository
     Task AddAsync(CompraDocumento doc, CancellationToken ct = default);
     void Remove(CompraDocumento doc);
     void AddLinha(CompraLinha linha);
+    /// <summary>Linhas (lotes) com tracking, para mexer no stock dentro da mesma unidade de trabalho.</summary>
+    Task<IReadOnlyList<CompraLinha>> FindLinhasAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
     void RemoveLinha(CompraLinha linha);
     Task SaveAsync(CancellationToken ct = default);
 }

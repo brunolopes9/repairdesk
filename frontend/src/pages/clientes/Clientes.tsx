@@ -31,7 +31,7 @@ import { clienteTagsApi } from '../../lib/clienteTags/api';
 import { reparacoesApi } from '../../lib/reparacoes/api';
 import { vendasApi } from '../../lib/vendas/api';
 import { STATUS_LABEL } from '../../lib/reparacoes/types';
-import { VENDA_STATUS } from '../../lib/vendas/types';
+import { VENDA_ESTADO } from '../../lib/vendas/types';
 import { downloadFile } from '../../lib/downloadPdf';
 import { displayPhone } from '../../lib/phone/formatter';
 import { validateNif } from '../../lib/nif/validator';
@@ -716,7 +716,7 @@ function ClienteInspector({
   const reps = reparacoes.data?.items ?? [];
   const vds = vendas.data?.items ?? [];
   const repsPagas = reps.filter((r) => r.estado === 5);
-  const vendasPagas = vds.filter((v) => v.status === VENDA_STATUS.Paga);
+  const vendasPagas = vds.filter((v) => v.estado === VENDA_ESTADO.Entregue);
   const totalGasto =
     repsPagas.reduce((s, r) => s + (r.precoFinalCents ?? r.orcamentoCents ?? 0), 0) +
     vendasPagas.reduce((s, v) => s + v.totalCents, 0);

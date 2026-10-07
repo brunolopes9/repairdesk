@@ -30,12 +30,10 @@ public class PublicWarrantyPdfTests : IClassFixture<RepairDeskApiFactory>
     {
         // 1. Cria e paga uma venda: a garantia digital é emitida automaticamente (preferência default).
         var client = await NewAuthedClientAsync();
-        var create = await client.PostAsJsonAsync("/api/vendas", new CreateVendaRequest(null,
-            new[] { new CreateVendaItemRequest(null, "Película vidro temperado", 1, 1500, 0, 23m) }, "PDF público test"));
+        var create = await client.PostAsJsonAsync("/api/vendas", new VendaWriteRequest(VendaTipo.Produto, null, null, null, "PDF público test",
+            [new VendaLinhaWriteRequest(null, null, "Película vidro temperado", 1, 1500)], VendaEstado.Entregue, PaymentMethod.MBWay));
         create.EnsureSuccessStatusCode();
         var venda = (await create.Content.ReadFromJsonAsync<VendaDto>())!;
-        (await client.PostAsJsonAsync($"/api/vendas/{venda.Id}/marcar-paga", new MarcarVendaPagaRequest(PaymentMethod.MBWay)))
-            .EnsureSuccessStatusCode();
 
         string slug;
         using (var scope = _factory.Services.CreateScope())

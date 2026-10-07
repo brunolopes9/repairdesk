@@ -2,37 +2,43 @@ using RepairDesk.Core.Enums;
 
 namespace RepairDesk.Services.Vendas;
 
-public sealed record CreateVendaItemRequest(
-    Guid? PartId,
+/// <summary>
+/// Linha de venda. Com <see cref="CompraLinhaId"/> = unidade(s) de um lote de stock; sem = serviço /
+/// mão de obra (IVA sobre o valor todo, sem dedução associada — SPEC §5.5).
+/// </summary>
+public sealed record VendaLinhaWriteRequest(
+    Guid? Id,
+    Guid? CompraLinhaId,
     string? Descricao,
     int Quantidade,
+    /// <summary>Preço unitário cobrado, com IVA. Para lotes, a UI propõe o preço final do motor (SPEC §3.2).</summary>
     int PrecoUnitarioCents,
-    int DescontoCents,
-    decimal IvaRate,
-    string? Imei = null,
-    string? Imei2 = null,
-    string? FornecedorNome = null,
-    CondicaoArtigo? Condicao = null,
-    DateTime? GarantiaFornecedorAteAo = null);
+    int DescontoCents = 0,
+    /// <summary>Taxa de IVA da venda em % (23, 13, 6, 0). Null → taxa normal.</summary>
+    decimal? IvaRate = null,
+    string? Imei = null);
 
-public sealed record CreateVendaRequest(
+public sealed record VendaWriteRequest(
+    VendaTipo Tipo,
     Guid? ClienteId,
-    IReadOnlyList<CreateVendaItemRequest> Items,
+    string? Equipamento,
+    string? Problema,
     string? Notas,
-    VendaOrigem? Origem = null);
+    IReadOnlyList<VendaLinhaWriteRequest> Linhas,
+    /// <summary>Só na criação: estado inicial (por omissão Orçamento; venda ao balcão = Entregue).</summary>
+    VendaEstado? Estado = null,
+    PaymentMethod? PaymentMethod = null);
 
-public sealed record MarcarVendaPagaRequest(
-    PaymentMethod PaymentMethod,
-    // Sprint 303: provider opcional. null → Manual (sem registo Payment).
-    // Mock/Ifthenpay registam Payment automaticamente quando a venda fica paga.
-    PaymentProvider? Provider = null);
+public sealed record MudarEstadoVendaRequest(VendaEstado Estado, PaymentMethod? PaymentMethod = null);
+
+/// <summary>Nº da fatura emitida fora do Mender (Moloni). Vazio = limpar.</summary>
+public sealed record RegistarFaturaRequest(string? InvoiceNumber, DateTime? InvoiceEmittedAt);
 
 public sealed record VendaClienteResumo(Guid Id, string Nome, string Telefone);
 
 public sealed record VendaItemDto(
     Guid Id,
-    Guid? PartId,
-    string? PartSku,
+    Guid? CompraLinhaId,
     string Descricao,
     int Quantidade,
     int PrecoUnitarioCents,
@@ -41,25 +47,33 @@ public sealed record VendaItemDto(
     int TotalCents,
     int IvaCents,
     string? Imei,
-    string? Imei2,
-    string? FornecedorNome,
-    CondicaoArtigo Condicao,
-    DateTime? GarantiaFornecedorAteAo);
+    // Snapshot do lote e contas do motor de IVA (euros, sem arredondar — a UI arredonda).
+    decimal? CustoUnitarioPago,
+    decimal? TaxaIvaCompra,
+    decimal CustoDasPecas,
+    decimal IvaAPagarEstado,
+    decimal Lucro);
 
 public sealed record VendaDto(
     Guid Id,
     int Numero,
+    VendaTipo Tipo,
+    VendaEstado Estado,
     DateTime Data,
+    DateTime CreatedAt,
     VendaClienteResumo? Cliente,
+    string? Equipamento,
+    string? Problema,
     int TotalCents,
     int IvaCents,
+    decimal IvaAPagarEstado,
+    decimal Lucro,
     PaymentMethod PaymentMethod,
-    VendaStatus Status,
     string? InvoiceNumber,
     DateTime? InvoiceEmittedAt,
+    bool FaturaPorRegistar,
     string? Notas,
-    IReadOnlyList<VendaItemDto> Items,
-    VendaOrigem Origem);
+    IReadOnlyList<VendaItemDto> Items);
 
 public sealed record VendaImeiLookupDto(
     Guid VendaId,

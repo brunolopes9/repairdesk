@@ -20,7 +20,7 @@ public class VendaRepository : IVendaRepository
         => _db.Vendas
             .Include(v => v.Cliente)
             .Include(v => v.Items)
-                .ThenInclude(i => i.Part)
+                .ThenInclude(i => i.CompraLinha)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
 
     public async Task CreateWithNextNumeroAsync(Venda venda, Guid tenantId, CancellationToken ct = default)
@@ -51,14 +51,9 @@ public class VendaRepository : IVendaRepository
         }
     }
 
-    public async Task<(IReadOnlyList<Venda> Items, int Total)> SearchAsync(
-        DateTime? fromUtc,
-        DateTime? toUtc,
-        Guid? clienteId,
-        int page,
-        int pageSize,
-        CancellationToken ct = default)
+    public async Task<(IReadOnlyList<Venda> Items, int Total)> SearchAsync(VendaFiltro filtro, int page, int pageSize, CancellationToken ct = default)
     {
+        var (fromUtc, toUtc, clienteId) = (filtro.FromUtc, filtro.ToUtc, filtro.ClienteId);
         var q = _db.Vendas
             .AsNoTracking()
             .Include(v => v.Cliente)
@@ -68,6 +63,20 @@ public class VendaRepository : IVendaRepository
         if (fromUtc is not null) q = q.Where(v => v.Data >= fromUtc.Value);
         if (toUtc is not null) q = q.Where(v => v.Data < toUtc.Value);
         if (clienteId is { } cid) q = q.Where(v => v.ClienteId == cid);
+        if (filtro.Tipo is { } tipo) q = q.Where(v => v.Tipo == tipo);
+        if (filtro.Estado is { } estado) q = q.Where(v => v.Estado == estado);
+        if (filtro.EmCurso) q = q.Where(v => v.Estado == VendaEstado.Orcamento || v.Estado == VendaEstado.AEsperaPeca || v.Estado == VendaEstado.Pronta);
+        if (filtro.FaturaPorRegistar) q = q.Where(v => v.Estado == VendaEstado.Entregue && v.InvoiceNumber == null);
+        if (!string.IsNullOrWhiteSpace(filtro.Q))
+        {
+            var t = filtro.Q.Trim();
+            var numero = int.TryParse(t, out var n) ? n : (int?)null;
+            q = q.Where(v => v.Numero == numero
+                || (v.Cliente != null && v.Cliente.Nome.Contains(t))
+                || (v.Equipamento != null && v.Equipamento.Contains(t))
+                || (v.InvoiceNumber != null && v.InvoiceNumber.Contains(t))
+                || v.Items.Any(i => i.Descricao.Contains(t)));
+        }
 
         var total = await q.CountAsync(ct);
         var items = await q
@@ -82,7 +91,7 @@ public class VendaRepository : IVendaRepository
 
     public async Task<int> SumPaidBetweenAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
         => await _db.Vendas
-            .Where(v => v.Status == VendaStatus.Paga && v.Data >= fromUtc && v.Data < toUtc)
+            .Where(v => v.Estado == VendaEstado.Entregue && v.Data >= fromUtc && v.Data < toUtc)
             .SumAsync(v => v.TotalCents, ct);
 
     public async Task<IReadOnlyList<string>> ListDistinctFornecedoresAsync(CancellationToken ct = default)
@@ -98,7 +107,7 @@ public class VendaRepository : IVendaRepository
         => await _db.VendaItems
             .AsNoTracking()
             .Where(i => i.Venda != null
-                        && i.Venda.Status == VendaStatus.Paga
+                        && i.Venda.Estado == VendaEstado.Entregue
                         && i.Venda.Data >= fromUtc
                         && i.Venda.Data < toUtc)
             .GroupBy(i => new { i.PartId, i.Descricao })
@@ -122,7 +131,7 @@ public class VendaRepository : IVendaRepository
                 .ThenInclude(v => v!.Cliente)
             .Where(i => (i.Imei == imei || i.Imei2 == imei)
                         && i.Venda != null
-                        && i.Venda.Status != VendaStatus.Pendente)
+                        && i.Venda.Estado == VendaEstado.Entregue)
             .OrderByDescending(i => i.Venda!.Data)
             .Select(i => new VendaImeiLookupRow(
                 i.Venda!.Id,

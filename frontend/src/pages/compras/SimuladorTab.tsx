@@ -4,7 +4,7 @@ import { SectionCard } from '../../components/ui';
 import { comprasApi } from '../../lib/compras/api';
 import { formatEur, parseDecimal } from '../../lib/compras/format';
 import { REGIME_IVA, REGIME_IVA_LABEL, type RegimeIva } from '../../lib/fornecedores/api';
-import { inputCls, labelCls } from './ui';
+import { inputCls, labelCls } from '../../components/ui/formClasses';
 
 /** Calculadora de uma peça (SPEC compras §4.6): quanto cobrar, quanto IVA entregar, quanto sobra. Não grava nada. */
 export default function SimuladorTab() {

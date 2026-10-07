@@ -40,8 +40,11 @@ public static class IvaEngine
 
     /// <summary>Venda a um preço escolhido (diferente do sugerido) — SPEC §3.3.</summary>
     public static CalculoVenda VendaAPreco(int quantidade, decimal precoUnitarioCobradoComIva, decimal precoPago, decimal taxaIvaCompra, decimal taxaIvaVenda)
+        => VendaPorTotal(quantidade, quantidade * precoUnitarioCobradoComIva, precoPago, taxaIvaCompra, taxaIvaVenda);
+
+    /// <summary>Igual a <see cref="VendaAPreco"/> mas a partir do total cobrado da linha (já com desconto).</summary>
+    public static CalculoVenda VendaPorTotal(int quantidade, decimal valorCobradoComIva, decimal precoPago, decimal taxaIvaCompra, decimal taxaIvaVenda)
     {
-        var valorCobradoComIva = quantidade * precoUnitarioCobradoComIva;
         var valorCobradoSemIva = valorCobradoComIva / (1 + taxaIvaVenda);
         var ivaDaVenda = valorCobradoComIva - valorCobradoSemIva;
         var ivaPagoNaCompraUnit = precoPago - precoPago / (1 + taxaIvaCompra);

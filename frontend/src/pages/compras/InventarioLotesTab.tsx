@@ -6,7 +6,7 @@ import { EmptyState, SectionCard, SkeletonRow } from '../../components/ui';
 import { comprasApi } from '../../lib/compras/api';
 import { formatEur } from '../../lib/compras/format';
 import { formatDateOnly } from '../../lib/money';
-import { inputCls } from './ui';
+import { inputCls } from '../../components/ui/formClasses';
 
 /** Lotes com stock > 0 (SPEC compras §4.5), com preço de venda sugerido e IVA a entregar ao Estado. */
 export default function InventarioLotesTab() {
@@ -20,7 +20,7 @@ export default function InventarioLotesTab() {
   }, [inv.data, q]);
 
   const totais = useMemo(() => linhas.reduce(
-    (s, l) => ({ un: s.un + l.quantidadeEmStock, pago: s.pago + l.totalPago, lucro: s.lucro + l.lucro * l.quantidadeEmStock }),
+    (s, l) => ({ un: s.un + l.quantidadeEmStock, pago: s.pago + l.totalPago, lucro: s.lucro + l.lucro }),
     { un: 0, pago: 0, lucro: 0 },
   ), [linhas]);
 
@@ -49,8 +49,8 @@ export default function InventarioLotesTab() {
                 <th className="px-4 py-2 text-right font-medium">Stock</th>
                 <th className="px-4 py-2 text-right font-medium">Pago un.</th>
                 <th className="px-4 py-2 text-right font-medium">Venda c/ IVA</th>
-                <th className="px-4 py-2 text-right font-medium">Lucro un.</th>
-                <th className="px-4 py-2 text-right font-medium">IVA ao Estado</th>
+                <th className="px-4 py-2 text-right font-medium">Lucro (lote)</th>
+                <th className="px-4 py-2 text-right font-medium">IVA ao Estado (lote)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">

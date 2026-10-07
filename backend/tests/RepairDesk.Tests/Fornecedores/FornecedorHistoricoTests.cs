@@ -62,7 +62,7 @@ public class FornecedorHistoricoTests
         db.Clientes.Add(new Cliente { Id = clienteId, TenantId = Tenant, Nome = "Ana", Telefone = "910000000" });
         db.Vendas.Add(new Venda
         {
-            TenantId = Tenant, Numero = 1, Status = VendaStatus.Paga, Data = DateTime.UtcNow.AddMonths(-3),
+            TenantId = Tenant, Numero = 1, Estado = VendaEstado.Entregue, Data = DateTime.UtcNow.AddMonths(-3),
             Items = new List<VendaItem>
             {
                 new() { TenantId = Tenant, Descricao = "iPhone A", Quantidade = 1, PrecoUnitarioCents = 30000, IvaRate = 23m, FornecedorNome = "Tudo4Mobile", Imei = "111111111111119" },

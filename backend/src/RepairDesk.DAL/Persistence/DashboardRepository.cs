@@ -69,7 +69,7 @@ public class DashboardRepository : IDashboardRepository
 
         var vendasPagas = await _db.Vendas
             .AsNoTracking()
-            .Where(v => v.Status == VendaStatus.Paga && v.Data >= inicio7d && v.Data < diaSeguinte)
+            .Where(v => v.Estado == VendaEstado.Entregue && v.Data >= inicio7d && v.Data < diaSeguinte)
             .Select(v => new { v.Data, v.TotalCents })
             .ToListAsync(ct);
 
@@ -86,7 +86,7 @@ public class DashboardRepository : IDashboardRepository
         var vendaItensPagos = await _db.VendaItems
             .AsNoTracking()
             .Where(i => i.Venda != null
-                        && i.Venda.Status == VendaStatus.Paga
+                        && i.Venda.Estado == VendaEstado.Entregue
                         && i.Venda.Data >= inicio7d && i.Venda.Data < diaSeguinte)
             .Select(i => new
             {
@@ -228,7 +228,7 @@ public class DashboardRepository : IDashboardRepository
             .Select(t => new { t.PrecoFinalCents, t.OrcamentoCents, t.Categoria })
             .ToListAsync(ct);
         var vendasPagas = await _db.Vendas
-            .Where(v => v.Status == VendaStatus.Paga && v.Data >= fromUtc && v.Data < toUtc)
+            .Where(v => v.Estado == VendaEstado.Entregue && v.Data >= fromUtc && v.Data < toUtc)
             .Select(v => new { v.Id, v.ClienteId, ClienteNome = v.Cliente != null ? v.Cliente.Nome : null, v.TotalCents, v.Data })
             .ToListAsync(ct);
 
@@ -302,7 +302,7 @@ public class DashboardRepository : IDashboardRepository
             .Select(t => new { ClienteId = t.ClienteId!.Value, Nome = t.Cliente!.Nome, Cents = t.PrecoFinalCents ?? t.OrcamentoCents ?? 0 })
             .ToListAsync(ct);
         var clientesVendas = await _db.Vendas
-            .Where(v => v.Status == VendaStatus.Paga && v.Data >= ninetyDaysAgo
+            .Where(v => v.Estado == VendaEstado.Entregue && v.Data >= ninetyDaysAgo
                      && v.ClienteId != null && v.Cliente != null)
             .Select(v => new { ClienteId = v.ClienteId!.Value, Nome = v.Cliente!.Nome, Cents = v.TotalCents })
             .ToListAsync(ct);
@@ -319,7 +319,7 @@ public class DashboardRepository : IDashboardRepository
             .ToList();
         var vendaItemsPagos = await _db.VendaItems
             .AsNoTracking()
-            .Where(i => i.Venda != null && i.Venda.Status == VendaStatus.Paga && i.Venda.Data >= fromUtc && i.Venda.Data < toUtc)
+            .Where(i => i.Venda != null && i.Venda.Estado == VendaEstado.Entregue && i.Venda.Data >= fromUtc && i.Venda.Data < toUtc)
             .Select(i => new { i.PartId, i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents })
             .ToListAsync(ct);
         var topProdutos = vendaItemsPagos
@@ -368,7 +368,7 @@ public class DashboardRepository : IDashboardRepository
         var vendasPagasItems = await _db.VendaItems
             .AsNoTracking()
             .Where(i => i.Venda != null
-                        && i.Venda.Status == VendaStatus.Paga
+                        && i.Venda.Estado == VendaEstado.Entregue
                         && i.Venda.Data >= fromUtc && i.Venda.Data < toUtc)
             .Select(i => new
             {
@@ -379,7 +379,7 @@ public class DashboardRepository : IDashboardRepository
         var receitaVendas = vendasPagasItems.Sum(x => x.Receita);
         var custoVendas = vendasPagasItems.Sum(x => x.Custo);
         var countVendas = await _db.Vendas
-            .CountAsync(v => v.Status == VendaStatus.Paga && v.Data >= fromUtc && v.Data < toUtc, ct);
+            .CountAsync(v => v.Estado == VendaEstado.Entregue && v.Data >= fromUtc && v.Data < toUtc, ct);
 
         var reparacoesPagasIds = reparacoesPagas.Select(r => r.Id).ToHashSet();
         var trabalhosPagosIds = trabalhosPagos.Select(t => t.Id).ToHashSet();
@@ -545,7 +545,7 @@ public class DashboardRepository : IDashboardRepository
         // Vendas pagas com COGS (custo da peça × quantidade) por mês
         var vendaItensPagos = await _db.VendaItems
             .AsNoTracking()
-            .Where(i => i.Venda != null && i.Venda.Status == VendaStatus.Paga
+            .Where(i => i.Venda != null && i.Venda.Estado == VendaEstado.Entregue
                         && i.Venda.Data >= inicio && i.Venda.Data < fim)
             .Select(i => new
             {
@@ -597,7 +597,7 @@ public class DashboardRepository : IDashboardRepository
 
         var vendaItensPagos = await _db.VendaItems
             .AsNoTracking()
-            .Where(i => i.Venda != null && i.Venda.Status == VendaStatus.Paga
+            .Where(i => i.Venda != null && i.Venda.Estado == VendaEstado.Entregue
                         && i.Venda.Data >= inicio && i.Venda.Data < fim)
             .Select(i => new
             {
@@ -743,7 +743,7 @@ public class DashboardRepository : IDashboardRepository
             where r.Imei != null
                 && r.CreatedAt >= fromUtc && r.CreatedAt < toUtc
                 && vi.Venda != null
-                && vi.Venda.Status == VendaStatus.Paga
+                && vi.Venda.Estado == VendaEstado.Entregue
                 && vi.Venda.Data < r.CreatedAt  // venda tem de ser anterior à reparação
             orderby r.CreatedAt descending
             select new ReparacaoEmGarantiaRow(

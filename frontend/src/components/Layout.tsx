@@ -6,12 +6,9 @@ import {
   LayoutDashboard,
   Users,
   Wrench,
-  Briefcase,
   Receipt,
   Banknote,
   ShoppingCart,
-  PackageSearch,
-  Tags,
   FileText,
   BarChart3,
   ChevronDown,
@@ -31,9 +28,6 @@ import {
   Search,
   SlidersHorizontal,
   UserCog,
-  Lock,
-  Boxes,
-  ClipboardCheck,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
@@ -62,6 +56,11 @@ const nav: NavItem[] = [
   // todo o operacional. Numa loja de reparações ninguém é "só caixa" — não há split Cashier.
   // Operacional = sem tag (visível a Admin + Tech). Sensível = adminOnly (só Admin).
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  // Doc 94 (reformulação out/2026): três secções de negócio — Vendas, Compras (inclui stock por
+  // lote) e Despesas. Balcão, Preços, Stock de peças e Trabalhos deixaram de existir.
+  { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
+  { to: '/compras', label: 'Compras', icon: Receipt },
+  { to: '/despesas', label: 'Despesas', icon: Banknote },
   {
     label: 'Clientes',
     icon: Users,
@@ -70,44 +69,10 @@ const nav: NavItem[] = [
       { to: '/clientes/campanhas', label: 'Campanhas', icon: Megaphone },
     ],
   },
-  { to: '/reparacoes', label: 'Reparações', icon: Wrench },
-  { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   { to: '/agendamentos', label: 'Agendamentos', icon: CalendarClock },
+  { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   // Sprint 422 (Doc 90 Tier 2 #7): TODO list interna.
   { to: '/tarefas', label: 'Tarefas', icon: ClipboardList },
-  { to: '/trabalhos', label: 'Trabalhos', icon: Briefcase },
-  // Sprint 383 (Doc 86): "Balcão" unifica POS + Caixa numa página com tabs (/balcao). A regra
-  // "não vendes com caixa fechada" vive na própria POS. Filhos = deep-link para os tabs.
-  {
-    label: 'Balcão',
-    icon: ShoppingCart,
-    children: [
-      { to: '/balcao', label: 'Venda rápida', icon: ShoppingCart },
-      { to: '/balcao?tab=caixa', label: 'Caixa de hoje', icon: Banknote },
-      { to: '/balcao?tab=fecho', label: 'Fecho & Z-Reports', icon: Lock },
-    ],
-  },
-  {
-    label: 'Compras e Operação',
-    icon: Receipt,
-    children: [
-      { to: '/compras', label: 'Compras · Fornecedores', icon: Receipt },
-      { to: '/despesas', label: 'Despesas & custos', icon: Banknote },
-    ],
-  },
-  // Sprint 445 (Bruno feedback): juntar Catálogo + Stock + Produtos + Inventário num parent
-  // colapsável único. Antes /stock e /produtos não tinham entry no menu (Sprint 388 escondeu-os
-  // dentro do Catálogo, mas Bruno precisa de aceder direto). Agora ficam tudo aqui dentro.
-  {
-    label: 'Stock',
-    icon: Boxes,
-    children: [
-      { to: '/stock', label: 'Stock (peças)', icon: Boxes },
-      // Sprint 421 (Doc 90): inventário físico = contagem para validar stock. Só admin.
-      { to: '/inventario', label: 'Contagens físicas', icon: ClipboardCheck, adminOnly: true },
-    ],
-  },
-  { to: '/precos', label: 'Preços', icon: Tags },
   {
     label: 'Relatorios',
     icon: FileText,
@@ -128,7 +93,6 @@ const nav: NavItem[] = [
       { to: '/definicoes', label: 'Empresa', icon: Settings },
       { to: '/definicoes/preferencias', label: 'Preferências', icon: SlidersHorizontal },
       { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2 },
-      { to: '/definicoes/kits', label: 'Kits de peças', icon: PackageSearch, adminOnly: true },
       { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
       { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },
       { to: '/definicoes/utilizadores', label: 'Utilizadores', icon: UserCog },

@@ -105,8 +105,10 @@ export interface InventarioLinha {
   totalPago: number;
   totalSemIva: number;
   precoFinalComIva: number;
+  /** Totais do que está em stock (quantidade × por unidade). */
   lucro: number;
   ivaAPagarEstado: number;
+  taxaIvaCompra: number;
 }
 
 export interface ResumoColuna {

@@ -12,6 +12,13 @@ public class VendaItem : BaseEntity, ITenantEntity
     public Guid? PartId { get; set; }
     public Part? Part { get; set; }
 
+    /// <summary>Doc 94 Fase 4: lote de stock de onde saiu (null = serviço / mão de obra).</summary>
+    public Guid? CompraLinhaId { get; set; }
+    public CompraLinha? CompraLinha { get; set; }
+    /// <summary>Snapshot do lote no momento da venda (SPEC §2.4): preço pago por unidade c/ IVA.</summary>
+    public decimal? CustoUnitarioPago { get; set; }
+    /// <summary>Snapshot do lote: taxa de IVA da compra (fração, 0.23 / 0).</summary>
+    public decimal? TaxaIvaCompra { get; set; }
     public required string Descricao { get; set; }
     public int Quantidade { get; set; }
     public int PrecoUnitarioCents { get; set; }

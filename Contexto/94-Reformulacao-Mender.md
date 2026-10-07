@@ -35,7 +35,7 @@ Menu: Dashboard · **Vendas** · **Compras** (inclui Stock) · **Despesas** · C
 | 1 | Login por email **ou** username + "Esqueci a palavra-passe" (Resend) | ✅ |
 | 2 | Remover Moloni/faturação, loja (incl. Produtos/Catálogo e Molano), webhooks + migração de BD | ✅ |
 | 3 | Motor de IVA + Compras/Stock por lote + IA/email ligados ao modelo novo + import do Excel (Sprint 556). *Perfil fiscal passou para a Fase 6, junto das Atividades.* | ✅ |
-| 4 | Vendas unificadas (reparação simples) + limpeza Balcão/Trabalhos/Reparações/Preços/Catálogo | ⏳ |
+| 4 | Vendas unificadas (reparação simples) + limpeza Balcão/Trabalhos/Reparações/Preços/Catálogo. 4a ✅ (Sprint 557: Vendas novas, Balcão removido da UI); 4b ⏳ (apagar caixa, Peças, Preços, Contagens, Kits, Trabalhos); 4c ⏳ (Reparações antigas) | 🟡 |
 | 5 | Despesas + IVA & Resultados + balancete trimestral | ⏳ |
 | 7 | Motor IRS + Segurança Social completo, recomendações por regras e agente no site (só explica o que o motor calcula) | ⏳ |
 | 6 | Atividades + Finanças + import `Gestao_Financeira_v10.xlsx` (só Informática, Trading, despesas e fixas) | ⏳ |
@@ -143,3 +143,22 @@ Migração `Sprint555RemoveFaturacaoLojaWebhooks`: 9 tabelas + colunas Invoice*/
   idempotente. "Faturado = Sim" não marca venda — as vendas passam a ser registadas nas Vendas (Fase 4).
 - Ainda por fazer na Fase 4: vendas a consumir lotes (snapshot do custo/IVA), remover `Part`/stock antigo,
   "Compras aprovadas" antigas (despesas de categoria stock) deixam de aparecer em Compras.
+
+## Fase 4a — notas (Sprint 557)
+
+- **Venda** evolui (não há entidade paralela): `Tipo` (Produto / Reparação / Serviço), `Estado` (Orçamento →
+  À espera de peça → Pronta → Entregue & paga; Cancelada), `Equipamento` e `Problema` para reparações.
+  Migração: `Status` → `Estado` (Pendente→Pronta, Paga→Entregue, Cancelada→Cancelada); `Origem` apagada;
+  vendas antigas ficam `Tipo = Produto`.
+- **Linhas**: serviço/mão de obra (IVA sobre o valor todo) ou unidade(s) de um **lote** (`CompraLinhaId`).
+  Snapshot do custo pago e da taxa de IVA da compra na linha; refrescado ao passar a Entregue (SPEC §2.4).
+  Contas pelo `IvaEngine.VendaPorTotal` (SPEC §3.3, inclui desconto).
+- **Stock**: Orçamento não mexe; À espera de peça / Pronta / Entregue consomem (`QuantidadeVendida`);
+  Cancelada devolve; editar liberta e volta a consumir na mesma transação. Entregue/Cancelada não se editam.
+- **Fatura**: decisão do Bruno — avisar, não bloquear. Entregue sem nº → "Fatura por registar" (vista própria
+  nas Vendas). Registo do nº via `PUT /api/vendas/{id}/fatura`. Cancelar uma venda entregue lembra a nota de crédito.
+- Garantia legal automática (DL 84/2021) só em vendas de **Produto**.
+- Menu novo: Dashboard · Vendas · Compras · Despesas · Clientes · Agendamentos · Pedidos online · Tarefas ·
+  Relatórios · Auditoria · Definições. Balcão (POS + caixa + fecho Z) removido do frontend.
+- Por decidir com o Bruno antes da 4c: que extras das Reparações antigas ficam (PDF entrada/entrega com
+  assinatura, portal do cliente, fotos, garantias de reparação).

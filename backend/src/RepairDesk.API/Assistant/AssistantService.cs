@@ -235,7 +235,7 @@ public sealed class AssistantService : IAssistantService
                 var days = GetInt(input, "days") ?? 30;
                 var since = DateTime.UtcNow.AddDays(-Math.Clamp(days, 1, 366));
                 var vendas = _db.Vendas.AsNoTracking()
-                    .Where(v => v.Status == VendaStatus.Paga && v.CreatedAt >= since);
+                    .Where(v => v.Estado == VendaEstado.Entregue && v.CreatedAt >= since);
                 var count = await vendas.CountAsync(ct);
                 var totalCents = count == 0 ? 0 : await vendas.SumAsync(v => v.TotalCents, ct);
                 var ivaCents = count == 0 ? 0 : await vendas.SumAsync(v => v.IvaCents, ct);
@@ -308,8 +308,8 @@ public sealed class AssistantService : IAssistantService
                         v.Numero,
                         data = v.Data.ToString("yyyy-MM-dd"),
                         total_euros = Math.Round(v.TotalCents / 100.0, 2),
-                        estado = v.Status.ToString(),
-                        origem = v.Origem.ToString(),
+                        estado = v.Estado.ToString(),
+                        tipo = v.Tipo.ToString(),
                         cliente = c != null ? c.Nome : null,
                     }).Take(20).ToListAsync(ct);
                 return JsonSerializer.Serialize(new { count = vendas.Count, vendas });

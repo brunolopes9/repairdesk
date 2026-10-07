@@ -29,7 +29,7 @@ public class AnaliseVendasTests
         db.Vendas.AddRange(
             new Venda
             {
-                TenantId = Tenant, Numero = 1, Status = VendaStatus.Paga, Data = Dentro,
+                TenantId = Tenant, Numero = 1, Estado = VendaEstado.Entregue, Data = Dentro,
                 Items = new List<VendaItem>
                 {
                     new() { TenantId = Tenant, Descricao = "Película iPhone", Quantidade = 2, PrecoUnitarioCents = 1000, IvaRate = 23m, Part = part },
@@ -38,7 +38,7 @@ public class AnaliseVendasTests
             },
             new Venda
             {
-                TenantId = Tenant, Numero = 2, Status = VendaStatus.Paga, Data = Dentro,
+                TenantId = Tenant, Numero = 2, Estado = VendaEstado.Entregue, Data = Dentro,
                 Items = new List<VendaItem>
                 {
                     new() { TenantId = Tenant, Descricao = "película iphone", Quantidade = 3, PrecoUnitarioCents = 1000, IvaRate = 23m, Part = part }, // agrega case-insensitive
@@ -46,7 +46,7 @@ public class AnaliseVendasTests
             },
             new Venda // FORA: não paga
             {
-                TenantId = Tenant, Numero = 3, Status = VendaStatus.Pendente, Data = Dentro,
+                TenantId = Tenant, Numero = 3, Estado = VendaEstado.Pronta, Data = Dentro,
                 Items = new List<VendaItem> { new() { TenantId = Tenant, Descricao = "Película iPhone", Quantidade = 9, PrecoUnitarioCents = 1000, IvaRate = 23m } },
             });
         await db.SaveChangesAsync();
@@ -82,7 +82,7 @@ public class AnaliseVendasTests
         });
         db.Vendas.Add(new Venda
         {
-            TenantId = Tenant, Numero = 1, Status = VendaStatus.Paga, Data = Dentro, ClienteId = anaId,
+            TenantId = Tenant, Numero = 1, Estado = VendaEstado.Entregue, Data = Dentro, ClienteId = anaId,
             Items = new List<VendaItem> { new() { TenantId = Tenant, Descricao = "Capa", Quantidade = 1, PrecoUnitarioCents = 5000, IvaRate = 23m } },
         });
         // Rui: trabalho concluído pago (300€).

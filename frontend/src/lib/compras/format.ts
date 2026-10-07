@@ -37,3 +37,16 @@ export function lucroPorDefeito(descricao: string): number {
   const d = descricao.toLowerCase();
   return PALAVRAS_ACESSORIO.some((p) => d.includes(p)) ? 1 : 5;
 }
+
+/**
+ * Contas de uma linha de venda a partir do total cobrado (SPEC §3.3) — espelha IvaEngine.VendaPorTotal.
+ * Serviço: custo 0 e taxa de compra 0 (IVA sobre o valor todo).
+ */
+export function previewVenda(qtd: number, totalComIva: number, custoUnit: number, taxaCompra: number, taxaVenda: number) {
+  const semIva = totalComIva / (1 + taxaVenda);
+  const ivaVenda = totalComIva - semIva;
+  const ivaPagoCompra = qtd * (custoUnit - custoUnit / (1 + taxaCompra));
+  const ivaAPagar = ivaVenda - ivaPagoCompra;
+  const custo = qtd * custoUnit;
+  return { ivaVenda, ivaAPagar, custo, lucro: totalComIva - custo - ivaAPagar };
+}

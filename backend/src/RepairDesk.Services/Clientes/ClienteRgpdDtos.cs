@@ -28,7 +28,7 @@ public sealed record AvaliacaoExportDto(Guid Id, Guid ReparacaoId, int Score, st
 public sealed record PartMovimentoExportDto(Guid Id, Guid PartId, string? PartNome, string? PartSku, int Quantidade, int StockAntes, int StockDepois, PartMovimentoMotivo Motivo, Guid? ReparacaoId, string? Notas, DateTime CreatedAt);
 public sealed record VendaExportDto(
     Guid Id, int Numero, DateTime Data, int TotalCents, int IvaCents,
-    PaymentMethod PaymentMethod, VendaStatus Status,
+    PaymentMethod PaymentMethod, VendaEstado Estado,
     string? InvoiceNumber, DateTime? InvoiceEmittedAt, string? Notas,
     IReadOnlyList<VendaItemExportDto> Items);
 public sealed record VendaItemExportDto(

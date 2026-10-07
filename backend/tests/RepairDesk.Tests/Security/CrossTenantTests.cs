@@ -148,7 +148,7 @@ public class CrossTenantTests : IClassFixture<RepairDeskApiFactory>
             TotalCents = 10000,
             IvaCents = 2300,
             PaymentMethod = PaymentMethod.MBWay,
-            Status = VendaStatus.Paga
+            Estado = VendaEstado.Entregue
         };
         var garantia = new Garantia
         {

@@ -49,7 +49,7 @@ public class RelatorioNegocioLiquidoTests
         db.Parts.AddRange(partNormal, partMargem);
         db.Vendas.Add(new Venda
         {
-            TenantId = Tenant, Numero = 1, Status = VendaStatus.Paga, Data = agora, TotalCents = 42300,
+            TenantId = Tenant, Numero = 1, Estado = VendaEstado.Entregue, Data = agora, TotalCents = 42300,
             Items = new List<VendaItem>
             {
                 new() { TenantId = Tenant, Descricao = "Capa", Quantidade = 1, PrecoUnitarioCents = 12300, IvaRate = 23m, Condicao = CondicaoArtigo.NaoAplicavel, Part = partNormal },
@@ -58,7 +58,7 @@ public class RelatorioNegocioLiquidoTests
         });
 
         // Venda paga SEM linhas (dados antigos): fallback 23/123 sobre o total 12,30 €.
-        db.Vendas.Add(new Venda { TenantId = Tenant, Numero = 2, Status = VendaStatus.Paga, Data = agora, TotalCents = 1230 });
+        db.Vendas.Add(new Venda { TenantId = Tenant, Numero = 2, Estado = VendaEstado.Entregue, Data = agora, TotalCents = 1230 });
 
         db.Despesas.Add(new Despesa
         {
@@ -92,7 +92,7 @@ public class RelatorioNegocioLiquidoTests
         // tratamento do relatório IVA) e não há custo a subtrair.
         db.Vendas.Add(new Venda
         {
-            TenantId = Tenant, Numero = 1, Status = VendaStatus.Paga, Data = agora, TotalCents = 30000,
+            TenantId = Tenant, Numero = 1, Estado = VendaEstado.Entregue, Data = agora, TotalCents = 30000,
             Items = new List<VendaItem>
             {
                 new() { TenantId = Tenant, Descricao = "Samsung usado", Quantidade = 1, PrecoUnitarioCents = 30000, IvaRate = 0m, Condicao = CondicaoArtigo.Usado },

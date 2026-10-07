@@ -9,7 +9,7 @@ import { formatEur } from '../../lib/compras/format';
 import { formatDateOnly } from '../../lib/money';
 import { fornecedoresApi, REGIME_IVA } from '../../lib/fornecedores/api';
 import ImportarExcelModal from './ImportarExcelModal';
-import { inputCls } from './ui';
+import { inputCls } from '../../components/ui/formClasses';
 
 const PAGE_SIZE = 50;
 
