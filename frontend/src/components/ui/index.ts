@@ -11,3 +11,6 @@ export { Popover } from './Popover';
 export { Skeleton, SkeletonCard, SkeletonRow, SkeletonTable } from './Skeleton';
 export { StatusBadge } from './StatusBadge';
 export { DetailWorkspace, InspectorRail, ViewTabs } from './Workspace';
+export { SortableTh } from './SortableTh';
+export { DateRangeFilter, SEM_DATAS, intervaloParaInstantes } from './DateRangeFilter';
+export type { IntervaloDatas } from './DateRangeFilter';

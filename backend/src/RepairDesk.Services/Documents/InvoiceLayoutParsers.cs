@@ -14,7 +14,7 @@ public static class InvoiceLayoutParsers
     public static SupplierPdfParseResult? TryParse(string text)
     {
         if (CloudInvoice.Matches(text)) return CloudInvoice.Parse(text);
-        if (MobileSentrixOrder.Matches(text)) return MobileSentrixOrder.Parse(text);
+        if (MobileSentrix.Matches(text)) return MobileSentrix.Parse(text);
         return null;
     }
 
@@ -102,24 +102,30 @@ public static class InvoiceLayoutParsers
     }
 
     /// <summary>
-    /// Resumo de encomenda da MobileSentrix Europe (NL). Não traz nº de fatura — o número que se lê é
-    /// o da encomenda (<c>Order Number</c>). Preços sem IVA (entrega intracomunitária, art. 138.º).
-    /// Linha de artigo: descrição (1+ linhas) seguida de <c>SKU €preço qtd €subtotal</c>.
+    /// Documentos da MobileSentrix Europe (NL), preços sem IVA (entrega intracomunitária, art. 138.º):
+    /// <list type="bullet">
+    /// <item>Fatura (<c>Invoice Number INV-…</c> + <c>Número do pedido</c>) — documento fiscal.</item>
+    /// <item>Resumo de encomenda (só <c>Order Number</c>) — o número lido é o da encomenda.</item>
+    /// </list>
+    /// Linha de artigo: descrição (1+ linhas) seguida de <c>SKU € preço qtd [qtd entregue] € subtotal</c>.
+    /// O hífen deste PDF sai do extrator como um glifo privado (U+E088) ou desaparece; repõe-se "INV-".
     /// </summary>
-    public static class MobileSentrixOrder
+    public static class MobileSentrix
     {
         private static readonly Regex ItemTail = new(
-            @"^(?<desc>.*?)\s*(?<sku>\d{9,})\s+€(?<unit>[\d.,]+)\s+(?<qty>\d+)\s+€(?<sub>[\d.,]+)\s*$",
+            @"^(?<desc>.*?)\s*(?<sku>\d{9,})\s+€\s*(?<unit>[\d.,]+)\s+(?<qty>\d+)(?:\s+\d+)?\s+€\s*(?<sub>[\d.,]+)\s*$",
             RegexOptions.Compiled);
 
         public static bool Matches(string text)
             => text.Contains("mobilesentrix", StringComparison.OrdinalIgnoreCase)
-               && Regex.IsMatch(text, @"Order Number", RegexOptions.IgnoreCase);
+               && Regex.IsMatch(text, @"Order Number|Invoice Number", RegexOptions.IgnoreCase);
 
         public static SupplierPdfParseResult Parse(string text)
         {
-            var numero = Match(text, @"Order Number\s*\n?\s*(\d{6,})");
-            var dataTxt = Match(text, @"(?:Data do Pedido|Order Date)\s*\n\s*(\d{2}/\d{2}/\d{4})");
+            var fatura = Match(text, @"Invoice Number\s*\n?\s*(INV[^\d\s]?\d+)");
+            if (fatura is not null) fatura = Regex.Replace(fatura, @"^INV\D?", "INV-", RegexOptions.IgnoreCase);
+            var encomenda = Match(text, @"(?:N[úu]mero do pedido|Order Number|Order No\.?)\s*:?\s*\n?\s*(\d{6,})");
+            var dataTxt = Match(text, @"(?:Invoice Date|Data do Pedido|Order Date)\s*\n\s*(\d{2}/\d{2}/\d{4})");
             DateTime? data = DateTime.TryParseExact(dataTxt, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
                 ? DateTime.SpecifyKind(d, DateTimeKind.Utc)
                 : null;
@@ -135,11 +141,11 @@ public static class InvoiceLayoutParsers
                 var line = raw.Trim();
                 if (!dentro)
                 {
-                    if (Regex.IsMatch(line, @"Encomendado\s+Subtotal|Qty\s+Subtotal|Ordered\s+Subtotal", RegexOptions.IgnoreCase))
+                    if (Regex.IsMatch(line, @"(?:Encomendado|Fulfilled|Qty|Ordered)\s+Subtotal", RegexOptions.IgnoreCase))
                         dentro = true;
                     continue;
                 }
-                if (Regex.IsMatch(line, @"^Total\s+\d+$")) break;
+                if (Regex.IsMatch(line, @"^Total\s+\d+(?:\s+\d+)?$")) break;
                 var m = ItemTail.Match(line);
                 if (!m.Success)
                 {
@@ -154,9 +160,11 @@ public static class InvoiceLayoutParsers
             }
             if (envio is > 0) items.Add(new SupplierPdfItem("Envio (portes)", 1, envio.Value));
 
+            var numero = fatura ?? encomenda;
             var reconcilia = total is { } t && items.Count > 0 && Math.Abs(items.Sum(i => i.LineTotalCents) - t) <= 2;
             var confianca = numero is not null && data is not null && reconcilia ? ParseConfidence.High : ParseConfidence.Low;
-            return new SupplierPdfParseResult("MobileSentrix", numero, total, data, confianca, items);
+            return new SupplierPdfParseResult("MobileSentrix", numero, total, data, confianca, items,
+                OrderReference: fatura is not null ? encomenda : null);
         }
     }
 

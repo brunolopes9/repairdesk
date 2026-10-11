@@ -8,7 +8,7 @@ namespace RepairDesk.Services.Clientes;
 
 public interface IClienteService
 {
-    Task<PagedResult<ClienteDto>> SearchAsync(string? query, int page, int pageSize, Guid? tagId = null, CancellationToken ct = default);
+    Task<PagedResult<ClienteDto>> SearchAsync(string? query, int page, int pageSize, Guid? tagId = null, CancellationToken ct = default, Ordenacao? ordem = null);
     Task<ClienteDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<ClienteEquipamentoDto>> ListEquipamentosAsync(Guid id, int take, CancellationToken ct = default);
     Task<ClienteDto> CreateAsync(CreateClienteRequest req, CancellationToken ct = default);
@@ -42,11 +42,12 @@ public class ClienteService : IClienteService
         int page,
         int pageSize,
         Guid? tagId = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Ordenacao? ordem = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var (items, total) = await _repo.SearchAsync(query, page, pageSize, tagId, ct);
+        var (items, total) = await _repo.SearchAsync(query, page, pageSize, tagId, ct, ordem);
         return new PagedResult<ClienteDto>(items.Select(ToDto).ToList(), page, pageSize, total);
     }
 

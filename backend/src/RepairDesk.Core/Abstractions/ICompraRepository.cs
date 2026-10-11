@@ -23,7 +23,7 @@ public interface ICompraRepository
     /// fatura, o nº como encomenda, ou fatura em falta com data entre <paramref name="de"/> e <paramref name="ate"/>.
     /// Com tracking e linhas (para associar na mesma unidade de trabalho).
     /// </summary>
-    Task<IReadOnlyList<CompraDocumento>> FindCandidatosFaturaAsync(Guid fornecedorId, string? numero, DateTime de, DateTime ate, CancellationToken ct = default);
+    Task<IReadOnlyList<CompraDocumento>> FindCandidatosFaturaAsync(Guid fornecedorId, string? numero, string? encomenda, DateTime de, DateTime ate, CancellationToken ct = default);
 
     Task AddAsync(CompraDocumento doc, CancellationToken ct = default);
     void Remove(CompraDocumento doc);
@@ -39,4 +39,6 @@ public sealed record CompraFiltro(
     Guid? FornecedorId = null,
     bool SoFaturaEmFalta = false,
     DateTime? DeUtc = null,
-    DateTime? AteUtc = null);
+    DateTime? AteUtc = null,
+    // Sprint 561: "numero" | "data" | "fornecedor" | "documento" | "unidades" | "total".
+    Ordenacao? Ordem = null);

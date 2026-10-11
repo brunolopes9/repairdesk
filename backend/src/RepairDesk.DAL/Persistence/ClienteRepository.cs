@@ -121,7 +121,8 @@ public class ClienteRepository : IClienteRepository
         int page,
         int pageSize,
         Guid? tagId = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Ordenacao? ordem = null)
     {
         var q = _db.Clientes
             .AsNoTracking()
@@ -145,8 +146,15 @@ public class ClienteRepository : IClienteRepository
         }
 
         var total = await q.CountAsync(ct);
-        var items = await q
-            .OrderBy(c => c.Nome)
+        // Sprint 561: "nome" (defeito, A→Z) | "nif" | "criado".
+        var desc = ordem?.Desc ?? false;
+        IOrderedQueryable<Cliente> ordenada = ordem?.Campo switch
+        {
+            "nif" => q.OrdenarPor(c => c.Nif, desc),
+            "criado" => q.OrdenarPor(c => c.CreatedAt, desc),
+            _ => q.OrdenarPor(c => c.Nome, desc),
+        };
+        var items = await ordenada.DepoisPor(c => c.Id, false)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

@@ -35,10 +35,13 @@ public class ComprasController : ControllerBase
         [FromQuery] DateTime? ate = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? dir = null,
         CancellationToken ct = default)
         => _service.SearchAsync(new CompraFiltro(q, fornecedorId, faturaEmFalta,
             de is { } d ? DateTime.SpecifyKind(d.Date, DateTimeKind.Utc) : null,
-            ate is { } a ? DateTime.SpecifyKind(a.Date.AddDays(1), DateTimeKind.Utc) : null), page, pageSize, ct);
+            ate is { } a ? DateTime.SpecifyKind(a.Date.AddDays(1), DateTimeKind.Utc) : null,
+            Ordenacao.De(sort, dir)), page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<CompraDocumentoDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);

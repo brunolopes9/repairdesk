@@ -47,7 +47,19 @@ interface LinhaForm {
 }
 
 const num = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
-const toCents = (v: string) => Math.round((parseDecimal(v) ?? 0) * 100);
+const fmt2 = (v: number) => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
+
+/**
+ * Preço gravado é sempre c/ IVA (o que o cliente paga). Em modo "sem IVA" o utilizador escreve o valor
+ * que é dele e o IVA é somado por cima — 300 € s/ IVA a 23% = 369 € a cobrar, 69 € para o Estado.
+ */
+function precoComIva(preco: string, ivaPct: string, semIva: boolean): number {
+  const v = parseDecimal(preco) ?? 0;
+  return semIva ? Math.round(v * (1 + (parseDecimal(ivaPct) ?? IVA_NORMAL) / 100) * 100) / 100 : v;
+}
+
+/** Serviços (sites, avenças) cotam-se sem IVA; balcão e reparações com IVA. */
+const semIvaPorDefeito = (t: VendaTipo) => t === VENDA_TIPO.Servico;
 
 function linhasFrom(v: Venda): LinhaForm[] {
   return v.items.map((i) => ({
@@ -84,6 +96,7 @@ export default function VendaEditor() {
   const [notas, setNotas] = useState('');
   const [previsto, setPrevisto] = useState('');
   const [linhas, setLinhas] = useState<LinhaForm[]>([]);
+  const [semIva, setSemIva] = useState(() => semIvaPorDefeito(tipoInicial));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pagamento, setPagamento] = useState<PaymentMethod>(PAYMENT_METHOD.MBWay);
   const [fatura, setFatura] = useState('');
@@ -93,12 +106,16 @@ export default function VendaEditor() {
   useEffect(() => {
     if (!venda) return;
     setTipo(venda.tipo);
+    const modoSemIva = semIvaPorDefeito(venda.tipo);
+    setSemIva(modoSemIva);
     setCliente(venda.cliente ? { id: venda.cliente.id, nome: venda.cliente.nome } : null);
     setEquipamento(venda.equipamento ?? '');
     setProblema(venda.problema ?? '');
     setNotas(venda.notas ?? '');
     setPrevisto(venda.previstoPara ? venda.previstoPara.slice(0, 10) : '');
-    setLinhas(linhasFrom(venda));
+    setLinhas(linhasFrom(venda).map((l) => (modoSemIva
+      ? { ...l, preco: fmt2((parseDecimal(l.preco) ?? 0) / (1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100)) }
+      : l)));
     setFatura(venda.invoiceNumber ?? '');
     if (venda.invoiceEmittedAt) setFaturaData(venda.invoiceEmittedAt.slice(0, 10));
   }, [venda]);
@@ -108,12 +125,12 @@ export default function VendaEditor() {
   const contas = useMemo(() => {
     const porLinha = linhas.map((l) => {
       const qtd = Number(l.quantidade) || 0;
-      const total = qtd * (parseDecimal(l.preco) ?? 0);
+      const total = qtd * precoComIva(l.preco, l.iva, semIva);
       return { total, ...previewVenda(qtd, total, l.custoUnit, l.taxaCompra, (parseDecimal(l.iva) ?? IVA_NORMAL) / 100) };
     });
     const soma = (k: 'total' | 'ivaVenda' | 'ivaAPagar' | 'lucro') => porLinha.reduce((s, c) => s + c[k], 0);
     return { porLinha, total: soma('total'), ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
-  }, [linhas]);
+  }, [linhas, semIva]);
 
   const reservado = useMemo(() => {
     const r: Record<string, number> = {};
@@ -135,7 +152,7 @@ export default function VendaEditor() {
         compraLinhaId: l.compraLinhaId,
         descricao: l.descricao.trim() || null,
         quantidade: Number(l.quantidade) || 0,
-        precoUnitarioCents: toCents(l.preco),
+        precoUnitarioCents: Math.round(precoComIva(l.preco, l.iva, semIva) * 100),
         ivaRate: parseDecimal(l.iva) ?? IVA_NORMAL,
       })),
       ...(isNew ? { estado, paymentMethod: estado === VENDA_ESTADO.Entregue ? pagamento : null } : {}),
@@ -172,6 +189,17 @@ export default function VendaEditor() {
     onError: (err) => toast.fromError(err),
   });
 
+  function mudarModoIva(novoSemIva: boolean) {
+    if (novoSemIva === semIva) return;
+    setLinhas((ls) => ls.map((l) => {
+      const v = parseDecimal(l.preco);
+      if (v == null) return l;
+      const f = 1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
+      return { ...l, preco: fmt2(novoSemIva ? v / f : v * f) };
+    }));
+    setSemIva(novoSemIva);
+  }
+
   function setLinha(key: string, patch: Partial<LinhaForm>) {
     setLinhas((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
@@ -183,7 +211,7 @@ export default function VendaEditor() {
       compraLinhaId: lote.linhaId,
       descricao: lote.descricao,
       quantidade: '1',
-      preco: (Math.round(lote.precoFinalComIva * 100) / 100).toFixed(2).replace('.', ','),
+      preco: fmt2(semIva ? lote.precoFinalComIva / (1 + IVA_NORMAL / 100) : lote.precoFinalComIva),
       iva: String(IVA_NORMAL),
       custoUnit: lote.precoUnitarioPago,
       taxaCompra: lote.taxaIvaCompra,
@@ -258,7 +286,11 @@ export default function VendaEditor() {
                   role="radio"
                   aria-checked={tipo === Number(v)}
                   disabled={fechada}
-                  onClick={() => setTipo(Number(v) as VendaTipo)}
+                  onClick={() => {
+                    const t = Number(v) as VendaTipo;
+                    setTipo(t);
+                    if (isNew) mudarModoIva(semIvaPorDefeito(t));
+                  }}
                   className={`min-h-9 flex-1 rounded-md px-3 text-sm font-medium transition ${tipo === Number(v) ? 'bg-white shadow-sm dark:bg-zinc-950' : 'text-zinc-500'}`}
                 >
                   {label}
@@ -306,6 +338,25 @@ export default function VendaEditor() {
           </div>
         )}
       >
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-zinc-500">Os preços que escrevo são</span>
+          <div role="radiogroup" aria-label="Preços com ou sem IVA" className="inline-flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
+            {[{ v: false, label: 'com IVA' }, { v: true, label: 'sem IVA' }].map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                role="radio"
+                aria-checked={semIva === o.v}
+                disabled={fechada}
+                onClick={() => mudarModoIva(o.v)}
+                className={`min-h-9 rounded-md px-3 text-sm font-medium transition ${semIva === o.v ? 'bg-brand-600 text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-zinc-500">{semIva ? 'O IVA é somado por cima — o valor escrito é teu.' : 'O IVA já está dentro do valor escrito.'}</span>
+        </div>
         {linhas.length === 0 ? (
           <p className="py-4 text-center text-sm text-zinc-500">
             Junta peças/artigos do stock ou {tipo === VENDA_TIPO.Reparacao ? 'mão de obra' : 'um serviço'}.
@@ -317,9 +368,9 @@ export default function VendaEditor() {
                 <tr>
                   <th className="py-2 pr-2 font-medium">Descrição</th>
                   <th className="w-16 py-2 pr-2 font-medium">Qtd</th>
-                  <th className="w-28 py-2 pr-2 font-medium">Preço un. c/ IVA</th>
+                  <th className="w-28 py-2 pr-2 font-medium">Preço un. {semIva ? 's/ IVA' : 'c/ IVA'}</th>
                   <th className="w-20 py-2 pr-2 font-medium">IVA %</th>
-                  <th className="w-24 py-2 pr-2 text-right font-medium">Total</th>
+                  <th className="w-24 py-2 pr-2 text-right font-medium">Total c/ IVA</th>
                   <th className="w-28 py-2 pr-2 text-right font-medium">IVA ao Estado</th>
                   <th className="w-24 py-2 pr-2 text-right font-medium">Lucro</th>
                   <th className="w-10" />
@@ -333,14 +384,14 @@ export default function VendaEditor() {
                       <td className="py-2 pr-2">
                         <input aria-label="Descrição" value={l.descricao} onChange={(e) => setLinha(l.key, { descricao: e.target.value })} className={inputCls} disabled={fechada} maxLength={300} />
                         <span className="mt-1 block text-xs text-zinc-500">
-                          {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : 'Serviço · IVA sobre o valor todo'}
+                          {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
                         </span>
                       </td>
                       <td className="py-2 pr-2">
                         <input aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} disabled={fechada} />
                         {l.maxStock != null && Number(l.quantidade) > l.maxStock && <span className="mt-1 block text-xs text-rose-600">só {l.maxStock}</span>}
                       </td>
-                      <td className="py-2 pr-2"><input aria-label="Preço unitário com IVA" inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" disabled={fechada} /></td>
+                      <td className="py-2 pr-2"><input aria-label={semIva ? 'Preço unitário sem IVA' : 'Preço unitário com IVA'} inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" disabled={fechada} /></td>
                       <td className="py-2 pr-2">
                         <select aria-label="Taxa de IVA" value={l.iva} onChange={(e) => setLinha(l.key, { iva: e.target.value })} className={inputCls} disabled={fechada || !!l.compraLinhaId}>
                           {['23', '13', '6', '0'].map((t) => <option key={t} value={t}>{t}%</option>)}

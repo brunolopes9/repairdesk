@@ -144,6 +144,8 @@ export interface VendaFiltro {
   to?: string;
   page?: number;
   pageSize?: number;
+  sort?: string;
+  dir?: 'asc' | 'desc';
 }
 
 export type VendasPage = PagedResult<Venda>;

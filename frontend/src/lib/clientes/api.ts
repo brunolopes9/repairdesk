@@ -3,9 +3,9 @@ import type { AtNifLookup, Cliente, ClienteEquipamento, ClienteForm, PagedResult
 import type { ReparacaoComunicacao } from '../comunicacoes/api';
 
 export const clientesApi = {
-  list(query: string, page = 1, pageSize = 20, tagId?: string | null) {
+  list(query: string, page = 1, pageSize = 20, tagId?: string | null, ordem?: { sort: string; dir: 'asc' | 'desc' }) {
     return api
-      .get<PagedResult<Cliente>>('/clientes', { params: { q: query || undefined, tagId: tagId || undefined, page, pageSize } })
+      .get<PagedResult<Cliente>>('/clientes', { params: { q: query || undefined, tagId: tagId || undefined, page, pageSize, ...ordem } })
       .then((r) => r.data);
   },
   get(id: string) {

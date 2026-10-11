@@ -33,6 +33,8 @@ public sealed record FaturaLidaDto(
     Guid? FornecedorId,
     string? Fornecedor,
     string? Numero,
+    /// <summary>Nº da encomenda referido na fatura (quando difere do nº do documento).</summary>
+    string? Encomenda,
     DateTime? Data,
     decimal? Total,
     decimal Portes,
@@ -167,7 +169,7 @@ public class CompraFaturaService : ICompraFaturaService
             return new CorrespondenciaFaturaDto(fatura, "ilegivel", null, []);
 
         var data = fatura.Data.Value.Date;
-        var docs = await _compras.FindCandidatosFaturaAsync(fatura.FornecedorId.Value, fatura.Numero,
+        var docs = await _compras.FindCandidatosFaturaAsync(fatura.FornecedorId.Value, fatura.Numero, fatura.Encomenda,
             data.AddDays(-JanelaDias), data.AddDays(JanelaDias + 1).AddTicks(-1), ct);
 
         var candidatos = docs
@@ -181,11 +183,12 @@ public class CompraFaturaService : ICompraFaturaService
         var fortes = livres.Where(c => c.Motivo != "data").ToList();
         string sugestao;
         Guid? sugerida = null;
-        if (fortes.Count == 0 && candidatos.Any(c => c.JaDocumentada && c.Motivo == "mesma_fatura"))
+        if (fortes.Count == 0 && candidatos.Any(c => c.JaDocumentada && c.Motivo != "data"))
         {
-            // Outra cópia (ex.: 2ª via) de uma fatura que já está registada e documentada.
+            // Outra cópia (ex.: 2ª via) de uma fatura já registada, ou o resumo de uma encomenda cuja
+            // fatura já chegou.
             sugestao = "duplicada";
-            sugerida = candidatos.First(c => c.Motivo == "mesma_fatura").CompraId;
+            sugerida = candidatos.First(c => c.JaDocumentada && c.Motivo != "data").CompraId;
         }
         else if (fortes.Count == 1)
         {
@@ -213,7 +216,9 @@ public class CompraFaturaService : ICompraFaturaService
 
         // Um resumo de encomenda (o nº lido é o da encomenda) documenta a compra mas não é a fatura:
         // a compra continua com "fatura em falta" até chegar o documento fiscal.
-        var eFatura = candidato.Motivo != "encomenda" && !string.IsNullOrWhiteSpace(fatura.Numero);
+        var encomendasDoc = (doc.NumerosEncomenda ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries);
+        var eFatura = !string.IsNullOrWhiteSpace(fatura.Numero)
+            && !encomendasDoc.Contains(fatura.Numero, StringComparer.OrdinalIgnoreCase);
         if (eFatura)
         {
             if (!string.IsNullOrWhiteSpace(doc.NumeroFatura)
@@ -259,8 +264,9 @@ public class CompraFaturaService : ICompraFaturaService
     {
         var motivo = !string.IsNullOrWhiteSpace(f.Numero) && string.Equals(d.NumeroFatura, f.Numero, StringComparison.OrdinalIgnoreCase)
             ? "mesma_fatura"
-            : !string.IsNullOrWhiteSpace(f.Numero) && (d.NumerosEncomenda ?? string.Empty).Split(',')
-                .Any(e => string.Equals(e, f.Numero, StringComparison.OrdinalIgnoreCase))
+            : (d.NumerosEncomenda ?? string.Empty).Split(',')
+                .Any(e => (!string.IsNullOrWhiteSpace(f.Numero) && string.Equals(e, f.Numero, StringComparison.OrdinalIgnoreCase))
+                          || (!string.IsNullOrWhiteSpace(f.Encomenda) && string.Equals(e, f.Encomenda, StringComparison.OrdinalIgnoreCase)))
                 ? "encomenda"
                 : "data";
         var totalLinhas = d.Linhas.Sum(l => l.Quantidade * l.PrecoUnitarioPago);
@@ -293,6 +299,7 @@ public class CompraFaturaService : ICompraFaturaService
         return new FaturaLidaDto(
             x.Id, x.FornecedorId, x.Fornecedor?.Name ?? x.FornecedorNameRaw,
             string.IsNullOrWhiteSpace(x.ParsedDocumentNumber) ? null : x.ParsedDocumentNumber.Trim(),
+            string.IsNullOrWhiteSpace(x.ParsedOrderReference) ? null : x.ParsedOrderReference.Trim(),
             x.ParsedDocumentDate, x.ParsedTotalCents / 100m,
             linhas.Where(l => l.Portes).Sum(l => l.Total),
             linhas);

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Code2, Package, Plus, Receipt, Search, Wrench } from 'lucide-react';
-import { Button, EmptyState, PageHeader, SectionCard, SkeletonRow, ViewTabs } from '../../components/ui';
+import { Button, DateRangeFilter, EmptyState, PageHeader, SEM_DATAS, SectionCard, SkeletonRow, SortableTh, ViewTabs, intervaloParaInstantes, type IntervaloDatas } from '../../components/ui';
+import { useOrdenacao } from '../../lib/useOrdenacao';
 import { inputCls } from '../../components/ui/formClasses';
 import { formatEur } from '../../lib/compras/format';
 import { formatDateOnly } from '../../lib/money';
@@ -37,6 +38,9 @@ export default function Vendas() {
   const tipo = tipoParam != null && tipoParam !== '' ? (Number(tipoParam) as VendaTipo) : undefined;
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
+  const [datas, setDatas] = useState<IntervaloDatas>(SEM_DATAS);
+  const { ordem, alternar, params: ordemParams } = useOrdenacao<'numero' | 'cliente' | 'estado' | 'data' | 'total'>('data');
+  function ordenar(c: typeof ordem.campo) { alternar(c); setPage(1); }
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params);
@@ -51,6 +55,8 @@ export default function Vendas() {
     tipo,
     page,
     pageSize: PAGE_SIZE,
+    ...intervaloParaInstantes(datas),
+    ...ordemParams,
     ...(vista === 'curso' ? { emCurso: true } : {}),
     ...(vista === 'entregues' ? { estado: VENDA_ESTADO.Entregue } : {}),
     ...(vista === 'fatura' ? { faturaPorRegistar: true } : {}),
@@ -99,6 +105,7 @@ export default function Vendas() {
               <option value="">Todos os tipos</option>
               {Object.entries(VENDA_TIPO_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
             </select>
+            <DateRangeFilter value={datas} onChange={(v) => { setDatas(v); setPage(1); }} />
           </div>
         }
       >
@@ -115,11 +122,11 @@ export default function Vendas() {
             <table className="w-full min-w-[46rem] text-sm">
               <thead className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Nº</th>
-                  <th className="px-4 py-2 font-medium">Cliente / equipamento</th>
-                  <th className="px-4 py-2 font-medium">Estado</th>
-                  <th className="px-4 py-2 font-medium">Data</th>
-                  <th className="px-4 py-2 text-right font-medium">Total</th>
+                  <SortableTh className="px-4 py-2" label="Nº" campo="numero" ordem={ordem} onOrdenar={ordenar} />
+                  <SortableTh className="px-4 py-2" label="Cliente / equipamento" campo="cliente" ordem={ordem} onOrdenar={ordenar} />
+                  <SortableTh className="px-4 py-2" label="Estado" campo="estado" ordem={ordem} onOrdenar={ordenar} />
+                  <SortableTh className="px-4 py-2" label="Data" campo="data" ordem={ordem} onOrdenar={ordenar} />
+                  <SortableTh className="px-4 py-2" label="Total" campo="total" ordem={ordem} onOrdenar={ordenar} align="right" />
                   <th className="px-4 py-2 text-right font-medium">Lucro</th>
                 </tr>
               </thead>
@@ -142,7 +149,7 @@ export default function Vendas() {
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VENDA_ESTADO_COLOR[v.estado]}`}>{VENDA_ESTADO_LABEL[v.estado]}</span>
                         {v.faturaPorRegistar && <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Sem fatura</span>}
                       </td>
-                      <td className="px-4 py-3 tabular-nums">{formatDateOnly(v.estado === VENDA_ESTADO.Entregue ? v.data : v.createdAt)}</td>
+                      <td className="px-4 py-3 tabular-nums">{formatDateOnly(v.data)}</td>
                       <td className="px-4 py-3 text-right font-medium tabular-nums">{formatEur(v.totalCents / 100)}</td>
                       <td className={`px-4 py-3 text-right tabular-nums ${v.lucro < 0 ? 'text-rose-600' : ''}`}>{formatEur(v.lucro)}</td>
                     </tr>

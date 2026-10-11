@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { FileCheck2, FileSpreadsheet, Plus, ReceiptText, Search } from 'lucide-react';
-import { Button, EmptyState, SectionCard, SkeletonRow } from '../../components/ui';
+import { Button, DateRangeFilter, EmptyState, SEM_DATAS, SectionCard, SkeletonRow, SortableTh, type IntervaloDatas } from '../../components/ui';
+import { useOrdenacao } from '../../lib/useOrdenacao';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { comprasApi } from '../../lib/compras/api';
 import { formatEur } from '../../lib/compras/format';
@@ -21,18 +22,24 @@ export default function DocumentosTab() {
   const [faturaEmFalta, setFaturaEmFalta] = useState(false);
   const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
+  const [datas, setDatas] = useState<IntervaloDatas>(SEM_DATAS);
+  const { ordem, alternar, params: ordemParams } = useOrdenacao<'numero' | 'data' | 'fornecedor' | 'documento' | 'unidades' | 'total'>('data');
+  function ordenar(c: typeof ordem.campo) { alternar(c); setPage(1); }
 
   const fornecedores = useQuery({ queryKey: ['fornecedores', false], queryFn: () => fornecedoresApi.list(false) });
   const list = useQuery({
-    queryKey: ['compras', 'docs', q, fornecedorId, faturaEmFalta, page],
-    queryFn: () => comprasApi.search({ q: q || undefined, fornecedorId: fornecedorId || undefined, faturaEmFalta, page, pageSize: PAGE_SIZE }),
+    queryKey: ['compras', 'docs', q, fornecedorId, faturaEmFalta, page, datas, ordemParams],
+    queryFn: () => comprasApi.search({
+      q: q || undefined, fornecedorId: fornecedorId || undefined, faturaEmFalta, page, pageSize: PAGE_SIZE,
+      de: datas.de || undefined, ate: datas.ate || undefined, ...ordemParams,
+    }),
     placeholderData: keepPreviousData,
   });
 
   const items = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const semFiltros = !q && !fornecedorId && !faturaEmFalta;
+  const semFiltros = !q && !fornecedorId && !faturaEmFalta && !datas.de && !datas.ate;
 
   return (
     <SectionCard
@@ -53,6 +60,7 @@ export default function DocumentosTab() {
             <option value="">Todos os fornecedores</option>
             {fornecedores.data?.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
+          <DateRangeFilter value={datas} onChange={(v) => { setDatas(v); setPage(1); }} />
           <label className="flex min-h-11 items-center gap-2 text-sm">
             <input type="checkbox" checked={faturaEmFalta} onChange={(e) => { setFaturaEmFalta(e.target.checked); setPage(1); }} />
             Fatura em falta
@@ -81,13 +89,13 @@ export default function DocumentosTab() {
           <table className="w-full min-w-[48rem] text-sm">
             <thead className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800">
               <tr>
-                <th className="px-4 py-2 font-medium">Nº</th>
-                <th className="px-4 py-2 font-medium">Data</th>
-                <th className="px-4 py-2 font-medium">Fornecedor</th>
-                <th className="px-4 py-2 font-medium">Documento</th>
-                <th className="px-4 py-2 text-right font-medium">Unid.</th>
+                <SortableTh className="px-4 py-2" label="Nº" campo="numero" ordem={ordem} onOrdenar={ordenar} />
+                <SortableTh className="px-4 py-2" label="Data" campo="data" ordem={ordem} onOrdenar={ordenar} />
+                <SortableTh className="px-4 py-2" label="Fornecedor" campo="fornecedor" ordem={ordem} onOrdenar={ordenar} />
+                <SortableTh className="px-4 py-2" label="Documento" campo="documento" ordem={ordem} onOrdenar={ordenar} />
+                <SortableTh className="px-4 py-2" label="Unid." campo="unidades" ordem={ordem} onOrdenar={ordenar} align="right" />
                 <th className="px-4 py-2 text-right font-medium">Em stock</th>
-                <th className="px-4 py-2 text-right font-medium">Total</th>
+                <SortableTh className="px-4 py-2" label="Total" campo="total" ordem={ordem} onOrdenar={ordenar} align="right" />
                 <th className="px-4 py-2 font-medium">Estado</th>
               </tr>
             </thead>
@@ -115,8 +123,8 @@ export default function DocumentosTab() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {d.faturaEmFalta && <Badge tone="amber">Fatura em falta</Badge>}
-                      {d.temDiferenca && <Badge tone="rose">Dif. {formatEur(d.diferenca)}</Badge>}
-                      {!d.faturaEmFalta && !d.temDiferenca && <Badge tone="emerald">OK</Badge>}
+                      {/* A diferença linhas↔total aparece só dentro da compra, onde se corrige (pedido do Bruno). */}
+                      {!d.faturaEmFalta && <Badge tone="emerald">OK</Badge>}
                     </div>
                   </td>
                 </tr>

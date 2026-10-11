@@ -45,6 +45,23 @@ public class CompraFaturaApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Lista_OrdenaPorColunaEFiltraPorDatas()
+    {
+        var client = await AuthedClient();
+        var forn = await CriarFornecedor(client, RegimeIvaFornecedor.Nacional);
+        await CriarCompra(client, forn, new DateTime(2025, 3, 10), "FT O/" + Rand(), null, 0m, null, ("A", 1, 50m));
+        await CriarCompra(client, forn, new DateTime(2025, 3, 20), "FT O/" + Rand(), null, 0m, null, ("B", 1, 5m));
+        await CriarCompra(client, forn, new DateTime(2025, 4, 2), "FT O/" + Rand(), null, 0m, null, ("C", 1, 20m));
+
+        var asc = await client.GetFromJsonAsync<PagedResult<CompraDocumentoDto>>($"/api/compras?fornecedorId={forn}&sort=numero&dir=asc");
+        asc!.Items.Select(d => d.Numero).Should().BeInAscendingOrder();
+        var porTotal = await client.GetFromJsonAsync<PagedResult<CompraDocumentoDto>>($"/api/compras?fornecedorId={forn}&sort=total&dir=desc");
+        porTotal!.Items.Select(d => d.TotalCalculado).Should().Equal(50m, 20m, 5m);
+        var marco = await client.GetFromJsonAsync<PagedResult<CompraDocumentoDto>>($"/api/compras?fornecedorId={forn}&de=2025-03-01&ate=2025-03-31");
+        marco!.Items.Should().HaveCount(2, "o 'até' inclui o próprio dia");
+    }
+
+    [Fact]
     public async Task FaturaEmFalta_QueBateCerto_AssociaSozinha_EIdempotente()
     {
         var client = await AuthedClient();
@@ -153,6 +170,32 @@ public class CompraFaturaApiTests : IClassFixture<RepairDeskApiFactory>
         doc = await client.GetFromJsonAsync<CompraDocumentoDto>($"/api/compras/{compra.Id}");
         doc!.FaturaEmFalta.Should().BeFalse();
         doc.SupplierInvoiceImportId.Should().Be(fatura);
+    }
+
+    [Fact]
+    public async Task FaturaComNumeroDoPedido_LigaPelaEncomenda_MesmoComTotaisIguaisPerto()
+    {
+        // Caso real MobileSentrix: 600240227 (03/07) e 600246271 (13/07) custaram ambas 23,37 €.
+        var client = await AuthedClient();
+        var ue = await CriarFornecedor(client, RegimeIvaFornecedor.UeAutoliquidacao);
+        var a = await CriarCompra(client, ue, new DateTime(2026, 7, 3), null, ["600240227"], 6.95m, 23.37m, ("LCD Poco F3", 1, 16.42m));
+        var b = await CriarCompra(client, ue, new DateTime(2026, 7, 13), null, ["600246271"], 6.95m, 23.37m, ("LCD Poco F3", 1, 16.42m));
+
+        var importId = await CriarImport(ue, "INV-100110146", new DateTime(2026, 7, 3), 2337, ("Montagem LCD Poco F3", 1, 1642), ("Envio (portes)", 1, 695));
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var imp = await db.SupplierInvoiceImports.IgnoreQueryFilters().SingleAsync(i => i.Id == importId);
+            imp.ParsedOrderReference = "600240227";
+            await db.SaveChangesAsync();
+        }
+
+        await PostAuto(client);
+
+        var docA = await client.GetFromJsonAsync<CompraDocumentoDto>($"/api/compras/{a.Id}");
+        docA!.NumeroFatura.Should().Be("INV-100110146");
+        docA.FaturaEmFalta.Should().BeFalse();
+        (await client.GetFromJsonAsync<CompraDocumentoDto>($"/api/compras/{b.Id}"))!.FaturaEmFalta.Should().BeTrue();
     }
 
     [Fact]

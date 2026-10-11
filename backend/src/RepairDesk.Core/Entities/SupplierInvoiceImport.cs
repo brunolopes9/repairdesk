@@ -39,6 +39,8 @@ public class SupplierInvoiceImport : BaseEntity, ITenantEntity
     /// <summary>JSON serializado dos items detectados (SupplierPdfItem array).</summary>
     public string? ParsedItemsJson { get; set; }
     public string? ParsedDocumentNumber { get; set; }
+    /// <summary>Sprint 561: nº da encomenda referido no documento (ex.: pedido de uma fatura MobileSentrix) — liga à compra.</summary>
+    public string? ParsedOrderReference { get; set; }
     public DateTime? ParsedDocumentDate { get; set; }
     /// <summary>None/Low/Medium/High — Bruno usa para priorizar revisão manual.</summary>
     public string? ParseConfidence { get; set; }

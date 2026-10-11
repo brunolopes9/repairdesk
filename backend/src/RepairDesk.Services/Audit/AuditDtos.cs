@@ -32,7 +32,8 @@ public sealed record AuditSearchRequest(
     bool IncludeAllTenants,
     int Page,
     int PageSize,
-    IReadOnlyList<Guid>? ServiceApiKeyIds = null);
+    IReadOnlyList<Guid>? ServiceApiKeyIds = null,
+    bool MaisAntigosPrimeiro = false);
 
 public sealed record AuditFilterOptionsDto(
     IReadOnlyList<string> EntityTypes,

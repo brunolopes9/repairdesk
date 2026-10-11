@@ -3,7 +3,8 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Download, FileText, Search, ScrollText, X } from 'lucide-react';
 import Modal from '../../components/Modal';
 import JsonViewer from '../../components/JsonViewer';
-import { Button, EmptyState, PageHeader, SkeletonRow, StatusBadge } from '../../components/ui';
+import { Button, EmptyState, PageHeader, SkeletonRow, SortableTh, StatusBadge } from '../../components/ui';
+import { useOrdenacao } from '../../lib/useOrdenacao';
 import { auditApi } from '../../lib/audit/api';
 import { AUDIT_ACTION_LABEL, type AuditEntry, type AuditFilters } from '../../lib/audit/types';
 import { downloadFile, openPdfInNewTab } from '../../lib/downloadPdf';
@@ -25,7 +26,8 @@ export default function Auditoria() {
   const [selected, setSelected] = useState<AuditEntry | null>(null);
 
   const options = useQuery({ queryKey: ['audit-filters'], queryFn: () => auditApi.filters(), staleTime: 60_000 });
-  const filters = useMemo<AuditFilters>(() => ({ entityTypes, userIds, serviceApiKeyIds, actions, search, from, to, page, pageSize: PAGE_SIZE }), [actions, entityTypes, from, page, search, serviceApiKeyIds, to, userIds]);
+  const { ordem, alternar } = useOrdenacao<'quando'>('quando');
+  const filters = useMemo<AuditFilters>(() => ({ entityTypes, userIds, serviceApiKeyIds, actions, search, from, to, page, pageSize: PAGE_SIZE, dir: ordem.desc ? 'desc' : 'asc' }), [actions, entityTypes, from, page, search, serviceApiKeyIds, to, userIds, ordem.desc]);
   const exportFilters = useMemo<AuditFilters>(() => ({ entityTypes, userIds, serviceApiKeyIds, actions, search, from, to, page: 1, pageSize: PAGE_SIZE }), [actions, entityTypes, from, search, serviceApiKeyIds, to, userIds]);
   const list = useQuery({ queryKey: ['audit', filters], queryFn: () => auditApi.list(filters), placeholderData: keepPreviousData });
 
@@ -124,7 +126,7 @@ export default function Auditoria() {
             <table className="min-w-[760px] text-sm">
               <thead className="bg-zinc-50 text-left text-xs text-zinc-500 dark:bg-zinc-950">
                 <tr>
-                  <th className="px-3 py-2">Quando</th>
+                  <SortableTh className="px-3 py-2" label="Quando" campo="quando" ordem={ordem} onOrdenar={(c) => { alternar(c); setPage(1); }} />
                   <th className="px-3 py-2">Quem</th>
                   <th className="px-3 py-2">O que</th>
                   <th className="px-3 py-2">Detalhe</th>

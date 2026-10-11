@@ -312,6 +312,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             EmailReceivedAt = emailMeta?.ReceivedAt,
             ParsedTotalCents = parsed?.TotalCents,
             ParsedDocumentNumber = parsed?.OrderId,
+            ParsedOrderReference = parsed?.OrderReference,
             ParsedDocumentDate = parsed?.DateAdded,
             ParsedItemsJson = parsed?.Items is { Count: > 0 } items
                 ? JsonSerializer.Serialize(items)
@@ -681,6 +682,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         entity.FornecedorId = fornecedorId;
         entity.ParsedTotalCents = parsed?.TotalCents;
         entity.ParsedDocumentNumber = parsed?.OrderId;
+        entity.ParsedOrderReference = parsed?.OrderReference;
         entity.ParsedDocumentDate = parsed?.DateAdded;
         entity.ParsedItemsJson = parsed?.Items is { Count: > 0 } items
             ? System.Text.Json.JsonSerializer.Serialize(items)

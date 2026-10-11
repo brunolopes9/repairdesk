@@ -301,7 +301,10 @@ public sealed record SupplierPdfParseResult(
     int? TotalCents,
     DateTime? DateAdded,
     ParseConfidence Confidence,
-    IReadOnlyList<SupplierPdfItem> Items);
+    IReadOnlyList<SupplierPdfItem> Items,
+    // Sprint 561: nº da encomenda/pedido referido no documento, quando é diferente do nº do
+    // documento (ex.: fatura MobileSentrix INV-… do pedido 600240227) — liga a fatura à compra.
+    string? OrderReference = null);
 
 public sealed record SupplierPdfItem(
     string Description,

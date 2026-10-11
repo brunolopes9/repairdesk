@@ -97,7 +97,8 @@ public class AuditService : IAuditService
             req.IncludeAllTenants,
             page,
             pageSize,
-            (req.ServiceApiKeyIds ?? Array.Empty<Guid>()).Distinct().ToList());
+            (req.ServiceApiKeyIds ?? Array.Empty<Guid>()).Distinct().ToList(),
+            req.MaisAntigosPrimeiro);
     }
 
     private static AuditEntryDto ToDto(AuditEntry a) =>

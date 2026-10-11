@@ -79,9 +79,16 @@ public class VendaRepository : IVendaRepository
         }
 
         var total = await q.CountAsync(ct);
-        var items = await q
-            .OrderByDescending(v => v.Data)
-            .ThenByDescending(v => v.Numero)
+        var desc = filtro.Ordem?.Desc ?? true;
+        IOrderedQueryable<Venda> ordenada = filtro.Ordem?.Campo switch
+        {
+            "numero" => q.OrdenarPor(v => v.Numero, desc),
+            "cliente" => q.OrdenarPor(v => v.Cliente != null ? v.Cliente.Nome : "", desc),
+            "estado" => q.OrdenarPor(v => v.Estado, desc),
+            "total" => q.OrdenarPor(v => v.TotalCents, desc),
+            _ => q.OrdenarPor(v => v.Data, desc),
+        };
+        var items = await ordenada.DepoisPor(v => v.Numero, desc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

@@ -1618,6 +1618,10 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<string>("ParsedItemsJson")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ParsedOrderReference")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<int?>("ParsedSubtotalCents")
                         .HasColumnType("int");
 

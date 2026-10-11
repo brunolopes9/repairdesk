@@ -31,8 +31,17 @@ public class CompraRepository : ICompraRepository
         }
 
         var total = await q.CountAsync(ct);
-        var items = await q
-            .OrderByDescending(d => d.Data).ThenByDescending(d => d.Numero)
+        var desc = filtro.Ordem?.Desc ?? true;
+        IOrderedQueryable<CompraDocumento> ordenada = filtro.Ordem?.Campo switch
+        {
+            "numero" => q.OrdenarPor(d => d.Numero, desc),
+            "fornecedor" => q.OrdenarPor(d => d.Fornecedor!.Name, desc).DepoisPor(d => d.Data, true),
+            "documento" => q.OrdenarPor(d => d.NumeroFatura ?? d.NumerosEncomenda, desc),
+            "unidades" => q.OrdenarPor(d => d.Linhas.Sum(l => l.Quantidade), desc),
+            "total" => q.OrdenarPor(d => d.Linhas.Sum(l => l.Quantidade * l.PrecoUnitarioPago) + d.PortesPagos, desc),
+            _ => q.OrdenarPor(d => d.Data, desc),
+        };
+        var items = await ordenada.DepoisPor(d => d.Numero, desc)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .AsSplitQuery()
             .ToListAsync(ct);
@@ -72,9 +81,10 @@ public class CompraRepository : ICompraRepository
         => await _db.ComprasDocumentos.AsNoTracking().Include(d => d.Fornecedor).ToListAsync(ct);
 
     public async Task<IReadOnlyList<CompraDocumento>> FindCandidatosFaturaAsync(
-        Guid fornecedorId, string? numero, DateTime de, DateTime ate, CancellationToken ct = default)
+        Guid fornecedorId, string? numero, string? encomenda, DateTime de, DateTime ate, CancellationToken ct = default)
     {
         var num = numero?.Trim().ToUpper();
+        var enc = encomenda?.Trim().ToUpper();
         var candidatos = await _db.ComprasDocumentos
             .Include(d => d.Fornecedor)
             .Include(d => d.Linhas)
@@ -82,6 +92,7 @@ public class CompraRepository : ICompraRepository
             .Where(d =>
                 (num != null && d.NumeroFatura != null && d.NumeroFatura.ToUpper() == num) ||
                 (num != null && d.NumerosEncomenda != null && d.NumerosEncomenda.Contains(num)) ||
+                (enc != null && d.NumerosEncomenda != null && d.NumerosEncomenda.Contains(enc)) ||
                 ((d.NumeroFatura == null || d.NumeroFatura == "") && d.Data >= de && d.Data <= ate))
             .AsSplitQuery()
             .ToListAsync(ct);
@@ -89,7 +100,9 @@ public class CompraRepository : ICompraRepository
         // A coluna de encomendas é uma lista separada por vírgulas: confirma o nº exato em memória.
         return candidatos.Where(d =>
                 (num != null && string.Equals(d.NumeroFatura, num, StringComparison.OrdinalIgnoreCase)) ||
-                (num != null && (d.NumerosEncomenda ?? string.Empty).Split(',').Any(e => string.Equals(e, num, StringComparison.OrdinalIgnoreCase))) ||
+                (d.NumerosEncomenda ?? string.Empty).Split(',').Any(e =>
+                    (num != null && string.Equals(e, num, StringComparison.OrdinalIgnoreCase)) ||
+                    (enc != null && string.Equals(e, enc, StringComparison.OrdinalIgnoreCase))) ||
                 (string.IsNullOrWhiteSpace(d.NumeroFatura) && d.Data >= de && d.Data <= ate))
             .ToList();
     }

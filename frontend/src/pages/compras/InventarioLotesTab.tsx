@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Boxes, Search } from 'lucide-react';
-import { EmptyState, SectionCard, SkeletonRow } from '../../components/ui';
+import { DateRangeFilter, EmptyState, SEM_DATAS, SectionCard, SkeletonRow, SortableTh, type IntervaloDatas } from '../../components/ui';
+import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
 import { comprasApi } from '../../lib/compras/api';
 import { formatEur } from '../../lib/compras/format';
 import { formatDateOnly } from '../../lib/money';
@@ -11,13 +12,28 @@ import { inputCls } from '../../components/ui/formClasses';
 /** Lotes com stock > 0 (SPEC compras §4.5), com preço de venda sugerido e IVA a entregar ao Estado. */
 export default function InventarioLotesTab() {
   const [q, setQ] = useState('');
+  const [datas, setDatas] = useState<IntervaloDatas>(SEM_DATAS);
+  const { ordem, alternar } = useOrdenacao<'numero' | 'artigo' | 'data' | 'stock' | 'pago' | 'venda' | 'lucro' | 'iva'>('numero', false);
   const inv = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario });
 
   const linhas = useMemo(() => {
     const t = q.trim().toLowerCase();
-    const all = inv.data ?? [];
-    return t ? all.filter((l) => `${l.numero} ${l.descricao} ${l.fornecedor} ${l.referencia} ${l.localizacao ?? ''}`.toLowerCase().includes(t)) : all;
-  }, [inv.data, q]);
+    const all = (inv.data ?? []).filter((l) => {
+      const d = l.data.slice(0, 10);
+      return (!datas.de || d >= datas.de) && (!datas.ate || d <= datas.ate);
+    });
+    const filtradas = t ? all.filter((l) => `${l.numero} ${l.descricao} ${l.fornecedor} ${l.referencia} ${l.localizacao ?? ''}`.toLowerCase().includes(t)) : all;
+    return ordenarLista(filtradas, ordem, {
+      numero: (l) => l.numero,
+      artigo: (l) => l.descricao,
+      data: (l) => l.data,
+      stock: (l) => l.quantidadeEmStock,
+      pago: (l) => l.precoUnitarioPago,
+      venda: (l) => l.precoFinalComIva,
+      lucro: (l) => l.lucro,
+      iva: (l) => l.ivaAPagarEstado,
+    });
+  }, [inv.data, q, datas, ordem]);
 
   const totais = useMemo(() => linhas.reduce(
     (s, l) => ({ un: s.un + l.quantidadeEmStock, pago: s.pago + l.totalPago, lucro: s.lucro + l.lucro }),
@@ -28,10 +44,13 @@ export default function InventarioLotesTab() {
     <SectionCard
       bodyClassName="p-0"
       title={
-        <label className="relative min-w-48 flex-1">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} pl-9`} placeholder="Procurar nº do lote, artigo, fornecedor, localização…" aria-label="Procurar" />
-        </label>
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <label className="relative min-w-48 flex-1">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} pl-9`} placeholder="Procurar nº do lote, artigo, fornecedor, localização…" aria-label="Procurar" />
+          </label>
+          <DateRangeFilter value={datas} onChange={setDatas} />
+        </div>
       }
       action={<span className="whitespace-nowrap text-sm text-zinc-500 tabular-nums">{totais.un} un. · {formatEur(totais.pago)} pago</span>}
     >
@@ -44,14 +63,14 @@ export default function InventarioLotesTab() {
           <table className="w-full min-w-[52rem] text-sm">
             <thead className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800">
               <tr>
-                <th className="px-4 py-2 font-medium">Lote</th>
-                <th className="px-4 py-2 font-medium">Artigo</th>
-                <th className="px-4 py-2 font-medium">Compra</th>
-                <th className="px-4 py-2 text-right font-medium">Stock</th>
-                <th className="px-4 py-2 text-right font-medium">Pago un.</th>
-                <th className="px-4 py-2 text-right font-medium">Venda c/ IVA</th>
-                <th className="px-4 py-2 text-right font-medium">Lucro (lote)</th>
-                <th className="px-4 py-2 text-right font-medium">IVA ao Estado (lote)</th>
+                <SortableTh className="px-4 py-2" label="Lote" campo="numero" ordem={ordem} onOrdenar={alternar} />
+                <SortableTh className="px-4 py-2" label="Artigo" campo="artigo" ordem={ordem} onOrdenar={alternar} />
+                <SortableTh className="px-4 py-2" label="Compra" campo="data" ordem={ordem} onOrdenar={alternar} />
+                <SortableTh className="px-4 py-2" label="Stock" campo="stock" ordem={ordem} onOrdenar={alternar} align="right" />
+                <SortableTh className="px-4 py-2" label="Pago un." campo="pago" ordem={ordem} onOrdenar={alternar} align="right" />
+                <SortableTh className="px-4 py-2" label="Venda c/ IVA" campo="venda" ordem={ordem} onOrdenar={alternar} align="right" />
+                <SortableTh className="px-4 py-2" label="Lucro (lote)" campo="lucro" ordem={ordem} onOrdenar={alternar} align="right" />
+                <SortableTh className="px-4 py-2" label="IVA ao Estado (lote)" campo="iva" ordem={ordem} onOrdenar={alternar} align="right" />
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">

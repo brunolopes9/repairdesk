@@ -24,7 +24,8 @@ import {
   X,
 } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
+import { Button, EmptyState, PageHeader, SkeletonCard, SortableTh } from '../../components/ui';
+import { useOrdenacao } from '../../lib/useOrdenacao';
 import { isAxiosError } from 'axios';
 import { clientesApi, type ImportClientesResponse } from '../../lib/clientes/api';
 import { clienteTagsApi } from '../../lib/clienteTags/api';
@@ -84,10 +85,12 @@ export default function Clientes() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const { ordem, alternar, params: ordemParams } = useOrdenacao<'nome' | 'nif' | 'criado'>('nome', false);
+  function ordenar(c: typeof ordem.campo) { alternar(c); setPage(1); }
 
   const list = useQuery({
-    queryKey: ['clientes', search, page, tagFilter],
-    queryFn: () => clientesApi.list(search, page, pageSize, tagFilter),
+    queryKey: ['clientes', search, page, tagFilter, ordemParams],
+    queryFn: () => clientesApi.list(search, page, pageSize, tagFilter, ordemParams),
     placeholderData: keepPreviousData,
   });
 
@@ -311,9 +314,10 @@ export default function Clientes() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:border-zinc-800">
-                    <th className="px-4 py-2.5">Cliente</th>
+                    <SortableTh className="px-4 py-2.5" label="Cliente" campo="nome" ordem={ordem} onOrdenar={ordenar} />
                     <th className="px-4 py-2.5">Contactos</th>
-                    <th className="px-4 py-2.5">NIF</th>
+                    <SortableTh className="px-4 py-2.5" label="NIF" campo="nif" ordem={ordem} onOrdenar={ordenar} />
+                    <SortableTh className="px-4 py-2.5" label="Desde" campo="criado" ordem={ordem} onOrdenar={ordenar} />
                     <th className="px-4 py-2.5 text-right">Ações</th>
                   </tr>
                 </thead>
@@ -335,7 +339,6 @@ export default function Clientes() {
                             </span>
                               <div className="min-w-0">
                                 <div className="truncate font-medium">{c.nome}</div>
-                                <div className="text-[11px] text-zinc-400">Desde {formatDateOnly(c.createdAt)}</div>
                                 {c.tags && c.tags.length > 0 && (
                                   <div className="mt-1 flex flex-wrap gap-1">
                                     {c.tags.slice(0, 3).map((t) => (
@@ -386,6 +389,7 @@ export default function Clientes() {
                             <span className="text-zinc-300 dark:text-zinc-600">—</span>
                           )}
                         </td>
+                        <td className="whitespace-nowrap px-4 py-3 tabular-nums text-zinc-500">{formatDateOnly(c.createdAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
                             <button

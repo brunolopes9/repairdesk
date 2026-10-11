@@ -50,6 +50,7 @@ public class AuditController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         [FromQuery] Guid[]? serviceApiKeyIds = null,
+        [FromQuery] string? dir = null,
         CancellationToken ct = default)
         => _service.SearchAsync(new AuditSearchRequest(
             entityTypes ?? Array.Empty<string>(),
@@ -62,7 +63,8 @@ public class AuditController : ControllerBase
             includeAllTenants,
             page,
             pageSize,
-            serviceApiKeyIds ?? Array.Empty<Guid>()), ct);
+            serviceApiKeyIds ?? Array.Empty<Guid>(),
+            string.Equals(dir, "asc", StringComparison.OrdinalIgnoreCase)), ct);
 
     [HttpGet("filters")]
     public Task<AuditFilterOptionsDto> Filters([FromQuery] bool includeAllTenants = false, CancellationToken ct = default)

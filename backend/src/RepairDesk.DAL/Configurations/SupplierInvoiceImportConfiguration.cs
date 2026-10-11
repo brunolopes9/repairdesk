@@ -19,6 +19,7 @@ public class SupplierInvoiceImportConfiguration : IEntityTypeConfiguration<Suppl
         builder.Property(x => x.EmailSubject).HasMaxLength(500);
         builder.Property(x => x.EmailFrom).HasMaxLength(255);
         builder.Property(x => x.ParsedDocumentNumber).HasMaxLength(50);
+        builder.Property(x => x.ParsedOrderReference).HasMaxLength(50);
         builder.Property(x => x.ParseConfidence).HasMaxLength(20);
         builder.Property(x => x.ParsedItemsJson).HasColumnType("nvarchar(max)");
         builder.Property(x => x.RejectionReason).HasMaxLength(500);

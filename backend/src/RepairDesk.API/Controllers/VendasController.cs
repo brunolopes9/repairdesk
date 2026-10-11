@@ -38,8 +38,10 @@ public class VendasController : ControllerBase
         [FromQuery] string? q = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? dir = null,
         CancellationToken ct = default)
-        => _service.SearchAsync(new VendaFiltro(from, to, clienteId, tipo, estado, emCurso, faturaPorRegistar, q), page, pageSize, ct);
+        => _service.SearchAsync(new VendaFiltro(from, to, clienteId, tipo, estado, emCurso, faturaPorRegistar, q, Ordenacao.De(sort, dir)), page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<VendaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);

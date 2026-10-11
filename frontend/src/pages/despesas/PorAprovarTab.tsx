@@ -12,7 +12,10 @@ import { formatCents } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
 import Modal from '../../components/Modal';
-import { Button, DetailWorkspace, InspectorRail, ViewTabs } from '../../components/ui';
+import { Button, DetailWorkspace, InspectorRail, SortableTh, ViewTabs } from '../../components/ui';
+import { ordenarLista, useOrdenacao, type Ordem } from '../../lib/useOrdenacao';
+
+type CampoFatura = 'fornecedor' | 'documento' | 'data' | 'total';
 
 const inputCls = 'mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950';
 
@@ -184,7 +187,13 @@ export default function PorAprovarTab() {
     }
   }
 
-  const data = pending.data ?? [];
+  const { ordem, alternar } = useOrdenacao<CampoFatura>('data');
+  const data = ordenarLista(pending.data ?? [], ordem, {
+    fornecedor: (x) => x.fornecedorName,
+    documento: (x) => x.documentNumber,
+    data: (x) => x.documentDate,
+    total: (x) => x.totalCents,
+  });
   const failed = data.filter((d) => d.status === 'Failed');
   const ready = data.filter((d) => d.status === 'Pending');
   const pendingTotalCents = data.reduce((sum, item) => sum + (item.totalCents ?? 0), 0);
@@ -340,7 +349,7 @@ export default function PorAprovarTab() {
             <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
               Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
             </p>
-            <ImportsTable data={failed} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+            <ImportsTable data={failed} ordem={ordem} onOrdenar={alternar} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
           </section>
         )}
 
@@ -367,7 +376,7 @@ export default function PorAprovarTab() {
                   Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
                 </div>
               ) : ready.length > 0 ? (
-                <ImportsTable data={ready} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+                <ImportsTable data={ready} ordem={ordem} onOrdenar={alternar} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
               ) : null
             ) : (
               history.isLoading ? (
@@ -435,9 +444,11 @@ export default function PorAprovarTab() {
 }
 
 function ImportsTable({
-  data, onLigar, onPdf, onCompra, onDespesa, onReject,
+  data, ordem, onOrdenar, onLigar, onPdf, onCompra, onDespesa, onReject,
 }: {
   data: SupplierInvoiceImport[];
+  ordem: Ordem<CampoFatura>;
+  onOrdenar: (campo: CampoFatura) => void;
   onLigar: (importId: string) => void;
   onPdf: (id: string) => void;
   onCompra: (x: SupplierInvoiceImport) => void;
@@ -449,10 +460,10 @@ function ImportsTable({
       <table className="w-full text-sm">
         <thead className="text-xs uppercase text-zinc-500">
           <tr>
-            <th className="px-2 py-2 text-left">Fornecedor</th>
-            <th className="px-2 py-2 text-left">Documento</th>
-            <th className="px-2 py-2 text-left">Data</th>
-            <th className="px-2 py-2 text-right">Total</th>
+            <SortableTh className="px-2 py-2" label="Fornecedor" campo="fornecedor" ordem={ordem} onOrdenar={onOrdenar} />
+            <SortableTh className="px-2 py-2" label="Documento" campo="documento" ordem={ordem} onOrdenar={onOrdenar} />
+            <SortableTh className="px-2 py-2" label="Data" campo="data" ordem={ordem} onOrdenar={onOrdenar} />
+            <SortableTh className="px-2 py-2" label="Total" campo="total" ordem={ordem} onOrdenar={onOrdenar} align="right" />
             <th className="px-2 py-2 text-left">Leitura · compra</th>
             <th className="px-2 py-2 text-right">Acções</th>
           </tr>

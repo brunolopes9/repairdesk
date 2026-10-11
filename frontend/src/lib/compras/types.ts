@@ -86,6 +86,8 @@ export interface CompraFiltro {
   ate?: string;
   page?: number;
   pageSize?: number;
+  sort?: string;
+  dir?: 'asc' | 'desc';
 }
 
 export interface Paged<T> {

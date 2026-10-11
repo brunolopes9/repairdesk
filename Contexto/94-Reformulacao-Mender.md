@@ -235,3 +235,20 @@ nem era chamada.
   "Tudo4Mobile").
 - Validado com o Excel real + 13 PDFs reais: 9 ligadas sozinhas (as 3 "Dif." ficam a zero — os totais/portes
   do Excel estavam errados, as linhas certas), 3 para rever, 1 compra nova que não estava no Excel.
+
+## Sprint 561 — faturas MobileSentrix, preços sem IVA, ordenação e datas
+
+- Leitor MobileSentrix lê também a **fatura** (Invoice Number `INV-…` + "Número do pedido"); o hífen do nº
+  sai do extrator como glifo privado U+E088 e é reposto. `SupplierInvoiceImport.ParsedOrderReference` guarda
+  o nº do pedido referido na fatura; a correspondência usa-o (motivo "encomenda") — necessário porque
+  600240227 e 600246271 têm o mesmo total a 10 dias. A fatura grava o seu nº (≠ encomenda) e a compra deixa
+  de estar em falta. Um resumo carregado depois da fatura conta como "duplicada".
+- Venda: seletor "Os preços que escrevo são com IVA / sem IVA" (serviços por defeito sem IVA). O valor gravado
+  continua a ser c/ IVA (fonte única no servidor); 300 € s/ IVA → 369 € a cobrar, 69 € IVA, 300 € lucro.
+- Lista de compras deixa de mostrar o badge "Dif." (pedido do Bruno); a diferença continua visível dentro da
+  compra, onde se corrige.
+- Ordenação por clique no cabeçalho (`SortableTh` + `useOrdenacao`) e filtro de datas com atalhos
+  mês/trimestre/ano (`DateRangeFilter`) em Compras, Stock, Vendas, Faturas recebidas; ordenação em Clientes
+  (+ coluna "Desde"), Fornecedores e Auditoria. Listas paginadas ordenam no servidor (`sort`/`dir`,
+  `Ordenacao` + `OrdenarPor`). Despesas fica para a Fase 5 (a lista vai ser refeita).
+- Por fazer: nº visível em Clientes/Fornecedores/Despesas com um mecanismo central de numeração por tenant.

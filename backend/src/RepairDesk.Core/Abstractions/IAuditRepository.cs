@@ -23,7 +23,9 @@ public sealed record AuditQuery(
     bool IncludeAllTenants,
     int Page,
     int PageSize,
-    IReadOnlyList<Guid> ServiceApiKeyIds);
+    IReadOnlyList<Guid> ServiceApiKeyIds,
+    // Sprint 561: true = mais antigos primeiro.
+    bool MaisAntigosPrimeiro = false);
 
 public sealed record AuditFilterOptionsSnapshot(
     IReadOnlyList<string> EntityTypes,

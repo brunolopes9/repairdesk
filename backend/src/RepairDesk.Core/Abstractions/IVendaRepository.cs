@@ -30,7 +30,9 @@ public sealed record VendaFiltro(
     bool EmCurso = false,
     /// <summary>true = Entregues sem nº de fatura registado.</summary>
     bool FaturaPorRegistar = false,
-    string? Q = null);
+    string? Q = null,
+    // Sprint 561: "numero" | "data" | "cliente" | "estado" | "total".
+    Ordenacao? Ordem = null);
 
 public sealed record VendaImeiLookupRow(
     Guid VendaId,

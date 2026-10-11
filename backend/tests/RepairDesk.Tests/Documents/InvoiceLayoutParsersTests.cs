@@ -118,6 +118,40 @@ public class InvoiceLayoutParsersTests
     }
 
     [Fact]
+    public void MobileSentrixFatura_LeNumeroINV_EOPedidoComoReferencia()
+    {
+        // Texto tal como sai do PdfPig: o hífen do nº vem como glifo privado U+E088.
+        const string fatura = """
+            Subtotal: €16.42
+            Envio € 6.95
+            Total geral: € 23.37
+            Mobilesentrix
+            Invoice Date
+            03/07/2026
+            Bill To
+            CLIENTE TESTE
+            Número do pedido: 600240227
+            Descrição do produto SKU MPN Preço
+            Quantidade
+            Fulfilled Subtotal
+            Montagem de LCD com Moldura Para Xiaomi Poco F3
+            Incell) Preto Noite)
+            107082120702 € 16.42 1 1 € 16.42
+            Total 1 1
+            MobileSentrix Europe | sales@mobilesentrix.eu
+            Invoice Number
+            INV100110146
+            """;
+        var r = SupplierPdfParser.Parse(fatura);
+        r.OrderId.Should().Be("INV-100110146");
+        r.OrderReference.Should().Be("600240227");
+        r.DateAdded.Should().Be(new DateTime(2026, 7, 3));
+        r.TotalCents.Should().Be(2337);
+        r.Confidence.Should().Be(ParseConfidence.High);
+        r.Items.Select(i => i.LineTotalCents).Should().Equal(1642, 695);
+    }
+
+    [Fact]
     public void Tudo4MobileAntigo_SemNumeroNemTotal_JaNaoDizConfiancaAlta()
     {
         var r = SupplierPdfParser.Parse("Tudo4Mobile\nAlguma coisa 5.00€\n");

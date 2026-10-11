@@ -61,4 +61,6 @@ export interface AuditFilters {
   page?: number;
   pageSize?: number;
   serviceApiKeyIds?: string[];
+  /** Sprint 561: 'asc' = mais antigos primeiro. */
+  dir?: 'asc' | 'desc';
 }

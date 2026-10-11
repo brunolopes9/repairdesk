@@ -25,8 +25,11 @@ public class ClientesController : ControllerBase
         [FromQuery] Guid? tagId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? dir = null,
         CancellationToken ct = default)
-        => _service.SearchAsync(q, page, pageSize, tagId, ct);
+        => _service.SearchAsync(q, page, pageSize, tagId, ct,
+            Ordenacao.De(sort, string.IsNullOrWhiteSpace(dir) ? "asc" : dir));
 
     [HttpGet("{id:guid}")]
     public Task<ClienteDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);

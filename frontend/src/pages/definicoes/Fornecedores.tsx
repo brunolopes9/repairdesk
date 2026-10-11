@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, CheckCircle2, History, Mail, Phone, Plus, Trash2, XCircle } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { BackButton, Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonRow } from '../../components/ui';
+import { BackButton, Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonRow, SortableTh } from '../../components/ui';
+import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
 import { toast } from '../../lib/toast';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor, type FornecedorWriteRequest, type RegimeIva } from '../../lib/fornecedores/api';
@@ -76,7 +77,12 @@ export default function Fornecedores() {
     onError: (e) => toast.fromError(e, 'Erro ao remover.'),
   });
 
-  const items = list.data ?? [];
+  const { ordem, alternar } = useOrdenacao<'nome' | 'garantia' | 'estado'>('nome', false);
+  const items = ordenarLista(list.data ?? [], ordem, {
+    nome: (f) => f.name,
+    garantia: (f) => f.garantiaB2BDiasDefault ?? null,
+    estado: (f) => (f.active ? 0 : 1),
+  });
   const activeCount = items.filter((f) => f.active).length;
   const inactiveCount = items.filter((f) => !f.active).length;
   const intraUeCount = items.filter((f) => f.intraUe).length;
@@ -147,10 +153,10 @@ export default function Fornecedores() {
             <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wider text-zinc-500 dark:bg-zinc-800/60">
                 <tr>
-                  <th className="px-4 py-2.5">Fornecedor</th>
+                  <SortableTh className="px-4 py-2.5" label="Fornecedor" campo="nome" ordem={ordem} onOrdenar={alternar} />
                   <th className="px-4 py-2.5">Contactos</th>
-                  <th className="px-4 py-2.5">Garantia B2B</th>
-                  <th className="px-4 py-2.5">Estado</th>
+                  <SortableTh className="px-4 py-2.5" label="Garantia B2B" campo="garantia" ordem={ordem} onOrdenar={alternar} />
+                  <SortableTh className="px-4 py-2.5" label="Estado" campo="estado" ordem={ordem} onOrdenar={alternar} />
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>

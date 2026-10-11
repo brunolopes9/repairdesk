@@ -26,6 +26,7 @@ export function buildAuditQuery(filters: AuditFilters): string {
   if (filters.search) params.set('search', filters.search);
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
+  if (filters.dir) params.set('dir', filters.dir);
   params.set('page', String(filters.page ?? 1));
   params.set('pageSize', String(filters.pageSize ?? 50));
   return params.toString();
