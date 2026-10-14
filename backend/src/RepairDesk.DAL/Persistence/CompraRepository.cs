@@ -19,15 +19,22 @@ public class CompraRepository : ICompraRepository
         if (filtro.AteUtc is { } ate) q = q.Where(d => d.Data < ate);
         if (!string.IsNullOrWhiteSpace(filtro.Query))
         {
-            var term = filtro.Query.Trim();
             // "13" encontra a compra nº 13 ou a que tem o lote nº 13.
-            var numero = int.TryParse(term.TrimStart('#'), out var n) ? n : -1;
-            q = q.Where(d =>
-                d.Numero == numero || d.Linhas.Any(l => l.Numero == numero) ||
-                (d.NumeroFatura != null && d.NumeroFatura.Contains(term)) ||
-                (d.NumerosEncomenda != null && d.NumerosEncomenda.Contains(term)) ||
-                d.Fornecedor!.Name.Contains(term) ||
-                d.Linhas.Any(l => l.Descricao.Contains(term)));
+            var numero = int.TryParse(filtro.Query.Trim().TrimStart('#'), out var n) ? n : -1;
+            if (numero >= 0)
+                q = q.Where(d => d.Numero == numero || d.Linhas.Any(l => l.Numero == numero)
+                    || (d.NumeroFatura != null && d.NumeroFatura.Contains(filtro.Query.Trim()))
+                    || (d.NumerosEncomenda != null && d.NumerosEncomenda.Contains(filtro.Query.Trim())));
+            else
+                foreach (var termo in PesquisaTexto.Termos(filtro.Query))
+                {
+                    var t = termo.ToUpper();
+                    q = q.Where(d =>
+                        (d.NumeroFatura != null && d.NumeroFatura.ToUpper().Contains(t)) ||
+                        (d.NumerosEncomenda != null && d.NumerosEncomenda.ToUpper().Contains(t)) ||
+                        d.Fornecedor!.Name.ToUpper().Contains(t) ||
+                        d.Linhas.Any(l => l.Descricao.ToUpper().Contains(t)));
+                }
         }
 
         var total = await q.CountAsync(ct);

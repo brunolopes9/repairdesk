@@ -6,6 +6,7 @@ import { DateRangeFilter, EmptyState, SEM_DATAS, SectionCard, SkeletonRow, Sorta
 import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
 import { comprasApi } from '../../lib/compras/api';
 import { formatEur } from '../../lib/compras/format';
+import { correspondeTermos } from '../../lib/pesquisa';
 import { formatDateOnly } from '../../lib/money';
 import { inputCls } from '../../components/ui/formClasses';
 
@@ -22,7 +23,7 @@ export default function InventarioLotesTab() {
       const d = l.data.slice(0, 10);
       return (!datas.de || d >= datas.de) && (!datas.ate || d <= datas.ate);
     });
-    const filtradas = t ? all.filter((l) => `${l.numero} ${l.descricao} ${l.fornecedor} ${l.referencia} ${l.localizacao ?? ''}`.toLowerCase().includes(t)) : all;
+    const filtradas = t ? all.filter((l) => correspondeTermos(`${l.numero} ${l.descricao} ${l.fornecedor} ${l.referencia} ${l.localizacao ?? ''}`, t)) : all;
     return ordenarLista(filtradas, ordem, {
       numero: (l) => l.numero,
       artigo: (l) => l.descricao,

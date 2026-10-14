@@ -6,6 +6,7 @@ import { inputCls } from '../../components/ui/formClasses';
 import { comprasApi } from '../../lib/compras/api';
 import type { InventarioLinha } from '../../lib/compras/types';
 import { formatEur } from '../../lib/compras/format';
+import { correspondeTermos } from '../../lib/pesquisa';
 
 /** Escolher um lote de stock (linha de compra com stock > 0) para uma linha de venda. */
 export default function LotePicker({
@@ -26,7 +27,7 @@ export default function LotePicker({
   const linhas = useMemo(() => {
     const t = q.trim().toLowerCase();
     const all = inv.data ?? [];
-    return t ? all.filter((l) => `${l.numero} ${l.descricao} ${l.fornecedor} ${l.localizacao ?? ''}`.toLowerCase().includes(t)) : all;
+    return t ? all.filter((l) => correspondeTermos(`${l.numero} ${l.descricao} ${l.fornecedor} ${l.localizacao ?? ''}`, t)) : all;
   }, [inv.data, q]);
 
   return (

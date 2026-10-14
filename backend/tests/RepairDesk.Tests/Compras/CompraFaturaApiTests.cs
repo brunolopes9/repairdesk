@@ -45,6 +45,24 @@ public class CompraFaturaApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Pesquisa_PorPalavras_EncontraMesmoComOutrasPalavrasPeloMeio()
+    {
+        // Caso real: "xiaomi 13t pro" não encontrava "Touch e lcd com frame Xiaomi 13T / 13T Pro preto".
+        var client = await AuthedClient();
+        var forn = await CriarFornecedor(client, RegimeIvaFornecedor.UeAutoliquidacao);
+        var doc = await CriarCompra(client, forn, new DateTime(2026, 9, 28), "INV-NL-" + Rand(), null, 14.9m, null,
+            ("Touch e lcd com frame Xiaomi 13T / 13T Pro preto", 1, 38.95m));
+
+        foreach (var q in new[] { "xiaomi 13t pro", "PRO xiaomi", "13t preto" })
+        {
+            var res = await client.GetFromJsonAsync<PagedResult<CompraDocumentoDto>>($"/api/compras?q={Uri.EscapeDataString(q)}");
+            res!.Items.Should().Contain(d => d.Id == doc.Id, q);
+        }
+        var nada = await client.GetFromJsonAsync<PagedResult<CompraDocumentoDto>>($"/api/compras?fornecedorId={forn}&q=xiaomi%2014t");
+        nada!.Items.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Lista_OrdenaPorColunaEFiltraPorDatas()
     {
         var client = await AuthedClient();

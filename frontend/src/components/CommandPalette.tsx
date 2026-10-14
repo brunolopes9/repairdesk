@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   LayoutDashboard,
   Megaphone,
+  Package,
   Plus,
   Receipt,
   ScrollText,
@@ -24,6 +25,9 @@ import {
 import { clientesApi } from '../lib/clientes/api';
 import { vendasApi } from '../lib/vendas/api';
 import { VENDA_TIPO_LABEL } from '../lib/vendas/types';
+import { comprasApi } from '../lib/compras/api';
+import { formatEur } from '../lib/compras/format';
+import { correspondeTermos } from '../lib/pesquisa';
 
 interface Command {
   id: string;
@@ -76,6 +80,22 @@ export default function CommandPalette() {
     staleTime: 60_000,
   });
 
+  // Sprint 562: stock (lotes) — a lista já está em cache; filtra-se aqui com a mesma regra por palavras.
+  const stockSearch = useQuery({
+    queryKey: ['compras', 'inventario'],
+    queryFn: comprasApi.inventario,
+    enabled: shouldSearch,
+    staleTime: 60_000,
+  });
+
+  // Compras (faturas/encomendas de fornecedor) server-side. Top 5.
+  const comprasSearch = useQuery({
+    queryKey: ['palette-compras', debouncedQuery],
+    queryFn: () => comprasApi.search({ q: debouncedQuery, pageSize: 5 }),
+    enabled: shouldSearch,
+    staleTime: 60_000,
+  });
+
   const commands: Command[] = useMemo(
     () => [
       // Navegação
@@ -102,14 +122,10 @@ export default function CommandPalette() {
   );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     const matchedCommands = !q
       ? commands
-      : commands.filter((c) =>
-          c.label.toLowerCase().includes(q)
-          || c.keywords.some((k) => k.toLowerCase().includes(q))
-          || (c.hint && c.hint.toLowerCase().includes(q)),
-        );
+      : commands.filter((c) => correspondeTermos(`${c.label} ${c.keywords.join(' ')} ${c.hint ?? ''}`, q));
 
     // Quando há query >=2 chars, adiciona resultados server-side
     if (!shouldSearch) return matchedCommands;
@@ -132,8 +148,29 @@ export default function CommandPalette() {
       action: () => navigate(`/vendas/${r.id}`),
     }));
 
-    return [...matchedCommands, ...clienteCmds, ...reparacaoCmds];
-  }, [commands, query, shouldSearch, clientesSearch.data, reparacoesSearch.data, navigate]);
+    const stockCmds: Command[] = (stockSearch.data ?? [])
+      .filter((l) => correspondeTermos(`${l.numero} ${l.descricao} ${l.fornecedor} ${l.localizacao ?? ''}`, debouncedQuery))
+      .slice(0, 6)
+      .map((l) => ({
+        id: `lote-${l.linhaId}`,
+        label: `Lote ${l.numero} · ${l.descricao}`,
+        hint: `${l.quantidadeEmStock} em stock · venda ${formatEur(l.precoFinalComIva)}${l.localizacao ? ` · ${l.localizacao}` : ''}`,
+        icon: Package,
+        keywords: [],
+        action: () => navigate(`/compras/${l.documentoId}`),
+      }));
+
+    const compraCmds: Command[] = (comprasSearch.data?.items ?? []).slice(0, 5).map((d) => ({
+      id: `compra-${d.id}`,
+      label: `Compra nº ${d.numero} · ${d.numeroFatura ?? (d.numerosEncomenda.length ? `Enc. ${d.numerosEncomenda.join(', ')}` : 'sem referência')}`,
+      hint: `${d.fornecedorNome} · ${formatEur(d.totalCalculado)}`,
+      icon: Receipt,
+      keywords: [],
+      action: () => navigate(`/compras/${d.id}`),
+    }));
+
+    return [...matchedCommands, ...stockCmds, ...clienteCmds, ...reparacaoCmds, ...compraCmds];
+  }, [commands, query, debouncedQuery, shouldSearch, clientesSearch.data, reparacoesSearch.data, stockSearch.data, comprasSearch.data, navigate]);
 
   // Reset selection when filter changes
   useEffect(() => {

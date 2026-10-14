@@ -132,12 +132,16 @@ public class ClienteRepository : IClienteRepository
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var like = $"%{query.Trim()}%";
-            q = q.Where(c =>
-                EF.Functions.Like(c.Nome, like) ||
-                EF.Functions.Like(c.Telefone, like) ||
-                (c.Email != null && EF.Functions.Like(c.Email, like)) ||
-                (c.Nif != null && EF.Functions.Like(c.Nif, like)));
+            // Sprint 562: por palavras — "joão silva" encontra "João Pedro Silva".
+            foreach (var termo in PesquisaTexto.Termos(query))
+            {
+                var like = $"%{termo}%";
+                q = q.Where(c =>
+                    EF.Functions.Like(c.Nome, like) ||
+                    EF.Functions.Like(c.Telefone, like) ||
+                    (c.Email != null && EF.Functions.Like(c.Email, like)) ||
+                    (c.Nif != null && EF.Functions.Like(c.Nif, like)));
+            }
         }
 
         if (tagId.HasValue)

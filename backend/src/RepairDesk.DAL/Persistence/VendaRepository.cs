@@ -69,13 +69,20 @@ public class VendaRepository : IVendaRepository
         if (filtro.FaturaPorRegistar) q = q.Where(v => v.Estado == VendaEstado.Entregue && v.InvoiceNumber == null);
         if (!string.IsNullOrWhiteSpace(filtro.Q))
         {
-            var t = filtro.Q.Trim();
-            var numero = int.TryParse(t, out var n) ? n : (int?)null;
-            q = q.Where(v => v.Numero == numero
-                || (v.Cliente != null && v.Cliente.Nome.Contains(t))
-                || (v.Equipamento != null && v.Equipamento.Contains(t))
-                || (v.InvoiceNumber != null && v.InvoiceNumber.Contains(t))
-                || v.Items.Any(i => i.Descricao.Contains(t)));
+            var inteiro = filtro.Q.Trim().TrimStart('#');
+            if (int.TryParse(inteiro, out var numero))
+                q = q.Where(v => v.Numero == numero || (v.InvoiceNumber != null && v.InvoiceNumber.Contains(inteiro)));
+            else
+                foreach (var termo in PesquisaTexto.Termos(filtro.Q))
+                {
+                    var t = termo.ToUpper();
+                    q = q.Where(v =>
+                        (v.Cliente != null && v.Cliente.Nome.ToUpper().Contains(t))
+                        || (v.Equipamento != null && v.Equipamento.ToUpper().Contains(t))
+                        || (v.Problema != null && v.Problema.ToUpper().Contains(t))
+                        || (v.InvoiceNumber != null && v.InvoiceNumber.ToUpper().Contains(t))
+                        || v.Items.Any(i => i.Descricao.ToUpper().Contains(t)));
+                }
         }
 
         var total = await q.CountAsync(ct);
