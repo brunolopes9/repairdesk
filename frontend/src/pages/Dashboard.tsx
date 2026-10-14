@@ -28,7 +28,6 @@ export default function Dashboard() {
     { n: alertas.faturasPorRegistar, texto: 'venda(s) entregue(s) sem nº de fatura', to: '/vendas?vista=fatura' },
     { n: alertas.faturasRecebidasPorAprovar, texto: 'fatura(s) de fornecedor por aprovar', to: '/compras?tab=pending' },
     { n: alertas.comprasSemFatura, texto: 'compra(s) sem fatura (IVA não dedutível)', to: '/compras' },
-    { n: alertas.comprasComDiferenca, texto: 'compra(s) que não batem com o total do documento', to: '/compras' },
   ].filter((a) => a.n > 0);
 
   return (
