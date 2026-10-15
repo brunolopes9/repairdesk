@@ -283,7 +283,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // Sprint 171: validation rules pós-parse — rebaixa confidence se totais não batem etc.
         IReadOnlyList<string> parseWarnings;
         (parsed, parseWarnings) = ParseValidator.Apply(parsed);
-        parseWarnings = [.. parseWarnings, .. ParseValidator.DocumentWarnings(rawText)];
+        parseWarnings = [.. parseWarnings, .. ParseValidator.DocumentWarnings(rawText), .. await AvisosFornecedorAsync(fornecedorId, fornecedorNameRaw, ct)];
         if (parseWarnings.Count > 0)
             _logger.LogWarning("Parse validation warnings: {Warnings}", string.Join(" | ", parseWarnings));
 
@@ -676,6 +676,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 
         // Sprint 526: find-or-create fornecedor também no reprocess (re-corre importações órfãs).
         fornecedorId = await ResolveOrCreateFornecedorIdAsync(fornecedorId, fornecedorNameRaw, tenantId, ct);
+        reprocessWarnings = [.. reprocessWarnings, .. await AvisosFornecedorAsync(fornecedorId, fornecedorNameRaw, ct)];
 
         // Update in-place.
         entity.FornecedorNameRaw = fornecedorNameRaw;
@@ -764,6 +765,19 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
     /// nunca era carimbado. Fornecedores B2B intra-UE conhecidos ficam IntraUe=true por defeito
     /// (override sempre possível no toggle do fornecedor).
     /// </summary>
+    /// <summary>
+    /// Sprint 562: fornecedor UE conhecido registado como nacional faria as linhas levar 23% de IVA na
+    /// compra — avisa em vez de corrigir sozinho (o regime é uma decisão fiscal do utilizador).
+    /// </summary>
+    private async Task<IReadOnlyList<string>> AvisosFornecedorAsync(Guid? fornecedorId, string? nome, CancellationToken ct)
+    {
+        if (fornecedorId is not { } id || !IntraUeSuppliers.IsKnownIntraUe(nome)) return [];
+        var f = await _fornecedores.FindByIdAsync(id, ct);
+        return f is not null && f.RegimeIva == RegimeIvaFornecedor.Nacional
+            ? [$"O fornecedor \"{f.Name}\" está registado como nacional, mas é da UE — muda o regime para \"UE — autoliquidação\" em Definições → Fornecedores antes de criar a compra."]
+            : [];
+    }
+
     private async Task<Guid?> ResolveOrCreateFornecedorIdAsync(Guid? currentId, string? nameRaw, Guid tenantId, CancellationToken ct)
     {
         if (currentId is not null) return currentId;

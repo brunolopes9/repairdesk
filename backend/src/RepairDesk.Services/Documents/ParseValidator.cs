@@ -87,6 +87,11 @@ public static class ParseValidator
         if (rawText.Contains("fins de formação", StringComparison.OrdinalIgnoreCase)
             || rawText.Contains("fins de formacao", StringComparison.OrdinalIgnoreCase))
             warnings.Add("O PDF diz \"Documento emitido para fins de formação\" — confirma no e-Fatura que esta fatura foi comunicada à AT.");
+        // Sprint 562: desconto global (ex.: SpainSellers "DESCUENTOS -19.64") — repartido pelos artigos na leitura.
+        var desconto = System.Text.RegularExpressions.Regex.Match(rawText, @"(?:DESCUENTOS?|DESCONTOS?|DISCOUNT)\s*:?\s*-\s*(\d+(?:[.,]\d+)?)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (desconto.Success && desconto.Groups[1].Value.Trim('0', '.', ',').Length > 0)
+            warnings.Add($"A fatura tem um desconto de {desconto.Groups[1].Value} € — foi repartido pelos artigos, em proporção ao valor de cada um.");
         return warnings;
     }
 

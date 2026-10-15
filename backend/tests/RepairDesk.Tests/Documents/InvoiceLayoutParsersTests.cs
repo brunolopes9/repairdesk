@@ -152,6 +152,35 @@ public class InvoiceLayoutParsersTests
     }
 
     [Fact]
+    public void SpainSellers_LeQtdColadaAoPreco_ERepartesODesconto()
+    {
+        // Texto tal como sai do PdfPig (cliente anonimizado): a qtd vem colada ao PVP ("5,402" = 5,40 × 2).
+        const string fatura = """
+            www.spainsellers.com
+            29/09/2026FACTURA : 40747/1 FECHA:
+            CLIENTE TESTE
+            MICROREPUESTOS S.L.U. CIF: B54848346
+            REFERENCIA WEB: 798713
+            2000000835150 BATERÍA A1773 PARA AIRPOD 1 Y 2 50MAH 5,402 5,40 10,80
+            2000010014811 XIAOMI 13T 13T PRO TAPA TRASERA O TAPA BATERIA NEGRA 13,331 13,33 13,33
+            8,74 0,00 8,74
+            BASE IMPONIBLE IVA TOTAL FACTURA EUROS
+            PORTES   4.25
+            DESCUENTOS   -19.64
+            """;
+        var r = SupplierPdfParser.Parse(fatura);
+        r.SupplierName.Should().Be("SpainSellers");
+        r.OrderId.Should().Be("40747/1");
+        r.OrderReference.Should().Be("798713");
+        r.DateAdded.Should().Be(new DateTime(2026, 9, 29));
+        r.TotalCents.Should().Be(874);
+        r.Confidence.Should().Be(ParseConfidence.High);
+        r.Items.Select(i => (i.Quantity, i.LineTotalCents)).Should().Equal((2, 201), (1, 248), (1, 425));
+        ParseValidator.DocumentWarnings(fatura).Should().ContainSingle().Which.Should().Contain("19.64");
+        IntraUeSuppliers.IsKnownIntraUe("SpainSellers").Should().BeTrue();
+    }
+
+    [Fact]
     public void Tudo4MobileAntigo_SemNumeroNemTotal_JaNaoDizConfiancaAlta()
     {
         var r = SupplierPdfParser.Parse("Tudo4Mobile\nAlguma coisa 5.00€\n");

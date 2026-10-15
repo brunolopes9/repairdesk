@@ -15,6 +15,7 @@ public static class InvoiceLayoutParsers
     {
         if (CloudInvoice.Matches(text)) return CloudInvoice.Parse(text);
         if (MobileSentrix.Matches(text)) return MobileSentrix.Parse(text);
+        if (SpainSellers.Matches(text)) return SpainSellers.Parse(text);
         return null;
     }
 
@@ -166,6 +167,89 @@ public static class InvoiceLayoutParsers
             return new SupplierPdfParseResult("MobileSentrix", numero, total, data, confianca, items,
                 OrderReference: fatura is not null ? encomenda : null);
         }
+    }
+
+    /// <summary>
+    /// Faturas da SpainSellers (Microrepuestos S.L.U., ES) — entrega intracomunitária, normalmente 0% IVA.
+    /// O extrator cola a quantidade ao preço: <c>2000000835150 BATERÍA … 5,402 5,40 10,80</c> = PVP 5,40 ×
+    /// 2 un., PVP c/ IVA 5,40, subtotal 10,80 (cada linha é conferida: preço × qtd = subtotal). Valores com
+    /// vírgula; portes e descontos com ponto. O desconto global é repartido pelos artigos em proporção, para
+    /// o custo de cada lote já refletir o que se pagou.
+    /// </summary>
+    public static class SpainSellers
+    {
+        private static readonly Regex ItemLine = new(
+            @"^(?<code>\d{8,})\s+(?<desc>.+?)\s+(?<pvp>[\d.]*\d,\d{2})(?<uds>\d+)\s+(?<pvpiva>[\d.]*\d,\d{2})\s+(?<sub>[\d.]*\d,\d{2})$",
+            RegexOptions.Compiled);
+
+        private static readonly Regex Totais = new(
+            @"^(?<base>[\d.]*\d,\d{2})\s+(?<iva>[\d.]*\d,\d{2})\s+(?<total>[\d.]*\d,\d{2})$",
+            RegexOptions.Compiled);
+
+        public static bool Matches(string text)
+            => text.Contains("spainsellers", StringComparison.OrdinalIgnoreCase)
+               && Regex.IsMatch(text, @"FACTURA\s*:", RegexOptions.IgnoreCase);
+
+        public static SupplierPdfParseResult Parse(string text)
+        {
+            var numero = Match(text, @"FACTURA\s*:\s*(\d+/\d+)");
+            var dataTxt = Match(text, @"FECHA:\s*(\d{2}/\d{2}/\d{4})") ?? Match(text, @"(\d{2}/\d{2}/\d{4})\s*FACTURA");
+            DateTime? data = DateTime.TryParseExact(dataTxt, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+                ? DateTime.SpecifyKind(d, DateTimeKind.Utc)
+                : null;
+            var encomenda = Match(text, @"REFERENCIA WEB:\s*(\d+)");
+            var portes = ToCents(Match(text, @"PORTES\s+(-?\d+(?:\.\d+)?)")) ?? 0;
+            var desconto = Math.Abs(ToCents(Match(text, @"DESCUENTOS\s+(-?\d+(?:\.\d+)?)")) ?? 0);
+
+            var linhas = new List<(string Desc, int Qtd, int Cents)>();
+            var linhasConferem = true;
+            int? total = null;
+            var ivaZero = true;
+            foreach (var raw in text.Replace("\r", string.Empty).Split('\n'))
+            {
+                var line = raw.Trim();
+                var m = ItemLine.Match(line);
+                if (m.Success)
+                {
+                    var qtd = int.Parse(m.Groups["uds"].Value, CultureInfo.InvariantCulture);
+                    var unitIva = Virgula(m.Groups["pvpiva"].Value);
+                    var sub = Virgula(m.Groups["sub"].Value);
+                    linhasConferem &= qtd > 0 && Math.Abs(unitIva * qtd - sub) <= 2;
+                    linhas.Add((m.Groups["desc"].Value.Trim(), qtd, (int)(unitIva * qtd)));
+                    continue;
+                }
+                var t = Totais.Match(line);
+                if (t.Success && total is null)
+                {
+                    total = Virgula(t.Groups["total"].Value);
+                    ivaZero = Virgula(t.Groups["iva"].Value) == 0;
+                }
+            }
+
+            // Desconto global repartido pelos artigos em proporção (o último fica com o arredondamento).
+            var bruto = linhas.Sum(l => l.Cents);
+            var items = new List<SupplierPdfItem>();
+            var restante = desconto;
+            for (var i = 0; i < linhas.Count; i++)
+            {
+                var l = linhas[i];
+                var parte = i == linhas.Count - 1 ? restante : bruto == 0 ? 0 : (int)Math.Round((decimal)desconto * l.Cents / bruto, MidpointRounding.AwayFromZero);
+                restante -= parte;
+                items.Add(new SupplierPdfItem(l.Desc, l.Qtd, l.Cents - parte));
+            }
+            if (portes > 0) items.Add(new SupplierPdfItem("Portes", 1, portes));
+
+            var reconcilia = total is { } tot && items.Count > 0 && Math.Abs(items.Sum(i => i.LineTotalCents) - tot) <= 2;
+            // IVA ≠ 0 (ex.: venda nacional espanhola) não é o caso normal — vai a revisão.
+            var confianca = numero is not null && data is not null && reconcilia && linhasConferem && ivaZero && desconto <= bruto
+                ? ParseConfidence.High
+                : ParseConfidence.Low;
+            return new SupplierPdfParseResult("SpainSellers", numero, total, data, confianca, items, OrderReference: encomenda);
+        }
+
+        /// <summary>"1.234,56" → cêntimos.</summary>
+        private static int Virgula(string s)
+            => (int)Math.Round(decimal.Parse(s.Replace(".", string.Empty).Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture) * 100m, MidpointRounding.AwayFromZero);
     }
 
     // ---------- helpers ----------

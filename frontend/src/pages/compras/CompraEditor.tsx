@@ -102,7 +102,8 @@ function fromImport(x: SupplierInvoiceImport): { form: Partial<DocForm>; linhas:
           descricao: i.description,
           quantidade: String(qtd),
           // A IA devolve o total da linha COM IVA → preço unitário pago (c/ IVA).
-          preco: num(Math.round(i.lineTotalCents / qtd) / 100),
+          // 4 casas decimais (como o servidor): 2,01 € por 2 un. = 1,005 €/un., sem perder o cêntimo.
+          preco: num(Math.round((i.lineTotalCents / qtd) * 100) / 10000),
         };
       }),
   };
