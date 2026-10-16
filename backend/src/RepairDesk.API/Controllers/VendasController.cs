@@ -78,6 +78,12 @@ public class VendasController : ControllerBase
     public Task<VendaDto> RegistarFatura(Guid id, [FromBody] RegistarFaturaRequest req, CancellationToken ct)
         => _service.RegistarFaturaAsync(id, req, ct);
 
+    /// <summary>Sprint 563: corrige preços/IVA de uma venda entregue (erro de lançamento). Só Admin; auditado.</summary>
+    [HttpPut("{id:guid}/corrigir-precos")]
+    [Authorize(Roles = "Admin")]
+    public Task<VendaDto> CorrigirPrecos(Guid id, [FromBody] CorrigirPrecosRequest req, CancellationToken ct)
+        => _service.CorrigirPrecosAsync(id, req, ct);
+
     /// <summary>Orçamento em PDF para enviar ao cliente (não é documento fiscal).</summary>
     [HttpGet("{id:guid}/orcamento.pdf")]
     public async Task<IActionResult> OrcamentoPdf(Guid id, CancellationToken ct)

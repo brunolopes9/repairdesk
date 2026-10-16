@@ -36,6 +36,11 @@ public sealed record MudarEstadoVendaRequest(VendaEstado Estado, PaymentMethod? 
 /// <summary>Nº da fatura emitida fora do Mender (Moloni). Vazio = limpar.</summary>
 public sealed record RegistarFaturaRequest(string? InvoiceNumber, DateTime? InvoiceEmittedAt);
 
+/// <summary>Sprint 563: corrigir preço/IVA de uma linha de venda já entregue (sem mexer em qtd nem stock).</summary>
+public sealed record CorrigirPrecoLinha(Guid Id, int PrecoUnitarioCents, decimal IvaRate);
+
+public sealed record CorrigirPrecosRequest(IReadOnlyList<CorrigirPrecoLinha> Linhas, string? Motivo);
+
 public sealed record VendaClienteResumo(Guid Id, string Nome, string Telefone);
 
 public sealed record VendaItemDto(

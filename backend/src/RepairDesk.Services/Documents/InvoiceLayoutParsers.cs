@@ -16,6 +16,7 @@ public static class InvoiceLayoutParsers
         if (CloudInvoice.Matches(text)) return CloudInvoice.Parse(text);
         if (MobileSentrix.Matches(text)) return MobileSentrix.Parse(text);
         if (SpainSellers.Matches(text)) return SpainSellers.Parse(text);
+        if (InterMovil.Matches(text)) return InterMovil.Parse(text);
         return null;
     }
 
@@ -248,6 +249,77 @@ public static class InvoiceLayoutParsers
         }
 
         /// <summary>"1.234,56" → cêntimos.</summary>
+        private static int Virgula(string s)
+            => (int)Math.Round(decimal.Parse(s.Replace(".", string.Empty).Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture) * 100m, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// Faturas da Inter Movil Levante SL (Movil Flash, ES). Cabeçalho "007962 1 13/10/2026" (nº, página,
+    /// data); cada artigo começa por um código ("22082 Embellecedor …") e a descrição pode continuar na linha
+    /// seguinte, que termina com "qtd preço subtotal total". Resumo: "importe portes base" (sem IVA = intra-UE).
+    /// </summary>
+    public static class InterMovil
+    {
+        // O extrator junta-o à linha anterior ("Viseu 007962 1 13/10/2026").
+        private static readonly Regex Cabecalho = new(@"(?:^|\s)(?<num>\d{4,8})\s+\d+\s+(?<data>\d{2}/\d{2}/\d{4})$", RegexOptions.Compiled);
+        private static readonly Regex InicioArtigo = new(@"^(?<code>\d{3,8})\s+(?<desc>\D.*)$", RegexOptions.Compiled);
+        private static readonly Regex Cauda = new(
+            @"^(?<desc>.*?)\s*(?<qtd>\d+,\d{2})\s+(?<preco>[\d.]*\d,\d{2})\s+(?<sub>[\d.]*\d,\d{2})\s+(?<total>[\d.]*\d,\d{2})$",
+            RegexOptions.Compiled);
+        private static readonly Regex Resumo = new(@"^(?<importe>[\d.]*\d,\d{2})\s+(?<portes>[\d.]*\d,\d{2})\s+(?<base>[\d.]*\d,\d{2})$", RegexOptions.Compiled);
+
+        public static bool Matches(string text)
+            => text.Contains("Inter Movil Levante", StringComparison.OrdinalIgnoreCase);
+
+        public static SupplierPdfParseResult Parse(string text)
+        {
+            string? numero = null;
+            DateTime? data = null;
+            var items = new List<SupplierPdfItem>();
+            string? descAberta = null;
+            int? importe = null, portes = null, baseTributavel = null;
+            foreach (var raw in text.Replace("\r", string.Empty).Split('\n'))
+            {
+                var line = raw.Trim();
+                if (numero is null && Cabecalho.Match(line) is { Success: true } h)
+                {
+                    numero = h.Groups["num"].Value;
+                    if (DateTime.TryParseExact(h.Groups["data"].Value, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                        data = DateTime.SpecifyKind(d, DateTimeKind.Utc);
+                    continue;
+                }
+                var cauda = Cauda.Match(line);
+                if (cauda.Success)
+                {
+                    // Com descrição já aberta, a cauda é continuação (mesmo que comece por números, ex.: "11 4G …").
+                    var inicio = descAberta is null ? InicioArtigo.Match(cauda.Groups["desc"].Value) : System.Text.RegularExpressions.Match.Empty;
+                    var desc = inicio.Success ? inicio.Groups["desc"].Value : $"{descAberta} {cauda.Groups["desc"].Value}";
+                    var qtd = Virgula(cauda.Groups["qtd"].Value) / 100;
+                    items.Add(new SupplierPdfItem(desc.Trim(), Math.Max(1, qtd), Virgula(cauda.Groups["total"].Value)));
+                    descAberta = null;
+                    continue;
+                }
+                if (InicioArtigo.Match(line) is { Success: true } a && numero is not null && items.Count < 200)
+                {
+                    descAberta = a.Groups["desc"].Value;
+                    continue;
+                }
+                if (Resumo.Match(line) is { Success: true } r)
+                {
+                    importe = Virgula(r.Groups["importe"].Value);
+                    portes = Virgula(r.Groups["portes"].Value);
+                    baseTributavel = Virgula(r.Groups["base"].Value);
+                }
+            }
+            if (portes is > 0) items.Add(new SupplierPdfItem("Portes", 1, portes.Value));
+
+            var total = baseTributavel;
+            var reconcilia = total is { } t && items.Count > 0 && Math.Abs(items.Sum(i => i.LineTotalCents) - t) <= 2
+                && importe + portes == baseTributavel;
+            var confianca = numero is not null && data is not null && reconcilia ? ParseConfidence.High : ParseConfidence.Low;
+            return new SupplierPdfParseResult("Inter Movil Levante", numero, total, data, confianca, items);
+        }
+
         private static int Virgula(string s)
             => (int)Math.Round(decimal.Parse(s.Replace(".", string.Empty).Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture) * 100m, MidpointRounding.AwayFromZero);
     }

@@ -19,6 +19,8 @@ public interface IVendaService
     Task<VendaDto> UpdateAsync(Guid id, VendaWriteRequest req, CancellationToken ct = default);
     Task<VendaDto> MudarEstadoAsync(Guid id, MudarEstadoVendaRequest req, CancellationToken ct = default);
     Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 563: corrige preços/IVA de uma venda entregue (erro de lançamento). Só valores; auditado.</summary>
+    Task<VendaDto> CorrigirPrecosAsync(Guid id, CorrigirPrecosRequest req, CancellationToken ct = default);
     Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default);
 }
 
@@ -183,6 +185,44 @@ public class VendaService : IVendaService
         if (venda.Tipo == VendaTipo.Reparacao && venda.PublicSlug is not null)
             await _push.EnqueueStatusChangedAsync(new Push.RepairStatusChangedPushJob(venda.Id), ct);
         return ToDto(venda, garantiaSlug);
+    }
+
+    public async Task<VendaDto> CorrigirPrecosAsync(Guid id, CorrigirPrecosRequest req, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        if (venda.Estado != VendaEstado.Entregue)
+            throw new ConflictException("venda_nao_entregue", "Só se corrigem valores de vendas entregues — nas outras edita normalmente.");
+        if (req.Linhas is null || req.Linhas.Count == 0)
+            throw new ValidationException("sem_linhas", "Indica as linhas a corrigir.");
+
+        var antes = venda.Items.Select(i => new { i.Id, i.PrecoUnitarioCents, i.IvaRate }).ToList();
+        foreach (var l in req.Linhas)
+        {
+            var item = venda.Items.FirstOrDefault(i => i.Id == l.Id)
+                ?? throw new ValidationException("linha_inexistente", "Linha não pertence a esta venda.");
+            if (l.PrecoUnitarioCents is < 0 or > 100_000_000)
+                throw new ValidationException("preco_invalido", "Preço inválido.");
+            if (l.IvaRate is < 0 or > 100)
+                throw new ValidationException("iva_invalido", "Taxa de IVA entre 0 e 100%.");
+            // Linhas de stock têm a taxa normal; só os serviços/mão de obra podem mudar de taxa.
+            if (item.CompraLinhaId is not null && l.IvaRate != item.IvaRate)
+                throw new ValidationException("iva_linha_stock", "A taxa de IVA de uma peça do stock não se altera.");
+            item.PrecoUnitarioCents = l.PrecoUnitarioCents;
+            item.IvaRate = l.IvaRate;
+        }
+        RecalculateTotals(venda);
+
+        await _vendas.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new
+        {
+            operation = "corrigir_precos",
+            venda.Numero,
+            motivo = Clean(req.Motivo, 300),
+            antes,
+            depois = venda.Items.Select(i => new { i.Id, i.PrecoUnitarioCents, i.IvaRate }),
+            venda.TotalCents,
+        }, ct: ct);
+        return ToDto(venda);
     }
 
     public async Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default)

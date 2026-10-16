@@ -12,7 +12,7 @@ import { formatCents } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
 import Modal from '../../components/Modal';
-import { Button, DetailWorkspace, InspectorRail, SortableTh, ViewTabs } from '../../components/ui';
+import { Button, DateRangeFilter, DetailWorkspace, InspectorRail, SortableTh, ViewTabs } from '../../components/ui';
 import { ordenarLista, useOrdenacao, type Ordem } from '../../lib/useOrdenacao';
 
 type CampoFatura = 'fornecedor' | 'documento' | 'data' | 'total';
@@ -33,12 +33,15 @@ export default function PorAprovarTab() {
   const [approveTarget, setApproveTarget] = useState<SupplierInvoiceImport | null>(null);
   const [rejectTarget, setRejectTarget] = useState<SupplierInvoiceImport | null>(null);
   const [rejectReason, setRejectReason] = useState('');
-  const [exportFrom, setExportFrom] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 3);
-    return d.toISOString().slice(0, 10);
+  // Sprint 563: por defeito o trimestre anterior (o do IVA a entregar); datas da fatura, "até" incluído.
+  const [exportDatas, setExportDatas] = useState(() => {
+    const hoje = new Date();
+    const tri = Math.floor(hoje.getMonth() / 3) * 3;
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { de: iso(new Date(hoje.getFullYear(), tri - 3, 1)), ate: iso(new Date(hoje.getFullYear(), tri, 0)) };
   });
-  const [exportTo, setExportTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const exportFrom = exportDatas.de;
+  const exportTo = exportDatas.ate;
 
   const reject = useMutation({
     mutationFn: (req: { id: string; reason: string }) => supplierInvoicesApi.reject(req.id, req.reason),
@@ -317,22 +320,15 @@ export default function PorAprovarTab() {
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
               <Download size={16} strokeWidth={2} className="text-emerald-600" />
-              Export trimestral para contabilista
+              Exportar faturas para o contabilista
             </h2>
             <p className="mt-1 text-xs text-zinc-500">
-              ZIP com todas as facturas aprovadas no período. Estrutura: <code>ano/mês/fornecedor/fatura.pdf</code>.
+              ZIP com os PDFs das faturas tratadas no período (pela data da fatura) e um <code>indice.csv</code>. Estrutura: <code>ano/mês/fornecedor/fatura.pdf</code>.
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[150px_150px_auto]">
-            <label className="text-xs">
-              <span className="block text-zinc-500">De</span>
-              <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className={inputCls} />
-            </label>
-            <label className="text-xs">
-              <span className="block text-zinc-500">Até</span>
-              <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className={inputCls} />
-            </label>
-            <Button type="button" onClick={downloadZip} leftIcon={<Download size={15} />} className="self-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangeFilter value={exportDatas} onChange={setExportDatas} />
+            <Button type="button" onClick={downloadZip} disabled={!exportFrom || !exportTo} leftIcon={<Download size={15} />}>
               Descarregar ZIP
             </Button>
           </div>

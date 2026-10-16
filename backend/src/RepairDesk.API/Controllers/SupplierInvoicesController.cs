@@ -120,7 +120,8 @@ public class SupplierInvoicesController : ControllerBase
         [FromQuery] DateTime to,
         CancellationToken ct)
     {
-        if (to <= from) return BadRequest(new { code = "invalid_range", detail = "to deve ser depois de from." });
+        // Sprint 563: "to" é o último dia incluído (mês/trimestre escolhidos na UI).
+        if (to < from) return BadRequest(new { code = "invalid_range", detail = "A data final tem de ser igual ou depois da inicial." });
         if ((to - from).TotalDays > 400) return BadRequest(new { code = "range_too_large", detail = "Período máximo 400 dias." });
         var (zip, filename) = await _service.ExportZipAsync(from, to, ct);
         return File(zip, "application/zip", filename);

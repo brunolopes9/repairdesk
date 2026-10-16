@@ -58,6 +58,13 @@ function precoComIva(preco: string, ivaPct: string, semIva: boolean): number {
   return semIva ? Math.round(v * (1 + (parseDecimal(ivaPct) ?? IVA_NORMAL) / 100) * 100) / 100 : v;
 }
 
+/** Linhas gravadas (preço c/ IVA) mostradas no modo escolhido. */
+function linhasNoModo(v: Venda, semIva: boolean): LinhaForm[] {
+  return linhasFrom(v).map((l) => (semIva
+    ? { ...l, preco: fmt2((parseDecimal(l.preco) ?? 0) / (1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100)) }
+    : l));
+}
+
 /** Serviços (sites, avenças) cotam-se sem IVA; balcão e reparações com IVA. */
 const semIvaPorDefeito = (t: VendaTipo) => t === VENDA_TIPO.Servico;
 
@@ -102,6 +109,8 @@ export default function VendaEditor() {
   const [fatura, setFatura] = useState('');
   const [faturaData, setFaturaData] = useState(new Date().toISOString().slice(0, 10));
   const [confirmCancel, setConfirmCancel] = useState(false);
+  // Sprint 563: correção de valores numa venda entregue (erro de lançamento).
+  const [corrigindo, setCorrigindo] = useState(false);
 
   useEffect(() => {
     if (!venda) return;
@@ -113,14 +122,14 @@ export default function VendaEditor() {
     setProblema(venda.problema ?? '');
     setNotas(venda.notas ?? '');
     setPrevisto(venda.previstoPara ? venda.previstoPara.slice(0, 10) : '');
-    setLinhas(linhasFrom(venda).map((l) => (modoSemIva
-      ? { ...l, preco: fmt2((parseDecimal(l.preco) ?? 0) / (1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100)) }
-      : l)));
+    setLinhas(linhasNoModo(venda, modoSemIva));
     setFatura(venda.invoiceNumber ?? '');
     if (venda.invoiceEmittedAt) setFaturaData(venda.invoiceEmittedAt.slice(0, 10));
   }, [venda]);
 
   const fechada = venda ? venda.estado === VENDA_ESTADO.Entregue || venda.estado === VENDA_ESTADO.Cancelada : false;
+  /** Preços e IVA ficam editáveis numa venda fechada só durante a correção. */
+  const precosBloqueados = fechada && !corrigindo;
 
   const contas = useMemo(() => {
     const porLinha = linhas.map((l) => {
@@ -180,6 +189,20 @@ export default function VendaEditor() {
       return vendasApi.mudarEstado(id!, estado, estado === VENDA_ESTADO.Entregue ? pagamento : undefined);
     },
     onSuccess: (v) => { setConfirmCancel(false); onSaved(v, VENDA_ESTADO_LABEL[v.estado]); },
+    onError: (err) => toast.fromError(err),
+  });
+
+  const corrigir = useMutation({
+    mutationFn: () => vendasApi.corrigirPrecos(
+      id!,
+      linhas.filter((l) => l.id).map((l) => ({
+        id: l.id!,
+        precoUnitarioCents: Math.round(precoComIva(l.preco, l.iva, semIva) * 100),
+        ivaRate: parseDecimal(l.iva) ?? IVA_NORMAL,
+      })),
+      'Correção de valores na venda entregue',
+    ),
+    onSuccess: (v) => { setCorrigindo(false); onSaved(v, 'Valores corrigidos'); },
     onError: (err) => toast.fromError(err),
   });
 
@@ -347,7 +370,7 @@ export default function VendaEditor() {
                 type="button"
                 role="radio"
                 aria-checked={semIva === o.v}
-                disabled={fechada}
+                disabled={precosBloqueados}
                 onClick={() => mudarModoIva(o.v)}
                 className={`min-h-9 rounded-md px-3 text-sm font-medium transition ${semIva === o.v ? 'bg-brand-600 text-white' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
               >
@@ -391,9 +414,9 @@ export default function VendaEditor() {
                         <input aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} disabled={fechada} />
                         {l.maxStock != null && Number(l.quantidade) > l.maxStock && <span className="mt-1 block text-xs text-rose-600">só {l.maxStock}</span>}
                       </td>
-                      <td className="py-2 pr-2"><input aria-label={semIva ? 'Preço unitário sem IVA' : 'Preço unitário com IVA'} inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" disabled={fechada} /></td>
+                      <td className="py-2 pr-2"><input aria-label={semIva ? 'Preço unitário sem IVA' : 'Preço unitário com IVA'} inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" disabled={precosBloqueados} /></td>
                       <td className="py-2 pr-2">
-                        <select aria-label="Taxa de IVA" value={l.iva} onChange={(e) => setLinha(l.key, { iva: e.target.value })} className={inputCls} disabled={fechada || !!l.compraLinhaId}>
+                        <select aria-label="Taxa de IVA" value={l.iva} onChange={(e) => setLinha(l.key, { iva: e.target.value })} className={inputCls} disabled={precosBloqueados || !!l.compraLinhaId}>
                           {['23', '13', '6', '0'].map((t) => <option key={t} value={t}>{t}%</option>)}
                         </select>
                       </td>
@@ -420,6 +443,25 @@ export default function VendaEditor() {
           <dt className="text-zinc-500" title="IVA da venda − IVA já pago ao fornecedor das peças">IVA a entregar ao Estado</dt><dd className="text-right">{formatEur(contas.ivaAPagar)}</dd>
           <dt className="text-zinc-500" title="Total − custo das peças − IVA a entregar">Lucro que sobra</dt><dd className={`text-right font-medium ${contas.lucro < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatEur(contas.lucro)}</dd>
         </dl>
+        {venda?.estado === VENDA_ESTADO.Entregue && isAdmin && (
+          <div className="mt-3 flex flex-col gap-2 border-t border-zinc-100 pt-3 text-sm dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs text-zinc-500">
+              {corrigindo
+                ? 'Muda o preço ou o IVA das linhas para ficarem iguais à fatura emitida. Quantidades e peças não mudam; fica registado na auditoria.'
+                : 'Lançaste um valor errado? Corrige os preços desta venda para baterem com a fatura.'}
+            </span>
+            <div className="flex gap-2">
+              {corrigindo ? (
+                <>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => { setCorrigindo(false); if (venda) { const m = semIvaPorDefeito(venda.tipo); setSemIva(m); setLinhas(linhasNoModo(venda, m)); } }}>Desistir</Button>
+                  <Button type="button" size="sm" loading={corrigir.isPending} onClick={() => corrigir.mutate()}>Guardar correção</Button>
+                </>
+              ) : (
+                <Button type="button" size="sm" variant="secondary" onClick={() => setCorrigindo(true)}>Corrigir valores</Button>
+              )}
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       {isNew && (

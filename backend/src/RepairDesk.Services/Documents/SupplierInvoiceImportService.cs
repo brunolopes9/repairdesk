@@ -751,11 +751,40 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         if (_tenant.TenantId is not { } tenantId)
             throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
         // Para o contabilista: queremos só as aprovadas (rejeitadas/pending não interessam fiscalmente).
-        var entities = await _repo.ListByDateRangeAsync(tenantId, from, to, SupplierInvoiceImportStatus.Approved, ct);
+        // Sprint 563: "to" é o último dia incluído; o filtro é pela data do documento.
+        var inicio = from.Date;
+        var fim = to.Date.AddDays(1);
+        var entities = await _repo.ListByDateRangeAsync(tenantId, inicio, fim, SupplierInvoiceImportStatus.Approved, ct);
         var paths = entities.Select(e => e.PdfRelativePath).ToList();
         var zip = await _storage.CreateZipAsync(tenantId, paths, ct);
-        var filename = $"Faturas-fornecedor_{from:yyyy-MM-dd}_a_{to:yyyy-MM-dd}.zip";
+        zip = JuntarIndice(zip, entities);
+        var filename = $"Faturas-fornecedor_{inicio:yyyy-MM-dd}_a_{to.Date:yyyy-MM-dd}.zip";
         return (zip, filename);
+    }
+
+    /// <summary>Sprint 563: "indice.csv" no ZIP — uma linha por fatura (fornecedor, nº, data, total, compra/despesa).</summary>
+    private static byte[] JuntarIndice(byte[] zip, IReadOnlyList<SupplierInvoiceImport> faturas)
+    {
+        static string Csv(string? v) => v is null ? "" : v.Contains(';') || v.Contains('"') ? $"\"{v.Replace("\"", "\"\"")}\"" : v;
+        var sb = new System.Text.StringBuilder("ficheiro;fornecedor;documento;data;total;destino\r\n");
+        foreach (var f in faturas)
+            sb.Append(string.Join(';',
+                Csv(f.PdfRelativePath.Replace('\\', '/')),
+                Csv(f.Fornecedor?.Name ?? f.FornecedorNameRaw),
+                Csv(f.ParsedDocumentNumber),
+                (f.ParsedDocumentDate ?? f.CreatedAt).ToString("yyyy-MM-dd"),
+                f.ParsedTotalCents is { } c ? (c / 100m).ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")) : "",
+                f.DespesaId is null ? "Compra" : "Despesa")).Append("\r\n");
+
+        using var ms = new MemoryStream();
+        ms.Write(zip);
+        using (var archive = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var entry = archive.CreateEntry("indice.csv");
+            using var w = new StreamWriter(entry.Open(), new System.Text.UTF8Encoding(true));
+            w.Write(sb.ToString());
+        }
+        return ms.ToArray();
     }
 
     /// <summary>

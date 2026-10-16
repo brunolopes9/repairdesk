@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:8865c0f4a81240eb -->
+<!-- roles-matrix-snapshot:1f965aa4c740a390 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -29,7 +29,7 @@ testes e esta matriz com snapshot.
 | DevicesController (S461+S464) | `GET/POST/PUT/DELETE /api/devices*` + `GET /api/devices/by-imei/{imei}` — asset registry | `Authenticated` |
 | ComprasController (S556) | `GET /api/compras*` (lista, detalhe, inventário, resumo, `faturas-recebidas/{importId}/correspondencia` S560), `POST/PUT /api/compras*`, `POST /api/compras/simulador` | `Authenticated` |
 | ComprasController (S556) | `DELETE /api/compras/{id}`, `POST /api/compras/importar-excel`, `POST /api/compras/de-fatura/{importId}` (aprovar fatura lida por IA), `POST /api/compras/{id}/associar-fatura/{importId}` e `POST /api/compras/faturas-recebidas/associar-automaticamente` (S560) | `Admin` |
-| VendasController (S557/S559) | `GET/POST/PUT /api/vendas*`, `POST /{id}/estado`, `PUT /{id}/fatura`, PDFs (`orcamento`, `entrada`, `entrega`, `label`, `recibo`), `GET/POST /{id}/assinaturas`, fotos `/api/vendas/{id}/fotos`, `export.csv` | `Authenticated`; `estado = Cancelada` (repõe stock) só `Admin` (verificado na action) |
+| VendasController (S557/S559) | `GET/POST/PUT /api/vendas*`, `POST /{id}/estado`, `PUT /{id}/fatura`, PDFs (`orcamento`, `entrada`, `entrega`, `label`, `recibo`), `GET/POST /{id}/assinaturas`, fotos `/api/vendas/{id}/fotos`, `export.csv` | `Authenticated`; `estado = Cancelada` (repõe stock) só `Admin` (verificado na action); `PUT /{id}/corrigir-precos` (S563) `Admin` |
 | PublicPortalController / PublicWarrantyController | `GET/POST /api/public/*` | `Anonymous` + rate limit `public-portal` |
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |
 | UsersController | `POST /api/users/{id}/revoke-sessions`, `POST /api/users/{id}/deactivate` | `Admin` |

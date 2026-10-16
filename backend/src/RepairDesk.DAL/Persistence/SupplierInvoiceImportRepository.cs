@@ -47,10 +47,11 @@ public class SupplierInvoiceImportRepository : ISupplierInvoiceImportRepository
     {
         var q = _db.SupplierInvoiceImports
             .Include(x => x.Fornecedor)
+            // Sprint 563: pela data do documento (a que conta para o IVA), não pela data em que foi carregado.
             .Where(x => x.TenantId == tenantId
-                && x.CreatedAt >= from && x.CreatedAt < to);
+                && (x.ParsedDocumentDate ?? x.CreatedAt) >= from && (x.ParsedDocumentDate ?? x.CreatedAt) < to);
         if (status is not null) q = q.Where(x => x.Status == status.Value);
-        return await q.OrderBy(x => x.CreatedAt).ToListAsync(ct);
+        return await q.OrderBy(x => x.ParsedDocumentDate ?? x.CreatedAt).ToListAsync(ct);
     }
 
     public Task AddAsync(SupplierInvoiceImport entity, CancellationToken ct = default)

@@ -181,6 +181,36 @@ public class InvoiceLayoutParsersTests
     }
 
     [Fact]
+    public void InterMovil_LeCabecalhoJuntoAMorada_EDescricoesEmDuasLinhas()
+    {
+        const string fatura = """
+            Factura
+            Inter Movil Levante SL
+            PT999999990
+            CLIENTE TESTE
+            Viseu 007962 1 13/10/2026
+            Tarjeta
+            22082 Embellecedor y Lente de Camara para Samsung
+            Galaxy A16 4G A165 A165F - Negra 1,00 2,52 2,52 2,52
+            10616 Lente de Camara Trasera para Xiaomi Redmi Note
+            11 4G 2201117TG 2201117TI 2201117TY 1,00 0,99 0,99 0,99
+            21,00
+            13/10/2026 9,71
+            3,51 6,20 9,71
+            """;
+        var r = SupplierPdfParser.Parse(fatura);
+        r.OrderId.Should().Be("007962");
+        r.DateAdded.Should().Be(new DateTime(2026, 10, 13));
+        r.TotalCents.Should().Be(971);
+        r.Confidence.Should().Be(ParseConfidence.High);
+        r.Items.Select(i => i.Description).Should().Equal(
+            "Embellecedor y Lente de Camara para Samsung Galaxy A16 4G A165 A165F - Negra",
+            "Lente de Camara Trasera para Xiaomi Redmi Note 11 4G 2201117TG 2201117TI 2201117TY",
+            "Portes");
+        IntraUeSuppliers.IsKnownIntraUe(r.SupplierName).Should().BeTrue();
+    }
+
+    [Fact]
     public void Tudo4MobileAntigo_SemNumeroNemTotal_JaNaoDizConfiancaAlta()
     {
         var r = SupplierPdfParser.Parse("Tudo4Mobile\nAlguma coisa 5.00€\n");

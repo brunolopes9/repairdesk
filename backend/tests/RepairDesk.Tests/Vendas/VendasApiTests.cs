@@ -111,6 +111,33 @@ public class VendasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task VendaEntregue_CorrigirValores_SoMudaPrecoEIva_EFicaAuditado()
+    {
+        // Caso real: site lançado a 300 € c/ IVA quando eram 300 € + IVA = 369 €.
+        var client = await AuthedClient();
+        var venda = await Criar(client, new VendaWriteRequest(VendaTipo.Servico, null, null, "Website", null,
+            [new VendaLinhaWriteRequest(null, null, "Website associação", 1, 30000)], VendaEstado.Entregue, PaymentMethod.TransferenciaBancaria));
+        venda.TotalCents.Should().Be(30000);
+
+        var linha = venda.Items.Single();
+        var resp = await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/corrigir-precos",
+            new CorrigirPrecosRequest([new CorrigirPrecoLinha(linha.Id, 36900, 23m)], "300 € + IVA"));
+        resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync());
+        var corrigida = (await resp.Content.ReadFromJsonAsync<VendaDto>())!;
+        corrigida.TotalCents.Should().Be(36900);
+        corrigida.Estado.Should().Be(VendaEstado.Entregue);
+        Math.Round(corrigida.Lucro, 2).Should().Be(300m);
+
+        // Linha que não é desta venda → 422; venda não entregue → 409.
+        (await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/corrigir-precos",
+            new CorrigirPrecosRequest([new CorrigirPrecoLinha(Guid.NewGuid(), 100, 23m)], null))).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var orcamento = await Criar(client, new VendaWriteRequest(VendaTipo.Servico, null, null, null, null,
+            [new VendaLinhaWriteRequest(null, null, "Site", 1, 1000)]));
+        (await client.PutAsJsonAsync($"/api/vendas/{orcamento.Id}/corrigir-precos",
+            new CorrigirPrecosRequest([new CorrigirPrecoLinha(orcamento.Items.Single().Id, 2000, 23m)], null))).StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task Reparacao_SemCliente_E422()
     {
         var client = await AuthedClient();
