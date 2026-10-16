@@ -1,21 +1,21 @@
-import {
-  DESPESA_CATEGORIA,
-  OPEX_DESPESA_CATEGORIAS,
-} from '../../lib/despesas/types';
+import { DESPESA_CATEGORIA } from '../../lib/despesas/types';
 import AprovadasTab from './AprovadasTab';
 
+/**
+ * Doc 94: as compras de stock vivem em Compras (CompraDocumento), por isso aqui aparecem TODAS as
+ * despesas — incluindo as aprovadas a partir de faturas recebidas (ex.: RMA, equipamento).
+ * Antes esta página filtrava só categorias "OpEx" e escondia as vindas de faturas (herança de quando
+ * as compras de peças também eram Despesas).
+ */
 export default function Despesas() {
   return (
     <AprovadasTab
       title="Despesas"
-      description="OpEx da operacao: renda, energia, SaaS, combustivel, comunicacoes, seguros e outras despesas gerais."
-      categoriaIn={OPEX_DESPESA_CATEGORIAS}
-      excludeSupplierInvoiceImports
-      allowedCategorias={OPEX_DESPESA_CATEGORIAS}
-      initialCategoria={DESPESA_CATEGORIA.Renda}
+      description="Custos do negócio que não são stock: renda, software, transporte, ferramentas, comunicações, seguros…"
+      initialCategoria={DESPESA_CATEGORIA.Outro}
       createLabel="Nova despesa"
-      emptyTitle="Ainda nao ha despesas OpEx"
-      emptyDescription="Regista os custos recorrentes e gerais da oficina sem misturar compras de stock."
+      emptyTitle="Ainda não há despesas"
+      emptyDescription="Regista aqui os custos do negócio que não são peças para revenda."
       showCategoriaFilter
       showRecurringToggle
     />

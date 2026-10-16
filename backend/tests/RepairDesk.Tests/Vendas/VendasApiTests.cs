@@ -138,6 +138,18 @@ public class VendasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task RegistarFatura_NumaVendaEntregue_PoeADataDaFatura()
+    {
+        // Venda lançada hoje de uma fatura emitida a 28/09 conta para o 3.º trimestre.
+        var client = await AuthedClient();
+        var venda = await Criar(client, new VendaWriteRequest(VendaTipo.Produto, null, null, null, null,
+            [new VendaLinhaWriteRequest(null, null, "Bateria", 1, 5535)], VendaEstado.Entregue, PaymentMethod.MBWay));
+        var resp = await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/fatura", new RegistarFaturaRequest("FT REPARACAO/4", new DateTime(2026, 9, 28)));
+        resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync());
+        (await resp.Content.ReadFromJsonAsync<VendaDto>())!.Data.Date.Should().Be(new DateTime(2026, 9, 28));
+    }
+
+    [Fact]
     public async Task Reparacao_SemCliente_E422()
     {
         var client = await AuthedClient();

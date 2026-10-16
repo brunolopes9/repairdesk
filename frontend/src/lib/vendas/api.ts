@@ -17,10 +17,6 @@ export const vendasApi = {
   mudarEstado(id: string, estado: VendaEstado, paymentMethod?: PaymentMethod) {
     return api.post<Venda>(`/vendas/${id}/estado`, { estado, paymentMethod }).then((r) => r.data);
   },
-  /** Sprint 563: corrige preço/IVA de uma venda entregue (só Admin, auditado; não mexe em stock). */
-  corrigirPrecos(id: string, linhas: { id: string; precoUnitarioCents: number; ivaRate: number }[], motivo: string | null) {
-    return api.put<Venda>(`/vendas/${id}/corrigir-precos`, { linhas, motivo }).then((r) => r.data);
-  },
   registarFatura(id: string, invoiceNumber: string | null, invoiceEmittedAt: string | null) {
     return api.put<Venda>(`/vendas/${id}/fatura`, { invoiceNumber, invoiceEmittedAt }).then((r) => r.data);
   },

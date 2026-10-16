@@ -233,6 +233,10 @@ public class VendaService : IVendaService
         venda.InvoiceEmittedAt = numero is null
             ? null
             : DateTime.SpecifyKind((req.InvoiceEmittedAt ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
+        // Sprint 563: numa venda entregue, a data que conta (IVA do trimestre, relatórios) é a da fatura —
+        // ex.: venda lançada em outubro de uma fatura emitida a 28/09 pertence ao 3.º trimestre.
+        if (venda.Estado == VendaEstado.Entregue && venda.InvoiceEmittedAt is { } emitida && venda.Data.Date != emitida.Date)
+            venda.Data = emitida.Date.AddHours(12);
         await _vendas.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new { venda.Numero, venda.InvoiceNumber }, ct: ct);
         return ToDto(venda);
