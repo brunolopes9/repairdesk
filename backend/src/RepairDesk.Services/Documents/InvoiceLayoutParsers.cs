@@ -17,6 +17,10 @@ public static class InvoiceLayoutParsers
         if (MobileSentrix.Matches(text)) return MobileSentrix.Parse(text);
         if (SpainSellers.Matches(text)) return SpainSellers.Parse(text);
         if (InterMovil.Matches(text)) return InterMovil.Parse(text);
+        if (FourPhones.Matches(text)) return FourPhones.Parse(text);
+        if (IPartsTrade.Matches(text)) return IPartsTrade.Parse(text);
+        if (Microwire.Matches(text)) return Microwire.Parse(text);
+        if (Utopya.Matches(text)) return Utopya.Parse(text);
         return null;
     }
 
@@ -322,6 +326,179 @@ public static class InvoiceLayoutParsers
 
         private static int Virgula(string s)
             => (int)Math.Round(decimal.Parse(s.Replace(".", string.Empty).Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture) * 100m, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// Faturas da 4Phones.nl (NL, autoliquidação). "Invoicenumber: INV-NL-… Ordernumber: 4EU…/SO-…";
+    /// artigos com descrição em várias linhas (a 1.ª começa pelo código) e a linha "1 pc € 11.95 0% € 11.95".
+    /// O cabeçalho repete-se em cada página — a descrição em curso é descartada nessas linhas.
+    /// </summary>
+    public static class FourPhones
+    {
+        private static readonly Regex Qtd = new(@"^(?<qtd>\d+)\s+pcs?\s+€\s*(?<unit>[\d.,]+)\s+(?<iva>\d+)%\s+€\s*(?<tot>[\d.,]+)$", RegexOptions.Compiled);
+
+        public static bool Matches(string text) => text.Contains("4Phones.nl", StringComparison.OrdinalIgnoreCase) && text.Contains("Invoicenumber", StringComparison.OrdinalIgnoreCase);
+
+        public static SupplierPdfParseResult Parse(string text)
+        {
+            var numero = Match(text, @"Invoicenumber:?\s*(INV-[A-Z]{2}-\d+)");
+            var encomenda = Match(text, @"Ordernumber:?\s*(4EU\d+)");
+            var data = DataDmy(Match(text, @"Invoicedate:?\s*(\d{2}/\d{2}/\d{4})"));
+            var items = new List<SupplierPdfItem>();
+            var buffer = new List<string>();
+            var dentro = false;
+            var ivaZero = true;
+            foreach (var raw in Linhas(text))
+            {
+                if (raw.StartsWith("Article Description", StringComparison.OrdinalIgnoreCase)) { dentro = true; buffer.Clear(); continue; }
+                if (raw.StartsWith("4Phones.nl", StringComparison.OrdinalIgnoreCase) || raw.StartsWith("Subtotal", StringComparison.OrdinalIgnoreCase)) { dentro = false; buffer.Clear(); continue; }
+                if (!dentro) continue;
+                var m = Qtd.Match(raw);
+                if (!m.Success) { buffer.Add(raw); continue; }
+                ivaZero &= m.Groups["iva"].Value == "0";
+                items.Add(new SupplierPdfItem(SemCodigoInicial(buffer), int.Parse(m.Groups["qtd"].Value, CultureInfo.InvariantCulture), ToCents(m.Groups["tot"].Value) ?? 0));
+                buffer.Clear();
+            }
+            var portes = ToCents(Match(text, @"^Shipping\s+€\s*([\d.,]+)")) ?? 0;
+            if (portes > 0) items.Add(new SupplierPdfItem("Shipping", 1, portes));
+            var total = ToCents(Match(text, @"^Total amount\s+€\s*([\d.,]+)"));
+            return Resultado("4Phones", numero, total, data, items, ivaZero, encomenda);
+        }
+    }
+
+    /// <summary>
+    /// Faturas da iPartsTrade (NL, autoliquidação). Atenção: "Date Added 09/03/2026" é mês/dia/ano (3 de
+    /// setembro). Artigos: 1.ª linha começa pelo código; a linha que fecha termina em "qtd €preço €total".
+    /// Portes = total − artigos (vêm numa linha partida "Fedex … €10.95").
+    /// </summary>
+    public static class IPartsTrade
+    {
+        private static readonly Regex Cauda = new(@"^(?<desc>.*?)\s*(?<qtd>\d+)\s+€(?<unit>[\d.,]+)\s+€(?<tot>[\d.,]+)$", RegexOptions.Compiled);
+
+        public static bool Matches(string text) => text.Contains("iPartsTrade", StringComparison.OrdinalIgnoreCase) && text.Contains("Invoice No", StringComparison.OrdinalIgnoreCase);
+
+        public static SupplierPdfParseResult Parse(string text)
+        {
+            var numero = Match(text, @"Invoice No\.?\s*(I\d{4}-\d+)");
+            var encomenda = Match(text, @"Order ID\s*(\d+)");
+            var dataTxt = Match(text, @"Date Added\s*(\d{2}/\d{2}/\d{4})");
+            DateTime? data = DateTime.TryParseExact(dataTxt, "MM/dd/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+                ? DateTime.SpecifyKind(d, DateTimeKind.Utc) : null;
+            var items = new List<SupplierPdfItem>();
+            var buffer = new List<string>();
+            var dentro = false;
+            foreach (var raw in Linhas(text))
+            {
+                if (raw.StartsWith("Model Product Name", StringComparison.OrdinalIgnoreCase)) { dentro = true; continue; }
+                if (raw.StartsWith("Total excl", StringComparison.OrdinalIgnoreCase)) break;
+                if (!dentro) continue;
+                var m = Cauda.Match(raw);
+                if (!m.Success) { buffer.Add(raw); continue; }
+                buffer.Add(m.Groups["desc"].Value);
+                items.Add(new SupplierPdfItem(SemCodigoInicial(buffer), int.Parse(m.Groups["qtd"].Value, CultureInfo.InvariantCulture), ToCents(m.Groups["tot"].Value) ?? 0));
+                buffer.Clear();
+            }
+            var total = ToCents(Match(text, @"Total incl\.? VAT\s*€\s*([\d.,]+)"));
+            var ivaZero = Regex.IsMatch(text, @"exempt\s*€0[.,]00", RegexOptions.IgnoreCase);
+            var portes = total is { } t ? t - items.Sum(i => i.LineTotalCents) : 0;
+            if (portes > 0) items.Add(new SupplierPdfItem("Shipping", 1, portes));
+            return Resultado("iPartsTrade", numero, total, data, items, ivaZero && portes >= 0, encomenda);
+        }
+    }
+
+    /// <summary>
+    /// Faturas da Microwire (Clouds and Roots, PT — software Primavera). "Fatura recibo FCTR FCTR2026A/4031";
+    /// linha de artigo "… 1 UN 12,36 0% 23% 15,21" (preço s/ IVA, total da linha c/ IVA). Os portes vêm como
+    /// artigo "PORTES …".
+    /// </summary>
+    public static class Microwire
+    {
+        private static readonly Regex Cauda = new(@"^(?<desc>.*?)\s*(?<qtd>\d+)\s+UN\s+(?<unit>[\d.]*\d,\d{2})\s+\d+%\s+(?<iva>\d+)%\s+(?<tot>[\d.]*\d,\d{2})$", RegexOptions.Compiled);
+
+        public static bool Matches(string text) => text.Contains("CLOUDS AND ROOTS", StringComparison.OrdinalIgnoreCase) || text.Contains("microwire.pt", StringComparison.OrdinalIgnoreCase);
+
+        public static SupplierPdfParseResult Parse(string text)
+        {
+            var numero = Match(text, @"Fatura(?:\s+recibo)?\s+[A-Z]+\s+(FCTR\S+)");
+            var encomenda = Match(text, @"MW[A-Z]{2}\s*#\s*(\d+)");
+            var data = DataDmy(Match(text, @"^Data\s*\n\s*(\d{2}/\d{2}/\d{4})"));
+            var items = new List<SupplierPdfItem>();
+            var buffer = new List<string>();
+            var dentro = false;
+            foreach (var raw in Linhas(text))
+            {
+                if (raw.StartsWith("Artigo Descri", StringComparison.OrdinalIgnoreCase)) { dentro = true; continue; }
+                if (raw.StartsWith("Produtos e Servi", StringComparison.OrdinalIgnoreCase)) break;
+                if (!dentro || raw.Contains("Processado por programa", StringComparison.OrdinalIgnoreCase)) continue;
+                var m = Cauda.Match(raw);
+                if (!m.Success) { buffer.Add(raw); continue; }
+                buffer.Add(m.Groups["desc"].Value);
+                items.Add(new SupplierPdfItem(SemCodigoInicial(buffer), int.Parse(m.Groups["qtd"].Value, CultureInfo.InvariantCulture), Virgula(m.Groups["tot"].Value)));
+                buffer.Clear();
+            }
+            var total = Match(text, @"^Total\s+([\d.]*\d,\d{2})\s*€") is { } t ? Virgula(t) : (int?)null;
+            return Resultado("Microwire", numero, total, data, items, ivaZero: true, encomenda);
+        }
+    }
+
+    /// <summary>
+    /// Faturas da Utopya (FR, autoliquidação): "Invoice # INV-1024600 - Order # UE027541"; artigos
+    /// "918273 Complete Screen … 1 29,63€ 29,63€0%*"; portes "Shipping cost UPS Standard 1 6,95€ 6,95€0%*".
+    /// </summary>
+    public static class Utopya
+    {
+        private static readonly Regex Artigo = new(@"^(?<desc>.+?)\s+(?<qtd>\d+)\s+(?<unit>[\d.]*\d,\d{2})€\s+(?<sub>[\d.]*\d,\d{2})€\s*(?<iva>\d+)%", RegexOptions.Compiled);
+
+        public static bool Matches(string text) => text.Contains("UTOPYA", StringComparison.Ordinal) && Regex.IsMatch(text, @"Invoice\s*#\s*INV-", RegexOptions.IgnoreCase);
+
+        public static SupplierPdfParseResult Parse(string text)
+        {
+            var numero = Match(text, @"Invoice\s*#\s*(INV-\d+)");
+            var encomenda = Match(text, @"Order\s*#\s*(UE\d+)");
+            var data = DataDmy(Match(text, @"^\D*?(\d{2}/\d{2}/\d{4})\s+\d{2}/\d{2}/\d{4}"));
+            var items = new List<SupplierPdfItem>();
+            var ivaZero = true;
+            foreach (var raw in Linhas(text))
+            {
+                var m = Artigo.Match(raw);
+                if (!m.Success) continue;
+                ivaZero &= m.Groups["iva"].Value == "0";
+                var desc = Regex.Replace(m.Groups["desc"].Value, @"^\d{4,}\s+", string.Empty);
+                items.Add(new SupplierPdfItem(desc, int.Parse(m.Groups["qtd"].Value, CultureInfo.InvariantCulture), Virgula(m.Groups["sub"].Value)));
+            }
+            var total = Match(text, @"^Total\s+([\d.]*\d,\d{2})€") is { } t ? Virgula(t) : (int?)null;
+            return Resultado("Utopya", numero, total, data, items, ivaZero, encomenda);
+        }
+    }
+
+    // ---------- helpers partilhados pelos leitores acima ----------
+
+    private static IEnumerable<string> Linhas(string text)
+        => text.Replace("\r", string.Empty).Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0);
+
+    private static DateTime? DataDmy(string? s)
+        => DateTime.TryParseExact(s, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+            ? DateTime.SpecifyKind(d, DateTimeKind.Utc) : null;
+
+    /// <summary>Junta a descrição de várias linhas e tira o código de artigo do início ("A00003054 Kingston…").</summary>
+    private static string SemCodigoInicial(List<string> linhas)
+    {
+        var desc = string.Join(' ', linhas.Where(l => l.Length > 0)).Trim();
+        // Código = 1.º token só com maiúsculas/dígitos/hífen e pelo menos um dígito (não apaga "For", "Xiaomi"…).
+        return Regex.Replace(desc, @"^(?=\S*\d)[A-Z0-9][A-Z0-9-]{2,}\s+(?:[A-Z0-9-]{2,}\s+)?(?=\S)", string.Empty).Trim();
+    }
+
+    /// <summary>"1.234,56" → cêntimos.</summary>
+    private static int Virgula(string s)
+        => (int)Math.Round(decimal.Parse(s.Replace(".", string.Empty).Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture) * 100m, MidpointRounding.AwayFromZero);
+
+    /// <summary>Confiança alta só com nº, data, IVA esperado e linhas a somar o total impresso.</summary>
+    private static SupplierPdfParseResult Resultado(string fornecedor, string? numero, int? total, DateTime? data,
+        List<SupplierPdfItem> items, bool ivaZero, string? encomenda)
+    {
+        var reconcilia = total is { } t && items.Count > 0 && Math.Abs(items.Sum(i => i.LineTotalCents) - t) <= 2;
+        var confianca = numero is not null && data is not null && reconcilia && ivaZero ? ParseConfidence.High : ParseConfidence.Low;
+        return new SupplierPdfParseResult(fornecedor, numero, total, data, confianca, items, OrderReference: encomenda);
     }
 
     // ---------- helpers ----------

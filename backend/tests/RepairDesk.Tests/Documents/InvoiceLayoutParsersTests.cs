@@ -210,6 +210,80 @@ public class InvoiceLayoutParsersTests
         IntraUeSuppliers.IsKnownIntraUe(r.SupplierName).Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("4Phones")]
+    [InlineData("iPartsTrade")]
+    [InlineData("Microwire")]
+    [InlineData("Utopya")]
+    public void FornecedoresDoExcel_LeemNumeroDataETotal(string fornecedor)
+    {
+        var (texto, numero, data, total, linhas) = fornecedor switch
+        {
+            "4Phones" => ("""
+                4Phones.nl B.V.
+                Invoicenumber: INV-NL-104514 Ordernumber: 4EU165273/SO-NL-113244
+                Invoicedate: 28/09/2026 Customerreference:
+                Article Description Quantity Price per unit VAT Price excl. VAT
+                A00003054 Kingston 64GB Canvas Select Plus
+                MicroSD Memory Card
+                1 pc € 11.95 0% € 11.95
+                2928EEB528 Xiaomi 13T, 13T Pro, Redmi K60 Ultra
+                Display And Digitizer With Frame Black
+                1 pc € 38.95 0% € 38.95
+                4Phones.nl B.V.
+                Subtotal € 50.90
+                Shipping € 14.90
+                Total amount € 65.80
+                """, "INV-NL-104514", new DateTime(2026, 9, 28), 6580, 3),
+            "iPartsTrade" => ("""
+                Address: iPartsTrade B.V.
+                Date Added 09/03/2026
+                Invoice No. I2026-0034103
+                Order ID 322599
+                Model Product Name Quantity Price excl. tax Total excl. tax
+                BAT1694 For Apple iPhone 14 Battery Run Diagnostics
+                Battery OEM 1 €9.95 €9.95
+                LCD11768
+                Samsung Galaxy S20 Plus Display
+                1 €49.95 €49.95
+                Total excl. VAT €59.90
+                next working day €10.95
+                Reverse charge - VAT
+                exempt €0.00
+                Total incl. VAT €70.85
+                """, "I2026-0034103", new DateTime(2026, 9, 3), 7085, 3),
+            "Microwire" => ("""
+                CLOUDS AND ROOTS - UNIPESSOAL LDA
+                Fatura recibo FCTR FCTR2026A/4031 Original
+                MWPT #12514
+                Data
+                12/08/2026
+                Artigo Descrição Qtd. Un. Origem Transporte Preço Unitário Desc. Imp. Total
+                XMREDMIN11P-
+                Xiaomi Redmi Note 11 Pro Ecrã
+                1 UN 12,36 0% 23% 15,21
+                PORTES GLS Expresso 1 UN 3,19 0% 23% 3,92
+                Produtos e Serviços 15,55 €
+                Total 19,13 €
+                """, "FCTR2026A/4031", new DateTime(2026, 8, 12), 1913, 2),
+            _ => ("""
+                UTOPYA
+                Payment Method Invoice Date Due date Shipping Method
+                Credit Card 30/07/2026 30/07/2026 UPS Standard
+                918273 Complete Screen iPhone 16 (Soft OLED) (BOLT) 1 29,63€ 29,63€0%*
+                Shipping cost UPS Standard 1 6,95€ 6,95€0%*
+                Total 36,58€
+                Invoice # INV-1024600 - Order # UE027541  - Page 1/1
+                """, "INV-1024600", new DateTime(2026, 7, 30), 3658, 2),
+        };
+        var r = SupplierPdfParser.Parse(texto);
+        r.OrderId.Should().Be(numero);
+        r.DateAdded.Should().Be(data);
+        r.TotalCents.Should().Be(total);
+        r.Items.Should().HaveCount(linhas);
+        r.Confidence.Should().Be(ParseConfidence.High);
+    }
+
     [Fact]
     public void Tudo4MobileAntigo_SemNumeroNemTotal_JaNaoDizConfiancaAlta()
     {
