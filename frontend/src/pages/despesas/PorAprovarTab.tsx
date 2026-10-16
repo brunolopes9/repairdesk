@@ -316,7 +316,7 @@ export default function PorAprovarTab() {
 
       {/* Export ZIP para contabilista */}
       <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">
               <Download size={16} strokeWidth={2} className="text-emerald-600" />

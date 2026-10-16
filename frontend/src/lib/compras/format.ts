@@ -30,7 +30,7 @@ export function previewUnidade(precoPago: number, taxaCompra: number, lucro: num
   return { custoSemIva, precoFinalComIva: vendaSemIva + ivaVenda, ivaAPagarEstado: ivaVenda - ivaPago };
 }
 
-const PALAVRAS_ACESSORIO = ['vidro', 'pelicula', 'película', 'temperado', 'hidrogel', 'protetor', 'protector', 'capa '];
+const PALAVRAS_ACESSORIO = ['vidro', 'pelicula', 'película', 'temperado', 'templado', 'tempered', 'hidrogel', 'protetor', 'protector', 'capa '];
 
 /** Espelha FiscalDefaults.LucroPorDefeito (só para mostrar o valor que o servidor vai assumir). */
 export function lucroPorDefeito(descricao: string): number {

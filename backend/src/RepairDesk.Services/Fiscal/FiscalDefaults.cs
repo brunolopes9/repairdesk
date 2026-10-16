@@ -13,7 +13,8 @@ public static class FiscalDefaults
     public const decimal LucroAcessorioPorDefeito = 1m;
 
     private static readonly string[] PalavrasAcessorio =
-        ["vidro", "pelicula", "película", "temperado", "hidrogel", "protetor", "protector", "capa "];
+        // Sprint 563: também ES/EN ("Cristal Templado", "Tempered Glass") — fornecedores espanhóis e NL.
+        ["vidro", "pelicula", "película", "temperado", "templado", "tempered", "hidrogel", "protetor", "protector", "capa "];
 
     /// <summary>Lucro por unidade sugerido (SPEC §1): 1 € em películas/vidros, 5 € no resto. Sempre editável.</summary>
     public static decimal LucroPorDefeito(string descricao)
