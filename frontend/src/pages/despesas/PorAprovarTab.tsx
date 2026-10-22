@@ -45,6 +45,7 @@ export default function PorAprovarTab() {
   const exportTo = exportDatas.ate;
   // Sprint 564: export de um só fornecedor (vazio = todos).
   const [exportFornecedor, setExportFornecedor] = useState('');
+  const [exportTipo, setExportTipo] = useState<'Todas' | 'Compras' | 'Despesas'>('Todas');
   const fornecedores = useQuery({ queryKey: ['fornecedores', false], queryFn: () => fornecedoresApi.list(false) });
 
   const reject = useMutation({
@@ -179,12 +180,12 @@ export default function PorAprovarTab() {
 
   async function downloadZip() {
     try {
-      const res = await api.get<Blob>(supplierInvoicesApi.exportZipPath(exportFrom, exportTo, exportFornecedor || undefined), { responseType: 'blob' });
+      const res = await api.get<Blob>(supplierInvoicesApi.exportZipPath(exportFrom, exportTo, exportFornecedor || undefined, exportTipo), { responseType: 'blob' });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
       const nomeForn = fornecedores.data?.find((f) => f.id === exportFornecedor)?.name;
-      a.download = `Faturas-fornecedor_${exportFrom}_a_${exportTo}${nomeForn ? `_${nomeForn}` : ''}.zip`;
+      a.download = `Faturas-fornecedor_${exportFrom}_a_${exportTo}${exportTipo === 'Todas' ? '' : `_${exportTipo.toLowerCase()}`}${nomeForn ? `_${nomeForn}` : ''}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -333,6 +334,11 @@ export default function PorAprovarTab() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <DateRangeFilter value={exportDatas} onChange={setExportDatas} />
+            <select value={exportTipo} onChange={(e) => setExportTipo(e.target.value as typeof exportTipo)} className="min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" aria-label="Tipo de faturas a exportar">
+              <option value="Todas">Compras e despesas</option>
+              <option value="Compras">Só compras</option>
+              <option value="Despesas">Só despesas</option>
+            </select>
             <select value={exportFornecedor} onChange={(e) => setExportFornecedor(e.target.value)} className="min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" aria-label="Fornecedor a exportar">
               <option value="">Todos os fornecedores</option>
               {fornecedores.data?.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}

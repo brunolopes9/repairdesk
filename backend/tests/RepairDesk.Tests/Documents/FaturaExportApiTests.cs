@@ -57,6 +57,18 @@ public class FaturaExportApiTests : IClassFixture<RepairDeskApiFactory>
         var linhas = (await indice.ReadToEndAsync()).Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
         linhas.Should().HaveCount(2, "só a fatura deste fornecedor");
         linhas[1].Should().StartWith(esperado + ";" + nomeForn + ";FT 20260431101/006004;2026-09-12;6,99;Despesa");
+
+        // Só compras: esta despesa fica de fora; só despesas: entra.
+        (await Entradas(client, $"fornecedorId={fornecedorId}&tipo=Compras")).Should().Equal("indice.csv");
+        (await Entradas(client, $"fornecedorId={fornecedorId}&tipo=despesas")).Should().Contain(esperado);
+    }
+
+    private static async Task<List<string>> Entradas(HttpClient client, string filtro)
+    {
+        var resp = await client.GetAsync($"/api/supplier-invoices/export?from=2026-09-01&to=2026-09-30&{filtro}");
+        resp.EnsureSuccessStatusCode();
+        using var zip = new ZipArchive(await resp.Content.ReadAsStreamAsync());
+        return zip.Entries.Select(e => e.FullName).ToList();
     }
 
     /// <summary>Simula um PDF que o leitor não conhece: guardado no storage, sem data/nº/total/fornecedor.</summary>

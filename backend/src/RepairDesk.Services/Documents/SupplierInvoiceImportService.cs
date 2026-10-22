@@ -45,13 +45,21 @@ public interface ISupplierInvoiceImportService
     Task<byte[]> GetPdfAsync(Guid importId, CancellationToken ct = default);
     Task<SupplierInvoiceImportDto> ApproveAsync(Guid importId, ApproveSupplierInvoiceRequest req, CancellationToken ct = default);
     Task<SupplierInvoiceImportDto> RejectAsync(Guid importId, string? reason, CancellationToken ct = default);
-    Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, Guid? fornecedorId = null, CancellationToken ct = default);
+    Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, Guid? fornecedorId = null, FaturaExportTipo tipo = FaturaExportTipo.Todas, CancellationToken ct = default);
 
     /// <summary>Sprint 163b: re-corre pipeline parser → fingerprint → LLM (Bruno auth required).</summary>
     Task<SupplierInvoiceImportDto> ReprocessAsync(Guid importId, CancellationToken ct = default);
 
     /// <summary>Sprint 163b: lista importações histórico (Approved/Rejected/Failed).</summary>
     Task<IReadOnlyList<SupplierInvoiceImportDto>> ListHistoryAsync(int take, CancellationToken ct = default);
+}
+
+/// <summary>Sprint 564b: que faturas recebidas vão no ZIP — compras de stock, despesas ou ambas.</summary>
+public enum FaturaExportTipo
+{
+    Todas,
+    Compras,
+    Despesas,
 }
 
 public sealed record ApproveSupplierInvoiceRequest(
@@ -760,7 +768,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         return ToDto(entity);
     }
 
-    public async Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, Guid? fornecedorId = null, CancellationToken ct = default)
+    public async Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, Guid? fornecedorId = null, FaturaExportTipo tipo = FaturaExportTipo.Todas, CancellationToken ct = default)
     {
         if (_tenant.TenantId is not { } tenantId)
             throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
@@ -771,10 +779,14 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         IReadOnlyList<SupplierInvoiceImport> entities = await _repo.ListByDateRangeAsync(tenantId, inicio, fim, SupplierInvoiceImportStatus.Approved, ct);
         // Sprint 564: export de um só fornecedor (pedido do Bruno: por mês, trimestre e fornecedor).
         if (fornecedorId is { } fid) entities = entities.Where(e => e.FornecedorId == fid).ToList();
+        // Sprint 564b: aprovada sem despesa = compra de stock (CompraDocumento); com despesa = custo do negócio.
+        if (tipo == FaturaExportTipo.Compras) entities = entities.Where(e => e.DespesaId is null).ToList();
+        else if (tipo == FaturaExportTipo.Despesas) entities = entities.Where(e => e.DespesaId is not null).ToList();
         var ficheiros = NomesNoZip(entities);
         var zip = await _storage.CreateZipAsync(tenantId, entities.Select(e => (e.PdfRelativePath, ficheiros[e.Id])), ct);
         zip = JuntarIndice(zip, entities, ficheiros);
-        var sufixo = fornecedorId is null ? "" : "_" + NomeSeguro(entities.FirstOrDefault()?.Fornecedor?.Name ?? "fornecedor");
+        var sufixo = (tipo == FaturaExportTipo.Todas ? "" : "_" + tipo.ToString().ToLowerInvariant())
+            + (fornecedorId is null ? "" : "_" + NomeSeguro(entities.FirstOrDefault()?.Fornecedor?.Name ?? "fornecedor"));
         var filename = $"Faturas-fornecedor_{inicio:yyyy-MM-dd}_a_{to.Date:yyyy-MM-dd}{sufixo}.zip";
         return (zip, filename);
     }
