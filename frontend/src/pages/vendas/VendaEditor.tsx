@@ -258,6 +258,11 @@ export default function VendaEditor() {
         meta={venda && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VENDA_ESTADO_COLOR[venda.estado]}`}>{VENDA_ESTADO_LABEL[venda.estado]}</span>}
         actions={(
           <>
+          {venda?.temFaturaPdf && (
+            <Button type="button" variant="secondary" leftIcon={<FileText size={15} />} onClick={() => openPdfInNewTab(vendasApi.faturaPdfPath(venda.id))}>
+              PDF da fatura
+            </Button>
+          )}
           {venda && (
             <Button type="button" variant="secondary" leftIcon={<FileText size={15} />} onClick={() => openPdfInNewTab(vendasApi.pdfPath(venda.id, 'orcamento'))}>
               Orçamento PDF

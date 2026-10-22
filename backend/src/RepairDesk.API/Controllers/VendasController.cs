@@ -4,6 +4,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Documents;
+using RepairDesk.Services.Files;
 using RepairDesk.Services.Reparacoes;
 using RepairDesk.Services.Vendas;
 
@@ -142,6 +143,40 @@ public class VendasController : ControllerBase
         var bytes = await _service.ExportCsvAsync(from, to, ct);
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
         return File(bytes, "text/csv; charset=utf-8", $"vendas_{stamp}.csv");
+    }
+
+    /// <summary>
+    /// Sprint 565: importa uma fatura emitida no Moloni (PDF) — cria a venda entregue com a fatura, ou
+    /// anexa o PDF à venda que já tem esse nº. Idempotente.
+    /// </summary>
+    [HttpPost("importar-fatura")]
+    [Authorize(Roles = "Admin")]
+    [RequestSizeLimit(20 * 1024 * 1024)]
+    public async Task<ActionResult<VendaFaturaImportResult>> ImportarFatura(
+        [FromForm] IFormFile file, [FromServices] IVendaFaturaService faturas, [FromServices] IFileValidator validator, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { code = "no_file", detail = "Anexa o PDF da fatura." });
+        await using var stream = file.OpenReadStream();
+        var validated = await validator.ValidateAsync(stream, file.ContentType, FileKind.Pdf, ct);
+        return Ok(await faturas.ImportarAsync(validated.Buffer, ct));
+    }
+
+    /// <summary>Sprint 565: o PDF da fatura de venda (se foi importado).</summary>
+    [HttpGet("{id:guid}/fatura.pdf")]
+    public async Task<IActionResult> FaturaPdf(Guid id, [FromServices] IVendaFaturaService faturas, CancellationToken ct)
+    {
+        var (pdf, nome) = await faturas.PdfAsync(id, ct);
+        return File(pdf, "application/pdf", nome);
+    }
+
+    /// <summary>Sprint 565: ZIP das faturas de venda do período (pela data da fatura) + indice.csv — para o contabilista.</summary>
+    [HttpGet("faturas/export")]
+    public async Task<IActionResult> ExportFaturas([FromQuery] DateTime from, [FromQuery] DateTime to,
+        [FromServices] IVendaFaturaService faturas, CancellationToken ct)
+    {
+        var (zip, nome) = await faturas.ExportZipAsync(from, to, ct);
+        return File(zip, "application/zip", nome);
     }
 
     public sealed record SaveAssinaturaRequest(string Tipo, string DataUrl);

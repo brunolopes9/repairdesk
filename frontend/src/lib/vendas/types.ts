@@ -107,6 +107,17 @@ export interface Venda {
   publicSlug: string | null;
   previstoPara: string | null;
   garantiaSlug: string | null;
+  /** Sprint 565: há PDF da fatura (importado do Moloni). */
+  temFaturaPdf: boolean;
+}
+
+/** Sprint 565: resultado de importar o PDF de uma fatura de venda. */
+export interface VendaFaturaImport {
+  vendaId: string;
+  vendaNumero: number;
+  invoiceNumber: string;
+  resultado: 'criada' | 'ligada' | 'repetida';
+  aviso: string | null;
 }
 
 export interface VendaLinhaWrite {

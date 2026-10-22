@@ -16,6 +16,10 @@ public interface IVendaRepository
     /// <summary>Portal público: sem filtro de tenant (o slug é o segredo). Inclui cliente, linhas e histórico.</summary>
     Task<Venda?> FindByPublicSlugAsync(string slug, CancellationToken ct = default);
     Task<bool> AnyAsync(CancellationToken ct = default);
+    /// <summary>Sprint 565: venda (não cancelada) com este nº de fatura — ignora maiúsculas e espaços nas pontas.</summary>
+    Task<Venda?> FindByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default);
+    /// <summary>Sprint 565: vendas com PDF da fatura cuja data de fatura (ou da venda) cai em [from, to[.</summary>
+    Task<IReadOnlyList<Venda>> ListComFaturaPdfAsync(DateTime from, DateTime to, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }
 

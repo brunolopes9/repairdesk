@@ -31,6 +31,11 @@ public class Venda : BaseEntity, ITenantEntity
     public string? InvoiceNumber { get; set; }
     public DateTime? InvoiceEmittedAt { get; set; }
 
+    /// <summary>Sprint 565: PDF da fatura emitida (Moloni), guardado no storage — o que vai para o contabilista.</summary>
+    public string? FaturaPdfPath { get; set; }
+    /// <summary>SHA-256 do PDF — o mesmo ficheiro carregado duas vezes é reconhecido.</summary>
+    public string? FaturaPdfSha256 { get; set; }
+
     public string? Notas { get; set; }
     public List<VendaItem> Items { get; set; } = new();
 }

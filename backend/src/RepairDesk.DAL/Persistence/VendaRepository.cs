@@ -23,6 +23,25 @@ public class VendaRepository : IVendaRepository
                 .ThenInclude(i => i.CompraLinha)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
 
+    public Task<Venda?> FindByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default)
+    {
+        var n = invoiceNumber.Trim().ToUpper();
+        return _db.Vendas
+            .Include(v => v.Cliente)
+            .Include(v => v.Items)
+            .Where(v => v.Estado != VendaEstado.Cancelada && v.InvoiceNumber != null && v.InvoiceNumber.Trim().ToUpper() == n)
+            .OrderBy(v => v.Numero)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Venda>> ListComFaturaPdfAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        => await _db.Vendas
+            .Include(v => v.Cliente)
+            .Where(v => v.FaturaPdfPath != null && v.Estado != VendaEstado.Cancelada
+                && (v.InvoiceEmittedAt ?? v.Data) >= from && (v.InvoiceEmittedAt ?? v.Data) < to)
+            .OrderBy(v => v.InvoiceEmittedAt ?? v.Data).ThenBy(v => v.Numero)
+            .ToListAsync(ct);
+
     public async Task CreateWithNextNumeroAsync(Venda venda, Guid tenantId, CancellationToken ct = default)
     {
         const int maxAttempts = 5;

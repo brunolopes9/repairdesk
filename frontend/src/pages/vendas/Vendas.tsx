@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Code2, Package, Plus, Receipt, Search, Wrench } from 'lucide-react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Code2, Download, FileUp, Package, Plus, Receipt, Search, Wrench } from 'lucide-react';
+import { useAuth } from '../../lib/auth/AuthContext';
+import { apiErrorMessage } from '../../lib/errors';
+import { downloadFile } from '../../lib/downloadPdf';
+import { toast } from '../../lib/toast';
 import { Button, DateRangeFilter, EmptyState, PageHeader, SEM_DATAS, SectionCard, SkeletonRow, SortableTh, ViewTabs, intervaloParaInstantes, type IntervaloDatas } from '../../components/ui';
 import { useOrdenacao } from '../../lib/useOrdenacao';
 import { inputCls } from '../../components/ui/formClasses';
@@ -65,6 +69,41 @@ export default function Vendas() {
   const list = useQuery({ queryKey: ['vendas', filtro], queryFn: () => vendasApi.list(filtro), placeholderData: keepPreviousData });
   const porFaturar = useQuery({ queryKey: ['vendas', 'fatura-count'], queryFn: () => vendasApi.list({ faturaPorRegistar: true, pageSize: 1 }) });
 
+  // Sprint 565: faturas emitidas no Moloni entram pelo PDF (uma ou várias de cada vez).
+  const qc = useQueryClient();
+  const isAdmin = useAuth().hasRole('Admin');
+  const faturasRef = useRef<HTMLInputElement | null>(null);
+  const [aImportar, setAImportar] = useState(false);
+  async function importarFaturas(files: FileList | null) {
+    if (!files?.length) return;
+    setAImportar(true);
+    const contagem = { criada: 0, ligada: 0, repetida: 0 };
+    const problemas: string[] = [];
+    for (const f of Array.from(files)) {
+      try {
+        const r = await vendasApi.importarFatura(f);
+        contagem[r.resultado] += 1;
+        if (r.aviso) problemas.push(`${r.invoiceNumber}: ${r.aviso}`);
+      } catch (err) {
+        problemas.push(`${f.name}: ${apiErrorMessage(err)}`);
+      }
+    }
+    setAImportar(false);
+    if (faturasRef.current) faturasRef.current.value = '';
+    await qc.invalidateQueries({ queryKey: ['vendas'] });
+    const resumo = [`${contagem.criada} venda(s) criada(s)`, contagem.ligada ? `${contagem.ligada} ligada(s) a vendas existentes` : null,
+      contagem.repetida ? `${contagem.repetida} já estavam no Mender` : null].filter(Boolean).join(' · ');
+    if (problemas.length) toast.error('Faturas importadas com avisos', `${resumo}. ${problemas.join(' | ')}`);
+    else toast.success('Faturas importadas', resumo);
+  }
+  async function exportarFaturas() {
+    try {
+      await downloadFile(vendasApi.exportFaturasPath(datas.de, datas.ate), `Faturas-venda_${datas.de}_a_${datas.ate}.zip`);
+    } catch (err) {
+      toast.fromError(err, 'Não foi possível gerar o ZIP.');
+    }
+  }
+
   const items = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -76,6 +115,19 @@ export default function Vendas() {
         description="Reparações, serviços e produtos. O IVA a entregar e o lucro são calculados em cada venda."
         actions={
           <>
+            {isAdmin && (
+              <>
+                <input ref={faturasRef} type="file" accept=".pdf,application/pdf" multiple className="hidden" onChange={(e) => importarFaturas(e.target.files)} />
+                <Button variant="secondary" leftIcon={<FileUp size={15} />} loading={aImportar} onClick={() => faturasRef.current?.click()}
+                  title="PDFs das faturas emitidas no Moloni — cada uma cria a venda (ou liga-se à que já tem esse nº)">
+                  Importar faturas
+                </Button>
+              </>
+            )}
+            <Button variant="secondary" leftIcon={<Download size={15} />} disabled={!datas.de || !datas.ate} onClick={exportarFaturas}
+              title={datas.de && datas.ate ? 'ZIP com os PDFs das faturas de venda do período + indice.csv' : 'Escolhe as datas (ex.: Trimestre passado) para exportar as faturas'}>
+              Faturas (ZIP)
+            </Button>
             <Button variant="secondary" leftIcon={<Package size={15} />} onClick={() => navigate(`/vendas/nova?tipo=${VENDA_TIPO.Produto}`)}>Produto</Button>
             <Button variant="secondary" leftIcon={<Code2 size={15} />} onClick={() => navigate(`/vendas/nova?tipo=${VENDA_TIPO.Servico}`)}>Serviço</Button>
             <Button leftIcon={<Plus size={15} />} onClick={() => navigate(`/vendas/nova?tipo=${VENDA_TIPO.Reparacao}`)}>Reparação</Button>

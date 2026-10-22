@@ -85,7 +85,9 @@ public sealed record VendaDto(
     string? PublicSlug = null,
     DateTime? PrevistoPara = null,
     /// <summary>Slug da garantia emitida (/g/{slug}), se existir.</summary>
-    string? GarantiaSlug = null);
+    string? GarantiaSlug = null,
+    /// <summary>Sprint 565: há PDF da fatura (importado do Moloni).</summary>
+    bool TemFaturaPdf = false);
 
 public sealed record VendaImeiLookupDto(
     Guid VendaId,

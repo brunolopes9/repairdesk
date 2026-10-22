@@ -225,6 +225,7 @@ try
     // Vendas
     builder.Services.AddScoped<IVendaRepository, VendaRepository>();
     builder.Services.AddScoped<IVendaService, VendaService>();
+    builder.Services.AddScoped<IVendaFaturaService, VendaFaturaService>();
 
 
     // Documents (PDF orçamento)

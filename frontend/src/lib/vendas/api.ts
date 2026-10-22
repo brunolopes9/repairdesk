@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { PaymentMethod, Venda, VendaEstado, VendaFiltro, VendasPage, VendaWrite } from './types';
+import type { PaymentMethod, Venda, VendaEstado, VendaFaturaImport, VendaFiltro, VendasPage, VendaWrite } from './types';
 
 export const vendasApi = {
   list(params: VendaFiltro = {}) {
@@ -19,6 +19,21 @@ export const vendasApi = {
   },
   registarFatura(id: string, invoiceNumber: string | null, invoiceEmittedAt: string | null) {
     return api.put<Venda>(`/vendas/${id}/fatura`, { invoiceNumber, invoiceEmittedAt }).then((r) => r.data);
+  },
+  /** Sprint 565: importa o PDF de uma fatura emitida no Moloni (cria a venda ou anexa o PDF). */
+  importarFatura(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<VendaFaturaImport>('/vendas/importar-fatura', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60_000,
+    }).then((r) => r.data);
+  },
+  faturaPdfPath(id: string) {
+    return `/vendas/${id}/fatura.pdf`;
+  },
+  exportFaturasPath(from: string, to: string) {
+    return `/vendas/faturas/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
   },
   reciboUrl(id: string) {
     return `${api.defaults.baseURL ?? ''}/vendas/${id}/recibo.pdf`;

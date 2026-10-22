@@ -1934,6 +1934,14 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("Estado")
                         .HasColumnType("int");
 
+                    b.Property<string>("FaturaPdfPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("FaturaPdfSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTime?>("InvoiceEmittedAt")
                         .HasColumnType("datetime2");
 
@@ -1994,6 +2002,8 @@ namespace RepairDesk.DAL.Migrations
                     b.HasIndex("TenantId", "Data");
 
                     b.HasIndex("TenantId", "Estado");
+
+                    b.HasIndex("TenantId", "InvoiceNumber");
 
                     b.HasIndex("TenantId", "Numero")
                         .IsUnique()
