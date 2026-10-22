@@ -333,7 +333,7 @@ export default function PorAprovarTab() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <DateRangeFilter value={exportDatas} onChange={setExportDatas} />
-            <select value={exportFornecedor} onChange={(e) => setExportFornecedor(e.target.value)} className={`${inputCls} mt-0 w-auto`} aria-label="Fornecedor a exportar">
+            <select value={exportFornecedor} onChange={(e) => setExportFornecedor(e.target.value)} className="min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" aria-label="Fornecedor a exportar">
               <option value="">Todos os fornecedores</option>
               {fornecedores.data?.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
