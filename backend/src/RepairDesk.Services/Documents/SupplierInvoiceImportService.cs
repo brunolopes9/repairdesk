@@ -45,7 +45,7 @@ public interface ISupplierInvoiceImportService
     Task<byte[]> GetPdfAsync(Guid importId, CancellationToken ct = default);
     Task<SupplierInvoiceImportDto> ApproveAsync(Guid importId, ApproveSupplierInvoiceRequest req, CancellationToken ct = default);
     Task<SupplierInvoiceImportDto> RejectAsync(Guid importId, string? reason, CancellationToken ct = default);
-    Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, CancellationToken ct = default);
+    Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, Guid? fornecedorId = null, CancellationToken ct = default);
 
     /// <summary>Sprint 163b: re-corre pipeline parser → fingerprint → LLM (Bruno auth required).</summary>
     Task<SupplierInvoiceImportDto> ReprocessAsync(Guid importId, CancellationToken ct = default);
@@ -577,6 +577,20 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         entity.DespesaId = despesa.Id;
         entity.ProcessedAt = DateTime.UtcNow;
 
+        // Sprint 564: os valores confirmados na aprovação passam a ser os da fatura. Faturas que o leitor
+        // não conhece (Leroy, Ikea, Amazon…) chegam sem data/nº/fornecedor — sem isto iam para o export
+        // pela data de upload e com fornecedor "desconhecido".
+        entity.ParsedTotalCents = req.ValorCents;
+        if (req.Data is { } data) entity.ParsedDocumentDate = data;
+        if (!string.IsNullOrWhiteSpace(req.NumeroEncomenda)) entity.ParsedDocumentNumber = req.NumeroEncomenda.Trim();
+        if (!string.IsNullOrWhiteSpace(req.Fornecedor)
+            && !string.Equals(req.Fornecedor.Trim(), entity.Fornecedor?.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            entity.FornecedorNameRaw = req.Fornecedor.Trim();
+            entity.FornecedorId = await ResolveOrCreateFornecedorIdAsync(null, entity.FornecedorNameRaw, tenantId, ct);
+            entity.Fornecedor = entity.FornecedorId is { } fid ? await _fornecedores.FindByIdAsync(fid, ct) : null;
+        }
+
         // Sprint 543: aprende a categoria deste fornecedor com a escolha do Bruno (last-wins —
         // a próxima fatura do mesmo fornecedor vem com esta categoria pré-selecionada no modal).
         if (entity.Fornecedor is not null && entity.Fornecedor.DefaultDespesaCategoria != req.Categoria)
@@ -746,7 +760,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         return ToDto(entity);
     }
 
-    public async Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, CancellationToken ct = default)
+    public async Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, Guid? fornecedorId = null, CancellationToken ct = default)
     {
         if (_tenant.TenantId is not { } tenantId)
             throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
@@ -754,22 +768,54 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // Sprint 563: "to" é o último dia incluído; o filtro é pela data do documento.
         var inicio = from.Date;
         var fim = to.Date.AddDays(1);
-        var entities = await _repo.ListByDateRangeAsync(tenantId, inicio, fim, SupplierInvoiceImportStatus.Approved, ct);
-        var paths = entities.Select(e => e.PdfRelativePath).ToList();
-        var zip = await _storage.CreateZipAsync(tenantId, paths, ct);
-        zip = JuntarIndice(zip, entities);
-        var filename = $"Faturas-fornecedor_{inicio:yyyy-MM-dd}_a_{to.Date:yyyy-MM-dd}.zip";
+        IReadOnlyList<SupplierInvoiceImport> entities = await _repo.ListByDateRangeAsync(tenantId, inicio, fim, SupplierInvoiceImportStatus.Approved, ct);
+        // Sprint 564: export de um só fornecedor (pedido do Bruno: por mês, trimestre e fornecedor).
+        if (fornecedorId is { } fid) entities = entities.Where(e => e.FornecedorId == fid).ToList();
+        var ficheiros = NomesNoZip(entities);
+        var zip = await _storage.CreateZipAsync(tenantId, entities.Select(e => (e.PdfRelativePath, ficheiros[e.Id])), ct);
+        zip = JuntarIndice(zip, entities, ficheiros);
+        var sufixo = fornecedorId is null ? "" : "_" + NomeSeguro(entities.FirstOrDefault()?.Fornecedor?.Name ?? "fornecedor");
+        var filename = $"Faturas-fornecedor_{inicio:yyyy-MM-dd}_a_{to.Date:yyyy-MM-dd}{sufixo}.zip";
         return (zip, filename);
     }
 
+    /// <summary>
+    /// Sprint 564: "2026-10/Leroy Merlin/2026-10-17 FT 20260435201-006106.pdf" — pela data, fornecedor e nº da
+    /// fatura (os confirmados na aprovação), não pelo caminho de upload. Nomes repetidos ganham " (2)".
+    /// </summary>
+    private static Dictionary<Guid, string> NomesNoZip(IEnumerable<SupplierInvoiceImport> faturas)
+    {
+        var usados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var nomes = new Dictionary<Guid, string>();
+        foreach (var f in faturas)
+        {
+            var data = f.ParsedDocumentDate ?? f.CreatedAt;
+            var fornecedor = NomeSeguro(f.Fornecedor?.Name ?? f.FornecedorNameRaw ?? "Sem fornecedor");
+            var doc = NomeSeguro(f.ParsedDocumentNumber ?? "fatura");
+            var extensao = Path.GetExtension(f.PdfRelativePath) is { Length: > 0 } ext ? ext : ".pdf";
+            var baseNome = $"{data:yyyy-MM}/{fornecedor}/{data:yyyy-MM-dd} {doc}";
+            var nome = baseNome + extensao;
+            for (var i = 2; !usados.Add(nome); i++) nome = $"{baseNome} ({i}){extensao}";
+            nomes[f.Id] = nome;
+        }
+        return nomes;
+    }
+
+    private static string NomeSeguro(string s)
+    {
+        var invalidos = Path.GetInvalidFileNameChars();
+        var limpo = new string(s.Trim().Select(c => c is '/' or '\\' || invalidos.Contains(c) ? '-' : c).ToArray());
+        return limpo.Length > 80 ? limpo[..80].TrimEnd() : limpo;
+    }
+
     /// <summary>Sprint 563: "indice.csv" no ZIP — uma linha por fatura (fornecedor, nº, data, total, compra/despesa).</summary>
-    private static byte[] JuntarIndice(byte[] zip, IReadOnlyList<SupplierInvoiceImport> faturas)
+    private static byte[] JuntarIndice(byte[] zip, IReadOnlyList<SupplierInvoiceImport> faturas, IReadOnlyDictionary<Guid, string> ficheiros)
     {
         static string Csv(string? v) => v is null ? "" : v.Contains(';') || v.Contains('"') ? $"\"{v.Replace("\"", "\"\"")}\"" : v;
         var sb = new System.Text.StringBuilder("ficheiro;fornecedor;documento;data;total;destino\r\n");
         foreach (var f in faturas)
             sb.Append(string.Join(';',
-                Csv(f.PdfRelativePath.Replace('\\', '/')),
+                Csv(ficheiros[f.Id]),
                 Csv(f.Fornecedor?.Name ?? f.FornecedorNameRaw),
                 Csv(f.ParsedDocumentNumber),
                 (f.ParsedDocumentDate ?? f.CreatedAt).ToString("yyyy-MM-dd"),

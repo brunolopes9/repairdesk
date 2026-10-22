@@ -26,11 +26,11 @@ public interface ISupplierInvoiceStorage
     Task<byte[]> ReadAsync(string relativePath, CancellationToken ct = default);
 
     /// <summary>
-    /// Cria um ZIP em memória com todos os PDFs aprovados no período. Útil para contabilista.
-    /// Estrutura interna do zip espelha a do storage ({yyyy}/{MM}/{supplier}/{filename}).
+    /// Cria um ZIP em memória com os PDFs pedidos. Sprint 564: o nome de cada entrada vem de quem chama
+    /// (data/fornecedor/nº da fatura) — o caminho no storage reflete o upload, não a fatura.
     /// </summary>
     Task<byte[]> CreateZipAsync(
-        Guid tenantId, IEnumerable<string> relativePaths, CancellationToken ct = default);
+        Guid tenantId, IEnumerable<(string RelativePath, string EntryName)> files, CancellationToken ct = default);
 }
 
 public sealed class SupplierInvoiceStorage : ISupplierInvoiceStorage
@@ -82,12 +82,12 @@ public sealed class SupplierInvoiceStorage : ISupplierInvoiceStorage
     }
 
     public async Task<byte[]> CreateZipAsync(
-        Guid tenantId, IEnumerable<string> relativePaths, CancellationToken ct = default)
+        Guid tenantId, IEnumerable<(string RelativePath, string EntryName)> files, CancellationToken ct = default)
     {
         using var ms = new MemoryStream();
         using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
-            foreach (var rel in relativePaths)
+            foreach (var (rel, entryName) in files)
             {
                 // Segurança: rejeitar paths que não começam pelo tenantId — evita exfiltração cross-tenant.
                 if (!rel.StartsWith(tenantId.ToString() + "/", StringComparison.OrdinalIgnoreCase))
@@ -98,8 +98,6 @@ public sealed class SupplierInvoiceStorage : ISupplierInvoiceStorage
                 try
                 {
                     using var fileStream = await _storage.DownloadAsync(KeyPrefix + rel, ct);
-                    // Entry name dentro do zip — sem o tenantId prefix para layout limpo do contabilista.
-                    var entryName = rel.Substring(tenantId.ToString().Length + 1);
                     var entry = archive.CreateEntry(entryName, CompressionLevel.Fastest);
                     using var entryStream = entry.Open();
                     await fileStream.CopyToAsync(entryStream, ct);

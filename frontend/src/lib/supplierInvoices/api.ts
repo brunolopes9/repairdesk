@@ -94,7 +94,8 @@ export const supplierInvoicesApi = {
   reject(id: string, reason: string | null) {
     return api.post<SupplierInvoiceImport>(`/supplier-invoices/${id}/reject`, { reason }).then((r) => r.data);
   },
-  exportZipPath(from: string, to: string) {
-    return `/supplier-invoices/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  exportZipPath(from: string, to: string, fornecedorId?: string) {
+    const forn = fornecedorId ? `&fornecedorId=${encodeURIComponent(fornecedorId)}` : '';
+    return `/supplier-invoices/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${forn}`;
   },
 };

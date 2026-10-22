@@ -5,6 +5,7 @@ import { AlertTriangle, Camera, Download, FileText, Inbox, Link2, PackagePlus, R
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { comprasApi } from '../../lib/compras/api';
+import { fornecedoresApi } from '../../lib/fornecedores/api';
 import type { AssociacaoAutomatica } from '../../lib/compras/types';
 import { CorrespondenciaBadge, CorrespondenciaModal, useCorrespondencia } from '../compras/CorrespondenciaFatura';
 import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest} from '../../lib/supplierInvoices/api';
@@ -42,6 +43,9 @@ export default function PorAprovarTab() {
   });
   const exportFrom = exportDatas.de;
   const exportTo = exportDatas.ate;
+  // Sprint 564: export de um só fornecedor (vazio = todos).
+  const [exportFornecedor, setExportFornecedor] = useState('');
+  const fornecedores = useQuery({ queryKey: ['fornecedores', false], queryFn: () => fornecedoresApi.list(false) });
 
   const reject = useMutation({
     mutationFn: (req: { id: string; reason: string }) => supplierInvoicesApi.reject(req.id, req.reason),
@@ -175,11 +179,12 @@ export default function PorAprovarTab() {
 
   async function downloadZip() {
     try {
-      const res = await api.get<Blob>(supplierInvoicesApi.exportZipPath(exportFrom, exportTo), { responseType: 'blob' });
+      const res = await api.get<Blob>(supplierInvoicesApi.exportZipPath(exportFrom, exportTo, exportFornecedor || undefined), { responseType: 'blob' });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Faturas-fornecedor_${exportFrom}_a_${exportTo}.zip`;
+      const nomeForn = fornecedores.data?.find((f) => f.id === exportFornecedor)?.name;
+      a.download = `Faturas-fornecedor_${exportFrom}_a_${exportTo}${nomeForn ? `_${nomeForn}` : ''}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -323,11 +328,15 @@ export default function PorAprovarTab() {
               Exportar faturas para o contabilista
             </h2>
             <p className="mt-1 text-xs text-zinc-500">
-              ZIP com os PDFs das faturas tratadas no período (pela data da fatura) e um <code>indice.csv</code>. Estrutura: <code>ano/mês/fornecedor/fatura.pdf</code>.
+              ZIP com os PDFs das faturas tratadas no período (pela data da fatura) e um <code>indice.csv</code>. Pastas por mês e fornecedor, cada PDF com a data e o nº da fatura.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <DateRangeFilter value={exportDatas} onChange={setExportDatas} />
+            <select value={exportFornecedor} onChange={(e) => setExportFornecedor(e.target.value)} className={`${inputCls} mt-0 w-auto`} aria-label="Fornecedor a exportar">
+              <option value="">Todos os fornecedores</option>
+              {fornecedores.data?.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
             <Button type="button" onClick={downloadZip} disabled={!exportFrom || !exportTo} leftIcon={<Download size={15} />}>
               Descarregar ZIP
             </Button>
