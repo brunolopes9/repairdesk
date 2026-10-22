@@ -15,7 +15,7 @@ public static class IntraUeSuppliers
 {
     // Fornecedores UE recorrentes da LopesTech: Utopya (FR), 4Phones, iPartsTrade e MobileSentrix (NL),
     // SpainSellers / Microrepuestos e Inter Movil Levante / Movil Flash (ES).
-    private static readonly string[] Known = ["utopya", "4phones", "ipartstrade", "mobilesentrix", "spainsellers", "microrepuestos", "inter movil", "movil flash"];
+    private static readonly string[] Known = ["utopya", "4phones", "ipartstrade", "mobilesentrix", "spainsellers", "microrepuestos", "inter movil", "movil flash", "kaquu", "iluminashop", "eleshop", "earth trading", "ltronics", "indepsale"];
 
     /// <summary>True se o nome do fornecedor corresponder a um fornecedor intra-UE conhecido.</summary>
     public static bool IsKnownIntraUe(string? name)
