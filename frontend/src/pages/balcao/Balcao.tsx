@@ -80,8 +80,8 @@ export default function Balcao() {
       paymentMethod: pagamento,
     }),
     onSuccess: (v) => {
-      toast.success(`Venda #${v.numero} registada — ${formatEur(v.totalCents / 100)}`,
-        'Falta emitir a fatura-recibo (fica em "Fatura por registar" até a ligação ao Moloni estar ativa).');
+      if (v.invoiceNumber) toast.success(`Venda #${v.numero} — ${formatEur(v.totalCents / 100)}`, `Fatura-recibo ${v.invoiceNumber} emitida.`);
+      else toast.error(`Venda #${v.numero} registada, mas sem fatura-recibo`, 'Abre a venda e emite-a (o Moloni ON não respondeu ou não está ligado).');
       setCarrinho([]);
       setPesquisa('');
       qc.invalidateQueries({ queryKey: ['artigos'] });

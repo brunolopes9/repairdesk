@@ -27,6 +27,7 @@ import {
   type VendaWrite,
 } from '../../lib/vendas/types';
 import ClienteSelect, { type ClienteEscolhido } from './ClienteSelect';
+import DocumentoMoloni from './DocumentoMoloni';
 import LotePicker from './LotePicker';
 import ReparacaoExtras from './ReparacaoExtras';
 
@@ -280,7 +281,7 @@ export default function VendaEditor() {
       {venda?.faturaPorRegistar && (
         <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          Falta registar o nº da fatura desta venda. Não existe venda sem fatura.
+          Esta venda ainda não tem fatura — emite-a no Moloni ON abaixo (ou regista o nº se já a emitiste). Não existe venda sem fatura.
         </div>
       )}
 
@@ -468,8 +469,15 @@ export default function VendaEditor() {
         </SectionCard>
       )}
 
-      {venda && venda.estado === VENDA_ESTADO.Entregue && (
-        <SectionCard title="Fatura">
+      {venda && (
+        <DocumentoMoloni venda={venda} isAdmin={isAdmin} onChange={(v) => {
+          qc.invalidateQueries({ queryKey: ['vendas'] });
+          qc.setQueryData(['venda', v.id], v);
+        }} />
+      )}
+
+      {venda && venda.estado === VENDA_ESTADO.Entregue && !venda.moloniDocumentoTipo && (
+        <SectionCard title="Nº da fatura (registo manual, se emitida fora do Mender)">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <label className="block flex-1">
               <span className={labelCls}>Nº da fatura (Moloni)</span>

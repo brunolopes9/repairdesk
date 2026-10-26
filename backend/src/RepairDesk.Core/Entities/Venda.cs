@@ -36,6 +36,15 @@ public class Venda : BaseEntity, ITenantEntity
     /// <summary>SHA-256 do PDF — o mesmo ficheiro carregado duas vezes é reconhecido.</summary>
     public string? FaturaPdfSha256 { get; set; }
 
+    // Sprint 567: documento emitido no Moloni ON a partir do Mender.
+    /// <summary>"invoice" (fatura, fica por pagar até ao recibo) ou "invoiceReceipt" (fatura-recibo, paga).</summary>
+    public string? MoloniDocumentoTipo { get; set; }
+    public int? MoloniDocumentoId { get; set; }
+    public int? MoloniReciboId { get; set; }
+    public string? MoloniReciboNumero { get; set; }
+    public int? MoloniOrcamentoId { get; set; }
+    public string? MoloniOrcamentoNumero { get; set; }
+
     public string? Notas { get; set; }
     public List<VendaItem> Items { get; set; } = new();
 }

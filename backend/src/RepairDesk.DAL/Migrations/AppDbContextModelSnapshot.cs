@@ -347,6 +347,9 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int?>("MoloniProductId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -534,6 +537,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<string>("Localidade")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("MoloniCustomerId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Morada")
                         .HasMaxLength(200)
@@ -1892,6 +1898,15 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("MoloniApiKeyCipherText")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("MoloniCompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MoloniConfigJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -2042,6 +2057,27 @@ namespace RepairDesk.DAL.Migrations
 
                     b.Property<int>("IvaCents")
                         .HasColumnType("int");
+
+                    b.Property<int?>("MoloniDocumentoId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MoloniDocumentoTipo")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("MoloniOrcamentoId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MoloniOrcamentoNumero")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<int?>("MoloniReciboId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MoloniReciboNumero")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
 
                     b.Property<string>("Notas")
                         .HasMaxLength(2000)

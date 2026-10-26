@@ -83,14 +83,17 @@ public class ArtigoService : IArtigoService
     private readonly IVendaService _vendas;
     private readonly ITenantContext _tenant;
     private readonly IAuditLogger _audit;
+    private readonly Moloni.IMoloniService? _moloni;
 
-    public ArtigoService(IArtigoRepository repo, ICompraRepository compras, IVendaService vendas, ITenantContext tenant, IAuditLogger audit)
+    public ArtigoService(IArtigoRepository repo, ICompraRepository compras, IVendaService vendas, ITenantContext tenant, IAuditLogger audit,
+        Moloni.IMoloniService? moloni = null)
     {
         _repo = repo;
         _compras = compras;
         _vendas = vendas;
         _tenant = tenant;
         _audit = audit;
+        _moloni = moloni;
     }
 
     public async Task<IReadOnlyList<ArtigoDto>> ListAsync(string? q, bool incluirInativos, CancellationToken ct = default)
@@ -172,9 +175,18 @@ public class ArtigoService : IArtigoService
                 throw new ValidationException("stock_insuficiente", $"\"{artigo.Nome}\": só há {Stock(artigo)} em stock (pedido {qtd}).");
         }
 
-        // "Não existe venda sem fatura": entregue fica em "Fatura por registar" até a fatura-recibo ser emitida.
-        return await _vendas.CreateAsync(new VendaWriteRequest(
+        var venda = await _vendas.CreateAsync(new VendaWriteRequest(
             VendaTipo.Produto, req.ClienteId, null, null, "Venda ao balcão.", linhas, VendaEstado.Entregue, req.PaymentMethod), ct);
+
+        // Sprint 567: no balcão sai sempre fatura-recibo (pago na hora). Se o Moloni falhar, a venda fica
+        // registada em "Fatura por registar" e emite-se depois na própria venda — o stock já saiu.
+        if (_moloni is not null && await _moloni.ConfiguradoAsync(ct))
+        {
+            try { return await _moloni.EmitirAsync(venda.Id, new Moloni.MoloniEmitirRequest(Moloni.MoloniDocumento.FaturaRecibo, PaymentMethod: req.PaymentMethod), ct); }
+            catch (DomainException) { return await _vendas.GetAsync(venda.Id, ct); }
+            catch (HttpRequestException) { return await _vendas.GetAsync(venda.Id, ct); }
+        }
+        return venda;
     }
 
     // ---------- regras ----------

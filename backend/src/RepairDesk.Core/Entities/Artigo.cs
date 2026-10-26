@@ -34,5 +34,8 @@ public class Artigo : BaseEntity, ITenantEntity
     public bool Ativo { get; set; } = true;
     public string? Notas { get; set; }
 
+    /// <summary>Sprint 567: artigo correspondente no Moloni ON (criado na 1.ª fatura com este artigo).</summary>
+    public int? MoloniProductId { get; set; }
+
     public List<CompraLinha> Lotes { get; set; } = new();
 }

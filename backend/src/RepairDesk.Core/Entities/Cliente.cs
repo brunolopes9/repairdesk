@@ -10,6 +10,8 @@ public class Cliente : BaseEntity, ITenantEntity
     public string? Telefone { get; set; }
     public string? Email { get; set; }
     public string? Nif { get; set; }
+    /// <summary>Sprint 567: cliente correspondente no Moloni ON.</summary>
+    public int? MoloniCustomerId { get; set; }
     public string? Notas { get; set; }
 
     /// <summary>Sprint 510: morada fiscal do cliente — usada na fatura (com NIF).</summary>

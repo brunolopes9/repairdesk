@@ -17,6 +17,8 @@ public interface IVendaFaturaService
 {
     Task<VendaFaturaImportResult> ImportarAsync(byte[] pdf, CancellationToken ct = default);
     Task<(byte[] Pdf, string Nome)> PdfAsync(Guid vendaId, CancellationToken ct = default);
+    /// <summary>Sprint 567: guarda o PDF da fatura emitida pelo Mender no Moloni ON (substitui o que houver).</summary>
+    Task AnexarPdfAsync(Guid vendaId, byte[] pdf, CancellationToken ct = default);
     Task<(byte[] Zip, string Filename)> ExportZipAsync(DateTime from, DateTime to, CancellationToken ct = default);
 }
 
@@ -96,6 +98,17 @@ public class VendaFaturaService : IVendaFaturaService
         await _vendas.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Create, nameof(Venda), venda.Id, new { operation = "importar_fatura_venda", lida.Numero, lida.TotalCents }, ct: ct);
         return new(venda.Id, venda.Numero, lida.Numero, "criada", avisoTotal);
+    }
+
+    public async Task AnexarPdfAsync(Guid vendaId, byte[] pdf, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        var venda = await _vendas.FindByIdAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
+        var numero = venda.InvoiceNumber ?? throw new ValidationException("sem_fatura", "A venda não tem nº de fatura.");
+        var lida = new FaturaVendaLida(numero, venda.InvoiceEmittedAt ?? venda.Data, "", null, null, [], venda.TotalCents, null);
+        await GuardarPdfAsync(venda, tenantId, lida, pdf, Convert.ToHexString(SHA256.HashData(pdf)).ToLowerInvariant(), ct);
+        await _vendas.SaveAsync(ct);
     }
 
     public async Task<(byte[] Pdf, string Nome)> PdfAsync(Guid vendaId, CancellationToken ct = default)

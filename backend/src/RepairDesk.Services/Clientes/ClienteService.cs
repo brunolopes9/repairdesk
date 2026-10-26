@@ -26,15 +26,28 @@ public class ClienteService : IClienteService
     private readonly IClienteRepository _repo;
     private readonly IValidator<CreateClienteRequest> _createValidator;
     private readonly IValidator<UpdateClienteRequest> _updateValidator;
+    private readonly Moloni.IMoloniService? _moloni;
 
     public ClienteService(
         IClienteRepository repo,
         IValidator<CreateClienteRequest> createValidator,
-        IValidator<UpdateClienteRequest> updateValidator)
+        IValidator<UpdateClienteRequest> updateValidator,
+        Moloni.IMoloniService? moloni = null)
     {
         _repo = repo;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _moloni = moloni;
+    }
+
+    /// <summary>Sprint 567: o cliente criado/alterado no Mender passa para o Moloni ON (se ligado). Falhas não
+    /// bloqueiam a gravação — a emissão de um documento volta a garantir o cliente.</summary>
+    private async Task SincronizarMoloniAsync(Guid clienteId, CancellationToken ct)
+    {
+        if (_moloni is null) return;
+        try { await _moloni.SincronizarClienteAsync(clienteId, ct); }
+        catch (DomainException) { /* ex.: NIF que o Moloni rejeita — aparece ao emitir */ }
+        catch (HttpRequestException) { /* Moloni fora do ar */ }
     }
 
     public async Task<PagedResult<ClienteDto>> SearchAsync(
@@ -100,6 +113,7 @@ public class ClienteService : IClienteService
         };
         await _repo.AddAsync(cliente, ct);
         await _repo.SaveAsync(ct);
+        await SincronizarMoloniAsync(cliente.Id, ct);
         return ToDto(cliente);
     }
 
@@ -123,6 +137,7 @@ public class ClienteService : IClienteService
         cliente.CodigoPostal = string.IsNullOrWhiteSpace(req.CodigoPostal) ? null : req.CodigoPostal.Trim();
         cliente.Localidade = string.IsNullOrWhiteSpace(req.Localidade) ? null : req.Localidade.Trim();
         await _repo.SaveAsync(ct);
+        await SincronizarMoloniAsync(cliente.Id, ct);
         return ToDto(cliente);
     }
 

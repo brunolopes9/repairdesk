@@ -57,6 +57,12 @@ public class Tenant : BaseEntity
     public string? AnthropicApiKeyCipherText { get; set; }
     public DateTime? AnthropicValidatedAt { get; set; }
 
+    // Sprint 567: Moloni ON — os documentos fiscais (faturas, recibos, orçamentos) emitem-se lá pela API.
+    public string? MoloniApiKeyCipherText { get; set; }
+    public int? MoloniCompanyId { get; set; }
+    /// <summary>Séries por tipo de venda, ids de artigos genéricos e métodos de pagamento (JSON, ver MoloniConfig).</summary>
+    public string? MoloniConfigJson { get; set; }
+
     // Sprint 173: email forwarding ingest per-tenant (RGPD-clean).
     public string? IngestEmailSlug { get; set; }
 

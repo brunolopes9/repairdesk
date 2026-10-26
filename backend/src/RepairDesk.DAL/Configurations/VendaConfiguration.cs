@@ -38,6 +38,9 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
         builder.Property(x => x.InvoiceNumber).HasMaxLength(120);
         builder.Property(x => x.FaturaPdfPath).HasMaxLength(500);
         builder.Property(x => x.FaturaPdfSha256).HasMaxLength(64);
+        builder.Property(x => x.MoloniDocumentoTipo).HasMaxLength(20);
+        builder.Property(x => x.MoloniReciboNumero).HasMaxLength(60);
+        builder.Property(x => x.MoloniOrcamentoNumero).HasMaxLength(60);
         builder.HasIndex(x => new { x.TenantId, x.InvoiceNumber });
         builder.Property(x => x.Notas).HasMaxLength(2000);
 

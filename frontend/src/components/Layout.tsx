@@ -27,6 +27,7 @@ import {
   SlidersHorizontal,
   UserCog,
   ScanBarcode,
+  FileCheck2,
   Tag,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
@@ -86,6 +87,7 @@ const nav: NavItem[] = [
     children: [
       { to: '/definicoes', label: 'Empresa', icon: Settings },
       { to: '/definicoes/preferencias', label: 'Preferências', icon: SlidersHorizontal },
+      { to: '/definicoes/moloni', label: 'Moloni ON', icon: FileCheck2 },
       { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2 },
       { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
       { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },

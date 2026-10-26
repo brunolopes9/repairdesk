@@ -87,7 +87,13 @@ public sealed record VendaDto(
     /// <summary>Slug da garantia emitida (/g/{slug}), se existir.</summary>
     string? GarantiaSlug = null,
     /// <summary>Sprint 565: há PDF da fatura (importado do Moloni).</summary>
-    bool TemFaturaPdf = false);
+    bool TemFaturaPdf = false,
+    /// <summary>Sprint 567: "invoice" (fatura) ou "invoiceReceipt" (fatura-recibo) emitida pelo Mender no Moloni ON.</summary>
+    string? MoloniDocumentoTipo = null,
+    string? MoloniReciboNumero = null,
+    string? MoloniOrcamentoNumero = null,
+    /// <summary>Fatura-recibo, ou fatura com recibo. Null quando não há documento Moloni.</summary>
+    bool? Paga = null);
 
 public sealed record VendaImeiLookupDto(
     Guid VendaId,

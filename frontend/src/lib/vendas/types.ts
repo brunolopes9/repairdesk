@@ -109,6 +109,12 @@ export interface Venda {
   garantiaSlug: string | null;
   /** Sprint 565: há PDF da fatura (importado do Moloni). */
   temFaturaPdf: boolean;
+  /** Sprint 567: "invoice" (fatura) | "invoiceReceipt" (fatura-recibo) emitida no Moloni ON pelo Mender. */
+  moloniDocumentoTipo: "invoice" | "invoiceReceipt" | null;
+  moloniReciboNumero: string | null;
+  moloniOrcamentoNumero: string | null;
+  /** null = sem documento Moloni. */
+  paga: boolean | null;
 }
 
 /** Sprint 565: resultado de importar o PDF de uma fatura de venda. */

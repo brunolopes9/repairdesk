@@ -541,7 +541,9 @@ public class VendaService : IVendaService
             items.Sum(i => i.IvaAPagarEstado), items.Sum(i => i.Lucro),
             venda.PaymentMethod, venda.InvoiceNumber, venda.InvoiceEmittedAt,
             venda.Estado == VendaEstado.Entregue && venda.InvoiceNumber is null,
-            venda.Notas, items, venda.PublicSlug, venda.PrevistoPara, garantiaSlug, venda.FaturaPdfPath is not null);
+            venda.Notas, items, venda.PublicSlug, venda.PrevistoPara, garantiaSlug, venda.FaturaPdfPath is not null,
+            venda.MoloniDocumentoTipo, venda.MoloniReciboNumero, venda.MoloniOrcamentoNumero,
+            venda.MoloniDocumentoTipo is null ? null : venda.MoloniDocumentoTipo == "invoiceReceipt" || venda.MoloniReciboId is not null);
     }
 
     private static string? Clean(string? s, int max)

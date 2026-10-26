@@ -179,5 +179,35 @@ public class VendasController : ControllerBase
         return File(zip, "application/zip", nome);
     }
 
+    // ---------- Sprint 567: Moloni ON ----------
+
+    /// <summary>Emite a fatura ou a fatura-recibo da venda no Moloni ON (rascunho, confere total, finaliza).</summary>
+    [HttpPost("{id:guid}/moloni/emitir")]
+    public Task<VendaDto> MoloniEmitir(Guid id, [FromBody] RepairDesk.Services.Moloni.MoloniEmitirRequest req,
+        [FromServices] RepairDesk.Services.Moloni.IMoloniService moloni, CancellationToken ct) => moloni.EmitirAsync(id, req, ct);
+
+    /// <summary>Converte a fatura (por pagar) em paga: emite o recibo no Moloni ON.</summary>
+    [HttpPost("{id:guid}/moloni/recibo")]
+    public Task<VendaDto> MoloniRecibo(Guid id, [FromBody] RepairDesk.Services.Moloni.MoloniReciboRequest req,
+        [FromServices] RepairDesk.Services.Moloni.IMoloniService moloni, CancellationToken ct) => moloni.ReciboAsync(id, req, ct);
+
+    /// <summary>Anula no Moloni ON (recibo primeiro, depois a fatura). A venda volta a "Fatura por registar".</summary>
+    [HttpPost("{id:guid}/moloni/anular")]
+    [Authorize(Roles = "Admin")]
+    public Task<VendaDto> MoloniAnular(Guid id, [FromBody] RepairDesk.Services.Moloni.MoloniAnularRequest req,
+        [FromServices] RepairDesk.Services.Moloni.IMoloniService moloni, CancellationToken ct) => moloni.AnularAsync(id, req, ct);
+
+    [HttpPost("{id:guid}/moloni/orcamento")]
+    public Task<VendaDto> MoloniOrcamento(Guid id, [FromBody] RepairDesk.Services.Moloni.MoloniOrcamentoRequest req,
+        [FromServices] RepairDesk.Services.Moloni.IMoloniService moloni, CancellationToken ct) => moloni.OrcamentoAsync(id, req, ct);
+
+    /// <summary>PDF de um documento Moloni da venda: documento = fatura | recibo | orcamento.</summary>
+    [HttpGet("{id:guid}/moloni/{documento}.pdf")]
+    public async Task<IActionResult> MoloniPdf(Guid id, string documento, [FromServices] RepairDesk.Services.Moloni.IMoloniService moloni, CancellationToken ct)
+    {
+        var (pdf, nome) = await moloni.PdfAsync(id, documento, ct);
+        return File(pdf, "application/pdf", nome);
+    }
+
     public sealed record SaveAssinaturaRequest(string Tipo, string DataUrl);
 }
