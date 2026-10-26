@@ -113,6 +113,9 @@ public class ClienteRepository : IClienteRepository
     public Task<Cliente?> FindByNifAsync(string nif, CancellationToken ct = default)
         => _db.Clientes.FirstOrDefaultAsync(c => c.Nif == nif, ct);
 
+    public Task<Cliente?> FindByMoloniCustomerIdAsync(int moloniCustomerId, CancellationToken ct = default)
+        => _db.Clientes.FirstOrDefaultAsync(c => c.MoloniCustomerId == moloniCustomerId, ct);
+
     public Task<Cliente?> FindByTelefoneAsync(string telefoneNormalizado, CancellationToken ct = default)
         => _db.Clientes.FirstOrDefaultAsync(c => c.Telefone == telefoneNormalizado, ct);
 

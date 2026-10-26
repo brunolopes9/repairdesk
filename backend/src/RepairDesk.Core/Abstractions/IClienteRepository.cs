@@ -20,6 +20,8 @@ public interface IClienteRepository
     Task<IReadOnlyList<ClienteEquipamentoRow>> ListEquipamentosAsync(Guid clienteId, int take, CancellationToken ct = default);
     Task<bool> NifExistsAsync(string nif, Guid? exceptId = null, CancellationToken ct = default);
     Task<Cliente?> FindByNifAsync(string nif, CancellationToken ct = default);
+    /// <summary>Sprint 568: cliente ligado a este cliente do Moloni ON.</summary>
+    Task<Cliente?> FindByMoloniCustomerIdAsync(int moloniCustomerId, CancellationToken ct = default);
     Task<Cliente?> FindByTelefoneAsync(string telefoneNormalizado, CancellationToken ct = default);
     Task<(IReadOnlyList<Cliente> Items, int Total)> SearchAsync(string? query, int page, int pageSize, Guid? tagId = null, CancellationToken ct = default, Ordenacao? ordem = null);
     Task<bool> AnyAsync(CancellationToken ct = default);

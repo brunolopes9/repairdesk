@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using RepairDesk.Core.Abstractions;
@@ -40,6 +41,8 @@ public sealed record MoloniEstadoDto(
 
 public sealed record MoloniConfigurarRequest(string? ApiKey, int? SerieServico = null, int? SerieReparacao = null, int? SerieProduto = null);
 
+/// <summary>O ecrã envia o nome ("FaturaRecibo"); a API não tem conversor global de enums em texto.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<MoloniDocumento>))]
 public enum MoloniDocumento
 {
     /// <summary>Fatura: fica por pagar até se registar o recibo.</summary>
@@ -90,7 +93,7 @@ public interface IMoloniService
 /// <item>Consumidor final = cliente predefinido do Moloni (nunca se cria).</item>
 /// </list>
 /// </summary>
-public class MoloniService : IMoloniService
+public partial class MoloniService : IMoloniService
 {
     private const decimal ToleranciaTotal = 0.02m;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);

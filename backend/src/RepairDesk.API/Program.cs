@@ -229,7 +229,9 @@ try
     builder.Services.AddScoped<IArtigoRepository, ArtigoRepository>();
     // Sprint 567: Moloni ON (documentos fiscais emitidos pelo Mender).
     builder.Services.AddHttpClient<RepairDesk.Services.Moloni.IMoloniClient, RepairDesk.Services.Moloni.MoloniClient>(c => c.Timeout = TimeSpan.FromSeconds(30));
-    builder.Services.AddScoped<RepairDesk.Services.Moloni.IMoloniService, RepairDesk.Services.Moloni.MoloniService>();
+    builder.Services.AddScoped<RepairDesk.Services.Moloni.MoloniService>();
+    builder.Services.AddScoped<RepairDesk.Services.Moloni.IMoloniService>(sp => sp.GetRequiredService<RepairDesk.Services.Moloni.MoloniService>());
+    builder.Services.AddScoped<RepairDesk.Services.Moloni.IMoloniGestaoService>(sp => sp.GetRequiredService<RepairDesk.Services.Moloni.MoloniService>());
     builder.Services.AddScoped<RepairDesk.Services.Artigos.IArtigoService, RepairDesk.Services.Artigos.ArtigoService>();
     builder.Services.AddScoped<RepairDesk.Services.Artigos.IEtiquetaPdfService, RepairDesk.Services.Artigos.EtiquetaPdfService>();
 

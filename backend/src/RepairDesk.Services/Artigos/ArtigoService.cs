@@ -84,9 +84,10 @@ public class ArtigoService : IArtigoService
     private readonly ITenantContext _tenant;
     private readonly IAuditLogger _audit;
     private readonly Moloni.IMoloniService? _moloni;
+    private readonly Moloni.IMoloniGestaoService? _moloniGestao;
 
     public ArtigoService(IArtigoRepository repo, ICompraRepository compras, IVendaService vendas, ITenantContext tenant, IAuditLogger audit,
-        Moloni.IMoloniService? moloni = null)
+        Moloni.IMoloniService? moloni = null, Moloni.IMoloniGestaoService? moloniGestao = null)
     {
         _repo = repo;
         _compras = compras;
@@ -94,6 +95,7 @@ public class ArtigoService : IArtigoService
         _tenant = tenant;
         _audit = audit;
         _moloni = moloni;
+        _moloniGestao = moloniGestao;
     }
 
     public async Task<IReadOnlyList<ArtigoDto>> ListAsync(string? q, bool incluirInativos, CancellationToken ct = default)
@@ -129,6 +131,13 @@ public class ArtigoService : IArtigoService
         artigo.UpdatedAt = DateTime.UtcNow;
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(Artigo), artigo.Id, new { artigo.Sku, artigo.Nome, artigo.PrecoVendaCents }, ct: ct);
+        // Sprint 568: nome/preço passam para o artigo ligado no Moloni ON (falha não bloqueia a gravação).
+        if (_moloniGestao is not null)
+        {
+            try { await _moloniGestao.SincronizarArtigoAsync(artigo.Id, ct); }
+            catch (DomainException) { }
+            catch (HttpRequestException) { }
+        }
         return await GetAsync(artigo.Id, ct);
     }
 

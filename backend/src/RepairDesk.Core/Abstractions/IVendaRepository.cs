@@ -20,6 +20,8 @@ public interface IVendaRepository
     Task<Venda?> FindByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default);
     /// <summary>Sprint 565: vendas com PDF da fatura cuja data de fatura (ou da venda) cai em [from, to[.</summary>
     Task<IReadOnlyList<Venda>> ListComFaturaPdfAsync(DateTime from, DateTime to, CancellationToken ct = default);
+    /// <summary>Sprint 568: vendas ligadas a estes documentos do Moloni ON (fatura, recibo ou orçamento).</summary>
+    Task<IReadOnlyList<Venda>> ListByMoloniIdsAsync(IReadOnlyCollection<int> documentIds, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }
 

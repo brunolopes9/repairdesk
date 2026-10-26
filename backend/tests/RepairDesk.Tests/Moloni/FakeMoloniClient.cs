@@ -45,7 +45,21 @@ public class FakeMoloniClient : IMoloniClient
         => Task.FromResult(Responder(operacao, query, variaveis));
 
     public Task<JsonNode?> ExecutarEscalarAsync(string apiKey, string query, object? variaveis, string operacao, CancellationToken ct = default)
-        => Task.FromResult(Responder(operacao, query, variaveis));
+    {
+        var r = Responder(operacao, query, variaveis);
+        // Listas pedidas com paginação vêm embrulhadas como no Moloni: { errors, data, options }.
+        if (query.Contains("options { pagination") && r is JsonArray arr)
+            return Task.FromResult<JsonNode?>(new JsonObject { ["errors"] = new JsonArray(), ["data"] = arr, ["options"] = new JsonObject { ["pagination"] = new JsonObject { ["count"] = arr.Count } } });
+        if (operacao.EndsWith("Delete") && r is JsonObject) return Task.FromResult(r);
+        return Task.FromResult(r);
+    }
+
+    /// <summary>Documentos que as listas devolvem (documentId → linha).</summary>
+    public List<object> Faturas { get; } = new();
+    /// <summary>Clientes que existem "no Moloni" para a importação.</summary>
+    public List<object> Clientes { get; } = new();
+    /// <summary>Artigos que o Moloni recusa apagar (usados em documentos).</summary>
+    public HashSet<int> ArtigosEmUso { get; } = new();
 
     public Task<byte[]> DescarregarAsync(string path, string token, CancellationToken ct = default)
         => Task.FromResult("%PDF-1.4 fake moloni"u8.ToArray());
@@ -64,14 +78,21 @@ public class FakeMoloniClient : IMoloniClient
             case "taxes":
                 return Node(new object[] { new { taxId = 12733, value = 23, type = 1 }, new { taxId = 12734, value = 13, type = 1 }, new { taxId = 12735, value = 6, type = 1 } });
             case "paymentMethods": return Node(new object[] { new { paymentMethodId = 8903, name = "Dinheiro" }, new { paymentMethodId = 8904, name = "Cartão" } });
-            case "measurementUnits": return Node(new object[] { new { measurementUnitId = 14518, abbreviation = "un" } });
-            case "productCategories": return Node(new object[] { new { productCategoryId = 10398 } });
-            case "customers": return query.Contains("isDefault") ? Node(new object[] { new { customerId = 63270 } }) : new JsonArray();
+            case "measurementUnits": return Node(new object[] { new { measurementUnitId = 14518, name = "Unidade", abbreviation = "un" } });
+            case "productCategories": return Node(new object[] { new { productCategoryId = 10398, name = "Predefinida" } });
+            case "customers":
+                if (query.Contains("options { pagination")) return Node(Clientes.ToArray());
+                return query.Contains("isDefault:") || query.Contains("field:isDefault") ? Node(new object[] { new { customerId = 63270 } }) : new JsonArray();
             case "customerNextNumber": return JsonValue.Create("9");
             case "customerCreate": return Node(new { customerId = Id() });
             case "customerUpdate": return Node(new { customerId = d?["customerId"]?.GetValue<int>() });
             case "products": return new JsonArray();
-            case "productCreate": return Node(new { productId = Id() });
+            case "productCreate" or "productUpdate":
+                return Node(new { productId = d!["productId"]?.GetValue<int>() ?? Id(), reference = d["reference"]?.GetValue<string>(), name = d["name"]?.GetValue<string>(), type = d["type"]?.GetValue<int>() ?? 2, price = d["price"]?.GetValue<decimal>() ?? 0m, priceWithTaxes = 0m, taxes = new object[0], deletionBlockers = new string[0] });
+            case "productDelete":
+                return Node(new { status = true, deletedCount = v!["d"]!.AsArray().Any(x => ArtigosEmUso.Contains(x!.GetValue<int>())) ? 0 : 1, errors = new object[0] });
+            case "invoices": return Node(Faturas.ToArray());
+            case "invoiceReceipts" or "receipts" or "estimates": return new JsonArray();
             case "paymentMethodCreate": return Node(new { paymentMethodId = Id() });
             case "invoiceCreate" or "invoiceReceiptCreate" or "estimateCreate":
             {
@@ -84,8 +105,8 @@ public class FakeMoloniClient : IMoloniClient
                 return Node(new { documentId = d!["documentId"]!.GetValue<int>(), number = 7, documentSetName = "SOFTWARE", status = 1 });
             case "invoice":
             {
-                var t = _totais.GetValueOrDefault(v!["d"]!.GetValue<int>());
-                return Node(new { totalValue = t, documentSetId = 3216, customerId = 63270, remainingReconciledValue = t, nullified = false });
+                var t = _totais.TryGetValue(v!["d"]!.GetValue<int>(), out var tt) ? tt : 50m;
+                return Node(new { totalValue = t, documentSetId = 3216, customerId = 63270, remainingReconciledValue = t, nullified = false, status = 1 });
             }
             case "receiptCreate": return Node(new { documentId = Id(), number = 5, documentSetName = "SOFTWARE", totalValue = d!["totalValue"]!.GetValue<decimal>() });
             default:

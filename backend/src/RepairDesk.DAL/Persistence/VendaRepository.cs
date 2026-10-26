@@ -42,6 +42,13 @@ public class VendaRepository : IVendaRepository
             .OrderBy(v => v.InvoiceEmittedAt ?? v.Data).ThenBy(v => v.Numero)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Venda>> ListByMoloniIdsAsync(IReadOnlyCollection<int> documentIds, CancellationToken ct = default)
+        => documentIds.Count == 0 ? [] : await _db.Vendas.AsNoTracking()
+            .Where(v => (v.MoloniDocumentoId != null && documentIds.Contains(v.MoloniDocumentoId.Value))
+                || (v.MoloniReciboId != null && documentIds.Contains(v.MoloniReciboId.Value))
+                || (v.MoloniOrcamentoId != null && documentIds.Contains(v.MoloniOrcamentoId.Value)))
+            .ToListAsync(ct);
+
     public async Task CreateWithNextNumeroAsync(Venda venda, Guid tenantId, CancellationToken ct = default)
     {
         const int maxAttempts = 5;
