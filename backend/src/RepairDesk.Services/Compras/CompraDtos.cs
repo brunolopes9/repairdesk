@@ -98,7 +98,10 @@ public sealed record InventarioLinhaDto(
     // Totais do que está em stock (quantidade × por unidade).
     decimal Lucro,
     decimal IvaAPagarEstado,
-    decimal TaxaIvaCompra);
+    decimal TaxaIvaCompra,
+    // Sprint 566: artigo da loja a que o lote pertence.
+    Guid? ArtigoId = null,
+    string? ArtigoSku = null);
 
 public sealed record ResumoColunaDto(
     int Unidades,

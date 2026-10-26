@@ -9,6 +9,7 @@ import { formatEur } from '../../lib/compras/format';
 import { correspondeTermos } from '../../lib/pesquisa';
 import { formatDateOnly } from '../../lib/money';
 import { inputCls } from '../../components/ui/formClasses';
+import ArtigoModal from '../artigos/ArtigoModal';
 
 /** Lotes com stock > 0 (SPEC compras §4.5), com preço de venda sugerido e IVA a entregar ao Estado. */
 export default function InventarioLotesTab() {
@@ -16,6 +17,8 @@ export default function InventarioLotesTab() {
   const [datas, setDatas] = useState<IntervaloDatas>(SEM_DATAS);
   const { ordem, alternar } = useOrdenacao<'numero' | 'artigo' | 'data' | 'stock' | 'pago' | 'venda' | 'lucro' | 'iva'>('numero', false);
   const inv = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario });
+  // Sprint 566: criar/abrir o artigo da loja a partir de um lote.
+  const [artigoAberto, setArtigoAberto] = useState<{ id: string | null; sugestao: { loteIds: string[]; nome: string } | null } | null>(null);
 
   const linhas = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -82,6 +85,10 @@ export default function InventarioLotesTab() {
                   <td className="px-4 py-3">
                     <div className="font-medium">{l.descricao}</div>
                     {l.localizacao && <div className="text-xs text-zinc-500">{l.localizacao}</div>}
+                    {l.artigoId
+                      ? <button type="button" className="text-xs font-mono text-brand-600 hover:underline" onClick={() => setArtigoAberto({ id: l.artigoId, sugestao: null })}>{l.artigoSku}</button>
+                      : <button type="button" className="text-xs text-zinc-500 hover:text-brand-600 hover:underline"
+                          onClick={() => setArtigoAberto({ id: null, sugestao: { loteIds: [l.linhaId], nome: l.descricao } })}>+ Criar artigo (etiqueta)</button>}
                   </td>
                   <td className="px-4 py-3 text-xs text-zinc-500">
                     <Link to={`/compras/${l.documentoId}`} className="hover:underline">{l.fornecedor} · {l.referencia}</Link>
@@ -98,6 +105,7 @@ export default function InventarioLotesTab() {
           </table>
         </div>
       )}
+      <ArtigoModal open={artigoAberto !== null} artigoId={artigoAberto?.id ?? null} sugestao={artigoAberto?.sugestao ?? null} onClose={() => setArtigoAberto(null)} />
     </SectionCard>
   );
 }

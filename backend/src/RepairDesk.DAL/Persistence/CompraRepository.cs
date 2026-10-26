@@ -79,7 +79,7 @@ public class CompraRepository : ICompraRepository
 
     public async Task<IReadOnlyList<CompraLinha>> ListLinhasAsync(bool soComStock, CancellationToken ct = default)
     {
-        var q = _db.ComprasLinhas.AsNoTracking().Include(l => l.Documento).ThenInclude(d => d!.Fornecedor).AsQueryable();
+        var q = _db.ComprasLinhas.AsNoTracking().Include(l => l.Artigo).Include(l => l.Documento).ThenInclude(d => d!.Fornecedor).AsQueryable();
         if (soComStock) q = q.Where(l => l.Quantidade - l.QuantidadeVendida - l.QuantidadeAbatida > 0);
         return await q.OrderBy(l => l.Documento!.Data).ThenBy(l => l.Numero).ToListAsync(ct);
     }

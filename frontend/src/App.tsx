@@ -25,6 +25,8 @@ const Despesas = lazy(() => import('./pages/despesas/Despesas'));
 const Compras = lazy(() => import('./pages/compras/Compras'));
 const CompraEditor = lazy(() => import('./pages/compras/CompraEditor'));
 const Vendas = lazy(() => import('./pages/vendas/Vendas'));
+const Artigos = lazy(() => import('./pages/artigos/Artigos'));
+const Balcao = lazy(() => import('./pages/balcao/Balcao'));
 const VendaEditor = lazy(() => import('./pages/vendas/VendaEditor'));
 const Auditoria = lazy(() => import('./pages/auditoria/Auditoria'));
 const Tarefas = lazy(() => import('./pages/tarefas/Tarefas'));
@@ -155,7 +157,8 @@ export default function App() {
               <Route path="/agendamentos" element={<Agendamentos />} />
               <Route path="/compras-operacao" element={<Navigate to="/compras" replace />} />
               <Route path="/documentos" element={<Navigate to="/vendas" replace />} />
-              <Route path="/balcao" element={<Navigate to="/vendas/nova?tipo=0" replace />} />
+              <Route path="/balcao" element={<Balcao />} />
+              <Route path="/artigos" element={<Artigos />} />
               <Route path="/catalogo" element={<Navigate to="/compras?tab=stock" replace />} />
               <Route path="/inventario" element={<Navigate to="/compras?tab=stock" replace />} />
               <Route path="/tarefas" element={<Tarefas />} />

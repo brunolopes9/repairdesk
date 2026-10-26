@@ -26,6 +26,8 @@ import {
   Search,
   SlidersHorizontal,
   UserCog,
+  ScanBarcode,
+  Tag,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
@@ -56,6 +58,9 @@ const nav: NavItem[] = [
   // Doc 94 (reformulação out/2026): três secções de negócio — Vendas, Compras (inclui stock por
   // lote) e Despesas. Balcão, Preços, Stock de peças e Trabalhos deixaram de existir.
   { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
+  // Sprint 566: balcão com pistola + artigos da loja (SKU/código de barras, stock = soma dos lotes).
+  { to: '/balcao', label: 'Balcão', icon: ScanBarcode },
+  { to: '/artigos', label: 'Artigos', icon: Tag },
   { to: '/compras', label: 'Compras', icon: Receipt },
   { to: '/despesas', label: 'Despesas', icon: Banknote },
   {

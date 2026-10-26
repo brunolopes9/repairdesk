@@ -48,6 +48,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Doc 94 Fase 3: compras por lote (documento + linhas = lotes de stock).
     public DbSet<CompraDocumento> ComprasDocumentos => Set<CompraDocumento>();
     public DbSet<CompraLinha> ComprasLinhas => Set<CompraLinha>();
+    // Sprint 566: artigos da loja (SKU + código de barras) — o stock é a soma dos lotes ligados.
+    public DbSet<Artigo> Artigos => Set<Artigo>();
     // Sprint 147: faturas de fornecedor recebidas via endpoint ingest (n8n IMAP).
     public DbSet<SupplierInvoiceImport> SupplierInvoiceImports => Set<SupplierInvoiceImport>();
     // Sprint 157: mapping aprendido entre SKUs de fornecedor e Parts internos.

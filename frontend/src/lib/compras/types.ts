@@ -117,6 +117,9 @@ export interface InventarioLinha {
   lucro: number;
   ivaAPagarEstado: number;
   taxaIvaCompra: number;
+  /** Sprint 566: artigo da loja a que o lote pertence. */
+  artigoId: string | null;
+  artigoSku: string | null;
 }
 
 export interface ResumoColuna {

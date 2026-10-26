@@ -226,6 +226,9 @@ try
     builder.Services.AddScoped<IVendaRepository, VendaRepository>();
     builder.Services.AddScoped<IVendaService, VendaService>();
     builder.Services.AddScoped<IVendaFaturaService, VendaFaturaService>();
+    builder.Services.AddScoped<IArtigoRepository, ArtigoRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Artigos.IArtigoService, RepairDesk.Services.Artigos.ArtigoService>();
+    builder.Services.AddScoped<RepairDesk.Services.Artigos.IEtiquetaPdfService, RepairDesk.Services.Artigos.EtiquetaPdfService>();
 
 
     // Documents (PDF orçamento)

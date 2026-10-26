@@ -39,5 +39,9 @@ public class CompraLinha : BaseEntity, ITenantEntity
     /// <summary>Onde está guardado (ex.: "Gaveta A3").</summary>
     public string? Localizacao { get; set; }
 
+    /// <summary>Sprint 566: artigo da loja a que este lote pertence (o stock do artigo é a soma dos lotes).</summary>
+    public Guid? ArtigoId { get; set; }
+    public Artigo? Artigo { get; set; }
+
     public int QuantidadeEmStock => Quantidade - QuantidadeVendida - QuantidadeAbatida;
 }
