@@ -9,6 +9,7 @@ import { moloniApi, MOTIVOS_ISENCAO, type MoloniDocumento } from '../../lib/molo
 import { toast } from '../../lib/toast';
 import { vendasApi } from '../../lib/vendas/api';
 import { PAYMENT_METHOD_LABEL, VENDA_ESTADO, VENDA_TIPO, type PaymentMethod, type Venda } from '../../lib/vendas/types';
+import DadosFatura, { escolhaInicial, pedidoFatura, problemaFatura, type EscolhaFatura } from './DadosFatura';
 
 interface Props {
   venda: Venda;
@@ -33,6 +34,12 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   const [anular, setAnular] = useState<string | null>(null);
 
   useEffect(() => { setSerie(serieDefault ?? ''); }, [serieDefault]);
+  // Sprint 571: sem NIF / com NIF — proposto a partir do cliente da venda, decidido no momento.
+  const [fatura, setFatura] = useState<EscolhaFatura>(() => escolhaInicial(venda.cliente));
+  const chaveCliente = `${venda.cliente?.id ?? ""}|${venda.cliente?.nif ?? ""}`;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- só volta a propor quando muda o cliente (não a cada refetch)
+  useEffect(() => { setFatura(escolhaInicial(venda.cliente)); }, [chaveCliente]);
+  const problema = problemaFatura(fatura);
 
   const ok = (titulo: string) => (v: Venda) => { onChange(v); toast.success(titulo, v.invoiceNumber ?? v.moloniOrcamentoNumero ?? undefined); };
   const erro = (msg: string) => (err: unknown) => toast.fromError(err, msg);
@@ -44,6 +51,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
       paymentMethod: tipo === 'FaturaRecibo' ? pagamento : null,
       vencimentoDias: tipo === 'Fatura' ? vencimento : 0,
       motivoIsencao: motivo || null,
+      ...pedidoFatura(fatura),
     }),
     onSuccess: ok('Documento emitido no Moloni ON'),
     onError: erro('Não foi possível emitir no Moloni ON.'),
@@ -147,6 +155,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
         </div>
       ) : entregue && !venda.invoiceNumber ? (
         <div className="space-y-3">
+          <DadosFatura value={fatura} onChange={setFatura} nomeInterno={venda.cliente?.nome} />
           <div className="grid gap-3 sm:grid-cols-3">
             {opcoesSerie}
             <label className="block">
@@ -166,15 +175,16 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
             {opcoesIsencao}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaRecibo'} disabled={ocupado}
+            <Button type="button" leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaRecibo'} disabled={ocupado || !!problema}
               onClick={() => emitir.mutate('FaturaRecibo')}>
               Emitir fatura-recibo (pago)
             </Button>
-            <Button type="button" variant="secondary" leftIcon={<FileText size={15} />} loading={emitir.isPending && emitir.variables === 'Fatura'} disabled={ocupado}
+            <Button type="button" variant="secondary" leftIcon={<FileText size={15} />} loading={emitir.isPending && emitir.variables === 'Fatura'} disabled={ocupado || !!problema}
               onClick={() => emitir.mutate('Fatura')}>
               Emitir fatura (por pagar)
             </Button>
           </div>
+          {problema && <p className="text-xs font-medium text-amber-700 dark:text-amber-400">{problema}</p>}
           <p className="text-xs text-zinc-500">O Mender cria primeiro um rascunho no Moloni e só o finaliza se o total bater certo com esta venda.</p>
         </div>
       ) : entregue ? (

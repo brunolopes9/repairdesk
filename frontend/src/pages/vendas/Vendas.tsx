@@ -12,6 +12,7 @@ import { inputCls } from '../../components/ui/formClasses';
 import { formatEur } from '../../lib/compras/format';
 import { formatDateOnly } from '../../lib/money';
 import { vendasApi } from '../../lib/vendas/api';
+import DocumentosMoloniVista from './DocumentosMoloni';
 import {
   VENDA_ESTADO,
   VENDA_ESTADO_COLOR,
@@ -29,6 +30,8 @@ const VISTAS = [
   { key: 'fatura', label: 'Fatura por registar' },
   { key: 'porpagar', label: 'Por pagar' },
   { key: 'todas', label: 'Todas' },
+  // Sprint 571: a antiga página Faturação — faturas, recibos e orçamentos tal como estão no Moloni ON.
+  { key: 'documentos', label: 'Documentos Moloni' },
 ] as const;
 type Vista = (typeof VISTAS)[number]['key'];
 
@@ -68,7 +71,7 @@ export default function Vendas() {
     ...(vista === 'porpagar' ? { porPagar: true } : {}),
   };
 
-  const list = useQuery({ queryKey: ['vendas', filtro], queryFn: () => vendasApi.list(filtro), placeholderData: keepPreviousData });
+  const list = useQuery({ queryKey: ['vendas', filtro], queryFn: () => vendasApi.list(filtro), placeholderData: keepPreviousData, enabled: vista !== 'documentos' });
   const porFaturar = useQuery({ queryKey: ['vendas', 'fatura-count'], queryFn: () => vendasApi.list({ faturaPorRegistar: true, pageSize: 1 }) });
   const porPagar = useQuery({ queryKey: ['vendas', 'porpagar-count'], queryFn: () => vendasApi.list({ porPagar: true, pageSize: 1 }) });
 
@@ -115,7 +118,7 @@ export default function Vendas() {
     <div className="space-y-4">
       <PageHeader
         title="Vendas"
-        description="Reparações, serviços e produtos. O IVA a entregar e o lucro são calculados em cada venda."
+        description="Reparações, serviços e produtos — e as faturas, recibos e orçamentos do Moloni ON. O IVA e o lucro são calculados em cada venda."
         actions={
           <>
             {isAdmin && (
@@ -149,6 +152,7 @@ export default function Vendas() {
         }))}
       />
 
+      {vista === 'documentos' ? <DocumentosMoloniVista isAdmin={isAdmin} /> : (
       <SectionCard
         bodyClassName="p-0"
         title={
@@ -226,6 +230,7 @@ export default function Vendas() {
           </div>
         )}
       </SectionCard>
+      )}
     </div>
   );
 }

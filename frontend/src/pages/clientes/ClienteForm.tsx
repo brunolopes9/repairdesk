@@ -41,6 +41,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
   const [morada, setMorada] = useState('');
   const [codigoPostal, setCodigoPostal] = useState('');
   const [localidade, setLocalidade] = useState('');
+  const [nomeFaturacao, setNomeFaturacao] = useState('');
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [generic, setGeneric] = useState<string | null>(null);
   const [atLookup, setAtLookup] = useState<AtLookupState>({ status: 'idle' });
@@ -58,6 +59,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
     setMorada(initial?.morada ?? '');
     setCodigoPostal(initial?.codigoPostal ?? '');
     setLocalidade(initial?.localidade ?? '');
+    setNomeFaturacao(initial?.nomeFaturacao ?? '');
     setErrors({});
     setGeneric(null);
     setAtLookup({ status: 'idle' });
@@ -112,6 +114,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
         morada: morada.trim() || null,
         codigoPostal: codigoPostal.trim() || null,
         localidade: localidade.trim() || null,
+        nomeFaturacao: nomeFaturacao.trim() || null,
       });
     } catch (err) {
       if (isAxiosError(err)) {
@@ -225,24 +228,37 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
           </label>
         </div>
       </div>
-      <Field label="NIF (9 dígitos)" errors={errors.nif}>
-        <input
-          inputMode="numeric"
-          maxLength={9}
-          value={nif}
-          onChange={(e) => setNif(e.target.value.replace(/\D/g, ''))}
-          className={inputCls}
-        />
-        <NifFeedback nif={nif} lookup={atLookup} currentNome={nome} onAcceptName={setNome} />
-      </Field>
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/70">
         <div className="mb-2 flex items-start gap-2">
           <Building2 size={15} className="mt-0.5 text-brand-600" />
           <div>
-            <div className="text-sm font-semibold">Morada (para faturas com NIF)</div>
-            <p className="text-xs text-zinc-500">Usada na fatura. Opcional — deixa vazio para clientes sem morada.</p>
+            <div className="text-sm font-semibold">Dados de faturação (opcional)</div>
+            <p className="text-xs text-zinc-500">
+              Sem NIF, a fatura sai para consumidor final e o nome acima fica só para uso interno. Também os podes preencher no fim, ao emitir a fatura.
+            </p>
           </div>
         </div>
+        <Field label="NIF (9 dígitos)" errors={errors.nif}>
+          <input
+            inputMode="numeric"
+            maxLength={9}
+            value={nif}
+            onChange={(e) => setNif(e.target.value.replace(/\D/g, ''))}
+            className={inputCls}
+          />
+          <NifFeedback nif={nif} lookup={atLookup} currentNome={nomeFaturacao || nome}
+            onAcceptName={(n) => (nome.trim() ? setNomeFaturacao(n) : setNome(n))} />
+        </Field>
+        <Field label="Nome na fatura (se diferente do nome acima)" errors={errors.nomeFaturacao}>
+          <input
+            type="text"
+            maxLength={200}
+            placeholder={nome.trim() ? `Vazio = ${nome.trim()}` : 'ex: André Silva'}
+            value={nomeFaturacao}
+            onChange={(e) => setNomeFaturacao(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
         <Field label="Morada" errors={errors.morada}>
           <input
             type="text"

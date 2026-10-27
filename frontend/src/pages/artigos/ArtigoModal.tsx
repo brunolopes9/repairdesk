@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link2Off, Save } from 'lucide-react';
+import { Link2Off, Printer, Save } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { artigosApi } from '../../lib/artigos/api';
-import type { ArtigoDetalhe } from '../../lib/artigos/types';
+import type { Artigo, ArtigoDetalhe } from '../../lib/artigos/types';
 import { comprasApi } from '../../lib/compras/api';
 import { formatEur, parseDecimal } from '../../lib/compras/format';
 import { correspondeTermos } from '../../lib/pesquisa';
@@ -18,10 +18,12 @@ interface Props {
   onClose: () => void;
   /** Lotes a ligar logo (ex.: "Criar artigo" a partir do Stock) e nome sugerido. */
   sugestao?: { loteIds: string[]; nome: string } | null;
+  /** Abre a impressão de etiquetas deste artigo. */
+  onEtiquetas?: (a: Artigo) => void;
 }
 
 /** Sprint 566: criar/editar um artigo da loja e ligar-lhe os lotes de compra (o stock é a soma deles). */
-export default function ArtigoModal({ artigoId, open, onClose, sugestao }: Props) {
+export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiquetas }: Props) {
   const qc = useQueryClient();
   const detalhe = useQuery({ queryKey: ['artigos', artigoId], queryFn: () => artigosApi.get(artigoId!), enabled: open && !!artigoId });
   const inventario = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario, enabled: open });
@@ -104,11 +106,14 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao }: Props
       onClose={onClose}
       wide
       title={a ? `${a.sku} · ${a.nome}` : 'Novo artigo'}
-      footer={
+      footer={<>
+        {a && onEtiquetas && (
+          <Button type="button" variant="secondary" leftIcon={<Printer size={15} />} onClick={() => onEtiquetas(a)}>Imprimir etiquetas</Button>
+        )}
         <Button type="button" leftIcon={<Save size={15} />} loading={guardar.isPending} disabled={!nome.trim()} onClick={() => guardar.mutate()}>
           Guardar
         </Button>
-      }
+      </>}
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="sm:col-span-2">

@@ -1,3 +1,4 @@
+import type { MoloniDadosFiscais } from '../moloni/api';
 import type { PaymentMethod } from '../vendas/types';
 
 /** Sprint 566: artigo da loja (SKU + código de barras). Stock = soma dos lotes ligados. */
@@ -81,4 +82,6 @@ export interface BalcaoVenda {
   linhas: { artigoId: string; quantidade: number; precoUnitarioCents?: number | null }[];
   paymentMethod: PaymentMethod;
   clienteId?: string | null;
+  /** Sprint 571: vazio = fatura-recibo sem NIF (consumidor final). */
+  comNif?: MoloniDadosFiscais | null;
 }

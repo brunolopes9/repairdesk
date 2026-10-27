@@ -57,6 +57,12 @@ export interface VendaClienteResumo {
   id: string;
   nome: string;
   telefone: string;
+  /** Sprint 571: dados fiscais — o ecrã de emissão propõe "com NIF" já preenchido. */
+  nif?: string | null;
+  nomeFaturacao?: string | null;
+  morada?: string | null;
+  codigoPostal?: string | null;
+  localidade?: string | null;
 }
 
 export interface VendaItem {

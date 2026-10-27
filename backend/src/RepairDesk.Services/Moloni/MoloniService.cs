@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using RepairDesk.Common.Helpers;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
@@ -51,6 +52,9 @@ public enum MoloniDocumento
     FaturaRecibo,
 }
 
+/// <summary>Sprint 571: dados da fatura "com NIF" — o que o cliente pede no momento (nome e morada fiscais).</summary>
+public sealed record MoloniDadosFiscais(string Nif, string Nome, string Morada, string CodigoPostal, string Localidade);
+
 public sealed record MoloniEmitirRequest(
     MoloniDocumento Tipo,
     int? SerieId = null,
@@ -58,7 +62,11 @@ public sealed record MoloniEmitirRequest(
     int VencimentoDias = 0,
     /// <summary>Obrigatório quando há linhas a 0% (ex.: "M40" autoliquidação).</summary>
     string? MotivoIsencao = null,
-    string? Notas = null);
+    string? Notas = null,
+    /// <summary>Sprint 571: true = fatura sem NIF (consumidor final), mesmo que o cliente tenha NIF.</summary>
+    bool SemNif = false,
+    /// <summary>Sprint 571: fatura com NIF — atualiza o cliente (ou cria-o) e o cliente do Moloni.</summary>
+    MoloniDadosFiscais? ComNif = null);
 
 public sealed record MoloniReciboRequest(PaymentMethod? PaymentMethod = null);
 
@@ -221,7 +229,7 @@ public partial class MoloniService : IMoloniService
         if (req.VencimentoDias is < 0 or > 365) throw new ValidationException("vencimento_invalido", "Prazo de vencimento entre 0 e 365 dias.");
 
         var serie = req.SerieId ?? SeriePorTipo(cfg, venda.Tipo);
-        var customerId = await ClienteMoloniAsync(key, companyId, cfg, venda.Cliente, ct);
+        var customerId = await ClienteDaFaturaAsync(key, companyId, cfg, venda, req, ct);
         var produtos = await LinhasAsync(key, companyId, cfg, t, venda, req.MotivoIsencao, ct);
         var agora = DateTime.UtcNow;
         var totalVenda = venda.TotalCents / 100m;
@@ -392,15 +400,13 @@ public partial class MoloniService : IMoloniService
         var t = await TenantAsync(ct);
         if (t?.MoloniApiKeyCipherText is null || t.MoloniCompanyId is not { } companyId || t.MoloniConfigJson is null) return;
         var cliente = await _clientes.FindByIdAsync(clienteId, ct);
-        if (cliente is null) return;
+        // Sprint 571: sem NIF é consumidor final — não se cria cliente no Moloni (o nome é só para uso interno).
+        if (cliente is null || NifLimpo(cliente.Nif) is null) return;
         var key = _secrets.Unprotect(t.MoloniApiKeyCipherText);
         var cfg = Config(t);
         if (cliente.MoloniCustomerId is { } id)
         {
-            var dados = DadosCliente(cliente);
-            dados["customerId"] = id;
-            await _client.ExecutarAsync(key, "mutation($c:Int!,$d:CustomerUpdate!){ customerUpdate(companyId:$c, data:$d) { errors { field msg } data { customerId } } }",
-                new { c = companyId, d = dados }, "customerUpdate", ct);
+            await AtualizarClienteMoloniAsync(key, companyId, id, cliente, ct);
         }
         else
         {
@@ -448,23 +454,93 @@ public partial class MoloniService : IMoloniService
         _ => cfg.SerieProduto,
     };
 
-    /// <summary>Consumidor final → cliente predefinido; senão o ligado, o do mesmo NIF, ou um novo.</summary>
+    /// <summary>
+    /// Sprint 571: para quem sai a fatura. "Sem NIF" → consumidor final, mesmo que o cliente tenha NIF.
+    /// "Com NIF" → os dados pedidos agora ficam no cliente do Mender (criado se a venda não tiver cliente; o nome
+    /// interno mantém-se e o fiscal vai para NomeFaturacao) e no cliente do Moloni. Nada indicado → automático:
+    /// cliente com NIF válido sai com NIF, sem NIF sai como consumidor final.
+    /// </summary>
+    private async Task<int> ClienteDaFaturaAsync(string key, int companyId, MoloniConfig cfg, Venda venda, MoloniEmitirRequest req, CancellationToken ct)
+    {
+        if (req.SemNif) return cfg.ClienteConsumidorFinalId;
+        if (req.ComNif is not { } f) return await ClienteMoloniAsync(key, companyId, cfg, venda.Cliente, ct);
+
+        var (nif, nome, morada, cp, localidade) = ValidarDadosFiscais(f);
+        var cliente = venda.Cliente;
+        var dono = await _clientes.FindByNifAsync(nif, ct);
+        if (cliente is null)
+        {
+            cliente = dono;
+            if (cliente is null)
+            {
+                cliente = new Cliente { Nome = nome };
+                await _clientes.AddAsync(cliente, ct);
+            }
+            venda.ClienteId = cliente.Id;
+            venda.Cliente = cliente;
+        }
+        else if (dono is not null && dono.Id != cliente.Id)
+        {
+            throw new ConflictException("nif_noutro_cliente", $"O NIF {nif} já está no cliente \"{dono.Nome}\". Escolhe esse cliente na venda.");
+        }
+
+        if (NifValidator.Normalize(cliente.Nif) != nif) cliente.MoloniCustomerId = null; // outro NIF → outro cliente no Moloni
+        cliente.Nif = nif;
+        cliente.NomeFaturacao = string.Equals(nome, cliente.Nome.Trim(), StringComparison.OrdinalIgnoreCase) ? null : nome;
+        cliente.Morada = morada;
+        cliente.CodigoPostal = cp;
+        cliente.Localidade = localidade;
+
+        // Ligado, encontrado pelo NIF ou criado: o Moloni fica com o nome e a morada pedidos agora.
+        var id = await ClienteMoloniAsync(key, companyId, cfg, cliente, ct);
+        await AtualizarClienteMoloniAsync(key, companyId, id, cliente, ct);
+        await _clientes.SaveAsync(ct);
+        return id;
+    }
+
+    /// <summary>
+    /// Requisitos da fatura com NIF: NIF português válido, nome, morada, código postal (0000-000) e localidade.
+    /// Público para o balcão validar antes de dar saída ao stock.
+    /// </summary>
+    public static (string Nif, string Nome, string Morada, string CodigoPostal, string Localidade) ValidarDadosFiscais(MoloniDadosFiscais f)
+    {
+        var nif = NifValidator.Normalize(f.Nif);
+        if (!NifValidator.IsValid(nif)) throw new ValidationException("nif_invalido", "NIF inválido — verifica os 9 dígitos.");
+        var nome = Limpar(f.Nome, 200);
+        if (nome is null || nome.Length < 2) throw new ValidationException("nome_obrigatorio", "Indica o nome que vai na fatura.");
+        var morada = Limpar(f.Morada, 200) ?? throw new ValidationException("morada_obrigatoria", "Indica a morada que vai na fatura.");
+        var cp = f.CodigoPostal?.Trim() ?? string.Empty;
+        if (!Regex.IsMatch(cp, @"^\d{4}-\d{3}$")) throw new ValidationException("codigo_postal_invalido", "Código postal no formato 0000-000.");
+        var localidade = Limpar(f.Localidade, 100) ?? throw new ValidationException("localidade_obrigatoria", "Indica a localidade.");
+        return (nif, nome, morada, cp, localidade);
+    }
+
+    /// <summary>Põe no cliente do Moloni o nome e a morada atuais (ex.: encontrado pelo NIF com dados antigos).</summary>
+    private async Task AtualizarClienteMoloniAsync(string key, int companyId, int customerId, Cliente cliente, CancellationToken ct)
+    {
+        var dados = DadosCliente(cliente);
+        dados["customerId"] = customerId;
+        await _client.ExecutarAsync(key, "mutation($c:Int!,$d:CustomerUpdate!){ customerUpdate(companyId:$c, data:$d) { errors { field msg } data { customerId } } }",
+            new { c = companyId, d = dados }, "customerUpdate", ct);
+    }
+
+    /// <summary>
+    /// Sem cliente ou sem NIF válido → consumidor final (cliente predefinido; o nome no Mender é só interno).
+    /// Com NIF → o ligado, o do mesmo NIF no Moloni, ou um novo.
+    /// </summary>
     private async Task<int> ClienteMoloniAsync(string key, int companyId, MoloniConfig cfg, Cliente? cliente, CancellationToken ct)
     {
-        if (cliente is null) return cfg.ClienteConsumidorFinalId;
+        var nif = NifLimpo(cliente?.Nif);
+        if (cliente is null || nif is null) return cfg.ClienteConsumidorFinalId;
         if (cliente.MoloniCustomerId is { } ligado) return ligado;
 
-        var nif = NifLimpo(cliente.Nif);
-        if (nif is not null)
+        var encontrados = await _client.ExecutarAsync(key,
+            "query($c:Int!,$v:String!){ customers(companyId:$c, options:{ filter:[{field:vat, comparison:eq, value:$v}] }) { errors { field msg } data { customerId } } }",
+            new { c = companyId, v = nif.Value.Vat }, "customers", ct);
+        if (encontrados?.AsArray().FirstOrDefault()?["customerId"]?.GetValue<int>() is { } existente)
         {
-            var encontrados = await _client.ExecutarAsync(key,
-                "query($c:Int!,$v:String!){ customers(companyId:$c, options:{ filter:[{field:vat, comparison:eq, value:$v}] }) { errors { field msg } data { customerId } } }",
-                new { c = companyId, v = nif.Value.Vat }, "customers", ct);
-            if (encontrados?.AsArray().FirstOrDefault()?["customerId"]?.GetValue<int>() is { } existente)
-            {
-                cliente.MoloniCustomerId = existente;
-                return existente;
-            }
+            cliente.MoloniCustomerId = existente;
+            return existente;
         }
 
         var numero = (await _client.ExecutarAsync(key, "query($c:Int!){ customerNextNumber(companyId:$c) { errors { field msg } data } }",
@@ -473,17 +549,17 @@ public partial class MoloniService : IMoloniService
         dados["number"] = numero;
         dados["countryId"] = nif is { Pais: not "PT" } ? await PaisAsync(key, nif.Value.Pais, ct) : 1;
         dados["languageId"] = 1;
-        var criado = await _client.ExecutarAsync(key,
+        var criadoMoloni = await _client.ExecutarAsync(key,
             "mutation($c:Int!,$d:CustomerInsert!){ customerCreate(companyId:$c, data:$d) { errors { field msg } data { customerId } } }",
             new { c = companyId, d = dados }, "customerCreate", ct);
-        var novoId = criado!["customerId"]!.GetValue<int>();
+        var novoId = criadoMoloni!["customerId"]!.GetValue<int>();
         cliente.MoloniCustomerId = novoId;
         return novoId;
     }
 
     private static Dictionary<string, object?> DadosCliente(Cliente c)
     {
-        var d = new Dictionary<string, object?> { ["name"] = c.Nome };
+        var d = new Dictionary<string, object?> { ["name"] = string.IsNullOrWhiteSpace(c.NomeFaturacao) ? c.Nome : c.NomeFaturacao };
         if (NifLimpo(c.Nif) is { } nif) d["vat"] = nif.Vat;
         if (!string.IsNullOrWhiteSpace(c.Morada)) d["address"] = c.Morada;
         if (!string.IsNullOrWhiteSpace(c.Localidade)) d["city"] = c.Localidade;

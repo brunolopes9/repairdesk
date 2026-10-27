@@ -110,6 +110,7 @@ public class ClienteService : IClienteService
             Morada = string.IsNullOrWhiteSpace(req.Morada) ? null : req.Morada.Trim(),
             CodigoPostal = string.IsNullOrWhiteSpace(req.CodigoPostal) ? null : req.CodigoPostal.Trim(),
             Localidade = string.IsNullOrWhiteSpace(req.Localidade) ? null : req.Localidade.Trim(),
+            NomeFaturacao = NomeFaturacao(req.NomeFaturacao, req.Nome),
         };
         await _repo.AddAsync(cliente, ct);
         await _repo.SaveAsync(ct);
@@ -136,6 +137,7 @@ public class ClienteService : IClienteService
         cliente.Morada = string.IsNullOrWhiteSpace(req.Morada) ? null : req.Morada.Trim();
         cliente.CodigoPostal = string.IsNullOrWhiteSpace(req.CodigoPostal) ? null : req.CodigoPostal.Trim();
         cliente.Localidade = string.IsNullOrWhiteSpace(req.Localidade) ? null : req.Localidade.Trim();
+        cliente.NomeFaturacao = NomeFaturacao(req.NomeFaturacao, req.Nome);
         await _repo.SaveAsync(ct);
         await SincronizarMoloniAsync(cliente.Id, ct);
         return ToDto(cliente);
@@ -270,6 +272,13 @@ public class ClienteService : IClienteService
         return csv.ToUtf8WithBom();
     }
 
+    /// <summary>Igual ao nome interno (ou vazio) não se guarda — a fatura usa o nome.</summary>
+    private static string? NomeFaturacao(string? nomeFaturacao, string nome)
+    {
+        var n = nomeFaturacao?.Trim();
+        return string.IsNullOrEmpty(n) || string.Equals(n, nome.Trim(), StringComparison.OrdinalIgnoreCase) ? null : n[..Math.Min(n.Length, 200)];
+    }
+
     private static string NormalizePhone(string raw) =>
         new(raw.Where(c => !char.IsWhiteSpace(c)).ToArray());
 
@@ -294,5 +303,6 @@ public class ClienteService : IClienteService
                 .ToList(),
             c.Morada,
             c.CodigoPostal,
-            c.Localidade);
+            c.Localidade,
+            c.NomeFaturacao);
 }

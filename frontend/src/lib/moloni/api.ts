@@ -19,6 +19,15 @@ export interface MoloniEstado {
 
 export type MoloniDocumento = 'Fatura' | 'FaturaRecibo';
 
+/** Sprint 571: dados da fatura com NIF (pedidos no momento de emitir). */
+export interface MoloniDadosFiscais {
+  nif: string;
+  nome: string;
+  morada: string;
+  codigoPostal: string;
+  localidade: string;
+}
+
 /** Motivos de isenção mais usados (código AT). Linhas a 0% exigem um. */
 export const MOTIVOS_ISENCAO = [
   { codigo: 'M40', label: 'M40 — Autoliquidação (cliente estrangeiro, serviços)' },
@@ -129,7 +138,8 @@ export const moloniApi = {
   remover() {
     return api.delete('/moloni');
   },
-  emitir(vendaId: string, req: { tipo: MoloniDocumento; serieId?: number | null; paymentMethod?: PaymentMethod | null; vencimentoDias?: number; motivoIsencao?: string | null }) {
+  emitir(vendaId: string, req: { tipo: MoloniDocumento; serieId?: number | null; paymentMethod?: PaymentMethod | null; vencimentoDias?: number; motivoIsencao?: string | null;
+    semNif?: boolean; comNif?: MoloniDadosFiscais | null }) {
     return api.post<Venda>(`/vendas/${vendaId}/moloni/emitir`, req, { timeout: 90_000 }).then((r) => r.data);
   },
   recibo(vendaId: string, paymentMethod: PaymentMethod | null) {

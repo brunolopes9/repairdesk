@@ -14,6 +14,13 @@ public class Cliente : BaseEntity, ITenantEntity
     public int? MoloniCustomerId { get; set; }
     public string? Notas { get; set; }
 
+    /// <summary>
+    /// Sprint 571: nome que vai na fatura quando é diferente do nome interno (ex.: "André de Lamaçais" no
+    /// Mender, "André Silva" na fatura). Vazio = usa <see cref="Nome"/>.
+    /// </summary>
+    [MaxLength(200)]
+    public string? NomeFaturacao { get; set; }
+
     /// <summary>Sprint 510: morada fiscal do cliente — usada na fatura (com NIF).</summary>
     [MaxLength(200)]
     public string? Morada { get; set; }

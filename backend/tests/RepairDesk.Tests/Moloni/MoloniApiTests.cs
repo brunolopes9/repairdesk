@@ -122,6 +122,95 @@ public class MoloniApiTests : IClassFixture<MoloniApiFactory>
         (await resp.Content.ReadAsStringAsync()).Should().Contain("moloni_nao_configurado");
     }
 
+    // ---------- Sprint 571: sem NIF / com NIF ----------
+
+    [Fact]
+    public async Task ClienteSemNif_NaoECriadoNoMoloni_EAFaturaSaiParaConsumidorFinal()
+    {
+        var client = await ClienteMoloniAsync();
+        var criadosAntes = _factory.Moloni.Operacoes.Count(o => o == "customerCreate");
+        var cliente = await Post<ClienteDto>(client, "/api/clientes", new CreateClienteRequest("André de Lamaçais", null, null, null, null));
+        _factory.Moloni.Operacoes.Count(o => o == "customerCreate").Should().Be(criadosAntes, "sem NIF o nome é só interno");
+
+        var venda = await VendaComClienteAsync(client, cliente.Id);
+        await Post<VendaDto>(client, $"/api/vendas/{venda.Id}/moloni/emitir", new MoloniEmitirRequest(MoloniDocumento.FaturaRecibo));
+
+        UltimoCliente("invoiceReceiptCreate").Should().Be(63270);
+        _factory.Moloni.Operacoes.Count(o => o == "customerCreate").Should().Be(criadosAntes);
+    }
+
+    [Fact]
+    public async Task ComNif_GuardaNomeFiscalSemMudarONomeInterno_ECriaNoMoloni()
+    {
+        var client = await ClienteMoloniAsync();
+        var cliente = await Post<ClienteDto>(client, "/api/clientes", new CreateClienteRequest("André de Lamaçais", null, null, null, null));
+        var venda = await VendaComClienteAsync(client, cliente.Id);
+        var nif = NifValido();
+
+        var emitida = await Post<VendaDto>(client, $"/api/vendas/{venda.Id}/moloni/emitir", new MoloniEmitirRequest(MoloniDocumento.Fatura,
+            ComNif: new MoloniDadosFiscais(nif, "André Silva", "Rua da Igreja, 42", "3500-001", "Viseu")));
+
+        UltimoCliente("invoiceCreate").Should().NotBe(63270);
+        var criado = _factory.Moloni.Chamadas.Last(c => c.Operacao == "customerCreate").Variaveis!["d"]!;
+        criado["vat"]!.GetValue<string>().Should().Be(nif);
+        criado["name"]!.GetValue<string>().Should().Be("André Silva");
+        criado["zipCode"]!.GetValue<string>().Should().Be("3500-001");
+        emitida.Cliente!.Nome.Should().Be("André de Lamaçais", "o nome interno não muda");
+        emitida.Cliente.NomeFaturacao.Should().Be("André Silva");
+
+        var guardado = (await client.GetFromJsonAsync<ClienteDto>($"/api/clientes/{cliente.Id}"))!;
+        guardado.Nif.Should().Be(nif);
+        guardado.Morada.Should().Be("Rua da Igreja, 42");
+        guardado.Localidade.Should().Be("Viseu");
+    }
+
+    [Fact]
+    public async Task SemNif_ComClienteQueTemNif_SaiParaConsumidorFinal()
+    {
+        var client = await ClienteMoloniAsync();
+        var venda = await VendaServicoAsync(client, comCliente: true, precoCents: 1500, iva: 23m);
+        await Post<VendaDto>(client, $"/api/vendas/{venda.Id}/moloni/emitir", new MoloniEmitirRequest(MoloniDocumento.FaturaRecibo, SemNif: true));
+        UltimoCliente("invoiceReceiptCreate").Should().Be(63270);
+    }
+
+    [Fact]
+    public async Task ComNif_VendaSemCliente_CriaOClienteELigaAVenda()
+    {
+        var client = await ClienteMoloniAsync();
+        var venda = await VendaServicoAsync(client, comCliente: false, precoCents: 1500, iva: 23m);
+        var nif = NifValido();
+        var emitida = await Post<VendaDto>(client, $"/api/vendas/{venda.Id}/moloni/emitir", new MoloniEmitirRequest(MoloniDocumento.FaturaRecibo,
+            ComNif: new MoloniDadosFiscais(nif, "Maria Costa", "Av. Central 1", "3000-100", "Coimbra")));
+        emitida.Cliente.Should().NotBeNull();
+        emitida.Cliente!.Nome.Should().Be("Maria Costa");
+        emitida.Cliente.Nif.Should().Be(nif);
+        UltimoCliente("invoiceReceiptCreate").Should().NotBe(63270);
+    }
+
+    [Fact]
+    public async Task ComNif_DadosIncompletos_RecusaSemTocarNoMoloni()
+    {
+        var client = await ClienteMoloniAsync();
+        var venda = await VendaServicoAsync(client, comCliente: false, precoCents: 1500, iva: 23m);
+        var antes = _factory.Moloni.Operacoes.Count(o => o.EndsWith("Create"));
+        var resp = await client.PostAsJsonAsync($"/api/vendas/{venda.Id}/moloni/emitir", new MoloniEmitirRequest(MoloniDocumento.FaturaRecibo,
+            ComNif: new MoloniDadosFiscais(NifValido(), "Maria Costa", "Av. Central 1", "3000", "Coimbra")));
+        resp.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("codigo_postal_invalido");
+        _factory.Moloni.Operacoes.Count(o => o.EndsWith("Create")).Should().Be(antes);
+
+        (await client.PostAsJsonAsync($"/api/vendas/{venda.Id}/moloni/emitir", new MoloniEmitirRequest(MoloniDocumento.FaturaRecibo,
+            ComNif: new MoloniDadosFiscais("123456780", "Maria Costa", "Av. Central 1", "3000-100", "Coimbra"))))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity, "NIF com check-digit errado");
+    }
+
+    private int UltimoCliente(string operacao)
+        => _factory.Moloni.Chamadas.Last(c => c.Operacao == operacao).Variaveis!["d"]!["customerId"]!.GetValue<int>();
+
+    private static Task<VendaDto> VendaComClienteAsync(HttpClient client, Guid clienteId)
+        => Post<VendaDto>(client, "/api/vendas", new VendaWriteRequest(VendaTipo.Servico, clienteId, null, null, null,
+            [new VendaLinhaWriteRequest(null, null, "Reparação ecrã", 1, 8000, 0, 23m)], VendaEstado.Entregue, PaymentMethod.Dinheiro));
+
     // ---------- ajudas ----------
 
     private async Task<HttpClient> ClienteMoloniAsync()

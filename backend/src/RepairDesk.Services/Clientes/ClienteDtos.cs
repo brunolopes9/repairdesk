@@ -13,7 +13,9 @@ public sealed record CreateClienteRequest(
     // Sprint 510: morada do cliente — usada na fatura (com NIF).
     string? Morada = null,
     string? CodigoPostal = null,
-    string? Localidade = null);
+    string? Localidade = null,
+    /// <summary>Sprint 571: nome na fatura, se diferente do nome interno.</summary>
+    string? NomeFaturacao = null);
 
 public sealed record UpdateClienteRequest(
     string Nome,
@@ -27,7 +29,8 @@ public sealed record UpdateClienteRequest(
     bool NaoContactar = false,
     string? Morada = null,
     string? CodigoPostal = null,
-    string? Localidade = null);
+    string? Localidade = null,
+    string? NomeFaturacao = null);
 
 public sealed record ClienteDto(
     Guid Id,
@@ -47,7 +50,8 @@ public sealed record ClienteDto(
     IReadOnlyList<ClienteTagSummaryDto>? Tags = null,
     string? Morada = null,
     string? CodigoPostal = null,
-    string? Localidade = null);
+    string? Localidade = null,
+    string? NomeFaturacao = null);
 
 /// <summary>Sprint 480: customer segment tag embedded in ClienteDto.</summary>
 public sealed record ClienteTagSummaryDto(Guid Id, string Nome, string CorHex);

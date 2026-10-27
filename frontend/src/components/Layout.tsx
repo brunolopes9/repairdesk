@@ -59,8 +59,6 @@ const nav: NavItem[] = [
   // Doc 94 (reformulação out/2026): três secções de negócio — Vendas, Compras (inclui stock por
   // lote) e Despesas. Balcão, Preços, Stock de peças e Trabalhos deixaram de existir.
   { to: '/vendas', label: 'Vendas', icon: ShoppingCart },
-  // Sprint 568: documentos, artigos e clientes do Moloni ON geridos no Mender.
-  { to: '/faturacao', label: 'Faturação', icon: FileCheck2 },
   // Sprint 566: balcão com pistola + artigos da loja (SKU/código de barras, stock = soma dos lotes).
   { to: '/balcao', label: 'Balcão', icon: ScanBarcode },
   { to: '/artigos', label: 'Artigos', icon: Tag },

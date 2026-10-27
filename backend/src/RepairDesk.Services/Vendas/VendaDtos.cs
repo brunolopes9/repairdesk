@@ -41,7 +41,9 @@ public sealed record CorrigirPrecoLinha(Guid Id, int PrecoUnitarioCents, decimal
 
 public sealed record CorrigirPrecosRequest(IReadOnlyList<CorrigirPrecoLinha> Linhas, string? Motivo);
 
-public sealed record VendaClienteResumo(Guid Id, string Nome, string Telefone);
+/// <summary>Sprint 571: inclui os dados fiscais para o ecrã de emissão propor "com NIF" já preenchido.</summary>
+public sealed record VendaClienteResumo(Guid Id, string Nome, string Telefone, string? Nif = null, string? NomeFaturacao = null,
+    string? Morada = null, string? CodigoPostal = null, string? Localidade = null);
 
 public sealed record VendaItemDto(
     Guid Id,

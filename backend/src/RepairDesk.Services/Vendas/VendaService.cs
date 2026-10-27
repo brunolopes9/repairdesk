@@ -526,7 +526,8 @@ public class VendaService : IVendaService
     {
         var cliente = venda.Cliente is null || venda.ClienteId is null
             ? null
-            : new VendaClienteResumo(venda.Cliente.Id, venda.Cliente.Nome, venda.Cliente.Telefone ?? string.Empty);
+            : new VendaClienteResumo(venda.Cliente.Id, venda.Cliente.Nome, venda.Cliente.Telefone ?? string.Empty, venda.Cliente.Nif,
+                venda.Cliente.NomeFaturacao, venda.Cliente.Morada, venda.Cliente.CodigoPostal, venda.Cliente.Localidade);
         var items = venda.Items.OrderBy(i => i.CreatedAt).Select(i =>
         {
             var c = Calcular(i);

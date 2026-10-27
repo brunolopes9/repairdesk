@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Link2, Save, Trash2 } from 'lucide-react';
+import { CheckCircle2, Link2, Receipt, Save, Trash2, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { BackButton, Button, PageHeader, SectionCard } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { useConfirm } from '../../components/ConfirmDialog';
@@ -107,6 +108,39 @@ export default function MoloniOn() {
           </div>
         </div>
       </SectionCard>
+      {e?.configurado && <ClientesMoloni isAdmin />}
     </div>
+  );
+}
+
+function ClientesMoloni({ isAdmin }: { isAdmin: boolean }) {
+  const qc = useQueryClient();
+  const importar = useMutation({
+    mutationFn: moloniApi.importarClientes,
+    onSuccess: (r) => {
+      toast.success('Clientes do Moloni ON importados', `${r.ligados} ligados pelo NIF · ${r.criados} criados · ${r.jaLigados} já estavam ligados`);
+      qc.invalidateQueries({ queryKey: ['clientes'] });
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível importar.'),
+  });
+  const ligar = useMutation({
+    mutationFn: moloniApi.ligarVendas,
+    onSuccess: (r) => {
+      toast.success('Vendas ligadas ao Moloni ON', `${r.ligadas} ligadas (${r.comRecibo} com recibo)${r.semCorrespondencia ? ` · ${r.semCorrespondencia} sem fatura correspondente` : ''}`);
+      qc.invalidateQueries({ queryKey: ['vendas'] });
+      qc.invalidateQueries({ queryKey: ['moloni', 'documentos'] });
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível ligar as vendas.'),
+  });
+  return (
+    <SectionCard title="Sincronizar com o Moloni ON">
+      <div className="space-y-3 text-sm text-zinc-600 dark:text-zinc-300">
+        <p>Os clientes geres em <Link to="/clientes" className="text-brand-600 underline">Clientes</Link>: ao criar ou alterar um cliente no Mender, ele é criado/atualizado no Moloni ON (pelo NIF). O consumidor final é sempre o cliente predefinido do Moloni.</p>
+        <p>Para trazer para o Mender os clientes que já tinhas no Moloni (os que ainda não estão cá são criados; os que já estão ficam ligados pelo NIF):</p>
+        {isAdmin && <Button type="button" leftIcon={<Users size={15} />} loading={importar.isPending} onClick={() => importar.mutate()}>Importar clientes do Moloni ON</Button>}
+        <p>Vendas com nº de fatura que ainda não estão ligadas ao Moloni (ex.: importadas dos PDFs): liga cada uma à sua fatura e ao recibo, pelo nº — assim pagar ou anular aqui atualiza a venda.</p>
+        {isAdmin && <Button type="button" variant="secondary" leftIcon={<Receipt size={15} />} loading={ligar.isPending} onClick={() => ligar.mutate()}>Ligar vendas às faturas do Moloni</Button>}
+      </div>
+    </SectionCard>
   );
 }

@@ -56,7 +56,9 @@ public sealed record ArtigoWriteRequest(
 
 public sealed record BalcaoLinhaRequest(Guid ArtigoId, int Quantidade, int? PrecoUnitarioCents = null);
 
-public sealed record BalcaoVendaRequest(IReadOnlyList<BalcaoLinhaRequest> Linhas, PaymentMethod PaymentMethod, Guid? ClienteId = null);
+/// <summary>Sprint 571: <c>ComNif</c> vazio = fatura-recibo sem NIF (consumidor final), mesmo com cliente escolhido.</summary>
+public sealed record BalcaoVendaRequest(IReadOnlyList<BalcaoLinhaRequest> Linhas, PaymentMethod PaymentMethod, Guid? ClienteId = null,
+    Moloni.MoloniDadosFiscais? ComNif = null);
 
 /// <summary>Sprint 569: lotes em stock sem artigo, agrupados pela mesma descrição — um artigo por grupo.</summary>
 public sealed record ArtigoSugestaoDto(string Nome, IReadOnlyList<Guid> LoteIds, IReadOnlyList<int> Lotes, int Stock, int? PrecoCalculadoCents, string? Localizacao,
@@ -226,6 +228,9 @@ public class ArtigoService : IArtigoService
         if (req.Linhas.Count > MaxLinhasBalcao)
             throw new ValidationException("linhas_invalidas", $"Máximo {MaxLinhasBalcao} linhas.");
 
+        // Dados da fatura validados antes de dar saída ao stock (um NIF errado não deixa a venda sem fatura).
+        if (req.ComNif is { } fiscais) Moloni.MoloniService.ValidarDadosFiscais(fiscais);
+
         await PrecosCategoriaAsync(ct);
         var linhas = new List<VendaLinhaWriteRequest>();
         foreach (var grupo in req.Linhas.GroupBy(l => (l.ArtigoId, l.PrecoUnitarioCents)))
@@ -260,7 +265,8 @@ public class ArtigoService : IArtigoService
         // registada em "Fatura por registar" e emite-se depois na própria venda — o stock já saiu.
         if (_moloni is not null && await _moloni.ConfiguradoAsync(ct))
         {
-            try { return await _moloni.EmitirAsync(venda.Id, new Moloni.MoloniEmitirRequest(Moloni.MoloniDocumento.FaturaRecibo, PaymentMethod: req.PaymentMethod), ct); }
+            try { return await _moloni.EmitirAsync(venda.Id, new Moloni.MoloniEmitirRequest(Moloni.MoloniDocumento.FaturaRecibo,
+                PaymentMethod: req.PaymentMethod, SemNif: req.ComNif is null, ComNif: req.ComNif), ct); }
             catch (DomainException) { return await _vendas.GetAsync(venda.Id, ct); }
             catch (HttpRequestException) { return await _vendas.GetAsync(venda.Id, ct); }
         }

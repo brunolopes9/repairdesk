@@ -25,12 +25,13 @@ export default function NovoClienteModal({ open, onClose, onCreated }: Props) {
   const [morada, setMorada] = useState('');
   const [codigoPostal, setCodigoPostal] = useState('');
   const [localidade, setLocalidade] = useState('');
+  const [comFaturacao, setComFaturacao] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   function reset() {
     setNome(''); setTelefone(''); setNif(''); setMorada(''); setCodigoPostal(''); setLocalidade('');
-    setError(null); setAviso(null);
+    setError(null); setAviso(null); setComFaturacao(false);
   }
 
   const create = useMutation({
@@ -94,6 +95,11 @@ export default function NovoClienteModal({ open, onClose, onCreated }: Props) {
           <input value={telefone} onChange={e => setTelefone(e.target.value)} className={inputCls} placeholder="ou vazio se for via Messenger" />
         </div>
 
+        {!comFaturacao ? (
+          <button type="button" onClick={() => setComFaturacao(true)} className="text-sm font-medium text-brand-600 hover:underline">
+            + Dados de faturação (NIF e morada) — opcional
+          </button>
+        ) : (
         <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
           <p className="mb-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300">Dados de faturação <span className="font-normal text-zinc-400">— para Fatura com NIF</span></p>
           <div className="space-y-1">
@@ -122,8 +128,9 @@ export default function NovoClienteModal({ open, onClose, onCreated }: Props) {
             </div>
           </div>
         </div>
+        )}
         <p className="text-[11px] text-zinc-500">
-          Consumidor final: basta o nome. Empresa / Fatura com NIF: preenche o NIF e carrega <strong>Verificar NIF</strong> para puxar o nome e a morada.
+          Basta o nome (só para uso interno) — sem NIF, a fatura sai para consumidor final. O NIF e a morada também se pedem no fim, ao emitir a fatura.
         </p>
       </div>
     </Modal>

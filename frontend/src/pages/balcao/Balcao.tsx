@@ -11,6 +11,7 @@ import type { Artigo } from '../../lib/artigos/types';
 import { formatEur } from '../../lib/compras/format';
 import { toast } from '../../lib/toast';
 import { PAYMENT_METHOD, PAYMENT_METHOD_LABEL, type PaymentMethod } from '../../lib/vendas/types';
+import DadosFatura, { escolhaInicial, pedidoFatura, problemaFatura, type EscolhaFatura } from '../vendas/DadosFatura';
 
 interface LinhaCarrinho {
   artigo: Artigo;
@@ -31,6 +32,8 @@ export default function Balcao() {
   const [pesquisa, setPesquisa] = useState('');
   const [carrinho, setCarrinho] = useState<LinhaCarrinho[]>([]);
   const [pagamento, setPagamento] = useState<PaymentMethod>(PAYMENT_METHOD.Dinheiro);
+  // Sprint 571: fatura-recibo sem NIF (consumidor final) por defeito; com NIF pede nome e morada.
+  const [fatura, setFatura] = useState<EscolhaFatura>(() => escolhaInicial(null));
   const [ultimaVenda, setUltimaVenda] = useState<{ id: string; numero: number; fatura: string | null } | null>(null);
 
   const resultados = useQuery({
@@ -81,6 +84,7 @@ export default function Balcao() {
     mutationFn: () => artigosApi.vender({
       linhas: carrinho.map((l) => ({ artigoId: l.artigo.id, quantidade: l.quantidade })),
       paymentMethod: pagamento,
+      comNif: pedidoFatura(fatura).comNif,
     }),
     onSuccess: (v) => {
       if (v.invoiceNumber) toast.success(`Venda #${v.numero} — ${formatEur(v.totalCents / 100)}`, `Fatura-recibo ${v.invoiceNumber} emitida.`);
@@ -88,6 +92,7 @@ export default function Balcao() {
       setUltimaVenda({ id: v.id, numero: v.numero, fatura: v.invoiceNumber });
       setCarrinho([]);
       setPesquisa('');
+      setFatura(escolhaInicial(null));
       qc.invalidateQueries({ queryKey: ['artigos'] });
       qc.invalidateQueries({ queryKey: ['vendas'] });
       qc.invalidateQueries({ queryKey: ['compras', 'inventario'] });
@@ -188,8 +193,11 @@ export default function Balcao() {
             ))}
           </div>
 
+          <div className="mt-4"><DadosFatura value={fatura} onChange={setFatura} /></div>
+          {problemaFatura(fatura) && carrinho.length > 0 && <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">{problemaFatura(fatura)}</p>}
+
           <Button type="button" className="mt-4 w-full" leftIcon={<ShoppingCart size={16} />} loading={vender.isPending}
-            disabled={carrinho.length === 0} onClick={() => vender.mutate()}>
+            disabled={carrinho.length === 0 || !!problemaFatura(fatura)} onClick={() => vender.mutate()}>
             Fechar venda · {formatEur(total / 100)}
           </Button>
         </SectionCard>

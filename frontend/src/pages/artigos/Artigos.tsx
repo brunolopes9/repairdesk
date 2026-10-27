@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Euro, PackagePlus, Plus, Printer, ScanBarcode, Search, Tag } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { Button, EmptyState, PageHeader, SectionCard, SkeletonRow, SortableTh } from '../../components/ui';
+import { Button, EmptyState, PageHeader, SectionCard, SkeletonRow, SortableTh, ViewTabs } from '../../components/ui';
+import { useAuth } from '../../lib/auth/AuthContext';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { artigosApi } from '../../lib/artigos/api';
 import type { Artigo } from '../../lib/artigos/types';
@@ -12,6 +13,7 @@ import { toast } from '../../lib/toast';
 import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
 import ArtigoModal from './ArtigoModal';
 import ArtigosDoStockModal from './ArtigosDoStockModal';
+import CatalogoMoloni from './CatalogoMoloni';
 import CategoriasModal from './CategoriasModal';
 
 type Campo = 'sku' | 'nome' | 'stock' | 'preco' | 'local';
@@ -41,6 +43,8 @@ export default function Artigos() {
   const [aImprimir, setAImprimir] = useState(false);
   const [doStock, setDoStock] = useState(false);
   const [categorias, setCategorias] = useState(false);
+  const [vista, setVista] = useState<'loja' | 'moloni'>('loja');
+  const isAdmin = useAuth().hasRole('Admin');
 
   const list = useQuery({ queryKey: ['artigos', 'lista', q], queryFn: () => artigosApi.list(q), placeholderData: keepPreviousData });
   const { ordem, alternar } = useOrdenacao<Campo>('nome', false);
@@ -84,6 +88,23 @@ export default function Artigos() {
     }
   }
 
+  /** Etiquetas de um artigo (ícone da linha ou botão no artigo): uma por unidade em stock. */
+  function etiquetasDe(a: Artigo) {
+    setEscolhidos({ [a.id]: Math.max(1, a.stock) });
+    setEtiquetasAbertas(true);
+  }
+
+  /** Sem nada marcado, "Etiquetas" propõe todos os visíveis com stock (uma etiqueta por unidade). */
+  function abrirEtiquetas() {
+    if (Object.keys(escolhidos).length === 0) {
+      const comStock = artigos.filter((a) => a.ativo && a.stock > 0);
+      if (comStock.length === 0) { toast.error('Nada para etiquetar', 'Não há artigos com stock nesta lista.'); return; }
+      setEscolhidos(Object.fromEntries(comStock.map((a) => [a.id, a.stock])));
+    }
+    setEtiquetasAbertas(true);
+  }
+
+  const todosMarcados = artigos.length > 0 && artigos.every((a) => !!escolhidos[a.id]);
   const nEscolhidos = Object.keys(escolhidos).length;
   const totalEtiquetas = Object.values(escolhidos).reduce((s, n) => s + n, 0);
   const porId = new Map((list.data ?? []).map((a) => [a.id, a]));
@@ -96,7 +117,8 @@ export default function Artigos() {
         actions={
           <>
             <Button variant="secondary" leftIcon={<ScanBarcode size={15} />} onClick={() => navigate('/balcao')}>Balcão</Button>
-            <Button variant="secondary" leftIcon={<Printer size={15} />} disabled={nEscolhidos === 0} onClick={() => setEtiquetasAbertas(true)}>
+            <Button variant="secondary" leftIcon={<Printer size={15} />} onClick={abrirEtiquetas}
+              title="Etiquetas com código de barras dos artigos marcados (sem nenhum marcado: todos os que têm stock)">
               Etiquetas{nEscolhidos ? ` (${totalEtiquetas})` : ''}
             </Button>
             <Button variant="secondary" leftIcon={<Euro size={15} />} onClick={() => setCategorias(true)}>Categorias e preços</Button>
@@ -106,6 +128,14 @@ export default function Artigos() {
         }
       />
 
+      <ViewTabs value={vista} onChange={(v) => setVista(v as 'loja' | 'moloni')}
+        tabs={[{ key: 'loja', label: 'Artigos da loja' }, { key: 'moloni', label: 'Artigos e serviços no Moloni' }]} />
+
+      {vista === 'moloni' ? <CatalogoMoloni isAdmin={isAdmin} /> : (<>
+      <p className="text-sm text-zinc-500">
+        <Printer size={14} className="mr-1 inline" />
+        Etiquetas com código de barras: marca os artigos na caixa à esquerda e carrega em <strong>Etiquetas</strong>, ou usa a impressora no fim de cada linha.
+      </p>
       <SectionCard
         bodyClassName="p-0"
         title={
@@ -131,12 +161,16 @@ export default function Artigos() {
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-900">
                 <tr>
-                  <th className="w-10 px-3 py-2" aria-label="Escolher para etiquetas" />
+                  <th className="w-10 px-3 py-2">
+                    <input type="checkbox" checked={todosMarcados} aria-label="Marcar todos para etiquetas"
+                      onChange={(e) => setEscolhidos(e.target.checked ? Object.fromEntries(artigos.map((a) => [a.id, Math.max(1, a.stock)])) : {})} />
+                  </th>
                   <SortableTh label="SKU" campo="sku" ordem={ordem} onOrdenar={alternar} className="px-3 py-2" />
                   <SortableTh label="Artigo" campo="nome" ordem={ordem} onOrdenar={alternar} className="px-3 py-2" />
                   <SortableTh label="Stock" campo="stock" ordem={ordem} onOrdenar={alternar} align="right" className="px-3 py-2" />
                   <SortableTh label="Preço" campo="preco" ordem={ordem} onOrdenar={alternar} align="right" className="px-3 py-2" />
                   <SortableTh label="Local" campo="local" ordem={ordem} onOrdenar={alternar} className="px-3 py-2" />
+                  <th className="w-10 px-3 py-2" aria-label="Etiqueta" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -161,6 +195,12 @@ export default function Artigos() {
                       {a.origemPreco === 'calculado' && a.precoEfetivoCents != null && <div className="text-[11px] text-zinc-500">calculado</div>}
                     </td>
                     <td className="px-3 py-2 text-zinc-600 dark:text-zinc-300">{a.localizacao ?? '—'}</td>
+                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <button type="button" title={`Imprimir etiquetas de ${a.nome}`} aria-label={`Imprimir etiquetas de ${a.nome}`}
+                        className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-brand-700 dark:hover:bg-zinc-800" onClick={() => etiquetasDe(a)}>
+                        <Printer size={15} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -168,13 +208,15 @@ export default function Artigos() {
           </div>
         )}
       </SectionCard>
+      </>)}
 
       <CategoriasModal open={categorias} onClose={() => setCategorias(false)} />
 
       <ArtigosDoStockModal open={doStock} onClose={() => setDoStock(false)}
         onCriados={(ids) => setEscolhidos(Object.fromEntries(ids.map((id) => [id, 1])))} />
 
-      <ArtigoModal open={editar !== undefined} artigoId={editar ?? null} onClose={() => setEditar(undefined)} />
+      <ArtigoModal open={editar !== undefined} artigoId={editar ?? null} onClose={() => setEditar(undefined)}
+        onEtiquetas={(a) => { setEditar(undefined); etiquetasDe(a); }} />
 
       <Modal
         open={etiquetasAbertas}

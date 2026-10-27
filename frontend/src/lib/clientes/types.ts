@@ -22,6 +22,8 @@ export interface Cliente {
   morada?: string | null;
   codigoPostal?: string | null;
   localidade?: string | null;
+  /** Sprint 571: nome que vai na fatura quando é diferente do nome interno. */
+  nomeFaturacao?: string | null;
   tags?: ClienteTag[];
 }
 
@@ -45,6 +47,7 @@ export interface ClienteForm {
   morada?: string | null;
   codigoPostal?: string | null;
   localidade?: string | null;
+  nomeFaturacao?: string | null;
 }
 
 export interface ClienteEquipamento {

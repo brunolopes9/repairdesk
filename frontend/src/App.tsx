@@ -38,7 +38,6 @@ const Automacoes = lazy(() => import('./pages/definicoes/Automacoes'));
 const LlmUsage = lazy(() => import('./pages/definicoes/LlmUsage'));
 const UsersDefinicoes = lazy(() => import('./pages/definicoes/Users'));
 const MoloniOn = lazy(() => import('./pages/definicoes/MoloniOn'));
-const Faturacao = lazy(() => import('./pages/faturacao/Faturacao'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
@@ -174,7 +173,7 @@ export default function App() {
               <Route path="/definicoes/llm-usage" element={<LlmUsage />} />
               <Route path="/definicoes/utilizadores" element={<UsersDefinicoes />} />
               <Route path="/definicoes/moloni" element={<MoloniOn />} />
-              <Route path="/faturacao" element={<Faturacao />} />
+              <Route path="/faturacao" element={<Navigate to="/vendas?vista=documentos" replace />} />
               <Route path="/produtos" element={<Navigate to="/compras?tab=stock" replace />} />
               <Route path="*" element={<NotFound />} />
             </Route>
