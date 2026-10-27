@@ -68,6 +68,8 @@ public sealed record MoloniImportacaoClientesDto(int Ligados, int Criados, int J
 
 public sealed record MoloniReciboDocumentoRequest(PaymentMethod PaymentMethod);
 
+public sealed record MoloniLigacaoVendasDto(int Ligadas, int ComRecibo, int SemCorrespondencia);
+
 public interface IMoloniGestaoService
 {
     Task<MoloniPagina<MoloniDocumentoDto>> DocumentosAsync(MoloniTipoDocumento tipo, string? q, int page, int pageSize, CancellationToken ct = default);
@@ -84,6 +86,8 @@ public interface IMoloniGestaoService
 
     /// <summary>Liga (pelo NIF) ou cria no Mender os clientes que já existem no Moloni ON.</summary>
     Task<MoloniImportacaoClientesDto> ImportarClientesAsync(CancellationToken ct = default);
+    /// <summary>Liga as vendas com nº de fatura (ex.: importadas do PDF) ao documento e ao recibo do Moloni ON.</summary>
+    Task<MoloniLigacaoVendasDto> LigarVendasAsync(CancellationToken ct = default);
     /// <summary>Nome/preço do artigo da loja → artigo ligado no Moloni ON (sem efeito se não estiver ligado).</summary>
     Task SincronizarArtigoAsync(Guid artigoId, CancellationToken ct = default);
 }
@@ -331,6 +335,60 @@ public partial class MoloniService : IMoloniGestaoService
         }
         await _audit.LogAsync(AuditAction.Update, nameof(Tenant), t.Id, new { operation = "moloni_importar_clientes", ligados, criados }, ct: ct);
         return new MoloniImportacaoClientesDto(ligados, criados, jaLigados, total);
+    }
+
+    public async Task<MoloniLigacaoVendasDto> LigarVendasAsync(CancellationToken ct = default)
+    {
+        var (t, key, companyId, _) = await ContextoAsync(ct);
+        var vendas = await _vendas.ListFaturadasSemMoloniAsync(ct);
+        if (vendas.Count == 0) return new MoloniLigacaoVendasDto(0, 0, 0);
+
+        async Task<List<JsonNode>> TodosAsync(string apiCode, string lista, string campos)
+        {
+            var todos = new List<JsonNode>();
+            for (var page = 1; page <= 200; page++)
+            {
+                var json = await _client.ExecutarEscalarAsync(key,
+                    $"query($c:Int!,$o:{Pascal(apiCode)}Options){{ {lista}(companyId:$c, options:$o) {{ errors {{ field msg }} data {{ {campos} }} options {{ pagination {{ count }} }} }} }}",
+                    new { c = companyId, o = new { pagination = new { page, qty = 50 } } }, lista, ct);
+                Erros(json);
+                var lote = json?["data"]?.AsArray() ?? [];
+                todos.AddRange(lote.Where(x => x is not null).Select(x => x!));
+                if (lote.Count < 50) break;
+            }
+            return todos;
+        }
+        const string campos = "documentId number documentSetName nullified status";
+        var faturas = await TodosAsync("invoice", "invoices", campos);
+        var faturasRecibo = await TodosAsync("invoiceReceipt", "invoiceReceipts", campos);
+        var recibos = await TodosAsync("receipt", "receipts", campos + " relatedWith { relatedDocument { documentId } }");
+
+        static string Chave(string prefixo, JsonNode d) => $"{prefixo} {d["documentSetName"]?.GetValue<string>()}/{d["number"]}".ToUpperInvariant();
+        static bool Valido(JsonNode d) => d["nullified"]?.GetValue<bool>() != true && d["status"]?.GetValue<int>() == 1;
+        var porNumero = faturas.Where(Valido).Select(d => (Chave("FT", d), d, "invoice"))
+            .Concat(faturasRecibo.Where(Valido).Select(d => (Chave("FR", d), d, "invoiceReceipt")))
+            .GroupBy(x => x.Item1).ToDictionary(g => g.Key, g => g.First());
+
+        int ligadas = 0, comRecibo = 0, semCorrespondencia = 0;
+        foreach (var venda in vendas)
+        {
+            var chave = System.Text.RegularExpressions.Regex.Replace(venda.InvoiceNumber!.Trim().ToUpperInvariant(), @"\s+", " ");
+            if (!porNumero.TryGetValue(chave, out var doc)) { semCorrespondencia++; continue; }
+            var documentId = doc.d["documentId"]!.GetValue<int>();
+            venda.MoloniDocumentoTipo = doc.Item3;
+            venda.MoloniDocumentoId = documentId;
+            ligadas++;
+            if (doc.Item3 != "invoice") continue;
+            var recibo = recibos.Where(Valido).FirstOrDefault(r => r["relatedWith"]?.AsArray()
+                .Any(x => x?["relatedDocument"]?["documentId"]?.GetValue<int>() == documentId) == true);
+            if (recibo is null) continue;
+            venda.MoloniReciboId = recibo["documentId"]!.GetValue<int>();
+            venda.MoloniReciboNumero = Chave("RC", recibo);
+            comRecibo++;
+        }
+        await _vendas.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Tenant), t.Id, new { operation = "moloni_ligar_vendas", ligadas, comRecibo, semCorrespondencia }, ct: ct);
+        return new MoloniLigacaoVendasDto(ligadas, comRecibo, semCorrespondencia);
     }
 
     public async Task SincronizarArtigoAsync(Guid artigoId, CancellationToken ct = default)

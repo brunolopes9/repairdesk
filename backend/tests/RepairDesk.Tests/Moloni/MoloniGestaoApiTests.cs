@@ -114,6 +114,27 @@ public class MoloniGestaoApiTests : IClassFixture<MoloniApiFactory>
         upd["price"]!.GetValue<decimal>().Should().Be(5m, "6,15 € com IVA = 5,00 € sem IVA");
     }
 
+    [Fact]
+    public async Task LigarVendas_AntigasImportadas_FicamLigadasAFaturaEAoRecibo()
+    {
+        var client = await LigadoAsync();
+        var venda = await Post<VendaDto>(client, "/api/vendas", new VendaWriteRequest(VendaTipo.Servico, null, null, null, null,
+            [new VendaLinhaWriteRequest(null, null, "Site", 1, 49200, 0, 23m)], VendaEstado.Entregue, PaymentMethod.TransferenciaBancaria));
+        (await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/fatura", new RegistarFaturaRequest("FT SOFTWARE/41", new DateTime(2026, 6, 19)))).EnsureSuccessStatusCode();
+        _factory.Moloni.Faturas.Clear();
+        _factory.Moloni.Recibos.Clear();
+        _factory.Moloni.Faturas.Add(new { documentId = 86641, number = 41, documentSetName = "SOFTWARE", status = 1, nullified = false });
+        _factory.Moloni.Recibos.Add(new { documentId = 89641, number = 41, documentSetName = "SOFTWARE", status = 1, nullified = false,
+            relatedWith = new[] { new { relatedDocument = new { documentId = 86641 } } } });
+
+        var r = await Post<MoloniLigacaoVendasDto>(client, "/api/moloni/vendas/ligar", new { });
+        r.Ligadas.Should().BeGreaterThanOrEqualTo(1);
+        var v = await client.GetFromJsonAsync<VendaDto>($"/api/vendas/{venda.Id}");
+        v!.MoloniDocumentoTipo.Should().Be("invoice");
+        v.Paga.Should().BeTrue();
+        v.MoloniReciboNumero.Should().Be("RC SOFTWARE/41");
+    }
+
     // ---------- ajudas ----------
 
     private async Task<HttpClient> LigadoAsync()

@@ -21,6 +21,8 @@ public interface IVendaRepository
     /// <summary>Sprint 565: vendas com PDF da fatura cuja data de fatura (ou da venda) cai em [from, to[.</summary>
     Task<IReadOnlyList<Venda>> ListComFaturaPdfAsync(DateTime from, DateTime to, CancellationToken ct = default);
     /// <summary>Sprint 568: vendas ligadas a estes documentos do Moloni ON (fatura, recibo ou orçamento).</summary>
+    /// <summary>Sprint 568: vendas com nº de fatura mas ainda sem ligação ao documento do Moloni ON.</summary>
+    Task<IReadOnlyList<Venda>> ListFaturadasSemMoloniAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Venda>> ListByMoloniIdsAsync(IReadOnlyCollection<int> documentIds, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }

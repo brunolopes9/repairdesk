@@ -56,6 +56,7 @@ public class FakeMoloniClient : IMoloniClient
 
     /// <summary>Documentos que as listas devolvem (documentId → linha).</summary>
     public List<object> Faturas { get; } = new();
+    public List<object> Recibos { get; } = new();
     /// <summary>Clientes que existem "no Moloni" para a importação.</summary>
     public List<object> Clientes { get; } = new();
     /// <summary>Artigos que o Moloni recusa apagar (usados em documentos).</summary>
@@ -92,7 +93,8 @@ public class FakeMoloniClient : IMoloniClient
             case "productDelete":
                 return Node(new { status = true, deletedCount = v!["d"]!.AsArray().Any(x => ArtigosEmUso.Contains(x!.GetValue<int>())) ? 0 : 1, errors = new object[0] });
             case "invoices": return Node(Faturas.ToArray());
-            case "invoiceReceipts" or "receipts" or "estimates": return new JsonArray();
+            case "receipts": return Node(Recibos.ToArray());
+            case "invoiceReceipts" or "estimates": return new JsonArray();
             case "paymentMethodCreate": return Node(new { paymentMethodId = Id() });
             case "invoiceCreate" or "invoiceReceiptCreate" or "estimateCreate":
             {

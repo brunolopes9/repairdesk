@@ -19,7 +19,7 @@ const TABS = [
   { key: 'Recibo', label: 'Recibos' },
   { key: 'Orcamento', label: 'Orçamentos' },
   { key: 'artigos', label: 'Artigos e serviços' },
-  { key: 'clientes', label: 'Clientes' },
+  { key: 'clientes', label: 'Sincronizar' },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
 
@@ -297,12 +297,23 @@ function ClientesMoloni({ isAdmin }: { isAdmin: boolean }) {
     },
     onError: (err) => toast.fromError(err, 'Não foi possível importar.'),
   });
+  const ligar = useMutation({
+    mutationFn: moloniApi.ligarVendas,
+    onSuccess: (r) => {
+      toast.success('Vendas ligadas ao Moloni ON', `${r.ligadas} ligadas (${r.comRecibo} com recibo)${r.semCorrespondencia ? ` · ${r.semCorrespondencia} sem fatura correspondente` : ''}`);
+      qc.invalidateQueries({ queryKey: ['vendas'] });
+      qc.invalidateQueries({ queryKey: ['moloni', 'documentos'] });
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível ligar as vendas.'),
+  });
   return (
-    <SectionCard title="Clientes">
+    <SectionCard title="Sincronizar com o Moloni ON">
       <div className="space-y-3 text-sm text-zinc-600 dark:text-zinc-300">
         <p>Os clientes geres em <Link to="/clientes" className="text-brand-600 underline">Clientes</Link>: ao criar ou alterar um cliente no Mender, ele é criado/atualizado no Moloni ON (pelo NIF). O consumidor final é sempre o cliente predefinido do Moloni.</p>
         <p>Para trazer para o Mender os clientes que já tinhas no Moloni (os que ainda não estão cá são criados; os que já estão ficam ligados pelo NIF):</p>
         {isAdmin && <Button type="button" leftIcon={<Users size={15} />} loading={importar.isPending} onClick={() => importar.mutate()}>Importar clientes do Moloni ON</Button>}
+        <p>Vendas com nº de fatura que ainda não estão ligadas ao Moloni (ex.: importadas dos PDFs): liga cada uma à sua fatura e ao recibo, pelo nº — assim pagar ou anular aqui atualiza a venda.</p>
+        {isAdmin && <Button type="button" variant="secondary" leftIcon={<Receipt size={15} />} loading={ligar.isPending} onClick={() => ligar.mutate()}>Ligar vendas às faturas do Moloni</Button>}
       </div>
     </SectionCard>
   );

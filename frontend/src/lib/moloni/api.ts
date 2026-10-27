@@ -114,6 +114,9 @@ export const moloniApi = {
   apagarArtigo(id: number) {
     return api.delete(`/moloni/artigos/${id}`);
   },
+  ligarVendas() {
+    return api.post<{ ligadas: number; comRecibo: number; semCorrespondencia: number }>('/moloni/vendas/ligar', {}, { timeout: 120_000 }).then((r) => r.data);
+  },
   importarClientes() {
     return api.post<{ ligados: number; criados: number; jaLigados: number; total: number }>('/moloni/clientes/importar', {}, { timeout: 120_000 }).then((r) => r.data);
   },

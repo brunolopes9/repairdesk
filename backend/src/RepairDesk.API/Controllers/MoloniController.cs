@@ -92,4 +92,9 @@ public class MoloniController : ControllerBase
     [HttpPost("clientes/importar")]
     [Authorize(Roles = "Admin")]
     public Task<MoloniImportacaoClientesDto> ImportarClientes(CancellationToken ct) => _gestao.ImportarClientesAsync(ct);
+
+    /// <summary>Liga as vendas já faturadas (ex.: importadas do PDF) às faturas e recibos do Moloni ON, pelo nº.</summary>
+    [HttpPost("vendas/ligar")]
+    [Authorize(Roles = "Admin")]
+    public Task<MoloniLigacaoVendasDto> LigarVendas(CancellationToken ct) => _gestao.LigarVendasAsync(ct);
 }
