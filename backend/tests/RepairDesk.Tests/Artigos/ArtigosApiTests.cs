@@ -136,6 +136,46 @@ public class ArtigosApiTests : IClassFixture<RepairDeskApiFactory>
         (await pdf.Content.ReadAsByteArrayAsync()).Take(4).Should().Equal("%PDF"u8.ToArray());
     }
 
+    [Fact]
+    public async Task PrecoDaCategoria_PeliculasA15_EditavelPorArtigo()
+    {
+        var client = await AuthedClient();
+        var cat = $"Películas {Guid.NewGuid():N}"[..18];
+        (await client.PutAsJsonAsync("/api/artigos/categorias", new CategoriaArtigoRequest(cat, 1500))).EnsureSuccessStatusCode();
+        var lote = await CriarLote(client, "Vidro temperado teste categoria", 3, 1.5m);
+        var geral = (await Post<ArtigoDetalheDto>(client, "/api/artigos", new ArtigoWriteRequest("Película geral", cat, null, null, null, null, null, true, [lote]))).Artigo;
+        geral.PrecoEfetivoCents.Should().Be(1500);
+        geral.OrigemPreco.Should().Be("categoria");
+        var especial = (await Post<ArtigoDetalheDto>(client, "/api/artigos", new ArtigoWriteRequest("Película privacidade", cat, 1999, null, null, null, null))).Artigo;
+        especial.PrecoEfetivoCents.Should().Be(1999, "preço próprio ganha ao da categoria");
+        especial.OrigemPreco.Should().Be("artigo");
+
+        // O inventário e o balcão usam o preço da categoria.
+        var inv = await client.GetFromJsonAsync<List<InventarioLinhaDto>>("/api/compras/inventario");
+        inv!.Single(l => l.LinhaId == lote).PrecoVendaArtigo.Should().Be(15m);
+        var venda = await Post<VendaDto>(client, "/api/artigos/balcao/vender", new BalcaoVendaRequest([new BalcaoLinhaRequest(geral.Id, 1)], PaymentMethod.Dinheiro));
+        venda.TotalCents.Should().Be(1500);
+
+        // Mudar a categoria muda todas as películas sem preço próprio.
+        (await client.PutAsJsonAsync("/api/artigos/categorias", new CategoriaArtigoRequest(cat, 1200))).EnsureSuccessStatusCode();
+        (await client.GetFromJsonAsync<ArtigoDetalheDto>($"/api/artigos/{geral.Id}"))!.Artigo.PrecoEfetivoCents.Should().Be(1200);
+        (await client.GetFromJsonAsync<ArtigoDetalheDto>($"/api/artigos/{especial.Id}"))!.Artigo.PrecoEfetivoCents.Should().Be(1999);
+        var cats = await client.GetFromJsonAsync<List<CategoriaArtigoDto>>("/api/artigos/categorias");
+        cats!.Single(c => c.Nome == cat).Artigos.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Sugestoes_ReconhecemPeliculas()
+    {
+        var client = await AuthedClient();
+        var marca = Guid.NewGuid().ToString("N")[..6];
+        await CriarLote(client, $"Vidro temperado Hoco {marca}", 1, 1m);
+        await CriarLote(client, $"Bateria {marca}", 1, 5m);
+        var sug = await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes");
+        sug!.Single(s => s.Nome.Contains($"Hoco {marca}")).Categoria.Should().Be("Películas");
+        sug!.Single(s => s.Nome.Contains($"Bateria {marca}")).Categoria.Should().BeNull();
+    }
+
     private static async Task<T> Post<T>(HttpClient client, string url, object body)
     {
         var resp = await client.PostAsJsonAsync(url, body);

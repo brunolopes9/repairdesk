@@ -217,7 +217,8 @@ export default function VendaEditor() {
       compraLinhaId: lote.linhaId,
       descricao: lote.descricao,
       quantidade: '1',
-      preco: fmt2(semIva ? lote.precoFinalComIva / (1 + IVA_NORMAL / 100) : lote.precoFinalComIva),
+      // Sprint 570: lote de um artigo → preço do artigo (próprio ou da categoria, ex.: películas a 15 €).
+      preco: fmt2(semIva ? (lote.precoVendaArtigo ?? lote.precoFinalComIva) / (1 + IVA_NORMAL / 100) : (lote.precoVendaArtigo ?? lote.precoFinalComIva)),
       iva: String(IVA_NORMAL),
       custoUnit: lote.precoUnitarioPago,
       taxaCompra: lote.taxaIvaCompra,

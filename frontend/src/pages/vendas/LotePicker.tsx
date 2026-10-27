@@ -55,7 +55,7 @@ export default function LotePicker({
                     <span className="block text-xs text-zinc-500">{l.fornecedor} · {disponivel} disponível{l.localizacao ? ` · ${l.localizacao}` : ''}</span>
                   </span>
                   <span className="text-right tabular-nums">
-                    <span className="block font-medium">{formatEur(l.precoFinalComIva)}</span>
+                    <span className="block font-medium">{formatEur(l.precoVendaArtigo ?? l.precoFinalComIva)}</span>
                     <span className="block text-xs text-zinc-500">pago {formatEur(l.precoUnitarioPago)}</span>
                   </span>
                 </button>

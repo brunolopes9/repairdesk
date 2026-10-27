@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { PackagePlus, Plus, Printer, ScanBarcode, Search, Tag } from 'lucide-react';
+import { Euro, PackagePlus, Plus, Printer, ScanBarcode, Search, Tag } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SectionCard, SkeletonRow, SortableTh } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
@@ -12,6 +12,7 @@ import { toast } from '../../lib/toast';
 import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
 import ArtigoModal from './ArtigoModal';
 import ArtigosDoStockModal from './ArtigosDoStockModal';
+import CategoriasModal from './CategoriasModal';
 
 type Campo = 'sku' | 'nome' | 'stock' | 'preco' | 'local';
 
@@ -39,6 +40,7 @@ export default function Artigos() {
   const [comPreco, setComPreco] = useState(true);
   const [aImprimir, setAImprimir] = useState(false);
   const [doStock, setDoStock] = useState(false);
+  const [categorias, setCategorias] = useState(false);
 
   const list = useQuery({ queryKey: ['artigos', 'lista', q], queryFn: () => artigosApi.list(q), placeholderData: keepPreviousData });
   const { ordem, alternar } = useOrdenacao<Campo>('nome', false);
@@ -97,6 +99,7 @@ export default function Artigos() {
             <Button variant="secondary" leftIcon={<Printer size={15} />} disabled={nEscolhidos === 0} onClick={() => setEtiquetasAbertas(true)}>
               Etiquetas{nEscolhidos ? ` (${totalEtiquetas})` : ''}
             </Button>
+            <Button variant="secondary" leftIcon={<Euro size={15} />} onClick={() => setCategorias(true)}>Categorias e preços</Button>
             <Button variant="secondary" leftIcon={<PackagePlus size={15} />} onClick={() => setDoStock(true)}>Criar a partir do stock</Button>
             <Button leftIcon={<Plus size={15} />} onClick={() => setEditar(null)}>Novo artigo</Button>
           </>
@@ -154,7 +157,8 @@ export default function Artigos() {
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {a.precoEfetivoCents != null ? formatEur(a.precoEfetivoCents / 100) : '—'}
-                      {a.precoVendaCents == null && a.precoEfetivoCents != null && <div className="text-[11px] text-zinc-500">calculado</div>}
+                      {a.origemPreco === 'categoria' && <div className="text-[11px] text-brand-600">da categoria</div>}
+                      {a.origemPreco === 'calculado' && a.precoEfetivoCents != null && <div className="text-[11px] text-zinc-500">calculado</div>}
                     </td>
                     <td className="px-3 py-2 text-zinc-600 dark:text-zinc-300">{a.localizacao ?? '—'}</td>
                   </tr>
@@ -164,6 +168,8 @@ export default function Artigos() {
           </div>
         )}
       </SectionCard>
+
+      <CategoriasModal open={categorias} onClose={() => setCategorias(false)} />
 
       <ArtigosDoStockModal open={doStock} onClose={() => setDoStock(false)}
         onCriados={(ids) => setEscolhidos(Object.fromEntries(ids.map((id) => [id, 1])))} />

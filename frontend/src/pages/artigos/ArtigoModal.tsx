@@ -25,6 +25,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao }: Props
   const qc = useQueryClient();
   const detalhe = useQuery({ queryKey: ['artigos', artigoId], queryFn: () => artigosApi.get(artigoId!), enabled: open && !!artigoId });
   const inventario = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario, enabled: open });
+  const categorias = useQuery({ queryKey: ['artigos', 'categorias'], queryFn: artigosApi.categorias, enabled: open });
 
   const [nome, setNome] = useState('');
   const [categoria, setCategoria] = useState('');
@@ -96,6 +97,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao }: Props
   });
 
   const a = detalhe.data?.artigo;
+  const precoCategoria = categorias.data?.find((c) => c.nome.toLowerCase() === categoria.trim().toLowerCase())?.precoVendaCents ?? null;
   return (
     <Modal
       open={open}
@@ -116,11 +118,13 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao }: Props
         <label>
           <span className={labelCls}>Preço de venda c/ IVA (€)</span>
           <input value={preco} onChange={(e) => setPreco(e.target.value)} className={inputCls} inputMode="decimal"
-            placeholder={a?.precoEfetivoCents != null ? `Calculado: ${formatEur(a.precoEfetivoCents / 100)}` : 'Vazio = calculado do lote'} />
+            placeholder={precoCategoria != null ? `Vazio = preço da categoria (${formatEur(precoCategoria / 100)})`
+              : a?.precoEfetivoCents != null ? `Vazio = calculado (${formatEur(a.precoEfetivoCents / 100)})` : 'Vazio = calculado do lote'} />
         </label>
         <label>
           <span className={labelCls}>Categoria</span>
-          <input value={categoria} onChange={(e) => setCategoria(e.target.value)} className={inputCls} placeholder="Películas, Cabos, Capas…" />
+          <input value={categoria} onChange={(e) => setCategoria(e.target.value)} className={inputCls} placeholder="Películas, Cabos, Capas…" list="categorias-artigo" />
+          <datalist id="categorias-artigo">{categorias.data?.map((c) => <option key={c.nome} value={c.nome} />)}</datalist>
         </label>
         <label>
           <span className={labelCls}>Código da embalagem (opcional)</span>

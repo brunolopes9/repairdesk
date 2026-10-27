@@ -13,6 +13,8 @@ export interface Artigo {
   precoVendaCents: number | null;
   /** O que o balcão cobra: o definido ou o calculado do lote mais antigo com stock. */
   precoEfetivoCents: number | null;
+  /** Sprint 570: "artigo" (preço próprio), "categoria" (ex.: Películas 15 €) ou "calculado" (do lote). */
+  origemPreco: 'artigo' | 'categoria' | 'calculado' | null;
   stock: number;
   lotes: number;
   localizacao: string | null;
@@ -63,6 +65,16 @@ export interface ArtigoSugestao {
   stock: number;
   precoCalculadoCents: number | null;
   localizacao: string | null;
+  /** Sprint 570: categoria sugerida (películas → "Películas"). */
+  categoria: string | null;
+}
+
+/** Sprint 570: categoria com preço por defeito (Guid vazio = só escrita nos artigos, ainda sem registo). */
+export interface CategoriaArtigo {
+  id: string;
+  nome: string;
+  precoVendaCents: number | null;
+  artigos: number;
 }
 
 export interface BalcaoVenda {

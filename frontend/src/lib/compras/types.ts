@@ -120,6 +120,8 @@ export interface InventarioLinha {
   /** Sprint 566: artigo da loja a que o lote pertence. */
   artigoId: string | null;
   artigoSku: string | null;
+  /** Sprint 570: preço de venda do artigo (próprio ou da categoria) — o editor de vendas propõe este. */
+  precoVendaArtigo: number | null;
 }
 
 export interface ResumoColuna {

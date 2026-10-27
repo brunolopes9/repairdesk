@@ -20,6 +20,8 @@ public sealed record ArtigoDto(
     int? PrecoVendaCents,
     /// <summary>O preço que o balcão usa: o definido, ou o calculado do lote mais antigo com stock.</summary>
     int? PrecoEfetivoCents,
+    /// <summary>Sprint 570: de onde vem o preço — "artigo" (próprio), "categoria" ou "calculado" (do lote).</summary>
+    string? OrigemPreco,
     int Stock,
     int Lotes,
     string? Localizacao,
@@ -57,9 +59,15 @@ public sealed record BalcaoLinhaRequest(Guid ArtigoId, int Quantidade, int? Prec
 public sealed record BalcaoVendaRequest(IReadOnlyList<BalcaoLinhaRequest> Linhas, PaymentMethod PaymentMethod, Guid? ClienteId = null);
 
 /// <summary>Sprint 569: lotes em stock sem artigo, agrupados pela mesma descrição — um artigo por grupo.</summary>
-public sealed record ArtigoSugestaoDto(string Nome, IReadOnlyList<Guid> LoteIds, IReadOnlyList<int> Lotes, int Stock, int? PrecoCalculadoCents, string? Localizacao);
+public sealed record ArtigoSugestaoDto(string Nome, IReadOnlyList<Guid> LoteIds, IReadOnlyList<int> Lotes, int Stock, int? PrecoCalculadoCents, string? Localizacao,
+    /// <summary>Sprint 570: categoria sugerida (ex.: películas → "Películas").</summary>
+    string? Categoria = null);
 
-public sealed record ArtigoEmLoteItem(string Nome, IReadOnlyList<Guid> LoteIds, int? PrecoVendaCents = null);
+public sealed record CategoriaArtigoDto(Guid Id, string Nome, int? PrecoVendaCents, int Artigos);
+
+public sealed record CategoriaArtigoRequest(string Nome, int? PrecoVendaCents);
+
+public sealed record ArtigoEmLoteItem(string Nome, IReadOnlyList<Guid> LoteIds, int? PrecoVendaCents = null, string? Categoria = null);
 
 public sealed record ArtigosEmLoteRequest(IReadOnlyList<ArtigoEmLoteItem> Itens, string? Categoria = null);
 
@@ -78,6 +86,9 @@ public interface IArtigoService
     Task<IReadOnlyList<ArtigoSugestaoDto>> SugestoesAsync(CancellationToken ct = default);
     /// <summary>Sprint 569: cria vários artigos de uma vez, cada um já com os seus lotes.</summary>
     Task<IReadOnlyList<ArtigoDto>> CriarEmLoteAsync(ArtigosEmLoteRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 570: categorias com preço por defeito (ex.: Películas 15 €).</summary>
+    Task<IReadOnlyList<CategoriaArtigoDto>> CategoriasAsync(CancellationToken ct = default);
+    Task<CategoriaArtigoDto> GuardarCategoriaAsync(CategoriaArtigoRequest req, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -110,14 +121,21 @@ public class ArtigoService : IArtigoService
     }
 
     public async Task<IReadOnlyList<ArtigoDto>> ListAsync(string? q, bool incluirInativos, CancellationToken ct = default)
-        => (await _repo.ListAsync(q, incluirInativos, ct)).Select(ToDto).ToList();
+    {
+        await PrecosCategoriaAsync(ct);
+        return (await _repo.ListAsync(q, incluirInativos, ct)).Select(ToDto).ToList();
+    }
 
     public async Task<ArtigoDetalheDto> GetAsync(Guid id, CancellationToken ct = default)
-        => Detalhe(await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Artigo", id));
+    {
+        await PrecosCategoriaAsync(ct);
+        return Detalhe(await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Artigo", id));
+    }
 
     public async Task<ArtigoDto> PorCodigoAsync(string codigo, CancellationToken ct = default)
     {
         var c = Codigo(codigo) ?? throw new ValidationException("codigo_vazio", "Código vazio.");
+        await PrecosCategoriaAsync(ct);
         return ToDto(await _repo.FindByCodigoAsync(c, ct) ?? throw new NotFoundException("Artigo", c));
     }
 
@@ -164,7 +182,8 @@ public class ArtigoService : IArtigoService
                 var maisAntigo = ordenados.First();
                 return new ArtigoSugestaoDto(nome.Length > 200 ? nome[..200] : nome, ordenados.Select(l => l.Id).ToList(), ordenados.Select(l => l.Numero).ToList(),
                     g.Sum(l => l.QuantidadeEmStock), (int)Math.Round(PrecoCalculado(maisAntigo) * 100m, MidpointRounding.AwayFromZero),
-                    ordenados.Select(l => l.Localizacao).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)));
+                    ordenados.Select(l => l.Localizacao).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
+                    EPelicula(nome) ? "Películas" : null);
             })
             .OrderBy(s => s.Nome)
             .ToList();
@@ -179,7 +198,7 @@ public class ArtigoService : IArtigoService
         var criados = new List<ArtigoDto>();
         foreach (var item in req.Itens)
         {
-            var d = await CreateAsync(new ArtigoWriteRequest(item.Nome, req.Categoria, item.PrecoVendaCents, null, null, null, null, true, item.LoteIds), ct);
+            var d = await CreateAsync(new ArtigoWriteRequest(item.Nome, item.Categoria ?? req.Categoria, item.PrecoVendaCents, null, null, null, null, true, item.LoteIds), ct);
             criados.Add(d.Artigo);
         }
         return criados;
@@ -196,6 +215,7 @@ public class ArtigoService : IArtigoService
         lote.ArtigoId = null;
         artigo.Lotes.Remove(lote);
         await _repo.SaveAsync(ct);
+        await PrecosCategoriaAsync(ct);
         return Detalhe(artigo);
     }
 
@@ -206,6 +226,7 @@ public class ArtigoService : IArtigoService
         if (req.Linhas.Count > MaxLinhasBalcao)
             throw new ValidationException("linhas_invalidas", $"Máximo {MaxLinhasBalcao} linhas.");
 
+        await PrecosCategoriaAsync(ct);
         var linhas = new List<VendaLinhaWriteRequest>();
         foreach (var grupo in req.Linhas.GroupBy(l => (l.ArtigoId, l.PrecoUnitarioCents)))
         {
@@ -308,20 +329,70 @@ public class ArtigoService : IArtigoService
         => IvaEngine.Unidade(l.PrecoUnitarioPago, l.TaxaIvaCompra, l.LucroUnitario, FiscalDefaults.TaxaIvaNormal,
             l.Documento?.Fornecedor?.RegimeIva == RegimeIvaFornecedor.UeAutoliquidacao).PrecoFinalComIva;
 
-    /// <summary>O definido; senão o calculado do lote mais antigo com stock; senão o do lote mais recente.</summary>
-    private static int? PrecoEfetivo(Artigo a)
+    public async Task<IReadOnlyList<CategoriaArtigoDto>> CategoriasAsync(CancellationToken ct = default)
+    {
+        var categorias = (await _repo.ListCategoriasAsync(ct)).ToList();
+        var artigos = await _repo.ListAsync(null, incluirInativos: false, ct);
+        int Conta(string nome) => artigos.Count(a => string.Equals(a.Categoria?.Trim(), nome, StringComparison.OrdinalIgnoreCase));
+        // Categorias escritas nos artigos mas ainda sem registo aparecem também (sem preço).
+        var soNosArtigos = artigos.Select(a => a.Categoria?.Trim()).Where(c => !string.IsNullOrEmpty(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(c => !categorias.Any(x => x.Nome.Equals(c, StringComparison.OrdinalIgnoreCase)))
+            .Select(c => new CategoriaArtigoDto(Guid.Empty, c!, null, Conta(c!)));
+        return categorias.Select(c => new CategoriaArtigoDto(c.Id, c.Nome, c.PrecoVendaCents, Conta(c.Nome))).Concat(soNosArtigos)
+            .OrderBy(c => c.Nome).ToList();
+    }
+
+    public async Task<CategoriaArtigoDto> GuardarCategoriaAsync(CategoriaArtigoRequest req, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId) throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        var nome = Clean(req.Nome, 80) ?? throw new ValidationException("nome_obrigatorio", "A categoria precisa de nome.");
+        if (req.PrecoVendaCents is < 0 or > 100_000_000) throw new ValidationException("preco_invalido", "Preço inválido.");
+        var cat = await _repo.FindCategoriaAsync(nome, ct);
+        if (cat is null)
+        {
+            cat = new CategoriaArtigo { TenantId = tenantId, Nome = nome };
+            await _repo.AddCategoriaAsync(cat, ct);
+        }
+        var antes = cat.PrecoVendaCents;
+        cat.PrecoVendaCents = req.PrecoVendaCents is > 0 ? req.PrecoVendaCents : null;
+        await _repo.SaveAsync(ct);
+        _precos = null;
+        await _audit.LogAsync(AuditAction.Update, nameof(CategoriaArtigo), cat.Id, new { cat.Nome, antes, depois = cat.PrecoVendaCents }, ct: ct);
+        return (await CategoriasAsync(ct)).First(c => c.Nome.Equals(cat.Nome, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Preço por categoria (nome em minúsculas → cêntimos), carregado uma vez por pedido.</summary>
+    private Dictionary<string, int>? _precos;
+
+    private async Task PrecosCategoriaAsync(CancellationToken ct)
+        => _precos ??= (await _repo.ListCategoriasAsync(ct)).Where(c => c.PrecoVendaCents is not null)
+            .GroupBy(c => c.Nome.Trim().ToLowerInvariant()).ToDictionary(g => g.Key, g => g.First().PrecoVendaCents!.Value);
+
+    private int? PrecoCategoria(Artigo a)
+        => a.Categoria is { } c && _precos is not null && _precos.TryGetValue(c.Trim().ToLowerInvariant(), out var p) ? p : null;
+
+    /// <summary>Películas e vidros temperados (PT/ES/EN) — vão para a categoria "Películas".</summary>
+    private static bool EPelicula(string nome)
+        => System.Text.RegularExpressions.Regex.IsMatch(nome, "pel[ií]cula|vidro temperado|templado|tempered|hydrogel|hidrogel",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>O do artigo; senão o da categoria; senão o calculado do lote mais antigo com stock (ou do mais recente).</summary>
+    private int? PrecoEfetivo(Artigo a)
     {
         if (a.PrecoVendaCents is { } p) return p;
+        if (PrecoCategoria(a) is { } pc) return pc;
         var lote = LotesFifo(a).FirstOrDefault()
             ?? a.Lotes.Where(l => !l.IsDeleted).OrderByDescending(l => l.Documento?.Data ?? l.CreatedAt).FirstOrDefault();
         return lote is null ? null : (int)Math.Round(PrecoCalculado(lote) * 100m, MidpointRounding.AwayFromZero);
     }
 
-    private static ArtigoDto ToDto(Artigo a) => new(
+    private ArtigoDto ToDto(Artigo a) => new(
         a.Id, a.Numero, a.Sku, a.CodigoBarras, a.CodigoFabricante, a.Nome, a.Categoria, a.PrecoVendaCents, PrecoEfetivo(a),
+        a.PrecoVendaCents is not null ? "artigo" : PrecoCategoria(a) is not null ? "categoria" : "calculado",
         Stock(a), a.Lotes.Count(l => !l.IsDeleted), a.Localizacao, a.Ativo, a.Notas);
 
-    private static ArtigoDetalheDto Detalhe(Artigo a) => new(ToDto(a), a.Lotes
+    private ArtigoDetalheDto Detalhe(Artigo a) => new(ToDto(a), a.Lotes
         .Where(l => !l.IsDeleted)
         .OrderBy(l => l.Documento?.Data ?? l.CreatedAt).ThenBy(l => l.Numero)
         .Select(l => new ArtigoLoteDto(l.Id, l.Numero, l.Descricao, l.Documento?.Fornecedor?.Name ?? "—",

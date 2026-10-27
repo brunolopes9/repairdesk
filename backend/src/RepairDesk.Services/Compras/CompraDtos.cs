@@ -101,7 +101,9 @@ public sealed record InventarioLinhaDto(
     decimal TaxaIvaCompra,
     // Sprint 566: artigo da loja a que o lote pertence.
     Guid? ArtigoId = null,
-    string? ArtigoSku = null);
+    string? ArtigoSku = null,
+    /// <summary>Sprint 570: preço de venda do artigo (próprio ou da categoria) — o editor de vendas propõe este.</summary>
+    decimal? PrecoVendaArtigo = null);
 
 public sealed record ResumoColunaDto(
     int Unidades,

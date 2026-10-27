@@ -35,14 +35,17 @@ public class CompraService : ICompraService
     private readonly ITenantContext _tenant;
     private readonly IAuditLogger _audit;
 
+    private readonly IArtigoRepository? _artigos;
+
     public CompraService(ICompraRepository repo, IFornecedorRepository fornecedores, ISupplierInvoiceImportRepository imports,
-        ITenantContext tenant, IAuditLogger audit)
+        ITenantContext tenant, IAuditLogger audit, IArtigoRepository? artigos = null)
     {
         _repo = repo;
         _fornecedores = fornecedores;
         _imports = imports;
         _tenant = tenant;
         _audit = audit;
+        _artigos = artigos;
     }
 
     private static decimal TaxaVenda => FiscalDefaults.TaxaIvaNormal;
@@ -162,6 +165,12 @@ public class CompraService : ICompraService
     public async Task<IReadOnlyList<InventarioLinhaDto>> InventarioAsync(CancellationToken ct = default)
     {
         var linhas = await _repo.ListLinhasAsync(soComStock: true, ct);
+        // Sprint 570: lotes de um artigo vendem ao preço do artigo (próprio ou da categoria, ex.: películas a 15 €).
+        var precosCategoria = _artigos is null ? new Dictionary<string, int>()
+            : (await _artigos.ListCategoriasAsync(ct)).Where(c => c.PrecoVendaCents is not null)
+                .GroupBy(c => c.Nome.Trim().ToLowerInvariant()).ToDictionary(g => g.Key, g => g.First().PrecoVendaCents!.Value);
+        int? PrecoArtigo(CompraLinha l) => l.Artigo is not { } a ? null
+            : a.PrecoVendaCents ?? (a.Categoria is { } c && precosCategoria.TryGetValue(c.Trim().ToLowerInvariant(), out var p) ? p : null);
         return linhas.Select(l =>
         {
             var u = Calc(l);
@@ -170,7 +179,7 @@ public class CompraService : ICompraService
             return new InventarioLinhaDto(
                 l.Id, l.Numero, doc.Id, doc.Fornecedor?.Name ?? "—", doc.Data, Referencia(doc), doc.FaturaEmFalta,
                 l.Descricao, l.Localizacao, q, l.PrecoUnitarioPago,
-                q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado, l.TaxaIvaCompra, l.ArtigoId, l.Artigo?.Sku);
+                q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado, l.TaxaIvaCompra, l.ArtigoId, l.Artigo?.Sku, PrecoArtigo(l) is { } pa ? pa / 100m : null);
         }).ToList();
     }
 

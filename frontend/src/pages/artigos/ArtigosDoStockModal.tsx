@@ -39,7 +39,7 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
 
   const criar = useMutation({
     mutationFn: () => artigosApi.criarEmLote(
-      Object.entries(escolhidos).map(([i, nome]) => ({ nome: nome.trim(), loteIds: sugestoes.data![Number(i)].loteIds })),
+      Object.entries(escolhidos).map(([i, nome]) => ({ nome: nome.trim(), loteIds: sugestoes.data![Number(i)].loteIds, categoria: sugestoes.data![Number(i)].categoria })),
       categoria.trim() || null),
     onSuccess: (criados) => {
       toast.success(`${criados.length} artigo(s) criados`, 'Já com stock e código de barras — escolhe-os para imprimir as etiquetas.');
@@ -60,8 +60,8 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
         Criar {n} artigo(s)
       </Button>}>
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
-        Lotes em stock ainda sem artigo, juntos pela descrição. Podes mudar o nome (é o que aparece na etiqueta). O preço fica o calculado
-        (custo + lucro + IVA) — muda-o depois no artigo se quiseres um preço fixo.
+        Lotes em stock ainda sem artigo, juntos pela descrição. Podes mudar o nome (é o que aparece na etiqueta). As películas vão sozinhas
+        para a categoria "Películas" (vendem ao preço da categoria); o resto fica com o preço calculado (custo + lucro + IVA) ou a categoria que escolheres.
       </p>
       <div className="mb-3 grid gap-3 sm:grid-cols-2">
         <label className="relative block">
@@ -107,6 +107,7 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
                         {marcado
                           ? <input value={escolhidos[s.i]} onChange={(e) => setEscolhidos((x) => ({ ...x, [s.i]: e.target.value }))} className={`${inputCls} min-h-9 py-1`} />
                           : s.nome}
+                        {s.categoria && <span className="ml-1 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">{s.categoria}</span>}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{s.stock}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{s.precoCalculadoCents != null ? formatEur(s.precoCalculadoCents / 100) : '—'}</td>

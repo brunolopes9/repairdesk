@@ -12,6 +12,10 @@ public interface IArtigoRepository
     /// <summary>Outro artigo (≠ <paramref name="exceptoId"/>) já usa este código como barras, fabricante ou SKU?</summary>
     Task<bool> CodigoEmUsoAsync(string codigo, Guid? exceptoId, CancellationToken ct = default);
     Task AddAsync(Artigo artigo, CancellationToken ct = default);
+    /// <summary>Sprint 570: categorias com preço por defeito.</summary>
+    Task<IReadOnlyList<CategoriaArtigo>> ListCategoriasAsync(CancellationToken ct = default);
+    Task<CategoriaArtigo?> FindCategoriaAsync(string nome, CancellationToken ct = default);
+    Task AddCategoriaAsync(CategoriaArtigo categoria, CancellationToken ct = default);
     /// <summary>Grava atribuindo Numero/SKU/código interno aos artigos novos (com nova tentativa se colidir).</summary>
     Task SaveAsync(CancellationToken ct = default);
 }

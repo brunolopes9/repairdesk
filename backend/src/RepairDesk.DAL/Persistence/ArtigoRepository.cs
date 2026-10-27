@@ -44,6 +44,18 @@ public class ArtigoRepository : IArtigoRepository
 
     public Task AddAsync(Artigo artigo, CancellationToken ct = default) => _db.Artigos.AddAsync(artigo, ct).AsTask();
 
+    public async Task<IReadOnlyList<CategoriaArtigo>> ListCategoriasAsync(CancellationToken ct = default)
+        => await _db.CategoriasArtigo.OrderBy(c => c.Nome).ToListAsync(ct);
+
+    public Task<CategoriaArtigo?> FindCategoriaAsync(string nome, CancellationToken ct = default)
+    {
+        var n = nome.Trim().ToUpper();
+        return _db.CategoriasArtigo.FirstOrDefaultAsync(c => c.Nome.ToUpper() == n, ct);
+    }
+
+    public Task AddCategoriaAsync(CategoriaArtigo categoria, CancellationToken ct = default)
+        => _db.CategoriasArtigo.AddAsync(categoria, ct).AsTask();
+
     public async Task SaveAsync(CancellationToken ct = default)
     {
         const int maxAttempts = 5;

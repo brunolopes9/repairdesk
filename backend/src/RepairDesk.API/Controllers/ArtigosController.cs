@@ -29,6 +29,14 @@ public class ArtigosController : ControllerBase
     [HttpGet("sugestoes")]
     public Task<IReadOnlyList<ArtigoSugestaoDto>> Sugestoes(CancellationToken ct) => _service.SugestoesAsync(ct);
 
+    /// <summary>Sprint 570: categorias com preço por defeito (ex.: Películas a 15 €).</summary>
+    [HttpGet("categorias")]
+    public Task<IReadOnlyList<CategoriaArtigoDto>> Categorias(CancellationToken ct) => _service.CategoriasAsync(ct);
+
+    [HttpPut("categorias")]
+    [Authorize(Roles = "Admin")]
+    public Task<CategoriaArtigoDto> GuardarCategoria([FromBody] CategoriaArtigoRequest req, CancellationToken ct) => _service.GuardarCategoriaAsync(req, ct);
+
     [HttpPost("em-lote")]
     public Task<IReadOnlyList<ArtigoDto>> CriarEmLote([FromBody] ArtigosEmLoteRequest req, CancellationToken ct) => _service.CriarEmLoteAsync(req, ct);
 
