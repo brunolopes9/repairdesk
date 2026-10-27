@@ -1,6 +1,6 @@
 import { api } from '../api';
 import type { Venda } from '../vendas/types';
-import type { Artigo, ArtigoDetalhe, ArtigoWrite, BalcaoVenda, EtiquetasPedido } from './types';
+import type { Artigo, ArtigoDetalhe, ArtigoSugestao, ArtigoWrite, BalcaoVenda, EtiquetasPedido } from './types';
 
 export const artigosApi = {
   list(q?: string, incluirInativos = false) {
@@ -34,6 +34,12 @@ export const artigosApi = {
     const url = URL.createObjectURL(resp.data);
     window.open(url, '_blank', 'noopener,noreferrer');
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
+  sugestoes() {
+    return api.get<ArtigoSugestao[]>('/artigos/sugestoes').then((r) => r.data);
+  },
+  criarEmLote(itens: { nome: string; loteIds: string[]; precoVendaCents?: number | null }[], categoria: string | null) {
+    return api.post<Artigo[]>('/artigos/em-lote', { itens, categoria }, { timeout: 120_000 }).then((r) => r.data);
   },
   vender(req: BalcaoVenda) {
     return api.post<Venda>('/artigos/balcao/vender', req).then((r) => r.data);

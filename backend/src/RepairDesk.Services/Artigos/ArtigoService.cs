@@ -56,6 +56,13 @@ public sealed record BalcaoLinhaRequest(Guid ArtigoId, int Quantidade, int? Prec
 
 public sealed record BalcaoVendaRequest(IReadOnlyList<BalcaoLinhaRequest> Linhas, PaymentMethod PaymentMethod, Guid? ClienteId = null);
 
+/// <summary>Sprint 569: lotes em stock sem artigo, agrupados pela mesma descrição — um artigo por grupo.</summary>
+public sealed record ArtigoSugestaoDto(string Nome, IReadOnlyList<Guid> LoteIds, IReadOnlyList<int> Lotes, int Stock, int? PrecoCalculadoCents, string? Localizacao);
+
+public sealed record ArtigoEmLoteItem(string Nome, IReadOnlyList<Guid> LoteIds, int? PrecoVendaCents = null);
+
+public sealed record ArtigosEmLoteRequest(IReadOnlyList<ArtigoEmLoteItem> Itens, string? Categoria = null);
+
 public interface IArtigoService
 {
     Task<IReadOnlyList<ArtigoDto>> ListAsync(string? q, bool incluirInativos, CancellationToken ct = default);
@@ -67,6 +74,10 @@ public interface IArtigoService
     Task<ArtigoDetalheDto> DesligarLoteAsync(Guid id, Guid loteId, CancellationToken ct = default);
     /// <summary>Venda ao balcão: tira cada artigo dos lotes mais antigos e cria a venda entregue.</summary>
     Task<VendaDto> VenderAsync(BalcaoVendaRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 569: lotes em stock ainda sem artigo, agrupados pela descrição (sugestões de artigos).</summary>
+    Task<IReadOnlyList<ArtigoSugestaoDto>> SugestoesAsync(CancellationToken ct = default);
+    /// <summary>Sprint 569: cria vários artigos de uma vez, cada um já com os seus lotes.</summary>
+    Task<IReadOnlyList<ArtigoDto>> CriarEmLoteAsync(ArtigosEmLoteRequest req, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -140,6 +151,43 @@ public class ArtigoService : IArtigoService
         }
         return await GetAsync(artigo.Id, ct);
     }
+
+    public async Task<IReadOnlyList<ArtigoSugestaoDto>> SugestoesAsync(CancellationToken ct = default)
+    {
+        var lotes = (await _compras.ListLinhasAsync(soComStock: true, ct)).Where(l => l.ArtigoId is null).ToList();
+        return lotes
+            .GroupBy(l => ChaveDescricao(l.Descricao))
+            .Select(g =>
+            {
+                var ordenados = g.OrderBy(l => l.Documento?.Data ?? l.CreatedAt).ThenBy(l => l.Numero).ToList();
+                var nome = g.GroupBy(l => l.Descricao.Trim()).OrderByDescending(x => x.Count()).ThenBy(x => x.Key.Length).First().Key;
+                var maisAntigo = ordenados.First();
+                return new ArtigoSugestaoDto(nome.Length > 200 ? nome[..200] : nome, ordenados.Select(l => l.Id).ToList(), ordenados.Select(l => l.Numero).ToList(),
+                    g.Sum(l => l.QuantidadeEmStock), (int)Math.Round(PrecoCalculado(maisAntigo) * 100m, MidpointRounding.AwayFromZero),
+                    ordenados.Select(l => l.Localizacao).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)));
+            })
+            .OrderBy(s => s.Nome)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<ArtigoDto>> CriarEmLoteAsync(ArtigosEmLoteRequest req, CancellationToken ct = default)
+    {
+        if (req.Itens is null || req.Itens.Count == 0) throw new ValidationException("sem_itens", "Escolhe pelo menos um artigo a criar.");
+        if (req.Itens.Count > 300) throw new ValidationException("demasiados", "Máximo 300 artigos de cada vez.");
+        var repetidos = req.Itens.SelectMany(i => i.LoteIds).GroupBy(x => x).Where(g => g.Count() > 1).ToList();
+        if (repetidos.Count > 0) throw new ValidationException("lote_repetido", "O mesmo lote está em dois artigos.");
+        var criados = new List<ArtigoDto>();
+        foreach (var item in req.Itens)
+        {
+            var d = await CreateAsync(new ArtigoWriteRequest(item.Nome, req.Categoria, item.PrecoVendaCents, null, null, null, null, true, item.LoteIds), ct);
+            criados.Add(d.Artigo);
+        }
+        return criados;
+    }
+
+    /// <summary>"Película  Vidro  A34 " e "película vidro a34" são o mesmo artigo.</summary>
+    private static string ChaveDescricao(string s)
+        => System.Text.RegularExpressions.Regex.Replace(s.Trim().ToLowerInvariant(), @"\s+", " ");
 
     public async Task<ArtigoDetalheDto> DesligarLoteAsync(Guid id, Guid loteId, CancellationToken ct = default)
     {

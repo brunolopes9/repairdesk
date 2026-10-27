@@ -226,6 +226,7 @@ try
     builder.Services.AddScoped<IVendaRepository, VendaRepository>();
     builder.Services.AddScoped<IVendaService, VendaService>();
     builder.Services.AddScoped<IVendaFaturaService, VendaFaturaService>();
+    builder.Services.AddScoped<ITalaoPdfService, TalaoPdfService>();
     builder.Services.AddScoped<IArtigoRepository, ArtigoRepository>();
     // Sprint 567: Moloni ON (documentos fiscais emitidos pelo Mender).
     builder.Services.AddHttpClient<RepairDesk.Services.Moloni.IMoloniClient, RepairDesk.Services.Moloni.MoloniClient>(c => c.Timeout = TimeSpan.FromSeconds(30));

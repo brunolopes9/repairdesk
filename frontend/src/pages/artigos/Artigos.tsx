@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Plus, Printer, ScanBarcode, Search, Tag } from 'lucide-react';
+import { PackagePlus, Plus, Printer, ScanBarcode, Search, Tag } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SectionCard, SkeletonRow, SortableTh } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
@@ -11,6 +11,7 @@ import { formatEur } from '../../lib/compras/format';
 import { toast } from '../../lib/toast';
 import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
 import ArtigoModal from './ArtigoModal';
+import ArtigosDoStockModal from './ArtigosDoStockModal';
 
 type Campo = 'sku' | 'nome' | 'stock' | 'preco' | 'local';
 
@@ -37,6 +38,7 @@ export default function Artigos() {
   const [tamanho, setTamanho] = useState(tamanhoGuardado);
   const [comPreco, setComPreco] = useState(true);
   const [aImprimir, setAImprimir] = useState(false);
+  const [doStock, setDoStock] = useState(false);
 
   const list = useQuery({ queryKey: ['artigos', 'lista', q], queryFn: () => artigosApi.list(q), placeholderData: keepPreviousData });
   const { ordem, alternar } = useOrdenacao<Campo>('nome', false);
@@ -95,6 +97,7 @@ export default function Artigos() {
             <Button variant="secondary" leftIcon={<Printer size={15} />} disabled={nEscolhidos === 0} onClick={() => setEtiquetasAbertas(true)}>
               Etiquetas{nEscolhidos ? ` (${totalEtiquetas})` : ''}
             </Button>
+            <Button variant="secondary" leftIcon={<PackagePlus size={15} />} onClick={() => setDoStock(true)}>Criar a partir do stock</Button>
             <Button leftIcon={<Plus size={15} />} onClick={() => setEditar(null)}>Novo artigo</Button>
           </>
         }
@@ -161,6 +164,9 @@ export default function Artigos() {
           </div>
         )}
       </SectionCard>
+
+      <ArtigosDoStockModal open={doStock} onClose={() => setDoStock(false)}
+        onCriados={(ids) => setEscolhidos(Object.fromEntries(ids.map((id) => [id, 1])))} />
 
       <ArtigoModal open={editar !== undefined} artigoId={editar ?? null} onClose={() => setEditar(undefined)} />
 

@@ -36,13 +36,14 @@ public class VendasController : ControllerBase
         [FromQuery] VendaEstado? estado,
         [FromQuery] bool emCurso = false,
         [FromQuery] bool faturaPorRegistar = false,
+        [FromQuery] bool porPagar = false,
         [FromQuery] string? q = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? sort = null,
         [FromQuery] string? dir = null,
         CancellationToken ct = default)
-        => _service.SearchAsync(new VendaFiltro(from, to, clienteId, tipo, estado, emCurso, faturaPorRegistar, q, Ordenacao.De(sort, dir)), page, pageSize, ct);
+        => _service.SearchAsync(new VendaFiltro(from, to, clienteId, tipo, estado, emCurso, faturaPorRegistar, q, Ordenacao.De(sort, dir), porPagar), page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<VendaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
@@ -161,6 +162,11 @@ public class VendasController : ControllerBase
         var validated = await validator.ValidateAsync(stream, file.ContentType, FileKind.Pdf, ct);
         return Ok(await faturas.ImportarAsync(validated.Buffer, ct));
     }
+
+    /// <summary>Sprint 569: talão de 80 mm (impressora de talões do balcão).</summary>
+    [HttpGet("{id:guid}/talao.pdf")]
+    public async Task<IActionResult> TalaoPdf(Guid id, [FromServices] ITalaoPdfService talao, CancellationToken ct)
+        => File(await talao.GerarAsync(id, ct), "application/pdf", "talao.pdf");
 
     /// <summary>Sprint 565: o PDF da fatura de venda (se foi importado).</summary>
     [HttpGet("{id:guid}/fatura.pdf")]

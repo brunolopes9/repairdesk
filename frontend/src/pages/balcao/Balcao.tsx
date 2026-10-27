@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Minus, Plus, ScanBarcode, ShoppingCart, Trash2 } from 'lucide-react';
+import { Minus, Plus, Printer, ScanBarcode, ShoppingCart, Trash2 } from 'lucide-react';
+import { openPdfInNewTab } from '../../lib/downloadPdf';
+import { vendasApi } from '../../lib/vendas/api';
 import { Button, PageHeader, SectionCard } from '../../components/ui';
 import { inputCls } from '../../components/ui/formClasses';
 import { artigosApi } from '../../lib/artigos/api';
@@ -29,6 +31,7 @@ export default function Balcao() {
   const [pesquisa, setPesquisa] = useState('');
   const [carrinho, setCarrinho] = useState<LinhaCarrinho[]>([]);
   const [pagamento, setPagamento] = useState<PaymentMethod>(PAYMENT_METHOD.Dinheiro);
+  const [ultimaVenda, setUltimaVenda] = useState<{ id: string; numero: number; fatura: string | null } | null>(null);
 
   const resultados = useQuery({
     queryKey: ['artigos', 'balcao', pesquisa],
@@ -82,6 +85,7 @@ export default function Balcao() {
     onSuccess: (v) => {
       if (v.invoiceNumber) toast.success(`Venda #${v.numero} — ${formatEur(v.totalCents / 100)}`, `Fatura-recibo ${v.invoiceNumber} emitida.`);
       else toast.error(`Venda #${v.numero} registada, mas sem fatura-recibo`, 'Abre a venda e emite-a (o Moloni ON não respondeu ou não está ligado).');
+      setUltimaVenda({ id: v.id, numero: v.numero, fatura: v.invoiceNumber });
       setCarrinho([]);
       setPesquisa('');
       qc.invalidateQueries({ queryKey: ['artigos'] });
@@ -94,7 +98,13 @@ export default function Balcao() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Balcão" description="Passa a pistola no código de barras (ou escreve o nome) e fecha a venda." />
+      <PageHeader title="Balcão" description="Passa a pistola no código de barras (ou escreve o nome) e fecha a venda."
+        actions={ultimaVenda && (
+          <Button type="button" variant="secondary" leftIcon={<Printer size={15} />}
+            onClick={() => openPdfInNewTab(vendasApi.talaoPath(ultimaVenda.id)).catch((e) => toast.fromError(e, 'Não foi possível gerar o talão.'))}>
+            Talão da venda #{ultimaVenda.numero}{ultimaVenda.fatura ? ` · ${ultimaVenda.fatura}` : ''}
+          </Button>
+        )} />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         <div className="space-y-4">

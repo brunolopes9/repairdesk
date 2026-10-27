@@ -96,6 +96,7 @@ public class VendaRepository : IVendaRepository
         if (filtro.Estado is { } estado) q = q.Where(v => v.Estado == estado);
         if (filtro.EmCurso) q = q.Where(v => v.Estado == VendaEstado.Orcamento || v.Estado == VendaEstado.EmCurso || v.Estado == VendaEstado.AEsperaPeca || v.Estado == VendaEstado.Pronta);
         if (filtro.FaturaPorRegistar) q = q.Where(v => v.Estado == VendaEstado.Entregue && v.InvoiceNumber == null);
+        if (filtro.PorPagar) q = q.Where(v => v.MoloniDocumentoTipo == "invoice" && v.MoloniReciboId == null && v.Estado != VendaEstado.Cancelada);
         if (!string.IsNullOrWhiteSpace(filtro.Q))
         {
             var inteiro = filtro.Q.Trim().TrimStart('#');

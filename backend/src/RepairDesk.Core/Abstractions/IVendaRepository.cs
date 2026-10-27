@@ -40,7 +40,9 @@ public sealed record VendaFiltro(
     bool FaturaPorRegistar = false,
     string? Q = null,
     // Sprint 561: "numero" | "data" | "cliente" | "estado" | "total".
-    Ordenacao? Ordem = null);
+    Ordenacao? Ordem = null,
+    /// <summary>Sprint 569: fatura emitida no Moloni (por pagar) ainda sem recibo.</summary>
+    bool PorPagar = false);
 
 public sealed record VendaImeiLookupRow(
     Guid VendaId,

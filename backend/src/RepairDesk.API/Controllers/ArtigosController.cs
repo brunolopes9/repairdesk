@@ -25,6 +25,13 @@ public class ArtigosController : ControllerBase
     [HttpGet("codigo/{codigo}")]
     public Task<ArtigoDto> PorCodigo(string codigo, CancellationToken ct) => _service.PorCodigoAsync(codigo, ct);
 
+    /// <summary>Sprint 569: lotes em stock sem artigo, agrupados pela descrição.</summary>
+    [HttpGet("sugestoes")]
+    public Task<IReadOnlyList<ArtigoSugestaoDto>> Sugestoes(CancellationToken ct) => _service.SugestoesAsync(ct);
+
+    [HttpPost("em-lote")]
+    public Task<IReadOnlyList<ArtigoDto>> CriarEmLote([FromBody] ArtigosEmLoteRequest req, CancellationToken ct) => _service.CriarEmLoteAsync(req, ct);
+
     [HttpPost]
     public Task<ArtigoDetalheDto> Create([FromBody] ArtigoWriteRequest req, CancellationToken ct) => _service.CreateAsync(req, ct);
 

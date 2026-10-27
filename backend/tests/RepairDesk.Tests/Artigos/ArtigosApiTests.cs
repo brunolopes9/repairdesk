@@ -106,6 +106,36 @@ public class ArtigosApiTests : IClassFixture<RepairDeskApiFactory>
             .StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
+    [Fact]
+    public async Task Sugestoes_AgrupamLotesComAMesmaDescricao_EEmLoteCriaJaLigados()
+    {
+        var client = await AuthedClient();
+        var marca = Guid.NewGuid().ToString("N")[..6];
+        var l1 = await CriarLote(client, $"Película Teste {marca} A54", 2, 1m);
+        var l2 = await CriarLote(client, $"película  teste {marca} a54 ", 3, 1.2m);
+        var sug = (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!.Single(s => s.Nome.Contains(marca, StringComparison.OrdinalIgnoreCase));
+        sug.LoteIds.Should().BeEquivalentTo(new[] { l1, l2 });
+        sug.Stock.Should().Be(5);
+        sug.PrecoCalculadoCents.Should().BeGreaterThan(0);
+
+        var criados = await Post<List<ArtigoDto>>(client, "/api/artigos/em-lote", new ArtigosEmLoteRequest([new ArtigoEmLoteItem(sug.Nome, sug.LoteIds)], "Películas"));
+        criados.Single().Stock.Should().Be(5);
+        criados.Single().Categoria.Should().Be("Películas");
+        (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!.Should().NotContain(s => s.Nome.Contains(marca, StringComparison.OrdinalIgnoreCase), "já têm artigo");
+    }
+
+    [Fact]
+    public async Task Talao80mm_DaPdf()
+    {
+        var client = await AuthedClient();
+        var lote = await CriarLote(client, "Cabo talão", 1, 2m);
+        var a = (await Post<ArtigoDetalheDto>(client, "/api/artigos", new ArtigoWriteRequest("Cabo talão", null, 500, null, null, null, null, true, [lote]))).Artigo;
+        var venda = await Post<VendaDto>(client, "/api/artigos/balcao/vender", new BalcaoVendaRequest([new BalcaoLinhaRequest(a.Id, 1)], PaymentMethod.Dinheiro));
+        var pdf = await client.GetAsync($"/api/vendas/{venda.Id}/talao.pdf");
+        pdf.EnsureSuccessStatusCode();
+        (await pdf.Content.ReadAsByteArrayAsync()).Take(4).Should().Equal("%PDF"u8.ToArray());
+    }
+
     private static async Task<T> Post<T>(HttpClient client, string url, object body)
     {
         var resp = await client.PostAsJsonAsync(url, body);

@@ -56,6 +56,15 @@ export interface EtiquetasPedido {
   mostrarPreco: boolean;
 }
 
+export interface ArtigoSugestao {
+  nome: string;
+  loteIds: string[];
+  lotes: number[];
+  stock: number;
+  precoCalculadoCents: number | null;
+  localizacao: string | null;
+}
+
 export interface BalcaoVenda {
   linhas: { artigoId: string; quantidade: number; precoUnitarioCents?: number | null }[];
   paymentMethod: PaymentMethod;

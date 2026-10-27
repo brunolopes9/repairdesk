@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:7ba062b035442668 -->
+<!-- roles-matrix-snapshot:ac78308e78adc1ae -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -29,9 +29,9 @@ testes e esta matriz com snapshot.
 | DevicesController (S461+S464) | `GET/POST/PUT/DELETE /api/devices*` + `GET /api/devices/by-imei/{imei}` — asset registry | `Authenticated` |
 | ComprasController (S556) | `GET /api/compras*` (lista, detalhe, inventário, resumo, `faturas-recebidas/{importId}/correspondencia` S560), `POST/PUT /api/compras*`, `POST /api/compras/simulador` | `Authenticated` |
 | ComprasController (S556) | `DELETE /api/compras/{id}`, `POST /api/compras/importar-excel`, `POST /api/compras/de-fatura/{importId}` (aprovar fatura lida por IA), `POST /api/compras/{id}/associar-fatura/{importId}` e `POST /api/compras/faturas-recebidas/associar-automaticamente` (S560) | `Admin` |
-| VendasController (S557/S559) | `GET/POST/PUT /api/vendas*`, `POST /{id}/estado`, `PUT /{id}/fatura`, PDFs (`orcamento`, `entrada`, `entrega`, `label`, `recibo`), `GET/POST /{id}/assinaturas`, fotos `/api/vendas/{id}/fotos`, `export.csv` | `Authenticated`; `estado = Cancelada` (repõe stock) só `Admin` (verificado na action); `PUT /{id}/corrigir-precos` (S563) `Admin`; `POST /importar-fatura` (S565) `Admin`; `GET /{id}/fatura.pdf` e `GET /faturas/export` (S565) `Authenticated`; `POST /{id}/moloni/{emitir,recibo,orcamento}` e `GET /{id}/moloni/{doc}.pdf` (S567) `Authenticated`; `POST /{id}/moloni/anular` (S567) `Admin` |
+| VendasController (S557/S559) | `GET/POST/PUT /api/vendas*`, `POST /{id}/estado`, `PUT /{id}/fatura`, PDFs (`orcamento`, `entrada`, `entrega`, `label`, `recibo`), `GET/POST /{id}/assinaturas`, fotos `/api/vendas/{id}/fotos`, `export.csv` | `Authenticated`; `estado = Cancelada` (repõe stock) só `Admin` (verificado na action); `PUT /{id}/corrigir-precos` (S563) `Admin`; `POST /importar-fatura` (S565) `Admin`; `GET /{id}/fatura.pdf`, `GET /{id}/talao.pdf` (S569) e `GET /faturas/export` (S565) `Authenticated`; `POST /{id}/moloni/{emitir,recibo,orcamento}` e `GET /{id}/moloni/{doc}.pdf` (S567) `Authenticated`; `POST /{id}/moloni/anular` (S567) `Admin` |
 | MoloniController (S567/S568) | `GET /api/moloni/estado`, `GET /documentos`, `GET /documentos/{tipo}/{id}.pdf`, `POST /documentos/Fatura/{id}/recibo`, `GET /artigos`, `GET /referencias` | `Authenticated`; `PUT`/`DELETE /api/moloni`, `POST /documentos/{tipo}/{id}/anular`, `POST`/`PUT`/`DELETE /artigos`, `POST /clientes/importar`, `POST /vendas/ligar` `Admin` |
-| ArtigosController (S566) | `GET/POST/PUT /api/artigos*`, `GET /codigo/{codigo}`, `DELETE /{id}/lotes/{loteId}`, `POST /etiquetas.pdf`, `POST /balcao/vender` | `Authenticated` (operacional: Admin e Empregado) |
+| ArtigosController (S566) | `GET/POST/PUT /api/artigos*`, `GET /codigo/{codigo}`, `DELETE /{id}/lotes/{loteId}`, `POST /etiquetas.pdf`, `POST /balcao/vender`, `GET /sugestoes`, `POST /em-lote` (S569) | `Authenticated` (operacional: Admin e Empregado) |
 | PublicPortalController / PublicWarrantyController | `GET/POST /api/public/*` | `Anonymous` + rate limit `public-portal` |
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |
 | UsersController | `POST /api/users/{id}/revoke-sessions`, `POST /api/users/{id}/deactivate` | `Admin` |

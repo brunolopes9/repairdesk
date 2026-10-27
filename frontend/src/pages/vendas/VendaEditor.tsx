@@ -264,6 +264,11 @@ export default function VendaEditor() {
               PDF da fatura
             </Button>
           )}
+          {venda?.estado === VENDA_ESTADO.Entregue && (
+            <Button type="button" variant="secondary" leftIcon={<FileText size={15} />} onClick={() => openPdfInNewTab(vendasApi.talaoPath(venda.id))}>
+              Talão
+            </Button>
+          )}
           {venda && (
             <Button type="button" variant="secondary" leftIcon={<FileText size={15} />} onClick={() => openPdfInNewTab(vendasApi.pdfPath(venda.id, 'orcamento'))}>
               Orçamento PDF

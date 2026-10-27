@@ -32,6 +32,7 @@ public class MoloniApiTests : IClassFixture<MoloniApiFactory>
         fatura.Paga.Should().BeFalse("fatura fica por pagar até ao recibo");
         fatura.TemFaturaPdf.Should().BeTrue();
         fatura.FaturaPorRegistar.Should().BeFalse();
+        (await client.GetFromJsonAsync<PagedResult<VendaDto>>("/api/vendas?porPagar=true&pageSize=100"))!.Items.Should().Contain(v => v.Id == venda.Id);
 
         // Rascunho (status 0) com o preço SEM IVA, cliente criado pelo NIF; só depois finalizado (status 1).
         var criar = _factory.Moloni.Chamadas.Last(c => c.Operacao == "invoiceCreate").Variaveis!["d"]!;
@@ -43,6 +44,7 @@ public class MoloniApiTests : IClassFixture<MoloniApiFactory>
         var paga = await Post<VendaDto>(client, $"/api/vendas/{venda.Id}/moloni/recibo", new MoloniReciboRequest(PaymentMethod.TransferenciaBancaria));
         paga.Paga.Should().BeTrue();
         paga.MoloniReciboNumero.Should().Be("RC SOFTWARE/5");
+        (await client.GetFromJsonAsync<PagedResult<VendaDto>>("/api/vendas?porPagar=true&pageSize=100"))!.Items.Should().NotContain(v => v.Id == venda.Id);
         (await client.PostAsJsonAsync($"/api/vendas/{venda.Id}/moloni/recibo", new MoloniReciboRequest()))
             .StatusCode.Should().Be(HttpStatusCode.Conflict, "não se paga duas vezes");
 

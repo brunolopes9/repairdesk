@@ -27,6 +27,7 @@ const VISTAS = [
   { key: 'curso', label: 'Em curso' },
   { key: 'entregues', label: 'Entregues' },
   { key: 'fatura', label: 'Fatura por registar' },
+  { key: 'porpagar', label: 'Por pagar' },
   { key: 'todas', label: 'Todas' },
 ] as const;
 type Vista = (typeof VISTAS)[number]['key'];
@@ -64,10 +65,12 @@ export default function Vendas() {
     ...(vista === 'curso' ? { emCurso: true } : {}),
     ...(vista === 'entregues' ? { estado: VENDA_ESTADO.Entregue } : {}),
     ...(vista === 'fatura' ? { faturaPorRegistar: true } : {}),
+    ...(vista === 'porpagar' ? { porPagar: true } : {}),
   };
 
   const list = useQuery({ queryKey: ['vendas', filtro], queryFn: () => vendasApi.list(filtro), placeholderData: keepPreviousData });
   const porFaturar = useQuery({ queryKey: ['vendas', 'fatura-count'], queryFn: () => vendasApi.list({ faturaPorRegistar: true, pageSize: 1 }) });
+  const porPagar = useQuery({ queryKey: ['vendas', 'porpagar-count'], queryFn: () => vendasApi.list({ porPagar: true, pageSize: 1 }) });
 
   // Sprint 565: faturas emitidas no Moloni entram pelo PDF (uma ou várias de cada vez).
   const qc = useQueryClient();
@@ -141,7 +144,8 @@ export default function Vendas() {
         tabs={VISTAS.map((v) => ({
           key: v.key,
           label: v.label,
-          meta: v.key === 'fatura' && porFaturar.data?.total ? porFaturar.data.total : undefined,
+          meta: v.key === 'fatura' && porFaturar.data?.total ? porFaturar.data.total
+            : v.key === 'porpagar' && porPagar.data?.total ? porPagar.data.total : undefined,
         }))}
       />
 

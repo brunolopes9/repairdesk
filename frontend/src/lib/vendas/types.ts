@@ -156,6 +156,8 @@ export interface VendaFiltro {
   estado?: VendaEstado;
   emCurso?: boolean;
   faturaPorRegistar?: boolean;
+  /** Sprint 569: faturas do Moloni ainda sem recibo. */
+  porPagar?: boolean;
   clienteId?: string;
   from?: string;
   to?: string;

@@ -35,6 +35,10 @@ export const vendasApi = {
   exportFaturasPath(from: string, to: string) {
     return `/vendas/faturas/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
   },
+  /** Sprint 569: talão de 80 mm (impressora de talões). */
+  talaoPath(id: string) {
+    return `/vendas/${id}/talao.pdf`;
+  },
   reciboUrl(id: string) {
     return `${api.defaults.baseURL ?? ''}/vendas/${id}/recibo.pdf`;
   },
