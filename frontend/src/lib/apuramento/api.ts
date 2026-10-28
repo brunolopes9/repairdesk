@@ -31,7 +31,6 @@ export interface Apuramento {
   fecho: { ivaLiquidado: number; ivaDedutivel: number; saldo: number; pago: boolean; fechadoEm: string; diferenca: number } | null;
 }
 
-export interface FaturacaoAnterior { bens: number; informatica: number; reparacoes: number; trading: number }
 
 /** Sprint 575: IRS (regime simplificado) e Segurança Social — estimativas do ano até ao fim do trimestre. */
 export interface ApuramentoEstimativas {
@@ -54,14 +53,13 @@ export interface ApuramentoEstimativas {
   ssIsento: boolean;
   ssIsentoAte: string | null;
   ssContribuicaoAtual: number | null;
-  faturacaoAnterior: FaturacaoAnterior | null;
 }
 
 export const apuramentoApi = {
   trimestre(ano: number, trimestre: number) {
     return api.get<Apuramento>('/apuramento', { params: { ano, trimestre } }).then((r) => r.data);
   },
-  definirPressupostos(req: { inicioAtividade: string | null; ssContribuicaoAtual: number | null; ano: number; faturacaoAnterior: FaturacaoAnterior }) {
+  definirPressupostos(req: { inicioAtividade: string | null; ssContribuicaoAtual: number | null }) {
     return api.put('/apuramento/pressupostos', req).then(() => undefined);
   },
   fechar(ano: number, trimestre: number) {

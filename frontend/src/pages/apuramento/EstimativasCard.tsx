@@ -18,24 +18,15 @@ const txt = (v: number | null | undefined) => (v ? v.toFixed(2).replace('.', ','
  */
 export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEstimativas; ano: number; trimestre: number }) {
   const qc = useQueryClient();
-  const [f, setF] = useState({ inicio: '', ss: '', bens: '', informatica: '', reparacoes: '', trading: '' });
+  const [f, setF] = useState({ inicio: '', ss: '' });
   useEffect(() => {
-    setF({
-      inicio: e.inicioAtividade?.slice(0, 10) ?? '',
-      ss: txt(e.ssContribuicaoAtual),
-      bens: txt(e.faturacaoAnterior?.bens),
-      informatica: txt(e.faturacaoAnterior?.informatica),
-      reparacoes: txt(e.faturacaoAnterior?.reparacoes),
-      trading: txt(e.faturacaoAnterior?.trading),
-    });
+    setF({ inicio: e.inicioAtividade?.slice(0, 10) ?? '', ss: txt(e.ssContribuicaoAtual) });
   }, [e]);
   const num = (s: string) => parseDecimal(s) ?? 0;
   const guardar = useMutation({
     mutationFn: () => apuramentoApi.definirPressupostos({
       inicioAtividade: f.inicio || null,
       ssContribuicaoAtual: f.ss.trim() ? num(f.ss) : null,
-      ano,
-      faturacaoAnterior: { bens: num(f.bens), informatica: num(f.informatica), reparacoes: num(f.reparacoes), trading: num(f.trading) },
     }),
     onSuccess: () => { toast.success('Pressupostos guardados'); qc.invalidateQueries({ queryKey: ['apuramento'] }); },
     onError: (err) => toast.fromError(err, 'Não foi possível guardar.'),
@@ -58,7 +49,7 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
       )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">IRS {ano} · faturação até ao fim do {trimestre}.º trimestre</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">IRS {ano} · faturação no Mender (desde julho) até ao fim do {trimestre}.º trimestre</p>
           <p className="mt-1 text-2xl font-bold tabular-nums">{formatEur(e.irsEstimado)}</p>
           <p className="text-xs text-zinc-500">taxa efetiva ≈ {pct(e.taxaEfetiva)} da faturação · regime simplificado</p>
           <dl className="mt-3 space-y-1.5 text-sm tabular-nums">
@@ -105,13 +96,6 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
             <input type="date" value={f.inicio} onChange={(ev) => setF({ ...f, inicio: ev.target.value })} className={inputCls} />
           </label>
           {campo('ss', 'Contribuição mensal atual à Segurança Social (€)', 'ex.: 115,87')}
-        </div>
-        <p className="mt-4 text-xs font-medium text-zinc-600 dark:text-zinc-300">Faturação de {ano} antes de usar o Mender (sem IVA) — ex.: janeiro a junho</p>
-        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {campo('bens', 'Bens / peças')}
-          {campo('informatica', 'Informática / software')}
-          {campo('reparacoes', 'Reparações')}
-          {campo('trading', 'Trading')}
         </div>
         <div className="mt-3 flex justify-end">
           <Button type="button" loading={guardar.isPending} onClick={() => guardar.mutate()}>Guardar pressupostos</Button>

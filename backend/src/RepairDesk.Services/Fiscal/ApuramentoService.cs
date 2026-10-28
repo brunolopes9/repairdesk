@@ -40,11 +40,11 @@ public sealed record ApuramentoResultadoDto(
 /// <summary>
 /// Sprint 575: estimativas (ano até ao fim do trimestre escolhido). Ver <see cref="EstimativasFiscais"/>.
 /// </summary>
-/// <summary>Sprint 576: faturação sem IVA antes do Mender (ex.: janeiro a junho), por tipo.</summary>
-public sealed record FaturacaoAnteriorDto(decimal Bens = 0, decimal Informatica = 0, decimal Reparacoes = 0, decimal Trading = 0);
-
-/// <summary>Sprint 576: o que se assume nas estimativas (definido pelo dono, nunca adivinhado).</summary>
-public sealed record PressupostosRequest(DateTime? InicioAtividade, decimal? SsContribuicaoAtual, int? Ano = null, FaturacaoAnteriorDto? FaturacaoAnterior = null);
+/// <summary>
+/// Sprint 576: o que se assume nas estimativas (definido pelo dono, nunca adivinhado). Só conta a faturação
+/// registada no Mender — desde julho de 2026 (3.º trimestre); o que está para trás não entra (decisão do Bruno).
+/// </summary>
+public sealed record PressupostosRequest(DateTime? InicioAtividade, decimal? SsContribuicaoAtual);
 
 public sealed record ApuramentoFechoDto(decimal IvaLiquidado, decimal IvaDedutivel, decimal Saldo, bool Pago, DateTime FechadoEm,
     /// <summary>Saldo recalculado agora − saldo declarado (≠ 0 = algo mudou depois de declarar).</summary>
@@ -72,8 +72,7 @@ public sealed record ApuramentoEstimativasDto(
     decimal SsContribuicaoMensal,
     bool SsIsento,
     DateTime? SsIsentoAte,
-    decimal? SsContribuicaoAtual = null,
-    FaturacaoAnteriorDto? FaturacaoAnterior = null);
+    decimal? SsContribuicaoAtual = null);
 
 /// <summary>Campo da declaração periódica de IVA (Continente) — a confirmar com o contabilista.</summary>
 public sealed record ApuramentoCampoDto(string Campo, string Descricao, decimal Valor);
@@ -151,14 +150,6 @@ public class ApuramentoService : IApuramentoService
             throw new ValidationException("valor_invalido", "Contribuição mensal inválida.");
         t.InicioAtividade = req.InicioAtividade?.Date;
         t.SsContribuicaoAtual = req.SsContribuicaoAtual;
-        if (req.Ano is { } ano && req.FaturacaoAnterior is { } fa)
-        {
-            if (new[] { fa.Bens, fa.Informatica, fa.Reparacoes, fa.Trading }.Any(v => v is < 0 or > 10_000_000))
-                throw new ValidationException("valor_invalido", "Faturação anterior inválida.");
-            var todas = FaturacaoAnterior(t);
-            todas[ano] = fa;
-            t.FaturacaoAnteriorJson = System.Text.Json.JsonSerializer.Serialize(todas);
-        }
         await _tenants.SaveAsync(ct);
     }
 
@@ -194,13 +185,6 @@ public class ApuramentoService : IApuramentoService
     private async Task<Tenant> TenantAsync(CancellationToken ct)
         => (_tenant.TenantId is { } id ? await _tenants.FindByIdAsync(id, ct) : null)
             ?? throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
-
-    private static Dictionary<int, FaturacaoAnteriorDto> FaturacaoAnterior(Tenant? t)
-    {
-        if (string.IsNullOrWhiteSpace(t?.FaturacaoAnteriorJson)) return new();
-        try { return System.Text.Json.JsonSerializer.Deserialize<Dictionary<int, FaturacaoAnteriorDto>>(t.FaturacaoAnteriorJson) ?? new(); }
-        catch (System.Text.Json.JsonException) { return new(); }
-    }
 
     private static decimal Taxa => FiscalDefaults.TaxaIvaNormal;
 
@@ -375,7 +359,6 @@ public class ApuramentoService : IApuramentoService
         // do IRS e a isenção da Segurança Social). Sem data: sem redução e sem isenção (estimativa prudente).
         var inicio = t?.InicioAtividade;
         var inicioAno = new DateTime(ano, 1, 1);
-        var anterior = FaturacaoAnterior(t).GetValueOrDefault(ano);
 
         var vendasAno = (await _vendas.ListParaApuramentoAsync(ParaUtc(inicioAno).AddDays(-1), ParaUtc(ate).AddDays(1), ct))
             .Where(v => v.InvoiceNumber is not null && DentroDe(DeLisboa(v.InvoiceEmittedAt ?? v.Data), inicioAno, ate)).ToList();
@@ -395,13 +378,6 @@ public class ApuramentoService : IApuramentoService
             }
         }
 
-        if (anterior is not null)
-        {
-            bens += anterior.Bens;
-            s075 += anterior.Informatica;
-            s035 += anterior.Reparacoes;
-            trading += anterior.Trading;
-        }
         var fator = inicio is { } ini ? EstimativasFiscais.FatorInicioAtividade(ano, ini) : 1m;
         var receitas075 = s075 + trading;
         var justificadas = EstimativasFiscais.DeducaoEspecifica
@@ -423,7 +399,7 @@ public class ApuramentoService : IApuramentoService
             fator, Euros(justificadas), Euros(acrescimo), Euros(rendimento), Euros(irs),
             faturacao > 0 ? Math.Round(irs / faturacao, 4) : 0m, EstimativasFiscais.AnoTabela(ano),
             Euros(relevante), isento ? 0m : Euros(relevante / 3m * EstimativasFiscais.SsTaxa), isento, isentoAte,
-            t?.SsContribuicaoAtual, anterior);
+            t?.SsContribuicaoAtual);
     }
 
     /// <summary>Taxa da compra guardada como fração (0,23); tolera valores antigos em % (23).</summary>

@@ -160,11 +160,10 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
-    public async Task SemInicioDeAtividade_NaoAdivinha_EFaturacaoAnteriorEntraNoIrs()
+    public async Task SemInicioDeAtividade_NaoAdivinha()
     {
         var client = await AuthedClient();
-        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(null, 115.87m, 2034,
-            new FaturacaoAnteriorDto(Informatica: 2000m)))).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(null, 115.87m))).EnsureSuccessStatusCode();
         await VendaFaturadaDto(client, 123000, 23m, "FT SOFTWARE/34", new DateTime(2034, 8, 1));
 
         var e = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2034&trimestre=3"))!.Estimativas;
@@ -173,7 +172,7 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
         e.FatorInicio.Should().Be(1m, "sem data, sem redução (prudente)");
         e.SsIsento.Should().BeFalse();
         e.SsContribuicaoAtual.Should().Be(115.87m);
-        e.ReceitasServicos075.Should().Be(3000m, "1.000 € do Mender + 2.000 € de antes do Mender");
+        e.ReceitasServicos075.Should().Be(1000m);
         e.SsContribuicaoMensal.Should().Be(49.93m, "70% × 1.000 € ÷ 3 × 21,4% (só o trimestre)");
     }
 

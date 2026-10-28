@@ -1940,9 +1940,6 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("FaturacaoAnteriorJson")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("GarantiaCoberturaDefault")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
