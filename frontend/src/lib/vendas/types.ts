@@ -121,6 +121,8 @@ export interface Venda {
   moloniOrcamentoNumero: string | null;
   /** null = sem documento Moloni. */
   paga: boolean | null;
+  /** Sprint 575: 0 = loja, 1 = trading (série TRADING; fora das listas e do resultado da loja). */
+  atividade?: 0 | 1;
 }
 
 /** Sprint 565: resultado de importar o PDF de uma fatura de venda. */
@@ -164,6 +166,8 @@ export interface VendaFiltro {
   faturaPorRegistar?: boolean;
   /** Sprint 569: faturas do Moloni ainda sem recibo. */
   porPagar?: boolean;
+  /** Sprint 575: por defeito só a loja. */
+  atividade?: 'trading' | 'todas';
   clienteId?: string;
   from?: string;
   to?: string;

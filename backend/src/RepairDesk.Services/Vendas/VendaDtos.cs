@@ -95,7 +95,8 @@ public sealed record VendaDto(
     string? MoloniReciboNumero = null,
     string? MoloniOrcamentoNumero = null,
     /// <summary>Fatura-recibo, ou fatura com recibo. Null quando não há documento Moloni.</summary>
-    bool? Paga = null);
+    bool? Paga = null,
+    VendaAtividade Atividade = VendaAtividade.Loja);
 
 public sealed record VendaImeiLookupDto(
     Guid VendaId,

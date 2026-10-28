@@ -6,6 +6,7 @@ import { PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { apuramentoApi, prazos, trimestreAnterior, type ApuramentoPendente, type TipoPendente } from '../../lib/apuramento/api';
 import { formatEur } from '../../lib/compras/format';
 import { apiErrorMessage } from '../../lib/errors';
+import EstimativasCard from './EstimativasCard';
 
 const PENDENTE: Record<TipoPendente, { titulo: string; ajuda: string; link: (p: ApuramentoPendente) => string }> = {
   venda_sem_fatura: { titulo: 'Vendas entregues sem fatura', ajuda: 'Não entram no IVA até emitires a fatura.', link: (p) => `/vendas/${p.id}` },
@@ -118,13 +119,16 @@ export default function Apuramento() {
             </SectionCard>
           </div>
 
+          <EstimativasCard e={r.estimativas} ano={r.ano} trimestre={r.trimestre} />
+
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <SectionCard title="Resultado do trimestre (sem IVA)">
               <dl className="space-y-2 text-sm tabular-nums">
-                <Linha label="Vendas faturadas" valor={r.resultado.vendas} />
+                <Linha label="Vendas faturadas da loja" valor={r.resultado.vendas} />
                 <Linha label="Custo das peças vendidas" valor={-r.resultado.custoPecasVendidas} />
                 <Linha label="Despesas" sub="inclui IVA não dedutível" valor={-r.resultado.gastos} />
-                <Linha label="Resultado" valor={r.resultado.resultado} forte cor />
+                <Linha label="Resultado da loja" valor={r.resultado.resultado} forte cor />
+                {r.resultado.trading > 0 && <Linha label="Trading (à parte, fora da loja)" sub="rendimentos faturados no trimestre" valor={r.resultado.trading} />}
               </dl>
               <p className="mt-3 text-xs text-zinc-500">
                 Compras de stock no trimestre: {formatEur(r.resultado.comprasDeStock)} — só contam como custo quando as peças se vendem.

@@ -25,6 +25,8 @@ public interface IVendaRepository
     Task<IReadOnlyList<Venda>> ListFaturadasSemMoloniAsync(CancellationToken ct = default);
     /// <summary>Sprint 573: vendas não canceladas (com linhas) cuja fatura — ou, sem fatura, a data — cai em [from, to).</summary>
     Task<IReadOnlyList<Venda>> ListParaApuramentoAsync(DateTime from, DateTime to, CancellationToken ct = default);
+    /// <summary>Sprint 575: data da primeira venda faturada (início de atividade por defeito).</summary>
+    Task<DateTime?> PrimeiraFaturaAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Venda>> ListByMoloniIdsAsync(IReadOnlyCollection<int> documentIds, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }
@@ -44,7 +46,9 @@ public sealed record VendaFiltro(
     // Sprint 561: "numero" | "data" | "cliente" | "estado" | "total".
     Ordenacao? Ordem = null,
     /// <summary>Sprint 569: fatura emitida no Moloni (por pagar) ainda sem recibo.</summary>
-    bool PorPagar = false);
+    bool PorPagar = false,
+    /// <summary>Sprint 575: por defeito só a loja; Trading = só o trading; null = tudo.</summary>
+    VendaAtividade? Atividade = VendaAtividade.Loja);
 
 public sealed record VendaImeiLookupRow(
     Guid VendaId,

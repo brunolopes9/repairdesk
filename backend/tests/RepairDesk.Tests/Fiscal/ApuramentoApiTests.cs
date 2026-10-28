@@ -13,6 +13,8 @@ using RepairDesk.Services.Documents;
 using RepairDesk.Services.Fiscal;
 using RepairDesk.Services.Fornecedores;
 using RepairDesk.Services.Vendas;
+using RepairDesk.Services.Clientes;
+using RepairDesk.API.Controllers;
 using RepairDesk.Tests.Auth;
 
 namespace RepairDesk.Tests.Fiscal;
@@ -119,6 +121,45 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Trading_EntraNoIva_MasFicaForaDoResultadoEDaListaDaLoja()
+    {
+        var client = await AuthedClient();
+        var loja = await VendaFaturadaDto(client, 12300, 23m, "FT SOFTWARE/9", new DateTime(2032, 8, 10));
+        var trading = await VendaFaturadaDto(client, 50000, 0m, "FT TRADING/9", new DateTime(2032, 8, 11));
+        trading.Atividade.Should().Be(VendaAtividade.Trading);
+        loja.Atividade.Should().Be(VendaAtividade.Loja);
+
+        var r = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2032&trimestre=3"))!;
+        r.VendasPorTaxa.Should().ContainEquivalentOf(new ApuramentoTaxaDto(0m, 500m, 0m, 1), "o trading vai para a declaração");
+        r.Resultado.Vendas.Should().Be(100m, "o resultado da loja não inclui o trading");
+        r.Resultado.Trading.Should().Be(500m);
+
+        var listaLoja = (await client.GetFromJsonAsync<PagedResult<VendaDto>>("/api/vendas?pageSize=200"))!.Items;
+        listaLoja.Should().Contain(v => v.Id == loja.Id).And.NotContain(v => v.Id == trading.Id);
+        (await client.GetFromJsonAsync<PagedResult<VendaDto>>("/api/vendas?pageSize=200&atividade=trading"))!.Items
+            .Should().Contain(v => v.Id == trading.Id).And.NotContain(v => v.Id == loja.Id);
+    }
+
+    [Fact]
+    public async Task Estimativas_IrsComReducaoDoPrimeiroAno_ESegurancaSocialIsenta()
+    {
+        var client = await AuthedClient();
+        (await client.PutAsJsonAsync("/api/apuramento/inicio-atividade", new InicioAtividadeRequest(new DateTime(2033, 1, 10)))).EnsureSuccessStatusCode();
+        // Software 1230 € c/ IVA → 1000 € de serviços a 0,75, reduzido a metade no 1.º ano → 375 € tributáveis.
+        await VendaFaturadaDto(client, 123000, 23m, "FT SOFTWARE/33", new DateTime(2033, 2, 1));
+
+        var e = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2033&trimestre=1"))!.Estimativas;
+        e.InicioDefinido.Should().BeTrue();
+        e.ReceitasServicos075.Should().Be(1000m);
+        e.FatorInicio.Should().Be(0.5m);
+        e.AcrescimoRegra15.Should().Be(0m, "os 4.104 € cobrem os 15% de 1.000 €");
+        e.RendimentoTributavel.Should().Be(375m);
+        e.IrsEstimado.Should().Be(46.88m, "375 € no 1.º escalão (12,5%)");
+        e.SsIsento.Should().BeTrue("primeiros 12 meses de atividade");
+        e.SsRendimentoRelevante.Should().Be(700m, "70% dos serviços do trimestre");
+    }
+
+    [Fact]
     public async Task TrimestreInvalido_Recusa()
     {
         var client = await AuthedClient();
@@ -147,6 +188,15 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
             [new VendaLinhaWriteRequest(null, null, "Serviço", 1, cents, 0, iva)], VendaEstado.Entregue, PaymentMethod.Dinheiro));
         var resp = await client.PutAsJsonAsync($"/api/vendas/{v.Id}/fatura", new RegistarFaturaRequest($"{numero}-{Guid.NewGuid():N}"[..20], emitida));
         if (!resp.IsSuccessStatusCode) throw new Exception($"{(int)resp.StatusCode}: {await resp.Content.ReadAsStringAsync()}");
+    }
+
+    private static async Task<VendaDto> VendaFaturadaDto(HttpClient client, int cents, decimal iva, string numero, DateTime emitida)
+    {
+        var v = await Post<VendaDto>(client, "/api/vendas", new VendaWriteRequest(VendaTipo.Servico, null, null, null, null,
+            [new VendaLinhaWriteRequest(null, null, "Serviço", 1, cents, 0, iva)], VendaEstado.Entregue, PaymentMethod.Dinheiro));
+        var resp = await client.PutAsJsonAsync($"/api/vendas/{v.Id}/fatura", new RegistarFaturaRequest($"{numero}{Random.Shared.Next(100, 999)}", emitida));
+        if (!resp.IsSuccessStatusCode) throw new Exception($"{(int)resp.StatusCode}: {await resp.Content.ReadAsStringAsync()}");
+        return (await resp.Content.ReadFromJsonAsync<VendaDto>())!;
     }
 
     private async Task<Guid> Import(int totalCents, int subtotalCents)

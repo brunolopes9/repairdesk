@@ -20,14 +20,39 @@ export interface Apuramento {
   ivaAutoliquidado: number;
   /** Positivo = a entregar; negativo = a recuperar. */
   saldo: number;
-  resultado: { vendas: number; custoPecasVendidas: number; gastos: number; resultado: number; comprasDeStock: number };
+  resultado: { vendas: number; custoPecasVendidas: number; gastos: number; resultado: number; comprasDeStock: number; trading: number };
+  estimativas: ApuramentoEstimativas;
   campos: ApuramentoCampo[];
   pendentes: ApuramentoPendente[];
+}
+
+/** Sprint 575: IRS (regime simplificado) e Segurança Social — estimativas do ano até ao fim do trimestre. */
+export interface ApuramentoEstimativas {
+  inicioAtividade: string;
+  inicioDefinido: boolean;
+  receitasBens: number;
+  receitasServicos075: number;
+  receitasServicos035: number;
+  receitasTrading: number;
+  fatorInicio: number;
+  despesasJustificadas: number;
+  acrescimoRegra15: number;
+  rendimentoTributavel: number;
+  irsEstimado: number;
+  taxaEfetiva: number;
+  anoTabelaIrs: number;
+  ssRendimentoRelevante: number;
+  ssContribuicaoMensal: number;
+  ssIsento: boolean;
+  ssIsentoAte: string;
 }
 
 export const apuramentoApi = {
   trimestre(ano: number, trimestre: number) {
     return api.get<Apuramento>('/apuramento', { params: { ano, trimestre } }).then((r) => r.data);
+  },
+  definirInicioAtividade(data: string | null) {
+    return api.put('/apuramento/inicio-atividade', { data }).then(() => undefined);
   },
 };
 

@@ -42,8 +42,11 @@ public class VendasController : ControllerBase
         [FromQuery] int pageSize = 20,
         [FromQuery] string? sort = null,
         [FromQuery] string? dir = null,
+        [FromQuery] string? atividade = null,
         CancellationToken ct = default)
-        => _service.SearchAsync(new VendaFiltro(from, to, clienteId, tipo, estado, emCurso, faturaPorRegistar, q, Ordenacao.De(sort, dir), porPagar), page, pageSize, ct);
+        // Sprint 575: por defeito só a loja; atividade=trading mostra o trading; atividade=todas mostra tudo.
+        => _service.SearchAsync(new VendaFiltro(from, to, clienteId, tipo, estado, emCurso, faturaPorRegistar, q, Ordenacao.De(sort, dir), porPagar,
+            atividade?.ToLowerInvariant() switch { "trading" => VendaAtividade.Trading, "todas" => null, _ => VendaAtividade.Loja }), page, pageSize, ct);
 
     [HttpGet("{id:guid}")]
     public Task<VendaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);

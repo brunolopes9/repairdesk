@@ -16,4 +16,14 @@ public class ApuramentoController : ControllerBase
     [HttpGet]
     public Task<ApuramentoDto> Trimestre([FromQuery] int ano, [FromQuery] int trimestre, CancellationToken ct = default)
         => _service.TrimestreAsync(ano, trimestre, ct);
+
+    /// <summary>Sprint 575: data de início de atividade (para as estimativas de IRS e Segurança Social).</summary>
+    [HttpPut("inicio-atividade")]
+    public async Task<IActionResult> InicioAtividade([FromBody] InicioAtividadeRequest req, CancellationToken ct = default)
+    {
+        await _service.DefinirInicioAtividadeAsync(req.Data, ct);
+        return NoContent();
+    }
 }
+
+public sealed record InicioAtividadeRequest(DateTime? Data);

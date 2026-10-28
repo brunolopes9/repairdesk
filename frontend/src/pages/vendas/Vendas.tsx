@@ -30,6 +30,8 @@ const VISTAS = [
   { key: 'fatura', label: 'Fatura por registar' },
   { key: 'porpagar', label: 'Por pagar' },
   { key: 'todas', label: 'Todas' },
+  // Sprint 575: rewards de prop firms (série TRADING) — entram no IVA, não nas vendas da loja.
+  { key: 'trading', label: 'Trading' },
   // Sprint 571: a antiga página Faturação — faturas, recibos e orçamentos tal como estão no Moloni ON.
   { key: 'documentos', label: 'Documentos Moloni' },
 ] as const;
@@ -72,6 +74,7 @@ export default function Vendas() {
     ...(vista === 'entregues' ? { estado: VENDA_ESTADO.Entregue } : {}),
     ...(vista === 'fatura' ? { faturaPorRegistar: true } : {}),
     ...(vista === 'porpagar' ? { porPagar: true } : {}),
+    ...(vista === 'trading' ? { atividade: 'trading' as const } : {}),
   };
 
   const list = useQuery({ queryKey: ['vendas', filtro], queryFn: () => vendasApi.list(filtro), placeholderData: keepPreviousData, enabled: vista !== 'documentos' });

@@ -1925,6 +1925,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<string>("IngestEmailSlug")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("InicioAtividade")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("IntakeSlug")
                         .HasColumnType("nvarchar(max)");
 
@@ -2068,6 +2071,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Atividade")
+                        .HasColumnType("int");
 
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uniqueidentifier");

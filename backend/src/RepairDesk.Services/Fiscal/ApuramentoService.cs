@@ -25,11 +25,38 @@ public sealed record ApuramentoDespesasDto(
     decimal IvaAutoliquidado);
 
 public sealed record ApuramentoResultadoDto(
+    /// <summary>Vendas faturadas da LOJA (sem IVA). O trading vem à parte.</summary>
     decimal Vendas,
     decimal CustoPecasVendidas,
     decimal Gastos,
+    /// <summary>Resultado da loja = vendas − custo das peças vendidas − despesas.</summary>
     decimal Resultado,
-    decimal ComprasDeStock);
+    decimal ComprasDeStock,
+    /// <summary>Sprint 575: rendimentos de trading faturados no trimestre (fora do resultado da loja).</summary>
+    decimal Trading = 0m);
+
+/// <summary>
+/// Sprint 575: estimativas (ano até ao fim do trimestre escolhido). Ver <see cref="EstimativasFiscais"/>.
+/// </summary>
+public sealed record ApuramentoEstimativasDto(
+    DateTime InicioAtividade,
+    bool InicioDefinido,
+    decimal ReceitasBens,
+    decimal ReceitasServicos075,
+    decimal ReceitasServicos035,
+    decimal ReceitasTrading,
+    /// <summary>Fator nos coeficientes de serviços (0,5 no 1.º ano, 0,75 no 2.º, 1 depois).</summary>
+    decimal FatorInicio,
+    decimal DespesasJustificadas,
+    decimal AcrescimoRegra15,
+    decimal RendimentoTributavel,
+    decimal IrsEstimado,
+    decimal TaxaEfetiva,
+    int AnoTabelaIrs,
+    decimal SsRendimentoRelevante,
+    decimal SsContribuicaoMensal,
+    bool SsIsento,
+    DateTime SsIsentoAte);
 
 /// <summary>Campo da declaração periódica de IVA (Continente) — a confirmar com o contabilista.</summary>
 public sealed record ApuramentoCampoDto(string Campo, string Descricao, decimal Valor);
@@ -52,12 +79,14 @@ public sealed record ApuramentoDto(
     decimal Saldo,
     ApuramentoResultadoDto Resultado,
     IReadOnlyList<ApuramentoCampoDto> Campos,
+    ApuramentoEstimativasDto Estimativas,
     /// <summary>O que falta tratar para o apuramento estar certo (vendas sem fatura, compras sem fatura, despesas sem IVA…).</summary>
     IReadOnlyList<ApuramentoPendenteDto> Pendentes);
 
 public interface IApuramentoService
 {
     Task<ApuramentoDto> TrimestreAsync(int ano, int trimestre, CancellationToken ct = default);
+    Task DefinirInicioAtividadeAsync(DateTime? data, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -75,12 +104,27 @@ public class ApuramentoService : IApuramentoService
     private readonly IVendaRepository _vendas;
     private readonly ICompraRepository _compras;
     private readonly IDespesaRepository _despesas;
+    private readonly ITenantRepository _tenants;
+    private readonly ITenantContext _tenant;
 
-    public ApuramentoService(IVendaRepository vendas, ICompraRepository compras, IDespesaRepository despesas)
+    public ApuramentoService(IVendaRepository vendas, ICompraRepository compras, IDespesaRepository despesas,
+        ITenantRepository tenants, ITenantContext tenant)
     {
         _vendas = vendas;
         _compras = compras;
         _despesas = despesas;
+        _tenants = tenants;
+        _tenant = tenant;
+    }
+
+    public async Task DefinirInicioAtividadeAsync(DateTime? data, CancellationToken ct = default)
+    {
+        var t = _tenant.TenantId is { } id ? await _tenants.FindByIdAsync(id, ct) : null;
+        if (t is null) throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        if (data is { } d && (d.Year < 1990 || d.Year > 2100))
+            throw new ValidationException("data_invalida", "Data de início de atividade inválida.");
+        t.InicioAtividade = data?.Date;
+        await _tenants.SaveAsync(ct);
     }
 
     private static decimal Taxa => FiscalDefaults.TaxaIvaNormal;
@@ -186,10 +230,13 @@ public class ApuramentoService : IApuramentoService
         var ivaDedutivel = compras.IvaNacional + compras.IvaPortes + despesasDto.IvaDedutivel + ivaAutoliquidado;
         var saldo = ivaLiquidado - ivaDedutivel;
 
-        var vendasSemIva = porTaxa.Sum(t => t.Base);
+        // Sprint 575: o trading entra no IVA (a declaração é uma por NIF) mas não no resultado da loja.
+        var trading = Euros(faturadas.Where(v => v.Atividade == VendaAtividade.Trading).SelectMany(v => v.Items).Sum(BaseSemIva));
+        var vendasSemIva = porTaxa.Sum(t => t.Base) - trading;
         var gastos = despesasDto.Base + despesasDto.IvaNaoDedutivel;
         var resultado = new ApuramentoResultadoDto(vendasSemIva, custoPecas, Euros(gastos), Euros(vendasSemIva - custoPecas - gastos),
-            Euros(baseNac + baseUe + baseForaUe));
+            Euros(baseNac + baseUe + baseForaUe), trading);
+        var estimativas = await EstimativasAsync(ano, de, ate, ct);
 
         decimal BaseTaxa(decimal t) => porTaxa.Where(x => x.Taxa == t).Sum(x => x.Base);
         decimal IvaTaxa(decimal t) => porTaxa.Where(x => x.Taxa == t).Sum(x => x.Iva);
@@ -209,8 +256,62 @@ public class ApuramentoService : IApuramentoService
         };
 
         return new ApuramentoDto(ano, trimestre, de, ate.AddDays(-1), porTaxa, faturadas.Count, Euros(ivaLiquidado), compras, despesasDto,
-            Euros(ivaDedutivel), ivaAutoliquidado, Euros(saldo), resultado, campos,
+            Euros(ivaDedutivel), ivaAutoliquidado, Euros(saldo), resultado, campos, estimativas,
             pendentes.OrderBy(p => p.Tipo).ThenBy(p => p.Data).ToList());
+    }
+
+    private static decimal BaseSemIva(VendaItem i) => i.TotalCents / 100m / (1 + i.IvaRate / 100m);
+
+    /// <summary>
+    /// Sprint 575: IRS e Segurança Social estimados. IRS: faturação do ano até ao fim do trimestre × coeficientes
+    /// (peças vendidas = bens 0,15; reparação = 0,35; software/informática e trading = 0,75), com a redução dos
+    /// primeiros anos e a regra dos 15%. Segurança Social: sobre o trimestre escolhido (paga-se nos 3 meses seguintes).
+    /// </summary>
+    private async Task<ApuramentoEstimativasDto> EstimativasAsync(int ano, DateTime de, DateTime ate, CancellationToken ct)
+    {
+        var t = _tenant.TenantId is { } id ? await _tenants.FindByIdAsync(id, ct) : null;
+        var inicio = t?.InicioAtividade ?? await _vendas.PrimeiraFaturaAsync(ct) ?? new DateTime(ano, 1, 1);
+        var inicioAno = new DateTime(ano, 1, 1);
+
+        var vendasAno = (await _vendas.ListParaApuramentoAsync(ParaUtc(inicioAno).AddDays(-1), ParaUtc(ate).AddDays(1), ct))
+            .Where(v => v.InvoiceNumber is not null && DentroDe(DeLisboa(v.InvoiceEmittedAt ?? v.Data), inicioAno, ate)).ToList();
+        decimal bens = 0, s075 = 0, s035 = 0, trading = 0, bensTrim = 0, servTrim = 0;
+        foreach (var v in vendasAno)
+        {
+            var noTrimestre = DentroDe(DeLisboa(v.InvoiceEmittedAt ?? v.Data), de, ate);
+            foreach (var i in v.Items)
+            {
+                var b = BaseSemIva(i);
+                var ehBem = v.Atividade == VendaAtividade.Loja && (i.CompraLinhaId is not null || v.Tipo == VendaTipo.Produto);
+                if (v.Atividade == VendaAtividade.Trading) trading += b;
+                else if (ehBem) bens += b;
+                else if (v.Tipo == VendaTipo.Reparacao) s035 += b;
+                else s075 += b;
+                if (noTrimestre) { if (ehBem) bensTrim += b; else servTrim += b; }
+            }
+        }
+
+        var fator = EstimativasFiscais.FatorInicioAtividade(ano, inicio);
+        var receitas075 = s075 + trading;
+        var justificadas = EstimativasFiscais.DeducaoEspecifica
+            + (await _despesas.ListPeriodoAsync(inicioAno, ate, ct)).Sum(d => d.ValorCents / 100m)
+            + (await _compras.ListDocumentosPeriodoAsync(inicioAno, ate, ct)).Sum(d => d.Linhas.Sum(l => l.Quantidade * l.PrecoUnitarioPago) + d.PortesPagos);
+        var acrescimo = Math.Max(0m, EstimativasFiscais.Regra15 * receitas075 - justificadas);
+        var rendimento = bens * EstimativasFiscais.CoefBens
+            + receitas075 * EstimativasFiscais.CoefServicosTabela * fator
+            + s035 * EstimativasFiscais.CoefOutrosServicos * fator
+            + acrescimo;
+        var irs = EstimativasFiscais.Irs(rendimento, ano);
+        var faturacao = bens + receitas075 + s035;
+
+        var relevante = EstimativasFiscais.SsServicos * servTrim + EstimativasFiscais.SsBens * bensTrim;
+        var isentoAte = inicio.Date.AddMonths(12);
+        var isento = ate <= isentoAte;
+
+        return new ApuramentoEstimativasDto(inicio.Date, t?.InicioAtividade is not null, Euros(bens), Euros(s075), Euros(s035), Euros(trading),
+            fator, Euros(justificadas), Euros(acrescimo), Euros(rendimento), Euros(irs),
+            faturacao > 0 ? Math.Round(irs / faturacao, 4) : 0m, EstimativasFiscais.AnoTabela(ano),
+            Euros(relevante), isento ? 0m : Euros(relevante / 3m * EstimativasFiscais.SsTaxa), isento, isentoAte);
     }
 
     /// <summary>Taxa da compra guardada como fração (0,23); tolera valores antigos em % (23).</summary>

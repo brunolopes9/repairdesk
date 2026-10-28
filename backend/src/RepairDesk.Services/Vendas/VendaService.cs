@@ -230,6 +230,7 @@ public class VendaService : IVendaService
         var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
         var numero = Clean(req.InvoiceNumber, 120);
         venda.InvoiceNumber = numero;
+        venda.Atividade = AtividadeDaFatura(numero);
         venda.InvoiceEmittedAt = numero is null
             ? null
             : DateTime.SpecifyKind((req.InvoiceEmittedAt ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
@@ -243,6 +244,11 @@ public class VendaService : IVendaService
     }
 
     // ---------- regras ----------
+
+    /// <summary>Sprint 575: faturas da série TRADING (ex.: "FT TRADING/7") são da atividade de trading.</summary>
+    public static VendaAtividade AtividadeDaFatura(string? invoiceNumber)
+        => invoiceNumber is not null && invoiceNumber.Contains(" TRADING/", StringComparison.OrdinalIgnoreCase)
+            ? VendaAtividade.Trading : VendaAtividade.Loja;
 
     private async Task ApplyHeaderAsync(Venda venda, VendaWriteRequest req, CancellationToken ct)
     {
@@ -497,7 +503,7 @@ public class VendaService : IVendaService
 
     public async Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default)
     {
-        var (rows, _) = await _vendas.SearchAsync(new VendaFiltro(fromUtc, toUtc, Estado: VendaEstado.Entregue), 1, 5000, ct);
+        var (rows, _) = await _vendas.SearchAsync(new VendaFiltro(fromUtc, toUtc, Estado: VendaEstado.Entregue, Atividade: null), 1, 5000, ct); // export: loja e trading
         var csv = new CsvBuilder();
         csv.Row("numero", "data", "tipo", "cliente_nome", "cliente_nif", "total_eur", "iva_eur", "iva_a_pagar_eur",
             "lucro_eur", "metodo_pagamento", "fatura_numero", "fatura_data", "notas");
@@ -544,7 +550,8 @@ public class VendaService : IVendaService
             venda.Estado == VendaEstado.Entregue && venda.InvoiceNumber is null,
             venda.Notas, items, venda.PublicSlug, venda.PrevistoPara, garantiaSlug, venda.FaturaPdfPath is not null,
             venda.MoloniDocumentoTipo, venda.MoloniReciboNumero, venda.MoloniOrcamentoNumero,
-            venda.MoloniDocumentoTipo is null ? null : venda.MoloniDocumentoTipo == "invoiceReceipt" || venda.MoloniReciboId is not null);
+            venda.MoloniDocumentoTipo is null ? null : venda.MoloniDocumentoTipo == "invoiceReceipt" || venda.MoloniReciboId is not null,
+            venda.Atividade);
     }
 
     private static string? Clean(string? s, int max)

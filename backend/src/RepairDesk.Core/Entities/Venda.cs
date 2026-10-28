@@ -45,6 +45,9 @@ public class Venda : BaseEntity, ITenantEntity
     public int? MoloniOrcamentoId { get; set; }
     public string? MoloniOrcamentoNumero { get; set; }
 
+    /// <summary>Sprint 575: loja ou trading (definido pela série da fatura — ver VendaService.RegistarFaturaAsync).</summary>
+    public VendaAtividade Atividade { get; set; } = VendaAtividade.Loja;
+
     public string? Notas { get; set; }
     public List<VendaItem> Items { get; set; } = new();
 }

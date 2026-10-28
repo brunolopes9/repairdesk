@@ -63,6 +63,12 @@ public class Tenant : BaseEntity
     /// <summary>Séries por tipo de venda, ids de artigos genéricos e métodos de pagamento (JSON, ver MoloniConfig).</summary>
     public string? MoloniConfigJson { get; set; }
 
+    /// <summary>
+    /// Sprint 575: data de início de atividade nas Finanças — conta para as estimativas (redução dos coeficientes
+    /// de IRS nos 2 primeiros anos; isenção de Segurança Social nos primeiros 12 meses). Null = data da 1.ª venda.
+    /// </summary>
+    public DateTime? InicioAtividade { get; set; }
+
     // Sprint 173: email forwarding ingest per-tenant (RGPD-clean).
     public string? IngestEmailSlug { get; set; }
 

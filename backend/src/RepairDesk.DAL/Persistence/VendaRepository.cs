@@ -42,6 +42,10 @@ public class VendaRepository : IVendaRepository
             .OrderBy(v => v.InvoiceEmittedAt ?? v.Data).ThenBy(v => v.Numero)
             .ToListAsync(ct);
 
+    public async Task<DateTime?> PrimeiraFaturaAsync(CancellationToken ct = default)
+        => await _db.Vendas.Where(v => v.InvoiceEmittedAt != null && v.Estado != VendaEstado.Cancelada)
+            .MinAsync(v => (DateTime?)v.InvoiceEmittedAt, ct);
+
     public async Task<IReadOnlyList<Venda>> ListParaApuramentoAsync(DateTime from, DateTime to, CancellationToken ct = default)
         => await _db.Vendas.AsNoTracking()
             .Include(v => v.Items)
@@ -102,6 +106,7 @@ public class VendaRepository : IVendaRepository
         if (toUtc is not null) q = q.Where(v => v.Data < toUtc.Value);
         if (clienteId is { } cid) q = q.Where(v => v.ClienteId == cid);
         if (filtro.Tipo is { } tipo) q = q.Where(v => v.Tipo == tipo);
+        if (filtro.Atividade is { } atividade) q = q.Where(v => v.Atividade == atividade);
         if (filtro.Estado is { } estado) q = q.Where(v => v.Estado == estado);
         if (filtro.EmCurso) q = q.Where(v => v.Estado == VendaEstado.Orcamento || v.Estado == VendaEstado.EmCurso || v.Estado == VendaEstado.AEsperaPeca || v.Estado == VendaEstado.Pronta);
         if (filtro.FaturaPorRegistar) q = q.Where(v => v.Estado == VendaEstado.Entregue && v.InvoiceNumber == null);
