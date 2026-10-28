@@ -29,11 +29,9 @@ export const artigosApi = {
     return api.delete<ArtigoDetalhe>(`/artigos/${id}/lotes/${loteId}`).then((r) => r.data);
   },
   /** PDF das etiquetas (uma por página, do tamanho do rolo) — abre noutro separador. */
-  async abrirEtiquetas(req: EtiquetasPedido) {
-    const resp = await api.post<Blob>('/artigos/etiquetas.pdf', req, { responseType: 'blob' });
-    const url = URL.createObjectURL(resp.data);
-    window.open(url, '_blank', 'noopener,noreferrer');
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  /** PDF das etiquetas (preparado antes do clique em "Imprimir" — ver EtiquetasModal). */
+  etiquetasPdf(req: EtiquetasPedido) {
+    return api.post<Blob>('/artigos/etiquetas.pdf', req, { responseType: 'blob', timeout: 60_000 }).then((r) => r.data);
   },
   sugestoes() {
     return api.get<ArtigoSugestao[]>('/artigos/sugestoes').then((r) => r.data);

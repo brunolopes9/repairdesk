@@ -192,7 +192,7 @@ export function ComunicacoesVenda({
 
   return (
     <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <MessageCircle size={16} /> Comunicações
           {items.length > 0 && (
@@ -201,7 +201,7 @@ export function ComunicacoesVenda({
             </span>
           )}
         </h2>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* Sprint 488: cliente pediu para não ser contactado (RGPD, S479) — esconde CTAs proativos. */}
           {clienteNaoContactar && (
             <span title="O cliente pediu para não ser contactado (RGPD)" className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">

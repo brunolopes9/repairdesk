@@ -78,7 +78,7 @@ export function CorrespondenciaModal({ importId, onClose }: { importId: string; 
       {corr.isLoading || !corr.data || !f ? (
         <p className="py-6 text-center text-sm text-zinc-500">{corr.isError ? 'Não foi possível analisar a fatura.' : 'A comparar com as compras…'}</p>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <section className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Fatura lida</p>
             <p className="mt-1 font-semibold">{f.fornecedor ?? 'Fornecedor desconhecido'} · {f.numero ?? 'sem nº'}</p>

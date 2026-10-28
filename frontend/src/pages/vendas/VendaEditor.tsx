@@ -379,9 +379,10 @@ export default function VendaEditor() {
             Junta peças/artigos do stock ou {tipo === VENDA_TIPO.Reparacao ? 'mão de obra' : 'um serviço'}.
           </p>
         ) : (
-          <div className="-mx-4 overflow-x-auto px-4">
-            <table className="w-full min-w-[46rem] text-sm">
-              <thead className="text-left text-xs text-zinc-500">
+          // Sprint 572: no telemóvel cada linha é um cartão (descrição; qtd/preço/IVA; totais) — a tabela só a partir de sm.
+          <div className="sm:-mx-4 sm:overflow-x-auto sm:px-4">
+            <table className="w-full text-sm sm:min-w-[46rem]">
+              <thead className="hidden text-left text-xs text-zinc-500 sm:table-header-group">
                 <tr>
                   <th className="py-2 pr-2 font-medium">Descrição</th>
                   <th className="w-16 py-2 pr-2 font-medium">Qtd</th>
@@ -397,27 +398,29 @@ export default function VendaEditor() {
                 {linhas.map((l, i) => {
                   const c = contas.porLinha[i];
                   return (
-                    <tr key={l.key} className="align-top">
-                      <td className="py-2 pr-2">
+                    <tr key={l.key} className="grid grid-cols-3 gap-x-2 py-2 align-top sm:table-row sm:py-0">
+                      <td className="col-span-3 py-1 sm:py-2 sm:pr-2">
                         <input aria-label="Descrição" value={l.descricao} onChange={(e) => setLinha(l.key, { descricao: e.target.value })} className={inputCls} disabled={fechada} maxLength={300} />
                         <span className="mt-1 block text-xs text-zinc-500">
                           {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
                         </span>
                       </td>
-                      <td className="py-2 pr-2">
+                      <td className="py-1 sm:py-2 sm:pr-2">
+                        <span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Qtd</span>
                         <input aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} disabled={fechada} />
                         {l.maxStock != null && Number(l.quantidade) > l.maxStock && <span className="mt-1 block text-xs text-rose-600">só {l.maxStock}</span>}
                       </td>
-                      <td className="py-2 pr-2"><input aria-label={semIva ? 'Preço unitário sem IVA' : 'Preço unitário com IVA'} inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" disabled={fechada} /></td>
-                      <td className="py-2 pr-2">
+                      <td className="py-1 sm:py-2 sm:pr-2"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">{semIva ? 'Preço s/ IVA' : 'Preço c/ IVA'}</span><input aria-label={semIva ? 'Preço unitário sem IVA' : 'Preço unitário com IVA'} inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" disabled={fechada} /></td>
+                      <td className="py-1 sm:py-2 sm:pr-2">
+                        <span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">IVA</span>
                         <select aria-label="Taxa de IVA" value={l.iva} onChange={(e) => setLinha(l.key, { iva: e.target.value })} className={inputCls} disabled={fechada || !!l.compraLinhaId}>
                           {['23', '13', '6', '0'].map((t) => <option key={t} value={t}>{t}%</option>)}
                         </select>
                       </td>
-                      <td className="py-2 pr-2 pt-4 text-right font-medium tabular-nums">{formatEur(c.total)}</td>
-                      <td className="py-2 pr-2 pt-4 text-right tabular-nums">{formatEur(c.ivaAPagar)}</td>
-                      <td className={`py-2 pr-2 pt-4 text-right tabular-nums ${c.lucro < 0 ? 'text-rose-600' : ''}`}>{formatEur(c.lucro)}</td>
-                      <td className="py-2">
+                      <td className="py-1 font-medium tabular-nums sm:py-2 sm:pr-2 sm:pt-4 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Total</span>{formatEur(c.total)}</td>
+                      <td className="py-1 tabular-nums sm:py-2 sm:pr-2 sm:pt-4 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">IVA ao Estado</span>{formatEur(c.ivaAPagar)}</td>
+                      <td className={`py-1 tabular-nums sm:py-2 sm:pr-2 sm:pt-4 sm:text-right ${c.lucro < 0 ? 'text-rose-600' : ''}`}><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Lucro</span>{formatEur(c.lucro)}</td>
+                      <td className="col-span-3 flex justify-end sm:table-cell sm:py-2">
                         {!fechada && (
                           <Button type="button" variant="icon" aria-label="Remover linha" onClick={() => setLinhas((ls) => ls.filter((x) => x.key !== l.key))}>
                             <Trash2 size={15} />

@@ -288,10 +288,10 @@ export default function Clientes() {
       )}
 
       {/* 2 colunas: tabela + inspector de perfil */}
-      <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
         {/* Tabela */}
         <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
             <h2 className="text-sm font-semibold">Lista de clientes</h2>
             <span className="text-xs text-zinc-500">{filtered.length} {filtered.length === 1 ? 'resultado' : 'resultados'}</span>
           </div>

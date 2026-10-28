@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Minus, Plus, Printer, ScanBarcode, ShoppingCart, Trash2 } from 'lucide-react';
+import { Camera, Minus, Plus, Printer, ScanBarcode, ShoppingCart, Trash2 } from 'lucide-react';
+import LeitorCamera from '../../components/LeitorCamera';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { vendasApi } from '../../lib/vendas/api';
 import { Button, PageHeader, SectionCard } from '../../components/ui';
@@ -29,6 +30,7 @@ export default function Balcao() {
   const qc = useQueryClient();
   const leitor = useRef<HTMLInputElement | null>(null);
   const [codigo, setCodigo] = useState('');
+  const [camara, setCamara] = useState(false);
   const [pesquisa, setPesquisa] = useState('');
   const [carrinho, setCarrinho] = useState<LinhaCarrinho[]>([]);
   const [pagamento, setPagamento] = useState<PaymentMethod>(PAYMENT_METHOD.Dinheiro);
@@ -42,7 +44,8 @@ export default function Balcao() {
     enabled: pesquisa.trim().length >= 2,
   });
 
-  useEffect(() => { leitor.current?.focus(); }, []);
+  // No telemóvel não se foca a caixa (abriria o teclado por cima do ecrã); usa-se a câmara.
+  useEffect(() => { if (!window.matchMedia?.('(pointer: coarse)').matches) leitor.current?.focus(); }, []);
 
   function adicionar(a: Artigo, qtd = 1) {
     setCarrinho((c) => {
@@ -62,6 +65,11 @@ export default function Balcao() {
     const c = codigo.trim();
     if (!c) return;
     setCodigo('');
+    await lerCodigo(c);
+  }
+
+  /** Pistola, teclado ou câmara do telemóvel — o mesmo caminho. */
+  async function lerCodigo(c: string) {
     try {
       const a = await artigosApi.porCodigo(c);
       if (a) {
@@ -74,7 +82,7 @@ export default function Balcao() {
     } catch (err) {
       toast.fromError(err, 'Não foi possível ler o código.');
     } finally {
-      leitor.current?.focus();
+      if (!camara) leitor.current?.focus();
     }
   }
 
@@ -111,13 +119,21 @@ export default function Balcao() {
           </Button>
         )} />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
         <div className="space-y-4">
-          <form onSubmit={ler} className="relative">
-            <ScanBarcode size={20} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-600" />
-            <input ref={leitor} value={codigo} onChange={(e) => setCodigo(e.target.value)} className={`${inputCls} h-14 pl-11 text-lg`}
-              placeholder="Passa o código de barras… ou escreve (ex.: película a34) e Enter" aria-label="Código de barras ou pesquisa" autoComplete="off" />
+          <form onSubmit={ler} className="flex gap-2">
+            <div className="relative flex-1">
+              <ScanBarcode size={20} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-600" />
+              <input ref={leitor} value={codigo} onChange={(e) => setCodigo(e.target.value)} className={`${inputCls} h-14 pl-11 text-base sm:text-lg`}
+                placeholder="Código de barras ou nome (ex.: película a34)" aria-label="Código de barras ou pesquisa" autoComplete="off" enterKeyHint="search" />
+            </div>
+            <button type="button" onClick={() => setCamara(true)} aria-label="Ler com a câmara"
+              className="flex h-14 flex-none items-center gap-2 rounded-lg bg-brand-600 px-4 font-medium text-white shadow-sm hover:bg-brand-700">
+              <Camera size={20} /> <span className="hidden sm:inline">Câmara</span>
+            </button>
           </form>
+          <LeitorCamera open={camara} onClose={() => setCamara(false)} onLido={(c) => { void lerCodigo(c); }} continuo
+            titulo="Ler artigos com a câmara" />
 
           {pesquisa && (
             <SectionCard title={`Resultados para "${pesquisa}"`} bodyClassName="p-0">

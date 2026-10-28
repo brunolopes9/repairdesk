@@ -300,7 +300,7 @@ export default function OnboardingWizard() {
 
   return (
     <Shell step={step} progressPct={progressPct} onExit={() => complete.mutate()} exiting={complete.isPending}>
-      <div className="grid gap-5 lg:grid-cols-[260px_1fr]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_1fr]">
         <aside className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Arranque da loja</p>
           <div className="mt-4 space-y-2">
@@ -447,7 +447,7 @@ function CompanyStep({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-5 lg:grid-cols-[1fr_280px]">
+    <form onSubmit={onSubmit} className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_280px]">
       <div className="space-y-4">
         <p className="text-sm text-zinc-500">Isto aparece nos orçamentos, fichas e mensagens. Só o nome da loja é obrigatório.</p>
         <Field label="Nome da loja *">
@@ -559,7 +559,7 @@ function RepairStep({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-5 lg:grid-cols-[1fr_280px]">
+    <form onSubmit={onSubmit} className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_280px]">
       <div className="space-y-4">
         {!hasCliente && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">

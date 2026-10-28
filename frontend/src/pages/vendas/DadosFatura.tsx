@@ -82,7 +82,7 @@ export default function DadosFatura({ value, onChange, nomeInterno }: Props) {
 
   const opcao = (comNif: boolean, titulo: string, sub: string) => (
     <button type="button" onClick={() => onChange({ ...value, comNif })} aria-pressed={value.comNif === comNif}
-      className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${value.comNif === comNif
+      className={`min-h-14 rounded-lg border px-3 py-2 text-left text-sm transition ${value.comNif === comNif
         ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200 dark:border-brand-500 dark:bg-brand-950/40 dark:ring-brand-900'
         : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50'}`}>
       <span className="flex items-center gap-1.5 font-medium">{comNif ? <BadgeCheck size={15} /> : <UserRound size={15} />} {titulo}</span>
@@ -92,7 +92,7 @@ export default function DadosFatura({ value, onChange, nomeInterno }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="grid grid-cols-2 gap-2">
         {opcao(false, 'Sem NIF', 'Consumidor final')}
         {opcao(true, 'Com NIF', 'Nome e morada na fatura')}
       </div>

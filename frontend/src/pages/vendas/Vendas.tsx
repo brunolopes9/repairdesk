@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Code2, Download, FileUp, Package, Plus, Receipt, Search, Wrench } from 'lucide-react';
+import { ChevronRight, Code2, Download, FileUp, Package, Plus, Receipt, Search, SlidersHorizontal, Wrench } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { apiErrorMessage } from '../../lib/errors';
 import { downloadFile } from '../../lib/downloadPdf';
@@ -47,6 +47,9 @@ export default function Vendas() {
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [datas, setDatas] = useState<IntervaloDatas>(SEM_DATAS);
+  // Telemóvel: tipo e datas escondidos atrás de "Filtros" (no computador estão sempre à vista).
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const filtrosAtivos = (tipo !== undefined ? 1 : 0) + (datas.de || datas.ate ? 1 : 0);
   const { ordem, alternar, params: ordemParams } = useOrdenacao<'numero' | 'cliente' | 'estado' | 'data' | 'total'>('data');
   function ordenar(c: typeof ordem.campo) { alternar(c); setPage(1); }
 
@@ -121,6 +124,7 @@ export default function Vendas() {
         description="Reparações, serviços e produtos — e as faturas, recibos e orçamentos do Moloni ON. O IVA e o lucro são calculados em cada venda."
         actions={
           <>
+            <span className="hidden sm:contents">
             {isAdmin && (
               <>
                 <input ref={faturasRef} type="file" accept=".pdf,application/pdf" multiple className="hidden" onChange={(e) => importarFaturas(e.target.files)} />
@@ -134,9 +138,10 @@ export default function Vendas() {
               title={datas.de && datas.ate ? 'ZIP com os PDFs das faturas de venda do período + indice.csv' : 'Escolhe as datas (ex.: Trimestre passado) para exportar as faturas'}>
               Faturas (ZIP)
             </Button>
-            <Button variant="secondary" leftIcon={<Package size={15} />} onClick={() => navigate(`/vendas/nova?tipo=${VENDA_TIPO.Produto}`)}>Produto</Button>
-            <Button variant="secondary" leftIcon={<Code2 size={15} />} onClick={() => navigate(`/vendas/nova?tipo=${VENDA_TIPO.Servico}`)}>Serviço</Button>
-            <Button leftIcon={<Plus size={15} />} onClick={() => navigate(`/vendas/nova?tipo=${VENDA_TIPO.Reparacao}`)}>Reparação</Button>
+            </span>
+            <Button variant="secondary" className="flex-1 sm:flex-none" leftIcon={<Package size={15} />} onClick={() => navigate(`/vendas/nova?tipo=${VENDA_TIPO.Produto}`)}>Produto</Button>
+            <Button variant="secondary" className="flex-1 sm:flex-none" leftIcon={<Code2 size={15} />} onClick={() => navigate(`/vendas/nova?tipo=${VENDA_TIPO.Servico}`)}>Serviço</Button>
+            <Button className="flex-1 sm:flex-none" leftIcon={<Plus size={15} />} onClick={() => navigate(`/vendas/nova?tipo=${VENDA_TIPO.Reparacao}`)}>Reparação</Button>
           </>
         }
       />
@@ -161,11 +166,18 @@ export default function Vendas() {
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className={`${inputCls} pl-9`} placeholder="Nº, cliente, equipamento, fatura…" aria-label="Procurar vendas" />
             </label>
-            <select value={tipo ?? ''} onChange={(e) => setParam('tipo', e.target.value || null)} className={`${inputCls} w-auto`} aria-label="Tipo">
-              <option value="">Todos os tipos</option>
-              {Object.entries(VENDA_TIPO_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-            </select>
-            <DateRangeFilter value={datas} onChange={(v) => { setDatas(v); setPage(1); }} />
+            <button type="button" onClick={() => setFiltrosAbertos((f) => !f)} aria-expanded={filtrosAbertos}
+              className="relative grid h-11 w-11 place-items-center rounded-lg border border-zinc-300 text-zinc-600 sm:hidden dark:border-zinc-700 dark:text-zinc-300" aria-label="Filtros">
+              <SlidersHorizontal size={17} />
+              {filtrosAtivos > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">{filtrosAtivos}</span>}
+            </button>
+            <div className={`${filtrosAbertos ? 'flex' : 'hidden'} w-full flex-col gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:items-center`}>
+              <select value={tipo ?? ''} onChange={(e) => setParam('tipo', e.target.value || null)} className={`${inputCls} sm:w-auto`} aria-label="Tipo">
+                <option value="">Todos os tipos</option>
+                {Object.entries(VENDA_TIPO_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+              <DateRangeFilter value={datas} onChange={(v) => { setDatas(v); setPage(1); }} />
+            </div>
           </div>
         }
       >
@@ -178,7 +190,38 @@ export default function Vendas() {
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Sprint 572: no telemóvel, um cartão por venda (a tabela obrigava a deslizar para o lado). */}
+          <ul className="divide-y divide-zinc-100 sm:hidden dark:divide-zinc-800">
+            {list.isLoading && Array.from({ length: 4 }).map((_, i) => <li key={i} className="h-20 animate-pulse bg-zinc-50 dark:bg-zinc-900" />)}
+            {items.map((v) => {
+              const Icon = TIPO_ICON[v.tipo];
+              return (
+                <li key={v.id}>
+                  <Link to={`/vendas/${v.id}`} className="flex items-start gap-3 px-4 py-3 active:bg-zinc-50 dark:active:bg-zinc-800/50">
+                    <span className="mt-0.5 grid h-9 w-9 flex-none place-items-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+                      <Icon size={16} aria-label={VENDA_TIPO_LABEL[v.tipo]} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="truncate font-medium">#{v.numero} · {v.cliente?.nome ?? 'Consumidor final'}</span>
+                        <span className="flex-none font-semibold tabular-nums">{formatEur(v.totalCents / 100)}</span>
+                      </span>
+                      <span className="block truncate text-xs text-zinc-500">{v.equipamento ?? v.problema ?? v.items.map((i) => i.descricao).join(', ')}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                        <span className={`rounded-full px-2 py-0.5 font-medium ${VENDA_ESTADO_COLOR[v.estado]}`}>{VENDA_ESTADO_LABEL[v.estado]}</span>
+                        {v.faturaPorRegistar && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Sem fatura</span>}
+                        {v.paga === false && <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
+                        <span className="ml-auto tabular-nums text-zinc-500">{formatDateOnly(v.data)}</span>
+                      </span>
+                    </span>
+                    <ChevronRight size={16} className="mt-2 flex-none text-zinc-300" aria-hidden />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[46rem] text-sm">
               <thead className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800">
                 <tr>
@@ -219,6 +262,7 @@ export default function Vendas() {
               </tbody>
             </table>
           </div>
+          </>
         )}
         {pages > 1 && (
           <div className="flex items-center justify-between border-t border-zinc-100 px-4 py-2 text-sm dark:border-zinc-800">

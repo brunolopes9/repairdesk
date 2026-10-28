@@ -286,7 +286,7 @@ export default function CompraEditor() {
       {duplicado && (
         <div role="alert" className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
           <span className="flex items-start gap-2"><AlertTriangle size={16} className="mt-0.5 shrink-0" />{duplicado} Confirma que não é a mesma fatura.</span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="secondary" onClick={() => setDuplicado(null)}>Rever</Button>
             <Button type="button" size="sm" onClick={() => save.mutate(true)} loading={save.isPending}>Gravar mesmo assim</Button>
           </div>
@@ -296,7 +296,7 @@ export default function CompraEditor() {
       {confirmDelete && (
         <div role="alert" className="flex flex-col gap-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200 sm:flex-row sm:items-center sm:justify-between">
           <span>Apagar este documento e todos os lotes? Só é possível se nada foi vendido.</span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="secondary" onClick={() => setConfirmDelete(false)}>Cancelar</Button>
             <Button type="button" size="sm" variant="danger" loading={remove.isPending} onClick={() => remove.mutate()}>Apagar</Button>
           </div>

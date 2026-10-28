@@ -8,7 +8,7 @@ type DetailWorkspaceProps = {
 
 export function DetailWorkspace({ children, rail, className = '' }: DetailWorkspaceProps) {
   return (
-    <div className={`grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] ${className}`}>
+    <div className={`grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] ${className}`}>
       <div className="min-w-0 space-y-4">{children}</div>
       {rail ? (
         <aside className="min-w-0 xl:sticky xl:top-20 xl:self-start">
@@ -45,7 +45,7 @@ export function ViewTabs({
   className?: string;
 }) {
   return (
-    <div className={`overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-800 dark:bg-zinc-950 ${className}`}>
+    <div className={`overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-1 [scrollbar-width:none] dark:border-zinc-800 dark:bg-zinc-950 [&::-webkit-scrollbar]:hidden ${className}`}>
       <div className="flex min-w-max gap-1">
         {tabs.map((tab) => {
           const active = tab.key === value;
@@ -53,7 +53,7 @@ export function ViewTabs({
             <button
               key={tab.key}
               type="button"
-              onClick={() => onChange(tab.key)}
+              onClick={(e) => { onChange(tab.key); e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }}
               className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
                 active
                   ? 'bg-white text-zinc-950 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-50 dark:ring-zinc-800'

@@ -61,7 +61,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_20rem]">
         <SectionCard title="Próximas entregas" action={<Link to="/vendas" className="text-sm text-brand-700 hover:underline dark:text-brand-300">Ver vendas</Link>} bodyClassName="p-0">
           {proximasEntregas.length === 0 ? (
             <div className="p-4"><EmptyState icon={Wrench} title="Nada em curso" description="As reparações e serviços em curso aparecem aqui." compact /></div>

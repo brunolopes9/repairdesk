@@ -68,7 +68,7 @@ export default function DocumentosTab() {
         </div>
       }
       action={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {isAdmin && (
             <Button variant="secondary" leftIcon={<FileSpreadsheet size={15} />} onClick={() => setImportOpen(true)}>Importar Excel</Button>
           )}
@@ -136,7 +136,7 @@ export default function DocumentosTab() {
       {pages > 1 && (
         <div className="flex items-center justify-between border-t border-zinc-100 px-4 py-2 text-sm dark:border-zinc-800">
           <span className="text-zinc-500">{total} documentos</span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
             <Button size="sm" variant="secondary" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Seguinte</Button>
           </div>

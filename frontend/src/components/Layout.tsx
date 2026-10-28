@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
+import MobileNav from './MobileNav';
 import HealthIndicator from './HealthIndicator';
 import { AssistantWidget } from './AssistantWidget';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
@@ -152,7 +153,9 @@ export default function Layout() {
   };
   const visibleNav = nav.filter(canSee);
   const mobileNav = visibleNav.flatMap((item) =>
-    (item.children?.filter(canSee)) ?? (item.to ? [item as { to: string; label: string; icon: IconCmp }] : []));
+    item.children
+      ? item.children.filter(canSee).map((c) => ({ ...c, grupo: item.label }))
+      : item.to ? [{ to: item.to, label: item.label, icon: item.icon, grupo: 'Loja' }] : []);
 
   const onboarding = useQuery({
     queryKey: ['onboarding-status'],
@@ -198,13 +201,17 @@ export default function Layout() {
           {/* Seletor de loja (esq) — como nos mockups. v1: nome estático + chevron. */}
           <button
             type="button"
-            className="flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+            className="hidden h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 sm:flex"
             title="Loja"
           >
             <Building2 size={15} className="text-zinc-400" />
             <span className="hidden sm:inline">Loja Principal</span>
             <ChevronDown size={14} className="text-zinc-400" />
           </button>
+          <NavLink to="/" className="flex items-center gap-2 sm:hidden" aria-label="Início">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">M</span>
+            <span className="text-base font-semibold tracking-tight">Mender</span>
+          </NavLink>
           <div className="flex items-center gap-2">
             {/* Sprint 379: ação primária no topo (como o mockup) */}
             <button
@@ -228,13 +235,21 @@ export default function Layout() {
               <kbd className="rounded border border-zinc-200 bg-white px-1 text-[10px] text-zinc-400 dark:border-zinc-700 dark:bg-zinc-950">Ctrl K</kbd>
             </button>
 
-            <HealthIndicator />
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+              aria-label="Procurar"
+              className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 md:hidden"
+            >
+              <Search size={18} strokeWidth={2} />
+            </button>
+            <span className="hidden sm:contents"><HealthIndicator /></span>
 
             <button
               type="button"
               onClick={cycleTheme}
               title={`Tema: ${themeLabel} — clica para alternar`}
-              className="grid h-9 w-9 place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              className="hidden h-9 w-9 sm:grid place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
               <ThemeIcon size={17} strokeWidth={2} />
             </button>
@@ -265,7 +280,7 @@ export default function Layout() {
                 onClick={handleLogout}
                 title="Sair"
                 aria-label="Sair"
-                className="grid h-6 w-6 place-items-center rounded text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                className="hidden h-6 w-6 sm:grid place-items-center rounded text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
                 <LogOut size={14} strokeWidth={2} />
               </button>
@@ -275,7 +290,7 @@ export default function Layout() {
         {/* Sprint 351: banner global quando há timer activo. */}
       </header>
 
-      <main className="mx-auto max-w-[1600px] px-4 pb-24 pt-6 sm:pl-[15.5rem] sm:pr-6">
+      <main className="mx-auto max-w-[1600px] px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 sm:pt-6 sm:pl-[15.5rem] sm:pr-6">
         {location.pathname.startsWith('/definicoes') ? (
           <div className="flex gap-6">
             <div className="hidden md:block"><DefinicoesSubNav /></div>
@@ -303,30 +318,9 @@ export default function Layout() {
       {/* Sprint 369: assistente interno read-only (flutuante). */}
       <AssistantWidget />
 
-      {/* Bottom nav (mobile) */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-10 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95 sm:hidden"
-        aria-label="Bottom navigation"
-      >
-        <ul className="mx-auto flex max-w-5xl">
-          {mobileNav.map((item) => (
-            <li key={item.to} className="flex-1">
-              <NavLink
-                to={item.to}
-                end={item.to === '/' || item.to === '/clientes'}
-                className={({ isActive }) =>
-                  `flex flex-col items-center gap-0.5 py-2 text-[11px] ${
-                    isActive ? 'text-brand-600' : 'text-zinc-500'
-                  }`
-                }
-              >
-                <item.icon size={18} strokeWidth={1.75} aria-hidden />
-                {item.label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      {/* Sprint 572: navegação no telemóvel — 4 separadores + "Mais". */}
+      <MobileNav items={mobileNav} badge={(to) => (to === '/pedidos-online' ? (pedidosPendentes.data ?? 0) : 0)}
+        tema={{ Icon: ThemeIcon, label: themeLabel, alternar: cycleTheme }} onSair={handleLogout} />
 
       {/* Sidebar (desktop) — permanente e larga (w-56), como os mockups (Doc 88) */}
       <aside className="fixed left-0 top-0 z-30 hidden h-screen w-56 flex-col border-r border-slate-800 bg-slate-900 text-slate-300 sm:flex">

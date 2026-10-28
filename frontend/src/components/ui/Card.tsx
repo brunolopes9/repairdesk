@@ -32,7 +32,8 @@ export function SectionCard({
   return (
     <Card className={className}>
       {(title || action) && (
-        <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
+        // flex-wrap: no telemóvel as ações descem para a linha seguinte em vez de saírem do ecrã.
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
           {typeof title === 'string'
             ? <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
             : title}

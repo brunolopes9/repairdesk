@@ -250,7 +250,7 @@ export default function Agendamentos() {
               : 'Próximos 30 dias. Marca horas para os clientes deixarem equipamentos.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg border border-zinc-200 bg-white p-0.5 dark:border-zinc-800 dark:bg-zinc-900">
             <button type="button" onClick={() => setView('week')}
               className={`inline-flex min-h-9 items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition ${view === 'week' ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100' : 'text-zinc-500'}`}>

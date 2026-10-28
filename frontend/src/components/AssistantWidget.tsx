@@ -52,7 +52,7 @@ export function AssistantWidget() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-20 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700 sm:bottom-6"
+          className="fixed bottom-6 right-4 z-40 hidden h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700 sm:flex"
           aria-label="Abrir assistente"
         >
           <Sparkles size={22} />

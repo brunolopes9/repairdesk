@@ -57,7 +57,8 @@ export function DateRangeFilter({ value, onChange }: { value: IntervaloDatas; on
   })?.key ?? '';
   const invalido = value.de && value.ate && value.de > value.ate;
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // Telemóvel: período numa linha e as duas datas lado a lado; a partir de sm tudo em linha.
+    <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 sm:flex sm:w-auto sm:flex-wrap">
       <select
         aria-label="Período"
         value={atalhoAtual || (value.de || value.ate ? 'custom' : '')}
@@ -66,16 +67,16 @@ export function DateRangeFilter({ value, onChange }: { value: IntervaloDatas; on
           if (k === '') onChange(SEM_DATAS);
           else if (k !== 'custom') onChange(intervalo(k as Atalho));
         }}
-        className={`${inputCls} w-auto`}
+        className={`${inputCls} col-span-3 sm:w-auto`}
       >
         <option value="">Todas as datas</option>
         {ATALHOS.map((a) => <option key={a.key} value={a.key}>{a.label}</option>)}
         <option value="custom" disabled>Personalizado</option>
       </select>
-      <input type="date" aria-label="De" value={value.de} max={value.ate || undefined} onChange={(e) => onChange({ ...value, de: e.target.value })} className={`${inputCls} w-auto`} />
+      <input type="date" aria-label="De" value={value.de} max={value.ate || undefined} onChange={(e) => onChange({ ...value, de: e.target.value })} className={`${inputCls} min-w-0 sm:w-auto`} />
       <span className="text-xs text-zinc-500">até</span>
-      <input type="date" aria-label="Até" value={value.ate} min={value.de || undefined} onChange={(e) => onChange({ ...value, ate: e.target.value })} className={`${inputCls} w-auto`} />
-      {invalido && <span className="text-xs text-rose-600">"De" depois de "até"</span>}
+      <input type="date" aria-label="Até" value={value.ate} min={value.de || undefined} onChange={(e) => onChange({ ...value, ate: e.target.value })} className={`${inputCls} min-w-0 sm:w-auto`} />
+      {invalido && <span className="col-span-3 text-xs text-rose-600">"De" depois de "até"</span>}
     </div>
   );
 }

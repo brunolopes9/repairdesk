@@ -29,7 +29,7 @@ export default function SimuladorTab() {
   const r = precoN == null ? null : simular.data;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[22rem_1fr]">
       <SectionCard title="Peça">
         <div className="space-y-3">
           <label className="block">

@@ -115,7 +115,7 @@ export default function Tarefas() {
             create.mutate();
           }}
         >
-          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
             <input
               className="min-h-10 min-w-0 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:ring-brand-950/50"
               placeholder="Nova tarefa... ex: pedir bateria iPhone 13 ao fornecedor"
