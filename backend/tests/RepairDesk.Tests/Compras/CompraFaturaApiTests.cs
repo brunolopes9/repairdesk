@@ -45,6 +45,28 @@ public class CompraFaturaApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task ApagarCompraDeFatura_FaturaVoltaAPendenteEPodeSerDespesa()
+    {
+        // Caso real: fatura de stencils lançada como compra que afinal era despesa.
+        var client = await AuthedClient();
+        var forn = await CriarFornecedor(client, RegimeIvaFornecedor.UeAutoliquidacao);
+        var numero = "FT ST26/" + Rand();
+        var importId = await CriarImport(forn, numero, new DateTime(2026, 10, 26), 1180, ("Stencil reballing", 2, 1180));
+        var req = new CompraDocumentoWriteRequest(forn, new DateTime(2026, 10, 26), numero, null, null, 0m, null, 11.80m, null,
+            [new CompraLinhaWriteRequest(null, "Stencil reballing", 2, 5.90m, null, null, null)]);
+        var compra = await client.PostAsJsonAsync($"/api/compras/de-fatura/{importId}", req);
+        compra.StatusCode.Should().Be(HttpStatusCode.Created, await compra.Content.ReadAsStringAsync());
+        var compraId = (await compra.Content.ReadFromJsonAsync<CompraDocumentoDto>())!.Id;
+
+        (await client.DeleteAsync($"/api/compras/{compraId}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await StatusImport(importId)).Should().Be(SupplierInvoiceImportStatus.Pending);
+
+        var despesa = await client.PostAsJsonAsync($"/api/supplier-invoices/{importId}/approve",
+            new ApproveSupplierInvoiceRequest(1180, "Stencils de reballing", DespesaCategoria.Ferramenta, new DateTime(2026, 10, 26), null, numero, null));
+        despesa.StatusCode.Should().Be(HttpStatusCode.OK, await despesa.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Pesquisa_PorPalavras_EncontraMesmoComOutrasPalavrasPeloMeio()
     {
         // Caso real: "xiaomi 13t pro" não encontrava "Touch e lcd com frame Xiaomi 13T / 13T Pro preto".

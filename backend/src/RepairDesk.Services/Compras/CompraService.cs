@@ -190,6 +190,14 @@ public class CompraService : ICompraService
         var doc = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("CompraDocumento", id);
         if (doc.Linhas.Any(l => l.QuantidadeVendida > 0 || l.QuantidadeAbatida > 0))
             throw new ConflictException("documento_com_movimentos", "Há unidades deste documento já vendidas — não pode ser apagado.");
+        // Sprint 579: a fatura de onde a compra veio volta às faturas por tratar — pode ser lançada como
+        // despesa ou noutra compra. Antes ficava "aprovada" sem nada ligado (e ia para o export como compra).
+        if (doc.SupplierInvoiceImportId is { } importId
+            && await _imports.FindByIdAsync(importId, ct) is { Status: SupplierInvoiceImportStatus.Approved, DespesaId: null } import)
+        {
+            import.Status = SupplierInvoiceImportStatus.Pending;
+            import.ProcessedAt = null;
+        }
         _repo.Remove(doc);
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Delete, nameof(CompraDocumento), id, new { doc.NumeroFatura }, ct: ct);
