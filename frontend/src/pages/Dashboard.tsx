@@ -46,7 +46,9 @@ export default function Dashboard() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard icon={ShoppingCart} label="Faturado no mês" value={formatEur(mes.faturado)} sub={`${mes.vendas} venda(s) entregue(s)`} />
-        <KpiCard icon={Banknote} label="IVA a entregar (vendas)" value={formatEur(mes.ivaAEntregar)} sub={`IVA nas faturas: ${formatEur(mes.ivaNasVendas)}`} tone="amber" />
+        {/* Sprint 578: só o IVA das vendas deste mês (menos o das peças vendidas) — não é o que se paga ao Estado.
+            O IVA a pagar do trimestre (com compras, despesas e crédito anterior) está em IVA e resultados. */}
+        <KpiCard icon={Banknote} label="IVA das vendas do mês" value={formatEur(mes.ivaNasVendas)} sub="Sem descontar compras e despesas — o valor a pagar do trimestre está em IVA e resultados" tone="amber" />
         <KpiCard icon={Wallet} label="Lucro das vendas" value={formatEur(mes.lucroVendas)} sub="Depois de peças e IVA" tone="emerald" />
         <KpiCard icon={Receipt} label="Despesas do mês" value={formatEur(mes.despesas)} sub="Pagas, c/ IVA" tone="zinc" />
       </div>

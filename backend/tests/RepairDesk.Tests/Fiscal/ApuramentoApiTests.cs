@@ -221,6 +221,20 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task CreditoDoTrimestreAnterior_AbateAoSeguinte()
+    {
+        var client = await AuthedClient();
+        // 4.º trimestre de 2037 declarado fora do Mender com −100 € (crédito a reportar).
+        await Post<ApuramentoFechoDto>(client, "/api/apuramento/fecho", new FecharTrimestreRequest(2037, 4, true, -100m));
+        await VendaFaturadaDto(client, 12300, 23m, "FT SOFTWARE/38", new DateTime(2038, 2, 1));
+
+        var r = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2038&trimestre=1"))!;
+        r.Saldo.Should().Be(23m);
+        r.Reporte.Should().Be(100m);
+        r.SaldoFinal.Should().Be(-77m, "23 € a pagar − 100 € de crédito = 77 € que continuam a crédito");
+    }
+
+    [Fact]
     public async Task TrimestreInvalido_Recusa()
     {
         var client = await AuthedClient();

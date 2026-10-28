@@ -29,6 +29,9 @@ export interface Apuramento {
   vendasIsentasForaUe: number;
   /** Trimestre declarado: valores que foram à declaração + diferença para o recalculado agora. */
   fecho: { ivaLiquidado: number; ivaDedutivel: number; saldo: number; pago: boolean; fechadoEm: string; diferenca: number } | null;
+  /** Sprint 578: crédito do trimestre anterior que abate a este, e o valor final a pagar / a reportar. */
+  reporte: number;
+  saldoFinal: number;
 }
 
 

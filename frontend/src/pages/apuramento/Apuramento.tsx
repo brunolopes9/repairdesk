@@ -84,20 +84,20 @@ export default function Apuramento() {
 
           {/* Quanto e até quando */}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className={`rounded-xl border p-4 md:col-span-2 ${r.saldo > 0 ? 'border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30' : 'border-emerald-300 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30'}`}>
-              <p className="text-sm text-zinc-600 dark:text-zinc-300">{r.saldo > 0 ? 'IVA a entregar ao Estado' : r.saldo < 0 ? 'IVA a recuperar (fica a crédito)' : 'IVA a entregar'}</p>
-              <p className="mt-1 text-3xl font-bold tabular-nums">{formatEur(Math.abs(r.saldo))}</p>
+            <div className={`rounded-xl border p-4 md:col-span-2 ${r.saldoFinal > 0 ? 'border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30' : 'border-emerald-300 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30'}`}>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">{r.saldoFinal > 0 ? 'IVA a entregar ao Estado' : r.saldoFinal < 0 ? 'IVA a recuperar (fica a crédito para o próximo trimestre)' : 'IVA a entregar'}</p>
+              <p className="mt-1 text-3xl font-bold tabular-nums">{formatEur(Math.abs(r.saldoFinal))}</p>
               <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                {formatEur(r.ivaLiquidado)} liquidado − {formatEur(r.ivaDedutivel)} dedutível · {dataPt(r.de)} a {dataPt(r.ate)} · {r.faturas} fatura(s)
+                {formatEur(r.ivaLiquidado)} liquidado − {formatEur(r.ivaDedutivel)} dedutível{r.reporte > 0 ? ` − ${formatEur(r.reporte)} de crédito do trimestre anterior` : ''} · {dataPt(r.de)} a {dataPt(r.ate)} · {r.faturas} fatura(s)
               </p>
             </div>
             <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900">
               <p className="flex items-center gap-1.5 font-medium"><CalendarClock size={15} /> Prazos (regime trimestral)</p>
               <p className="mt-2 text-zinc-600 dark:text-zinc-300">Declaração até <strong>{dataPt(entrega)}</strong></p>
-              {r.saldo > 0 && <p className="text-zinc-600 dark:text-zinc-300">Pagamento até <strong>{dataPt(pagamento)}</strong></p>}
+              {r.saldoFinal > 0 && <p className="text-zinc-600 dark:text-zinc-300">Pagamento até <strong>{dataPt(pagamento)}</strong></p>}
               {!r.fecho && (
                 <Button type="button" size="sm" variant="secondary" className="mt-3" leftIcon={<BadgeCheck size={14} />} loading={fechar.isPending}
-                  onClick={async () => { if (await confirm({ title: `Marcar o ${r.trimestre}.º trimestre como declarado e pago?`, description: `Guarda os valores de agora (${formatEur(r.saldo)}). Se algo deste trimestre mudar depois, aparece a diferença.`, confirmLabel: 'Marcar' })) fechar.mutate(); }}>
+                  onClick={async () => { if (await confirm({ title: `Marcar o ${r.trimestre}.º trimestre como declarado e pago?`, description: `Guarda os valores de agora (${formatEur(r.saldoFinal)}). Se algo deste trimestre mudar depois, aparece a diferença.`, confirmLabel: 'Marcar' })) fechar.mutate(); }}>
                   Declarado e pago
                 </Button>
               )}

@@ -50,7 +50,11 @@ public sealed record ApuramentoFechoDto(decimal IvaLiquidado, decimal IvaDedutiv
     /// <summary>Saldo recalculado agora − saldo declarado (≠ 0 = algo mudou depois de declarar).</summary>
     decimal Diferenca);
 
-public sealed record FecharTrimestreRequest(int Ano, int Trimestre, bool Pago = true);
+/// <summary>
+/// SaldoDeclarado: o valor final que foi à declaração (negativo = crédito a reportar). Vazio = o calculado agora.
+/// Serve também para registar trimestres declarados fora do Mender (ex.: 2.º trimestre de 2026: −243,50 €).
+/// </summary>
+public sealed record FecharTrimestreRequest(int Ano, int Trimestre, bool Pago = true, decimal? SaldoDeclarado = null);
 
 public sealed record ApuramentoEstimativasDto(
     /// <summary>Null = ainda não indicada: sem redução de coeficientes e sem isenção de Segurança Social.</summary>
@@ -101,7 +105,11 @@ public sealed record ApuramentoDto(
     /// <summary>Sprint 576: vendas a 0% a clientes da UE (vão também à declaração recapitulativa) e de fora da UE.</summary>
     decimal VendasIsentasUe = 0m,
     decimal VendasIsentasForaUe = 0m,
-    ApuramentoFechoDto? Fecho = null);
+    ApuramentoFechoDto? Fecho = null,
+    /// <summary>Sprint 578: crédito de IVA do trimestre anterior (excesso a reportar) que abate a este.</summary>
+    decimal Reporte = 0m,
+    /// <summary>Saldo − reporte: o que se paga (positivo) ou fica a crédito para o próximo (negativo).</summary>
+    decimal SaldoFinal = 0m);
 
 public interface IApuramentoService
 {
@@ -165,7 +173,8 @@ public class ApuramentoService : IApuramentoService
         }
         fecho.IvaLiquidado = r.IvaLiquidado;
         fecho.IvaDedutivel = r.IvaDedutivel;
-        fecho.Saldo = r.Saldo;
+        // Guarda o valor final declarado (já com o crédito do trimestre anterior) — é o que passa ao seguinte.
+        fecho.Saldo = req.SaldoDeclarado ?? r.SaldoFinal;
         fecho.Pago = req.Pago;
         fecho.FechadoEm = DateTime.UtcNow;
         await _fechos.SaveAsync(ct);
@@ -309,9 +318,15 @@ public class ApuramentoService : IApuramentoService
             {
                 if (ClienteUe(v.Cliente?.Nif)) isentasUe += BaseSemIva(i); else isentasFora += BaseSemIva(i);
             }
+        // Sprint 578: crédito do trimestre anterior (declarado com saldo negativo) abate a este.
+        var (anoAnt, triAnt) = trimestre == 1 ? (ano - 1, 4) : (ano, trimestre - 1);
+        var anterior = _fechos is null ? null : await _fechos.FindAsync(anoAnt, triAnt, ct);
+        var reporte = anterior is { Saldo: < 0 } ? -anterior.Saldo : 0m;
+        var saldoFinal = Euros(saldo - reporte);
+
         ApuramentoFechoDto? fechoDto = null;
         if (_fechos is not null && await _fechos.FindAsync(ano, trimestre, ct) is { } fechado)
-            fechoDto = new ApuramentoFechoDto(fechado.IvaLiquidado, fechado.IvaDedutivel, fechado.Saldo, fechado.Pago, fechado.FechadoEm, Euros(saldo - fechado.Saldo));
+            fechoDto = new ApuramentoFechoDto(fechado.IvaLiquidado, fechado.IvaDedutivel, fechado.Saldo, fechado.Pago, fechado.FechadoEm, Euros(saldoFinal - fechado.Saldo));
 
         decimal BaseTaxa(decimal t) => porTaxa.Where(x => x.Taxa == t).Sum(x => x.Base);
         decimal IvaTaxa(decimal t) => porTaxa.Where(x => x.Taxa == t).Sum(x => x.Iva);
@@ -332,7 +347,8 @@ public class ApuramentoService : IApuramentoService
 
         return new ApuramentoDto(ano, trimestre, de, ate.AddDays(-1), porTaxa, faturadas.Count, Euros(ivaLiquidado), compras, despesasDto,
             Euros(ivaDedutivel), ivaAutoliquidado, Euros(saldo), resultado, campos, estimativas,
-            pendentes.OrderBy(p => p.Tipo).ThenBy(p => p.Data).ToList(), Euros(isentasUe), Euros(isentasFora), fechoDto);
+            pendentes.OrderBy(p => p.Tipo).ThenBy(p => p.Data).ToList(), Euros(isentasUe), Euros(isentasFora), fechoDto,
+            Euros(reporte), saldoFinal);
     }
 
     private static decimal BaseSemIva(VendaItem i) => i.TotalCents / 100m / (1 + i.IvaRate / 100m);
@@ -393,7 +409,8 @@ public class ApuramentoService : IApuramentoService
 
         var relevante = EstimativasFiscais.SsServicos * servTrim + EstimativasFiscais.SsBens * bensTrim;
         var isentoAte = inicio?.Date.AddMonths(12);
-        var isento = isentoAte is { } fim && ate <= fim;
+        // Quem já paga contribuições (ex.: 115,87 €/mês) não está isento, mesmo dentro dos 12 meses.
+        var isento = isentoAte is { } fim && ate <= fim && t?.SsContribuicaoAtual is null or 0m;
 
         return new ApuramentoEstimativasDto(inicio?.Date, inicio is not null, Euros(bens), Euros(s075), Euros(s035), Euros(trading),
             fator, Euros(justificadas), Euros(acrescimo), Euros(rendimento), Euros(irs),
