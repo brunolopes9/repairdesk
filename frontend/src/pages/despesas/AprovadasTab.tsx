@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Banknote, CalendarClock, FileText, Layers3, PackagePlus, Plus, ReceiptText, Repeat2, Search, TrendingDown } from 'lucide-react';
+import { Banknote, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2, Search, TrendingDown } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard } from '../../components/ui';
 import { DespesaFormModal } from '../../components/DespesaFormModal';
@@ -36,7 +36,7 @@ export default function AprovadasTab({
   includeSupplierInvoiceImports = false,
   excludeSupplierInvoiceImports = false,
   allowedCategorias,
-  initialCategoria = DESPESA_CATEGORIA.Pecas,
+  initialCategoria = DESPESA_CATEGORIA.Outro,
   createLabel = 'Nova',
   emptyTitle = 'Ainda nao ha registos',
   emptyDescription = 'Cria o primeiro registo para manter o custo operacional visivel.',
@@ -53,12 +53,6 @@ export default function AprovadasTab({
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Despesa | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Despesa | null>(null);
-  // Sprint 540: converter compra Peças/Material (limbo) em peça de stock real.
-  const [convertTarget, setConvertTarget] = useState<Despesa | null>(null);
-  const [convertQtd, setConvertQtd] = useState(1);
-  const [convertNome, setConvertNome] = useState('');
-  const [convertSku, setConvertSku] = useState('');
-
   const list = useQuery({
     queryKey: ['despesas', categoriaIn ?? null, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, categoria, search, onlyRecurring, page],
     queryFn: () => despesasApi.list({
@@ -70,6 +64,20 @@ export default function AprovadasTab({
       isRecorrente: showRecurringToggle && onlyRecurring ? true : undefined,
       page,
       pageSize: 20,
+    }),
+    placeholderData: keepPreviousData,
+  });
+
+  // Sprint 574: os totais são de todas as despesas do filtro — não só das 20 desta página.
+  const resumo = useQuery({
+    queryKey: ['despesas', 'resumo', categoriaIn ?? null, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, categoria, search, onlyRecurring],
+    queryFn: () => despesasApi.resumo({
+      q: search,
+      categoria,
+      categoriaIn,
+      includeSupplierInvoiceImports,
+      excludeSupplierInvoiceImports,
+      isRecorrente: showRecurringToggle && onlyRecurring ? true : undefined,
     }),
     placeholderData: keepPreviousData,
   });
@@ -100,32 +108,10 @@ export default function AprovadasTab({
     },
   });
 
-  const convert = useMutation({
-    mutationFn: (vars: { id: string; quantidade: number; nome: string; sku: string }) =>
-      despesasApi.converterStock(vars.id, {
-        quantidade: vars.quantidade,
-        nome: vars.nome.trim() || undefined,
-        sku: vars.sku.trim() || undefined,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['despesas'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      qc.invalidateQueries({ queryKey: ['parts'] });
-      qc.invalidateQueries({ queryKey: ['stock'] });
-      setConvertTarget(null);
-    },
-  });
-
-  function openConvert(d: Despesa) {
-    setConvertTarget(d);
-    setConvertQtd(1);
-    setConvertNome(d.descricao);
-    setConvertSku('');
-  }
-
   function invalidateAfterSave() {
     qc.invalidateQueries({ queryKey: ['despesas'] });
     qc.invalidateQueries({ queryKey: ['dashboard'] });
+    qc.invalidateQueries({ queryKey: ['apuramento'] });
   }
 
   const items = list.data?.items ?? [];
@@ -135,35 +121,15 @@ export default function AprovadasTab({
     ? allowedCategorias
     : Array.from(new Set(Object.values(DESPESA_CATEGORIA)));
   const expenseStats = useMemo(() => {
-    const byCategory = new Map<DespesaCategoria, { count: number; totalCents: number }>();
-    let pageTotalCents = 0;
-    let recurringCount = 0;
-    let cogsCount = 0;
-    let supplierCount = 0;
-
-    for (const item of items) {
-      pageTotalCents += item.valorCents;
-      if (item.isRecorrente) recurringCount += 1;
-      if (item.isCogs) cogsCount += 1;
-      if (item.fornecedor) supplierCount += 1;
-
-      const current = byCategory.get(item.categoria) ?? { count: 0, totalCents: 0 };
-      byCategory.set(item.categoria, {
-        count: current.count + 1,
-        totalCents: current.totalCents + item.valorCents,
-      });
-    }
-
+    const r = resumo.data;
     return {
-      pageTotalCents,
-      recurringCount,
-      cogsCount,
-      supplierCount,
-      topCategories: Array.from(byCategory.entries())
-        .sort((a, b) => b[1].totalCents - a[1].totalCents)
-        .slice(0, 4),
+      totalCents: r?.totalCents ?? 0,
+      ivaCents: r?.ivaCents ?? 0,
+      semIva: r?.semIva ?? 0,
+      recurringCount: r?.recorrentes ?? 0,
+      topCategories: (r?.porCategoria ?? []).slice(0, 6).map((c) => [c.categoria, { count: c.registos, totalCents: c.totalCents }] as const),
     };
-  }, [items]);
+  }, [resumo.data]);
   const activeFilters = [
     categoria != null ? DESPESA_LABEL[categoria] : null,
     search.trim() ? 'pesquisa' : null,
@@ -181,26 +147,22 @@ export default function AprovadasTab({
           {workspaceMode === 'compras' ? 'Compras aprovadas' : workspaceMode === 'opex' ? 'Despesas OpEx' : 'Custos aprovados'}
         </h3>
         <p className="mt-1 text-sm text-zinc-500">
-          Leitura rapida desta pagina para perceber valor, origem e impacto antes de abrir cada registo.
+          Totais de todas as despesas do filtro (todas as páginas).
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <ExpenseMetric icon={<Banknote size={16} />} label="Pagina" value={formatCents(expenseStats.pageTotalCents)} tone="emerald" />
-        <ExpenseMetric icon={<FileText size={16} />} label="Registos" value={String(items.length)} caption={`${total} no filtro`} />
-        <ExpenseMetric icon={<Repeat2 size={16} />} label="Recorrentes" value={String(expenseStats.recurringCount)} tone="blue" />
-        <ExpenseMetric
-          icon={<Layers3 size={16} />}
-          label={workspaceMode === 'compras' ? 'COGS' : 'Com fornecedor'}
-          value={String(workspaceMode === 'compras' ? expenseStats.cogsCount : expenseStats.supplierCount)}
-          tone="amber"
-        />
+        <ExpenseMetric icon={<Banknote size={16} />} label="Total" value={formatCents(expenseStats.totalCents)} tone="emerald" />
+        <ExpenseMetric icon={<FileText size={16} />} label="Registos" value={String(total)} />
+        <ExpenseMetric icon={<Layers3 size={16} />} label="IVA nas faturas" value={formatCents(expenseStats.ivaCents)} tone="blue" />
+        <ExpenseMetric icon={<Repeat2 size={16} />} label="Sem IVA indicado" value={String(expenseStats.semIva)}
+          caption={expenseStats.semIva ? 'abre e indica o IVA' : undefined} tone="amber" />
       </div>
 
       <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Categorias nesta vista</p>
-          <span className="text-xs text-zinc-500">{expenseStats.supplierCount} c/ fornecedor</span>
+          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Por categoria</p>
+          <span className="text-xs text-zinc-500">{expenseStats.recurringCount} recorrente(s)</span>
         </div>
         <div className="mt-3 space-y-3">
           {expenseStats.topCategories.length > 0 ? expenseStats.topCategories.map(([category, data]) => (
@@ -218,7 +180,7 @@ export default function AprovadasTab({
             </div>
           )) : (
             <p className="rounded-md bg-zinc-50 px-3 py-4 text-center text-sm text-zinc-500 dark:bg-zinc-950/60">
-              Sem categorias nesta pagina.
+              Sem despesas neste filtro.
             </p>
           )}
         </div>
@@ -257,7 +219,7 @@ export default function AprovadasTab({
       <PageHeader
         title={title}
         description={description}
-        meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'registo' : 'registos'} - pagina: {formatCents(expenseStats.pageTotalCents)}</span>}
+        meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'registo' : 'registos'} · total {formatCents(expenseStats.totalCents)}</span>}
         actions={<Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>{createLabel}</Button>}
       />
 
@@ -325,6 +287,16 @@ export default function AprovadasTab({
                       recorrente
                     </span>
                   )}
+                  {d.ivaCents == null && !d.reverseCharge && (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                      IVA por indicar
+                    </span>
+                  )}
+                  {d.reverseCharge && (
+                    <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[9px] font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
+                      UE · autoliquidação
+                    </span>
+                  )}
                   {d.isCogs && (
                     <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
                       COGS
@@ -343,16 +315,6 @@ export default function AprovadasTab({
                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Saida</div>
                   <span className="font-semibold text-red-600 dark:text-red-400">-{formatCents(d.valorCents)}</span>
                 </div>
-                {(d.categoria === DESPESA_CATEGORIA.Pecas || d.categoria === DESPESA_CATEGORIA.Material) && (
-                  <button
-                    type="button"
-                    onClick={() => openConvert(d)}
-                    className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
-                    title="Mover esta compra para o Stock (cria peça + entrada, sem mexer no IVA)"
-                  >
-                    <PackagePlus size={14} /> Stock
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(d)}
@@ -416,45 +378,6 @@ export default function AprovadasTab({
         </>}
       >
         <p className="text-sm">Apagar <strong>{confirmDelete?.descricao}</strong> ({formatCents(confirmDelete?.valorCents ?? 0)})?</p>
-      </Modal>
-
-      <Modal
-        open={!!convertTarget}
-        title="Converter em stock"
-        onClose={() => setConvertTarget(null)}
-        footer={<>
-          <button type="button" onClick={() => setConvertTarget(null)} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
-          <button type="button" disabled={convert.isPending || convertQtd < 1 || !convertNome.trim()}
-            onClick={() => convertTarget && convert.mutate({ id: convertTarget.id, quantidade: convertQtd, nome: convertNome, sku: convertSku })}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
-            {convert.isPending ? 'A converter...' : 'Criar peça no stock'}
-          </button>
-        </>}
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
-            Cria uma peça no Stock a partir desta compra (<strong>{formatCents(convertTarget?.valorCents ?? 0)}</strong>) e remove-a das despesas.
-            O efeito no IVA é o mesmo — só passa a estar visível no inventário e disponível para reparações.
-          </p>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Nome da peça</span>
-            <input value={convertNome} onChange={(e) => setConvertNome(e.target.value)} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-zinc-700 dark:bg-zinc-950" />
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Quantidade</span>
-              <input type="number" min={1} value={convertQtd} onChange={(e) => setConvertQtd(Math.max(1, Number(e.target.value) || 1))} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-zinc-700 dark:bg-zinc-950" />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">SKU (opcional)</span>
-              <input value={convertSku} onChange={(e) => setConvertSku(e.target.value)} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-zinc-700 dark:bg-zinc-950" />
-            </label>
-          </div>
-          <p className="text-xs text-zinc-500">
-            Custo unitário: <strong>{formatCents(Math.round((convertTarget?.valorCents ?? 0) / Math.max(1, convertQtd)))}</strong>
-            {' '}· categoria inicial "Outro" (ajustável depois no Stock).
-          </p>
-        </div>
       </Modal>
     </div>
   );

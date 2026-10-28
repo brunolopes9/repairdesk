@@ -75,7 +75,10 @@ public sealed record CompraDocumentoWriteRequest(
     string? Notas,
     IReadOnlyList<CompraLinhaWriteRequest> Linhas,
     // true = gravar mesmo havendo um documento com o mesmo nº de fatura/encomenda.
-    bool IgnorarDuplicado = false);
+    bool IgnorarDuplicado = false,
+    // Sprint 574: com fatura registada, os dados da fatura ficam bloqueados; true = corrigir um erro de
+    // leitura (só Admin, fica na auditoria).
+    bool CorrigirDadosDaFatura = false);
 
 public sealed record CompraDuplicadoDto(Guid Id, DateTime Data, string? NumeroFatura, string? NumerosEncomenda);
 

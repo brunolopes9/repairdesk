@@ -34,6 +34,10 @@ public sealed record UpdateDespesaRequest(
     int DeducaoPercent = 100,
     bool ReverseCharge = false);
 
+/// <summary>Sprint 574: resumo do filtro inteiro (todas as páginas).</summary>
+public sealed record DespesasResumoDto(int Registos, int TotalCents, int IvaCents, int SemIva, int Recorrentes,
+    IReadOnlyList<Core.Abstractions.DespesaResumoCategoria> PorCategoria);
+
 public sealed record DespesaDto(
     Guid Id,
     string Descricao,

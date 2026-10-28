@@ -14,6 +14,20 @@ public class DespesasController : ControllerBase
     private readonly IDespesaService _service;
     public DespesasController(IDespesaService service) => _service = service;
 
+    /// <summary>Sprint 574: totais de todas as despesas do filtro (a lista é paginada; os totais não).</summary>
+    [HttpGet("resumo")]
+    public Task<DespesasResumoDto> Resumo(
+        [FromQuery] string? q,
+        [FromQuery] DespesaCategoria? categoria,
+        [FromQuery(Name = "categoria_in")] string? categoriaIn,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] bool? isRecorrente,
+        [FromQuery(Name = "include_supplier_invoice_imports")] bool includeSupplierInvoiceImports,
+        [FromQuery(Name = "exclude_supplier_invoice_imports")] bool excludeSupplierInvoiceImports,
+        CancellationToken ct = default)
+        => _service.ResumoAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, ct);
+
     [HttpGet]
     public Task<PagedResult<DespesaDto>> Search(
         [FromQuery] string? q,

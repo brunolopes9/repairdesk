@@ -15,7 +15,7 @@ export function DespesaFormModal({
   open,
   editing,
   initialRecorrente = false,
-  initialCategoria = DESPESA_CATEGORIA.Pecas,
+  initialCategoria = DESPESA_CATEGORIA.Outro,
   allowedCategorias,
   onClose,
   onSaved,
@@ -114,7 +114,8 @@ export function DespesaFormModal({
   const valorCents = parseEuros(valor);
   const categoriaOptions = allowedCategorias?.length
     ? Array.from(new Set([...(editing ? [editing.categoria] : []), ...allowedCategorias]))
-    : Array.from(new Set(Object.values(DESPESA_CATEGORIA)));
+    // Sprint 574: peças para revenda são Compras (stock), não despesas — só aparecem ao editar uma antiga.
+    : Array.from(new Set(Object.values(DESPESA_CATEGORIA))).filter((c) => (c !== DESPESA_CATEGORIA.Pecas && c !== DESPESA_CATEGORIA.PecasUsadas) || c === editing?.categoria);
 
   return (
     <Modal

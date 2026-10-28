@@ -44,6 +44,16 @@ export default function Balcao() {
     enabled: pesquisa.trim().length >= 2,
   });
 
+  // Sprint 574: pesquisa enquanto se escreve (antes só com Enter — escrever 's23' não mostrava nada).
+  // Só números compridos não disparam: é a pistola a meio de um código de barras (essa acaba em Enter).
+  useEffect(() => {
+    const t = codigo.trim();
+    // Vazio não limpa: depois de um Enter a caixa esvazia mas os resultados ficam à vista.
+    if (t.length < 2 || /^\d{8,}$/.test(t)) return;
+    const id = setTimeout(() => setPesquisa(t), 250);
+    return () => clearTimeout(id);
+  }, [codigo]);
+
   // No telemóvel não se foca a caixa (abriria o teclado por cima do ecrã); usa-se a câmara.
   useEffect(() => { if (!window.matchMedia?.('(pointer: coarse)').matches) leitor.current?.focus(); }, []);
 

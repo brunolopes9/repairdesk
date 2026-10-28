@@ -11,6 +11,7 @@ public interface IDespesaService
 {
     Task<PagedResult<DespesaDto>> SearchAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default);
     Task<DespesaDto> GetAsync(Guid id, CancellationToken ct = default);
+    Task<DespesasResumoDto> ResumoAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente, CancellationToken ct = default);
     Task<DespesaDto> CreateAsync(CreateDespesaRequest req, CancellationToken ct = default);
     Task<DespesaDto> UpdateAsync(Guid id, UpdateDespesaRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
@@ -41,6 +42,17 @@ public class DespesaService : IDespesaService
         pageSize = Math.Clamp(pageSize, 1, 100);
         var (items, total) = await _repo.SearchAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, page, pageSize, ct);
         return new PagedResult<DespesaDto>(items.Select(ToDto).ToList(), page, pageSize, total);
+    }
+
+    public async Task<DespesasResumoDto> ResumoAsync(
+        string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
+        bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
+        bool? isRecorrente, CancellationToken ct = default)
+    {
+        var cats = (await _repo.ResumoAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, ct))
+            .OrderByDescending(c => c.TotalCents).ToList();
+        return new DespesasResumoDto(cats.Sum(c => c.Registos), cats.Sum(c => c.TotalCents), cats.Sum(c => c.IvaCents),
+            cats.Sum(c => c.SemIva), cats.Sum(c => c.Recorrentes), cats);
     }
 
     public async Task<DespesaDto> GetAsync(Guid id, CancellationToken ct = default)

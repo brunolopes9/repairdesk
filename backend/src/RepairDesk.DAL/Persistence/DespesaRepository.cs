@@ -22,6 +22,31 @@ public class DespesaRepository : IDespesaRepository
         bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
         bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
     {
+        var q = Filtrar(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente);
+        var total = await q.CountAsync(ct);
+        var items = await q
+            .OrderByDescending(d => d.Data)
+            .ThenByDescending(d => d.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+        return (items, total);
+    }
+
+    public async Task<IReadOnlyList<DespesaResumoCategoria>> ResumoAsync(
+        string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
+        bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
+        bool? isRecorrente, CancellationToken ct = default)
+        => await Filtrar(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente)
+            .GroupBy(d => d.Categoria)
+            .Select(g => new DespesaResumoCategoria(g.Key, g.Count(), g.Sum(d => d.ValorCents),
+                g.Sum(d => d.IvaCents ?? 0), g.Count(d => d.IvaCents == null && !d.ReverseCharge), g.Count(d => d.IsRecorrente)))
+            .ToListAsync(ct);
+
+    private IQueryable<Despesa> Filtrar(
+        string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
+        bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente)
+    {
         var q = _db.Despesas.AsNoTracking().AsQueryable();
         var supplierImportDespesaIds = _db.SupplierInvoiceImports
             .Where(i => i.DespesaId != null)
@@ -51,15 +76,7 @@ public class DespesaRepository : IDespesaRepository
                 EF.Functions.Like(d.Descricao, like) ||
                 (d.Fornecedor != null && EF.Functions.Like(d.Fornecedor, like)));
         }
-
-        var total = await q.CountAsync(ct);
-        var items = await q
-            .OrderByDescending(d => d.Data)
-            .ThenByDescending(d => d.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(ct);
-        return (items, total);
+        return q;
     }
 
     public Task AddAsync(Despesa despesa, CancellationToken ct = default) => _db.Despesas.AddAsync(despesa, ct).AsTask();

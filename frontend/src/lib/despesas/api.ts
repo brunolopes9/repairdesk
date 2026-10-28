@@ -16,24 +16,38 @@ interface ListFilters {
   pageSize?: number;
 }
 
+/** Sprint 574: totais do filtro inteiro (a lista é paginada; os totais não). */
+export interface DespesasResumo {
+  registos: number;
+  totalCents: number;
+  ivaCents: number;
+  /** Despesas sem IVA indicado (contam no apuramento como "por tratar"). */
+  semIva: number;
+  recorrentes: number;
+  porCategoria: { categoria: DespesaCategoria; registos: number; totalCents: number; ivaCents: number; semIva: number; recorrentes: number }[];
+}
+
+function filtroParams(filters: ListFilters) {
+  return {
+    q: filters.q || undefined,
+    categoria: filters.categoria ?? undefined,
+    categoria_in: filters.categoriaIn?.length ? filters.categoriaIn.join(',') : undefined,
+    include_supplier_invoice_imports: filters.includeSupplierInvoiceImports || undefined,
+    exclude_supplier_invoice_imports: filters.excludeSupplierInvoiceImports || undefined,
+    from: filters.from || undefined,
+    to: filters.to || undefined,
+    isRecorrente: filters.isRecorrente ?? undefined,
+  };
+}
+
 export const despesasApi = {
   list(filters: ListFilters = {}) {
     return api
-      .get<DespesasPage>('/despesas', {
-        params: {
-          q: filters.q || undefined,
-          categoria: filters.categoria ?? undefined,
-          categoria_in: filters.categoriaIn?.length ? filters.categoriaIn.join(',') : undefined,
-          include_supplier_invoice_imports: filters.includeSupplierInvoiceImports || undefined,
-          exclude_supplier_invoice_imports: filters.excludeSupplierInvoiceImports || undefined,
-          from: filters.from || undefined,
-          to: filters.to || undefined,
-          isRecorrente: filters.isRecorrente ?? undefined,
-          page: filters.page ?? 1,
-          pageSize: filters.pageSize ?? 20,
-        },
-      })
+      .get<DespesasPage>('/despesas', { params: { ...filtroParams(filters), page: filters.page ?? 1, pageSize: filters.pageSize ?? 20 } })
       .then((r) => r.data);
+  },
+  resumo(filters: ListFilters = {}) {
+    return api.get<DespesasResumo>('/despesas/resumo', { params: filtroParams(filters) }).then((r) => r.data);
   },
   get(id: string) {
     return api.get<Despesa>(`/despesas/${id}`).then((r) => r.data);
@@ -46,18 +60,5 @@ export const despesasApi = {
   },
   remove(id: string) {
     return api.delete(`/despesas/${id}`).then(() => undefined);
-  },
-  // Sprint 540: tirar uma compra de Peças/Material do limbo "despesa" e materializá-la no Stock
-  // (cria Part + entrada). Move com efeito fiscal nulo — o backend remove a despesa.
-  converterStock(
-    id: string,
-    req: { quantidade?: number; sku?: string | null; nome?: string | null },
-  ) {
-    return api
-      .post<{ partId: string; nome: string; quantidade: number; custoUnitarioCents: number }>(
-        `/despesas/${id}/converter-stock`,
-        req,
-      )
-      .then((r) => r.data);
   },
 };

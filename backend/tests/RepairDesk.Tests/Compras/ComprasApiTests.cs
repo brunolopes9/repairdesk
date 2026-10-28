@@ -113,12 +113,37 @@ public class ComprasApiTests : IClassFixture<RepairDeskApiFactory>
         var update = Doc(nac, doc.NumeroFatura,
             new CompraLinhaWriteRequest(a.Id, "Linha A editada", 2, 5m, 0.23m, 7m, null),
             new CompraLinhaWriteRequest(null, "Linha C", 1, 1m, null, null, null));
-        var resp = await client.PutAsJsonAsync($"/api/compras/{doc.Id}", update);
+        // Sprint 574: com a fatura registada, os dados da fatura não mudam…
+        var bloqueado = await client.PutAsJsonAsync($"/api/compras/{doc.Id}", update);
+        bloqueado.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await bloqueado.Content.ReadAsStringAsync()).Should().Contain("fatura_bloqueada");
+
+        // …a não ser que o administrador corrija um erro de leitura (fica na auditoria).
+        var resp = await client.PutAsJsonAsync($"/api/compras/{doc.Id}", update with { CorrigirDadosDaFatura = true });
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var atualizado = (await resp.Content.ReadFromJsonAsync<CompraDocumentoDto>())!;
         atualizado.Linhas.Select(l => l.Descricao).Should().BeEquivalentTo(["Linha A editada", "Linha C"]);
         atualizado.Linhas.Single(l => l.Id == a.Id).Quantidade.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task FaturaRegistada_DeixaMudarLucroLocalizacaoENotas()
+    {
+        var client = await AuthedClient();
+        var nac = await CriarFornecedor(client, RegimeIvaFornecedor.Nacional);
+        var doc = (await (await client.PostAsJsonAsync("/api/compras", Doc(nac, "L-" + Guid.NewGuid().ToString("N")[..6],
+            new CompraLinhaWriteRequest(null, "Bateria iPhone 11", 1, 6.91m, null, null, null)))).Content.ReadFromJsonAsync<CompraDocumentoDto>())!;
+        var l = doc.Linhas.Single();
+
+        var update = Doc(nac, doc.NumeroFatura, new CompraLinhaWriteRequest(l.Id, l.Descricao, l.Quantidade, l.PrecoUnitarioPago, l.TaxaIvaCompra, 9m, "Gaveta B2"))
+            with { Notas = "Conferido", MetodoPagamento = "MB Way" };
+        var resp = await client.PutAsJsonAsync($"/api/compras/{doc.Id}", update);
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync());
+        var atualizado = (await resp.Content.ReadFromJsonAsync<CompraDocumentoDto>())!;
+        atualizado.Linhas.Single().LucroUnitario.Should().Be(9m);
+        atualizado.Linhas.Single().Localizacao.Should().Be("Gaveta B2");
     }
 
     [Fact]

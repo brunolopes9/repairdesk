@@ -76,6 +76,8 @@ export interface CompraDocumentoWrite {
   notas: string | null;
   linhas: CompraLinhaWrite[];
   ignorarDuplicado?: boolean;
+  /** Sprint 574: corrigir dados de uma fatura já registada (só Admin). */
+  corrigirDadosDaFatura?: boolean;
 }
 
 export interface CompraFiltro {

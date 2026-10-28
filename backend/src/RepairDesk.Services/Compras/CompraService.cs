@@ -108,6 +108,11 @@ public class CompraService : ICompraService
         var doc = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("CompraDocumento", id);
         var fornecedor = doc.FornecedorId == req.FornecedorId ? doc.Fornecedor! : await RequireFornecedorAsync(req.FornecedorId, ct);
         var (numeroFatura, encomendas) = Validate(req);
+        var faturada = !doc.FaturaEmFalta;
+        if (faturada && !req.CorrigirDadosDaFatura && MudaDadosDaFatura(doc, req, fornecedor, numeroFatura, encomendas) is { } campo)
+            throw new ConflictException("fatura_bloqueada",
+                $"Esta compra tem a fatura {doc.NumeroFatura} registada — {campo} vem da fatura e não se altera. " +
+                "Podes mudar o lucro, a localização, o pagamento e as notas.");
         await EnsureNotDuplicateAsync(req, fornecedor.Id, numeroFatura, encomendas, doc.Id, ct);
 
         doc.FornecedorId = fornecedor.Id;
@@ -148,8 +153,36 @@ public class CompraService : ICompraService
 
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(CompraDocumento), doc.Id,
-            new { fornecedor = fornecedor.Name, doc.NumeroFatura, linhas = doc.Linhas.Count }, ct: ct);
+            new { fornecedor = fornecedor.Name, doc.NumeroFatura, linhas = doc.Linhas.Count,
+                operation = faturada && req.CorrigirDadosDaFatura ? "corrigir_dados_fatura" : "update" }, ct: ct);
         return ToDto(doc);
+    }
+
+    /// <summary>
+    /// Sprint 574: o que vem da fatura do fornecedor (fornecedor, data, nºs, portes, total e as linhas: descrição,
+    /// quantidade, preço pago, IVA) não muda depois de registada. Devolve o primeiro campo alterado, ou null.
+    /// </summary>
+    private static string? MudaDadosDaFatura(CompraDocumento doc, CompraDocumentoWriteRequest req, Fornecedor fornecedor,
+        string? numeroFatura, IReadOnlyList<string> encomendas)
+    {
+        if (doc.FornecedorId != fornecedor.Id) return "o fornecedor";
+        if (doc.Data.Date != req.Data.Date) return "a data";
+        if (!string.Equals(doc.NumeroFatura, numeroFatura, StringComparison.Ordinal)) return "o nº da fatura";
+        var antes = doc.NumerosEncomenda is null ? [] : doc.NumerosEncomenda.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        if (!antes.OrderBy(x => x).SequenceEqual(encomendas.OrderBy(x => x))) return "o nº da encomenda";
+        if (doc.PortesPagos != req.PortesPagos || doc.PortesIva != req.PortesIva) return "os portes";
+        if (doc.TotalDocumento != req.TotalDocumento) return "o total do documento";
+        if (req.Linhas.Any(l => l.Id is null) || doc.Linhas.Count != req.Linhas.Count) return "a lista de linhas";
+        foreach (var l in req.Linhas)
+        {
+            var linha = doc.Linhas.FirstOrDefault(x => x.Id == l.Id);
+            if (linha is null) return "a lista de linhas";
+            var taxa = l.TaxaIvaCompra ?? fornecedor.TaxaIvaCompraPorDefeito(TaxaVenda);
+            if (linha.Descricao != l.Descricao.Trim() || linha.Quantidade != l.Quantidade
+                || linha.PrecoUnitarioPago != l.PrecoUnitarioPago || linha.TaxaIvaCompra != taxa)
+                return $"a linha \"{linha.Descricao}\"";
+        }
+        return null;
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)

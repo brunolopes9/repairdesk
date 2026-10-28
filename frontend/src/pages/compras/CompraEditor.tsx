@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, FileText, Plus, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, FileText, Lock, Plus, Save, Trash2 } from 'lucide-react';
 import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { apiErrorCode, apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
@@ -170,6 +170,12 @@ export default function CompraEditor() {
     return { porLinha, totalLinhas, calculado: totalLinhas + portes, diferenca };
   }, [linhas, form.portes, form.total, taxaDefeito]);
 
+  // Sprint 574: com a fatura registada, o que vem da fatura (fornecedor, data, nºs, portes, total e as linhas)
+  // fica bloqueado — é um documento emitido. Lucro, localização, pagamento e notas são nossos e editam-se.
+  // Um erro de leitura da IA corrige-se com "Corrigir dados da fatura" (só administrador, fica na auditoria).
+  const [corrigir, setCorrigir] = useState(false);
+  const bloqueada = !isNew && !!existente.data && !existente.data.faturaEmFalta && !corrigir;
+
   function buildRequest(ignorarDuplicado: boolean): CompraDocumentoWrite {
     return {
       fornecedorId: form.fornecedorId,
@@ -182,6 +188,7 @@ export default function CompraEditor() {
       totalDocumento: parseDecimal(form.total),
       notas: form.notas.trim() || null,
       ignorarDuplicado,
+      corrigirDadosDaFatura: corrigir,
       linhas: linhas
         .filter((l) => l.descricao.trim() || l.preco.trim())
         .map((l) => ({
@@ -207,6 +214,7 @@ export default function CompraEditor() {
       qc.invalidateQueries({ queryKey: ['compras'] });
       if (faturaId) qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
       qc.setQueryData(['compra', doc.id], doc);
+      setCorrigir(false);
       toast.success(isNew ? 'Compra registada' : 'Compra atualizada', `${doc.unidades} unidade(s) · ${formatEur(doc.totalCalculado)}`);
       if (isNew) navigate(`/compras/${doc.id}`, { replace: true });
     },
@@ -283,6 +291,27 @@ export default function CompraEditor() {
         </div>
       )}
 
+      {bloqueada && (
+        <div className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 sm:flex-row sm:items-center sm:justify-between">
+          <span className="flex items-start gap-2">
+            <Lock size={16} className="mt-0.5 shrink-0" />
+            Fatura {existente.data?.numeroFatura} registada — os dados da fatura não se alteram. Podes mudar o lucro, a localização, o pagamento e as notas.
+          </span>
+          {isAdmin && (
+            <Button type="button" size="sm" variant="ghost" onClick={() => setCorrigir(true)}
+              title="Só para quando a leitura automática errou em relação ao PDF">
+              Corrigir erro de leitura
+            </Button>
+          )}
+        </div>
+      )}
+      {corrigir && (
+        <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          A corrigir os dados da fatura: põe-os exatamente como estão no PDF. Fica registado na auditoria.
+          <button type="button" className="ml-2 underline" onClick={() => { setCorrigir(false); existente.refetch(); }}>Cancelar</button>
+        </div>
+      )}
+
       {duplicado && (
         <div role="alert" className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
           <span className="flex items-start gap-2"><AlertTriangle size={16} className="mt-0.5 shrink-0" />{duplicado} Confirma que não é a mesma fatura.</span>
@@ -307,7 +336,7 @@ export default function CompraEditor() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block sm:col-span-2">
             <span className={labelCls}>Fornecedor *</span>
-            <select required value={form.fornecedorId} onChange={(e) => setForm({ ...form, fornecedorId: e.target.value })} className={inputCls}>
+            <select disabled={bloqueada} required value={form.fornecedorId} onChange={(e) => setForm({ ...form, fornecedorId: e.target.value })} className={inputCls}>
               <option value="">Escolhe…</option>
               {fornecedores.data?.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
@@ -315,7 +344,7 @@ export default function CompraEditor() {
           </label>
           <label className="block">
             <span className={labelCls}>Data *</span>
-            <input type="date" required value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className={inputCls} />
+            <input disabled={bloqueada} type="date" required value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className={inputCls} />
           </label>
           <label className="block">
             <span className={labelCls}>Pagamento</span>
@@ -323,23 +352,23 @@ export default function CompraEditor() {
           </label>
           <label className="block">
             <span className={labelCls}>Nº da fatura</span>
-            <input value={form.numeroFatura} onChange={(e) => setForm({ ...form, numeroFatura: e.target.value })} className={inputCls} placeholder="Vazio = fatura em falta" maxLength={100} />
+            <input disabled={bloqueada} value={form.numeroFatura} onChange={(e) => setForm({ ...form, numeroFatura: e.target.value })} className={inputCls} placeholder="Vazio = fatura em falta" maxLength={100} />
           </label>
           <label className="block">
             <span className={labelCls}>Nº encomenda(s)</span>
-            <input value={form.encomendas} onChange={(e) => setForm({ ...form, encomendas: e.target.value })} className={inputCls} placeholder="#165048, 165227" />
+            <input disabled={bloqueada} value={form.encomendas} onChange={(e) => setForm({ ...form, encomendas: e.target.value })} className={inputCls} placeholder="#165048, 165227" />
           </label>
           <label className="block">
             <span className={labelCls}>Portes pagos (c/ IVA)</span>
-            <input inputMode="decimal" value={form.portes} onChange={(e) => setForm({ ...form, portes: e.target.value })} className={inputCls} placeholder="0,00" />
+            <input disabled={bloqueada} inputMode="decimal" value={form.portes} onChange={(e) => setForm({ ...form, portes: e.target.value })} className={inputCls} placeholder="0,00" />
           </label>
           <label className="block">
             <span className={labelCls}>IVA dos portes</span>
-            <input inputMode="decimal" value={form.portesIva} onChange={(e) => setForm({ ...form, portesIva: e.target.value })} className={inputCls} placeholder={regime === REGIME_IVA.Nacional ? 'ex.: 0,73' : '0'} />
+            <input disabled={bloqueada} inputMode="decimal" value={form.portesIva} onChange={(e) => setForm({ ...form, portesIva: e.target.value })} className={inputCls} placeholder={regime === REGIME_IVA.Nacional ? 'ex.: 0,73' : '0'} />
           </label>
           <label className="block">
             <span className={labelCls}>Total impresso no documento</span>
-            <input inputMode="decimal" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })} className={inputCls} placeholder="Para conferir" />
+            <input disabled={bloqueada} inputMode="decimal" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })} className={inputCls} placeholder="Para conferir" />
           </label>
           <label className="block sm:col-span-2 lg:col-span-3">
             <span className={labelCls}>Notas</span>
@@ -376,12 +405,12 @@ export default function CompraEditor() {
                   <tr key={l.key} className="align-top">
                     <td className="py-2 pr-2 pt-4 tabular-nums text-xs text-zinc-500">{l.numero ?? 'novo'}</td>
                     <td className="py-2 pr-2">
-                      <input aria-label="Descrição" value={l.descricao} onChange={(e) => setLinha(l.key, { descricao: e.target.value })} className={inputCls} placeholder="Ecrã Samsung A15" maxLength={500} />
+                      <input disabled={bloqueada} aria-label="Descrição" value={l.descricao} onChange={(e) => setLinha(l.key, { descricao: e.target.value })} className={inputCls} placeholder="Ecrã Samsung A15" maxLength={500} />
                       {l.movimentos > 0 && <span className="mt-1 block text-xs text-zinc-500">{l.movimentos} já saíram do stock</span>}
                     </td>
-                    <td className="py-2 pr-2"><input aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} /></td>
-                    <td className="py-2 pr-2"><input aria-label="Preço unitário pago" inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" /></td>
-                    <td className="py-2 pr-2"><input aria-label="Taxa de IVA" inputMode="decimal" value={l.taxa} onChange={(e) => setLinha(l.key, { taxa: e.target.value })} className={inputCls} placeholder={String(taxaDefeito * 100)} /></td>
+                    <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} /></td>
+                    <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Preço unitário pago" inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" /></td>
+                    <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Taxa de IVA" inputMode="decimal" value={l.taxa} onChange={(e) => setLinha(l.key, { taxa: e.target.value })} className={inputCls} placeholder={String(taxaDefeito * 100)} /></td>
                     <td className="py-2 pr-2"><input aria-label="Lucro unitário" inputMode="decimal" value={l.lucro} onChange={(e) => setLinha(l.key, { lucro: e.target.value })} className={inputCls} placeholder={String(lucroPorDefeito(l.descricao))} /></td>
                     <td className="py-2 pr-2"><input aria-label="Localização" value={l.localizacao} onChange={(e) => setLinha(l.key, { localizacao: e.target.value })} className={inputCls} maxLength={100} /></td>
                     <td className="py-2 pr-2 pt-4 text-right tabular-nums">{c ? formatEur(c.precoFinalComIva) : '—'}</td>
@@ -392,7 +421,7 @@ export default function CompraEditor() {
                         variant="icon"
                         aria-label="Remover linha"
                         title={l.movimentos > 0 ? 'Já tem vendas — não pode ser removida' : 'Remover linha'}
-                        disabled={l.movimentos > 0 || linhas.length === 1}
+                        disabled={bloqueada || l.movimentos > 0 || linhas.length === 1}
                         onClick={() => setLinhas((ls) => ls.filter((x) => x.key !== l.key))}
                       >
                         <Trash2 size={15} />
@@ -405,7 +434,7 @@ export default function CompraEditor() {
           </table>
         </div>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <Button type="button" variant="secondary" size="sm" leftIcon={<Plus size={15} />} onClick={() => setLinhas((ls) => [...ls, novaLinha()])}>
+          <Button type="button" variant="secondary" size="sm" leftIcon={<Plus size={15} />} disabled={bloqueada} onClick={() => setLinhas((ls) => [...ls, novaLinha()])}>
             Adicionar linha
           </Button>
           <dl className="grid grid-cols-[auto_auto] gap-x-6 gap-y-1 text-sm tabular-nums">

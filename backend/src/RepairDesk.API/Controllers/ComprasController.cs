@@ -81,7 +81,12 @@ public class ComprasController : ControllerBase
 
     [HttpPut("{id:guid}")]
     public Task<CompraDocumentoDto> Update(Guid id, [FromBody] CompraDocumentoWriteRequest req, CancellationToken ct)
-        => _service.UpdateAsync(id, req, ct);
+    {
+        // Sprint 574: corrigir dados de uma fatura já registada é só para o administrador.
+        if (req.CorrigirDadosDaFatura && !User.IsInRole("Admin"))
+            throw new RepairDesk.Core.Exceptions.ForbiddenException("so_admin", "Só o administrador corrige os dados de uma fatura registada.");
+        return _service.UpdateAsync(id, req, ct);
+    }
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]
