@@ -20,9 +20,12 @@ interface LinhaCarrinho {
   quantidade: number;
   /** Sprint 581: artigo agrupado — o modelo (lote) escolhido; null = sai do lote mais antigo. */
   lote: ArtigoLote | null;
+  /** Sprint 583: modelo escrito à mão (o lote não o diz) — vai para a fatura. */
+  modelo: string | null;
 }
 
-const chave = (l: { artigo: Artigo; lote: ArtigoLote | null }) => `${l.artigo.id}:${l.lote?.linhaId ?? ''}`;
+const chave = (l: { artigo: Artigo; lote: ArtigoLote | null; modelo: string | null }) => `${l.artigo.id}:${l.lote?.linhaId ?? ''}:${l.modelo ?? ''}`;
+const textoLinha = (l: LinhaCarrinho) => (l.modelo ? `${l.artigo.nome} – ${l.modelo}` : l.lote?.textoFatura ?? l.artigo.nome);
 
 const PAGAMENTOS: PaymentMethod[] = [PAYMENT_METHOD.Dinheiro, PAYMENT_METHOD.MBWay, PAYMENT_METHOD.Cartao, PAYMENT_METHOD.Multibanco, PAYMENT_METHOD.TransferenciaBancaria];
 
@@ -65,18 +68,20 @@ export default function Balcao() {
   useEffect(() => { if (!window.matchMedia?.('(pointer: coarse)').matches) leitor.current?.focus(); }, []);
 
   /** Artigo agrupado sem modelo escolhido → pergunta o modelo primeiro. */
-  function adicionar(a: Artigo, qtd = 1, lote: ArtigoLote | null = null) {
+  function adicionar(a: Artigo, qtd = 1, lote: ArtigoLote | null = null, modelo: string | null = null) {
     if (a.agrupado && !lote) { setEscolher(a); return; }
     setCarrinho((c) => {
-      const k = chave({ artigo: a, lote });
+      const k = chave({ artigo: a, lote, modelo });
       const i = c.findIndex((l) => chave(l) === k);
       const atual = i >= 0 ? c[i].quantidade : 0;
-      const disponivel = lote ? lote.quantidadeEmStock : a.stock;
+      // O mesmo lote pode estar em várias linhas (modelos escritos à mão diferentes): conta todas.
+      const noLote = lote ? c.filter((l) => l.lote?.linhaId === lote.linhaId && chave(l) !== k).reduce((s, l) => s + l.quantidade, 0) : 0;
+      const disponivel = (lote ? lote.quantidadeEmStock : a.stock) - noLote;
       if (atual + qtd > disponivel) {
         toast.error('Sem stock suficiente', `${lote?.descricao ?? a.nome}: há ${disponivel} em stock.`);
         return c;
       }
-      if (i < 0) return [...c, { artigo: a, quantidade: qtd, lote }];
+      if (i < 0) return [...c, { artigo: a, quantidade: qtd, lote, modelo }];
       return c.map((l, j) => (j === i ? { ...l, quantidade: l.quantidade + qtd } : l));
     });
   }
@@ -111,7 +116,7 @@ export default function Balcao() {
 
   const vender = useMutation({
     mutationFn: () => artigosApi.vender({
-      linhas: carrinho.map((l) => ({ artigoId: l.artigo.id, quantidade: l.quantidade, loteId: l.lote?.linhaId ?? null })),
+      linhas: carrinho.map((l) => ({ artigoId: l.artigo.id, quantidade: l.quantidade, loteId: l.lote?.linhaId ?? null, modelo: l.modelo })),
       paymentMethod: pagamento,
       comNif: pedidoFatura(fatura).comNif,
     }),
@@ -156,7 +161,7 @@ export default function Balcao() {
           <LeitorCamera open={camara} onClose={() => setCamara(false)} onLido={(c) => { void lerCodigo(c); }} continuo
             titulo="Ler artigos com a câmara" />
           <EscolherModelo artigo={escolher} filtroInicial={pesquisa} onClose={() => { setEscolher(null); leitor.current?.focus(); }}
-            onEscolher={(lote) => { if (escolher) adicionar(escolher, 1, lote); setEscolher(null); leitor.current?.focus(); }} />
+            onEscolher={(lote, modelo) => { if (escolher) adicionar(escolher, 1, lote, modelo); setEscolher(null); leitor.current?.focus(); }} />
 
           {pesquisa && (
             <SectionCard title={`Resultados para "${pesquisa}"`} bodyClassName="p-0">
@@ -198,7 +203,7 @@ export default function Balcao() {
                 <li key={chave(l)} className="flex items-center gap-2 py-2 text-sm">
                   <span className="min-w-0 flex-1">
                     {/* Sprint 582: o texto exato da linha da fatura. */}
-                    <span className="font-medium">{l.lote?.textoFatura ?? l.artigo.nome}</span>
+                    <span className="font-medium">{textoLinha(l)}</span>
                     <span className="block text-xs text-zinc-500">{formatEur((l.artigo.precoEfetivoCents ?? 0) / 100)} / un</span>
                   </span>
                   <button type="button" aria-label="Menos uma" className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -206,7 +211,7 @@ export default function Balcao() {
                     <Minus size={14} />
                   </button>
                   <span className="w-6 text-center tabular-nums">{l.quantidade}</span>
-                  <button type="button" aria-label="Mais uma" className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => adicionar(l.artigo, 1, l.lote)}>
+                  <button type="button" aria-label="Mais uma" className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => adicionar(l.artigo, 1, l.lote, l.modelo)}>
                     <Plus size={14} />
                   </button>
                   <span className="w-16 text-right tabular-nums">{formatEur((l.quantidade * (l.artigo.precoEfetivoCents ?? 0)) / 100)}</span>

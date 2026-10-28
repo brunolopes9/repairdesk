@@ -42,7 +42,9 @@ public sealed record ArtigoLoteDto(
     decimal PrecoCalculadoComIva,
     string? SkuFornecedor = null,
     /// <summary>Sprint 582: o que sai na fatura ao cliente quando se vende este lote (artigo agrupado: "Nome – modelo", em português).</summary>
-    string? TextoFatura = null);
+    string? TextoFatura = null,
+    /// <summary>Sprint 583: a descrição não diz o modelo — o balcão pede-o à mão.</summary>
+    bool PrecisaModelo = false);
 
 /// <summary>Sprint 582: linha como vai sair na fatura (pré-visualização do balcão, sem registar nada).</summary>
 public sealed record BalcaoLinhaPreviaDto(string Descricao, int Quantidade, int PrecoUnitarioCents, int TotalCents);
@@ -80,7 +82,8 @@ public sealed record ArtigoWriteRequest(
     bool? Agrupado = null);
 
 /// <summary>Sprint 581: <c>LoteId</c> = o modelo escolhido num artigo agrupado (sai só desse lote).</summary>
-public sealed record BalcaoLinhaRequest(Guid ArtigoId, int Quantidade, int? PrecoUnitarioCents = null, Guid? LoteId = null);
+/// <remarks>Sprint 583: <c>Modelo</c> = escrito à mão no balcão quando o lote não diz o modelo ("Película vidro – iPhone 12").</remarks>
+public sealed record BalcaoLinhaRequest(Guid ArtigoId, int Quantidade, int? PrecoUnitarioCents = null, Guid? LoteId = null, string? Modelo = null);
 
 /// <summary>Sprint 571: <c>ComNif</c> vazio = fatura-recibo sem NIF (consumidor final), mesmo com cliente escolhido.</summary>
 public sealed record BalcaoVendaRequest(IReadOnlyList<BalcaoLinhaRequest> Linhas, PaymentMethod PaymentMethod, Guid? ClienteId = null,
@@ -320,10 +323,11 @@ public class ArtigoService : IArtigoService
     {
         await PrecosCategoriaAsync(ct);
         var linhas = new List<VendaLinhaWriteRequest>();
-        foreach (var grupo in req.Linhas.GroupBy(l => (l.ArtigoId, l.PrecoUnitarioCents, l.LoteId)))
+        foreach (var grupo in req.Linhas.GroupBy(l => (l.ArtigoId, l.PrecoUnitarioCents, l.LoteId, Modelo: string.IsNullOrWhiteSpace(l.Modelo) ? null : l.Modelo.Trim())))
         {
             var qtd = grupo.Sum(l => l.Quantidade);
             if (qtd <= 0) throw new ValidationException("quantidade_invalida", "Quantidade tem de ser positiva.");
+            if (grupo.Key.Modelo is { Length: > 60 }) throw new ValidationException("modelo_longo", "Modelo até 60 caracteres.");
             var artigo = await _repo.FindByIdAsync(grupo.Key.ArtigoId, ct) ?? throw new NotFoundException("Artigo", grupo.Key.ArtigoId);
             var preco = grupo.Key.PrecoUnitarioCents ?? PrecoEfetivo(artigo)
                 ?? throw new ValidationException("sem_preco", $"\"{artigo.Nome}\" não tem preço de venda — define-o no artigo.");
@@ -343,7 +347,7 @@ public class ArtigoService : IArtigoService
                 var tira = Math.Min(disponivel, falta);
                 // Agrupado: a fatura diz o modelo, em português (art. 36.º n.º 5 b) CIVA, denominação usual) —
                 // "Película vidro curva – iPhone XR / 11". O texto do fornecedor fica só no Mender.
-                linhas.Add(new VendaLinhaWriteRequest(null, lote.Id, artigo.Agrupado ? ModeloDispositivo.TextoFatura(artigo.Nome, lote.Descricao) : artigo.Nome, tira, preco));
+                linhas.Add(new VendaLinhaWriteRequest(null, lote.Id, artigo.Agrupado ? ModeloDispositivo.TextoFatura(artigo.Nome, lote.Descricao, grupo.Key.Modelo) : artigo.Nome, tira, preco));
                 falta -= tira;
                 if (falta == 0) break;
             }
@@ -580,7 +584,8 @@ public class ArtigoService : IArtigoService
         .OrderBy(l => l.Documento?.Data ?? l.CreatedAt).ThenBy(l => l.Numero)
         .Select(l => new ArtigoLoteDto(l.Id, l.Numero, l.Descricao, l.Documento?.Fornecedor?.Name ?? "—",
             l.Documento?.Data ?? l.CreatedAt, l.Quantidade, l.QuantidadeEmStock, l.PrecoUnitarioPago, IvaEngine.Euros(PrecoCalculado(l)), l.SkuFornecedor,
-            a.Agrupado ? ModeloDispositivo.TextoFatura(a.Nome, l.Descricao) : a.Nome))
+            a.Agrupado ? ModeloDispositivo.TextoFatura(a.Nome, l.Descricao) : a.Nome,
+            a.Agrupado && ModeloDispositivo.PrecisaModelo(a.Nome, l.Descricao)))
         .ToList(),
         a.Codigos.Where(c => !c.IsDeleted).OrderBy(c => c.FornecedorId is null ? 0 : 1).ThenBy(c => c.Codigo)
             .Select(c => new ArtigoCodigoDto(c.Id, c.Codigo, c.FornecedorId,

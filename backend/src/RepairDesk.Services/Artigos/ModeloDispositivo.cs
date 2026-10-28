@@ -14,7 +14,7 @@ public static partial class ModeloDispositivo
     /// "Samsung Galaxy A16 A165 - Full Arc Tempered Glass Black" → "Samsung Galaxy A16 A165";
     /// "Capa silicone Samsung A05s preta" → "Samsung A05s preta". Null quando não se reconhece marca nenhuma.
     /// </summary>
-    public static string? Extrair(string? descricao)
+    public static string? Extrair(string? descricao, bool feminino = false)
     {
         if (string.IsNullOrWhiteSpace(descricao)) return null;
         var m = MarcaRegex().Match(descricao);
@@ -29,24 +29,51 @@ public static partial class ModeloDispositivo
         resto = Virgulas().Replace(resto, " / ");
         resto = Barras().Replace(resto, " / ");
         resto = Espacos().Replace(resto, " ").Trim(' ', ',', '/', '-', '.');
-        foreach (var (en, pt) in Cores) resto = Regex.Replace(resto, $@"\b{en}\b", pt, RegexOptions.IgnoreCase);
+        // Sprint 583: a cor concorda com o artigo — "Capa – iPhone 14 preta", "Cabo – … preto".
+        foreach (var (en, masc, fem) in Cores) resto = Regex.Replace(resto, $@"\b{en}\b", feminino ? fem : masc, RegexOptions.IgnoreCase);
         return resto.Length is 0 or > 80 ? null : resto;
     }
 
     /// <summary>
     /// Texto da linha da fatura ao cliente para um lote de um artigo agrupado: "Película vidro curva – iPhone XR / 11".
-    /// Sem modelo reconhecível: a descrição do lote se começar pelo mesmo nome (ex.: "Cabo Hoco X88 Lightning 2M"
-    /// num artigo "Cabo"), senão só o nome do artigo — nunca o texto do fornecedor noutra língua.
+    /// <paramref name="modeloManual"/> (escrito no balcão) ganha sempre. Sem modelo: a descrição do lote se começar pelo
+    /// mesmo nome (ex.: "Cabo Hoco X88 Lightning 2M" num artigo "Cabo"), senão só o nome do artigo — nunca o texto
+    /// do fornecedor noutra língua.
     /// </summary>
-    public static string TextoFatura(string nomeArtigo, string descricaoLote)
+    public static string TextoFatura(string nomeArtigo, string descricaoLote, string? modeloManual = null)
     {
-        if (Extrair(descricaoLote) is { } modelo) return $"{nomeArtigo} – {modelo}";
-        var primeira = nomeArtigo.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? nomeArtigo;
-        return descricaoLote.TrimStart().StartsWith(primeira, StringComparison.CurrentCultureIgnoreCase) ? descricaoLote.Trim() : nomeArtigo;
+        if (!string.IsNullOrWhiteSpace(modeloManual)) return $"{nomeArtigo} – {modeloManual.Trim()}";
+        if (Extrair(descricaoLote, Feminino(nomeArtigo)) is { } modelo) return $"{nomeArtigo} – {modelo}";
+        return DescricaoServe(nomeArtigo, descricaoLote) ? descricaoLote.Trim() : nomeArtigo;
     }
 
-    private static readonly (string En, string Pt)[] Cores =
-        [("Black", "preto"), ("White", "branco"), ("Blue", "azul"), ("Red", "vermelho"), ("Green", "verde"), ("Pink", "rosa"), ("Clear", "transparente")];
+    /// <summary>
+    /// Sprint 583: a linha sairia só com o nome do artigo ("Película vidro") — o balcão pede o modelo à mão para a fatura
+    /// (e a garantia) dizerem sempre para que telemóvel é.
+    /// </summary>
+    public static bool PrecisaModelo(string nomeArtigo, string descricaoLote)
+        => Extrair(descricaoLote) is null && !DescricaoServe(nomeArtigo, descricaoLote);
+
+    private static bool DescricaoServe(string nomeArtigo, string descricaoLote)
+    {
+        var primeira = PrimeiraPalavra(nomeArtigo);
+        return descricaoLote.TrimStart().StartsWith(primeira, StringComparison.CurrentCultureIgnoreCase);
+    }
+
+    private static string PrimeiraPalavra(string nome) => nome.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? nome;
+
+    /// <summary>Género do artigo pela 1.ª palavra: "Capa", "Película" → feminino; "Cabo", "Carregador", "Cartão" → masculino.</summary>
+    private static bool Feminino(string nomeArtigo)
+    {
+        var p = PrimeiraPalavra(nomeArtigo).ToLowerInvariant();
+        return p.EndsWith('a') || p.EndsWith("ção") || p.EndsWith("gem") || p.EndsWith("ade");
+    }
+
+    private static readonly (string En, string Masc, string Fem)[] Cores =
+    [
+        ("Black", "preto", "preta"), ("White", "branco", "branca"), ("Blue", "azul", "azul"), ("Red", "vermelho", "vermelha"),
+        ("Green", "verde", "verde"), ("Pink", "rosa", "rosa"), ("Clear", "transparente", "transparente"),
+    ];
 
     [GeneratedRegex(@"\b(?:Apple\s+iPhone|iPhone|iph(?=\s)|Samsung|Galaxy|Xiaomi|Redmi|Poco|Oppo|Huawei|Honor|Realme|Motorola|Moto\s+[EG]\d|OnePlus|Google\s+Pixel|Pixel\s+\d|Nokia|Vivo|Microsoft\s+Surface|iPad)\b", RegexOptions.IgnoreCase)]
     private static partial Regex MarcaRegex();

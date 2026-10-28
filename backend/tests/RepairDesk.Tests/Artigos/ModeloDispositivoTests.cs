@@ -24,4 +24,19 @@ public class ModeloDispositivoTests
     [InlineData("Cabo", "CABO HOCO X88 GRATIFIED 2,4AA LIGHTNING 2M BRANCO", "CABO HOCO X88 GRATIFIED 2,4AA LIGHTNING 2M BRANCO")]
     [InlineData("Cartão de memória", "Cartão microSD Kingston Canvas Select Plus 64GB c/ adaptador", "Cartão microSD Kingston Canvas Select Plus 64GB c/ adaptador")]
     public void TextoFatura(string artigo, string lote, string esperado) => ModeloDispositivo.TextoFatura(artigo, lote).Should().Be(esperado);
+
+    [Theory]
+    [InlineData("Capa", "Capa – iPhone 14 preta")]
+    [InlineData("Cabo", "Cabo – iPhone 14 preto")]
+    public void Cor_ConcordaComOGeneroDoArtigo(string artigo, string esperado)
+        => ModeloDispositivo.TextoFatura(artigo, "Rixus Anti-Burst Case For Apple iPhone 14 Black").Should().Be(esperado);
+
+    [Fact]
+    public void SemModeloNaDescricao_PedeModelo_EUsaOEscritoAMao()
+    {
+        ModeloDispositivo.PrecisaModelo("Película vidro", "VIDRO TEMPERADO NORMAL").Should().BeTrue();
+        ModeloDispositivo.PrecisaModelo("Película vidro", "Vidro temperado iph 15").Should().BeFalse();
+        ModeloDispositivo.PrecisaModelo("Cabo", "CABO HOCO X88 LIGHTNING 2M BRANCO").Should().BeFalse("a descrição já diz o produto");
+        ModeloDispositivo.TextoFatura("Película vidro", "VIDRO TEMPERADO NORMAL", "iPhone 12").Should().Be("Película vidro – iPhone 12");
+    }
 }

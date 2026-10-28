@@ -46,6 +46,8 @@ export interface ArtigoLote {
   skuFornecedor: string | null;
   /** Sprint 582: o que sai na fatura ao cliente (agrupado: "Película vidro – iPhone 11", em português). */
   textoFatura: string | null;
+  /** Sprint 583: a descrição não diz o modelo — o balcão pede-o à mão. */
+  precisaModelo: boolean;
 }
 
 /** Sprint 581: artigo junto neste (pode desfazer-se). */
@@ -110,7 +112,7 @@ export interface CategoriaArtigo {
 
 export interface BalcaoVenda {
   /** Sprint 581: loteId = o modelo escolhido num artigo agrupado. */
-  linhas: { artigoId: string; quantidade: number; precoUnitarioCents?: number | null; loteId?: string | null }[];
+  linhas: { artigoId: string; quantidade: number; precoUnitarioCents?: number | null; loteId?: string | null; modelo?: string | null }[];
   paymentMethod: PaymentMethod;
   clienteId?: string | null;
   /** Sprint 571: vazio = fatura-recibo sem NIF (consumidor final). */
