@@ -355,6 +355,12 @@ export default function VendaEditor() {
           </div>
         )}
       >
+        {/* Sprint 581: a peça usada tem de sair do stock — senão o custo das peças vendidas fica a 0 € e o resultado engana. */}
+        {!fechada && tipo === VENDA_TIPO.Reparacao && linhas.length > 0 && !linhas.some((l) => l.compraLinhaId) && (
+          <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+            Usaste alguma peça (ecrã, bateria…)? Junta-a com <strong>Do stock</strong> — sai do lote e o custo entra no resultado.
+          </p>
+        )}
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-zinc-500">Os preços que escrevo são</span>
           <div role="radiogroup" aria-label="Preços com ou sem IVA" className="inline-flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">

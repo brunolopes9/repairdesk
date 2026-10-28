@@ -314,7 +314,9 @@ public sealed record SupplierPdfItem(
     /// <summary>Sprint 134: marca extraída da descrição (Samsung, Apple, etc). Null se não reconhecida.</summary>
     string? Brand = null,
     /// <summary>Sprint 134: modelo extraído (Galaxy A15, iPhone 12, etc). Null se não reconhecido.</summary>
-    string? Model = null);
+    string? Model = null,
+    /// <summary>Sprint 581: código do produto no catálogo do fornecedor (SKU), quando a fatura o mostra.</summary>
+    string? Sku = null);
 
 public enum ParseConfidence
 {

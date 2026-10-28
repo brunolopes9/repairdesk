@@ -51,6 +51,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 566: artigos da loja (SKU + código de barras) — o stock é a soma dos lotes ligados.
     public DbSet<Artigo> Artigos => Set<Artigo>();
     public DbSet<CategoriaArtigo> CategoriasArtigo => Set<CategoriaArtigo>();
+    public DbSet<ArtigoCodigo> ArtigoCodigos => Set<ArtigoCodigo>();
+    public DbSet<ArtigoFusao> ArtigoFusoes => Set<ArtigoFusao>();
     public DbSet<ApuramentoFecho> ApuramentoFechos => Set<ApuramentoFecho>();
     // Sprint 147: faturas de fornecedor recebidas via endpoint ingest (n8n IMAP).
     public DbSet<SupplierInvoiceImport> SupplierInvoiceImports => Set<SupplierInvoiceImport>();

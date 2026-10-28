@@ -47,7 +47,16 @@ public class FornecedorRepository : IFornecedorRepository
         foreach (var d in despesas) d.Fornecedor = destino.Name;
         var linhas = await _db.VendaItems.Where(v => v.FornecedorNome == origem.Name).ToListAsync(ct);
         foreach (var v in linhas) v.FornecedorNome = destino.Name;
-        return new FornecedorFusao(compras.Count, faturas.Count, despesas.Count, linhas.Count);
+        // Sprint 581: os SKUs aprendidos (fornecedor + SKU → artigo) passam para o destino. Se o destino já tem o mesmo
+        // SKU, fica o dele e o da origem apaga-se (índice único TenantId+FornecedorId+Codigo).
+        var skus = await _db.ArtigoCodigos.Where(c => c.FornecedorId == origem.Id).ToListAsync(ct);
+        var doDestino = (await _db.ArtigoCodigos.Where(c => c.FornecedorId == destino.Id).Select(c => c.Codigo).ToListAsync(ct)).ToHashSet();
+        foreach (var c in skus)
+        {
+            if (doDestino.Contains(c.Codigo)) _db.ArtigoCodigos.Remove(c);
+            else { c.FornecedorId = destino.Id; doDestino.Add(c.Codigo); }
+        }
+        return new FornecedorFusao(compras.Count, faturas.Count, despesas.Count, linhas.Count, skus.Count);
     }
 
     public async Task<FornecedorHistorico?> GetHistoricoAsync(Guid id, CancellationToken ct = default)

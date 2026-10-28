@@ -29,7 +29,7 @@ public interface IFornecedorRepository
 }
 
 /// <summary>Sprint 579: o que mudou de fornecedor numa fusão.</summary>
-public sealed record FornecedorFusao(int Compras, int Faturas, int Despesas, int LinhasVenda);
+public sealed record FornecedorFusao(int Compras, int Faturas, int Despesas, int LinhasVenda, int Skus = 0);
 
 /// <summary>Sprint 548: snapshot consolidado de um fornecedor.</summary>
 public sealed record FornecedorHistorico(

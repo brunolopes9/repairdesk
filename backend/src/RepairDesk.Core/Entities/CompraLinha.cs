@@ -43,5 +43,17 @@ public class CompraLinha : BaseEntity, ITenantEntity
     public Guid? ArtigoId { get; set; }
     public Artigo? Artigo { get; set; }
 
+    /// <summary>
+    /// Sprint 581: código do produto no catálogo do fornecedor ("RIX03253", "20940"), tal como vem na fatura. Serve
+    /// para reconhecer as compras seguintes do mesmo produto (ver <see cref="ArtigoCodigo"/>) — não é o código da loja.
+    /// </summary>
+    public string? SkuFornecedor { get; set; }
+
+    /// <summary>
+    /// Sprint 581: peça de reparação (ecrã, bateria…) — não se vende ao balcão nem leva etiqueta, por isso não fica
+    /// à espera de artigo. Usa-se nas reparações a partir do stock.
+    /// </summary>
+    public bool PecaReparacao { get; set; }
+
     public int QuantidadeEmStock => Quantidade - QuantidadeVendida - QuantidadeAbatida;
 }

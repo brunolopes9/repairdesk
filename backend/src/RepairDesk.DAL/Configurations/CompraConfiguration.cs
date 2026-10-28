@@ -51,6 +51,7 @@ public class CompraLinhaConfiguration : IEntityTypeConfiguration<CompraLinha>
 
         builder.Property(x => x.TenantId).IsRequired();
         builder.Property(x => x.Descricao).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.SkuFornecedor).HasMaxLength(64);
         builder.Property(x => x.Localizacao).HasMaxLength(100);
         builder.Property(x => x.PrecoUnitarioPago).HasPrecision(12, 4);
         builder.Property(x => x.TaxaIvaCompra).HasPrecision(5, 4);

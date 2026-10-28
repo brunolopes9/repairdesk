@@ -37,6 +37,10 @@ export default function Artigos() {
   const isAdmin = useAuth().hasRole('Admin');
 
   const list = useQuery({ queryKey: ['artigos', 'lista', q], queryFn: () => artigosApi.list(q), placeholderData: keepPreviousData });
+  // Sprint 581: o que entrou em stock e ainda não tem artigo nem é peça de reparação — nada fica escondido.
+  const porLigar = useQuery({ queryKey: ['artigos', 'sugestoes'], queryFn: artigosApi.sugestoes, staleTime: 60_000 });
+  const nPorLigar = porLigar.data?.length ?? 0;
+  const unPorLigar = porLigar.data?.reduce((s, x) => s + x.stock, 0) ?? 0;
   const { ordem, alternar } = useOrdenacao<Campo>('nome', false);
   const artigos = useMemo(() => ordenarLista((list.data ?? []).filter((a) => !semStock || a.stock === 0), ordem, {
     sku: (a) => a.numero,
@@ -101,7 +105,7 @@ export default function Artigos() {
               <span className="sm:hidden">Preços</span><span className="hidden sm:inline">Categorias e preços</span>
             </Button>
             <Button variant="secondary" leftIcon={<PackagePlus size={15} />} onClick={() => setDoStock(true)}>
-              <span className="sm:hidden">Do stock</span><span className="hidden sm:inline">Criar a partir do stock</span>
+              <span className="sm:hidden">Por ligar{nPorLigar ? ` (${nPorLigar})` : ''}</span><span className="hidden sm:inline">Stock por ligar{nPorLigar ? ` (${nPorLigar})` : ''}</span>
             </Button>
             <Button leftIcon={<Plus size={15} />} onClick={() => setEditar(null)}>Novo artigo</Button>
           </>
@@ -112,6 +116,16 @@ export default function Artigos() {
         tabs={[{ key: 'loja', label: 'Artigos da loja' }, { key: 'moloni', label: 'Artigos e serviços no Moloni' }]} />
 
       {vista === 'moloni' ? <CatalogoMoloni isAdmin={isAdmin} /> : (<>
+      {nPorLigar > 0 && (
+        <button type="button" onClick={() => setDoStock(true)}
+          className="flex w-full items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-left text-sm text-amber-900 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <PackagePlus size={16} className="mt-0.5 shrink-0" />
+          <span>
+            <strong>{nPorLigar} produto(s) em stock sem artigo ({unPorLigar} un.)</strong> — liga-os a um artigo (ex.: «Película vidro»),
+            cria um artigo novo, ou marca-os como peça de reparação (ecrãs, baterias…) se não se vendem ao balcão.
+          </span>
+        </button>
+      )}
       <p className="text-sm text-zinc-500">
         <Printer size={14} className="mr-1 inline" />
         Etiquetas com código de barras: marca os artigos na caixa à esquerda e carrega em <strong>Etiquetas</strong>, ou usa a impressora no fim de cada linha.

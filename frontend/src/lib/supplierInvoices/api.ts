@@ -19,6 +19,8 @@ export interface SupplierInvoiceItem {
   model: string | null;
   suggestedKind: string;
   suggestions: SkuMatchSuggestion[];
+  /** Sprint 581: SKU do fornecedor lido na fatura. */
+  sku?: string | null;
 }
 
 export interface SupplierInvoiceImport {

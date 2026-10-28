@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link2Off, Printer, Save } from 'lucide-react';
+import { Combine, Link2Off, Printer, Save } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
@@ -36,6 +36,8 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
   const [barras, setBarras] = useState('');
   const [localizacao, setLocalizacao] = useState('');
   const [ativo, setAtivo] = useState(true);
+  const [agrupado, setAgrupado] = useState(false);
+  const [juntar, setJuntar] = useState('');
   const [novosLotes, setNovosLotes] = useState<string[]>([]);
   const [qLote, setQLote] = useState('');
 
@@ -50,6 +52,8 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
     setBarras(a && !a.codigoBarras.startsWith('20') ? a.codigoBarras : '');
     setLocalizacao(a?.localizacao ?? '');
     setAtivo(a?.ativo ?? true);
+    setAgrupado(a?.agrupado ?? false);
+    setJuntar('');
     setNovosLotes(sugestao?.loteIds ?? []);
     setQLote('');
   }, [open, detalhe.data, sugestao]);
@@ -77,6 +81,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
         notas: detalhe.data?.artigo.notas ?? null,
         ativo,
         loteIds: novosLotes,
+        agrupado,
       };
       return artigoId ? artigosApi.update(artigoId, req) : artigosApi.create(req);
     },
@@ -84,6 +89,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
       qc.invalidateQueries({ queryKey: ['artigos'] });
       qc.invalidateQueries({ queryKey: ['compras', 'inventario'] });
       toast.success(artigoId ? 'Artigo guardado' : `Artigo ${d.artigo.sku} criado`, `Stock: ${d.artigo.stock}`);
+      for (const aviso of d.avisos ?? []) toast.error('Atenção', aviso);
       onClose();
     },
     onError: (err) => toast.fromError(err, 'Não foi possível guardar o artigo.'),
@@ -96,6 +102,24 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
       qc.invalidateQueries({ queryKey: ['compras', 'inventario'] });
     },
     onError: (err) => toast.fromError(err, 'Não foi possível desligar o lote.'),
+  });
+
+  // Sprint 581: juntar um artigo repetido (ex.: os antigos "Vidro temperado Hoco A12") neste.
+  const todos = useQuery({ queryKey: ['artigos', 'todos'], queryFn: () => artigosApi.list(), enabled: open && !!artigoId });
+  const fundir = useMutation({
+    mutationFn: () => artigosApi.fundir(artigoId!, [juntar]),
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ['artigos'] });
+      setJuntar('');
+      toast.success('Artigos juntos', `Stock: ${d.artigo.stock}. As etiquetas antigas continuam a ler.`);
+    },
+    onError: (err) => toast.fromError(err, 'Não foi possível juntar.'),
+  });
+
+  const desfazer = useMutation({
+    mutationFn: (fusaoId: string) => artigosApi.desfazerFusao(fusaoId),
+    onSuccess: (d) => { qc.invalidateQueries({ queryKey: ['artigos'] }); toast.success(`«${d.artigo.nome}» voltou`, `Stock: ${d.artigo.stock}`); },
+    onError: (err) => toast.fromError(err, 'Não foi possível desfazer.'),
   });
 
   const a = detalhe.data?.artigo;
@@ -143,12 +167,64 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
           <span className={labelCls}>Código de barras da etiqueta — vazio = código da loja ({a?.codigoBarras ?? 'gerado ao guardar'})</span>
           <input value={barras} onChange={(e) => setBarras(e.target.value)} className={inputCls} inputMode="numeric" placeholder="Só se quiseres imprimir o EAN-13 do fabricante" />
         </label>
+        <label className="flex items-start gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" className="mt-1" checked={agrupado} onChange={(e) => setAgrupado(e.target.checked)} />
+          <span>Agrupado — vários modelos com o mesmo código e preço (ex.: «Película vidro»). <span className="text-zinc-500">No balcão pergunta o modelo.</span></span>
+        </label>
         {a && (
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} /> Ativo (aparece no balcão e na lista)
           </label>
         )}
       </div>
+
+      {detalhe.data?.codigos && detalhe.data.codigos.length > 0 && (
+        <div className="mt-4">
+          <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">Outros códigos que levam a este artigo</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {detalhe.data.codigos.map((c) => (
+              <span key={c.id} className="rounded-full bg-zinc-100 px-2 py-0.5 font-mono text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                title={c.fornecedorId ? 'SKU do fornecedor — as próximas compras com este código ligam-se sozinhas' : 'Etiqueta antiga — a pistola continua a ler'}>
+                {c.fornecedor ? `${c.fornecedor}: ` : 'etiqueta '}{c.codigo}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {detalhe.data?.fusoes && detalhe.data.fusoes.length > 0 && (
+        <div className="mt-4">
+          <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">Artigos juntos neste</h3>
+          <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 text-sm dark:divide-zinc-800 dark:border-zinc-800">
+            {detalhe.data.fusoes.map((f) => (
+              <li key={f.id} className="flex items-center gap-2 px-3 py-2">
+                <span className="flex-1 truncate"><span className="font-mono text-xs text-zinc-500">{f.origemSku}</span> {f.origemNome} <span className="text-zinc-500">· {f.lotes} lote(s)</span></span>
+                <button type="button" className="text-xs text-brand-600 underline disabled:opacity-50" disabled={desfazer.isPending}
+                  onClick={() => { if (confirm(`Desfazer: «${f.origemNome}» volta a ser um artigo à parte?`)) desfazer.mutate(f.id); }}>
+                  Desfazer
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {a && (
+        <div className="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">Juntar outro artigo neste</p>
+          <p className="mt-0.5 text-[11px] text-zinc-500">Os lotes passam para «{a.nome}» e a etiqueta do outro continua a funcionar na pistola. Dá para desfazer.</p>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <select value={juntar} onChange={(e) => setJuntar(e.target.value)} className={inputCls} aria-label="Artigo a juntar">
+              <option value="">Escolhe o artigo…</option>
+              {(todos.data ?? []).filter((x) => x.id !== a.id).map((x) => <option key={x.id} value={x.id}>{x.sku} · {x.nome} ({x.stock})</option>)}
+            </select>
+            <Button type="button" variant="secondary" leftIcon={<Combine size={15} />} disabled={!juntar} loading={fundir.isPending}
+              onClick={() => { const o = todos.data?.find((x) => x.id === juntar); if (o && confirm(`Juntar «${o.nome}» em «${a.nome}»?`)) fundir.mutate(); }}>
+              Juntar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {detalhe.data && detalhe.data.lotes.length > 0 && (
         <div className="mt-4">
@@ -157,7 +233,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
             {detalhe.data.lotes.map((l) => (
               <li key={l.linhaId} className="flex items-center gap-2 px-3 py-2">
                 <span className="w-14 font-mono text-xs text-zinc-500">#{l.numero}</span>
-                <span className="flex-1 truncate">{l.descricao} <span className="text-zinc-500">· {l.fornecedor}</span></span>
+                <span className="flex-1 truncate">{l.descricao} <span className="text-zinc-500">· {l.fornecedor}{l.skuFornecedor ? ` · ${l.skuFornecedor}` : ''}</span></span>
                 <span className="tabular-nums">{l.quantidadeEmStock}/{l.quantidade}</span>
                 <span className="w-20 text-right tabular-nums text-zinc-500">{formatEur(l.precoCalculadoComIva)}</span>
                 <button type="button" title="Desligar este lote do artigo" className="text-zinc-400 hover:text-red-600" onClick={() => desligar.mutate(l.linhaId)}>

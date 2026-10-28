@@ -428,7 +428,7 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
           "totalCents": número inteiro em cêntimos com IVA ou null,
           "items": [
             {
-              "description": "string — descrição do produto/peça",
+              "description": "string — descrição do produto/peça EXATAMENTE como está na fatura, na língua original (não traduzir, não resumir)",
               "quantity": número inteiro >= 1,
               "lineTotalCents": número inteiro em cêntimos com IVA da linha,
               "supplierSku": "string ou null — código/SKU do produto no catálogo do fornecedor"

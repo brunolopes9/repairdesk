@@ -127,7 +127,9 @@ public sealed record SupplierInvoiceItemDto(
     int LineTotalCents,
     string? Brand,
     string? Model,
-    string SuggestedKind);
+    string SuggestedKind,
+    /// <summary>Sprint 581: SKU do fornecedor (vai para a linha da compra e liga ao artigo já conhecido).</summary>
+    string? Sku = null);
 
 public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 {
@@ -288,7 +290,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                     Items: llm.Items.Select(i => new SupplierPdfItem(
                         Description: i.Description,
                         Quantity: i.Quantity,
-                        LineTotalCents: i.LineTotalCents)).ToList());
+                        LineTotalCents: i.LineTotalCents,
+                        Sku: i.SupplierSku)).ToList());
                 if (string.IsNullOrWhiteSpace(fornecedorNameRaw))
                     fornecedorNameRaw = llm.SupplierName;
                 if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
@@ -312,6 +315,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         if (parseWarnings.Count > 0)
             _logger.LogWarning("Parse validation warnings: {Warnings}", string.Join(" | ", parseWarnings));
 
+        parsed = SoSkusDoTexto(parsed, rawText);
         var docDate = parsed?.DateAdded ?? emailMeta?.ReceivedAt ?? DateTime.UtcNow;
         var supplierSlug = fornecedorNameRaw ?? "desconhecido";
         var filename = BuildFilename(docDate, parsed?.OrderId);
@@ -449,6 +453,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             ParsedDocumentNumber = llm?.OrderId,
             ParsedDocumentDate = llm?.DocumentDate,
             ParsedItemsJson = llm?.Items is { Count: > 0 } ? System.Text.Json.JsonSerializer.Serialize(
+                // Sprint 581: sem texto para confirmar, o SKU lido numa foto não se guarda (pode vir inventado).
                 llm.Items.Select(i => new SupplierPdfItem(i.Description, i.Quantity, i.LineTotalCents)).ToList()) : null,
             ParseConfidence = llm is null ? "None"
                 : llm.Confidence >= 0.7 ? "High"
@@ -530,7 +535,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                 item.Model,
                 ClassifyItemDescription(
                     item.Description,
-                    item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString()))
+                    item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString(),
+                item.Sku))
             .ToList();
     }
 
@@ -727,7 +733,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                     Items: llm.Items.Select(i => new SupplierPdfItem(
                         Description: i.Description,
                         Quantity: i.Quantity,
-                        LineTotalCents: i.LineTotalCents)).ToList());
+                        LineTotalCents: i.LineTotalCents,
+                        Sku: i.SupplierSku)).ToList());
                 if (string.IsNullOrWhiteSpace(fornecedorNameRaw)) fornecedorNameRaw = llm.SupplierName;
                 nifLlm = llm.SupplierVatId;
             }
@@ -742,6 +749,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         fornecedorId = await ResolveOrCreateFornecedorIdAsync(fornecedorId, fornecedorNameRaw, tenantId, ct);
         await AprenderNifAsync(fornecedorId, NifFornecedor.DoEmitente(rawText, nifProprio) ?? nifLlm, nifProprio, ct);
         reprocessWarnings =[.. reprocessWarnings, .. await AvisosFornecedorAsync(fornecedorId, fornecedorNameRaw, ct)];
+
+        parsed = SoSkusDoTexto(parsed, rawText);
 
         // Update in-place.
         entity.FornecedorNameRaw = fornecedorNameRaw;
@@ -908,6 +917,22 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             : [];
     }
 
+    /// <summary>
+    /// Sprint 581: o SKU que a IA devolve só fica se aparecer mesmo no texto do PDF (sem espaços nem pontuação) — um SKU
+    /// inventado ligava compras ao artigo errado.
+    /// </summary>
+    private static SupplierPdfParseResult? SoSkusDoTexto(SupplierPdfParseResult? parsed, string? rawText)
+    {
+        if (parsed?.Items is not { Count: > 0 } items || !items.Any(i => i.Sku is not null)) return parsed;
+        static string Compacto(string s) => new(s.ToUpperInvariant().Where(char.IsAsciiLetterOrDigit).ToArray());
+        var texto = Compacto(rawText ?? string.Empty);
+        return parsed with
+        {
+            Items = items.Select(i => i.Sku is { } sku && (Compacto(sku) is not { Length: >= 3 } c || !texto.Contains(c, StringComparison.Ordinal))
+                ? i with { Sku = null } : i).ToList(),
+        };
+    }
+
     /// <summary>Sprint 579: o NIF do próprio negócio — aparece em todas as faturas como cliente, nunca é o emitente.</summary>
     private async Task<string?> NifProprioAsync(Guid tenantId, CancellationToken ct)
         => _tenants is null ? null : (await _tenants.FindByIdAsync(tenantId, ct))?.Nif;
@@ -1027,7 +1052,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             item.LineTotalCents,
             item.Brand,
             item.Model,
-            ClassifyItemDescription(item.Description, item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString())).ToList();
+            ClassifyItemDescription(item.Description, item.Quantity > 0 ? item.LineTotalCents / item.Quantity : item.LineTotalCents).ToString(),
+            item.Sku)).ToList();
     }
 
     private static string ComputeSha256(byte[] bytes)

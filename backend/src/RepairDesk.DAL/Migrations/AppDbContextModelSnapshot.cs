@@ -375,6 +375,9 @@ namespace RepairDesk.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("Agrupado")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("Ativo")
                         .HasColumnType("bit");
 
@@ -453,6 +456,116 @@ namespace RepairDesk.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("Artigos", (string)null);
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.ArtigoCodigo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ArtigoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("FornecedorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArtigoId");
+
+                    b.HasIndex("FornecedorId");
+
+                    b.HasIndex("TenantId", "FornecedorId", "Codigo")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("ArtigoCodigos", (string)null);
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.ArtigoFusao", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CodigosCriadosJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CodigosMovidosJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("DesfeitaEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DestinoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LoteIdsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("OrigemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("OrigemNome")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OrigemSku")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DestinoId");
+
+                    b.ToTable("ArtigoFusoes", (string)null);
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.AuditEntry", b =>
@@ -891,6 +1004,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("Numero")
                         .HasColumnType("int");
 
+                    b.Property<bool>("PecaReparacao")
+                        .HasColumnType("bit");
+
                     b.Property<decimal>("PrecoUnitarioPago")
                         .HasPrecision(12, 4)
                         .HasColumnType("decimal(12,4)");
@@ -903,6 +1019,10 @@ namespace RepairDesk.DAL.Migrations
 
                     b.Property<int>("QuantidadeVendida")
                         .HasColumnType("int");
+
+                    b.Property<string>("SkuFornecedor")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<decimal>("TaxaIvaCompra")
                         .HasPrecision(5, 4)
@@ -2689,6 +2809,24 @@ namespace RepairDesk.DAL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.ArtigoCodigo", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.Artigo", "Artigo")
+                        .WithMany("Codigos")
+                        .HasForeignKey("ArtigoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RepairDesk.Core.Entities.Fornecedor", "Fornecedor")
+                        .WithMany()
+                        .HasForeignKey("FornecedorId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Artigo");
+
+                    b.Navigation("Fornecedor");
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.AuditEntry", b =>
                 {
                     b.HasOne("RepairDesk.Core.Entities.AppUser", "AppUser")
@@ -2932,6 +3070,8 @@ namespace RepairDesk.DAL.Migrations
 
             modelBuilder.Entity("RepairDesk.Core.Entities.Artigo", b =>
                 {
+                    b.Navigation("Codigos");
+
                     b.Navigation("Lotes");
                 });
 

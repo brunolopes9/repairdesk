@@ -31,6 +31,9 @@ interface LinhaForm {
   lucro: string;
   localizacao: string;
   movimentos: number;
+  /** Sprint 581: SKU do fornecedor e artigo da loja (só leitura — liga-se em Artigos ou sozinho pelo SKU). */
+  sku: string;
+  artigoNome: string | null;
 }
 
 interface DocForm {
@@ -46,7 +49,7 @@ interface DocForm {
 }
 
 const novaLinha = (): LinhaForm => ({
-  key: crypto.randomUUID(), id: null, numero: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0,
+  key: crypto.randomUUID(), id: null, numero: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0, sku: '', artigoNome: null,
 });
 
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -76,8 +79,17 @@ function fromDoc(doc: CompraDocumento): { form: DocForm; linhas: LinhaForm[] } {
       lucro: num(l.lucroUnitario),
       localizacao: l.localizacao ?? '',
       movimentos: l.quantidadeVendida + l.quantidadeAbatida,
+      sku: l.skuFornecedor ?? '',
+      artigoNome: l.artigoNome,
     })),
   };
+}
+
+/** Sprint 581: unidades num pack pela descrição ("(50pcs)", "50 pcs", "pack of 50", "pack de 50"); 1 se não for pack. */
+export function unidadesPorPack(descricao: string): number {
+  const m = /\((\d{1,4})\s*(?:pcs|pc|un|unid)\)|\b(\d{1,4})\s*(?:pcs|pieces)\b|\bpack\s*(?:of|de|com)\s*(\d{1,4})\b/i.exec(descricao);
+  const n = m ? Number(m[1] ?? m[2] ?? m[3]) : 1;
+  return n > 1 && n <= 1000 ? n : 1;
 }
 
 /** Fatura lida por IA → rascunho de compra. Linhas de portes passam para o campo Portes. */
@@ -96,10 +108,13 @@ function fromImport(x: SupplierInvoiceImport): { form: Partial<DocForm>; linhas:
     linhas: items
       .filter((i) => i.suggestedKind !== 'Shipping')
       .map((i) => {
-        const qtd = Math.max(1, i.quantity);
+        // Sprint 581: packs ("Hydrogel Film (50pcs)", "pack de 50") entram em unidades, ao custo de cada uma —
+        // 1 pack de 50 a 44,95 € = 50 películas a 0,899 €, para o stock e o lucro baterem certo.
+        const qtd = Math.max(1, i.quantity) * unidadesPorPack(i.description);
         return {
           ...novaLinha(),
           descricao: i.description,
+          sku: i.sku ?? '',
           quantidade: String(qtd),
           // A IA devolve o total da linha COM IVA → preço unitário pago (c/ IVA).
           // 4 casas decimais (como o servidor): 2,01 € por 2 un. = 1,005 €/un., sem perder o cêntimo.
@@ -199,6 +214,7 @@ export default function CompraEditor() {
           taxaIvaCompra: l.taxa === '' ? null : (parseDecimal(l.taxa) ?? 0) / 100,
           lucroUnitario: l.lucro === '' ? null : parseDecimal(l.lucro),
           localizacao: l.localizacao.trim() || null,
+          skuFornecedor: l.sku.trim() || null,
         })),
     };
   }
@@ -406,6 +422,11 @@ export default function CompraEditor() {
                     <td className="py-2 pr-2 pt-4 tabular-nums text-xs text-zinc-500">{l.numero ?? 'novo'}</td>
                     <td className="py-2 pr-2">
                       <input disabled={bloqueada} aria-label="Descrição" value={l.descricao} onChange={(e) => setLinha(l.key, { descricao: e.target.value })} className={inputCls} placeholder="Ecrã Samsung A15" maxLength={500} />
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <input aria-label="SKU do fornecedor" value={l.sku} onChange={(e) => setLinha(l.key, { sku: e.target.value })}
+                          className={`${inputCls} min-h-8 w-36 py-1 text-xs`} placeholder="SKU do fornecedor" maxLength={64} />
+                        {l.artigoNome && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-950/40 dark:text-brand-300" title="Artigo da loja deste lote">{l.artigoNome}</span>}
+                      </div>
                       {l.movimentos > 0 && <span className="mt-1 block text-xs text-zinc-500">{l.movimentos} já saíram do stock</span>}
                     </td>
                     <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} /></td>

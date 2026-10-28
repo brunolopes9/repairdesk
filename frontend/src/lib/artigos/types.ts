@@ -21,6 +21,16 @@ export interface Artigo {
   localizacao: string | null;
   ativo: boolean;
   notas: string | null;
+  /** Sprint 581: vários modelos, um código e um preço (o balcão pergunta o modelo). */
+  agrupado: boolean;
+}
+
+/** Sprint 581: código que leva ao artigo — SKU de um fornecedor ou etiqueta antiga (fornecedor null). */
+export interface ArtigoCodigo {
+  id: string;
+  codigo: string;
+  fornecedorId: string | null;
+  fornecedor: string | null;
 }
 
 export interface ArtigoLote {
@@ -33,11 +43,25 @@ export interface ArtigoLote {
   quantidadeEmStock: number;
   custoUnitarioPago: number;
   precoCalculadoComIva: number;
+  skuFornecedor: string | null;
+}
+
+/** Sprint 581: artigo junto neste (pode desfazer-se). */
+export interface ArtigoFusao {
+  id: string;
+  origemSku: string;
+  origemNome: string;
+  lotes: number;
+  em: string;
 }
 
 export interface ArtigoDetalhe {
   artigo: Artigo;
   lotes: ArtigoLote[];
+  codigos: ArtigoCodigo[] | null;
+  fusoes: ArtigoFusao[] | null;
+  /** Sprint 581: avisos da gravação (ex.: SKU de fornecedor que mudou de artigo). */
+  avisos: string[] | null;
 }
 
 export interface ArtigoWrite {
@@ -50,6 +74,7 @@ export interface ArtigoWrite {
   notas: string | null;
   ativo: boolean;
   loteIds?: string[];
+  agrupado?: boolean | null;
 }
 
 export interface EtiquetasPedido {
@@ -68,6 +93,9 @@ export interface ArtigoSugestao {
   localizacao: string | null;
   /** Sprint 570: categoria sugerida (películas → "Películas"). */
   categoria: string | null;
+  /** Sprint 581: artigo de um lote anterior com a mesma descrição — confirma-se, nunca é automático. */
+  artigoSugeridoId: string | null;
+  artigoSugeridoNome: string | null;
 }
 
 /** Sprint 570: categoria com preço por defeito (Guid vazio = só escrita nos artigos, ainda sem registo). */
@@ -79,7 +107,8 @@ export interface CategoriaArtigo {
 }
 
 export interface BalcaoVenda {
-  linhas: { artigoId: string; quantidade: number; precoUnitarioCents?: number | null }[];
+  /** Sprint 581: loteId = o modelo escolhido num artigo agrupado. */
+  linhas: { artigoId: string; quantidade: number; precoUnitarioCents?: number | null; loteId?: string | null }[];
   paymentMethod: PaymentMethod;
   clienteId?: string | null;
   /** Sprint 571: vazio = fatura-recibo sem NIF (consumidor final). */

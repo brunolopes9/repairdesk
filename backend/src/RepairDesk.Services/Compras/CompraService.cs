@@ -86,6 +86,7 @@ public class CompraService : ICompraService
         ApplyHeader(doc, req, numeroFatura, encomendas);
         foreach (var l in req.Linhas)
             doc.Linhas.Add(NewLinha(tenantId, l, fornecedor));
+        await LigarArtigosAsync(doc.Linhas.Zip(req.Linhas).ToList(), fornecedor, ct);
 
         if (import is not null)
         {
@@ -120,6 +121,7 @@ public class CompraService : ICompraService
         ApplyHeader(doc, req, numeroFatura, encomendas);
 
         // Linhas: com Id = atualiza; sem Id = nova; ausentes = removidas (só se ainda não venderam nada).
+        var ligar = new List<(CompraLinha Linha, CompraLinhaWriteRequest Pedido)>();
         var pedidas = req.Linhas.Where(l => l.Id is not null).Select(l => l.Id!.Value).ToHashSet();
         foreach (var existente in doc.Linhas.Where(l => !pedidas.Contains(l.Id)).ToList())
         {
@@ -136,6 +138,7 @@ public class CompraService : ICompraService
                 var nova = NewLinha(doc.TenantId, l, fornecedor);
                 nova.CompraDocumentoId = doc.Id;
                 _repo.AddLinha(nova); // o fixup do EF junta-a a doc.Linhas
+                ligar.Add((nova, l));
                 continue;
             }
             var linha = doc.Linhas.FirstOrDefault(x => x.Id == l.Id)
@@ -149,7 +152,11 @@ public class CompraService : ICompraService
             linha.TaxaIvaCompra = l.TaxaIvaCompra ?? fornecedor.TaxaIvaCompraPorDefeito(TaxaVenda);
             linha.LucroUnitario = l.LucroUnitario ?? FiscalDefaults.LucroPorDefeito(l.Descricao);
             linha.Localizacao = Clean(l.Localizacao, 100);
+            linha.SkuFornecedor = CleanSku(l.SkuFornecedor) ?? linha.SkuFornecedor;
+            if (l.PecaReparacao is { } peca) linha.PecaReparacao = peca;
+            ligar.Add((linha, l));
         }
+        await LigarArtigosAsync(ligar, fornecedor, ct);
 
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(CompraDocumento), doc.Id,
@@ -364,7 +371,42 @@ public class CompraService : ICompraService
         TaxaIvaCompra = l.TaxaIvaCompra ?? fornecedor.TaxaIvaCompraPorDefeito(TaxaVenda),
         LucroUnitario = l.LucroUnitario ?? FiscalDefaults.LucroPorDefeito(l.Descricao),
         Localizacao = Clean(l.Localizacao, 100),
+        SkuFornecedor = CleanSku(l.SkuFornecedor),
+        PecaReparacao = l.PecaReparacao ?? false,
     };
+
+    private static string? CleanSku(string? sku)
+    {
+        var s = sku?.Trim().ToUpperInvariant();
+        return string.IsNullOrEmpty(s) ? null : s.Length > 64 ? s[..64] : s;
+    }
+
+    /// <summary>
+    /// Sprint 581: liga cada lote ao artigo da loja: o escolhido na linha, ou o que este fornecedor vende com este SKU
+    /// (confirmado antes, quando alguém ligou um lote com esse SKU). A mesma descrição NÃO liga sozinha — fica como
+    /// sugestão em Artigos → Stock por ligar (uma descrição engana: "privacy hydrogel" é privacidade ou hidrogel?).
+    /// Quando a linha tem SKU e artigo escolhido, o Mender aprende "fornecedor + SKU → artigo".
+    /// </summary>
+    private async Task LigarArtigosAsync(IReadOnlyList<(CompraLinha Linha, CompraLinhaWriteRequest Pedido)> linhas, Fornecedor fornecedor, CancellationToken ct)
+    {
+        if (_artigos is null || linhas.Count == 0) return;
+        foreach (var (linha, pedido) in linhas)
+        {
+            if (pedido.ArtigoId is { } escolhido)
+            {
+                var artigo = await _artigos.FindByIdAsync(escolhido, ct) ?? throw new NotFoundException("Artigo", escolhido);
+                linha.ArtigoId = artigo.Id;
+                linha.PecaReparacao = false;
+                if (linha.SkuFornecedor is { } skuAprender)
+                    await _artigos.AprenderSkuFornecedorAsync(artigo.Id, fornecedor.Id, skuAprender, ct);
+            }
+            else if (linha.ArtigoId is null && !linha.PecaReparacao
+                && linha.SkuFornecedor is { } sku && await _artigos.ArtigoPorSkuFornecedorAsync(fornecedor.Id, sku, ct) is { } porSku)
+            {
+                linha.ArtigoId = porSku;
+            }
+        }
+    }
 
     private static CalculoUnidade Calc(CompraLinha l)
         => IvaEngine.Unidade(l.PrecoUnitarioPago, l.TaxaIvaCompra, l.LucroUnitario, TaxaVenda,
@@ -399,7 +441,8 @@ public class CompraService : ICompraService
                 l.QuantidadeEmStock, l.PrecoUnitarioPago, l.TaxaIvaCompra, l.LucroUnitario, l.Localizacao,
                 u.CustoSemIva, u.IvaPagoNaCompra, u.AutoliquidacaoUe, u.LucroComIva, u.PrecoVendaSemIva,
                 u.IvaDaVenda, u.PrecoFinalComIva, u.IvaAPagarEstado,
-                l.Quantidade * l.PrecoUnitarioPago, l.Quantidade * u.CustoSemIva);
+                l.Quantidade * l.PrecoUnitarioPago, l.Quantidade * u.CustoSemIva,
+                l.SkuFornecedor, l.ArtigoId, l.Artigo?.Nome, l.PecaReparacao);
         }).ToList();
 
         var totalLinhas = linhas.Sum(l => l.TotalPago);

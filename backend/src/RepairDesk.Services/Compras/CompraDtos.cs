@@ -26,7 +26,12 @@ public sealed record CompraLinhaDto(
     decimal IvaAPagarEstado,
     // Totais da linha.
     decimal TotalPago,
-    decimal TotalSemIva);
+    decimal TotalSemIva,
+    /// <summary>Sprint 581: código do produto no fornecedor, artigo da loja a que o lote pertence e se é peça de reparação.</summary>
+    string? SkuFornecedor = null,
+    Guid? ArtigoId = null,
+    string? ArtigoNome = null,
+    bool PecaReparacao = false);
 
 public sealed record CompraDocumentoDto(
     Guid Id,
@@ -61,7 +66,13 @@ public sealed record CompraLinhaWriteRequest(
     decimal? TaxaIvaCompra,
     // Null → 1 € películas/vidros, 5 € resto (FiscalDefaults).
     decimal? LucroUnitario,
-    string? Localizacao);
+    string? Localizacao,
+    /// <summary>Sprint 581: código do produto no catálogo do fornecedor (como vem na fatura).</summary>
+    string? SkuFornecedor = null,
+    /// <summary>Sprint 581: artigo da loja a que o lote fica ligado. Null = automático (SKU/descrição já conhecidos) ou mantém.</summary>
+    Guid? ArtigoId = null,
+    /// <summary>Sprint 581: peça de reparação (sem artigo). Null = mantém.</summary>
+    bool? PecaReparacao = null);
 
 public sealed record CompraDocumentoWriteRequest(
     Guid FornecedorId,

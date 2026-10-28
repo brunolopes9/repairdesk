@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PackagePlus, Search } from 'lucide-react';
+import { Link2, PackagePlus, Search, Wrench } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
@@ -26,13 +26,60 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
   const [escolhidos, setEscolhidos] = useState<Record<number, string>>({}); // índice → nome (editável)
   const [q, setQ] = useState('');
   const [categoria, setCategoria] = useState('');
+  const [destino, setDestino] = useState('');
+  const artigos = useQuery({ queryKey: ['artigos', 'todos'], queryFn: () => artigosApi.list(), enabled: open });
 
   useEffect(() => {
     if (!open) return;
     setEscolhidos({});
     setQ('');
     setCategoria('');
+    setDestino('');
   }, [open]);
+
+  const loteIdsEscolhidos = () => Object.keys(escolhidos).flatMap((i) => sugestoes.data![Number(i)].loteIds);
+  const depois = (titulo: string) => {
+    toast.success(titulo);
+    qc.invalidateQueries({ queryKey: ['artigos'] });
+    qc.invalidateQueries({ queryKey: ['compras', 'inventario'] });
+    setEscolhidos({});
+  };
+
+  // Sprint 581: juntar os escolhidos a um artigo que já existe (ex.: «Película vidro») — o Mender aprende o SKU.
+  const ligar = useMutation({
+    mutationFn: async () => {
+      const d = await artigosApi.get(destino);
+      const a = d.artigo;
+      return artigosApi.update(a.id, { nome: a.nome, categoria: a.categoria, precoVendaCents: a.precoVendaCents, codigoBarras: a.codigoBarras.startsWith('20') ? null : a.codigoBarras,
+        codigoFabricante: a.codigoFabricante, localizacao: a.localizacao, notas: a.notas, ativo: a.ativo, loteIds: loteIdsEscolhidos() });
+    },
+    onSuccess: (d) => depois(`Ligados a «${d.artigo.nome}» — stock ${d.artigo.stock}`),
+    onError: (err) => toast.fromError(err, 'Não foi possível ligar.'),
+  });
+
+  // Sprint 581: confirmar as sugestões (mesma descrição de um lote já ligado) dos grupos marcados.
+  const comSugestao = Object.keys(escolhidos).map((i) => sugestoes.data![Number(i)]).filter((s) => s.artigoSugeridoId);
+  const confirmar = useMutation({
+    mutationFn: async () => {
+      const porArtigo = new Map<string, string[]>();
+      for (const s of comSugestao) porArtigo.set(s.artigoSugeridoId!, [...(porArtigo.get(s.artigoSugeridoId!) ?? []), ...s.loteIds]);
+      for (const [artigoId, loteIds] of porArtigo) {
+        const a = (await artigosApi.get(artigoId)).artigo;
+        await artigosApi.update(a.id, { nome: a.nome, categoria: a.categoria, precoVendaCents: a.precoVendaCents, codigoBarras: a.codigoBarras.startsWith('20') ? null : a.codigoBarras,
+          codigoFabricante: a.codigoFabricante, localizacao: a.localizacao, notas: a.notas, ativo: a.ativo, loteIds });
+      }
+      return comSugestao.length;
+    },
+    onSuccess: (n) => depois(`${n} sugestão(ões) confirmada(s)`),
+    onError: (err) => toast.fromError(err, 'Não foi possível confirmar.'),
+  });
+
+  // Sprint 581: peças de reparação não se vendem ao balcão — saem desta lista e ficam no stock das compras.
+  const peca = useMutation({
+    mutationFn: () => artigosApi.marcarPecaReparacao(loteIdsEscolhidos()),
+    onSuccess: (n) => depois(`${n} lote(s) marcados como peça de reparação`),
+    onError: (err) => toast.fromError(err, 'Não foi possível marcar.'),
+  });
 
   const lista = useMemo(() => (sugestoes.data ?? []).map((s, i) => ({ ...s, i }))
     .filter((s) => !q.trim() || correspondeTermos(s.nome, q.trim().toLowerCase())), [sugestoes.data, q]);
@@ -54,14 +101,34 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
   const n = Object.keys(escolhidos).length;
   const todosVisiveis = lista.length > 0 && lista.every((s) => escolhidos[s.i] !== undefined);
   return (
-    <Modal open={open} onClose={onClose} wide title="Criar artigos a partir do stock"
-      footer={<Button type="button" leftIcon={<PackagePlus size={15} />} loading={criar.isPending}
-        disabled={n === 0 || Object.values(escolhidos).some((nome) => !nome.trim())} onClick={() => criar.mutate()}>
-        Criar {n} artigo(s)
-      </Button>}>
+    <Modal open={open} onClose={onClose} wide title="Stock por ligar"
+      footer={<div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        <div className="flex gap-2">
+          <select value={destino} onChange={(e) => setDestino(e.target.value)} className={`${inputCls} min-w-0 sm:w-56`} aria-label="Artigo a que ligar">
+            <option value="">Ligar a um artigo…</option>
+            {(artigos.data ?? []).map((a) => <option key={a.id} value={a.id}>{a.nome}{a.agrupado ? ' (agrupado)' : ''}</option>)}
+          </select>
+          <Button type="button" variant="secondary" leftIcon={<Link2 size={15} />} loading={ligar.isPending} disabled={n === 0 || !destino} onClick={() => ligar.mutate()}>
+            Ligar
+          </Button>
+        </div>
+        {comSugestao.length > 0 && (
+          <Button type="button" variant="secondary" leftIcon={<Link2 size={15} />} loading={confirmar.isPending} onClick={() => confirmar.mutate()}>
+            Confirmar {comSugestao.length} sugestão(ões)
+          </Button>
+        )}
+        <Button type="button" variant="secondary" leftIcon={<Wrench size={15} />} loading={peca.isPending} disabled={n === 0} onClick={() => peca.mutate()}>
+          Peça de reparação
+        </Button>
+        <Button type="button" leftIcon={<PackagePlus size={15} />} loading={criar.isPending}
+          disabled={n === 0 || Object.values(escolhidos).some((nome) => !nome.trim())} onClick={() => criar.mutate()}>
+          Criar {n} artigo(s)
+        </Button>
+      </div>}>
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
-        Lotes em stock ainda sem artigo, juntos pela descrição. Podes mudar o nome (é o que aparece na etiqueta). As películas vão sozinhas
-        para a categoria "Películas" (vendem ao preço da categoria); o resto fica com o preço calculado (custo + lucro + IVA) ou a categoria que escolheres.
+        Lotes em stock ainda sem artigo, juntos pela descrição (tal como veio na fatura). Marca-os e escolhe: <strong>ligar</strong> a um artigo que já existe
+        (ex.: «Película vidro»), <strong>criar</strong> um artigo para cada um, ou <strong>peça de reparação</strong> (ecrãs, baterias… — não levam etiqueta).
+        Com o SKU do fornecedor, as próximas compras do mesmo produto ligam-se sozinhas.
       </p>
       <div className="mb-3 grid gap-3 sm:grid-cols-2">
         <label className="relative block">
@@ -108,6 +175,7 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
                           ? <input value={escolhidos[s.i]} onChange={(e) => setEscolhidos((x) => ({ ...x, [s.i]: e.target.value }))} className={`${inputCls} min-h-9 py-1`} />
                           : s.nome}
                         {s.categoria && <span className="ml-1 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">{s.categoria}</span>}
+                        {s.artigoSugeridoNome && <span className="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" title="Um lote igual já está neste artigo — marca e confirma">sugestão: {s.artigoSugeridoNome}</span>}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{s.stock}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{s.precoCalculadoCents != null ? formatEur(s.precoCalculadoCents / 100) : '—'}</td>

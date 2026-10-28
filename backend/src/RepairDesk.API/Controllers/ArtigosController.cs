@@ -46,6 +46,20 @@ public class ArtigosController : ControllerBase
     [HttpPut("{id:guid}")]
     public Task<ArtigoDetalheDto> Update(Guid id, [FromBody] ArtigoWriteRequest req, CancellationToken ct) => _service.UpdateAsync(id, req, ct);
 
+    /// <summary>Sprint 581: junta artigos repetidos neste — os lotes passam e as etiquetas antigas continuam a ler.</summary>
+    [HttpPost("{id:guid}/fundir")]
+    [Authorize(Roles = "Admin")]
+    public Task<ArtigoDetalheDto> Fundir(Guid id, [FromBody] FundirArtigosRequest req, CancellationToken ct) => _service.FundirAsync(id, req, ct);
+
+    /// <summary>Sprint 581: desfaz uma junção de artigos (o artigo junto volta com os seus lotes e códigos).</summary>
+    [HttpPost("fusoes/{fusaoId:guid}/desfazer")]
+    [Authorize(Roles = "Admin")]
+    public Task<ArtigoDetalheDto> DesfazerFusao(Guid fusaoId, CancellationToken ct) => _service.DesfazerFusaoAsync(fusaoId, ct);
+
+    /// <summary>Sprint 581: lotes que são peças de reparação (ecrãs, baterias…) — saem da lista "por ligar".</summary>
+    [HttpPut("lotes/peca-reparacao")]
+    public Task<int> PecaReparacao([FromBody] PecaReparacaoRequest req, CancellationToken ct) => _service.MarcarPecaReparacaoAsync(req, ct);
+
     [HttpDelete("{id:guid}/lotes/{loteId:guid}")]
     public Task<ArtigoDetalheDto> DesligarLote(Guid id, Guid loteId, CancellationToken ct) => _service.DesligarLoteAsync(id, loteId, ct);
 

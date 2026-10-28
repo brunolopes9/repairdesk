@@ -8,7 +8,8 @@ import { vendasApi } from '../../lib/vendas/api';
 import { Button, PageHeader, SectionCard } from '../../components/ui';
 import { inputCls } from '../../components/ui/formClasses';
 import { artigosApi } from '../../lib/artigos/api';
-import type { Artigo } from '../../lib/artigos/types';
+import type { Artigo, ArtigoLote } from '../../lib/artigos/types';
+import EscolherModelo from './EscolherModelo';
 import { formatEur } from '../../lib/compras/format';
 import { toast } from '../../lib/toast';
 import { PAYMENT_METHOD, PAYMENT_METHOD_LABEL, type PaymentMethod } from '../../lib/vendas/types';
@@ -17,7 +18,11 @@ import DadosFatura, { escolhaInicial, pedidoFatura, problemaFatura, type Escolha
 interface LinhaCarrinho {
   artigo: Artigo;
   quantidade: number;
+  /** Sprint 581: artigo agrupado — o modelo (lote) escolhido; null = sai do lote mais antigo. */
+  lote: ArtigoLote | null;
 }
+
+const chave = (l: { artigo: Artigo; lote: ArtigoLote | null }) => `${l.artigo.id}:${l.lote?.linhaId ?? ''}`;
 
 const PAGAMENTOS: PaymentMethod[] = [PAYMENT_METHOD.Dinheiro, PAYMENT_METHOD.MBWay, PAYMENT_METHOD.Cartao, PAYMENT_METHOD.Multibanco, PAYMENT_METHOD.TransferenciaBancaria];
 
@@ -37,6 +42,8 @@ export default function Balcao() {
   // Sprint 571: fatura-recibo sem NIF (consumidor final) por defeito; com NIF pede nome e morada.
   const [fatura, setFatura] = useState<EscolhaFatura>(() => escolhaInicial(null));
   const [ultimaVenda, setUltimaVenda] = useState<{ id: string; numero: number; fatura: string | null } | null>(null);
+  // Sprint 581: artigo agrupado à espera da escolha do modelo.
+  const [escolher, setEscolher] = useState<Artigo | null>(null);
 
   const resultados = useQuery({
     queryKey: ['artigos', 'balcao', pesquisa],
@@ -57,15 +64,19 @@ export default function Balcao() {
   // No telemóvel não se foca a caixa (abriria o teclado por cima do ecrã); usa-se a câmara.
   useEffect(() => { if (!window.matchMedia?.('(pointer: coarse)').matches) leitor.current?.focus(); }, []);
 
-  function adicionar(a: Artigo, qtd = 1) {
+  /** Artigo agrupado sem modelo escolhido → pergunta o modelo primeiro. */
+  function adicionar(a: Artigo, qtd = 1, lote: ArtigoLote | null = null) {
+    if (a.agrupado && !lote) { setEscolher(a); return; }
     setCarrinho((c) => {
-      const i = c.findIndex((l) => l.artigo.id === a.id);
+      const k = chave({ artigo: a, lote });
+      const i = c.findIndex((l) => chave(l) === k);
       const atual = i >= 0 ? c[i].quantidade : 0;
-      if (atual + qtd > a.stock) {
-        toast.error('Sem stock suficiente', `${a.nome}: há ${a.stock} em stock.`);
+      const disponivel = lote ? lote.quantidadeEmStock : a.stock;
+      if (atual + qtd > disponivel) {
+        toast.error('Sem stock suficiente', `${lote?.descricao ?? a.nome}: há ${disponivel} em stock.`);
         return c;
       }
-      if (i < 0) return [...c, { artigo: a, quantidade: qtd }];
+      if (i < 0) return [...c, { artigo: a, quantidade: qtd, lote }];
       return c.map((l, j) => (j === i ? { ...l, quantidade: l.quantidade + qtd } : l));
     });
   }
@@ -100,7 +111,7 @@ export default function Balcao() {
 
   const vender = useMutation({
     mutationFn: () => artigosApi.vender({
-      linhas: carrinho.map((l) => ({ artigoId: l.artigo.id, quantidade: l.quantidade })),
+      linhas: carrinho.map((l) => ({ artigoId: l.artigo.id, quantidade: l.quantidade, loteId: l.lote?.linhaId ?? null })),
       paymentMethod: pagamento,
       comNif: pedidoFatura(fatura).comNif,
     }),
@@ -144,6 +155,8 @@ export default function Balcao() {
           </form>
           <LeitorCamera open={camara} onClose={() => setCamara(false)} onLido={(c) => { void lerCodigo(c); }} continuo
             titulo="Ler artigos com a câmara" />
+          <EscolherModelo artigo={escolher} filtroInicial={pesquisa} onClose={() => { setEscolher(null); leitor.current?.focus(); }}
+            onEscolher={(lote) => { if (escolher) adicionar(escolher, 1, lote); setEscolher(null); leitor.current?.focus(); }} />
 
           {pesquisa && (
             <SectionCard title={`Resultados para "${pesquisa}"`} bodyClassName="p-0">
@@ -182,22 +195,23 @@ export default function Balcao() {
           ) : (
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {carrinho.map((l) => (
-                <li key={l.artigo.id} className="flex items-center gap-2 py-2 text-sm">
-                  <span className="flex-1">
+                <li key={chave(l)} className="flex items-center gap-2 py-2 text-sm">
+                  <span className="min-w-0 flex-1">
                     <span className="font-medium">{l.artigo.nome}</span>
+                    {l.lote && <span className="block truncate text-xs text-zinc-600 dark:text-zinc-300">{l.lote.descricao}</span>}
                     <span className="block text-xs text-zinc-500">{formatEur((l.artigo.precoEfetivoCents ?? 0) / 100)} / un</span>
                   </span>
                   <button type="button" aria-label="Menos uma" className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                    onClick={() => setCarrinho((c) => c.map((x) => (x.artigo.id === l.artigo.id ? { ...x, quantidade: Math.max(1, x.quantidade - 1) } : x)))}>
+                    onClick={() => setCarrinho((c) => c.map((x) => (chave(x) === chave(l) ? { ...x, quantidade: Math.max(1, x.quantidade - 1) } : x)))}>
                     <Minus size={14} />
                   </button>
                   <span className="w-6 text-center tabular-nums">{l.quantidade}</span>
-                  <button type="button" aria-label="Mais uma" className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => adicionar(l.artigo)}>
+                  <button type="button" aria-label="Mais uma" className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => adicionar(l.artigo, 1, l.lote)}>
                     <Plus size={14} />
                   </button>
                   <span className="w-16 text-right tabular-nums">{formatEur((l.quantidade * (l.artigo.precoEfetivoCents ?? 0)) / 100)}</span>
                   <button type="button" aria-label="Tirar" className="rounded p-1 text-zinc-400 hover:text-red-600"
-                    onClick={() => setCarrinho((c) => c.filter((x) => x.artigo.id !== l.artigo.id))}>
+                    onClick={() => setCarrinho((c) => c.filter((x) => chave(x) !== chave(l)))}>
                     <Trash2 size={14} />
                   </button>
                 </li>

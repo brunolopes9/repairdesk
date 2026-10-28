@@ -37,5 +37,14 @@ public class Artigo : BaseEntity, ITenantEntity
     /// <summary>Sprint 567: artigo correspondente no Moloni ON (criado na 1.ª fatura com este artigo).</summary>
     public int? MoloniProductId { get; set; }
 
+    /// <summary>
+    /// Sprint 581: artigo agrupado (o "bolo" da pastelaria) — um código e um preço para vários modelos (ex.: "Película
+    /// vidro" para todos os telemóveis). No balcão pergunta-se o modelo, para sair do lote certo.
+    /// </summary>
+    public bool Agrupado { get; set; }
+
     public List<CompraLinha> Lotes { get; set; } = new();
+
+    /// <summary>Sprint 581: outros códigos que identificam o artigo (etiquetas antigas, SKUs de fornecedores).</summary>
+    public List<ArtigoCodigo> Codigos { get; set; } = new();
 }

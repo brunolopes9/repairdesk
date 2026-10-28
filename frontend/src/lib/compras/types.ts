@@ -24,6 +24,11 @@ export interface CompraLinha {
   ivaAPagarEstado: number;
   totalPago: number;
   totalSemIva: number;
+  /** Sprint 581: código do produto no fornecedor; artigo da loja a que o lote pertence; peça de reparação (sem artigo). */
+  skuFornecedor: string | null;
+  artigoId: string | null;
+  artigoNome: string | null;
+  pecaReparacao: boolean;
 }
 
 export interface CompraDocumento {
@@ -62,6 +67,8 @@ export interface CompraLinhaWrite {
   /** null → 1 € películas/vidros, 5 € resto. */
   lucroUnitario: number | null;
   localizacao: string | null;
+  /** Sprint 581: SKU do fornecedor (liga sozinho ao artigo já conhecido). */
+  skuFornecedor?: string | null;
 }
 
 export interface CompraDocumentoWrite {

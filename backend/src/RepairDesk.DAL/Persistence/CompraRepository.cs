@@ -11,7 +11,7 @@ public class CompraRepository : ICompraRepository
 
     public async Task<(IReadOnlyList<CompraDocumento> Items, int Total)> SearchAsync(CompraFiltro filtro, int page, int pageSize, CancellationToken ct = default)
     {
-        var q = _db.ComprasDocumentos.AsNoTracking().Include(d => d.Fornecedor).Include(d => d.Linhas).AsQueryable();
+        var q = _db.ComprasDocumentos.AsNoTracking().Include(d => d.Fornecedor).Include(d => d.Linhas).ThenInclude(l => l.Artigo).AsQueryable();
 
         if (filtro.FornecedorId is { } fid) q = q.Where(d => d.FornecedorId == fid);
         if (filtro.SoFaturaEmFalta) q = q.Where(d => d.NumeroFatura == null || d.NumeroFatura == "");
@@ -58,7 +58,7 @@ public class CompraRepository : ICompraRepository
     public Task<CompraDocumento?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.ComprasDocumentos
             .Include(d => d.Fornecedor)
-            .Include(d => d.Linhas)
+            .Include(d => d.Linhas).ThenInclude(l => l.Artigo)
             .FirstOrDefaultAsync(d => d.Id == id, ct);
 
     public async Task<IReadOnlyList<CompraDocumento>> FindPossiveisDuplicadosAsync(

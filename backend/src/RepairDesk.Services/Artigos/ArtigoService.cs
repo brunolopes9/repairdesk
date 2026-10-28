@@ -26,7 +26,9 @@ public sealed record ArtigoDto(
     int Lotes,
     string? Localizacao,
     bool Ativo,
-    string? Notas);
+    string? Notas,
+    /// <summary>Sprint 581: artigo agrupado (vários modelos, um código) — o balcão pergunta o modelo.</summary>
+    bool Agrupado = false);
 
 public sealed record ArtigoLoteDto(
     Guid LinhaId,
@@ -37,9 +39,25 @@ public sealed record ArtigoLoteDto(
     int Quantidade,
     int QuantidadeEmStock,
     decimal CustoUnitarioPago,
-    decimal PrecoCalculadoComIva);
+    decimal PrecoCalculadoComIva,
+    string? SkuFornecedor = null);
 
-public sealed record ArtigoDetalheDto(ArtigoDto Artigo, IReadOnlyList<ArtigoLoteDto> Lotes);
+/// <summary>Sprint 581: código que leva ao artigo — SKU de um fornecedor, ou código de barras alternativo (Fornecedor null).</summary>
+public sealed record ArtigoCodigoDto(Guid Id, string Codigo, Guid? FornecedorId, string? Fornecedor);
+
+/// <summary>Sprint 581: artigo que foi junto neste (pode desfazer-se).</summary>
+public sealed record ArtigoFusaoDto(Guid Id, string OrigemSku, string OrigemNome, int Lotes, DateTime Em);
+
+public sealed record ArtigoDetalheDto(ArtigoDto Artigo, IReadOnlyList<ArtigoLoteDto> Lotes, IReadOnlyList<ArtigoCodigoDto>? Codigos = null,
+    IReadOnlyList<ArtigoFusaoDto>? Fusoes = null,
+    /// <summary>Sprint 581: avisos da gravação (ex.: um SKU de fornecedor passou de outro artigo para este).</summary>
+    IReadOnlyList<string>? Avisos = null);
+
+/// <summary>Sprint 581: juntar artigos repetidos neste (lotes, SKUs de fornecedor; as etiquetas antigas continuam a ler).</summary>
+public sealed record FundirArtigosRequest(IReadOnlyList<Guid> OrigemIds);
+
+/// <summary>Sprint 581: marcar/desmarcar lotes como peça de reparação (não ficam à espera de artigo).</summary>
+public sealed record PecaReparacaoRequest(IReadOnlyList<Guid> LoteIds, bool PecaReparacao = true);
 
 public sealed record ArtigoWriteRequest(
     string Nome,
@@ -52,9 +70,12 @@ public sealed record ArtigoWriteRequest(
     string? Notas,
     bool Ativo = true,
     /// <summary>Lotes de compra a ligar a este artigo (os já ligados mantêm-se).</summary>
-    IReadOnlyList<Guid>? LoteIds = null);
+    IReadOnlyList<Guid>? LoteIds = null,
+    /// <summary>Sprint 581: null = mantém.</summary>
+    bool? Agrupado = null);
 
-public sealed record BalcaoLinhaRequest(Guid ArtigoId, int Quantidade, int? PrecoUnitarioCents = null);
+/// <summary>Sprint 581: <c>LoteId</c> = o modelo escolhido num artigo agrupado (sai só desse lote).</summary>
+public sealed record BalcaoLinhaRequest(Guid ArtigoId, int Quantidade, int? PrecoUnitarioCents = null, Guid? LoteId = null);
 
 /// <summary>Sprint 571: <c>ComNif</c> vazio = fatura-recibo sem NIF (consumidor final), mesmo com cliente escolhido.</summary>
 public sealed record BalcaoVendaRequest(IReadOnlyList<BalcaoLinhaRequest> Linhas, PaymentMethod PaymentMethod, Guid? ClienteId = null,
@@ -63,13 +84,16 @@ public sealed record BalcaoVendaRequest(IReadOnlyList<BalcaoLinhaRequest> Linhas
 /// <summary>Sprint 569: lotes em stock sem artigo, agrupados pela mesma descrição — um artigo por grupo.</summary>
 public sealed record ArtigoSugestaoDto(string Nome, IReadOnlyList<Guid> LoteIds, IReadOnlyList<int> Lotes, int Stock, int? PrecoCalculadoCents, string? Localizacao,
     /// <summary>Sprint 570: categoria sugerida (ex.: películas → "Películas").</summary>
-    string? Categoria = null);
+    string? Categoria = null,
+    /// <summary>Sprint 581: artigo de um lote anterior com a mesma descrição — sugestão para confirmar, nunca automática.</summary>
+    Guid? ArtigoSugeridoId = null,
+    string? ArtigoSugeridoNome = null);
 
 public sealed record CategoriaArtigoDto(Guid Id, string Nome, int? PrecoVendaCents, int Artigos);
 
 public sealed record CategoriaArtigoRequest(string Nome, int? PrecoVendaCents);
 
-public sealed record ArtigoEmLoteItem(string Nome, IReadOnlyList<Guid> LoteIds, int? PrecoVendaCents = null, string? Categoria = null);
+public sealed record ArtigoEmLoteItem(string Nome, IReadOnlyList<Guid> LoteIds, int? PrecoVendaCents = null, string? Categoria = null, bool Agrupado = false);
 
 public sealed record ArtigosEmLoteRequest(IReadOnlyList<ArtigoEmLoteItem> Itens, string? Categoria = null);
 
@@ -91,6 +115,12 @@ public interface IArtigoService
     /// <summary>Sprint 570: categorias com preço por defeito (ex.: Películas 15 €).</summary>
     Task<IReadOnlyList<CategoriaArtigoDto>> CategoriasAsync(CancellationToken ct = default);
     Task<CategoriaArtigoDto> GuardarCategoriaAsync(CategoriaArtigoRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 581: junta artigos repetidos no destino (lotes e códigos passam; os códigos antigos continuam a ler).</summary>
+    Task<ArtigoDetalheDto> FundirAsync(Guid destinoId, FundirArtigosRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 581: lotes que são peças de reparação (não aparecem como "por ligar").</summary>
+    Task<int> MarcarPecaReparacaoAsync(PecaReparacaoRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 581: desfaz uma junção — a origem volta com os seus lotes e códigos.</summary>
+    Task<ArtigoDetalheDto> DesfazerFusaoAsync(Guid fusaoId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -131,8 +161,20 @@ public class ArtigoService : IArtigoService
     public async Task<ArtigoDetalheDto> GetAsync(Guid id, CancellationToken ct = default)
     {
         await PrecosCategoriaAsync(ct);
-        return Detalhe(await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Artigo", id));
+        var d = Detalhe(await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Artigo", id));
+        var fusoes = await _repo.ListFusoesAsync(id, ct);
+        return d with
+        {
+            Fusoes = fusoes.Select(f => new ArtigoFusaoDto(f.Id, f.OrigemSku, f.OrigemNome, Ids(f.LoteIdsJson).Count, f.CreatedAt)).ToList(),
+            Avisos = _avisos.Count > 0 ? _avisos.ToList() : null,
+        };
     }
+
+    /// <summary>Avisos desta operação (ex.: SKU que mudou de artigo) — vão no detalhe devolvido.</summary>
+    private readonly List<string> _avisos = new();
+
+    private static List<Guid> Ids(string json)
+        => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(json) ?? new();
 
     public async Task<ArtigoDto> PorCodigoAsync(string codigo, CancellationToken ct = default)
     {
@@ -174,7 +216,11 @@ public class ArtigoService : IArtigoService
 
     public async Task<IReadOnlyList<ArtigoSugestaoDto>> SugestoesAsync(CancellationToken ct = default)
     {
-        var lotes = (await _compras.ListLinhasAsync(soComStock: true, ct)).Where(l => l.ArtigoId is null).ToList();
+        var todas = await _compras.ListLinhasAsync(soComStock: false, ct);
+        var lotes = todas.Where(l => l.ArtigoId is null && !l.PecaReparacao && l.QuantidadeEmStock > 0).ToList();
+        // Sprint 581: lote já ligado com a mesma descrição → sugere esse artigo (confirma-se num clique).
+        var ligados = todas.Where(l => l.Artigo is { Ativo: true })
+            .GroupBy(l => ChaveDescricao(l.Descricao)).ToDictionary(g => g.Key, g => g.OrderByDescending(l => l.CreatedAt).First().Artigo!);
         return lotes
             .GroupBy(l => ChaveDescricao(l.Descricao))
             .Select(g =>
@@ -185,7 +231,8 @@ public class ArtigoService : IArtigoService
                 return new ArtigoSugestaoDto(nome.Length > 200 ? nome[..200] : nome, ordenados.Select(l => l.Id).ToList(), ordenados.Select(l => l.Numero).ToList(),
                     g.Sum(l => l.QuantidadeEmStock), (int)Math.Round(PrecoCalculado(maisAntigo) * 100m, MidpointRounding.AwayFromZero),
                     ordenados.Select(l => l.Localizacao).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
-                    EPelicula(nome) ? "Películas" : null);
+                    EPelicula(nome) ? "Películas" : null,
+                    ligados.TryGetValue(g.Key, out var sugerido) ? sugerido.Id : null, sugerido?.Nome);
             })
             .OrderBy(s => s.Nome)
             .ToList();
@@ -200,7 +247,7 @@ public class ArtigoService : IArtigoService
         var criados = new List<ArtigoDto>();
         foreach (var item in req.Itens)
         {
-            var d = await CreateAsync(new ArtigoWriteRequest(item.Nome, item.Categoria ?? req.Categoria, item.PrecoVendaCents, null, null, null, null, true, item.LoteIds), ct);
+            var d = await CreateAsync(new ArtigoWriteRequest(item.Nome, item.Categoria ?? req.Categoria, item.PrecoVendaCents, null, null, null, null, true, item.LoteIds, item.Agrupado), ct);
             criados.Add(d.Artigo);
         }
         return criados;
@@ -233,7 +280,7 @@ public class ArtigoService : IArtigoService
 
         await PrecosCategoriaAsync(ct);
         var linhas = new List<VendaLinhaWriteRequest>();
-        foreach (var grupo in req.Linhas.GroupBy(l => (l.ArtigoId, l.PrecoUnitarioCents)))
+        foreach (var grupo in req.Linhas.GroupBy(l => (l.ArtigoId, l.PrecoUnitarioCents, l.LoteId)))
         {
             var qtd = grupo.Sum(l => l.Quantidade);
             if (qtd <= 0) throw new ValidationException("quantidade_invalida", "Quantidade tem de ser positiva.");
@@ -243,14 +290,19 @@ public class ArtigoService : IArtigoService
             if (preco <= 0) throw new ValidationException("preco_invalido", "Preço inválido.");
 
             // FIFO: do lote mais antigo para o mais recente (as unidades já reservadas nesta venda contam).
+            // Sprint 581: num artigo agrupado, o modelo escolhido no balcão — sai só desse lote.
             var falta = qtd;
-            foreach (var lote in LotesFifo(artigo))
+            var fonte = LotesFifo(artigo);
+            if (grupo.Key.LoteId is { } loteId)
+                fonte = fonte.Where(l => l.Id == loteId);
+            foreach (var lote in fonte)
             {
                 var usadas = linhas.Where(l => l.CompraLinhaId == lote.Id).Sum(l => l.Quantidade);
                 var disponivel = lote.QuantidadeEmStock - usadas;
                 if (disponivel <= 0) continue;
                 var tira = Math.Min(disponivel, falta);
-                linhas.Add(new VendaLinhaWriteRequest(null, lote.Id, artigo.Nome, tira, preco));
+                // Agrupado: a fatura diz o modelo (art. 36.º n.º 5 b) CIVA, denominação usual) — "Película vidro – <descrição do lote>".
+                linhas.Add(new VendaLinhaWriteRequest(null, lote.Id, artigo.Agrupado ? $"{artigo.Nome} – {lote.Descricao}" : artigo.Nome, tira, preco));
                 falta -= tira;
                 if (falta == 0) break;
             }
@@ -282,6 +334,7 @@ public class ArtigoService : IArtigoService
         artigo.Localizacao = Clean(req.Localizacao, 100);
         artigo.Notas = Clean(req.Notas, 1000);
         artigo.Ativo = req.Ativo;
+        if (req.Agrupado is { } agrupado) artigo.Agrupado = agrupado;
         if (req.PrecoVendaCents is < 0 or > 100_000_000)
             throw new ValidationException("preco_invalido", "Preço de venda inválido.");
         artigo.PrecoVendaCents = req.PrecoVendaCents is > 0 ? req.PrecoVendaCents : null;
@@ -321,8 +374,104 @@ public class ArtigoService : IArtigoService
         foreach (var lote in lotes)
         {
             lote.ArtigoId = artigo.Id;
+            lote.PecaReparacao = false;
             if (!artigo.Lotes.Contains(lote)) artigo.Lotes.Add(lote);
+            // Sprint 581: ligar um lote ensina o Mender — a próxima compra deste SKU deste fornecedor vem já ligada.
+            if (lote.SkuFornecedor is { } sku && lote.Documento?.FornecedorId is { } fornecedorId)
+            {
+                if (await _repo.SkuApontaParaOutroAsync(artigo.Id, fornecedorId, sku, ct))
+                    _avisos.Add($"O SKU {sku} de {lote.Documento.Fornecedor?.Name ?? "fornecedor"} estava ligado a outro artigo — as próximas compras com este SKU passam a entrar em «{artigo.Nome}».");
+                await _repo.AprenderSkuFornecedorAsync(artigo.Id, fornecedorId, sku, ct);
+            }
         }
+    }
+
+    public async Task<ArtigoDetalheDto> FundirAsync(Guid destinoId, FundirArtigosRequest req, CancellationToken ct = default)
+    {
+        if (req.OrigemIds is null || req.OrigemIds.Count == 0) throw new ValidationException("sem_artigos", "Escolhe os artigos a juntar.");
+        if (req.OrigemIds.Count > 300) throw new ValidationException("demasiados", "Máximo 300 artigos de cada vez.");
+        var destino = await _repo.FindByIdAsync(destinoId, ct) ?? throw new NotFoundException("Artigo", destinoId);
+        foreach (var origemId in req.OrigemIds.Distinct().Where(id => id != destinoId))
+        {
+            var origem = await _repo.FindByIdAsync(origemId, ct) ?? throw new NotFoundException("Artigo", origemId);
+            var lotesMovidos = origem.Lotes.Select(l => l.Id).ToList();
+            foreach (var lote in origem.Lotes.ToList())
+            {
+                lote.ArtigoId = destino.Id;
+                destino.Lotes.Add(lote);
+            }
+            // As etiquetas já coladas continuam a ler: o código de barras e o do fabricante passam a alternativos.
+            var antigos = new[] { origem.CodigoBarras, origem.CodigoFabricante }.Where(c => !string.IsNullOrEmpty(c)).Select(c => c!);
+            var codigosMovidos = origem.Codigos.Select(c => c.Id).ToList();
+            foreach (var codigo in origem.Codigos.ToList())
+            {
+                codigo.ArtigoId = destino.Id;
+                destino.Codigos.Add(codigo);
+            }
+            origem.Ativo = false;
+            _repo.Remove(origem); // soft delete — liberta o código de barras (índice só sobre os não apagados)
+            var criados = new List<Guid>();
+            foreach (var c in antigos.Where(c => !destino.Codigos.Any(x => x.FornecedorId == null && x.Codigo == c)))
+            {
+                var alias = new ArtigoCodigo { Id = Guid.NewGuid(), TenantId = destino.TenantId, ArtigoId = destino.Id, Codigo = c };
+                await _repo.AddCodigoAsync(alias, ct);
+                criados.Add(alias.Id);
+            }
+            // Registo para desfazer (Sprint 581): o que passou e o que se criou.
+            await _repo.AddFusaoAsync(new ArtigoFusao
+            {
+                TenantId = destino.TenantId, DestinoId = destino.Id, OrigemId = origem.Id, OrigemSku = origem.Sku, OrigemNome = origem.Nome,
+                LoteIdsJson = System.Text.Json.JsonSerializer.Serialize(lotesMovidos),
+                CodigosMovidosJson = System.Text.Json.JsonSerializer.Serialize(codigosMovidos),
+                CodigosCriadosJson = System.Text.Json.JsonSerializer.Serialize(criados),
+            }, ct);
+            await _audit.LogAsync(AuditAction.Update, nameof(Artigo), destino.Id,
+                new { operation = "artigo_fundir", origem = origem.Sku, origemNome = origem.Nome }, ct: ct);
+        }
+        destino.UpdatedAt = DateTime.UtcNow;
+        await _repo.SaveAsync(ct);
+        return await GetAsync(destino.Id, ct);
+    }
+
+    public async Task<ArtigoDetalheDto> DesfazerFusaoAsync(Guid fusaoId, CancellationToken ct = default)
+    {
+        var fusao = await _repo.FindFusaoAsync(fusaoId, ct) ?? throw new NotFoundException("Junção", fusaoId);
+        if (fusao.DesfeitaEm is not null) throw new ConflictException("ja_desfeita", "Esta junção já foi desfeita.");
+        var destino = await _repo.FindByIdAsync(fusao.DestinoId, ct) ?? throw new NotFoundException("Artigo", fusao.DestinoId);
+        var origem = await _repo.FindApagadoAsync(fusao.OrigemId, ct) ?? throw new NotFoundException("Artigo", fusao.OrigemId);
+
+        // 1.º tira as etiquetas alternativas criadas no destino (libertam o código de barras da origem)…
+        foreach (var c in await _repo.FindCodigosAsync(Ids(fusao.CodigosCriadosJson), ct)) _repo.RemoveCodigo(c);
+        await _repo.SaveIntermedioAsync(ct);
+
+        // …2.º a origem volta, com os lotes que ainda estão no destino e os seus códigos.
+        origem.IsDeleted = false;
+        origem.Ativo = true;
+        var lotes = Ids(fusao.LoteIdsJson).ToHashSet();
+        foreach (var lote in destino.Lotes.Where(l => lotes.Contains(l.Id)).ToList())
+        {
+            lote.ArtigoId = origem.Id;
+            destino.Lotes.Remove(lote);
+        }
+        foreach (var c in await _repo.FindCodigosAsync(Ids(fusao.CodigosMovidosJson), ct))
+            if (c.ArtigoId == destino.Id) c.ArtigoId = origem.Id;
+        fusao.DesfeitaEm = DateTime.UtcNow;
+        await _repo.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Artigo), destino.Id, new { operation = "artigo_fundir_desfazer", origem = origem.Sku }, ct: ct);
+        return await GetAsync(origem.Id, ct);
+    }
+
+    public async Task<int> MarcarPecaReparacaoAsync(PecaReparacaoRequest req, CancellationToken ct = default)
+    {
+        if (req.LoteIds is null || req.LoteIds.Count == 0) return 0;
+        var lotes = await _compras.FindLinhasAsync(req.LoteIds.Distinct().ToList(), ct);
+        foreach (var l in lotes)
+        {
+            l.PecaReparacao = req.PecaReparacao;
+            if (req.PecaReparacao) l.ArtigoId = null;
+        }
+        await _compras.SaveAsync(ct);
+        return lotes.Count;
     }
 
     private static IEnumerable<CompraLinha> LotesFifo(Artigo a)
@@ -396,14 +545,18 @@ public class ArtigoService : IArtigoService
     private ArtigoDto ToDto(Artigo a) => new(
         a.Id, a.Numero, a.Sku, a.CodigoBarras, a.CodigoFabricante, a.Nome, a.Categoria, a.PrecoVendaCents, PrecoEfetivo(a),
         a.PrecoVendaCents is not null ? "artigo" : PrecoCategoria(a) is not null ? "categoria" : "calculado",
-        Stock(a), a.Lotes.Count(l => !l.IsDeleted), a.Localizacao, a.Ativo, a.Notas);
+        Stock(a), a.Lotes.Count(l => !l.IsDeleted), a.Localizacao, a.Ativo, a.Notas, a.Agrupado);
 
     private ArtigoDetalheDto Detalhe(Artigo a) => new(ToDto(a), a.Lotes
         .Where(l => !l.IsDeleted)
         .OrderBy(l => l.Documento?.Data ?? l.CreatedAt).ThenBy(l => l.Numero)
         .Select(l => new ArtigoLoteDto(l.Id, l.Numero, l.Descricao, l.Documento?.Fornecedor?.Name ?? "—",
-            l.Documento?.Data ?? l.CreatedAt, l.Quantidade, l.QuantidadeEmStock, l.PrecoUnitarioPago, IvaEngine.Euros(PrecoCalculado(l))))
-        .ToList());
+            l.Documento?.Data ?? l.CreatedAt, l.Quantidade, l.QuantidadeEmStock, l.PrecoUnitarioPago, IvaEngine.Euros(PrecoCalculado(l)), l.SkuFornecedor))
+        .ToList(),
+        a.Codigos.Where(c => !c.IsDeleted).OrderBy(c => c.FornecedorId is null ? 0 : 1).ThenBy(c => c.Codigo)
+            .Select(c => new ArtigoCodigoDto(c.Id, c.Codigo, c.FornecedorId,
+                c.FornecedorId is { } fid ? a.Lotes.FirstOrDefault(l => l.Documento?.FornecedorId == fid)?.Documento?.Fornecedor?.Name : null))
+            .ToList());
 
     private static string? Codigo(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim().ToUpperInvariant();
 
