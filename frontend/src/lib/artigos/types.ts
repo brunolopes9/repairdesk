@@ -44,6 +44,8 @@ export interface ArtigoLote {
   custoUnitarioPago: number;
   precoCalculadoComIva: number;
   skuFornecedor: string | null;
+  /** Sprint 582: o que sai na fatura ao cliente (agrupado: "Película vidro – iPhone 11", em português). */
+  textoFatura: string | null;
 }
 
 /** Sprint 581: artigo junto neste (pode desfazer-se). */

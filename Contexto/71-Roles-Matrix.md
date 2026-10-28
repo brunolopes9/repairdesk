@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:523a20f8a31dfff4 -->
+<!-- roles-matrix-snapshot:a2333525c4f08bc4 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -33,7 +33,7 @@ testes e esta matriz com snapshot.
 | MoloniController (S567/S568) | `GET /api/moloni/estado`, `GET /documentos`, `GET /documentos/{tipo}/{id}.pdf`, `POST /documentos/Fatura/{id}/recibo`, `GET /artigos`, `GET /referencias` | `Authenticated`; `PUT`/`DELETE /api/moloni`, `POST /documentos/{tipo}/{id}/anular`, `POST`/`PUT`/`DELETE /artigos`, `POST /clientes/importar`, `POST /vendas/ligar` `Admin` |
 | ApuramentoController (S573/S576/S580) | `GET /api/apuramento?ano=&trimestre=`, `PUT /pressupostos`, `POST`/`DELETE /fecho`, `GET /lembretes`, `PUT /lembretes/codigo-trading` | `Admin` |
 | FornecedoresController (S579) | `POST /api/fornecedores/{id}/fundir` (juntar fornecedor repetido) | `Admin` |
-| ArtigosController (S566) | `GET/POST/PUT /api/artigos*`, `GET /codigo/{codigo}`, `DELETE /{id}/lotes/{loteId}`, `POST /etiquetas.pdf`, `POST /balcao/vender`, `GET /sugestoes`, `POST /em-lote` (S569), `GET /categorias` (S570), `PUT /lotes/peca-reparacao` (S581) | `Authenticated` (operacional: Admin e Empregado); `PUT /categorias` (S570), `POST /{id}/fundir`, `POST /fusoes/{fusaoId}/desfazer` (S581) `Admin` |
+| ArtigosController (S566) | `GET/POST/PUT /api/artigos*`, `GET /codigo/{codigo}`, `DELETE /{id}/lotes/{loteId}`, `POST /etiquetas.pdf`, `POST /balcao/vender`, `GET /sugestoes`, `POST /em-lote` (S569), `GET /categorias` (S570), `PUT /lotes/peca-reparacao` (S581), `POST /balcao/previsualizar` (S582) | `Authenticated` (operacional: Admin e Empregado); `PUT /categorias` (S570), `POST /{id}/fundir`, `POST /fusoes/{fusaoId}/desfazer` (S581) `Admin` |
 | PublicPortalController / PublicWarrantyController | `GET/POST /api/public/*` | `Anonymous` + rate limit `public-portal` |
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |
 | UsersController | `POST /api/users/{id}/revoke-sessions`, `POST /api/users/{id}/deactivate` | `Admin` |

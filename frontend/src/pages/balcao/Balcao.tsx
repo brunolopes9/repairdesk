@@ -197,8 +197,8 @@ export default function Balcao() {
               {carrinho.map((l) => (
                 <li key={chave(l)} className="flex items-center gap-2 py-2 text-sm">
                   <span className="min-w-0 flex-1">
-                    <span className="font-medium">{l.artigo.nome}</span>
-                    {l.lote && <span className="block truncate text-xs text-zinc-600 dark:text-zinc-300">{l.lote.descricao}</span>}
+                    {/* Sprint 582: o texto exato da linha da fatura. */}
+                    <span className="font-medium">{l.lote?.textoFatura ?? l.artigo.nome}</span>
                     <span className="block text-xs text-zinc-500">{formatEur((l.artigo.precoEfetivoCents ?? 0) / 100)} / un</span>
                   </span>
                   <button type="button" aria-label="Menos uma" className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"

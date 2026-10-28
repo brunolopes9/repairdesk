@@ -68,6 +68,10 @@ public class ArtigosController : ControllerBase
     public async Task<IActionResult> Etiquetas([FromBody] EtiquetasRequest req, [FromServices] IEtiquetaPdfService etiquetas, CancellationToken ct)
         => File(await etiquetas.GerarAsync(req, ct), "application/pdf", "etiquetas.pdf");
 
+    /// <summary>Sprint 582: como sairia a fatura desta venda (texto das linhas, preços) — sem vender nem emitir.</summary>
+    [HttpPost("balcao/previsualizar")]
+    public Task<IReadOnlyList<BalcaoLinhaPreviaDto>> Previsualizar([FromBody] BalcaoVendaRequest req, CancellationToken ct) => _service.PrevisualizarAsync(req, ct);
+
     /// <summary>Venda ao balcão (pistola): tira dos lotes mais antigos e cria a venda entregue.</summary>
     [HttpPost("balcao/vender")]
     public Task<VendaDto> Vender([FromBody] BalcaoVendaRequest req, CancellationToken ct) => _service.VenderAsync(req, ct);

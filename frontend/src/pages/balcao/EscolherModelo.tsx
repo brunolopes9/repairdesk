@@ -31,9 +31,9 @@ export default function EscolherModelo({ artigo, filtroInicial, onEscolher, onCl
   const lotes = useMemo(() => {
     const t = q.trim().toLowerCase();
     const comStock = (detalhe.data?.lotes ?? []).filter((l) => l.quantidadeEmStock > 0);
-    const filtrados = comStock.filter((l) => !t || correspondeTermos(l.descricao, t));
+    const filtrados = comStock.filter((l) => !t || correspondeTermos(`${l.textoFatura ?? ""} ${l.descricao}`, t));
     // Se o filtro não apanha nada, mostra todos (melhor do que uma lista vazia).
-    return (filtrados.length ? filtrados : comStock).sort((a, b) => a.descricao.localeCompare(b.descricao));
+    return (filtrados.length ? filtrados : comStock).sort((a, b) => (a.textoFatura ?? a.descricao).localeCompare(b.textoFatura ?? b.descricao));
   }, [detalhe.data, q]);
 
   return (
@@ -50,8 +50,8 @@ export default function EscolherModelo({ artigo, filtroInicial, onEscolher, onCl
                 <button type="button" onClick={() => onEscolher(l)}
                   className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                   <span className="min-w-0 flex-1">
-                    <span className="block">{l.descricao}</span>
-                    <span className="block text-xs text-zinc-500">{l.fornecedor} · lote #{l.numero}</span>
+                    <span className="block font-medium">{l.textoFatura ?? l.descricao}</span>
+                    <span className="block text-xs text-zinc-500">{l.descricao} · {l.fornecedor} · lote #{l.numero}</span>
                   </span>
                   <span className="flex-none tabular-nums text-emerald-700 dark:text-emerald-400">{l.quantidadeEmStock} un</span>
                 </button>

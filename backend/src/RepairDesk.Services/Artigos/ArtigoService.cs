@@ -40,7 +40,12 @@ public sealed record ArtigoLoteDto(
     int QuantidadeEmStock,
     decimal CustoUnitarioPago,
     decimal PrecoCalculadoComIva,
-    string? SkuFornecedor = null);
+    string? SkuFornecedor = null,
+    /// <summary>Sprint 582: o que sai na fatura ao cliente quando se vende este lote (artigo agrupado: "Nome – modelo", em português).</summary>
+    string? TextoFatura = null);
+
+/// <summary>Sprint 582: linha como vai sair na fatura (pré-visualização do balcão, sem registar nada).</summary>
+public sealed record BalcaoLinhaPreviaDto(string Descricao, int Quantidade, int PrecoUnitarioCents, int TotalCents);
 
 /// <summary>Sprint 581: código que leva ao artigo — SKU de um fornecedor, ou código de barras alternativo (Fornecedor null).</summary>
 public sealed record ArtigoCodigoDto(Guid Id, string Codigo, Guid? FornecedorId, string? Fornecedor);
@@ -108,6 +113,8 @@ public interface IArtigoService
     Task<ArtigoDetalheDto> DesligarLoteAsync(Guid id, Guid loteId, CancellationToken ct = default);
     /// <summary>Venda ao balcão: tira cada artigo dos lotes mais antigos e cria a venda entregue.</summary>
     Task<VendaDto> VenderAsync(BalcaoVendaRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 582: as linhas que a venda ao balcão faria (texto da fatura, lotes, preços) — sem vender nem emitir.</summary>
+    Task<IReadOnlyList<BalcaoLinhaPreviaDto>> PrevisualizarAsync(BalcaoVendaRequest req, CancellationToken ct = default);
     /// <summary>Sprint 569: lotes em stock ainda sem artigo, agrupados pela descrição (sugestões de artigos).</summary>
     Task<IReadOnlyList<ArtigoSugestaoDto>> SugestoesAsync(CancellationToken ct = default);
     /// <summary>Sprint 569: cria vários artigos de uma vez, cada um já com os seus lotes.</summary>
@@ -278,6 +285,39 @@ public class ArtigoService : IArtigoService
         // Dados da fatura validados antes de dar saída ao stock (um NIF errado não deixa a venda sem fatura).
         if (req.ComNif is { } fiscais) Moloni.MoloniService.ValidarDadosFiscais(fiscais);
 
+        var linhas = await LinhasBalcaoAsync(req, ct);
+        var venda = await _vendas.CreateAsync(new VendaWriteRequest(
+            VendaTipo.Produto, req.ClienteId, null, null, "Venda ao balcão.", linhas, VendaEstado.Entregue, req.PaymentMethod), ct);
+
+        // Sprint 567: no balcão sai sempre fatura-recibo (pago na hora). Se o Moloni falhar, a venda fica
+        // registada em "Fatura por registar" e emite-se depois na própria venda — o stock já saiu.
+        if (_moloni is not null && await _moloni.ConfiguradoAsync(ct))
+        {
+            try { return await _moloni.EmitirAsync(venda.Id, new Moloni.MoloniEmitirRequest(Moloni.MoloniDocumento.FaturaRecibo,
+                PaymentMethod: req.PaymentMethod, SemNif: req.ComNif is null, ComNif: req.ComNif), ct); }
+            catch (DomainException) { return await _vendas.GetAsync(venda.Id, ct); }
+            catch (HttpRequestException) { return await _vendas.GetAsync(venda.Id, ct); }
+        }
+        return venda;
+    }
+
+    public async Task<IReadOnlyList<BalcaoLinhaPreviaDto>> PrevisualizarAsync(BalcaoVendaRequest req, CancellationToken ct = default)
+    {
+        if (req.Linhas is null || req.Linhas.Count == 0)
+            throw new ValidationException("venda_sem_linhas", "Passa pelo menos um artigo.");
+        if (req.Linhas.Count > MaxLinhasBalcao)
+            throw new ValidationException("linhas_invalidas", $"Máximo {MaxLinhasBalcao} linhas.");
+        return (await LinhasBalcaoAsync(req, ct))
+            .Select(l => new BalcaoLinhaPreviaDto(l.Descricao!, l.Quantidade, l.PrecoUnitarioCents, l.Quantidade * l.PrecoUnitarioCents))
+            .ToList();
+    }
+
+    /// <summary>
+    /// As linhas da venda ao balcão: cada artigo sai do lote mais antigo (FIFO) ou, num agrupado, do modelo escolhido.
+    /// Não grava nada — serve a venda e a pré-visualização.
+    /// </summary>
+    private async Task<List<VendaLinhaWriteRequest>> LinhasBalcaoAsync(BalcaoVendaRequest req, CancellationToken ct)
+    {
         await PrecosCategoriaAsync(ct);
         var linhas = new List<VendaLinhaWriteRequest>();
         foreach (var grupo in req.Linhas.GroupBy(l => (l.ArtigoId, l.PrecoUnitarioCents, l.LoteId)))
@@ -301,28 +341,16 @@ public class ArtigoService : IArtigoService
                 var disponivel = lote.QuantidadeEmStock - usadas;
                 if (disponivel <= 0) continue;
                 var tira = Math.Min(disponivel, falta);
-                // Agrupado: a fatura diz o modelo (art. 36.º n.º 5 b) CIVA, denominação usual) — "Película vidro – <descrição do lote>".
-                linhas.Add(new VendaLinhaWriteRequest(null, lote.Id, artigo.Agrupado ? $"{artigo.Nome} – {lote.Descricao}" : artigo.Nome, tira, preco));
+                // Agrupado: a fatura diz o modelo, em português (art. 36.º n.º 5 b) CIVA, denominação usual) —
+                // "Película vidro curva – iPhone XR / 11". O texto do fornecedor fica só no Mender.
+                linhas.Add(new VendaLinhaWriteRequest(null, lote.Id, artigo.Agrupado ? ModeloDispositivo.TextoFatura(artigo.Nome, lote.Descricao) : artigo.Nome, tira, preco));
                 falta -= tira;
                 if (falta == 0) break;
             }
             if (falta > 0)
                 throw new ValidationException("stock_insuficiente", $"\"{artigo.Nome}\": só há {Stock(artigo)} em stock (pedido {qtd}).");
         }
-
-        var venda = await _vendas.CreateAsync(new VendaWriteRequest(
-            VendaTipo.Produto, req.ClienteId, null, null, "Venda ao balcão.", linhas, VendaEstado.Entregue, req.PaymentMethod), ct);
-
-        // Sprint 567: no balcão sai sempre fatura-recibo (pago na hora). Se o Moloni falhar, a venda fica
-        // registada em "Fatura por registar" e emite-se depois na própria venda — o stock já saiu.
-        if (_moloni is not null && await _moloni.ConfiguradoAsync(ct))
-        {
-            try { return await _moloni.EmitirAsync(venda.Id, new Moloni.MoloniEmitirRequest(Moloni.MoloniDocumento.FaturaRecibo,
-                PaymentMethod: req.PaymentMethod, SemNif: req.ComNif is null, ComNif: req.ComNif), ct); }
-            catch (DomainException) { return await _vendas.GetAsync(venda.Id, ct); }
-            catch (HttpRequestException) { return await _vendas.GetAsync(venda.Id, ct); }
-        }
-        return venda;
+        return linhas;
     }
 
     // ---------- regras ----------
@@ -551,7 +579,8 @@ public class ArtigoService : IArtigoService
         .Where(l => !l.IsDeleted)
         .OrderBy(l => l.Documento?.Data ?? l.CreatedAt).ThenBy(l => l.Numero)
         .Select(l => new ArtigoLoteDto(l.Id, l.Numero, l.Descricao, l.Documento?.Fornecedor?.Name ?? "—",
-            l.Documento?.Data ?? l.CreatedAt, l.Quantidade, l.QuantidadeEmStock, l.PrecoUnitarioPago, IvaEngine.Euros(PrecoCalculado(l)), l.SkuFornecedor))
+            l.Documento?.Data ?? l.CreatedAt, l.Quantidade, l.QuantidadeEmStock, l.PrecoUnitarioPago, IvaEngine.Euros(PrecoCalculado(l)), l.SkuFornecedor,
+            a.Agrupado ? ModeloDispositivo.TextoFatura(a.Nome, l.Descricao) : a.Nome))
         .ToList(),
         a.Codigos.Where(c => !c.IsDeleted).OrderBy(c => c.FornecedorId is null ? 0 : 1).ThenBy(c => c.Codigo)
             .Select(c => new ArtigoCodigoDto(c.Id, c.Codigo, c.FornecedorId,

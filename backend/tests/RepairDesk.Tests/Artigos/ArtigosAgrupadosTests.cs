@@ -68,6 +68,12 @@ public class ArtigosAgrupadosTests : IClassFixture<RepairDeskApiFactory>
                 compra.Linhas.Select(l => l.Id).ToList(), Agrupado: true))).Artigo;
         a.Agrupado.Should().BeTrue();
 
+        // Pré-visualização: o texto da fatura em português, sem vender nada.
+        var previa = await Post<List<BalcaoLinhaPreviaDto>>(client, "/api/artigos/balcao/previsualizar",
+            new BalcaoVendaRequest([new BalcaoLinhaRequest(a.Id, 1, null, xr)], PaymentMethod.Dinheiro));
+        previa.Single().Descricao.Should().Be($"{a.Nome} – iPhone XR / 11");
+        (await client.GetFromJsonAsync<ArtigoDetalheDto>($"/api/artigos/{a.Id}"))!.Artigo.Stock.Should().Be(3, "pré-visualizar não vende");
+
         // O lote do iPhone 17 é o mais antigo pela ordem, mas o cliente quer o do iPhone 11.
         var venda = await Post<VendaDto>(client, "/api/artigos/balcao/vender",
             new BalcaoVendaRequest([new BalcaoLinhaRequest(a.Id, 1, null, xr)], PaymentMethod.Dinheiro));
