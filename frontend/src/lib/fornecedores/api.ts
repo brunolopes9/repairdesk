@@ -1,12 +1,13 @@
 import { api } from '../api';
 
 /** Doc 94 Fase 3: regime de IVA nas compras ao fornecedor (espelha RegimeIvaFornecedor no backend). */
-export const REGIME_IVA = { Nacional: 0, UeAutoliquidacao: 1, ForaUe: 2 } as const;
+export const REGIME_IVA = { Nacional: 0, UeAutoliquidacao: 1, ForaUe: 2, UeComIvaLocal: 3 } as const;
 export type RegimeIva = (typeof REGIME_IVA)[keyof typeof REGIME_IVA];
 export const REGIME_IVA_LABEL: Record<RegimeIva, string> = {
   0: 'Nacional (IVA 23%)',
   1: 'UE — autoliquidação (0%)',
   2: 'Fora da UE (importação)',
+  3: 'UE — cobrou IVA do país dele (não dedutível)',
 };
 
 export interface Fornecedor {

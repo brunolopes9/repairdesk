@@ -17,4 +17,10 @@ public enum RegimeIvaFornecedor
 
     /// <summary>Fornecedor fora da UE (importação) — IVA pago na alfândega.</summary>
     ForaUe = 2,
+
+    /// <summary>
+    /// Sprint 576: fornecedor de outro país da UE que cobrou o IVA do país dele (ex.: Inter Movil, 21% espanhol).
+    /// Esse IVA não se deduz em Portugal nem há autoliquidação: o custo é o total pago.
+    /// </summary>
+    UeComIvaLocal = 3,
 }

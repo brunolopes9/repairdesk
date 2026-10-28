@@ -144,7 +144,7 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
     public async Task Estimativas_IrsComReducaoDoPrimeiroAno_ESegurancaSocialIsenta()
     {
         var client = await AuthedClient();
-        (await client.PutAsJsonAsync("/api/apuramento/inicio-atividade", new InicioAtividadeRequest(new DateTime(2033, 1, 10)))).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(new DateTime(2033, 1, 10), null))).EnsureSuccessStatusCode();
         // Software 1230 € c/ IVA → 1000 € de serviços a 0,75, reduzido a metade no 1.º ano → 375 € tributáveis.
         await VendaFaturadaDto(client, 123000, 23m, "FT SOFTWARE/33", new DateTime(2033, 2, 1));
 
@@ -157,6 +157,68 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
         e.IrsEstimado.Should().Be(46.88m, "375 € no 1.º escalão (12,5%)");
         e.SsIsento.Should().BeTrue("primeiros 12 meses de atividade");
         e.SsRendimentoRelevante.Should().Be(700m, "70% dos serviços do trimestre");
+    }
+
+    [Fact]
+    public async Task SemInicioDeAtividade_NaoAdivinha_EFaturacaoAnteriorEntraNoIrs()
+    {
+        var client = await AuthedClient();
+        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(null, 115.87m, 2034,
+            new FaturacaoAnteriorDto(Informatica: 2000m)))).EnsureSuccessStatusCode();
+        await VendaFaturadaDto(client, 123000, 23m, "FT SOFTWARE/34", new DateTime(2034, 8, 1));
+
+        var e = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2034&trimestre=3"))!.Estimativas;
+        e.InicioDefinido.Should().BeFalse();
+        e.InicioAtividade.Should().BeNull("não se adivinha pela 1.ª fatura");
+        e.FatorInicio.Should().Be(1m, "sem data, sem redução (prudente)");
+        e.SsIsento.Should().BeFalse();
+        e.SsContribuicaoAtual.Should().Be(115.87m);
+        e.ReceitasServicos075.Should().Be(3000m, "1.000 € do Mender + 2.000 € de antes do Mender");
+        e.SsContribuicaoMensal.Should().Be(49.93m, "70% × 1.000 € ÷ 3 × 21,4% (só o trimestre)");
+    }
+
+    [Fact]
+    public async Task FecharTrimestre_GuardaODeclarado_EMostraDiferencaSeMudarDepois()
+    {
+        var client = await AuthedClient();
+        await VendaFaturadaDto(client, 12300, 23m, "FT SOFTWARE/35", new DateTime(2035, 2, 1));
+        var fecho = await Post<ApuramentoFechoDto>(client, "/api/apuramento/fecho", new FecharTrimestreRequest(2035, 1));
+        fecho.Saldo.Should().Be(23m);
+
+        await VendaFaturadaDto(client, 12300, 23m, "FT SOFTWARE/36", new DateTime(2035, 3, 1));
+        var r = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2035&trimestre=1"))!;
+        r.Fecho!.Saldo.Should().Be(23m, "o declarado não muda");
+        r.Fecho.Diferenca.Should().Be(23m, "a venda nova depois de declarar aparece como diferença");
+
+        (await client.DeleteAsync("/api/apuramento/fecho?ano=2035&trimestre=1")).EnsureSuccessStatusCode();
+        (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2035&trimestre=1"))!.Fecho.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PortesSemIva_FornecedorUeComIvaLocal_EVendasIsentasPorPais()
+    {
+        var client = await AuthedClient();
+        var dia = new DateTime(2036, 5, 10);
+        // Nacional: 2 linhas 1,13 + 6,91 e portes 3,92 sem IVA indicado → IVA 0,21 + 1,29 + 0,73 = 2,23 (a fatura diz 2,24).
+        var nac = await Fornecedor(client, RegimeIvaFornecedor.Nacional);
+        await Compra(client, nac, dia, "FCTR TESTE/1", 3.92m, null, (1, 1.13m), (1, 6.91m));
+        // UE que cobrou IVA espanhol: custo total, nada a deduzir nem autoliquidar.
+        var esp = await Fornecedor(client, RegimeIvaFornecedor.UeComIvaLocal);
+        await Compra(client, esp, dia, "007962-T", 0m, null, (3, 4.0633m));
+
+        var ue = await Post<ClienteDto>(client, "/api/clientes", new CreateClienteRequest("FTMO Teste", null, null, null, null));
+        var fora = await Post<ClienteDto>(client, "/api/clientes", new CreateClienteRequest("Five Percent Teste", null, null, null, null));
+        await SetNif(ue.Id, "CZ06910483");
+        await VendaClienteFaturada(client, ue.Id, 50000, "FT TRADING/91", dia);
+        await VendaClienteFaturada(client, fora.Id, 70000, "FT TRADING/92", dia);
+
+        var r = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2036&trimestre=2"))!;
+        r.Compras.IvaPortes.Should().Be(0.73m);
+        (r.Compras.IvaNacional + r.Compras.IvaPortes).Should().BeApproximately(2.24m, 0.02m);
+        r.Compras.BaseComIvaEstrangeiro.Should().Be(12.19m);
+        r.Compras.BaseUe.Should().Be(0m, "não é autoliquidação");
+        r.VendasIsentasUe.Should().Be(500m);
+        r.VendasIsentasForaUe.Should().Be(700m);
     }
 
     [Fact]
@@ -197,6 +259,23 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
         var resp = await client.PutAsJsonAsync($"/api/vendas/{v.Id}/fatura", new RegistarFaturaRequest($"{numero}{Random.Shared.Next(100, 999)}", emitida));
         if (!resp.IsSuccessStatusCode) throw new Exception($"{(int)resp.StatusCode}: {await resp.Content.ReadAsStringAsync()}");
         return (await resp.Content.ReadFromJsonAsync<VendaDto>())!;
+    }
+
+    /// <summary>NIF estrangeiro (ex.: "CZ…") não passa na validação de NIF português do formulário — escreve-se direto.</summary>
+    private async Task SetNif(Guid clienteId, string nif)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var c = db.Clientes.Single(x => x.Id == clienteId);
+        c.Nif = nif;
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task VendaClienteFaturada(HttpClient client, Guid clienteId, int cents, string numero, DateTime emitida)
+    {
+        var v = await Post<VendaDto>(client, "/api/vendas", new VendaWriteRequest(VendaTipo.Servico, clienteId, null, null, null,
+            [new VendaLinhaWriteRequest(null, null, "Reward", 1, cents, 0, 0m)], VendaEstado.Entregue, PaymentMethod.TransferenciaBancaria));
+        (await client.PutAsJsonAsync($"/api/vendas/{v.Id}/fatura", new RegistarFaturaRequest(numero, emitida))).EnsureSuccessStatusCode();
     }
 
     private async Task<Guid> Import(int totalCents, int subtotalCents)

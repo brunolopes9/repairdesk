@@ -312,6 +312,63 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("Appointments", (string)null);
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.ApuramentoFecho", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Ano")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("FechadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("IvaDedutivel")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("IvaLiquidado")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("Pago")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("Saldo")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Trimestre")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Ano", "Trimestre")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("ApuramentoFechos", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.Artigo", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1883,6 +1940,9 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("FaturacaoAnteriorJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("GarantiaCoberturaDefault")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
@@ -2001,6 +2061,9 @@ namespace RepairDesk.DAL.Migrations
 
                     b.Property<int?>("RetentionRejectedDays")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("SsContribuicaoAtual")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("TermosCondicoes")
                         .HasMaxLength(4000)

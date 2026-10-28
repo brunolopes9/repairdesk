@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { AlertTriangle, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, BadgeCheck, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useConfirm } from '../../components/ConfirmDialog';
+import { Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
+import { toast } from '../../lib/toast';
 import { apuramentoApi, prazos, trimestreAnterior, type ApuramentoPendente, type TipoPendente } from '../../lib/apuramento/api';
 import { formatEur } from '../../lib/compras/format';
 import { apiErrorMessage } from '../../lib/errors';
@@ -33,6 +35,19 @@ export default function Apuramento() {
     return t < 1 ? { ano: p.ano - 1, trimestre: 4 } : t > 4 ? { ano: p.ano + 1, trimestre: 1 } : { ano: p.ano, trimestre: t };
   });
   const r = q.data;
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+  // Sprint 576: trimestre declarado e pago — os valores que foram à declaração ficam guardados.
+  const fechar = useMutation({
+    mutationFn: () => apuramentoApi.fechar(periodo.ano, periodo.trimestre),
+    onSuccess: () => { toast.success('Trimestre marcado como declarado e pago'); qc.invalidateQueries({ queryKey: ['apuramento'] }); },
+    onError: (err) => toast.fromError(err, 'Não foi possível marcar.'),
+  });
+  const reabrir = useMutation({
+    mutationFn: () => apuramentoApi.reabrir(periodo.ano, periodo.trimestre),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['apuramento'] }),
+    onError: (err) => toast.fromError(err, 'Não foi possível reabrir.'),
+  });
   const { entrega, pagamento } = prazos(periodo.ano, periodo.trimestre);
   const grupos = (r?.pendentes ?? []).reduce<Partial<Record<TipoPendente, ApuramentoPendente[]>>>((g, p) => { (g[p.tipo] ??= []).push(p); return g; }, {});
 
@@ -49,6 +64,24 @@ export default function Apuramento() {
 
       {q.isLoading ? <SkeletonCard /> : q.isError || !r ? <p className="text-sm text-rose-600">{apiErrorMessage(q.error)}</p> : (
         <div className={`space-y-4 ${q.isFetching ? 'opacity-60' : ''}`}>
+          {r.fecho && (
+            <div className={`flex flex-col gap-2 rounded-xl border p-3 text-sm sm:flex-row sm:items-center sm:justify-between ${Math.abs(r.fecho.diferenca) >= 0.01
+              ? 'border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200'}`}>
+              <span className="flex items-start gap-2">
+                <BadgeCheck size={16} className="mt-0.5 shrink-0" />
+                <span>
+                  Declarado e pago em {dataPt(r.fecho.fechadoEm)}: {formatEur(r.fecho.saldo)}.
+                  {Math.abs(r.fecho.diferenca) >= 0.01 && <> <strong>Depois disso mudou {formatEur(r.fecho.diferenca)}</strong> — alguma compra, venda ou despesa deste trimestre foi alterada; fala com o contabilista sobre uma declaração de substituição.</>}
+                </span>
+              </span>
+              <button type="button" className="self-start text-xs underline sm:self-auto"
+                onClick={async () => { if (await confirm({ title: 'Reabrir o trimestre?', description: 'Deixa de estar marcado como declarado e pago.', confirmLabel: 'Reabrir' })) reabrir.mutate(); }}>
+                Reabrir
+              </button>
+            </div>
+          )}
+
           {/* Quanto e até quando */}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className={`rounded-xl border p-4 md:col-span-2 ${r.saldo > 0 ? 'border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30' : 'border-emerald-300 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30'}`}>
@@ -62,6 +95,12 @@ export default function Apuramento() {
               <p className="flex items-center gap-1.5 font-medium"><CalendarClock size={15} /> Prazos (regime trimestral)</p>
               <p className="mt-2 text-zinc-600 dark:text-zinc-300">Declaração até <strong>{dataPt(entrega)}</strong></p>
               {r.saldo > 0 && <p className="text-zinc-600 dark:text-zinc-300">Pagamento até <strong>{dataPt(pagamento)}</strong></p>}
+              {!r.fecho && (
+                <Button type="button" size="sm" variant="secondary" className="mt-3" leftIcon={<BadgeCheck size={14} />} loading={fechar.isPending}
+                  onClick={async () => { if (await confirm({ title: `Marcar o ${r.trimestre}.º trimestre como declarado e pago?`, description: `Guarda os valores de agora (${formatEur(r.saldo)}). Se algo deste trimestre mudar depois, aparece a diferença.`, confirmLabel: 'Marcar' })) fechar.mutate(); }}>
+                  Declarado e pago
+                </Button>
+              )}
             </div>
           </div>
 
@@ -97,7 +136,8 @@ export default function Apuramento() {
               <dl className="space-y-2 text-sm tabular-nums">
                 {r.vendasPorTaxa.length === 0 && <p className="text-zinc-500">Sem faturas emitidas neste trimestre.</p>}
                 {r.vendasPorTaxa.map((t) => (
-                  <Linha key={t.taxa} label={t.taxa === 0 ? 'Isento / 0%' : `Taxa ${t.taxa}%`} sub={`base ${formatEur(t.base)}`} valor={t.iva} />
+                  <Linha key={t.taxa} label={t.taxa === 0 ? 'Isento / 0%' : `Taxa ${t.taxa}%`}
+                    sub={t.taxa === 0 ? `base ${formatEur(t.base)} · UE ${formatEur(r.vendasIsentasUe)} (vai à recapitulativa) · fora da UE ${formatEur(r.vendasIsentasForaUe)}` : `base ${formatEur(t.base)}`} valor={t.iva} />
                 ))}
                 {r.ivaAutoliquidado > 0 && <Linha label="Autoliquidação (compras e serviços UE)" sub="liquida e deduz" valor={r.ivaAutoliquidado} />}
                 <Linha label="Total liquidado" valor={r.ivaLiquidado} forte />
@@ -111,6 +151,11 @@ export default function Apuramento() {
                 {r.ivaAutoliquidado > 0 && <Linha label="Autoliquidação (compras e serviços UE)" valor={r.ivaAutoliquidado} />}
                 <Linha label="Total dedutível" valor={r.ivaDedutivel} forte />
               </dl>
+              {r.compras.baseComIvaEstrangeiro > 0 && (
+                <p className="mt-3 text-xs text-zinc-500">
+                  Compras na UE com IVA do país do fornecedor ({formatEur(r.compras.baseComIvaEstrangeiro)}): esse IVA não se deduz cá — conta só como custo.
+                </p>
+              )}
               {r.compras.baseForaUe > 0 && (
                 <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
                   Compras fora da UE ({formatEur(r.compras.baseForaUe)}): o IVA pago na alfândega não está incluído — junta o documento de importação.

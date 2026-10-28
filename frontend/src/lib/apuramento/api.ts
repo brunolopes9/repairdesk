@@ -14,7 +14,7 @@ export interface Apuramento {
   vendasPorTaxa: ApuramentoTaxa[];
   faturas: number;
   ivaLiquidado: number;
-  compras: { documentos: number; baseNacional: number; ivaNacional: number; ivaPortes: number; baseUe: number; ivaAutoliquidadoUe: number; baseForaUe: number };
+  compras: { documentos: number; baseNacional: number; ivaNacional: number; ivaPortes: number; baseUe: number; ivaAutoliquidadoUe: number; baseForaUe: number; baseComIvaEstrangeiro: number };
   despesas: { despesas: number; base: number; ivaDedutivel: number; ivaNaoDedutivel: number; baseAutoliquidacao: number; ivaAutoliquidado: number };
   ivaDedutivel: number;
   ivaAutoliquidado: number;
@@ -24,11 +24,19 @@ export interface Apuramento {
   estimativas: ApuramentoEstimativas;
   campos: ApuramentoCampo[];
   pendentes: ApuramentoPendente[];
+  /** Sprint 576: vendas a 0% a clientes UE (vão também à recapitulativa) e de fora da UE. */
+  vendasIsentasUe: number;
+  vendasIsentasForaUe: number;
+  /** Trimestre declarado: valores que foram à declaração + diferença para o recalculado agora. */
+  fecho: { ivaLiquidado: number; ivaDedutivel: number; saldo: number; pago: boolean; fechadoEm: string; diferenca: number } | null;
 }
+
+export interface FaturacaoAnterior { bens: number; informatica: number; reparacoes: number; trading: number }
 
 /** Sprint 575: IRS (regime simplificado) e Segurança Social — estimativas do ano até ao fim do trimestre. */
 export interface ApuramentoEstimativas {
-  inicioAtividade: string;
+  /** Null = por indicar (sem redução de IRS e sem isenção de Segurança Social). */
+  inicioAtividade: string | null;
   inicioDefinido: boolean;
   receitasBens: number;
   receitasServicos075: number;
@@ -44,15 +52,23 @@ export interface ApuramentoEstimativas {
   ssRendimentoRelevante: number;
   ssContribuicaoMensal: number;
   ssIsento: boolean;
-  ssIsentoAte: string;
+  ssIsentoAte: string | null;
+  ssContribuicaoAtual: number | null;
+  faturacaoAnterior: FaturacaoAnterior | null;
 }
 
 export const apuramentoApi = {
   trimestre(ano: number, trimestre: number) {
     return api.get<Apuramento>('/apuramento', { params: { ano, trimestre } }).then((r) => r.data);
   },
-  definirInicioAtividade(data: string | null) {
-    return api.put('/apuramento/inicio-atividade', { data }).then(() => undefined);
+  definirPressupostos(req: { inicioAtividade: string | null; ssContribuicaoAtual: number | null; ano: number; faturacaoAnterior: FaturacaoAnterior }) {
+    return api.put('/apuramento/pressupostos', req).then(() => undefined);
+  },
+  fechar(ano: number, trimestre: number) {
+    return api.post('/apuramento/fecho', { ano, trimestre, pago: true }).then(() => undefined);
+  },
+  reabrir(ano: number, trimestre: number) {
+    return api.delete('/apuramento/fecho', { params: { ano, trimestre } }).then(() => undefined);
   },
 };
 

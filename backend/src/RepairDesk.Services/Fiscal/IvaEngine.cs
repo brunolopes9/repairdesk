@@ -69,6 +69,13 @@ public static class IvaEngine
 
     /// <summary>Arredondamento de apresentação (2 casas, half away from zero — como o Excel).</summary>
     public static decimal Euros(decimal valor) => Math.Round(valor, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// Sprint 576: IVA dos portes de um fornecedor nacional. Quando a fatura importada não o trouxe, os portes
+    /// vêm com IVA a 23% incluído (ex.: Microwire 3,92 € de portes → 0,73 € de IVA).
+    /// </summary>
+    public static decimal PortesIvaNacional(decimal portesPagos, decimal? portesIva)
+        => portesIva ?? Euros(portesPagos - portesPagos / (1 + FiscalDefaults.TaxaIvaNormal));
 }
 
 public sealed record CalculoUnidade(

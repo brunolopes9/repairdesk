@@ -69,6 +69,12 @@ public class Tenant : BaseEntity
     /// </summary>
     public DateTime? InicioAtividade { get; set; }
 
+    /// <summary>Sprint 576: contribuição mensal à Segurança Social que paga hoje (para comparar com a estimativa).</summary>
+    public decimal? SsContribuicaoAtual { get; set; }
+
+    /// <summary>Sprint 576: faturação (sem IVA) de antes de usar o Mender, por ano e tipo — JSON (ver FaturacaoAnterior).</summary>
+    public string? FaturacaoAnteriorJson { get; set; }
+
     // Sprint 173: email forwarding ingest per-tenant (RGPD-clean).
     public string? IngestEmailSlug { get; set; }
 

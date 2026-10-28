@@ -223,7 +223,8 @@ public class CompraService : ICompraService
 
         var entradas = linhas.Select(ToResumoLinha).ToList();
         var posicao = ResumoIva.Posicao(entradas,
-            documentos.Select(d => new ResumoIva.Documento(d.PortesPagos, d.PortesIva)),
+            documentos.Select(d => new ResumoIva.Documento(d.PortesPagos,
+                (d.Fornecedor?.RegimeIva ?? RegimeIvaFornecedor.Nacional) == RegimeIvaFornecedor.Nacional ? IvaEngine.PortesIvaNacional(d.PortesPagos, d.PortesIva) : d.PortesIva)),
             ivaLiquidadoVendas: 0m, ivaDespesasDedutiveis: 0m, TaxaVenda);
 
         var linhasPorDoc = linhas.GroupBy(l => l.CompraDocumentoId).ToDictionary(g => g.Key, g => g.ToList());

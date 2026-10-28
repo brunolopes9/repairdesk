@@ -17,13 +17,23 @@ public class ApuramentoController : ControllerBase
     public Task<ApuramentoDto> Trimestre([FromQuery] int ano, [FromQuery] int trimestre, CancellationToken ct = default)
         => _service.TrimestreAsync(ano, trimestre, ct);
 
-    /// <summary>Sprint 575: data de início de atividade (para as estimativas de IRS e Segurança Social).</summary>
-    [HttpPut("inicio-atividade")]
-    public async Task<IActionResult> InicioAtividade([FromBody] InicioAtividadeRequest req, CancellationToken ct = default)
+    /// <summary>Sprint 576: pressupostos das estimativas (início de atividade, contribuição atual, faturação anterior ao Mender).</summary>
+    [HttpPut("pressupostos")]
+    public async Task<IActionResult> Pressupostos([FromBody] PressupostosRequest req, CancellationToken ct = default)
     {
-        await _service.DefinirInicioAtividadeAsync(req.Data, ct);
+        await _service.DefinirPressupostosAsync(req, ct);
+        return NoContent();
+    }
+
+    /// <summary>Sprint 576: marcar o trimestre como declarado/pago (guarda os valores declarados).</summary>
+    [HttpPost("fecho")]
+    public Task<ApuramentoFechoDto> Fechar([FromBody] FecharTrimestreRequest req, CancellationToken ct = default)
+        => _service.FecharAsync(req, ct);
+
+    [HttpDelete("fecho")]
+    public async Task<IActionResult> Reabrir([FromQuery] int ano, [FromQuery] int trimestre, CancellationToken ct = default)
+    {
+        await _service.ReabrirAsync(ano, trimestre, ct);
         return NoContent();
     }
 }
-
-public sealed record InicioAtividadeRequest(DateTime? Data);
