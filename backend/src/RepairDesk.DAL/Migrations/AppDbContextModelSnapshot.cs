@@ -1933,6 +1933,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<string>("CalendarFeedToken")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("CodigoTradingRevistoEm")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Country")
                         .HasMaxLength(2)
                         .HasColumnType("nvarchar(2)");
@@ -1942,6 +1945,9 @@ namespace RepairDesk.DAL.Migrations
 
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("DeducoesColeta")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Email")
                         .HasMaxLength(200)
@@ -1994,6 +2000,9 @@ namespace RepairDesk.DAL.Migrations
 
                     b.Property<string>("IntakeSlug")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("IrsJovemAno")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -2066,12 +2075,18 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int?>("RetentionRejectedDays")
                         .HasColumnType("int");
 
+                    b.Property<bool>("ServicosNaTabela151")
+                        .HasColumnType("bit");
+
                     b.Property<decimal?>("SsContribuicaoAtual")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("TermosCondicoes")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
+
+                    b.Property<bool>("TradingNaTabela151")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");

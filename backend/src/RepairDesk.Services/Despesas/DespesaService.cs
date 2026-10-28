@@ -22,12 +22,15 @@ public class DespesaService : IDespesaService
     private readonly IDespesaRepository _repo;
     private readonly IValidator<CreateDespesaRequest> _createV;
     private readonly IValidator<UpdateDespesaRequest> _updateV;
+    private readonly ISupplierInvoiceImportRepository? _imports;
 
     public DespesaService(
         IDespesaRepository repo,
         IValidator<CreateDespesaRequest> createV,
-        IValidator<UpdateDespesaRequest> updateV)
+        IValidator<UpdateDespesaRequest> updateV,
+        ISupplierInvoiceImportRepository? imports = null)
     {
+        _imports = imports;
         _repo = repo;
         _createV = createV;
         _updateV = updateV;
@@ -112,6 +115,14 @@ public class DespesaService : IDespesaService
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var d = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Despesa", id);
+        // Sprint 580: a fatura de onde a despesa veio volta às faturas por tratar (pode ir para uma compra ou
+        // outra despesa). Mesmo DbContext: grava na mesma transação. Espelha CompraService.DeleteAsync.
+        if (_imports is not null && await _imports.FindByDespesaIdAsync(id, ct) is { Status: SupplierInvoiceImportStatus.Approved } import)
+        {
+            import.Status = SupplierInvoiceImportStatus.Pending;
+            import.DespesaId = null;
+            import.ProcessedAt = null;
+        }
         _repo.Remove(d);
         await _repo.SaveAsync(ct);
     }

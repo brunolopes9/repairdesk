@@ -67,6 +67,35 @@ public class CompraFaturaApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task ApagarDespesaDeFatura_FaturaVoltaAPendenteEPodeSerCompra()
+    {
+        // Caso real: a fatura LC Phones foi para despesa e afinal era compra de stock.
+        var client = await AuthedClient();
+        var forn = await CriarFornecedor(client, RegimeIvaFornecedor.UeAutoliquidacao);
+        var numero = "FT ST26/" + Rand();
+        var importId = await CriarImport(forn, numero, new DateTime(2026, 10, 26), 990, ("Ecrã A34", 1, 990));
+        (await client.PostAsJsonAsync($"/api/supplier-invoices/{importId}/approve",
+            new ApproveSupplierInvoiceRequest(990, "Ecrã A34", DespesaCategoria.Material, new DateTime(2026, 10, 26), null, numero, null)))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        var despesaId = await DespesaDoImport(importId);
+
+        (await client.DeleteAsync($"/api/despesas/{despesaId}")).IsSuccessStatusCode.Should().BeTrue();
+        (await StatusImport(importId)).Should().Be(SupplierInvoiceImportStatus.Pending);
+
+        var req = new CompraDocumentoWriteRequest(forn, new DateTime(2026, 10, 26), numero, null, null, 0m, null, 9.90m, null,
+            [new CompraLinhaWriteRequest(null, "Ecrã A34", 1, 9.90m, null, null, null)]);
+        var compra = await client.PostAsJsonAsync($"/api/compras/de-fatura/{importId}", req);
+        compra.StatusCode.Should().Be(HttpStatusCode.Created, await compra.Content.ReadAsStringAsync());
+    }
+
+    private async Task<Guid> DespesaDoImport(Guid importId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return (await db.SupplierInvoiceImports.IgnoreQueryFilters().AsNoTracking().SingleAsync(i => i.Id == importId)).DespesaId!.Value;
+    }
+
+    [Fact]
     public async Task Pesquisa_PorPalavras_EncontraMesmoComOutrasPalavrasPeloMeio()
     {
         // Caso real: "xiaomi 13t pro" não encontrava "Touch e lcd com frame Xiaomi 13T / 13T Pro preto".

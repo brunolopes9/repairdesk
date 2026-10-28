@@ -9,6 +9,7 @@ import { apuramentoApi, prazos, trimestreAnterior, type ApuramentoPendente, type
 import { formatEur } from '../../lib/compras/format';
 import { apiErrorMessage } from '../../lib/errors';
 import EstimativasCard from './EstimativasCard';
+import LembretesFiscais from './LembretesFiscais';
 
 const PENDENTE: Record<TipoPendente, { titulo: string; ajuda: string; link: (p: ApuramentoPendente) => string }> = {
   venda_sem_fatura: { titulo: 'Vendas entregues sem fatura', ajuda: 'Não entram no IVA até emitires a fatura.', link: (p) => `/vendas/${p.id}` },
@@ -64,6 +65,7 @@ export default function Apuramento() {
 
       {q.isLoading ? <SkeletonCard /> : q.isError || !r ? <p className="text-sm text-rose-600">{apiErrorMessage(q.error)}</p> : (
         <div className={`space-y-4 ${q.isFetching ? 'opacity-60' : ''}`}>
+          <LembretesFiscais />
           {r.fecho && (
             <div className={`flex flex-col gap-2 rounded-xl border p-3 text-sm sm:flex-row sm:items-center sm:justify-between ${Math.abs(r.fecho.diferenca) >= 0.01
               ? 'border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200'
@@ -98,7 +100,7 @@ export default function Apuramento() {
               {!r.fecho && (
                 <Button type="button" size="sm" variant="secondary" className="mt-3" leftIcon={<BadgeCheck size={14} />} loading={fechar.isPending}
                   onClick={async () => { if (await confirm({ title: `Marcar o ${r.trimestre}.º trimestre como declarado e pago?`, description: `Guarda os valores de agora (${formatEur(r.saldoFinal)}). Se algo deste trimestre mudar depois, aparece a diferença.`, confirmLabel: 'Marcar' })) fechar.mutate(); }}>
-                  Declarado e pago
+                  Marcar como declarado
                 </Button>
               )}
             </div>

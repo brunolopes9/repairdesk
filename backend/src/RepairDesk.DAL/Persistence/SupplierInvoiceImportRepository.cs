@@ -20,6 +20,9 @@ public class SupplierInvoiceImportRepository : ISupplierInvoiceImportRepository
             .Include(x => x.Fornecedor)
             .FirstOrDefaultAsync(x => x.Id == id, ct);
 
+    public Task<SupplierInvoiceImport?> FindByDespesaIdAsync(Guid despesaId, CancellationToken ct = default)
+        => _db.SupplierInvoiceImports.FirstOrDefaultAsync(x => x.DespesaId == despesaId, ct);
+
     public async Task<IReadOnlyList<SupplierInvoiceImport>> ListPendingAsync(Guid tenantId, int take, CancellationToken ct = default)
     {
         return await _db.SupplierInvoiceImports

@@ -7,6 +7,7 @@ import { dashboardApi } from '../lib/dashboard/api';
 import { formatEur } from '../lib/compras/format';
 import { formatDateOnly } from '../lib/money';
 import { apiErrorMessage } from '../lib/errors';
+import LembretesFiscais from './apuramento/LembretesFiscais';
 import { VENDA_ESTADO_COLOR, VENDA_ESTADO_LABEL, VENDA_TIPO } from '../lib/vendas/types';
 
 const TIPO_ICON = { 0: Package, 1: Wrench, 2: Code2 } as const;
@@ -43,6 +44,8 @@ export default function Dashboard() {
           </>
         }
       />
+
+      <LembretesFiscais />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard icon={ShoppingCart} label="Faturado no mês" value={formatEur(mes.faturado)} sub={`${mes.vendas} venda(s) entregue(s)`} />

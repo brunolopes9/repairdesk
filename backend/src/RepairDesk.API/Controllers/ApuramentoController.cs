@@ -25,6 +25,19 @@ public class ApuramentoController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Sprint 580: lembretes fiscais com prazo (Dashboard e IVA e resultados).</summary>
+    [HttpGet("lembretes")]
+    public Task<IReadOnlyList<LembreteFiscalDto>> Lembretes(CancellationToken ct = default)
+        => _service.LembretesAsync(ct);
+
+    /// <summary>Sprint 580: "já revi o código de atividade do trading" (false volta a ativar o lembrete).</summary>
+    [HttpPut("lembretes/codigo-trading")]
+    public async Task<IActionResult> CodigoTradingRevisto([FromBody] CodigoTradingRevistoRequest req, CancellationToken ct = default)
+    {
+        await _service.MarcarCodigoTradingRevistoAsync(req.Revisto, ct);
+        return NoContent();
+    }
+
     /// <summary>Sprint 576: marcar o trimestre como declarado/pago (guarda os valores declarados).</summary>
     [HttpPost("fecho")]
     public Task<ApuramentoFechoDto> Fechar([FromBody] FecharTrimestreRequest req, CancellationToken ct = default)
@@ -37,3 +50,5 @@ public class ApuramentoController : ControllerBase
         return NoContent();
     }
 }
+
+public sealed record CodigoTradingRevistoRequest(bool Revisto);

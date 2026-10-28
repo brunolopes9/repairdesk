@@ -144,13 +144,13 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
     public async Task Estimativas_IrsComReducaoDoPrimeiroAno_ESegurancaSocialIsenta()
     {
         var client = await AuthedClient();
-        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(new DateTime(2033, 1, 10), null))).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(new DateTime(2033, 1, 10), null, ServicosNaTabela151: true, SemIrsJovem: true, DeducoesColeta: 0m))).EnsureSuccessStatusCode();
         // Software 1230 € c/ IVA → 1000 € de serviços a 0,75, reduzido a metade no 1.º ano → 375 € tributáveis.
         await VendaFaturadaDto(client, 123000, 23m, "FT SOFTWARE/33", new DateTime(2033, 2, 1));
 
         var e = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2033&trimestre=1"))!.Estimativas;
         e.InicioDefinido.Should().BeTrue();
-        e.ReceitasServicos075.Should().Be(1000m);
+        e.ReceitasInformatica.Should().Be(1000m);
         e.FatorInicio.Should().Be(0.5m);
         e.AcrescimoRegra15.Should().Be(0m, "os 4.104 € cobrem os 15% de 1.000 €");
         e.RendimentoTributavel.Should().Be(375m);
@@ -163,7 +163,7 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
     public async Task SemInicioDeAtividade_NaoAdivinha()
     {
         var client = await AuthedClient();
-        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(null, 115.87m))).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(null, 115.87m, ServicosNaTabela151: true, SemIrsJovem: true, DeducoesColeta: 0m))).EnsureSuccessStatusCode();
         await VendaFaturadaDto(client, 123000, 23m, "FT SOFTWARE/34", new DateTime(2034, 8, 1));
 
         var e = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2034&trimestre=3"))!.Estimativas;
@@ -172,8 +172,47 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
         e.FatorInicio.Should().Be(1m, "sem data, sem redução (prudente)");
         e.SsIsento.Should().BeFalse();
         e.SsContribuicaoAtual.Should().Be(115.87m);
-        e.ReceitasServicos075.Should().Be(1000m);
+        e.ReceitasInformatica.Should().Be(1000m);
         e.SsContribuicaoMensal.Should().Be(49.93m, "70% × 1.000 € ÷ 3 × 21,4% (só o trimestre)");
+    }
+
+    [Fact]
+    public async Task Estimativas_CoeficientePorCodigo_IrsJovem_EDeducoesAColeta()
+    {
+        // Caso real: informática/reparações em CAE (0,35), trading no CIRS 1519 (0,75), 2.º ano de atividade
+        // e 2.º ano de IRS Jovem (75% isento), 100 € de deduções à coleta.
+        var client = await AuthedClient();
+        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(new DateTime(2038, 10, 9), 115.87m,
+            IrsJovemAno: 2, DeducoesColeta: 100m, ServicosNaTabela151: false, TradingNaTabela151: true))).EnsureSuccessStatusCode();
+        await VendaFaturadaDto(client, 123000, 23m, "FT SOFTWARE/39", new DateTime(2039, 2, 1));
+        await VendaFaturadaDto(client, 200000, 0m, "FT TRADING/39", new DateTime(2039, 2, 2));
+
+        var e = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2039&trimestre=1"))!.Estimativas;
+        e.CoefServicos.Should().Be(0.35m);
+        e.CoefTrading.Should().Be(0.75m);
+        e.FatorInicio.Should().Be(0.75m, "2.º ano de atividade");
+        // 1.000 × 0,35 × 0,75 + 2.000 × 0,75 × 0,75 = 262,50 + 1.125 = 1.387,50
+        e.RendimentoTributavel.Should().Be(1387.5m);
+        e.IrsJovemPercentagem.Should().Be(0.75m);
+        e.IrsJovemIsencao.Should().BeApproximately(1040.63m, 0.01m);
+        e.ColetaAntesDeducoes.Should().BeApproximately(43.36m, 0.01m, "346,88 € a 12,5%");
+        e.IrsEstimado.Should().Be(0m, "as deduções à coleta (100 €) apagam os 43,36 €");
+    }
+
+    [Fact]
+    public async Task Lembrete_CodigoDoTrading_AteSerMarcadoComoRevisto()
+    {
+        var client = await AuthedClient();
+        (await client.PutAsJsonAsync("/api/apuramento/pressupostos", new PressupostosRequest(null, null, TradingNaTabela151: true))).EnsureSuccessStatusCode();
+        await VendaFaturadaDto(client, 50000, 0m, "FT TRADING/" + Random.Shared.Next(1000, 9999), DateTime.UtcNow.Date.AddDays(-2));
+
+        (await client.GetFromJsonAsync<List<LembreteFiscalDto>>("/api/apuramento/lembretes"))!.Should().Contain(l => l.Codigo == "codigo_trading");
+
+        (await client.PutAsJsonAsync("/api/apuramento/lembretes/codigo-trading", new CodigoTradingRevistoRequest(true))).EnsureSuccessStatusCode();
+        (await client.GetFromJsonAsync<List<LembreteFiscalDto>>("/api/apuramento/lembretes"))!.Should().BeEmpty();
+
+        (await client.PutAsJsonAsync("/api/apuramento/lembretes/codigo-trading", new CodigoTradingRevistoRequest(false))).EnsureSuccessStatusCode();
+        (await client.GetFromJsonAsync<List<LembreteFiscalDto>>("/api/apuramento/lembretes"))!.Should().ContainSingle();
     }
 
     [Fact]

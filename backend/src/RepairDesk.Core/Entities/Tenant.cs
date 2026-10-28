@@ -72,6 +72,30 @@ public class Tenant : BaseEntity
     /// <summary>Sprint 576: contribuição mensal à Segurança Social que paga hoje (para comparar com a estimativa).</summary>
     public decimal? SsContribuicaoAtual { get; set; }
 
+    /// <summary>
+    /// Sprint 580: ano do IRS Jovem (art. 12.º-B CIRS) em que o titular está no ano das estimativas — 1.º = 100% isento,
+    /// 2.º–4.º = 75%, 5.º–7.º = 50%, 8.º–10.º = 25%. Null = não tem IRS Jovem.
+    /// </summary>
+    public int? IrsJovemAno { get; set; }
+
+    /// <summary>Sprint 580: deduções à coleta previstas (o total que o e-fatura mostra: gerais familiares, saúde…).</summary>
+    public decimal? DeducoesColeta { get; set; }
+
+    /// <summary>
+    /// Sprint 580: a informática e as reparações estão num código da tabela do art. 151.º (coeficiente 0,75)? Por
+    /// defeito não — os CAE 62100/95101/95102 não estão na tabela (0,35).
+    /// </summary>
+    public bool ServicosNaTabela151 { get; set; }
+
+    /// <summary>Sprint 580: o trading está num código da tabela do art. 151.º (ex.: CIRS 1519 → 0,75)? Por defeito sim (prudente).</summary>
+    public bool TradingNaTabela151 { get; set; } = true;
+
+    /// <summary>
+    /// Sprint 580: quando o dono confirmou que reviu o código de atividade do trading (tirar do 1519 → 0,35).
+    /// Null = lembrete ainda ativo.
+    /// </summary>
+    public DateTime? CodigoTradingRevistoEm { get; set; }
+
     // Sprint 173: email forwarding ingest per-tenant (RGPD-clean).
     public string? IngestEmailSlug { get; set; }
 

@@ -41,8 +41,9 @@ export interface ApuramentoEstimativas {
   inicioAtividade: string | null;
   inicioDefinido: boolean;
   receitasBens: number;
-  receitasServicos075: number;
-  receitasServicos035: number;
+  /** Sprint 580: informática/software e reparações (sem trading), ao coeficiente coefServicos. */
+  receitasInformatica: number;
+  receitasReparacoes: number;
   receitasTrading: number;
   fatorInicio: number;
   despesasJustificadas: number;
@@ -56,14 +57,48 @@ export interface ApuramentoEstimativas {
   ssIsento: boolean;
   ssIsentoAte: string | null;
   ssContribuicaoAtual: number | null;
+  /** Sprint 580: coeficientes por código (0,75 na tabela do art. 151.º, senão 0,35). */
+  coefServicos: number;
+  coefTrading: number;
+  servicosNaTabela151: boolean;
+  tradingNaTabela151: boolean;
+  irsJovemAno: number | null;
+  irsJovemPercentagem: number;
+  irsJovemIsencao: number;
+  coletaAntesDeducoes: number;
+  deducoesColeta: number | null;
+}
+
+export interface PressupostosRequest {
+  inicioAtividade: string | null;
+  ssContribuicaoAtual: number | null;
+  irsJovemAno: number | null;
+  semIrsJovem: boolean;
+  deducoesColeta: number | null;
+  servicosNaTabela151: boolean;
+  tradingNaTabela151: boolean;
+}
+
+/** Sprint 580: lembrete fiscal com prazo (ex.: rever o código de atividade do trading em janeiro). */
+export interface LembreteFiscal {
+  codigo: string;
+  titulo: string;
+  texto: string;
+  urgente: boolean;
 }
 
 export const apuramentoApi = {
   trimestre(ano: number, trimestre: number) {
     return api.get<Apuramento>('/apuramento', { params: { ano, trimestre } }).then((r) => r.data);
   },
-  definirPressupostos(req: { inicioAtividade: string | null; ssContribuicaoAtual: number | null }) {
+  definirPressupostos(req: PressupostosRequest) {
     return api.put('/apuramento/pressupostos', req).then(() => undefined);
+  },
+  lembretes() {
+    return api.get<LembreteFiscal[]>('/apuramento/lembretes').then((r) => r.data);
+  },
+  marcarCodigoTradingRevisto(revisto: boolean) {
+    return api.put('/apuramento/lembretes/codigo-trading', { revisto }).then(() => undefined);
   },
   fechar(ano: number, trimestre: number) {
     return api.post('/apuramento/fecho', { ano, trimestre, pago: true }).then(() => undefined);

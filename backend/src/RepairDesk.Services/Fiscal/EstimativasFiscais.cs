@@ -3,7 +3,8 @@ namespace RepairDesk.Services.Fiscal;
 /// <summary>
 /// Sprint 575: estimativas de IRS (regime simplificado) e Segurança Social de trabalhador independente.
 /// São ESTIMATIVAS para ter noção dos valores — não substituem o contabilista nem a liquidação das Finanças
-/// (não entram deduções à coleta, mínimo de existência, IRS Jovem, outros rendimentos do agregado…).
+/// (Sprint 580: entram o IRS Jovem e as deduções à coleta indicadas; não entram o mínimo de existência nem outros
+/// rendimentos do agregado).
 /// As taxas mudam todos os anos: atualizar <see cref="EscaloesIrs"/> quando sair o Orçamento do Estado.
 /// </summary>
 public static class EstimativasFiscais
@@ -44,6 +45,27 @@ public static class EstimativasFiscais
         (86_634m, 0.446m),
         (decimal.MaxValue, 0.48m),
     ];
+
+    /// <summary>Indexante dos Apoios Sociais de 2026 — o IRS Jovem isenta no máximo 55 × IAS por ano.</summary>
+    public const decimal Ias2026 = 537.13m;
+    public const decimal IrsJovemLimiteIas = 55m;
+
+    /// <summary>
+    /// Sprint 580: % isenta pelo IRS Jovem (art. 12.º-B CIRS) conforme o ano de rendimentos em que o titular está:
+    /// 1.º = 100%, 2.º–4.º = 75%, 5.º–7.º = 50%, 8.º–10.º = 25%, depois 0.
+    /// </summary>
+    public static decimal IrsJovemPercentagem(int? anoIrsJovem) => anoIrsJovem switch
+    {
+        1 => 1.00m,
+        >= 2 and <= 4 => 0.75m,
+        >= 5 and <= 7 => 0.50m,
+        >= 8 and <= 10 => 0.25m,
+        _ => 0m,
+    };
+
+    /// <summary>Parte do rendimento isenta pelo IRS Jovem (com o limite de 55 × IAS).</summary>
+    public static decimal IrsJovemIsencao(decimal rendimento, int? anoIrsJovem)
+        => Math.Min(Math.Max(0m, rendimento) * IrsJovemPercentagem(anoIrsJovem), IrsJovemLimiteIas * Ias2026);
 
     public static int AnoTabela(int ano) => 2026;
 

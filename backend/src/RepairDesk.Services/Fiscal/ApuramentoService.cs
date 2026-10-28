@@ -44,7 +44,19 @@ public sealed record ApuramentoResultadoDto(
 /// Sprint 576: o que se assume nas estimativas (definido pelo dono, nunca adivinhado). Só conta a faturação
 /// registada no Mender — desde julho de 2026 (3.º trimestre); o que está para trás não entra (decisão do Bruno).
 /// </summary>
-public sealed record PressupostosRequest(DateTime? InicioAtividade, decimal? SsContribuicaoAtual);
+/// <remarks>Sprint 580: campos novos opcionais — null mantém o valor guardado (clientes antigos não os apagam).</remarks>
+public sealed record PressupostosRequest(
+    DateTime? InicioAtividade,
+    decimal? SsContribuicaoAtual,
+    int? IrsJovemAno = null,
+    decimal? DeducoesColeta = null,
+    bool? ServicosNaTabela151 = null,
+    bool? TradingNaTabela151 = null,
+    /// <summary>true = deixa de ter IRS Jovem (limpa o ano); false = segue IrsJovemAno.</summary>
+    bool SemIrsJovem = false);
+
+/// <summary>Sprint 580: lembrete fiscal com prazo (ex.: rever o código de atividade do trading).</summary>
+public sealed record LembreteFiscalDto(string Codigo, string Titulo, string Texto, bool Urgente);
 
 public sealed record ApuramentoFechoDto(decimal IvaLiquidado, decimal IvaDedutivel, decimal Saldo, bool Pago, DateTime FechadoEm,
     /// <summary>Saldo recalculado agora − saldo declarado (≠ 0 = algo mudou depois de declarar).</summary>
@@ -61,8 +73,10 @@ public sealed record ApuramentoEstimativasDto(
     DateTime? InicioAtividade,
     bool InicioDefinido,
     decimal ReceitasBens,
-    decimal ReceitasServicos075,
-    decimal ReceitasServicos035,
+    /// <summary>Sprint 580: informática/software (sem trading), ao coeficiente CoefServicos.</summary>
+    decimal ReceitasInformatica,
+    /// <summary>Reparações, ao coeficiente CoefServicos.</summary>
+    decimal ReceitasReparacoes,
     decimal ReceitasTrading,
     /// <summary>Fator nos coeficientes de serviços (0,5 no 1.º ano, 0,75 no 2.º, 1 depois).</summary>
     decimal FatorInicio,
@@ -76,7 +90,17 @@ public sealed record ApuramentoEstimativasDto(
     decimal SsContribuicaoMensal,
     bool SsIsento,
     DateTime? SsIsentoAte,
-    decimal? SsContribuicaoAtual = null);
+    decimal? SsContribuicaoAtual = null,
+    /// <summary>Sprint 580: coeficientes usados (0,75 se o código está na tabela do art. 151.º, senão 0,35).</summary>
+    decimal CoefServicos = EstimativasFiscais.CoefOutrosServicos,
+    decimal CoefTrading = EstimativasFiscais.CoefServicosTabela,
+    bool ServicosNaTabela151 = false,
+    bool TradingNaTabela151 = true,
+    int? IrsJovemAno = null,
+    decimal IrsJovemPercentagem = 0m,
+    decimal IrsJovemIsencao = 0m,
+    decimal ColetaAntesDeducoes = 0m,
+    decimal? DeducoesColeta = null);
 
 /// <summary>Campo da declaração periódica de IVA (Continente) — a confirmar com o contabilista.</summary>
 public sealed record ApuramentoCampoDto(string Campo, string Descricao, decimal Valor);
@@ -115,6 +139,8 @@ public interface IApuramentoService
 {
     Task<ApuramentoDto> TrimestreAsync(int ano, int trimestre, CancellationToken ct = default);
     Task DefinirPressupostosAsync(PressupostosRequest req, CancellationToken ct = default);
+    Task<IReadOnlyList<LembreteFiscalDto>> LembretesAsync(CancellationToken ct = default);
+    Task MarcarCodigoTradingRevistoAsync(bool revisto, CancellationToken ct = default);
     Task<ApuramentoFechoDto> FecharAsync(FecharTrimestreRequest req, CancellationToken ct = default);
     Task ReabrirAsync(int ano, int trimestre, CancellationToken ct = default);
 }
@@ -156,8 +182,17 @@ public class ApuramentoService : IApuramentoService
             throw new ValidationException("data_invalida", "Data de início de atividade inválida.");
         if (req.SsContribuicaoAtual is < 0 or > 100_000)
             throw new ValidationException("valor_invalido", "Contribuição mensal inválida.");
+        if (req.IrsJovemAno is < 1 or > 10)
+            throw new ValidationException("irs_jovem_invalido", "Ano do IRS Jovem de 1 a 10.");
+        if (req.DeducoesColeta is < 0 or > 100_000)
+            throw new ValidationException("valor_invalido", "Deduções à coleta inválidas.");
         t.InicioAtividade = req.InicioAtividade?.Date;
         t.SsContribuicaoAtual = req.SsContribuicaoAtual;
+        if (req.SemIrsJovem) t.IrsJovemAno = null;
+        else if (req.IrsJovemAno is { } anoJovem) t.IrsJovemAno = anoJovem;
+        if (req.DeducoesColeta is { } deducoes) t.DeducoesColeta = deducoes;
+        if (req.ServicosNaTabela151 is { } servTabela) t.ServicosNaTabela151 = servTabela;
+        if (req.TradingNaTabela151 is { } tradTabela) t.TradingNaTabela151 = tradTabela;
         await _tenants.SaveAsync(ct);
     }
 
@@ -189,6 +224,40 @@ public class ApuramentoService : IApuramentoService
             _fechos.Remove(fechado);
             await _fechos.SaveAsync(ct);
         }
+    }
+
+    /// <summary>
+    /// Sprint 580: lembretes fiscais com prazo. Hoje: quem fatura trading num código da tabela do art. 151.º (ex.: CIRS
+    /// 1519, coeficiente 0,75) é lembrado de rever o código em janeiro (CAE fora da tabela → 0,35), até confirmar.
+    /// </summary>
+    public async Task<IReadOnlyList<LembreteFiscalDto>> LembretesAsync(CancellationToken ct = default)
+    {
+        var t = await TenantAsync(ct);
+        var lembretes = new List<LembreteFiscalDto>();
+        if (!t.TradingNaTabela151 || t.CodigoTradingRevistoEm is not null) return lembretes;
+
+        var hoje = DateTime.UtcNow;
+        var desde = new DateTime(hoje.Year - 1, 1, 1);
+        var temTrading = (await _vendas.ListParaApuramentoAsync(ParaUtc(desde), ParaUtc(hoje).AddDays(1), ct))
+            .Any(v => v.Atividade == VendaAtividade.Trading && v.InvoiceNumber is not null);
+        if (!temTrading) return lembretes;
+
+        var janeiro = hoje.Month == 1 ? hoje.Year : hoje.Year + 1;
+        lembretes.Add(new LembreteFiscalDto(
+            "codigo_trading",
+            $"Janeiro de {janeiro}: rever o código de atividade do trading",
+            "O trading está num código da tabela do art. 151.º (ex.: CIRS 1519), tributado a 0,75 no regime simplificado. "
+            + "Num CAE fora da tabela (ex.: 66190, atividades auxiliares de serviços financeiros) passa a 0,35 — menos de metade do IRS. "
+            + "Faz-se com uma declaração de alterações no Portal das Finanças, com efeitos a 1 de janeiro. Confirma o código com o contabilista antes.",
+            Urgente: hoje.Month == 1));
+        return lembretes;
+    }
+
+    public async Task MarcarCodigoTradingRevistoAsync(bool revisto, CancellationToken ct = default)
+    {
+        var t = await TenantAsync(ct);
+        t.CodigoTradingRevistoEm = revisto ? DateTime.UtcNow : null;
+        await _tenants.SaveAsync(ct);
     }
 
     private async Task<Tenant> TenantAsync(CancellationToken ct)
@@ -395,17 +464,27 @@ public class ApuramentoService : IApuramentoService
         }
 
         var fator = inicio is { } ini ? EstimativasFiscais.FatorInicioAtividade(ano, ini) : 1m;
-        var receitas075 = s075 + trading;
+        // Sprint 580: o coeficiente depende do código onde a atividade está registada (tabela do art. 151.º → 0,75; CAE
+        // fora da tabela → 0,35) — indicado pelo dono, nunca adivinhado. Informática e reparações vão juntas (CAE).
+        var servicosNaTabela = t?.ServicosNaTabela151 ?? false;
+        var tradingNaTabela = t?.TradingNaTabela151 ?? true;
+        var coefServicos = servicosNaTabela ? EstimativasFiscais.CoefServicosTabela : EstimativasFiscais.CoefOutrosServicos;
+        var coefTrading = tradingNaTabela ? EstimativasFiscais.CoefServicosTabela : EstimativasFiscais.CoefOutrosServicos;
+        // Regra dos 15% (art. 31.º n.º 13): só sobre o que está a 0,75.
+        var receitas075 = (servicosNaTabela ? s075 + s035 : 0m) + (tradingNaTabela ? trading : 0m);
         var justificadas = EstimativasFiscais.DeducaoEspecifica
             + (await _despesas.ListPeriodoAsync(inicioAno, ate, ct)).Sum(d => d.ValorCents / 100m)
             + (await _compras.ListDocumentosPeriodoAsync(inicioAno, ate, ct)).Sum(d => d.Linhas.Sum(l => l.Quantidade * l.PrecoUnitarioPago) + d.PortesPagos);
         var acrescimo = Math.Max(0m, EstimativasFiscais.Regra15 * receitas075 - justificadas);
         var rendimento = bens * EstimativasFiscais.CoefBens
-            + receitas075 * EstimativasFiscais.CoefServicosTabela * fator
-            + s035 * EstimativasFiscais.CoefOutrosServicos * fator
+            + (s075 + s035) * coefServicos * fator
+            + trading * coefTrading * fator
             + acrescimo;
-        var irs = EstimativasFiscais.Irs(rendimento, ano);
-        var faturacao = bens + receitas075 + s035;
+        // Sprint 580: o IRS Jovem isenta parte do rendimento; as deduções à coleta (e-fatura) abatem ao imposto até 0.
+        var isencaoJovem = EstimativasFiscais.IrsJovemIsencao(rendimento, t?.IrsJovemAno);
+        var coleta = EstimativasFiscais.Irs(rendimento - isencaoJovem, ano);
+        var irs = Math.Max(0m, coleta - (t?.DeducoesColeta ?? 0m));
+        var faturacao = bens + s075 + s035 + trading;
 
         var relevante = EstimativasFiscais.SsServicos * servTrim + EstimativasFiscais.SsBens * bensTrim;
         var isentoAte = inicio?.Date.AddMonths(12);
@@ -416,7 +495,9 @@ public class ApuramentoService : IApuramentoService
             fator, Euros(justificadas), Euros(acrescimo), Euros(rendimento), Euros(irs),
             faturacao > 0 ? Math.Round(irs / faturacao, 4) : 0m, EstimativasFiscais.AnoTabela(ano),
             Euros(relevante), isento ? 0m : Euros(relevante / 3m * EstimativasFiscais.SsTaxa), isento, isentoAte,
-            t?.SsContribuicaoAtual);
+            t?.SsContribuicaoAtual,
+            coefServicos, coefTrading, servicosNaTabela, tradingNaTabela,
+            t?.IrsJovemAno, EstimativasFiscais.IrsJovemPercentagem(t?.IrsJovemAno), Euros(isencaoJovem), Euros(coleta), t?.DeducoesColeta);
     }
 
     /// <summary>Taxa da compra guardada como fração (0,23); tolera valores antigos em % (23).</summary>

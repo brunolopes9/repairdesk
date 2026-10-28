@@ -9,30 +9,43 @@ import { toast } from '../../lib/toast';
 
 const dataPt = (d: string) => new Date(d).toLocaleDateString('pt-PT');
 const pct = (v: number) => `${(v * 100).toLocaleString('pt-PT', { maximumFractionDigits: 1 })}%`;
+const coef = (v: number) => v.toLocaleString('pt-PT', { minimumFractionDigits: 2 });
 const txt = (v: number | null | undefined) => (v ? v.toFixed(2).replace('.', ',') : '');
 
 /**
- * Sprint 575/576: estimativas de IRS (regime simplificado) e Segurança Social — para ter noção dos valores
- * ao longo do ano. Os pressupostos (início de atividade, contribuição atual, faturação de antes do Mender) são
- * indicados pelo dono, nunca adivinhados. A liquidação a sério é das Finanças/contabilista.
+ * Sprint 575/576/580: estimativas de IRS (regime simplificado) e Segurança Social — para ter noção dos valores
+ * ao longo do ano. Os pressupostos (início de atividade, contribuição atual, IRS Jovem, deduções à coleta e em que
+ * código está cada atividade) são indicados pelo dono, nunca adivinhados. A liquidação a sério é das Finanças.
  */
 export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEstimativas; ano: number; trimestre: number }) {
   const qc = useQueryClient();
-  const [f, setF] = useState({ inicio: '', ss: '' });
+  const [f, setF] = useState({ inicio: '', ss: '', jovem: '', deducoes: '', servicosTabela: false, tradingTabela: true });
   useEffect(() => {
-    setF({ inicio: e.inicioAtividade?.slice(0, 10) ?? '', ss: txt(e.ssContribuicaoAtual) });
+    setF({
+      inicio: e.inicioAtividade?.slice(0, 10) ?? '',
+      ss: txt(e.ssContribuicaoAtual),
+      jovem: e.irsJovemAno ? String(e.irsJovemAno) : '',
+      deducoes: txt(e.deducoesColeta),
+      servicosTabela: e.servicosNaTabela151,
+      tradingTabela: e.tradingNaTabela151,
+    });
   }, [e]);
   const num = (s: string) => parseDecimal(s) ?? 0;
   const guardar = useMutation({
     mutationFn: () => apuramentoApi.definirPressupostos({
       inicioAtividade: f.inicio || null,
       ssContribuicaoAtual: f.ss.trim() ? num(f.ss) : null,
+      irsJovemAno: f.jovem ? Number(f.jovem) : null,
+      semIrsJovem: !f.jovem,
+      deducoesColeta: f.deducoes.trim() ? num(f.deducoes) : 0,
+      servicosNaTabela151: f.servicosTabela,
+      tradingNaTabela151: f.tradingTabela,
     }),
     onSuccess: () => { toast.success('Pressupostos guardados'); qc.invalidateQueries({ queryKey: ['apuramento'] }); },
     onError: (err) => toast.fromError(err, 'Não foi possível guardar.'),
   });
   const reducao = e.fatorInicio < 1 ? ` (reduzido a ${pct(e.fatorInicio)} — ${e.fatorInicio === 0.5 ? '1.º' : '2.º'} ano de atividade)` : '';
-  const campo = (k: keyof typeof f, label: string, extra?: string) => (
+  const campo = (k: 'ss' | 'deducoes', label: string, extra?: string) => (
     <label className="block">
       <span className={labelCls}>{label}</span>
       <input value={f[k]} onChange={(ev) => setF({ ...f, [k]: ev.target.value })} className={inputCls} inputMode="decimal" placeholder={extra ?? '0,00'} />
@@ -54,15 +67,18 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
           <p className="text-xs text-zinc-500">taxa efetiva ≈ {pct(e.taxaEfetiva)} da faturação · regime simplificado</p>
           <dl className="mt-3 space-y-1.5 text-sm tabular-nums">
             <Linha label="Vendas de bens (peças, artigos) × 0,15" valor={e.receitasBens} />
-            <Linha label={`Informática / software × 0,75${reducao}`} valor={e.receitasServicos075} />
-            <Linha label={`Reparações (outros serviços) × 0,35${reducao}`} valor={e.receitasServicos035} />
-            <Linha label={`Trading × 0,75${reducao} (prudente)`} valor={e.receitasTrading} />
+            <Linha label={`Informática / software × ${coef(e.coefServicos)}${reducao}`} valor={e.receitasInformatica} />
+            <Linha label={`Reparações × ${coef(e.coefServicos)}${reducao}`} valor={e.receitasReparacoes} />
+            <Linha label={`Trading × ${coef(e.coefTrading)}${reducao}`} valor={e.receitasTrading} />
             {e.acrescimoRegra15 > 0 && <Linha label="Acréscimo da regra dos 15% (faltam despesas)" valor={e.acrescimoRegra15} />}
             <Linha label="Rendimento tributável estimado" valor={e.rendimentoTributavel} forte />
+            {e.irsJovemIsencao > 0 && <Linha label={`IRS Jovem (${e.irsJovemAno}.º ano, ${pct(e.irsJovemPercentagem)} isento)`} valor={-e.irsJovemIsencao} />}
+            <Linha label="Imposto pelos escalões" valor={e.coletaAntesDeducoes} />
+            {!!e.deducoesColeta && <Linha label="Deduções à coleta (e-fatura)" valor={-Math.min(e.deducoesColeta, e.coletaAntesDeducoes)} />}
           </dl>
           <p className="mt-2 text-xs text-zinc-500">
             Despesas que contam para a regra dos 15%: {formatEur(e.despesasJustificadas)} (inclui os 4.104 € automáticos).
-            Não inclui deduções à coleta, outros rendimentos do agregado nem IRS Jovem. Escalões de {e.anoTabelaIrs}.
+            Não inclui o mínimo de existência nem outros rendimentos do agregado. Escalões de {e.anoTabelaIrs}.
           </p>
         </div>
         <div>
@@ -96,6 +112,24 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
             <input type="date" value={f.inicio} onChange={(ev) => setF({ ...f, inicio: ev.target.value })} className={inputCls} />
           </label>
           {campo('ss', 'Contribuição mensal atual à Segurança Social (€)', 'ex.: 115,87')}
+          <label className="block">
+            <span className={labelCls}>IRS Jovem — ano em que estás em {ano}</span>
+            <select value={f.jovem} onChange={(ev) => setF({ ...f, jovem: ev.target.value })} className={inputCls}>
+              <option value="">Não tenho IRS Jovem</option>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>{n}.º ano ({n === 1 ? '100' : n <= 4 ? '75' : n <= 7 ? '50' : '25'}% isento)</option>
+              ))}
+            </select>
+          </label>
+          {campo('deducoes', 'Deduções à coleta previstas (€) — o total do e-fatura', 'ex.: 503,94')}
+          <label className="flex items-start gap-2 text-sm sm:col-span-2">
+            <input type="checkbox" className="mt-1" checked={f.tradingTabela} onChange={(ev) => setF({ ...f, tradingTabela: ev.target.checked })} />
+            <span>O trading está num código da tabela do art. 151.º (ex.: CIRS 1519) → coeficiente 0,75. <span className="text-zinc-500">Desmarca se estiver num CAE fora da tabela (ex.: 66190) → 0,35.</span></span>
+          </label>
+          <label className="flex items-start gap-2 text-sm sm:col-span-2">
+            <input type="checkbox" className="mt-1" checked={f.servicosTabela} onChange={(ev) => setF({ ...f, servicosTabela: ev.target.checked })} />
+            <span>A informática e as reparações estão num código da tabela do art. 151.º → 0,75. <span className="text-zinc-500">Por defeito não: os CAE 62100, 95101 e 95102 ficam a 0,35.</span></span>
+          </label>
         </div>
         <div className="mt-3 flex justify-end">
           <Button type="button" loading={guardar.isPending} onClick={() => guardar.mutate()}>Guardar pressupostos</Button>
