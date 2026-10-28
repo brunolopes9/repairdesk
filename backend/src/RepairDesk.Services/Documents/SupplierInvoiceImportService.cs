@@ -69,7 +69,9 @@ public sealed record ApproveSupplierInvoiceRequest(
     DateTime? Data,
     string? Fornecedor,
     string? NumeroEncomenda,
-    string? Notas);
+    string? Notas,
+    /// <summary>Sprint 573: IVA da fatura (cêntimos). Null = o lido do PDF (total − subtotal), se houver.</summary>
+    int? IvaCents = null);
 
 public sealed record SupplierInvoiceEmailMeta(
     string? MessageId,
@@ -571,6 +573,20 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         if (entity.Status == SupplierInvoiceImportStatus.Approved)
             throw new ConflictException("already_approved", "Esta importação já foi aprovada.");
 
+        // Sprint 564: o fornecedor confirmado na aprovação (faturas que o leitor não conhece chegam sem ele).
+        if (!string.IsNullOrWhiteSpace(req.Fornecedor)
+            && !string.Equals(req.Fornecedor.Trim(), entity.Fornecedor?.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            entity.FornecedorNameRaw = req.Fornecedor.Trim();
+            entity.FornecedorId = await ResolveOrCreateFornecedorIdAsync(null, entity.FornecedorNameRaw, tenantId, ct);
+            entity.Fornecedor = entity.FornecedorId is { } fid ? await _fornecedores.FindByIdAsync(fid, ct) : null;
+        }
+
+        // Sprint 573: intra-UE → autoliquidação (IVA 0 na fatura); senão o IVA indicado ou o lido do PDF.
+        var reverseCharge = entity.Fornecedor?.IntraUe == true;
+        var ivaLido = entity.ParsedSubtotalCents is { } sub && entity.ParsedTotalCents is { } tot && tot == req.ValorCents && sub > 0 && tot >= sub
+            ? tot - sub : (int?)null;
+
         // Cria despesa real. Bruno pode ter editado o total/categoria no UI antes de aprovar.
         var despesa = await _despesas.CreateAsync(new Despesas.CreateDespesaRequest(
             Descricao: req.Descricao,
@@ -579,7 +595,9 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             Data: req.Data ?? entity.ParsedDocumentDate ?? entity.CreatedAt,
             Fornecedor: req.Fornecedor ?? entity.FornecedorNameRaw,
             NumeroEncomenda: req.NumeroEncomenda ?? entity.ParsedDocumentNumber,
-            Notas: req.Notas), ct);
+            Notas: req.Notas,
+            ReverseCharge: reverseCharge,
+            IvaCents: reverseCharge ? 0 : req.IvaCents ?? ivaLido), ct);
 
         entity.Status = SupplierInvoiceImportStatus.Approved;
         entity.DespesaId = despesa.Id;
@@ -591,13 +609,6 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         entity.ParsedTotalCents = req.ValorCents;
         if (req.Data is { } data) entity.ParsedDocumentDate = data;
         if (!string.IsNullOrWhiteSpace(req.NumeroEncomenda)) entity.ParsedDocumentNumber = req.NumeroEncomenda.Trim();
-        if (!string.IsNullOrWhiteSpace(req.Fornecedor)
-            && !string.Equals(req.Fornecedor.Trim(), entity.Fornecedor?.Name, StringComparison.OrdinalIgnoreCase))
-        {
-            entity.FornecedorNameRaw = req.Fornecedor.Trim();
-            entity.FornecedorId = await ResolveOrCreateFornecedorIdAsync(null, entity.FornecedorNameRaw, tenantId, ct);
-            entity.Fornecedor = entity.FornecedorId is { } fid ? await _fornecedores.FindByIdAsync(fid, ct) : null;
-        }
 
         // Sprint 543: aprende a categoria deste fornecedor com a escolha do Bruno (last-wins —
         // a próxima fatura do mesmo fornecedor vem com esta categoria pré-selecionada no modal).

@@ -28,6 +28,7 @@ import {
   UserCog,
   ScanBarcode,
   FileCheck2,
+  Landmark,
   Tag,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
@@ -65,6 +66,8 @@ const nav: NavItem[] = [
   { to: '/artigos', label: 'Artigos', icon: Tag },
   { to: '/compras', label: 'Compras', icon: Receipt },
   { to: '/despesas', label: 'Despesas', icon: Banknote },
+  // Sprint 573: apuramento trimestral do IVA e resultado (só o administrador).
+  { to: '/apuramento', label: 'IVA e resultados', icon: Landmark, adminOnly: true },
   {
     label: 'Clientes',
     icon: Users,

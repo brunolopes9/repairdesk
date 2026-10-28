@@ -17,6 +17,8 @@ public interface ICompraRepository
 
     /// <summary>Todos os documentos do tenant (sem linhas) — portes para a posição de IVA.</summary>
     Task<IReadOnlyList<CompraDocumento>> ListDocumentosAsync(CancellationToken ct = default);
+    /// <summary>Sprint 573: documentos (com fornecedor e linhas) com data em [from, to).</summary>
+    Task<IReadOnlyList<CompraDocumento>> ListDocumentosPeriodoAsync(DateTime from, DateTime to, CancellationToken ct = default);
 
     /// <summary>
     /// Sprint 560: documentos do fornecedor que podem corresponder a uma fatura recebida — o mesmo nº de

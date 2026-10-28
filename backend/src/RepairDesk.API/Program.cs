@@ -215,6 +215,7 @@ try
     // Despesas
     builder.Services.AddScoped<IDespesaRepository, DespesaRepository>();
     builder.Services.AddScoped<IDespesaService, DespesaService>();
+    builder.Services.AddScoped<RepairDesk.Services.Fiscal.IApuramentoService, RepairDesk.Services.Fiscal.ApuramentoService>();
     builder.Services.AddScoped<FluentValidation.IValidator<CreateDespesaRequest>, CreateDespesaValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateDespesaRequest>, UpdateDespesaValidator>();
 

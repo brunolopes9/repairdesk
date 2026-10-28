@@ -892,6 +892,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<DateTime>("Data")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("DeducaoPercent")
+                        .HasColumnType("int");
+
                     b.Property<string>("Descricao")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -911,6 +914,9 @@ namespace RepairDesk.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
+
+                    b.Property<int?>("IvaCents")
+                        .HasColumnType("int");
 
                     b.Property<string>("Notas")
                         .HasMaxLength(1000)

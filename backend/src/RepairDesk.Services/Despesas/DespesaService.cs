@@ -66,6 +66,8 @@ public class DespesaService : IDespesaService
             IsRecorrente = req.IsRecorrente,
             PeriodicidadeMeses = req.IsRecorrente ? req.PeriodicidadeMeses : null,
             ReverseCharge = req.ReverseCharge,
+            IvaCents = req.ReverseCharge ? 0 : req.IvaCents,
+            DeducaoPercent = req.DeducaoPercent,
         };
         await _repo.AddAsync(d, ct);
         await _repo.SaveAsync(ct);
@@ -87,6 +89,9 @@ public class DespesaService : IDespesaService
         d.IsCogs = req.IsCogs;
         d.IsRecorrente = req.IsRecorrente;
         d.PeriodicidadeMeses = req.IsRecorrente ? req.PeriodicidadeMeses : null;
+        d.ReverseCharge = req.ReverseCharge;
+        d.IvaCents = req.ReverseCharge ? 0 : req.IvaCents;
+        d.DeducaoPercent = req.DeducaoPercent;
 
         await _repo.SaveAsync(ct);
         return ToDto(d);
@@ -102,5 +107,5 @@ public class DespesaService : IDespesaService
 
     private static DespesaDto ToDto(Despesa d) =>
         new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas,
-            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses);
+            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge);
 }

@@ -23,6 +23,8 @@ public interface IVendaRepository
     /// <summary>Sprint 568: vendas ligadas a estes documentos do Moloni ON (fatura, recibo ou orçamento).</summary>
     /// <summary>Sprint 568: vendas com nº de fatura mas ainda sem ligação ao documento do Moloni ON.</summary>
     Task<IReadOnlyList<Venda>> ListFaturadasSemMoloniAsync(CancellationToken ct = default);
+    /// <summary>Sprint 573: vendas não canceladas (com linhas) cuja fatura — ou, sem fatura, a data — cai em [from, to).</summary>
+    Task<IReadOnlyList<Venda>> ListParaApuramentoAsync(DateTime from, DateTime to, CancellationToken ct = default);
     Task<IReadOnlyList<Venda>> ListByMoloniIdsAsync(IReadOnlyCollection<int> documentIds, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }

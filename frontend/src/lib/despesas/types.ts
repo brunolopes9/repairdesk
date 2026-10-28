@@ -63,6 +63,12 @@ export interface Despesa {
   isCogs: boolean;
   isRecorrente: boolean;
   periodicidadeMeses: number | null;
+  /** Sprint 573: IVA da fatura (cêntimos); null = por indicar. */
+  ivaCents?: number | null;
+  /** % do IVA que é dedutível (100, 50, 0…). */
+  deducaoPercent?: number;
+  /** Fornecedor intra-UE: autoliquidação (fatura a 0%). */
+  reverseCharge?: boolean;
 }
 
 export interface CreateDespesaForm {
@@ -76,6 +82,9 @@ export interface CreateDespesaForm {
   isCogs: boolean;
   isRecorrente: boolean;
   periodicidadeMeses: number | null;
+  ivaCents?: number | null;
+  deducaoPercent?: number;
+  reverseCharge?: boolean;
 }
 
 export type DespesasPage = PagedResult<Despesa>;

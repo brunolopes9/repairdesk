@@ -8,6 +8,9 @@ public sealed class CreateDespesaValidator : AbstractValidator<CreateDespesaRequ
     {
         RuleFor(x => x.Descricao).NotEmpty().MaximumLength(300);
         RuleFor(x => x.Categoria).IsInEnum();
+        RuleFor(x => x.IvaCents).GreaterThanOrEqualTo(0).LessThan(x => x.ValorCents)
+            .WithMessage("O IVA tem de ser menor do que o total da despesa.").When(x => x.IvaCents is not null);
+        RuleFor(x => x.DeducaoPercent).InclusiveBetween(0, 100);
         RuleFor(x => x.ValorCents).GreaterThan(0);
         RuleFor(x => x.Fornecedor).MaximumLength(200);
         RuleFor(x => x.NumeroEncomenda).MaximumLength(100);
@@ -28,6 +31,9 @@ public sealed class UpdateDespesaValidator : AbstractValidator<UpdateDespesaRequ
     {
         RuleFor(x => x.Descricao).NotEmpty().MaximumLength(300);
         RuleFor(x => x.Categoria).IsInEnum();
+        RuleFor(x => x.IvaCents).GreaterThanOrEqualTo(0).LessThan(x => x.ValorCents)
+            .WithMessage("O IVA tem de ser menor do que o total da despesa.").When(x => x.IvaCents is not null);
+        RuleFor(x => x.DeducaoPercent).InclusiveBetween(0, 100);
         RuleFor(x => x.ValorCents).GreaterThan(0);
         RuleFor(x => x.Fornecedor).MaximumLength(200);
         RuleFor(x => x.NumeroEncomenda).MaximumLength(100);

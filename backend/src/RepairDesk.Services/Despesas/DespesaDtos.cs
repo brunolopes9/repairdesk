@@ -14,7 +14,10 @@ public sealed record CreateDespesaRequest(
     bool IsRecorrente = false,
     int? PeriodicidadeMeses = null,
     // Sprint 525: compra intra-UE em autoliquidação — IVA não dedutível em PT.
-    bool ReverseCharge = false);
+    bool ReverseCharge = false,
+    // Sprint 573: IVA da fatura e % dedutível (apuramento trimestral).
+    int? IvaCents = null,
+    int DeducaoPercent = 100);
 
 public sealed record UpdateDespesaRequest(
     string Descricao,
@@ -26,7 +29,10 @@ public sealed record UpdateDespesaRequest(
     string? Notas,
     bool IsCogs = false,
     bool IsRecorrente = false,
-    int? PeriodicidadeMeses = null);
+    int? PeriodicidadeMeses = null,
+    int? IvaCents = null,
+    int DeducaoPercent = 100,
+    bool ReverseCharge = false);
 
 public sealed record DespesaDto(
     Guid Id,
@@ -41,6 +47,9 @@ public sealed record DespesaDto(
     // Sprint 176/177: COGS flag — peça consumida em reparação (não OpEx).
     bool IsCogs,
     bool IsRecorrente,
-    int? PeriodicidadeMeses);
+    int? PeriodicidadeMeses,
+    int? IvaCents = null,
+    int DeducaoPercent = 100,
+    bool ReverseCharge = false);
 
 

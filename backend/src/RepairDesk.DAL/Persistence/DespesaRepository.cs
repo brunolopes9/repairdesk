@@ -10,6 +10,10 @@ public class DespesaRepository : IDespesaRepository
     private readonly AppDbContext _db;
     public DespesaRepository(AppDbContext db) => _db = db;
 
+    public async Task<IReadOnlyList<Despesa>> ListPeriodoAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        => await _db.Despesas.AsNoTracking().Where(d => !d.IsCogs && d.Data >= from && d.Data < to)
+            .OrderBy(d => d.Data).ToListAsync(ct);
+
     public Task<Despesa?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.Despesas.FirstOrDefaultAsync(d => d.Id == id, ct);
 

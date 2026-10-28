@@ -18,6 +18,8 @@ public interface IDespesaRepository
         int page,
         int pageSize,
         CancellationToken ct = default);
+    /// <summary>Sprint 573: despesas operacionais (sem COGS) com data em [from, to).</summary>
+    Task<IReadOnlyList<Despesa>> ListPeriodoAsync(DateTime from, DateTime to, CancellationToken ct = default);
     Task AddAsync(Despesa despesa, CancellationToken ct = default);
     void Remove(Despesa despesa);
     Task SaveAsync(CancellationToken ct = default);

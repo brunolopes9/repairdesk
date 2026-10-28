@@ -37,6 +37,10 @@ export function DespesaFormModal({
   const [notas, setNotas] = useState('');
   const [isRecorrente, setIsRecorrente] = useState(initialRecorrente);
   const [periodicidadeMeses, setPeriodicidadeMeses] = useState<number>(1);
+  // Sprint 573: IVA da fatura para o apuramento trimestral.
+  const [iva, setIva] = useState('');
+  const [deducao, setDeducao] = useState(100);
+  const [reverseCharge, setReverseCharge] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,6 +54,9 @@ export function DespesaFormModal({
       setNotas(editing.notas ?? '');
       setIsRecorrente(editing.isRecorrente);
       setPeriodicidadeMeses(editing.periodicidadeMeses ?? 1);
+      setIva(editing.ivaCents != null ? (editing.ivaCents / 100).toFixed(2) : '');
+      setDeducao(editing.deducaoPercent ?? 100);
+      setReverseCharge(!!editing.reverseCharge);
     } else if (open) {
       setDescricao('');
       setCategoria(initialCategoria);
@@ -60,6 +67,9 @@ export function DespesaFormModal({
       setNotas('');
       setIsRecorrente(initialRecorrente);
       setPeriodicidadeMeses(1);
+      setIva('');
+      setDeducao(100);
+      setReverseCharge(false);
     }
     setError(null);
   }, [editing, initialCategoria, open]);
@@ -79,6 +89,9 @@ export function DespesaFormModal({
         isCogs: editing?.isCogs ?? false,
         isRecorrente,
         periodicidadeMeses: isRecorrente ? periodicidadeMeses : null,
+        reverseCharge,
+        ivaCents: reverseCharge ? 0 : iva.trim() ? parseEuros(iva) : null,
+        deducaoPercent: deducao,
       };
       if (editing) {
         return despesasApi.update(editing.id, {
@@ -143,6 +156,32 @@ export function DespesaFormModal({
             <input value={fornecedor} onChange={e => setFornecedor(e.target.value)} className={inputCls} placeholder="ex: Tudo4Mobile" />
           </Field>
         </div>
+        <Field label="IVA da fatura (para o apuramento trimestral)">
+          <div className="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+            <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+              <input type="checkbox" checked={reverseCharge} onChange={e => setReverseCharge(e.target.checked)} />
+              <span>Fornecedor de outro país da UE (fatura sem IVA — autoliquidação)</span>
+            </label>
+            {!reverseCharge && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                <div className="flex gap-2">
+                  <input inputMode="decimal" value={iva} onChange={e => setIva(e.target.value)} placeholder="IVA em € (vazio = por indicar)" className={inputCls} aria-label="IVA da fatura" />
+                  <button type="button" disabled={!valorCents} title="IVA a 23% incluído no valor"
+                    onClick={() => setIva(((valorCents ?? 0) / 100 * 23 / 123).toFixed(2).replace('.', ','))}
+                    className="whitespace-nowrap rounded-lg border border-zinc-300 px-3 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800">23%</button>
+                  <button type="button" onClick={() => setIva('0')}
+                    className="whitespace-nowrap rounded-lg border border-zinc-300 px-3 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">Sem IVA</button>
+                </div>
+                <select value={deducao} onChange={e => setDeducao(Number(e.target.value))} className={inputCls} aria-label="Parte dedutível">
+                  <option value={100}>Dedutível a 100%</option>
+                  <option value={50}>Dedutível a 50% (gasóleo)</option>
+                  <option value={25}>Dedutível a 25%</option>
+                  <option value={0}>Não dedutível</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </Field>
         <Field label="Nº encomenda no fornecedor">
           <input value={numeroEncomenda} onChange={e => setNumeroEncomenda(e.target.value)} className={inputCls} placeholder="opcional — para histórico" />
         </Field>

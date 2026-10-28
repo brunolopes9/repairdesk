@@ -47,4 +47,13 @@ public class Despesa : BaseEntity, ITenantEntity
     /// dedutível em PT). Carimbado na aprovação de fatura a partir de Fornecedor.IntraUe.
     /// </summary>
     public bool ReverseCharge { get; set; }
+
+    /// <summary>
+    /// Sprint 573: IVA que vem na fatura da despesa (em cêntimos). Null = ainda não indicado — o apuramento
+    /// trimestral avisa. Em autoliquidação (ReverseCharge) a fatura vem a 0% e isto fica 0.
+    /// </summary>
+    public int? IvaCents { get; set; }
+
+    /// <summary>Sprint 573: % desse IVA que é dedutível (100 normal; 50 gasóleo; 0 refeições/viatura ligeira…).</summary>
+    public int DeducaoPercent { get; set; } = 100;
 }

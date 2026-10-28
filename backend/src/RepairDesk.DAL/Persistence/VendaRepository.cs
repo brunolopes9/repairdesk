@@ -42,6 +42,15 @@ public class VendaRepository : IVendaRepository
             .OrderBy(v => v.InvoiceEmittedAt ?? v.Data).ThenBy(v => v.Numero)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Venda>> ListParaApuramentoAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        => await _db.Vendas.AsNoTracking()
+            .Include(v => v.Items)
+            .Include(v => v.Cliente)
+            .Where(v => v.Estado != VendaEstado.Cancelada
+                && (v.InvoiceEmittedAt ?? v.Data) >= from && (v.InvoiceEmittedAt ?? v.Data) < to)
+            .OrderBy(v => v.InvoiceEmittedAt ?? v.Data).ThenBy(v => v.Numero)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<Venda>> ListFaturadasSemMoloniAsync(CancellationToken ct = default)
         => await _db.Vendas.Where(v => v.InvoiceNumber != null && v.MoloniDocumentoId == null && v.Estado != VendaEstado.Cancelada).ToListAsync(ct);
 

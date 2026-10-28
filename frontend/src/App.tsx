@@ -26,6 +26,7 @@ const Compras = lazy(() => import('./pages/compras/Compras'));
 const CompraEditor = lazy(() => import('./pages/compras/CompraEditor'));
 const Vendas = lazy(() => import('./pages/vendas/Vendas'));
 const Artigos = lazy(() => import('./pages/artigos/Artigos'));
+const Apuramento = lazy(() => import('./pages/apuramento/Apuramento'));
 const Balcao = lazy(() => import('./pages/balcao/Balcao'));
 const VendaEditor = lazy(() => import('./pages/vendas/VendaEditor'));
 const Auditoria = lazy(() => import('./pages/auditoria/Auditoria'));
@@ -143,6 +144,7 @@ export default function App() {
               <Route path="/reparacoes/:id" element={<Navigate to="/vendas?tipo=1" replace />} />
               <Route path="/trabalhos" element={<Navigate to="/vendas?tipo=2" replace />} />
               <Route path="/despesas" element={<Despesas />} />
+              <Route path="/apuramento" element={<Apuramento />} />
               <Route path="/compras" element={<Compras />} />
               <Route path="/compras/nova" element={<CompraEditor />} />
               <Route path="/compras/:id" element={<CompraEditor />} />

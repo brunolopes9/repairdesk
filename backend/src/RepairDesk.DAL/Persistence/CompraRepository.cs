@@ -87,6 +87,10 @@ public class CompraRepository : ICompraRepository
     public async Task<IReadOnlyList<CompraDocumento>> ListDocumentosAsync(CancellationToken ct = default)
         => await _db.ComprasDocumentos.AsNoTracking().Include(d => d.Fornecedor).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<CompraDocumento>> ListDocumentosPeriodoAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        => await _db.ComprasDocumentos.AsNoTracking().Include(d => d.Fornecedor).Include(d => d.Linhas)
+            .Where(d => d.Data >= from && d.Data < to).OrderBy(d => d.Data).ThenBy(d => d.Numero).ToListAsync(ct);
+
     public async Task<IReadOnlyList<CompraDocumento>> FindCandidatosFaturaAsync(
         Guid fornecedorId, string? numero, string? encomenda, DateTime de, DateTime ate, CancellationToken ct = default)
     {
