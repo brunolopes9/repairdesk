@@ -1123,6 +1123,10 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("Nif")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("Notas")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
@@ -1164,6 +1168,9 @@ namespace RepairDesk.DAL.Migrations
                     b.HasIndex("TenantId", "Name")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "Nif")
+                        .HasFilter("[IsDeleted] = 0 AND [Nif] IS NOT NULL");
 
                     b.ToTable("Fornecedores", (string)null);
                 });

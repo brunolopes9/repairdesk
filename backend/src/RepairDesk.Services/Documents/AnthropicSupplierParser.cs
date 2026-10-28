@@ -50,7 +50,9 @@ public sealed record LlmParseResult(
     int? TotalCents,
     IReadOnlyList<LlmParseItem> Items,
     /// <summary>0..1 confidence reported pelo modelo. Sugestão Bruno revalida sempre.</summary>
-    double Confidence);
+    double Confidence,
+    /// <summary>Sprint 579: NIF / nº de IVA do EMITENTE (não do cliente), tal como lido. Null se não visível.</summary>
+    string? SupplierVatId = null);
 
 public sealed record LlmParseItem(
     string Description,
@@ -216,7 +218,8 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
                     i.Quantity,
                     i.LineTotalCents,
                     i.SupplierSku)).ToList() ?? new(),
-                Confidence: Math.Clamp(parsed.Confidence, 0, 1));
+                Confidence: Math.Clamp(parsed.Confidence, 0, 1),
+                SupplierVatId: parsed.SupplierVatId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || ex is TaskCanceledException)
         {
@@ -369,7 +372,8 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
                     i.Quantity,
                     i.LineTotalCents,
                     i.SupplierSku)).ToList() ?? new(),
-                Confidence: Math.Clamp(parsed.Confidence, 0, 1));
+                Confidence: Math.Clamp(parsed.Confidence, 0, 1),
+                SupplierVatId: parsed.SupplierVatId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || ex is TaskCanceledException)
         {
@@ -418,6 +422,7 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         SCHEMA obrigatório (sem texto fora do JSON):
         {
           "supplierName": "string ou null — nome do fornecedor (B2B emitente)",
+          "supplierVatId": "string ou null — NIF / nº de IVA do EMITENTE da fatura (ex.: PT500000000, DE811234567). NUNCA o NIF do cliente/comprador",
           "orderId": "string ou null — número do documento/encomenda",
           "documentDate": "string ISO yyyy-MM-dd ou null",
           "totalCents": número inteiro em cêntimos com IVA ou null,
@@ -461,7 +466,8 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         DateTime? DocumentDate,
         int? TotalCents,
         List<LlmRawItem>? Items,
-        double Confidence);
+        double Confidence,
+        string? SupplierVatId = null);
 
     private sealed record LlmRawItem(
         string? Description,

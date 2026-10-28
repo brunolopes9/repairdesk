@@ -25,6 +25,8 @@ export interface Fornecedor {
   intraUe: boolean;
   regimeIva: RegimeIva;
   pais: string | null;
+  /** Sprint 579: NIF / nº de IVA — identifica o fornecedor nas faturas importadas. */
+  nif: string | null;
 }
 
 export interface FornecedorWriteRequest {
@@ -38,6 +40,8 @@ export interface FornecedorWriteRequest {
   active: boolean;
   regimeIva?: RegimeIva;
   pais?: string | null;
+  /** null = não mexe; "" = apaga. */
+  nif?: string | null;
 }
 
 /** Sprint 548 (Doc 93 #3): histórico consolidado de um fornecedor. */
@@ -77,6 +81,10 @@ export const fornecedoresApi = {
   },
   update(id: string, req: FornecedorWriteRequest) {
     return api.put<Fornecedor>(`/fornecedores/${id}`, req).then((r) => r.data);
+  },
+  /** Sprint 579: junta o fornecedor repetido (origem) neste — compras, faturas e despesas passam para cá. */
+  fundir(destinoId: string, origemId: string) {
+    return api.post<Fornecedor>(`/fornecedores/${destinoId}/fundir`, { origemId }).then((r) => r.data);
   },
   remove(id: string) {
     return api.delete(`/fornecedores/${id}`).then(() => undefined);

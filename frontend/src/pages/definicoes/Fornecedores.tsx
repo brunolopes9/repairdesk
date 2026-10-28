@@ -19,7 +19,11 @@ const emptyForm: FornecedorWriteRequest = {
   active: true,
   regimeIva: REGIME_IVA.Nacional,
   pais: 'PT',
+  nif: null,
 };
+
+/** Sprint 579: "Hetzner" e "Hetzner Online GmbH" — mesma 1.ª palavra, provável repetido a juntar. */
+const primeiraPalavra = (nome: string) => nome.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim().split(/\s+/)[0] ?? '';
 
 export default function Fornecedores() {
   const qc = useQueryClient();
@@ -54,12 +58,15 @@ export default function Fornecedores() {
       active: f.active,
       regimeIva: f.regimeIva,
       pais: f.pais,
+      nif: f.nif,
     });
+    setJuntar('');
     setOpen(true);
   }
 
   const save = useMutation({
-    mutationFn: () => editing ? fornecedoresApi.update(editing.id, form) : fornecedoresApi.create(form),
+    // Na edição o NIF vai sempre ("" apaga); null no backend significaria "não mexer".
+    mutationFn: () => editing ? fornecedoresApi.update(editing.id, { ...form, nif: form.nif ?? '' }) : fornecedoresApi.create(form),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fornecedores'] });
       setOpen(false);
@@ -77,6 +84,18 @@ export default function Fornecedores() {
     onError: (e) => toast.fromError(e, 'Erro ao remover.'),
   });
 
+  // Sprint 579: juntar um fornecedor repetido no que está a ser editado.
+  const [juntar, setJuntar] = useState('');
+  const fundir = useMutation({
+    mutationFn: () => fornecedoresApi.fundir(editing!.id, juntar),
+    onSuccess: (f) => {
+      qc.invalidateQueries({ queryKey: ['fornecedores'] });
+      setOpen(false);
+      toast.success(`Fornecedores juntos em "${f.name}".`);
+    },
+    onError: (e) => toast.fromError(e, 'Não foi possível juntar.'),
+  });
+
   const { ordem, alternar } = useOrdenacao<'nome' | 'garantia' | 'estado'>('nome', false);
   const items = ordenarLista(list.data ?? [], ordem, {
     nome: (f) => f.name,
@@ -88,6 +107,9 @@ export default function Fornecedores() {
   const intraUeCount = items.filter((f) => f.intraUe).length;
   const rmaCount = items.filter((f) => f.rmaEmail).length;
   const warrantyCount = items.filter((f) => f.garantiaB2BDiasDefault).length;
+  const porPalavra = new Map<string, number>();
+  for (const f of items) porPalavra.set(primeiraPalavra(f.name), (porPalavra.get(primeiraPalavra(f.name)) ?? 0) + 1);
+  const repetido = (f: Fornecedor) => (porPalavra.get(primeiraPalavra(f.name)) ?? 0) > 1;
 
   const rail = (
     <InspectorRail>
@@ -175,7 +197,16 @@ export default function Fornecedores() {
                             UE
                           </span>
                         )}
+                        {repetido(f) && (
+                          <span
+                            className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                            title="Há outro fornecedor com nome parecido — se é o mesmo, abre-o e usa «Juntar»"
+                          >
+                            repetido?
+                          </span>
+                        )}
                       </div>
+                      {f.nif && <div className="mt-0.5 text-[11px] tabular-nums text-zinc-500">NIF {f.nif}</div>}
                       {f.website && (
                         <a
                           href={f.website}
@@ -245,6 +276,13 @@ export default function Fornecedores() {
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-zinc-500">Nome *</span>
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="Tudo4Mobile" required />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-zinc-500">
+              NIF / nº de IVA
+              <span className="ml-1 text-[10px] text-zinc-400">— as faturas deste fornecedor são reconhecidas por ele</span>
+            </span>
+            <input value={form.nif ?? ''} onChange={(e) => setForm({ ...form, nif: e.target.value || null })} className={inputCls} placeholder="PT500000000 · DE811234567" />
           </label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
@@ -316,6 +354,35 @@ export default function Fornecedores() {
             <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
             Activo (aparece em sugestões/autocomplete)
           </label>
+          {editing && (
+            <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+              <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">Juntar um fornecedor repetido neste</p>
+              <p className="mt-0.5 text-[11px] text-zinc-500">
+                As compras, faturas e despesas do escolhido passam para «{editing.name}» e o repetido desaparece.
+              </p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <select value={juntar} onChange={(e) => setJuntar(e.target.value)} className={inputCls} aria-label="Fornecedor repetido">
+                  <option value="">Escolhe o repetido…</option>
+                  {(list.data ?? [])
+                    .filter((f) => f.id !== editing.id)
+                    .sort((a, b) => Number(primeiraPalavra(b.name) === primeiraPalavra(editing.name)) - Number(primeiraPalavra(a.name) === primeiraPalavra(editing.name)) || a.name.localeCompare(b.name))
+                    .map((f) => <option key={f.id} value={f.id}>{f.name}{f.nif ? ` · ${f.nif}` : ''}</option>)}
+                </select>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!juntar || fundir.isPending}
+                  loading={fundir.isPending}
+                  onClick={() => {
+                    const origem = list.data?.find((f) => f.id === juntar);
+                    if (origem && confirm(`Juntar «${origem.name}» em «${editing.name}»? Não dá para desfazer.`)) fundir.mutate();
+                  }}
+                >
+                  Juntar
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button type="submit" disabled={!form.name.trim() || save.isPending}>{editing ? 'Guardar' : 'Criar'}</Button>

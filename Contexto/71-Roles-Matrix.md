@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:4c863baebca8a616 -->
+<!-- roles-matrix-snapshot:5d746eb7166be4af -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -32,6 +32,7 @@ testes e esta matriz com snapshot.
 | VendasController (S557/S559) | `GET/POST/PUT /api/vendas*`, `POST /{id}/estado`, `PUT /{id}/fatura`, PDFs (`orcamento`, `entrada`, `entrega`, `label`, `recibo`), `GET/POST /{id}/assinaturas`, fotos `/api/vendas/{id}/fotos`, `export.csv` | `Authenticated`; `estado = Cancelada` (repõe stock) só `Admin` (verificado na action); `PUT /{id}/corrigir-precos` (S563) `Admin`; `POST /importar-fatura` (S565) `Admin`; `GET /{id}/fatura.pdf`, `GET /{id}/talao.pdf` (S569) e `GET /faturas/export` (S565) `Authenticated`; `POST /{id}/moloni/{emitir,recibo,orcamento}` e `GET /{id}/moloni/{doc}.pdf` (S567) `Authenticated`; `POST /{id}/moloni/anular` (S567) `Admin` |
 | MoloniController (S567/S568) | `GET /api/moloni/estado`, `GET /documentos`, `GET /documentos/{tipo}/{id}.pdf`, `POST /documentos/Fatura/{id}/recibo`, `GET /artigos`, `GET /referencias` | `Authenticated`; `PUT`/`DELETE /api/moloni`, `POST /documentos/{tipo}/{id}/anular`, `POST`/`PUT`/`DELETE /artigos`, `POST /clientes/importar`, `POST /vendas/ligar` `Admin` |
 | ApuramentoController (S573/S576) | `GET /api/apuramento?ano=&trimestre=`, `PUT /pressupostos`, `POST`/`DELETE /fecho` | `Admin` |
+| FornecedoresController (S579) | `POST /api/fornecedores/{id}/fundir` (juntar fornecedor repetido) | `Admin` |
 | ArtigosController (S566) | `GET/POST/PUT /api/artigos*`, `GET /codigo/{codigo}`, `DELETE /{id}/lotes/{loteId}`, `POST /etiquetas.pdf`, `POST /balcao/vender`, `GET /sugestoes`, `POST /em-lote` (S569), `GET /categorias` (S570) | `Authenticated` (operacional: Admin e Empregado); `PUT /categorias` (S570) `Admin` |
 | PublicPortalController / PublicWarrantyController | `GET/POST /api/public/*` | `Anonymous` + rate limit `public-portal` |
 | ServiceApiKeysController | `GET/POST /api/service-keys*` | `Admin` |

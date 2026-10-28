@@ -12,6 +12,12 @@ public interface IFornecedorRepository
     Task SaveAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Sprint 579: passa para o destino tudo o que aponta para a origem (compras, faturas importadas, e as
+    /// despesas/linhas de venda que guardam o nome). Não grava — o chamador faz SaveAsync.
+    /// </summary>
+    Task<FornecedorFusao> MoverReferenciasAsync(Fornecedor origem, Fornecedor destino, CancellationToken ct = default);
+
+    /// <summary>
     /// Sprint 548 (Doc 93 #3): histórico consolidado de UM fornecedor — o "Histórico de
     /// Fornecedores" do Moloni, mas com tudo o que o Mender sabe: compras de stock (entradas
     /// × custo, match por Part.Fornecedor — string snapshot, como o Top Fornecedores do
@@ -21,6 +27,9 @@ public interface IFornecedorRepository
     /// </summary>
     Task<FornecedorHistorico?> GetHistoricoAsync(Guid id, CancellationToken ct = default);
 }
+
+/// <summary>Sprint 579: o que mudou de fornecedor numa fusão.</summary>
+public sealed record FornecedorFusao(int Compras, int Faturas, int Despesas, int LinhasVenda);
 
 /// <summary>Sprint 548: snapshot consolidado de um fornecedor.</summary>
 public sealed record FornecedorHistorico(

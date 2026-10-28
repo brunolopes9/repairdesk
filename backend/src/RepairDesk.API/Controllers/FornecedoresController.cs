@@ -43,6 +43,12 @@ public class FornecedoresController : ControllerBase
     public Task<FornecedorDto> Update(Guid id, [FromBody] FornecedorWriteRequest req, CancellationToken ct)
         => _service.UpdateAsync(id, req, ct);
 
+    // Sprint 579: junta um fornecedor repetido (origemId) neste — compras, faturas e despesas passam para cá.
+    [HttpPost("{id:guid}/fundir")]
+    [Authorize(Roles = "Admin")]
+    public Task<FornecedorDto> Fundir(Guid id, [FromBody] FundirFornecedorRequest req, CancellationToken ct)
+        => _service.FundirAsync(id, req.OrigemId, ct);
+
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
@@ -51,3 +57,5 @@ public class FornecedoresController : ControllerBase
         return NoContent();
     }
 }
+
+public sealed record FundirFornecedorRequest(Guid OrigemId);

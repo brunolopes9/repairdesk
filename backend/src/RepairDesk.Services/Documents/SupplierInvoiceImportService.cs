@@ -6,6 +6,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.Fornecedores;
 
 namespace RepairDesk.Services.Documents;
 
@@ -139,6 +140,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
     private readonly IAnthropicSupplierParser _llmParser;
     private readonly IAuditLogger _audit;
     private readonly ILogger<SupplierInvoiceImportService> _logger;
+    private readonly ITenantRepository? _tenants;
 
     public SupplierInvoiceImportService(
         ISupplierInvoiceImportRepository repo,
@@ -149,8 +151,10 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         ISupplierFingerprintingService fingerprinting,
         IAnthropicSupplierParser llmParser,
         IAuditLogger audit,
-        ILogger<SupplierInvoiceImportService> logger)
+        ILogger<SupplierInvoiceImportService> logger,
+        ITenantRepository? tenants = null)
     {
+        _tenants = tenants;
         _repo = repo;
         _tenant = tenant;
         _fornecedores = fornecedores;
@@ -229,8 +233,17 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         //   b) Sprint 162: supplier fingerprinting determinístico via emailMeta + first chars do PDF
         //      (cobre fornecedores conhecidos sem parser específico — Utopya, MobileSentrix, Mr.Phones, etc).
         //   c) Sprint 163 (futuro): LLM fallback se ainda nada detectado.
+        // Sprint 579: antes de tudo, o NIF do emitente — um fornecedor conhecido cujo NIF está na fatura é
+        // ele, chame-se a fatura "Hetzner" ou "Hetzner Online GmbH".
         Guid? fornecedorId = null;
         var fornecedorNameRaw = parsed?.SupplierName;
+        var nifProprio = await NifProprioAsync(tenantId, ct);
+        if (await PorNifAsync(rawText, null, nifProprio, ct) is { } porNif)
+        {
+            fornecedorId = porNif.Id;
+            fornecedorNameRaw = porNif.Name;
+        }
+        string? nifLlm = null;
         if (string.IsNullOrWhiteSpace(fornecedorNameRaw))
         {
             // Fingerprinting (b): só tenta se o parser específico falhou.
@@ -264,6 +277,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             {
                 _logger.LogInformation("LLM parser extraiu {Count} items confidence={Conf:F2}",
                     llm.Items.Count, llm.Confidence);
+                nifLlm = llm.SupplierVatId;
                 // Promove resultado LLM para parsed se ainda vazio.
                 parsed = new SupplierPdfParseResult(
                     SupplierName: parsed?.SupplierName ?? llm.SupplierName ?? fornecedorNameRaw,
@@ -288,6 +302,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // Sprint 526: garante Fornecedor ligado (find-or-create). Antes, imports de fornecedores
         // novos (ex: Utopya) ficavam órfãos — não apareciam na lista nem podiam ser marcados intra-UE.
         fornecedorId = await ResolveOrCreateFornecedorIdAsync(fornecedorId, fornecedorNameRaw, tenantId, ct);
+        await AprenderNifAsync(fornecedorId, NifFornecedor.DoEmitente(rawText, nifProprio) ?? nifLlm, nifProprio, ct);
 
         // 4. Save to filesystem with organized layout.
         // Sprint 171: validation rules pós-parse — rebaixa confidence se totais não batem etc.
@@ -400,11 +415,19 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         var fp = await _fingerprinting.DetectAsync(emailMeta: null, pdfText: llm?.SupplierName, filename: fileName, ct);
         var fornecedorNameRaw = llm?.SupplierName ?? fp.Name ?? fornecedorHint;
         Guid? fornecedorId = fp.FornecedorId;
+        // Sprint 579: o NIF do emitente lido na foto identifica o fornecedor antes do nome.
+        var nifProprio = await NifProprioAsync(tenantId, ct);
+        if (await PorNifAsync(null, llm?.SupplierVatId, nifProprio, ct) is { } porNif)
+        {
+            fornecedorId = porNif.Id;
+            fornecedorNameRaw = porNif.Name;
+        }
         if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
         {
             var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
             fornecedorId = existingForn?.Id;
         }
+        await AprenderNifAsync(fornecedorId, llm?.SupplierVatId, nifProprio, ct);
 
         var supplierSlug = fornecedorNameRaw ?? "foto-papel";
         var docDate = llm?.DocumentDate ?? DateTime.UtcNow;
@@ -664,6 +687,13 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 
         Guid? fornecedorId = null;
         var fornecedorNameRaw = parsed?.SupplierName;
+        var nifProprio = await NifProprioAsync(tenantId, ct);
+        if (await PorNifAsync(rawText, null, nifProprio, ct) is { } porNif)
+        {
+            fornecedorId = porNif.Id;
+            fornecedorNameRaw = porNif.Name;
+        }
+        string? nifLlm = null;
         if (string.IsNullOrWhiteSpace(fornecedorNameRaw))
         {
             var pdfFirstChars = rawText is { Length: > 500 } ? rawText[..500] : rawText;
@@ -699,6 +729,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                         Quantity: i.Quantity,
                         LineTotalCents: i.LineTotalCents)).ToList());
                 if (string.IsNullOrWhiteSpace(fornecedorNameRaw)) fornecedorNameRaw = llm.SupplierName;
+                nifLlm = llm.SupplierVatId;
             }
         }
 
@@ -709,7 +740,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 
         // Sprint 526: find-or-create fornecedor também no reprocess (re-corre importações órfãs).
         fornecedorId = await ResolveOrCreateFornecedorIdAsync(fornecedorId, fornecedorNameRaw, tenantId, ct);
-        reprocessWarnings = [.. reprocessWarnings, .. await AvisosFornecedorAsync(fornecedorId, fornecedorNameRaw, ct)];
+        await AprenderNifAsync(fornecedorId, NifFornecedor.DoEmitente(rawText, nifProprio) ?? nifLlm, nifProprio, ct);
+        reprocessWarnings =[.. reprocessWarnings, .. await AvisosFornecedorAsync(fornecedorId, fornecedorNameRaw, ct)];
 
         // Update in-place.
         entity.FornecedorNameRaw = fornecedorNameRaw;
@@ -874,6 +906,46 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         return f is not null && f.RegimeIva == RegimeIvaFornecedor.Nacional
             ? [$"O fornecedor \"{f.Name}\" está registado como nacional, mas é da UE — muda o regime para \"UE — autoliquidação\" em Definições → Fornecedores antes de criar a compra."]
             : [];
+    }
+
+    /// <summary>Sprint 579: o NIF do próprio negócio — aparece em todas as faturas como cliente, nunca é o emitente.</summary>
+    private async Task<string?> NifProprioAsync(Guid tenantId, CancellationToken ct)
+        => _tenants is null ? null : (await _tenants.FindByIdAsync(tenantId, ct))?.Nif;
+
+    /// <summary>
+    /// Sprint 579: fornecedor conhecido identificado pelo NIF — o lido pelo LLM (foto) ou, num PDF, o que
+    /// aparece no texto. Null se nenhum ou ambíguo (aí decide o nome, como antes).
+    /// </summary>
+    private async Task<Fornecedor?> PorNifAsync(string? texto, string? nifEmitente, string? nifProprio, CancellationToken ct)
+    {
+        var conhecidos = (await _fornecedores.ListByTenantAsync(includeInactive: true, ct)).Where(f => f.Nif is not null).ToList();
+        if (conhecidos.Count == 0) return null;
+        if (NifFornecedor.Chave(nifEmitente) is { } chave)
+            return chave == NifFornecedor.Chave(nifProprio) ? null
+                : conhecidos.FirstOrDefault(f => NifFornecedor.Chave(f.Nif) == chave);
+        return NifFornecedor.Encontrar(conhecidos, texto, nifProprio);
+    }
+
+    /// <summary>
+    /// Sprint 579: o fornecedor ainda sem NIF aprende-o da fatura (só se plausível, não for o do próprio
+    /// negócio e nenhum outro fornecedor o tiver — aí são repetidos para juntar, não se adivinha).
+    /// </summary>
+    private async Task AprenderNifAsync(Guid? fornecedorId, string? nif, string? nifProprio, CancellationToken ct)
+    {
+        if (fornecedorId is not { } id || !NifFornecedor.Plausivel(nif)) return;
+        var chave = NifFornecedor.Chave(nif);
+        if (chave == NifFornecedor.Chave(nifProprio)) return;
+        var f = await _fornecedores.FindByIdAsync(id, ct);
+        if (f is null || f.Nif is not null) return;
+        var outros = await _fornecedores.ListByTenantAsync(includeInactive: true, ct);
+        if (outros.Any(o => o.Id != id && NifFornecedor.Chave(o.Nif) == chave))
+        {
+            _logger.LogInformation("NIF {Nif} já pertence a outro fornecedor — {Name} fica sem NIF (repetido a juntar)", chave, f.Name);
+            return;
+        }
+        f.Nif = NifFornecedor.Normalizar(nif);
+        await _fornecedores.SaveAsync(ct);
+        _logger.LogInformation("Fornecedor {Name} aprendeu o NIF {Nif} da fatura", f.Name, f.Nif);
     }
 
     private async Task<Guid?> ResolveOrCreateFornecedorIdAsync(Guid? currentId, string? nameRaw, Guid tenantId, CancellationToken ct)

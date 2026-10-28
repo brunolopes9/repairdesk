@@ -20,6 +20,9 @@ public class FornecedorConfiguration : IEntityTypeConfiguration<Fornecedor>
         builder.Property(x => x.Website).HasMaxLength(300);
         builder.Property(x => x.Notas).HasMaxLength(2000);
         builder.Property(x => x.Pais).HasMaxLength(2);
+        // Sprint 579: identidade fiscal. Unicidade validada no serviço (sem o prefixo do país).
+        builder.Property(x => x.Nif).HasMaxLength(20);
+        builder.HasIndex(x => new { x.TenantId, x.Nif }).HasFilter("[IsDeleted] = 0 AND [Nif] IS NOT NULL");
         builder.Property(x => x.RegimeIva).HasConversion<int>();
         builder.Ignore(x => x.IntraUe);
 

@@ -71,6 +71,14 @@ public class Fornecedor : BaseEntity, ITenantEntity
     /// <summary>País do fornecedor (ISO 3166-1 alpha-2, ex.: "PT", "NL", "FR").</summary>
     public string? Pais { get; set; }
 
+    /// <summary>
+    /// Sprint 579: NIF / nº de IVA do fornecedor, normalizado (maiúsculas, sem espaços nem pontos —
+    /// "PT500000000", "LU26920569", "NL861081961B01"). É a identidade fiscal: as faturas importadas são
+    /// reconhecidas pelo NIF do emitente antes do nome ("Hetzner" e "Hetzner Online GmbH" são o mesmo).
+    /// Único por tenant, comparado sem o prefixo do país (ver NifFornecedor.Chave).
+    /// </summary>
+    public string? Nif { get; set; }
+
     /// <summary>Atalho: compras intra-UE em autoliquidação (carimba ReverseCharge nas despesas/movimentos).</summary>
     public bool IntraUe => RegimeIva == RegimeIvaFornecedor.UeAutoliquidacao;
 

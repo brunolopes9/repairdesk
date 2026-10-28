@@ -36,6 +36,20 @@ public class FornecedorRepository : IFornecedorRepository
 
     public Task SaveAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 
+    public async Task<FornecedorFusao> MoverReferenciasAsync(Fornecedor origem, Fornecedor destino, CancellationToken ct = default)
+    {
+        var compras = await _db.ComprasDocumentos.Where(d => d.FornecedorId == origem.Id).ToListAsync(ct);
+        foreach (var d in compras) d.FornecedorId = destino.Id;
+        var faturas = await _db.SupplierInvoiceImports.Where(i => i.FornecedorId == origem.Id).ToListAsync(ct);
+        foreach (var i in faturas) i.FornecedorId = destino.Id;
+        // Despesas e linhas de venda guardam o nome (texto) — o histórico do fornecedor junta-as por nome.
+        var despesas = await _db.Despesas.Where(d => d.Fornecedor == origem.Name).ToListAsync(ct);
+        foreach (var d in despesas) d.Fornecedor = destino.Name;
+        var linhas = await _db.VendaItems.Where(v => v.FornecedorNome == origem.Name).ToListAsync(ct);
+        foreach (var v in linhas) v.FornecedorNome = destino.Name;
+        return new FornecedorFusao(compras.Count, faturas.Count, despesas.Count, linhas.Count);
+    }
+
     public async Task<FornecedorHistorico?> GetHistoricoAsync(Guid id, CancellationToken ct = default)
     {
         var f = await _db.Fornecedores.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);

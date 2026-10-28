@@ -11,6 +11,8 @@ public interface IFornecedorService
     Task<FornecedorDto> CreateAsync(FornecedorWriteRequest req, CancellationToken ct = default);
     Task<FornecedorDto> UpdateAsync(Guid id, FornecedorWriteRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Sprint 579: junta um fornecedor repetido (origem) noutro (destino) — compras, faturas e despesas passam para o destino.</summary>
+    Task<FornecedorDto> FundirAsync(Guid destinoId, Guid origemId, CancellationToken ct = default);
 }
 
 public sealed record FornecedorDto(
@@ -28,7 +30,8 @@ public sealed record FornecedorDto(
     // Sprint 525: fornecedor intra-UE (autoliquidação) — compras não geram IVA dedutível em PT.
     bool IntraUe = false,
     RegimeIvaFornecedor RegimeIva = RegimeIvaFornecedor.Nacional,
-    string? Pais = null);
+    string? Pais = null,
+    string? Nif = null);
 
 public sealed record FornecedorWriteRequest(
     string Name,
@@ -42,7 +45,9 @@ public sealed record FornecedorWriteRequest(
     bool IntraUe = false,
     // Regime de IVA explícito; quando null, deriva de IntraUe (clientes antigos).
     RegimeIvaFornecedor? RegimeIva = null,
-    string? Pais = null);
+    string? Pais = null,
+    /// <summary>Sprint 579: NIF / nº de IVA. Null = não mexe (clientes antigos); "" = apaga.</summary>
+    string? Nif = null);
 
 public class FornecedorService : IFornecedorService
 {
@@ -86,6 +91,7 @@ public class FornecedorService : IFornecedorService
             Active = req.Active,
             RegimeIva = ResolveRegime(req),
             Pais = CleanPais(req.Pais),
+            Nif = await NifLivreAsync(req.Nif, null, ct),
         };
         await _repo.AddAsync(entity, ct);
         await _repo.SaveAsync(ct);
@@ -117,6 +123,7 @@ public class FornecedorService : IFornecedorService
         entity.Active = req.Active;
         entity.RegimeIva = ResolveRegime(req);
         entity.Pais = CleanPais(req.Pais);
+        if (req.Nif is not null) entity.Nif = await NifLivreAsync(req.Nif, entity.Id, ct);
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(Fornecedor), entity.Id, new { entity.Name, entity.Active }, ct: ct);
         return ToDto(entity);
@@ -129,6 +136,58 @@ public class FornecedorService : IFornecedorService
         _repo.Remove(entity);
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Delete, nameof(Fornecedor), id, new { entity.Name }, ct: ct);
+    }
+
+    public async Task<FornecedorDto> FundirAsync(Guid destinoId, Guid origemId, CancellationToken ct = default)
+    {
+        if (destinoId == origemId)
+            throw new ValidationException("fundir_mesmo", "Escolhe dois fornecedores diferentes.");
+        var destino = await _repo.FindByIdAsync(destinoId, ct) ?? throw new NotFoundException("Fornecedor", destinoId);
+        var origem = await _repo.FindByIdAsync(origemId, ct) ?? throw new NotFoundException("Fornecedor", origemId);
+        var chaveDestino = NifFornecedor.Chave(destino.Nif);
+        var chaveOrigem = NifFornecedor.Chave(origem.Nif);
+        if (chaveDestino is not null && chaveOrigem is not null && chaveDestino != chaveOrigem)
+            throw new ConflictException("nif_diferente",
+                $"\"{destino.Name}\" ({destino.Nif}) e \"{origem.Name}\" ({origem.Nif}) têm NIFs diferentes — não são o mesmo fornecedor.");
+
+        // O destino fica com o que lhe faltar da origem (NIF, contactos, país, regras aprendidas).
+        destino.Nif ??= origem.Nif;
+        destino.Email ??= origem.Email;
+        destino.RmaEmail ??= origem.RmaEmail;
+        destino.Phone ??= origem.Phone;
+        destino.Website ??= origem.Website;
+        destino.Pais ??= origem.Pais;
+        destino.GarantiaB2BDiasDefault ??= origem.GarantiaB2BDiasDefault;
+        destino.DefaultDespesaCategoria ??= origem.DefaultDespesaCategoria;
+        if (destino.RegimeIva == RegimeIvaFornecedor.Nacional && origem.RegimeIva != RegimeIvaFornecedor.Nacional)
+            destino.RegimeIva = origem.RegimeIva;
+        if (origem.Notas is not null && destino.Notas?.Contains(origem.Notas) != true)
+            destino.Notas = destino.Notas is null ? origem.Notas : $"{destino.Notas}\n{origem.Notas}";
+        if (destino.Notas?.Length > 2000) destino.Notas = destino.Notas[..2000];
+
+        var movidos = await _repo.MoverReferenciasAsync(origem, destino, ct);
+        origem.Nif = null; // liberta o NIF (o apagado continua na BD com soft-delete)
+        _repo.Remove(origem);
+        await _repo.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Fornecedor), destino.Id,
+            new { operation = "fornecedor_fundir", origem = origem.Name, origemId, movidos }, ct: ct);
+        return ToDto(destino);
+    }
+
+    /// <summary>Sprint 579: NIF normalizado e livre (nenhum outro fornecedor o tem, ignorando o prefixo do país).</summary>
+    private async Task<string?> NifLivreAsync(string? nif, Guid? proprioId, CancellationToken ct)
+    {
+        var n = NifFornecedor.Normalizar(nif);
+        if (n is null) return null;
+        if (!NifFornecedor.Plausivel(n))
+            throw new ValidationException("nif_invalido", "NIF / nº de IVA inválido (ex.: PT500000000, ES B12345678, DE811234567).");
+        var chave = NifFornecedor.Chave(n);
+        var outro = (await _repo.ListByTenantAsync(includeInactive: true, ct))
+            .FirstOrDefault(f => f.Id != proprioId && NifFornecedor.Chave(f.Nif) == chave);
+        if (outro is not null)
+            throw new ConflictException("nif_ja_existe",
+                $"O fornecedor \"{outro.Name}\" já tem este NIF — se é o mesmo, junta os dois em vez de repetir.");
+        return n;
     }
 
     private static string Validate(FornecedorWriteRequest req)
@@ -164,5 +223,5 @@ public class FornecedorService : IFornecedorService
     }
 
     private static FornecedorDto ToDto(Fornecedor f) =>
-        new(f.Id, f.Name, f.Code, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt, f.IntraUe, f.RegimeIva, f.Pais);
+        new(f.Id, f.Name, f.Code, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt, f.IntraUe, f.RegimeIva, f.Pais, f.Nif);
 }
