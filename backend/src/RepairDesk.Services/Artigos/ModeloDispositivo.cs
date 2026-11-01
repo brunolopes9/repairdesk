@@ -103,7 +103,7 @@ public static partial class ModeloDispositivo
     [GeneratedRegex(@"\b(?:Apple\s+iPhone|iPhone|iph(?=\s)|Samsung|Galaxy|Xiaomi|Redmi|Poco|Oppo|Huawei|Honor|Realme|Motorola|Moto\s+[EG]\d|OnePlus|Google\s+Pixel|Pixel\s+\d|Nokia|Vivo|Microsoft\s+Surface|iPad)\b", RegexOptions.IgnoreCase)]
     private static partial Regex MarcaRegex();
 
-    [GeneratedRegex(@"\s+-\s+|\s*\(|\s+(?:With|Display|Battery|Full\s+Front|Tempered|Glass|Screen)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\s+-\s+|\s*\(|\s+(?:With|Display|Battery|Full\s+Front|Tempered|Glass|Screen|telem[oó]vel|pantalla|marco|\d+(?:[.,]\d+)?\s*inch)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Cauda();
 
     [GeneratedRegex(@"\b(?:For|Black\s+OEM|OEM)\b", RegexOptions.IgnoreCase)]
