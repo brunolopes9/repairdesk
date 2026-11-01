@@ -117,7 +117,9 @@ public sealed record InventarioLinhaDto(
     Guid? ArtigoId = null,
     string? ArtigoSku = null,
     /// <summary>Sprint 570: preço de venda do artigo (próprio ou da categoria) — o editor de vendas propõe este.</summary>
-    decimal? PrecoVendaArtigo = null);
+    decimal? PrecoVendaArtigo = null,
+    /// <summary>Sprint 585: texto proposto para a linha da venda/fatura, em português ("Ecrã iPhone 14 Pro Max").</summary>
+    string? TextoVenda = null);
 
 public sealed record ResumoColunaDto(
     int Unidades,

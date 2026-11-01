@@ -131,6 +131,8 @@ export interface InventarioLinha {
   artigoSku: string | null;
   /** Sprint 570: preço de venda do artigo (próprio ou da categoria) — o editor de vendas propõe este. */
   precoVendaArtigo: number | null;
+  /** Sprint 585: texto proposto para a fatura ao cliente, em português ("Ecrã iPhone 14 Pro Max"). */
+  textoVenda?: string | null;
 }
 
 export interface ResumoColuna {

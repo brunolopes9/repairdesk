@@ -227,7 +227,7 @@ public class CompraService : ICompraService
             return new InventarioLinhaDto(
                 l.Id, l.Numero, doc.Id, doc.Fornecedor?.Name ?? "—", doc.Data, Referencia(doc), doc.FaturaEmFalta,
                 l.Descricao, l.Localizacao, q, l.PrecoUnitarioPago,
-                q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado, l.TaxaIvaCompra, l.ArtigoId, l.Artigo?.Sku, PrecoArtigo(l) is { } pa ? pa / 100m : null);
+                q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado, l.TaxaIvaCompra, l.ArtigoId, l.Artigo?.Sku, PrecoArtigo(l) is { } pa ? pa / 100m : null, TextoVenda(l));
         }).ToList();
     }
 
@@ -406,6 +406,20 @@ public class CompraService : ICompraService
                 linha.ArtigoId = porSku;
             }
         }
+    }
+
+    /// <summary>
+    /// Sprint 585: o que a linha da venda diz ao cliente (português): artigo agrupado → "Película… – modelo"; artigo →
+    /// o nome na fatura; peça de reparação → "Ecrã iPhone 14 Pro Max". A descrição do fornecedor fica no lote.
+    /// </summary>
+    private static string TextoVenda(CompraLinha l)
+    {
+        if (l.Artigo is { } a)
+        {
+            var nome = string.IsNullOrWhiteSpace(a.NomeFatura) ? a.Nome : a.NomeFatura;
+            return a.Agrupado ? Artigos.ModeloDispositivo.TextoFatura(nome, l.Descricao) : nome;
+        }
+        return Artigos.ModeloDispositivo.NomePeca(l.Descricao) ?? l.Descricao;
     }
 
     private static CalculoUnidade Calc(CompraLinha l)

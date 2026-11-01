@@ -48,6 +48,31 @@ public static partial class ModeloDispositivo
     }
 
     /// <summary>
+    /// Sprint 585: nome em português de uma peça de reparação para a fatura ao cliente, a partir da descrição do
+    /// fornecedor: "PIXDURA For Apple iPhone 14 Display And Digitizer…" → "Ecrã iPhone 14". Null se não se
+    /// reconhece o tipo de peça ou o modelo (fica a descrição, para editar à mão).
+    /// </summary>
+    public static string? NomePeca(string? descricao)
+    {
+        if (string.IsNullOrWhiteSpace(descricao)) return null;
+        var tipo = TiposPeca.FirstOrDefault(t => t.Regex.IsMatch(descricao)).Nome;
+        if (tipo is null || Extrair(descricao, feminino: tipo is "Bateria" or "Tampa traseira" or "Câmara" or "Moldura") is not { } modelo) return null;
+        return $"{tipo} {modelo}";
+    }
+
+    // A ordem importa: "Battery Cover" é tampa, não bateria; "Charging Port Flex" é conector.
+    private static readonly (string Nome, Regex Regex)[] TiposPeca =
+    [
+        ("Tampa traseira", new Regex(@"battery\s+cover|back\s*(?:cover|glass|housing)|housing|tampa|carcasa|tapa\s+trasera|rear\s+cover", RegexOptions.IgnoreCase)),
+        ("Conector de carga", new Regex(@"charging|dock|conector|charge\s+port|placa\s+de\s+carga", RegexOptions.IgnoreCase)),
+        ("Ecrã", new Regex(@"display|lcd|oled|digitizer|screen|pantalla|ecr[ãa]|\btouch\b", RegexOptions.IgnoreCase)),
+        ("Bateria", new Regex(@"battery|bater[ií]a", RegexOptions.IgnoreCase)),
+        ("Câmara", new Regex(@"camera|c[aâ]mara", RegexOptions.IgnoreCase)),
+        ("Altifalante", new Regex(@"speaker|altifalante|ringer|buzzer", RegexOptions.IgnoreCase)),
+        ("Moldura", new Regex(@"\bframe\b|moldura", RegexOptions.IgnoreCase)),
+    ];
+
+    /// <summary>
     /// Sprint 583: a linha sairia só com o nome do artigo ("Película vidro") — o balcão pede o modelo à mão para a fatura
     /// (e a garantia) dizerem sempre para que telemóvel é.
     /// </summary>

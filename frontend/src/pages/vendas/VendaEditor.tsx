@@ -215,7 +215,8 @@ export default function VendaEditor() {
       key: crypto.randomUUID(),
       id: null,
       compraLinhaId: lote.linhaId,
-      descricao: lote.descricao,
+      // Sprint 585: o que sai na fatura, em português ("Ecrã iPhone 14 Pro Max") — editável; o texto do fornecedor fica no lote.
+      descricao: lote.textoVenda ?? lote.descricao,
       quantidade: '1',
       // Sprint 570: lote de um artigo → preço do artigo (próprio ou da categoria, ex.: películas a 15 €).
       preco: fmt2(semIva ? (lote.precoVendaArtigo ?? lote.precoFinalComIva) / (1 + IVA_NORMAL / 100) : (lote.precoVendaArtigo ?? lote.precoFinalComIva)),

@@ -39,4 +39,14 @@ public class ModeloDispositivoTests
         ModeloDispositivo.PrecisaModelo("Cabo", "CABO HOCO X88 LIGHTNING 2M BRANCO").Should().BeFalse("a descrição já diz o produto");
         ModeloDispositivo.TextoFatura("Película vidro", "VIDRO TEMPERADO NORMAL", "iPhone 12").Should().Be("Película vidro – iPhone 12");
     }
+
+    [Theory]
+    [InlineData("PIXDURA For Apple iPhone 14 Display And Digitizer In-Cell Premium (IC Removable) (60Hz)", "Ecrã iPhone 14")]
+    [InlineData("For Apple iPhone 14 Pro Max Display And Digitizer Soft-OLED (Run Diagnostics)", "Ecrã iPhone 14 Pro Max")]
+    [InlineData("Xiaomi Mi A3 M1906F9SH, M1906F9SI - Battery Cover with Adhesive Kind of Gray", "Tampa traseira Xiaomi Mi A3 M1906F9SH / M1906F9SI")]
+    [InlineData("Samsung Galaxy A13 (2022) A137 - Dock Charging Connector Board < Service Pack >", "Conector de carga Samsung Galaxy A13")]
+    [InlineData("iPhone 15 - Battery A3018 3349mAh 12.981Wh (NO Error, Run Diagnostics)", "Bateria iPhone 15")]
+    [InlineData("Touch e lcd para iph 11 preto", "Ecrã iPhone 11 preto")]
+    [InlineData("Amaoe - BGA Reballing Stencil With CPU Position For iPhone 12", null)]
+    public void NomePeca(string descricao, string? esperado) => ModeloDispositivo.NomePeca(descricao).Should().Be(esperado);
 }
