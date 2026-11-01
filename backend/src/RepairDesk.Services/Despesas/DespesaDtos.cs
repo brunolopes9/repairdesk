@@ -54,6 +54,8 @@ public sealed record DespesaDto(
     int? PeriodicidadeMeses,
     int? IvaCents = null,
     int DeducaoPercent = 100,
-    bool ReverseCharge = false);
+    bool ReverseCharge = false,
+    /// <summary>Sprint 584: nº visível (sequencial por empresa).</summary>
+    int Numero = 0);
 
 

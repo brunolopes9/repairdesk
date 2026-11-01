@@ -72,6 +72,14 @@ public class ArtigosAgrupadosTests : IClassFixture<RepairDeskApiFactory>
         var previa = await Post<List<BalcaoLinhaPreviaDto>>(client, "/api/artigos/balcao/previsualizar",
             new BalcaoVendaRequest([new BalcaoLinhaRequest(a.Id, 1, null, xr)], PaymentMethod.Dinheiro));
         previa.Single().Descricao.Should().Be($"{a.Nome} – iPhone XR / 11");
+
+        // Nome na fatura em português (o Nome no Mender fica como o fornecedor o chama).
+        var det = (await client.GetFromJsonAsync<ArtigoDetalheDto>($"/api/artigos/{a.Id}"))!.Artigo;
+        (await client.PutAsJsonAsync($"/api/artigos/{a.Id}", new ArtigoWriteRequest("Full Curved Edge Tempered Glass", det.Categoria, det.PrecoVendaCents, null, null, null, null, true,
+            NomeFatura: "Película de vidro temperado com borda preta"))).EnsureSuccessStatusCode();
+        var previaPt = await Post<List<BalcaoLinhaPreviaDto>>(client, "/api/artigos/balcao/previsualizar",
+            new BalcaoVendaRequest([new BalcaoLinhaRequest(a.Id, 1, null, xr)], PaymentMethod.Dinheiro));
+        previaPt.Single().Descricao.Should().Be("Película de vidro temperado com borda preta – iPhone XR / 11");
         (await client.GetFromJsonAsync<ArtigoDetalheDto>($"/api/artigos/{a.Id}"))!.Artigo.Stock.Should().Be(3, "pré-visualizar não vende");
 
         // O lote do iPhone 17 é o mais antigo pela ordem, mas o cliente quer o do iPhone 11.

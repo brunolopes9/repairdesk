@@ -20,6 +20,8 @@ public class DespesaConfiguration : IEntityTypeConfiguration<Despesa>
         builder.Property(x => x.IsRecorrente).HasDefaultValue(false);
 
         builder.HasIndex(x => new { x.TenantId, x.Data });
+        // Sprint 584: nº visível único por tenant (0 = ainda por atribuir, só em memória).
+        builder.HasIndex(x => new { x.TenantId, x.Numero }).IsUnique();
         builder.HasIndex(x => new { x.TenantId, x.Categoria });
         builder.HasIndex(x => new { x.TenantId, x.IsRecorrente });
     }

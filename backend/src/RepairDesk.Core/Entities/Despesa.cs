@@ -6,6 +6,9 @@ namespace RepairDesk.Core.Entities;
 public class Despesa : BaseEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
+
+    /// <summary>Sprint 584: nº visível, sequencial por tenant (como nas compras). Nunca reutilizado.</summary>
+    public int Numero { get; set; }
     public required string Descricao { get; set; }
     public DespesaCategoria Categoria { get; set; } = DespesaCategoria.Outro;
     public int ValorCents { get; set; }

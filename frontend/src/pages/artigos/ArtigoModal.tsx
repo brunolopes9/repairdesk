@@ -37,6 +37,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
   const [localizacao, setLocalizacao] = useState('');
   const [ativo, setAtivo] = useState(true);
   const [agrupado, setAgrupado] = useState(false);
+  const [nomeFatura, setNomeFatura] = useState('');
   const [juntar, setJuntar] = useState('');
   const [novosLotes, setNovosLotes] = useState<string[]>([]);
   const [qLote, setQLote] = useState('');
@@ -53,6 +54,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
     setLocalizacao(a?.localizacao ?? '');
     setAtivo(a?.ativo ?? true);
     setAgrupado(a?.agrupado ?? false);
+    setNomeFatura(a?.nomeFatura ?? '');
     setJuntar('');
     setNovosLotes(sugestao?.loteIds ?? []);
     setQLote('');
@@ -82,6 +84,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
         ativo,
         loteIds: novosLotes,
         agrupado,
+        nomeFatura: nomeFatura.trim(),
       };
       return artigoId ? artigosApi.update(artigoId, req) : artigosApi.create(req);
     },
@@ -141,8 +144,12 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="sm:col-span-2">
-          <span className={labelCls}>Nome (o que aparece na etiqueta)</span>
+          <span className={labelCls}>Nome no Mender (como o fornecedor o chama — aparece na etiqueta)</span>
           <input value={nome} onChange={(e) => setNome(e.target.value)} className={inputCls} placeholder="Película vidro temperado Samsung A34" autoFocus />
+        </label>
+        <label className="sm:col-span-2">
+          <span className={labelCls}>Nome na fatura ao cliente (português) — vazio = o nome acima</span>
+          <input value={nomeFatura} onChange={(e) => setNomeFatura(e.target.value)} className={inputCls} placeholder="Película de vidro temperado com borda preta" maxLength={200} />
         </label>
         <label>
           <span className={labelCls}>Preço de venda c/ IVA (€)</span>

@@ -72,14 +72,47 @@ public class DespesaRepository : IDespesaRepository
         if (!string.IsNullOrWhiteSpace(query))
         {
             var like = $"%{query.Trim()}%";
+            // Sprint 584: também pelo nº da despesa e pelo nº do documento do fornecedor.
+            var numero = int.TryParse(query.Trim(), out var n) ? n : -1;
             q = q.Where(d =>
+                d.Numero == numero ||
                 EF.Functions.Like(d.Descricao, like) ||
-                (d.Fornecedor != null && EF.Functions.Like(d.Fornecedor, like)));
+                (d.Fornecedor != null && EF.Functions.Like(d.Fornecedor, like)) ||
+                (d.NumeroEncomenda != null && EF.Functions.Like(d.NumeroEncomenda, like)));
         }
         return q;
     }
 
     public Task AddAsync(Despesa despesa, CancellationToken ct = default) => _db.Despesas.AddAsync(despesa, ct).AsTask();
     public void Remove(Despesa despesa) => _db.Despesas.Remove(despesa);
-    public Task SaveAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
+    /// <summary>
+    /// Sprint 584: grava e atribui o nº visível (por tenant) às despesas novas. Dois pedidos em simultâneo podem
+    /// calcular o mesmo nº: o índice único rejeita um deles e tenta-se outra vez (como nas compras).
+    /// </summary>
+    public async Task SaveAsync(CancellationToken ct = default)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            var novas = _db.ChangeTracker.Entries<Despesa>()
+                .Where(e => e.State == EntityState.Added && e.Entity.Numero == 0).Select(e => e.Entity).ToList();
+            // O TenantId só é carimbado no SaveChanges — aqui usa-se já o do contexto para contar no tenant certo.
+            foreach (var d in novas.Where(d => d.TenantId == Guid.Empty && _db.CurrentTenantId is not null)) d.TenantId = _db.CurrentTenantId!.Value;
+            foreach (var grupo in novas.GroupBy(d => d.TenantId))
+            {
+                var max = await _db.Despesas.IgnoreQueryFilters().Where(d => d.TenantId == grupo.Key)
+                    .Select(d => (int?)d.Numero).MaxAsync(ct) ?? 0;
+                foreach (var d in grupo.OrderBy(d => d.Data)) d.Numero = ++max;
+            }
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+                return;
+            }
+            catch (DbUpdateException) when (attempt < maxAttempts && novas.Count > 0)
+            {
+                foreach (var d in novas) d.Numero = 0;
+            }
+        }
+    }
 }

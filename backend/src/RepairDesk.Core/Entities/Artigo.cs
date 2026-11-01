@@ -16,6 +16,12 @@ public class Artigo : BaseEntity, ITenantEntity
 
     public required string Nome { get; set; }
 
+    /// <summary>
+    /// Sprint 584: nome na fatura ao cliente, em português ("Película de vidro temperado com borda preta"). O Nome
+    /// fica como os fornecedores o chamam ("Full Curved Edge Tempered Glass"). Null = usa o Nome.
+    /// </summary>
+    public string? NomeFatura { get; set; }
+
     /// <summary>SKU da loja: "LT-00012".</summary>
     public required string Sku { get; set; }
 

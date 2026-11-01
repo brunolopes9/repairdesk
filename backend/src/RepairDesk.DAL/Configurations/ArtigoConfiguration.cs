@@ -13,6 +13,7 @@ public class ArtigoConfiguration : IEntityTypeConfiguration<Artigo>
 
         builder.Property(x => x.TenantId).IsRequired();
         builder.Property(x => x.Nome).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.NomeFatura).HasMaxLength(200);
         builder.Property(x => x.Sku).HasMaxLength(20).IsRequired();
         builder.Property(x => x.CodigoBarras).HasMaxLength(32).IsRequired();
         builder.Property(x => x.CodigoFabricante).HasMaxLength(32);

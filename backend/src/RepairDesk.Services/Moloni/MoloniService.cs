@@ -634,7 +634,7 @@ public partial class MoloniService : IMoloniService
         if (item.CompraLinha?.ArtigoId is { } artigoId && await _artigos.FindByIdAsync(artigoId, ct) is { } artigo)
         {
             if (artigo.MoloniProductId is { } p) return p;
-            artigo.MoloniProductId = await GarantirProdutoAsync(key, companyId, cfg, artigo.Sku, artigo.Nome, 1,
+            artigo.MoloniProductId = await GarantirProdutoAsync(key, companyId, cfg, artigo.Sku, string.IsNullOrWhiteSpace(artigo.NomeFatura) ? artigo.Nome : artigo.NomeFatura, 1,
                 (artigo.PrecoVendaCents ?? item.PrecoUnitarioCents) / 100m / 1.23m, ct);
             await _artigos.SaveAsync(ct);
             return artigo.MoloniProductId.Value;

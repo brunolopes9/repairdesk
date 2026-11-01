@@ -397,7 +397,7 @@ public partial class MoloniService : IMoloniGestaoService
         if (t?.MoloniApiKeyCipherText is null || t.MoloniCompanyId is not { } companyId || t.MoloniConfigJson is null) return;
         var artigo = await _artigos.FindByIdAsync(artigoId, ct);
         if (artigo?.MoloniProductId is not { } productId) return;
-        var dados = new Dictionary<string, object?> { ["productId"] = productId, ["name"] = artigo.Nome };
+        var dados = new Dictionary<string, object?> { ["productId"] = productId, ["name"] = string.IsNullOrWhiteSpace(artigo.NomeFatura) ? artigo.Nome : artigo.NomeFatura };
         if (artigo.PrecoVendaCents is { } p) dados["price"] = Math.Round(p / 100m / 1.23m, 4, MidpointRounding.AwayFromZero);
         await _client.ExecutarAsync(_secrets.Unprotect(t.MoloniApiKeyCipherText),
             "mutation($c:Int!,$d:ProductUpdate!){ productUpdate(companyId:$c, data:$d) { errors { field msg } data { productId } } }",

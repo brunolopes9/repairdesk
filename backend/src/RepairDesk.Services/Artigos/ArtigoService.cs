@@ -28,7 +28,9 @@ public sealed record ArtigoDto(
     bool Ativo,
     string? Notas,
     /// <summary>Sprint 581: artigo agrupado (vários modelos, um código) — o balcão pergunta o modelo.</summary>
-    bool Agrupado = false);
+    bool Agrupado = false,
+    /// <summary>Sprint 584: nome na fatura ao cliente (português); null = o Nome.</summary>
+    string? NomeFatura = null);
 
 public sealed record ArtigoLoteDto(
     Guid LinhaId,
@@ -79,7 +81,9 @@ public sealed record ArtigoWriteRequest(
     /// <summary>Lotes de compra a ligar a este artigo (os já ligados mantêm-se).</summary>
     IReadOnlyList<Guid>? LoteIds = null,
     /// <summary>Sprint 581: null = mantém.</summary>
-    bool? Agrupado = null);
+    bool? Agrupado = null,
+    /// <summary>Sprint 584: nome na fatura (português). null = mantém; "" = apaga (usa o Nome).</summary>
+    string? NomeFatura = null);
 
 /// <summary>Sprint 581: <c>LoteId</c> = o modelo escolhido num artigo agrupado (sai só desse lote).</summary>
 /// <remarks>Sprint 583: <c>Modelo</c> = escrito à mão no balcão quando o lote não diz o modelo ("Película vidro – iPhone 12").</remarks>
@@ -347,7 +351,7 @@ public class ArtigoService : IArtigoService
                 var tira = Math.Min(disponivel, falta);
                 // Agrupado: a fatura diz o modelo, em português (art. 36.º n.º 5 b) CIVA, denominação usual) —
                 // "Película vidro curva – iPhone XR / 11". O texto do fornecedor fica só no Mender.
-                linhas.Add(new VendaLinhaWriteRequest(null, lote.Id, artigo.Agrupado ? ModeloDispositivo.TextoFatura(artigo.Nome, lote.Descricao, grupo.Key.Modelo) : artigo.Nome, tira, preco));
+                linhas.Add(new VendaLinhaWriteRequest(null, lote.Id, artigo.Agrupado ? ModeloDispositivo.TextoFatura(NaFatura(artigo), lote.Descricao, grupo.Key.Modelo) : NaFatura(artigo), tira, preco));
                 falta -= tira;
                 if (falta == 0) break;
             }
@@ -367,6 +371,7 @@ public class ArtigoService : IArtigoService
         artigo.Notas = Clean(req.Notas, 1000);
         artigo.Ativo = req.Ativo;
         if (req.Agrupado is { } agrupado) artigo.Agrupado = agrupado;
+        if (req.NomeFatura is not null) artigo.NomeFatura = Clean(req.NomeFatura, 200);
         if (req.PrecoVendaCents is < 0 or > 100_000_000)
             throw new ValidationException("preco_invalido", "Preço de venda inválido.");
         artigo.PrecoVendaCents = req.PrecoVendaCents is > 0 ? req.PrecoVendaCents : null;
@@ -577,20 +582,23 @@ public class ArtigoService : IArtigoService
     private ArtigoDto ToDto(Artigo a) => new(
         a.Id, a.Numero, a.Sku, a.CodigoBarras, a.CodigoFabricante, a.Nome, a.Categoria, a.PrecoVendaCents, PrecoEfetivo(a),
         a.PrecoVendaCents is not null ? "artigo" : PrecoCategoria(a) is not null ? "categoria" : "calculado",
-        Stock(a), a.Lotes.Count(l => !l.IsDeleted), a.Localizacao, a.Ativo, a.Notas, a.Agrupado);
+        Stock(a), a.Lotes.Count(l => !l.IsDeleted), a.Localizacao, a.Ativo, a.Notas, a.Agrupado, a.NomeFatura);
 
     private ArtigoDetalheDto Detalhe(Artigo a) => new(ToDto(a), a.Lotes
         .Where(l => !l.IsDeleted)
         .OrderBy(l => l.Documento?.Data ?? l.CreatedAt).ThenBy(l => l.Numero)
         .Select(l => new ArtigoLoteDto(l.Id, l.Numero, l.Descricao, l.Documento?.Fornecedor?.Name ?? "—",
             l.Documento?.Data ?? l.CreatedAt, l.Quantidade, l.QuantidadeEmStock, l.PrecoUnitarioPago, IvaEngine.Euros(PrecoCalculado(l)), l.SkuFornecedor,
-            a.Agrupado ? ModeloDispositivo.TextoFatura(a.Nome, l.Descricao) : a.Nome,
-            a.Agrupado && ModeloDispositivo.PrecisaModelo(a.Nome, l.Descricao)))
+            a.Agrupado ? ModeloDispositivo.TextoFatura(NaFatura(a), l.Descricao) : NaFatura(a),
+            a.Agrupado && ModeloDispositivo.PrecisaModelo(NaFatura(a), l.Descricao)))
         .ToList(),
         a.Codigos.Where(c => !c.IsDeleted).OrderBy(c => c.FornecedorId is null ? 0 : 1).ThenBy(c => c.Codigo)
             .Select(c => new ArtigoCodigoDto(c.Id, c.Codigo, c.FornecedorId,
                 c.FornecedorId is { } fid ? a.Lotes.FirstOrDefault(l => l.Documento?.FornecedorId == fid)?.Documento?.Fornecedor?.Name : null))
             .ToList());
+
+    /// <summary>Sprint 584: o nome que vai para a fatura ao cliente (português) — o próprio, senão o Nome.</summary>
+    private static string NaFatura(Artigo a) => string.IsNullOrWhiteSpace(a.NomeFatura) ? a.Nome : a.NomeFatura;
 
     private static string? Codigo(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim().ToUpperInvariant();
 

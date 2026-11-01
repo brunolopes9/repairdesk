@@ -415,6 +415,10 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("NomeFatura")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("Notas")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -1099,6 +1103,9 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<int>("Numero")
+                        .HasColumnType("int");
+
                     b.Property<string>("NumeroEncomenda")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -1128,6 +1135,9 @@ namespace RepairDesk.DAL.Migrations
                     b.HasIndex("TenantId", "Data");
 
                     b.HasIndex("TenantId", "IsRecorrente");
+
+                    b.HasIndex("TenantId", "Numero")
+                        .IsUnique();
 
                     b.ToTable("Despesas", (string)null);
                 });

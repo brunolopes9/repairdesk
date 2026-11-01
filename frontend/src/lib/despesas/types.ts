@@ -69,6 +69,8 @@ export interface Despesa {
   deducaoPercent?: number;
   /** Fornecedor intra-UE: autoliquidação (fatura a 0%). */
   reverseCharge?: boolean;
+  /** Sprint 584: nº visível (sequencial por empresa), como nas compras. */
+  numero?: number;
 }
 
 export interface CreateDespesaForm {

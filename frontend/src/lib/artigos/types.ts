@@ -23,6 +23,8 @@ export interface Artigo {
   notas: string | null;
   /** Sprint 581: vários modelos, um código e um preço (o balcão pergunta o modelo). */
   agrupado: boolean;
+  /** Sprint 584: nome na fatura ao cliente, em português (null = o nome). */
+  nomeFatura: string | null;
 }
 
 /** Sprint 581: código que leva ao artigo — SKU de um fornecedor ou etiqueta antiga (fornecedor null). */
@@ -79,6 +81,8 @@ export interface ArtigoWrite {
   ativo: boolean;
   loteIds?: string[];
   agrupado?: boolean | null;
+  /** Sprint 584: null = mantém; "" = apaga. */
+  nomeFatura?: string | null;
 }
 
 export interface EtiquetasPedido {

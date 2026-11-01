@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Banknote, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2, Search, TrendingDown } from 'lucide-react';
+import { Banknote, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2, Search, Trash2, TrendingDown } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard } from '../../components/ui';
 import { DespesaFormModal } from '../../components/DespesaFormModal';
@@ -259,7 +259,7 @@ export default function AprovadasTab({
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <input
                 type="search"
-                placeholder="Pesquisar descricao, fornecedor..."
+                placeholder="Pesquisar nº, fornecedor, documento ou descrição…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
@@ -268,7 +268,58 @@ export default function AprovadasTab({
           </div>
         </section>
 
-        <ul className="space-y-2">
+        {/* Sprint 584: uma linha por fatura, como nas Compras — Nº, data, fornecedor, documento, IVA e total. */}
+        {items.length > 0 && (
+          <div className="hidden overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm shadow-black/[0.015] dark:border-zinc-800 dark:bg-zinc-900 md:block">
+            <table className="w-full min-w-[56rem] text-sm">
+              <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-800/60">
+                <tr>
+                  <th className="px-3 py-2.5 font-medium">Nº</th>
+                  <th className="px-3 py-2.5 font-medium">Data</th>
+                  <th className="px-3 py-2.5 font-medium">Fornecedor</th>
+                  <th className="px-3 py-2.5 font-medium">Documento</th>
+                  <th className="px-3 py-2.5 font-medium">Descrição</th>
+                  <th className="px-3 py-2.5 font-medium">Categoria</th>
+                  <th className="px-3 py-2.5 text-right font-medium">IVA</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Total</th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {items.map((d) => (
+                  <tr key={d.id} onClick={() => setEditing(d)} className="cursor-pointer transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                    <td className="px-3 py-2.5 tabular-nums text-zinc-500">{d.numero || '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatDateOnly(d.data)}</td>
+                    <td className="px-3 py-2.5">
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100">{d.fornecedor ?? '—'}</span>
+                      {d.reverseCharge && <span className="ml-1 text-[10px] font-semibold text-sky-700 dark:text-sky-300">UE</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-zinc-600 dark:text-zinc-300">{d.numeroEncomenda ?? '—'}</td>
+                    <td className="max-w-[18rem] px-3 py-2.5">
+                      <span className="block truncate" title={d.descricao}>{d.descricao}</span>
+                      {d.isRecorrente && <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">recorrente</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-zinc-600 dark:text-zinc-300">{DESPESA_LABEL[d.categoria]}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-xs">
+                      {d.reverseCharge ? <span className="text-sky-700 dark:text-sky-300">autoliq.</span>
+                        : d.ivaCents == null ? <span className="font-medium text-amber-700 dark:text-amber-400">por indicar</span>
+                        : formatCents(d.ivaCents)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums">{formatCents(d.valorCents)}</td>
+                    <td className="px-2 py-2.5 text-right">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDelete(d); }} aria-label="Apagar"
+                        className="grid h-8 w-8 place-items-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-800">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <ul className="space-y-2 md:hidden">
           {list.isLoading && Array.from({ length: 4 }).map((_, index) => <SkeletonCard key={index} />)}
           {items.map((d) => (
             <li key={d.id} className="group flex flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm shadow-black/[0.015] transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 sm:flex-row sm:items-stretch sm:justify-between">
@@ -281,7 +332,7 @@ export default function AprovadasTab({
                   <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                     {DESPESA_LABEL[d.categoria]}
                   </span>
-                  <span className="text-xs text-zinc-500">{formatDateOnly(d.data)}</span>
+                  <span className="text-xs text-zinc-500">{d.numero ? `#${d.numero} · ` : ''}{formatDateOnly(d.data)}</span>
                   {d.isRecorrente && (
                     <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                       recorrente
