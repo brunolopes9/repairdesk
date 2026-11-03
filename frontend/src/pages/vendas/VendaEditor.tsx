@@ -280,7 +280,7 @@ export default function VendaEditor() {
     <form onSubmit={onSubmit} className="space-y-4">
       <BackButton to="/vendas" label="Vendas" />
       <PageHeader
-        title={isNew ? `Nova ${VENDA_TIPO_LABEL[tipo].toLowerCase()}` : `${VENDA_TIPO_LABEL[venda!.tipo]} #${venda!.numero}`}
+        title={isNew ? `${tipo === VENDA_TIPO.Reparacao ? 'Nova' : 'Novo'} ${VENDA_TIPO_LABEL[tipo].toLowerCase()}` : `${VENDA_TIPO_LABEL[venda!.tipo]} #${venda!.numero}`}
         meta={venda && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VENDA_ESTADO_COLOR[venda.estado]}`}>{VENDA_ESTADO_LABEL[venda.estado]}</span>}
         actions={(
           <>

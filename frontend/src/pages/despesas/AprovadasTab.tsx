@@ -283,7 +283,6 @@ export default function AprovadasTab({
                   <th className="px-3 py-2.5 font-medium">Categoria</th>
                   <th className="px-3 py-2.5 text-right font-medium">IVA</th>
                   <th className="px-3 py-2.5 text-right font-medium">Total</th>
-                  <th className="w-10 px-1 py-2.5 text-center font-medium" title="Fatura (PDF)">PDF</th>
                   <th className="w-10" />
                 </tr>
               </thead>
@@ -296,7 +295,13 @@ export default function AprovadasTab({
                       <span className="font-medium text-zinc-900 dark:text-zinc-100">{d.fornecedor ?? '—'}</span>
                       {d.reverseCharge && <span className="ml-1 text-[10px] font-semibold text-sky-700 dark:text-sky-300">UE</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-zinc-600 dark:text-zinc-300">{d.numeroEncomenda ?? '—'}</td>
+                    <td className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+                      {/* Sprint 586: a fatura abre (ou anexa-se) aqui, ao lado do nº do documento — como nas compras. */}
+                      <span className="flex items-center gap-1">
+                        <FaturaDespesa despesa={d} compact />
+                        <span>{d.numeroEncomenda ?? '—'}</span>
+                      </span>
+                    </td>
                     <td className="max-w-[18rem] px-3 py-2.5">
                       <span className="block truncate" title={d.descricao}>{d.descricao}</span>
                       {d.isRecorrente && <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">recorrente</span>}
@@ -308,7 +313,6 @@ export default function AprovadasTab({
                         : formatCents(d.ivaCents)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums">{formatCents(d.valorCents)}</td>
-                    <td className="px-1 py-1.5 text-center"><FaturaDespesa despesa={d} compact /></td>
                     <td className="px-2 py-2.5 text-right">
                       <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDelete(d); }} aria-label="Apagar"
                         className="grid h-8 w-8 place-items-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-800">
