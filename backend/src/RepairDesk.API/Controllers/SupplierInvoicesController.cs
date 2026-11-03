@@ -32,7 +32,12 @@ public class SupplierInvoicesController : ControllerBase
     public async Task<IActionResult> Pdf(Guid id, CancellationToken ct)
     {
         var bytes = await _service.GetPdfAsync(id, ct);
-        return File(bytes, "application/pdf");
+        // Sprint 586: faturas em foto (talões) abrem como imagem — o browser mostra e imprime à mesma.
+        var tipo = bytes is [0xFF, 0xD8, ..] ? "image/jpeg"
+            : bytes is [0x89, 0x50, 0x4E, 0x47, ..] ? "image/png"
+            : bytes is [0x52, 0x49, 0x46, 0x46, _, _, _, _, 0x57, 0x45, 0x42, 0x50, ..] ? "image/webp"
+            : "application/pdf";
+        return File(bytes, tipo);
     }
 
     // Sprint 243 Fase A: aprovar/rejeitar fatura B2B afecta directamente IVA dedutível +

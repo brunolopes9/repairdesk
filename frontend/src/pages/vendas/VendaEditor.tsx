@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Boxes, CheckCircle2, FileText, Save, Trash2, Wrench, XCircle } from 'lucide-react';
@@ -10,6 +10,7 @@ import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { toast } from '../../lib/toast';
 import { formatEur, parseDecimal, previewVenda } from '../../lib/compras/format';
 import type { InventarioLinha } from '../../lib/compras/types';
+import { comprasApi } from '../../lib/compras/api';
 import { vendasApi } from '../../lib/vendas/api';
 import {
   PAYMENT_METHOD,
@@ -126,6 +127,28 @@ export default function VendaEditor() {
     if (venda.invoiceEmittedAt) setFaturaData(venda.invoiceEmittedAt.slice(0, 10));
   }, [venda]);
 
+  // Sprint 586: "Vender" numa compra → /vendas/nova?lotes=<linhaId>:<qtd>,… — as linhas entram já preenchidas.
+  const lotesPedidos = isNew ? params.get('lotes') : null;
+  const inventario = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario, enabled: !!lotesPedidos });
+  const lotesCarregados = useRef(false);
+  const [vindoDaCompra, setVindoDaCompra] = useState(0);
+  useEffect(() => {
+    if (!lotesPedidos || !inventario.data || lotesCarregados.current) return;
+    lotesCarregados.current = true;
+    const porId = new Map(inventario.data.map((l) => [l.linhaId, l]));
+    let n = 0;
+    for (const par of lotesPedidos.split(',')) {
+      const [linhaId, q] = par.split(':');
+      const lote = porId.get(linhaId);
+      if (!lote) continue;
+      addLote(lote, Math.min(Math.max(1, Number(q) || 1), lote.quantidadeEmStock));
+      n++;
+    }
+    setVindoDaCompra(n);
+    if (n === 0) toast.error('Sem stock para vender', 'As linhas desta compra já não estão em stock.');
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- corre uma vez, quando o inventário chega
+  }, [lotesPedidos, inventario.data]);
+
   const fechada = venda ? venda.estado === VENDA_ESTADO.Entregue || venda.estado === VENDA_ESTADO.Cancelada : false;
 
   const contas = useMemo(() => {
@@ -210,14 +233,14 @@ export default function VendaEditor() {
     setLinhas((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
-  function addLote(lote: InventarioLinha) {
+  function addLote(lote: InventarioLinha, quantidade = 1) {
     setLinhas((ls) => [...ls, {
       key: crypto.randomUUID(),
       id: null,
       compraLinhaId: lote.linhaId,
       // Sprint 585: o que sai na fatura, em português ("Ecrã iPhone 14 Pro Max") — editável; o texto do fornecedor fica no lote.
       descricao: lote.textoVenda ?? lote.descricao,
-      quantidade: '1',
+      quantidade: String(quantidade),
       // Sprint 570: lote de um artigo → preço do artigo (próprio ou da categoria, ex.: películas a 15 €).
       preco: fmt2(semIva ? (lote.precoVendaArtigo ?? lote.precoFinalComIva) / (1 + IVA_NORMAL / 100) : (lote.precoVendaArtigo ?? lote.precoFinalComIva)),
       iva: String(IVA_NORMAL),
@@ -289,6 +312,14 @@ export default function VendaEditor() {
         <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           Esta venda ainda não tem fatura — emite-a no Moloni ON abaixo (ou regista o nº se já a emitiste). Não existe venda sem fatura.
+        </div>
+      )}
+
+      {isNew && vindoDaCompra > 0 && (
+        <div className="flex items-start gap-2 rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm text-brand-900 dark:border-brand-900/50 dark:bg-brand-950/30 dark:text-brand-200">
+          <Boxes size={16} className="mt-0.5 shrink-0" />
+          <span>{vindoDaCompra === 1 ? 'O artigo da compra já está' : `Os ${vindoDaCompra} artigos da compra já estão`} nas linhas, com o texto que sai na fatura.
+            Põe o <strong>preço final</strong> de cada um (com IVA), escolhe o cliente se quiseres e grava.</span>
         </div>
       )}
 

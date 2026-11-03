@@ -53,6 +53,12 @@ public interface ISupplierInvoiceImportService
 
     /// <summary>Sprint 163b: lista importações histórico (Approved/Rejected/Failed).</summary>
     Task<IReadOnlyList<SupplierInvoiceImportDto>> ListHistoryAsync(int take, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sprint 586: anexa o PDF (ou foto) da fatura a uma despesa criada à mão — sem leitura por IA, os dados são os
+    /// da despesa. Fica uma importação aprovada ligada à despesa, como as que vêm de "Faturas recebidas".
+    /// </summary>
+    Task<Guid> AnexarADespesaAsync(Guid despesaId, byte[] bytes, string fileName, CancellationToken ct = default);
 }
 
 /// <summary>Sprint 564b: que faturas recebidas vão no ZIP — compras de stock, despesas ou ambas.</summary>
@@ -591,6 +597,60 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         var entity = await _repo.FindByIdAsync(importId, ct) ?? throw new NotFoundException("SupplierInvoiceImport", importId);
         if (entity.TenantId != tenantId) throw new ForbiddenException("cross_tenant", "Não autorizado.");
         return await _storage.ReadAsync(entity.PdfRelativePath, ct);
+    }
+
+    public async Task<Guid> AnexarADespesaAsync(Guid despesaId, byte[] bytes, string fileName, CancellationToken ct = default)
+    {
+        if (_tenant.TenantId is not { } tenantId)
+            throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
+        if (bytes is not { Length: > 0 }) throw new ValidationException("pdf_empty", "Ficheiro vazio.");
+        var despesa = await _despesas.GetAsync(despesaId, ct);
+        if (await _repo.FindByDespesaIdAsync(despesaId, ct) is not null)
+            throw new ConflictException("despesa_ja_tem_pdf", "Esta despesa já tem a fatura anexada.");
+
+        var sha256 = ComputeSha256(bytes);
+        var entity = await _repo.FindBySha256Async(tenantId, sha256, ct);
+        if (entity is not null)
+        {
+            // O mesmo PDF já entrou em "Faturas recebidas": se ainda não deu nada, liga-se a esta despesa.
+            if (entity.Status == SupplierInvoiceImportStatus.Approved)
+                throw new ConflictException("pdf_ja_usado", "Este PDF já está ligado a outra compra ou despesa.");
+        }
+        else
+        {
+            var ext = Path.GetExtension(fileName).ToLowerInvariant() is { Length: > 1 and <= 5 } e ? e : ".pdf";
+            var nome = Path.ChangeExtension(BuildFilename(despesa.Data, despesa.NumeroEncomenda), ext);
+            var relativePath = await _storage.SaveAsync(tenantId, despesa.Fornecedor ?? "desconhecido", despesa.Data, nome, bytes, ct);
+            entity = new SupplierInvoiceImport
+            {
+                TenantId = tenantId,
+                PdfSha256 = sha256,
+                PdfRelativePath = relativePath,
+                PdfBytesSize = bytes.Length,
+                EmailSubject = $"Anexado à despesa: {fileName}",
+                EmailFrom = "manual-attach@repairdesk",
+                EmailReceivedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+            };
+            await _repo.AddAsync(entity, ct);
+        }
+
+        // Os dados são os da despesa (o export do contabilista usa data, nº e fornecedor daqui).
+        entity.FornecedorNameRaw ??= despesa.Fornecedor;
+        entity.ParsedTotalCents = despesa.ValorCents;
+        entity.ParsedDocumentDate = despesa.Data;
+        entity.ParsedDocumentNumber = despesa.NumeroEncomenda ?? entity.ParsedDocumentNumber;
+        entity.Status = SupplierInvoiceImportStatus.Approved;
+        entity.DespesaId = despesaId;
+        entity.ProcessedAt = DateTime.UtcNow;
+        await _repo.SaveAsync(ct);
+
+        await _audit.LogAsync(AuditAction.Update, nameof(SupplierInvoiceImport), entity.Id, new
+        {
+            operation = "supplier_invoice_attach_despesa",
+            despesaId,
+        }, ct: ct);
+        return entity.Id;
     }
 
     public async Task<SupplierInvoiceImportDto> ApproveAsync(Guid importId, ApproveSupplierInvoiceRequest req, CancellationToken ct = default)

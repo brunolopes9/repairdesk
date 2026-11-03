@@ -5,6 +5,7 @@ import { Banknote, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2,
 import Modal from '../../components/Modal';
 import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard } from '../../components/ui';
 import { DespesaFormModal } from '../../components/DespesaFormModal';
+import { FaturaDespesa } from './FaturaDespesa';
 import { despesasApi } from '../../lib/despesas/api';
 import {
   DESPESA_CATEGORIA,
@@ -282,6 +283,7 @@ export default function AprovadasTab({
                   <th className="px-3 py-2.5 font-medium">Categoria</th>
                   <th className="px-3 py-2.5 text-right font-medium">IVA</th>
                   <th className="px-3 py-2.5 text-right font-medium">Total</th>
+                  <th className="w-10 px-1 py-2.5 text-center font-medium" title="Fatura (PDF)">PDF</th>
                   <th className="w-10" />
                 </tr>
               </thead>
@@ -306,6 +308,7 @@ export default function AprovadasTab({
                         : formatCents(d.ivaCents)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums">{formatCents(d.valorCents)}</td>
+                    <td className="px-1 py-1.5 text-center"><FaturaDespesa despesa={d} compact /></td>
                     <td className="px-2 py-2.5 text-right">
                       <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDelete(d); }} aria-label="Apagar"
                         className="grid h-8 w-8 place-items-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-800">
@@ -362,6 +365,7 @@ export default function AprovadasTab({
                 )}
               </button>
               <div className="flex items-center justify-between gap-3 border-t border-zinc-100 px-4 py-3 dark:border-zinc-800 sm:min-w-44 sm:justify-end sm:border-l sm:border-t-0">
+                <FaturaDespesa despesa={d} compact />
                 <div className="text-right">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Saida</div>
                   <span className="font-semibold text-red-600 dark:text-red-400">-{formatCents(d.valorCents)}</span>

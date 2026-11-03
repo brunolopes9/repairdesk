@@ -44,7 +44,8 @@ public class DespesaService : IDespesaService
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
         var (items, total) = await _repo.SearchAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, page, pageSize, ct);
-        return new PagedResult<DespesaDto>(items.Select(ToDto).ToList(), page, pageSize, total);
+        var pdfs = _imports is null ? null : await _imports.ImportIdsPorDespesaAsync(items.Select(d => d.Id).ToList(), ct);
+        return new PagedResult<DespesaDto>(items.Select(d => ToDto(d, pdfs?.GetValueOrDefault(d.Id))).ToList(), page, pageSize, total);
     }
 
     public async Task<DespesasResumoDto> ResumoAsync(
@@ -61,7 +62,7 @@ public class DespesaService : IDespesaService
     public async Task<DespesaDto> GetAsync(Guid id, CancellationToken ct = default)
     {
         var d = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Despesa", id);
-        return ToDto(d);
+        return ToDto(d, _imports is null ? null : (await _imports.FindByDespesaIdAsync(id, ct))?.Id);
     }
 
     public async Task<DespesaDto> CreateAsync(CreateDespesaRequest req, CancellationToken ct = default)
@@ -109,7 +110,7 @@ public class DespesaService : IDespesaService
         d.DeducaoPercent = req.DeducaoPercent;
 
         await _repo.SaveAsync(ct);
-        return ToDto(d);
+        return ToDto(d, _imports is null ? null : (await _imports.FindByDespesaIdAsync(id, ct))?.Id);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
@@ -128,7 +129,9 @@ public class DespesaService : IDespesaService
     }
 
 
-    private static DespesaDto ToDto(Despesa d) =>
+    private static DespesaDto ToDto(Despesa d) => ToDto(d, null);
+
+    private static DespesaDto ToDto(Despesa d, Guid? importId) =>
         new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas,
-            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero);
+            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero, importId);
 }

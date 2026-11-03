@@ -23,6 +23,16 @@ public class SupplierInvoiceImportRepository : ISupplierInvoiceImportRepository
     public Task<SupplierInvoiceImport?> FindByDespesaIdAsync(Guid despesaId, CancellationToken ct = default)
         => _db.SupplierInvoiceImports.FirstOrDefaultAsync(x => x.DespesaId == despesaId, ct);
 
+    public async Task<IReadOnlyDictionary<Guid, Guid>> ImportIdsPorDespesaAsync(IReadOnlyCollection<Guid> despesaIds, CancellationToken ct = default)
+    {
+        if (despesaIds.Count == 0) return new Dictionary<Guid, Guid>();
+        var pares = await _db.SupplierInvoiceImports.AsNoTracking()
+            .Where(x => x.DespesaId != null && despesaIds.Contains(x.DespesaId.Value))
+            .Select(x => new { DespesaId = x.DespesaId!.Value, x.Id })
+            .ToListAsync(ct);
+        return pares.GroupBy(p => p.DespesaId).ToDictionary(g => g.Key, g => g.First().Id);
+    }
+
     public async Task<IReadOnlyList<SupplierInvoiceImport>> ListPendingAsync(Guid tenantId, int take, CancellationToken ct = default)
     {
         return await _db.SupplierInvoiceImports

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, FileText, Lock, Plus, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, FileText, Lock, Plus, Save, ShoppingCart, Trash2 } from 'lucide-react';
 import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { apiErrorCode, apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
@@ -13,6 +13,7 @@ import { formatEur, formatPct, lucroPorDefeito, parseDecimal, previewUnidade } f
 import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor } from '../../lib/fornecedores/api';
 import { supplierInvoicesApi, type SupplierInvoiceImport } from '../../lib/supplierInvoices/api';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
+import { VENDA_TIPO } from '../../lib/vendas/types';
 
 /** Taxa normal de IVA nas vendas (o servidor usa FiscalDefaults.TaxaIvaNormal). */
 const TAXA_VENDA = 0.23;
@@ -34,6 +35,8 @@ interface LinhaForm {
   /** Sprint 581: SKU do fornecedor e artigo da loja (só leitura — liga-se em Artigos ou sozinho pelo SKU). */
   sku: string;
   artigoNome: string | null;
+  /** Sprint 586: unidades deste lote ainda em stock (gravado) — para o botão "Vender". */
+  emStock: number;
 }
 
 interface DocForm {
@@ -49,7 +52,7 @@ interface DocForm {
 }
 
 const novaLinha = (): LinhaForm => ({
-  key: crypto.randomUUID(), id: null, numero: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0, sku: '', artigoNome: null,
+  key: crypto.randomUUID(), id: null, numero: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0, sku: '', artigoNome: null, emStock: 0,
 });
 
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -81,6 +84,7 @@ function fromDoc(doc: CompraDocumento): { form: DocForm; linhas: LinhaForm[] } {
       movimentos: l.quantidadeVendida + l.quantidadeAbatida,
       sku: l.skuFornecedor ?? '',
       artigoNome: l.artigoNome,
+      emStock: l.quantidadeEmStock,
     })),
   };
 }
@@ -191,6 +195,12 @@ export default function CompraEditor() {
   const [corrigir, setCorrigir] = useState(false);
   const bloqueada = !isNew && !!existente.data && !existente.data.faturaEmFalta && !corrigir;
 
+  // Sprint 586: "Vender" — abre uma venda nova com estes lotes (texto da fatura em português, preço sugerido).
+  const paraVender = linhas.filter((l) => l.id && l.emStock > 0);
+  function vender(lotes: [string, number][]) {
+    navigate(`/vendas/nova?tipo=${VENDA_TIPO.Produto}&lotes=${lotes.map(([lid, q]) => `${lid}:${q}`).join(',')}`);
+  }
+
   function buildRequest(ignorarDuplicado: boolean): CompraDocumentoWrite {
     return {
       fornecedorId: form.fornecedorId,
@@ -291,6 +301,13 @@ export default function CompraEditor() {
             )}
             {!isNew && isAdmin && (
               <Button type="button" variant="ghost" leftIcon={<Trash2 size={15} />} onClick={() => setConfirmDelete(true)}>Apagar</Button>
+            )}
+            {paraVender.length > 0 && (
+              <Button type="button" variant="secondary" leftIcon={<ShoppingCart size={15} />}
+                title="Cria uma venda com as linhas desta compra que ainda estão em stock — só falta o preço final"
+                onClick={() => vender(paraVender.map((l) => [l.id!, l.emStock]))}>
+                {paraVender.length > 1 || paraVender[0].emStock > 1 ? 'Vender tudo' : 'Vender'}
+              </Button>
             )}
             <Button type="submit" loading={save.isPending} disabled={!podeGravar} leftIcon={<Save size={15} />}>
               {isNew ? 'Registar compra' : 'Guardar'}
@@ -436,7 +453,13 @@ export default function CompraEditor() {
                     <td className="py-2 pr-2"><input aria-label="Localização" value={l.localizacao} onChange={(e) => setLinha(l.key, { localizacao: e.target.value })} className={inputCls} maxLength={100} /></td>
                     <td className="py-2 pr-2 pt-4 text-right tabular-nums">{c ? formatEur(c.precoFinalComIva) : '—'}</td>
                     <td className="py-2 pr-2 pt-4 text-right tabular-nums">{c ? formatEur(c.ivaAPagarEstado) : '—'}</td>
-                    <td className="py-2">
+                    <td className="flex gap-1 py-2">
+                      {l.id && l.emStock > 0 && (
+                        <Button type="button" variant="icon" aria-label="Vender este artigo" title={`Vender (${l.emStock} em stock)`}
+                          onClick={() => vender([[l.id!, 1]])}>
+                          <ShoppingCart size={15} />
+                        </Button>
+                      )}
                       <Button
                         type="button"
                         variant="icon"

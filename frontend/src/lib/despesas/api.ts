@@ -58,6 +58,12 @@ export const despesasApi = {
   update(id: string, form: UpdateDespesaForm) {
     return api.put<Despesa>(`/despesas/${id}`, form).then((r) => r.data);
   },
+  /** Sprint 586: anexa o PDF (ou foto) da fatura a uma despesa criada à mão. */
+  anexarPdf(id: string, file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<Despesa>(`/despesas/${id}/pdf`, form).then((r) => r.data);
+  },
   remove(id: string) {
     return api.delete(`/despesas/${id}`).then(() => undefined);
   },

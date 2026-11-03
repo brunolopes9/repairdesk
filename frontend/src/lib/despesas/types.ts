@@ -71,6 +71,8 @@ export interface Despesa {
   reverseCharge?: boolean;
   /** Sprint 584: nº visível (sequencial por empresa), como nas compras. */
   numero?: number;
+  /** Sprint 586: fatura (PDF ou foto) desta despesa — abre em supplierInvoicesApi.pdfPath; null = por anexar. */
+  supplierInvoiceImportId?: string | null;
 }
 
 export interface CreateDespesaForm {

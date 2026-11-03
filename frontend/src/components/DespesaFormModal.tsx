@@ -10,6 +10,7 @@ import {
   type DespesaCategoria,
 } from '../lib/despesas/types';
 import { parseEuros } from '../lib/money';
+import { FaturaDespesa } from '../pages/despesas/FaturaDespesa';
 
 export function DespesaFormModal({
   open,
@@ -42,6 +43,9 @@ export function DespesaFormModal({
   const [deducao, setDeducao] = useState(100);
   const [reverseCharge, setReverseCharge] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sprint 586: a despesa aberta com o PDF anexado entretanto (o botão passa logo a "PDF da fatura").
+  const [comFatura, setComFatura] = useState<Despesa | null>(null);
+  useEffect(() => setComFatura(editing ?? null), [editing]);
 
   useEffect(() => {
     if (editing) {
@@ -136,6 +140,12 @@ export function DespesaFormModal({
     >
       <div className="space-y-3">
         {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{error}</div>}
+        {comFatura && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-950/60">
+            <span className="text-xs text-zinc-500">{comFatura.supplierInvoiceImportId ? 'Fatura desta despesa' : 'Esta despesa ainda não tem a fatura anexada.'}</span>
+            <FaturaDespesa despesa={comFatura} onAnexada={setComFatura} />
+          </div>
+        )}
         <Field label="Descrição *">
           <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} autoFocus />
         </Field>

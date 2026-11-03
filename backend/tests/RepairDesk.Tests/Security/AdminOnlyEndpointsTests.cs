@@ -33,6 +33,7 @@ public class AdminOnlyEndpointsTests : IClassFixture<RepairDeskApiFactory>
     [InlineData("POST", "/api/supplier-invoices/00000000-0000-0000-0000-000000000001/reprocess")]
     [InlineData("POST", "/api/despesas")]
     [InlineData("DELETE", "/api/despesas/00000000-0000-0000-0000-000000000001")]
+    [InlineData("POST", "/api/despesas/00000000-0000-0000-0000-000000000001/pdf")]
 
     [InlineData("PUT", "/api/tenant-settings/me/preferences")]
     [InlineData("POST", "/api/llm-usage/anthropic-key")]

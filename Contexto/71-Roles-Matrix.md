@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:a2333525c4f08bc4 -->
+<!-- roles-matrix-snapshot:04b3619224c4f034 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -39,7 +39,7 @@ testes e esta matriz com snapshot.
 | UsersController | `POST /api/users/{id}/revoke-sessions`, `POST /api/users/{id}/deactivate` | `Admin` |
 | **Sprint 243 (Doc 72 Fase A) — operações fiscais/credenciais/estruturais** | | |
 | SupplierInvoicesController | `approve` (despesa), `reject`, `reprocess` | `Admin` |
-| DespesasController | `GET /api/despesas`, `GET /resumo` (S574, totais do filtro), `GET /{id}` | `Authenticated`; `POST`, `PUT`, `DELETE` (afecta IVA dedutível) `Admin` |
+| DespesasController | `GET /api/despesas`, `GET /resumo` (S574, totais do filtro), `GET /{id}` | `Authenticated`; `POST`, `PUT`, `DELETE`, `POST /{id}/pdf` (S586, anexar fatura) (afecta IVA dedutível) `Admin` |
 | TenantPreferencesController | `PUT /`, `POST /reset/{group}` | `Admin` |
 | LlmUsageController | `POST/DELETE /anthropic-key` (BYOK credencial) | `Admin` |
 | AutomacoesController | `POST /ingest-email/regenerate` | `Admin` |

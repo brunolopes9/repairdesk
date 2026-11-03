@@ -56,6 +56,8 @@ public sealed record DespesaDto(
     int DeducaoPercent = 100,
     bool ReverseCharge = false,
     /// <summary>Sprint 584: nº visível (sequencial por empresa).</summary>
-    int Numero = 0);
+    int Numero = 0,
+    /// <summary>Sprint 586: a fatura (PDF) desta despesa, para abrir e imprimir; null = sem PDF anexado.</summary>
+    Guid? SupplierInvoiceImportId = null);
 
 

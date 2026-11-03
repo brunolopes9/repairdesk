@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using RepairDesk.Core.Enums;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Despesas;
+using RepairDesk.Services.Documents;
+using RepairDesk.Services.Files;
 
 namespace RepairDesk.API.Controllers;
 
@@ -68,6 +70,27 @@ public class DespesasController : ControllerBase
     {
         await _service.DeleteAsync(id, ct);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Sprint 586: anexa o PDF (ou a foto) da fatura a uma despesa criada à mão, para a abrir e imprimir como nas
+    /// compras. Sem leitura por IA — os dados ficam os da despesa.
+    /// </summary>
+    [HttpPost("{id:guid}/pdf")]
+    [Authorize(Roles = "Admin")]
+    [RequestSizeLimit(20 * 1024 * 1024)]
+    public async Task<ActionResult<DespesaDto>> AnexarPdf(
+        Guid id, [FromForm] IFormFile file,
+        [FromServices] ISupplierInvoiceImportService imports, [FromServices] IFileValidator validator, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { code = "no_file", detail = "Escolhe o PDF da fatura." });
+        await using var stream = file.OpenReadStream();
+        var kind = file.ContentType.Contains("pdf", StringComparison.OrdinalIgnoreCase)
+            || file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? FileKind.Pdf : FileKind.Image;
+        var validated = await validator.ValidateAsync(stream, file.ContentType, kind, ct);
+        await imports.AnexarADespesaAsync(id, validated.Buffer, file.FileName, ct);
+        return await _service.GetAsync(id, ct);
     }
 
     private static IReadOnlyCollection<DespesaCategoria>? ParseCategoriaIn(string? raw)
