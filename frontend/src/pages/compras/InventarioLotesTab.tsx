@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Boxes, Search } from 'lucide-react';
-import { DateRangeFilter, EmptyState, SEM_DATAS, SectionCard, SkeletonRow, SortableTh, type IntervaloDatas } from '../../components/ui';
-import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
+import { DateRangeFilter, EmptyState, SectionCard, SkeletonRow, SortableTh } from '../../components/ui';
+import { ordenarLista, useOrdenacaoUrl } from '../../lib/useOrdenacao';
+import { useFiltrosUrl } from '../../lib/useFiltrosUrl';
 import { comprasApi } from '../../lib/compras/api';
 import { formatEur } from '../../lib/compras/format';
 import { correspondeTermos } from '../../lib/pesquisa';
@@ -13,9 +14,11 @@ import ArtigoModal from '../artigos/ArtigoModal';
 
 /** Lotes com stock > 0 (SPEC compras §4.5), com preço de venda sugerido e IVA a entregar ao Estado. */
 export default function InventarioLotesTab() {
-  const [q, setQ] = useState('');
-  const [datas, setDatas] = useState<IntervaloDatas>(SEM_DATAS);
-  const { ordem, alternar } = useOrdenacao<'numero' | 'artigo' | 'data' | 'stock' | 'pago' | 'venda' | 'lucro' | 'iva'>('numero', false);
+  // Sprint 592: pesquisa, datas e ordem no URL — ao voltar de um lote/compra fica tudo como estava.
+  const { f, set } = useFiltrosUrl({ q: '', de: '', ate: '', sort: 'numero', dir: 'asc' });
+  const q = f.q;
+  const datas = useMemo(() => ({ de: f.de, ate: f.ate }), [f.de, f.ate]);
+  const { ordem, alternar } = useOrdenacaoUrl<'numero' | 'artigo' | 'data' | 'stock' | 'pago' | 'venda' | 'lucro' | 'iva'>('numero', { sort: f.sort, dir: f.dir }, set);
   const inv = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario });
   // Sprint 566: criar/abrir o artigo da loja a partir de um lote.
   const [artigoAberto, setArtigoAberto] = useState<{ id: string | null; sugestao: { loteIds: string[]; nome: string } | null } | null>(null);
@@ -51,9 +54,9 @@ export default function InventarioLotesTab() {
         <div className="flex flex-1 flex-wrap items-center gap-2">
           <label className="relative min-w-48 flex-1">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} pl-9`} placeholder="Procurar nº do lote, artigo, fornecedor, localização…" aria-label="Procurar" />
+            <input value={q} onChange={(e) => set({ q: e.target.value })} className={`${inputCls} pl-9`} placeholder="Procurar nº do lote, artigo, fornecedor, localização…" aria-label="Procurar" />
           </label>
-          <DateRangeFilter value={datas} onChange={setDatas} />
+          <DateRangeFilter value={datas} onChange={(v) => set({ de: v.de, ate: v.ate })} />
         </div>
       }
       action={<span className="whitespace-nowrap text-sm text-zinc-500 tabular-nums">{totais.un} un. · {formatEur(totais.pago)} pago</span>}

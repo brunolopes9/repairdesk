@@ -2,14 +2,16 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { FileCheck2, FileSpreadsheet, Plus, ReceiptText, Search } from 'lucide-react';
-import { Button, DateRangeFilter, EmptyState, SEM_DATAS, SectionCard, SkeletonRow, SortableTh, type IntervaloDatas } from '../../components/ui';
-import { useOrdenacao } from '../../lib/useOrdenacao';
+import { Button, DateRangeFilter, EmptyState, Paginacao, SectionCard, SkeletonRow, SortableTh } from '../../components/ui';
+import { useOrdenacaoUrl } from '../../lib/useOrdenacao';
+import { useFiltrosUrl } from '../../lib/useFiltrosUrl';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { comprasApi } from '../../lib/compras/api';
 import { formatEur } from '../../lib/compras/format';
 import { formatDateOnly } from '../../lib/money';
 import { fornecedoresApi, REGIME_IVA } from '../../lib/fornecedores/api';
 import ImportarExcelModal from './ImportarExcelModal';
+import { BotaoImprimir } from '../../components/BotaoImprimir';
 import { inputCls } from '../../components/ui/formClasses';
 
 const PAGE_SIZE = 50;
@@ -17,14 +19,14 @@ const PAGE_SIZE = 50;
 export default function DocumentosTab() {
   const navigate = useNavigate();
   const isAdmin = useAuth().hasRole('Admin');
-  const [q, setQ] = useState('');
-  const [fornecedorId, setFornecedorId] = useState('');
-  const [faturaEmFalta, setFaturaEmFalta] = useState(false);
-  const [page, setPage] = useState(1);
+  // Sprint 592: filtros e página no URL — ao voltar de uma compra, a lista está como se deixou.
+  const { f, set, page, setPage } = useFiltrosUrl({ q: '', fornecedor: '', emFalta: '', de: '', ate: '', page: '1', sort: 'data', dir: 'desc' });
+  const q = f.q;
+  const fornecedorId = f.fornecedor;
+  const faturaEmFalta = f.emFalta === '1';
+  const datas = { de: f.de, ate: f.ate };
   const [importOpen, setImportOpen] = useState(false);
-  const [datas, setDatas] = useState<IntervaloDatas>(SEM_DATAS);
-  const { ordem, alternar, params: ordemParams } = useOrdenacao<'numero' | 'data' | 'fornecedor' | 'documento' | 'unidades' | 'total'>('data');
-  function ordenar(c: typeof ordem.campo) { alternar(c); setPage(1); }
+  const { ordem, alternar: ordenar, params: ordemParams } = useOrdenacaoUrl<'numero' | 'data' | 'fornecedor' | 'documento' | 'unidades' | 'total'>('data', f, set);
 
   const fornecedores = useQuery({ queryKey: ['fornecedores', false], queryFn: () => fornecedoresApi.list(false) });
   const list = useQuery({
@@ -50,25 +52,28 @@ export default function DocumentosTab() {
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               value={q}
-              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              onChange={(e) => set({ q: e.target.value })}
               className={`${inputCls} pl-9`}
               placeholder="Procurar nº fatura, encomenda ou artigo…"
               aria-label="Procurar"
             />
           </label>
-          <select value={fornecedorId} onChange={(e) => { setFornecedorId(e.target.value); setPage(1); }} className={`${inputCls} w-auto`} aria-label="Fornecedor">
+          <select value={fornecedorId} onChange={(e) => set({ fornecedor: e.target.value })} className={`${inputCls} w-auto`} aria-label="Fornecedor">
             <option value="">Todos os fornecedores</option>
             {fornecedores.data?.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
-          <DateRangeFilter value={datas} onChange={(v) => { setDatas(v); setPage(1); }} />
+          <DateRangeFilter value={datas} onChange={(v) => set({ de: v.de, ate: v.ate })} />
           <label className="flex min-h-11 items-center gap-2 text-sm">
-            <input type="checkbox" checked={faturaEmFalta} onChange={(e) => { setFaturaEmFalta(e.target.checked); setPage(1); }} />
+            <input type="checkbox" checked={faturaEmFalta} onChange={(e) => set({ emFalta: e.target.checked ? '1' : '' })} />
             Fatura em falta
           </label>
         </div>
       }
       action={
         <div className="flex flex-wrap gap-2">
+          {/* Sprint 593: imprime as compras da lista (ex.: o mês inteiro, ou só um fornecedor) num só PDF. */}
+          <BotaoImprimir caminho="/imprimir/compras" total={list.data?.total} nome={`Compras${datas.de ? '_' + datas.de : ''}${datas.ate && datas.ate !== datas.de ? '_a_' + datas.ate : ''}.pdf`}
+            params={{ q, fornecedorId, faturaEmFalta, de: datas.de, ate: datas.ate }} />
           {isAdmin && (
             <Button variant="secondary" leftIcon={<FileSpreadsheet size={15} />} onClick={() => setImportOpen(true)}>Importar Excel</Button>
           )}
@@ -76,6 +81,7 @@ export default function DocumentosTab() {
         </div>
       }
     >
+      <Paginacao posicao="cima" page={page} pages={pages} total={total} label="documentos" onPage={setPage} />
       {!list.isLoading && items.length === 0 ? (
         <div className="p-4">
           <EmptyState
@@ -133,15 +139,7 @@ export default function DocumentosTab() {
           </table>
         </div>
       )}
-      {pages > 1 && (
-        <div className="flex items-center justify-between border-t border-zinc-100 px-4 py-2 text-sm dark:border-zinc-800">
-          <span className="text-zinc-500">{total} documentos</span>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
-            <Button size="sm" variant="secondary" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Seguinte</Button>
-          </div>
-        </div>
-      )}
+      <Paginacao page={page} pages={pages} total={total} label="documentos" onPage={setPage} />
       <ImportarExcelModal open={importOpen} onClose={() => setImportOpen(false)} />
     </SectionCard>
   );

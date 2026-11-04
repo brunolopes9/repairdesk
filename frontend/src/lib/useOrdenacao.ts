@@ -18,7 +18,24 @@ export function useOrdenacao<C extends string>(campoInicial: C, descInicial = tr
   return { ordem, alternar, params: { sort: ordem.campo, dir: ordem.desc ? 'desc' : 'asc' } as const };
 }
 
-type Valor = string | number | Date | null | undefined;
+/**
+ * Sprint 592: como {@link useOrdenacao}, mas a ordem vive no URL (`sort`/`dir`, via {@link useFiltrosUrl}) — ao voltar
+ * a uma lista, a ordenação mantém-se.
+ */
+export function useOrdenacaoUrl<C extends string>(
+  campoInicial: C,
+  f: { sort?: string; dir?: string },
+  set: (patch: { sort?: string; dir?: string }) => void,
+) {
+  const ordem: Ordem<C> = { campo: (f.sort || campoInicial) as C, desc: (f.dir || 'desc') === 'desc' };
+  function alternar(campo: C) {
+    const desc = ordem.campo === campo ? !ordem.desc : false;
+    set({ sort: campo, dir: desc ? 'desc' : 'asc' });
+  }
+  return { ordem, alternar, params: { sort: ordem.campo, dir: ordem.desc ? 'desc' : 'asc' } as const };
+}
+
+type Valor =string | number | Date | null | undefined;
 
 /** Ordena em memória com comparação natural em pt-PT (números e datas pelo valor, texto sem acentos). */
 export function ordenarLista<T, C extends string>(items: readonly T[], ordem: Ordem<C>, chaves: Record<C, (item: T) => Valor>): T[] {

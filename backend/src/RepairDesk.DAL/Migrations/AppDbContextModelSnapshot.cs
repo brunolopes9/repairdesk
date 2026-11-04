@@ -2648,6 +2648,13 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<int?>("Encomenda")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EncomendaNota")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<string>("FornecedorNome")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");

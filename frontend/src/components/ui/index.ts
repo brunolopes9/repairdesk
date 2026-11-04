@@ -14,3 +14,4 @@ export { DetailWorkspace, InspectorRail, ViewTabs } from './Workspace';
 export { SortableTh } from './SortableTh';
 export { DateRangeFilter, SEM_DATAS, intervaloParaInstantes } from './DateRangeFilter';
 export type { IntervaloDatas } from './DateRangeFilter';
+export { Paginacao } from './Paginacao';

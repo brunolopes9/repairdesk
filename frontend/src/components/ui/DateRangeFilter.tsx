@@ -8,9 +8,14 @@ export interface IntervaloDatas {
 
 export const SEM_DATAS: IntervaloDatas = { de: '', ate: '' };
 
-type Atalho = 'mes' | 'mes-passado' | 'trimestre' | 'trimestre-passado' | 'ano' | 'ano-passado';
+type Atalho = 'hoje' | 'ontem' | 'semana' | 'semana-passada' | 'mes' | 'mes-passado' | 'trimestre' | 'trimestre-passado' | 'ano' | 'ano-passado';
 
 const ATALHOS: { key: Atalho; label: string }[] = [
+  // Sprint 592: o dia e a semana — para imprimir "as vendas de hoje" de uma vez.
+  { key: 'hoje', label: 'Hoje' },
+  { key: 'ontem', label: 'Ontem' },
+  { key: 'semana', label: 'Esta semana' },
+  { key: 'semana-passada', label: 'Semana passada' },
   { key: 'mes', label: 'Este mês' },
   { key: 'mes-passado', label: 'Mês passado' },
   { key: 'trimestre', label: 'Este trimestre' },
@@ -27,7 +32,13 @@ function intervalo(a: Atalho): IntervaloDatas {
   const m = hoje.getMonth();
   const tri = Math.floor(m / 3) * 3;
   const r = (d1: Date, d2: Date) => ({ de: iso(d1), ate: iso(d2) });
+  const d = hoje.getDate();
+  const seg = d - ((hoje.getDay() + 6) % 7); // segunda-feira desta semana
   switch (a) {
+    case 'hoje': return r(hoje, hoje);
+    case 'ontem': return r(new Date(y, m, d - 1), new Date(y, m, d - 1));
+    case 'semana': return r(new Date(y, m, seg), new Date(y, m, seg + 6));
+    case 'semana-passada': return r(new Date(y, m, seg - 7), new Date(y, m, seg - 1));
     case 'mes': return r(new Date(y, m, 1), new Date(y, m + 1, 0));
     case 'mes-passado': return r(new Date(y, m - 1, 1), new Date(y, m, 0));
     case 'trimestre': return r(new Date(y, tri, 1), new Date(y, tri + 3, 0));

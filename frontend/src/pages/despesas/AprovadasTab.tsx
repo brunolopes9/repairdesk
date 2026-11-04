@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Banknote, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2, Search, Trash2, TrendingDown } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonCard } from '../../components/ui';
+import { Button, DateRangeFilter, DetailWorkspace, EmptyState, InspectorRail, PageHeader, Paginacao, SkeletonCard } from '../../components/ui';
+import { useFiltrosUrl } from '../../lib/useFiltrosUrl';
 import { DespesaFormModal } from '../../components/DespesaFormModal';
 import { FaturaDespesa } from './FaturaDespesa';
+import { BotaoImprimir } from '../../components/BotaoImprimir';
 import { despesasApi } from '../../lib/despesas/api';
 import {
   DESPESA_CATEGORIA,
@@ -45,17 +47,20 @@ export default function AprovadasTab({
   showRecurringToggle = false,
 }: AprovadasTabProps) {
   const qc = useQueryClient();
-  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  // Links antigos (/despesas?edit=…) abrem agora a página da despesa.
   const editId = params.get('edit');
-  const [categoria, setCategoria] = useState<DespesaCategoria | null>(null);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [onlyRecurring, setOnlyRecurring] = useState(false);
+  // Sprint 592: filtros e página no URL — ao voltar de uma despesa, a lista está como se deixou.
+  const { f, set, page, setPage } = useFiltrosUrl({ tab: '', categoria: '', q: '', recorrentes: '', de: '', ate: '', page: '1' });
+  const categoria = f.categoria === '' ? null : (Number(f.categoria) as DespesaCategoria);
+  const search = f.q;
+  const onlyRecurring = f.recorrentes === '1';
+  const datas = { de: f.de, ate: f.ate };
   const [createOpen, setCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<Despesa | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Despesa | null>(null);
   const list = useQuery({
-    queryKey: ['despesas', categoriaIn ?? null, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, categoria, search, onlyRecurring, page],
+    queryKey: ['despesas', categoriaIn ?? null, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, categoria, search, onlyRecurring, datas.de, datas.ate, page],
     queryFn: () => despesasApi.list({
       q: search,
       categoria,
@@ -63,6 +68,8 @@ export default function AprovadasTab({
       includeSupplierInvoiceImports,
       excludeSupplierInvoiceImports,
       isRecorrente: showRecurringToggle && onlyRecurring ? true : undefined,
+      from: datas.de || undefined,
+      to: datas.ate || undefined,
       page,
       pageSize: 20,
     }),
@@ -71,7 +78,7 @@ export default function AprovadasTab({
 
   // Sprint 574: os totais são de todas as despesas do filtro — não só das 20 desta página.
   const resumo = useQuery({
-    queryKey: ['despesas', 'resumo', categoriaIn ?? null, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, categoria, search, onlyRecurring],
+    queryKey: ['despesas', 'resumo', categoriaIn ?? null, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, categoria, search, onlyRecurring, datas.de, datas.ate],
     queryFn: () => despesasApi.resumo({
       q: search,
       categoria,
@@ -79,26 +86,11 @@ export default function AprovadasTab({
       includeSupplierInvoiceImports,
       excludeSupplierInvoiceImports,
       isRecorrente: showRecurringToggle && onlyRecurring ? true : undefined,
+      from: datas.de || undefined,
+      to: datas.ate || undefined,
     }),
     placeholderData: keepPreviousData,
   });
-
-  const editTarget = useQuery({
-    queryKey: ['despesa', editId],
-    queryFn: () => despesasApi.get(editId!),
-    enabled: !!editId,
-  });
-
-  useEffect(() => {
-    if (editTarget.data && !editing) setEditing(editTarget.data);
-  }, [editTarget.data, editing]);
-
-  function clearEditParam() {
-    if (!editId) return;
-    const next = new URLSearchParams(params);
-    next.delete('edit');
-    setParams(next, { replace: true });
-  }
 
   const remove = useMutation({
     mutationFn: (d: Despesa) => despesasApi.remove(d.id),
@@ -135,7 +127,9 @@ export default function AprovadasTab({
     categoria != null ? DESPESA_LABEL[categoria] : null,
     search.trim() ? 'pesquisa' : null,
     showRecurringToggle && onlyRecurring ? 'recorrentes' : null,
+    datas.de || datas.ate ? 'datas' : null,
   ].filter(Boolean).length;
+  const abrir = (d: Despesa) => navigate(`/despesas/${d.id}`);
   const workspaceMode = includeSupplierInvoiceImports ? 'compras' : excludeSupplierInvoiceImports ? 'opex' : 'financeiro';
   const maxCategoryCents = Math.max(...expenseStats.topCategories.map(([, data]) => data.totalCents), 1);
   const financeRail = (
@@ -190,7 +184,7 @@ export default function AprovadasTab({
       {showRecurringToggle && (
         <button
           type="button"
-          onClick={() => { setOnlyRecurring((value) => !value); setPage(1); }}
+          onClick={() => set({ recorrentes: onlyRecurring ? '' : '1' })}
           className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
             onlyRecurring
               ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/30 dark:text-brand-200'
@@ -215,13 +209,20 @@ export default function AprovadasTab({
     </InspectorRail>
   );
 
+  if (editId) return <Navigate to={`/despesas/${editId}`} replace />;
+
   return (
     <div className="space-y-4">
       <PageHeader
         title={title}
         description={description}
         meta={<span className="text-sm text-zinc-500">{total} {total === 1 ? 'registo' : 'registos'} · total {formatCents(expenseStats.totalCents)}</span>}
-        actions={<Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>{createLabel}</Button>}
+        actions={<>
+          {/* Sprint 593: imprime as despesas da lista (ex.: o mês inteiro) num só PDF — a lista e as faturas. */}
+          <BotaoImprimir caminho="/imprimir/despesas" total={total} nome={`Despesas${datas.de ? '_' + datas.de : ''}${datas.ate && datas.ate !== datas.de ? '_a_' + datas.ate : ''}.pdf`}
+            params={{ q: search, categoria: categoria ?? undefined, isRecorrente: showRecurringToggle && onlyRecurring ? true : undefined, from: datas.de, to: datas.ate }} />
+          <Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>{createLabel}</Button>
+        </>}
       />
 
       <DetailWorkspace rail={financeRail}>
@@ -236,7 +237,7 @@ export default function AprovadasTab({
             {activeFilters > 0 && (
               <button
                 type="button"
-                onClick={() => { setCategoria(null); setSearch(''); setOnlyRecurring(false); setPage(1); }}
+                onClick={() => set({ categoria: '', q: '', recorrentes: '', de: '', ate: '' })}
                 className="self-start rounded-md px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 sm:self-auto"
               >
                 Limpar filtros
@@ -247,7 +248,7 @@ export default function AprovadasTab({
             {showCategoriaFilter && (
               <select
                 value={categoria ?? ''}
-                onChange={(e) => { setCategoria(e.target.value === '' ? null : (Number(e.target.value) as DespesaCategoria)); setPage(1); }}
+                onChange={(e) => set({ categoria: e.target.value })}
                 className="min-h-11 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950 lg:w-56"
               >
                 <option value="">Todas categorias</option>
@@ -262,12 +263,15 @@ export default function AprovadasTab({
                 type="search"
                 placeholder="Pesquisar nº, fornecedor, documento ou descrição…"
                 value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                onChange={(e) => set({ q: e.target.value })}
                 className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
               />
             </div>
+            <DateRangeFilter value={datas} onChange={(v) => set({ de: v.de, ate: v.ate })} />
           </div>
         </section>
+
+        <Paginacao posicao="cima" page={page} pages={lastPage} total={total} label="despesas" onPage={setPage} />
 
         {/* Sprint 584: uma linha por fatura, como nas Compras — Nº, data, fornecedor, documento, IVA e total. */}
         {items.length > 0 && (
@@ -288,7 +292,7 @@ export default function AprovadasTab({
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {items.map((d) => (
-                  <tr key={d.id} onClick={() => setEditing(d)} className="cursor-pointer transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <tr key={d.id} onClick={() => abrir(d)} className="cursor-pointer transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                     <td className="px-3 py-2.5 tabular-nums text-zinc-500">{d.numero || '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatDateOnly(d.data)}</td>
                     <td className="px-3 py-2.5">
@@ -332,7 +336,7 @@ export default function AprovadasTab({
             <li key={d.id} className="group flex flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm shadow-black/[0.015] transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 sm:flex-row sm:items-stretch sm:justify-between">
               <button
                 type="button"
-                onClick={() => setEditing(d)}
+                onClick={() => abrir(d)}
                 className="min-w-0 flex-1 px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
               >
                 <div className="flex flex-wrap items-center gap-2">
@@ -397,13 +401,7 @@ export default function AprovadasTab({
           )}
         </ul>
 
-        {lastPage > 1 && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
-            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Anterior</button>
-            <span>{page} / {lastPage}</span>
-            <button disabled={page >= lastPage} onClick={() => setPage(p => p + 1)} className="min-h-11 rounded-md px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40">Seguinte</button>
-          </div>
-        )}
+        <Paginacao page={page} pages={lastPage} total={total} label="despesas" onPage={setPage} />
       </DetailWorkspace>
 
       <DespesaFormModal
@@ -414,14 +412,6 @@ export default function AprovadasTab({
         onSaved={() => { invalidateAfterSave(); setCreateOpen(false); }}
       />
 
-      <DespesaFormModal
-        open={!!editing}
-        editing={editing}
-        initialCategoria={initialCategoria}
-        allowedCategorias={allowedCategorias}
-        onClose={() => { setEditing(null); clearEditParam(); }}
-        onSaved={() => { invalidateAfterSave(); setEditing(null); clearEditParam(); }}
-      />
 
       <Modal
         open={!!confirmDelete}

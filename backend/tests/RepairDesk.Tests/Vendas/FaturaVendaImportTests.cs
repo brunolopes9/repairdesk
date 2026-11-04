@@ -18,6 +18,8 @@ namespace RepairDesk.Tests.Vendas;
 /// Sprint 565: faturas de venda emitidas no Moloni entram pelo PDF — criam a venda entregue com a fatura,
 /// ou ficam anexadas à venda que já tem esse nº. Textos sintéticos com o layout do Moloni (sem dados reais).
 /// </summary>
+// Sprint 593: no mesmo grupo que os outros testes que geram e leem PDFs (QuestPDF em paralelo lia texto em branco).
+[Collection("Pdf")]
 public class FaturaVendaImportTests : IClassFixture<RepairDeskApiFactory>
 {
     private readonly RepairDeskApiFactory _factory;

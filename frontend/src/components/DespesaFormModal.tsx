@@ -12,22 +12,22 @@ import {
 import { parseEuros } from '../lib/money';
 import { FaturaDespesa } from '../pages/despesas/FaturaDespesa';
 
-export function DespesaFormModal({
-  open,
+/**
+ * Sprint 592: estado e gravação do formulário da despesa — partilhado entre a janela "Nova despesa" e a página
+ * de cada despesa (/despesas/:id).
+ */
+export function useDespesaForm({
+  open = true,
   editing,
   initialRecorrente = false,
   initialCategoria = DESPESA_CATEGORIA.Outro,
-  allowedCategorias,
-  onClose,
   onSaved,
 }: {
-  open: boolean;
+  open?: boolean;
   editing?: Despesa | null;
   initialRecorrente?: boolean;
   initialCategoria?: DespesaCategoria;
-  allowedCategorias?: readonly DespesaCategoria[];
-  onClose: () => void;
-  onSaved: () => void;
+  onSaved: (d: Despesa) => void;
 }) {
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState<DespesaCategoria>(DESPESA_CATEGORIA.Pecas);
@@ -116,11 +116,35 @@ export function DespesaFormModal({
   });
 
   const valorCents = parseEuros(valor);
-  const categoriaOptions = allowedCategorias?.length
-    ? Array.from(new Set([...(editing ? [editing.categoria] : []), ...allowedCategorias]))
-    // Sprint 574: peças para revenda são Compras (stock), não despesas — só aparecem ao editar uma antiga.
-    : Array.from(new Set(Object.values(DESPESA_CATEGORIA))).filter((c) => (c !== DESPESA_CATEGORIA.Pecas && c !== DESPESA_CATEGORIA.PecasUsadas) || c === editing?.categoria);
+  return {
+    editing, descricao, setDescricao, categoria, setCategoria, valor, setValor, fornecedor, setFornecedor,
+    numeroEncomenda, setNumeroEncomenda, data, setData, notas, setNotas, isRecorrente, setIsRecorrente,
+    periodicidadeMeses, setPeriodicidadeMeses, iva, setIva, deducao, setDeducao, reverseCharge, setReverseCharge,
+    error, comFatura, setComFatura, save, valorCents, podeGravar: !!descricao && !!valorCents && !save.isPending,
+  };
+}
 
+export type DespesaFormState = ReturnType<typeof useDespesaForm>;
+
+export function DespesaFormModal({
+  open,
+  editing,
+  initialRecorrente = false,
+  initialCategoria = DESPESA_CATEGORIA.Outro,
+  allowedCategorias,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  editing?: Despesa | null;
+  initialRecorrente?: boolean;
+  initialCategoria?: DespesaCategoria;
+  allowedCategorias?: readonly DespesaCategoria[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const form = useDespesaForm({ open, editing, initialRecorrente, initialCategoria, onSaved });
+  const { save } = form;
   return (
     <Modal
       open={open}
@@ -130,7 +154,7 @@ export function DespesaFormModal({
         <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
         <button
           type="button"
-          disabled={!descricao || !valorCents || save.isPending}
+          disabled={!form.podeGravar}
           onClick={() => save.mutate()}
           className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
         >
@@ -138,16 +162,40 @@ export function DespesaFormModal({
         </button>
       </>}
     >
+      <DespesaCampos form={form} allowedCategorias={allowedCategorias} autoFocus />
+    </Modal>
+  );
+}
+
+/** Os campos da despesa (descrição, categoria, valor, IVA, fornecedor, recorrência, notas). */
+export function DespesaCampos({ form, allowedCategorias, autoFocus = false, mostrarFatura = true }: {
+  form: DespesaFormState;
+  allowedCategorias?: readonly DespesaCategoria[];
+  autoFocus?: boolean;
+  mostrarFatura?: boolean;
+}) {
+  const {
+    editing, descricao, setDescricao, categoria, setCategoria, valor, setValor, fornecedor, setFornecedor,
+    numeroEncomenda, setNumeroEncomenda, data, setData, notas, setNotas, isRecorrente, setIsRecorrente,
+    periodicidadeMeses, setPeriodicidadeMeses, iva, setIva, deducao, setDeducao, reverseCharge, setReverseCharge,
+    error, comFatura, setComFatura, valorCents,
+  } = form;
+  const categoriaOptions = allowedCategorias?.length
+    ? Array.from(new Set([...(editing ? [editing.categoria] : []), ...allowedCategorias]))
+    // Sprint 574: peças para revenda são Compras (stock), não despesas — só aparecem ao editar uma antiga.
+    : Array.from(new Set(Object.values(DESPESA_CATEGORIA))).filter((c) => (c !== DESPESA_CATEGORIA.Pecas && c !== DESPESA_CATEGORIA.PecasUsadas) || c === editing?.categoria);
+
+  return (
       <div className="space-y-3">
         {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{error}</div>}
-        {comFatura && (
+        {mostrarFatura && comFatura && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-950/60">
             <span className="text-xs text-zinc-500">{comFatura.supplierInvoiceImportId ? 'Fatura desta despesa' : 'Esta despesa ainda não tem a fatura anexada.'}</span>
             <FaturaDespesa despesa={comFatura} onAnexada={setComFatura} />
           </div>
         )}
         <Field label="Descrição *">
-          <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} autoFocus />
+          <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} autoFocus={autoFocus} />
         </Field>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Categoria">
@@ -215,7 +263,6 @@ export function DespesaFormModal({
           <textarea rows={2} value={notas} onChange={e => setNotas(e.target.value)} className={inputCls + ' resize-none'} />
         </Field>
       </div>
-    </Modal>
   );
 }
 

@@ -9,6 +9,7 @@ import GShortcuts from './components/GShortcuts';
 import KeyboardHelp from './components/KeyboardHelp';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import { ScrollMemory } from './components/ScrollMemory';
 import { AuthProvider } from './lib/auth/AuthContext';
 
 // Login mantém-se eager (primeira página em utilizadores não autenticados).
@@ -22,6 +23,7 @@ const Clientes = lazy(() => import('./pages/clientes/Clientes'));
 const ClienteCampanhas = lazy(() => import('./pages/clientes/ClienteCampanhas'));
 const ClienteDetalhe = lazy(() => import('./pages/clientes/ClienteDetalhe'));
 const Despesas = lazy(() => import('./pages/despesas/Despesas'));
+const DespesaDetalhe = lazy(() => import('./pages/despesas/DespesaDetalhe'));
 const Compras = lazy(() => import('./pages/compras/Compras'));
 const CompraEditor = lazy(() => import('./pages/compras/CompraEditor'));
 const Vendas = lazy(() => import('./pages/vendas/Vendas'));
@@ -88,6 +90,7 @@ export default function App() {
         closeButton
         richColors
       />
+      <ScrollMemory />
       <CookieBanner />
       <AuthProvider>
         <ConfirmProvider>
@@ -144,6 +147,7 @@ export default function App() {
               <Route path="/reparacoes/:id" element={<Navigate to="/vendas?tipo=1" replace />} />
               <Route path="/trabalhos" element={<Navigate to="/vendas?tipo=2" replace />} />
               <Route path="/despesas" element={<Despesas />} />
+              <Route path="/despesas/:id" element={<DespesaDetalhe />} />
               <Route path="/apuramento" element={<Apuramento />} />
               <Route path="/compras" element={<Compras />} />
               <Route path="/compras/nova" element={<CompraEditor />} />

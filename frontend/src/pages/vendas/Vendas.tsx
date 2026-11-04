@@ -1,18 +1,21 @@
 import { useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Code2, Download, FileUp, Package, Plus, Receipt, Search, SlidersHorizontal, Wrench } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { apiErrorMessage } from '../../lib/errors';
 import { downloadFile } from '../../lib/downloadPdf';
 import { toast } from '../../lib/toast';
-import { Button, DateRangeFilter, EmptyState, PageHeader, SEM_DATAS, SectionCard, SkeletonRow, SortableTh, ViewTabs, intervaloParaInstantes, type IntervaloDatas } from '../../components/ui';
-import { useOrdenacao } from '../../lib/useOrdenacao';
+import { Button, DateRangeFilter, EmptyState, PageHeader, Paginacao, SectionCard, SkeletonRow, SortableTh, ViewTabs, intervaloParaInstantes } from '../../components/ui';
+import { useOrdenacaoUrl } from '../../lib/useOrdenacao';
+import { useFiltrosUrl } from '../../lib/useFiltrosUrl';
 import { inputCls } from '../../components/ui/formClasses';
 import { formatEur } from '../../lib/compras/format';
 import { formatDateOnly } from '../../lib/money';
 import { vendasApi } from '../../lib/vendas/api';
 import DocumentosMoloniVista from './DocumentosMoloni';
+import PecasEncomendaVista from './PecasEncomenda';
+import { BotaoImprimir } from '../../components/BotaoImprimir';
 import {
   VENDA_ESTADO,
   VENDA_ESTADO_COLOR,
@@ -26,6 +29,8 @@ import {
 /** Doc 94 Fase 4: um só ecrã para Reparações, Serviços (software/websites) e Produtos. */
 const VISTAS = [
   { key: 'curso', label: 'Em curso' },
+  // Sprint 594: as peças que faltam nas reparações em curso (o que encomendar / o que está a chegar).
+  { key: 'pecas', label: 'Peças a encomendar' },
   { key: 'entregues', label: 'Entregues' },
   { key: 'fatura', label: 'Fatura por registar' },
   { key: 'porpagar', label: 'Por pagar' },
@@ -42,26 +47,16 @@ const PAGE_SIZE = 50;
 
 export default function Vendas() {
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const vista = (VISTAS.find((v) => v.key === params.get('vista'))?.key ?? 'curso') as Vista;
-  const tipoParam = params.get('tipo');
-  const tipo = tipoParam != null && tipoParam !== '' ? (Number(tipoParam) as VendaTipo) : undefined;
-  const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
-  const [datas, setDatas] = useState<IntervaloDatas>(SEM_DATAS);
+  // Sprint 592: vista, filtros, ordem e página no URL — ao voltar de uma venda, a lista está como se deixou.
+  const { f, set, page, setPage } = useFiltrosUrl({ vista: 'curso', tipo: '', q: '', de: '', ate: '', page: '1', sort: 'data', dir: 'desc' });
+  const vista = (VISTAS.find((v) => v.key === f.vista)?.key ?? 'curso') as Vista;
+  const tipo = f.tipo !== '' ? (Number(f.tipo) as VendaTipo) : undefined;
+  const q = f.q;
+  const datas = { de: f.de, ate: f.ate };
   // Telemóvel: tipo e datas escondidos atrás de "Filtros" (no computador estão sempre à vista).
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const filtrosAtivos = (tipo !== undefined ? 1 : 0) + (datas.de || datas.ate ? 1 : 0);
-  const { ordem, alternar, params: ordemParams } = useOrdenacao<'numero' | 'cliente' | 'estado' | 'data' | 'total'>('data');
-  function ordenar(c: typeof ordem.campo) { alternar(c); setPage(1); }
-
-  function setParam(key: string, value: string | null) {
-    const next = new URLSearchParams(params);
-    if (value == null) next.delete(key);
-    else next.set(key, value);
-    setParams(next, { replace: true });
-    setPage(1);
-  }
+  const { ordem, alternar: ordenar, params: ordemParams } = useOrdenacaoUrl<'numero' | 'cliente' | 'estado' | 'data' | 'total'>('data', f, set);
 
   const filtro: VendaFiltro = {
     q: q.trim() || undefined,
@@ -77,7 +72,8 @@ export default function Vendas() {
     ...(vista === 'trading' ? { atividade: 'trading' as const } : {}),
   };
 
-  const list = useQuery({ queryKey: ['vendas', filtro], queryFn: () => vendasApi.list(filtro), placeholderData: keepPreviousData, enabled: vista !== 'documentos' });
+  const list = useQuery({ queryKey: ['vendas', filtro], queryFn: () => vendasApi.list(filtro), placeholderData: keepPreviousData, enabled: vista !== 'documentos' && vista !== 'pecas' });
+  const pecas = useQuery({ queryKey: ['vendas', 'pecas-encomenda'], queryFn: vendasApi.pecasEncomenda });
   const porFaturar = useQuery({ queryKey: ['vendas', 'fatura-count'], queryFn: () => vendasApi.list({ faturaPorRegistar: true, pageSize: 1 }) });
   const porPagar = useQuery({ queryKey: ['vendas', 'porpagar-count'], queryFn: () => vendasApi.list({ porPagar: true, pageSize: 1 }) });
 
@@ -151,23 +147,30 @@ export default function Vendas() {
 
       <ViewTabs
         value={vista}
-        onChange={(v) => setParam('vista', v === 'curso' ? null : v)}
+        onChange={(v) => set({ vista: v })}
         tabs={VISTAS.map((v) => ({
           key: v.key,
           label: v.label,
-          meta: v.key === 'fatura' && porFaturar.data?.total ? porFaturar.data.total
+          meta: v.key === 'pecas' && pecas.data?.length ? pecas.data.length
+            : v.key === 'fatura' && porFaturar.data?.total ? porFaturar.data.total
             : v.key === 'porpagar' && porPagar.data?.total ? porPagar.data.total : undefined,
         }))}
       />
 
-      {vista === 'documentos' ? <DocumentosMoloniVista isAdmin={isAdmin} /> : (
+      {vista === 'documentos' ? <DocumentosMoloniVista isAdmin={isAdmin} /> : vista === 'pecas' ? <PecasEncomendaVista /> : (
       <SectionCard
         bodyClassName="p-0"
+        action={
+          // Sprint 593: imprime tudo o que a lista mostra (ex.: "Hoje" → as vendas do dia, num só PDF).
+          <BotaoImprimir caminho="/imprimir/vendas" total={list.data?.total} nome={`Vendas${datas.de ? '_' + datas.de : ''}${datas.ate && datas.ate !== datas.de ? '_a_' + datas.ate : ''}.pdf`}
+            params={{ from: filtro.from, to: filtro.to, tipo: filtro.tipo, estado: filtro.estado, emCurso: filtro.emCurso, faturaPorRegistar: filtro.faturaPorRegistar,
+              porPagar: filtro.porPagar, q: filtro.q, atividade: filtro.atividade }} />
+        }
         title={
           <div className="flex flex-1 flex-wrap items-center gap-2">
             <label className="relative min-w-48 flex-1">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className={`${inputCls} pl-9`} placeholder="Nº, cliente, equipamento, fatura…" aria-label="Procurar vendas" />
+              <input value={q} onChange={(e) => set({ q: e.target.value })} className={`${inputCls} pl-9`} placeholder="Nº, cliente, equipamento, fatura…" aria-label="Procurar vendas" />
             </label>
             <button type="button" onClick={() => setFiltrosAbertos((f) => !f)} aria-expanded={filtrosAbertos}
               className="relative grid h-11 w-11 place-items-center rounded-lg border border-zinc-300 text-zinc-600 sm:hidden dark:border-zinc-700 dark:text-zinc-300" aria-label="Filtros">
@@ -175,15 +178,16 @@ export default function Vendas() {
               {filtrosAtivos > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">{filtrosAtivos}</span>}
             </button>
             <div className={`${filtrosAbertos ? 'flex' : 'hidden'} w-full flex-col gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:items-center`}>
-              <select value={tipo ?? ''} onChange={(e) => setParam('tipo', e.target.value || null)} className={`${inputCls} sm:w-auto`} aria-label="Tipo">
+              <select value={tipo ?? ''} onChange={(e) => set({ tipo: e.target.value })} className={`${inputCls} sm:w-auto`} aria-label="Tipo">
                 <option value="">Todos os tipos</option>
                 {Object.entries(VENDA_TIPO_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
               </select>
-              <DateRangeFilter value={datas} onChange={(v) => { setDatas(v); setPage(1); }} />
+              <DateRangeFilter value={datas} onChange={(v) => set({ de: v.de, ate: v.ate })} />
             </div>
           </div>
         }
       >
+        <Paginacao posicao="cima" page={page} pages={pages} total={total} label="vendas" onPage={setPage} />
         {!list.isLoading && items.length === 0 ? (
           <div className="p-4">
             <EmptyState
@@ -267,15 +271,7 @@ export default function Vendas() {
           </div>
           </>
         )}
-        {pages > 1 && (
-          <div className="flex items-center justify-between border-t border-zinc-100 px-4 py-2 text-sm dark:border-zinc-800">
-            <span className="text-zinc-500">{total} vendas</span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
-              <Button size="sm" variant="secondary" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Seguinte</Button>
-            </div>
-          </div>
-        )}
+        <Paginacao page={page} pages={pages} total={total} label="vendas" onPage={setPage} />
       </SectionCard>
       )}
     </div>

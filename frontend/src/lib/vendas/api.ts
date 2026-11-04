@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { PaymentMethod, Venda, VendaEstado, VendaFaturaImport, VendaFiltro, VendasPage, VendaWrite } from './types';
+import type { PaymentMethod, PecaEncomenda, PecaEncomendaEstado, Venda, VendaEstado, VendaFaturaImport, VendaFiltro, VendasPage, VendaWrite } from './types';
 
 export const vendasApi = {
   list(params: VendaFiltro = {}) {
@@ -7,6 +7,13 @@ export const vendasApi = {
   },
   get(id: string) {
     return api.get<Venda>(`/vendas/${id}`).then((r) => r.data);
+  },
+  /** Sprint 594: peças em falta nas reparações em curso. */
+  pecasEncomenda() {
+    return api.get<PecaEncomenda[]>('/vendas/pecas-encomenda').then((r) => r.data);
+  },
+  marcarEncomenda(vendaId: string, itemId: string, encomenda: PecaEncomendaEstado, nota?: string | null) {
+    return api.post<Venda>(`/vendas/${vendaId}/itens/${itemId}/encomenda`, { encomenda, nota }).then((r) => r.data);
   },
   create(payload: VendaWrite) {
     return api.post<Venda>('/vendas', payload).then((r) => r.data);

@@ -83,6 +83,32 @@ export interface VendaItem {
   custoDasPecas: number;
   ivaAPagarEstado: number;
   lucro: number;
+  /** Sprint 594: peça ainda sem stock (o custo estimado vem em custoUnitarioPago). */
+  encomenda?: PecaEncomendaEstado | null;
+  encomendaNota?: string | null;
+}
+
+/** Sprint 594: peça de uma reparação que ainda não há em stock. */
+export const PECA_ENCOMENDA = { PorEncomendar: 0, Encomendada: 1 } as const;
+export type PecaEncomendaEstado = (typeof PECA_ENCOMENDA)[keyof typeof PECA_ENCOMENDA];
+export const PECA_ENCOMENDA_LABEL: Record<PecaEncomendaEstado, string> = { 0: 'Por encomendar', 1: 'Encomendada' };
+
+/** Sprint 594: uma peça em falta numa reparação em curso (lista "Peças a encomendar"). */
+export interface PecaEncomenda {
+  vendaId: string;
+  vendaNumero: number;
+  tipo: VendaTipo;
+  estado: VendaEstado;
+  cliente: string | null;
+  equipamento: string | null;
+  itemId: string;
+  descricao: string;
+  quantidade: number;
+  custoEstimado: number;
+  precoUnitarioCents: number;
+  encomenda: PecaEncomendaEstado;
+  nota: string | null;
+  desde: string;
 }
 
 /** Ordem natural do fluxo (os números do enum não são a ordem). */
@@ -143,6 +169,10 @@ export interface VendaLinhaWrite {
   descontoCents?: number;
   ivaRate?: number | null;
   imei?: string | null;
+  /** Sprint 594: peça por encomendar — estado, custo estimado c/ IVA (cêntimos) e nota. */
+  encomenda?: PecaEncomendaEstado | null;
+  custoEstimadoCents?: number | null;
+  encomendaNota?: string | null;
 }
 
 export interface VendaWrite {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Boxes, CheckCircle2, FileText, Save, Trash2, Wrench, XCircle } from 'lucide-react';
+import { AlertTriangle, Boxes, CheckCircle2, FileText, PackageSearch, Save, Trash2, Wrench, XCircle } from 'lucide-react';
 import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -15,6 +15,9 @@ import { vendasApi } from '../../lib/vendas/api';
 import {
   PAYMENT_METHOD,
   PAYMENT_METHOD_LABEL,
+  PECA_ENCOMENDA,
+  PECA_ENCOMENDA_LABEL,
+  type PecaEncomendaEstado,
   VENDA_ESTADO,
   VENDA_ESTADO_COLOR,
   VENDA_ESTADO_LABEL,
@@ -46,6 +49,10 @@ interface LinhaForm {
   custoUnit: number;
   taxaCompra: number;
   maxStock: number | null;
+  /** Sprint 594: peça que ainda não há (por encomendar/encomendada) — custo estimado c/ IVA e nota. */
+  encomenda: PecaEncomendaEstado | null;
+  custo: string;
+  nota: string;
 }
 
 const num = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
@@ -82,6 +89,9 @@ function linhasFrom(v: Venda): LinhaForm[] {
     custoUnit: i.custoUnitarioPago ?? 0,
     taxaCompra: i.taxaIvaCompra ?? 0,
     maxStock: null,
+    encomenda: i.encomenda ?? null,
+    custo: i.encomenda != null && i.custoUnitarioPago != null ? fmt2(i.custoUnitarioPago) : '',
+    nota: i.encomendaNota ?? '',
   }));
 }
 
@@ -157,7 +167,8 @@ export default function VendaEditor() {
     const porLinha = linhas.map((l) => {
       const qtd = Number(l.quantidade) || 0;
       const total = qtd * precoComIva(l.preco, l.iva, semIva);
-      return { total, ...previewVenda(qtd, total, l.custoUnit, l.taxaCompra, (parseDecimal(l.iva) ?? IVA_NORMAL) / 100) };
+      const [custo, taxa] = l.encomenda != null ? [parseDecimal(l.custo) ?? 0, IVA_NORMAL / 100] : [l.custoUnit, l.taxaCompra];
+      return { total, ...previewVenda(qtd, total, custo, taxa, (parseDecimal(l.iva) ?? IVA_NORMAL) / 100) };
     });
     const soma = (k: 'total' | 'ivaVenda' | 'ivaAPagar' | 'lucro') => porLinha.reduce((s, c) => s + c[k], 0);
     return { porLinha, total: soma('total'), ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
@@ -185,6 +196,11 @@ export default function VendaEditor() {
         quantidade: Number(l.quantidade) || 0,
         precoUnitarioCents: Math.round(precoComIva(l.preco, l.iva, semIva) * 100),
         ivaRate: parseDecimal(l.iva) ?? IVA_NORMAL,
+        ...(l.encomenda != null && !l.compraLinhaId ? {
+          encomenda: l.encomenda,
+          custoEstimadoCents: Math.round((parseDecimal(l.custo) ?? 0) * 100),
+          encomendaNota: l.nota.trim() || null,
+        } : {}),
       })),
       ...(isNew ? { estado, paymentMethod: estado === VENDA_ESTADO.Entregue ? pagamento : null } : {}),
     };
@@ -235,7 +251,19 @@ export default function VendaEditor() {
     setLinhas((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
+  // Sprint 594: "Chegou" numa peça por encomendar — o lote escolhido substitui-a (mantém a descrição e o preço).
+  const [aSubstituir, setASubstituir] = useState<string | null>(null);
   function addLote(lote: InventarioLinha, quantidade = 1, precoComIvaDado?: number) {
+    if (aSubstituir) {
+      const key = aSubstituir;
+      setASubstituir(null);
+      setLinhas((ls) => ls.map((l) => (l.key === key ? {
+        ...l, compraLinhaId: lote.linhaId, custoUnit: lote.precoUnitarioPago, taxaCompra: lote.taxaIvaCompra,
+        maxStock: lote.quantidadeEmStock, encomenda: null, custo: '', nota: '', iva: String(IVA_NORMAL),
+      } : l)));
+      setPickerOpen(false);
+      return;
+    }
     const precoComIvaLote = precoComIvaDado ?? lote.precoVendaArtigo ?? lote.precoFinalComIva;
     setLinhas((ls) => [...ls, {
       key: crypto.randomUUID(),
@@ -250,6 +278,7 @@ export default function VendaEditor() {
       custoUnit: lote.precoUnitarioPago,
       taxaCompra: lote.taxaIvaCompra,
       maxStock: lote.quantidadeEmStock,
+      encomenda: null, custo: '', nota: '',
     }]);
     setPickerOpen(false);
   }
@@ -259,6 +288,16 @@ export default function VendaEditor() {
       key: crypto.randomUUID(), id: null, compraLinhaId: null,
       descricao: tipo === VENDA_TIPO.Reparacao ? 'Mão de obra' : '',
       quantidade: '1', preco: '', iva: String(IVA_NORMAL), custoUnit: 0, taxaCompra: 0, maxStock: null,
+      encomenda: null, custo: '', nota: '',
+    }]);
+  }
+
+  /** Sprint 594: peça que ainda não há em stock — fica anotada com o custo estimado e o preço, até chegar. */
+  function addEncomenda() {
+    setLinhas((ls) => [...ls, {
+      key: crypto.randomUUID(), id: null, compraLinhaId: null, descricao: '',
+      quantidade: '1', preco: '', iva: String(IVA_NORMAL), custoUnit: 0, taxaCompra: 0, maxStock: null,
+      encomenda: PECA_ENCOMENDA.PorEncomendar, custo: '', nota: '',
     }]);
   }
 
@@ -268,6 +307,7 @@ export default function VendaEditor() {
   }
 
   const precisaCliente = tipo === VENDA_TIPO.Reparacao && !cliente;
+  const pecasEmFalta = linhas.filter((l) => l.encomenda != null && !l.compraLinhaId).length;
   const linhasOk = linhas.every((l) => (l.compraLinhaId || l.descricao.trim()) && Number(l.quantidade) >= 1 && parseDecimal(l.preco) != null);
   const podeGravar = !precisaCliente && linhasOk && !guardar.isPending && !fechada;
   const busy = guardar.isPending || mudarEstado.isPending;
@@ -387,11 +427,17 @@ export default function VendaEditor() {
             <Button type="button" size="sm" variant="secondary" leftIcon={<Wrench size={15} />} onClick={addServico}>
               {tipo === VENDA_TIPO.Reparacao ? 'Mão de obra' : 'Serviço'}
             </Button>
+            {tipo !== VENDA_TIPO.Servico && (
+              <Button type="button" size="sm" variant="secondary" leftIcon={<PackageSearch size={15} />} onClick={addEncomenda}
+                title="Uma peça que ainda não tens: anota quanto custa e por quanto a vendes — fica na lista de peças a encomendar">
+                Peça a encomendar
+              </Button>
+            )}
           </div>
         )}
       >
         {/* Sprint 581: a peça usada tem de sair do stock — senão o custo das peças vendidas fica a 0 € e o resultado engana. */}
-        {!fechada && tipo === VENDA_TIPO.Reparacao && linhas.length > 0 && !linhas.some((l) => l.compraLinhaId) && (
+        {!fechada && tipo === VENDA_TIPO.Reparacao && linhas.length > 0 && !linhas.some((l) => l.compraLinhaId || l.encomenda != null) && (
           <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
             Usaste alguma peça (ecrã, bateria…)? Junta-a com <strong>Do stock</strong> — sai do lote e o custo entra no resultado.
           </p>
@@ -442,9 +488,39 @@ export default function VendaEditor() {
                     <tr key={l.key} className="grid grid-cols-3 gap-x-2 py-2 align-top sm:table-row sm:py-0">
                       <td className="col-span-3 py-1 sm:py-2 sm:pr-2">
                         <input aria-label="Descrição" value={l.descricao} onChange={(e) => setLinha(l.key, { descricao: e.target.value })} className={inputCls} disabled={fechada} maxLength={300} />
-                        <span className="mt-1 block text-xs text-zinc-500">
-                          {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
-                        </span>
+                        {l.encomenda != null && !l.compraLinhaId ? (
+                          // Sprint 594: peça que falta — custo estimado, estado da encomenda, nota e "Chegou".
+                          <div className="mt-1 space-y-1.5 rounded-lg border border-amber-200 bg-amber-50/60 p-2 dark:border-amber-900/50 dark:bg-amber-950/20">
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                              <select aria-label="Estado da encomenda" value={l.encomenda} disabled={fechada}
+                                onChange={(e) => setLinha(l.key, { encomenda: Number(e.target.value) as PecaEncomendaEstado })}
+                                className="min-h-8 rounded-md border border-amber-300 bg-white px-2 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-zinc-950 dark:text-amber-200">
+                                {Object.entries(PECA_ENCOMENDA_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                              </select>
+                              <label className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
+                                custa
+                                <input aria-label="Custo estimado da peça (c/ IVA)" inputMode="decimal" value={l.custo} disabled={fechada} placeholder="0,00"
+                                  onChange={(e) => setLinha(l.key, { custo: e.target.value })}
+                                  className="min-h-8 w-20 rounded-md border border-zinc-300 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                                €
+                              </label>
+                              <input aria-label="Nota da encomenda" value={l.nota} disabled={fechada} maxLength={300} placeholder="onde / quando chega"
+                                onChange={(e) => setLinha(l.key, { nota: e.target.value })}
+                                className="min-h-8 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                              {!fechada && (
+                                <Button type="button" size="sm" variant="secondary" leftIcon={<Boxes size={13} />}
+                                  title="A peça chegou e está no stock: escolhe o lote — a linha passa a usar essa peça"
+                                  onClick={() => { setASubstituir(l.key); setPickerOpen(true); }}>
+                                  Chegou
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="mt-1 block text-xs text-zinc-500">
+                            {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
+                          </span>
+                        )}
                       </td>
                       <td className="py-1 sm:py-2 sm:pr-2">
                         <span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Qtd</span>
@@ -515,6 +591,12 @@ export default function VendaEditor() {
               Entregue & paga
             </Button>
           </div>
+          {pecasEmFalta > 0 && (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+              Falta{pecasEmFalta === 1 ? '' : 'm'} {pecasEmFalta} peça{pecasEmFalta === 1 ? '' : 's'} — quando chegar{pecasEmFalta === 1 ? '' : 'em'}, carrega em <strong>Chegou</strong> na linha para usar a peça do stock
+              (o custo certo entra no lucro e a peça sai do stock).
+            </p>
+          )}
           <p className="mt-2 text-xs text-zinc-500">Ao sair de Orçamento as peças saem do stock. Entregue fecha a venda (as linhas deixam de se poder editar).</p>
         </SectionCard>
       )}
@@ -566,7 +648,7 @@ export default function VendaEditor() {
 
       {venda && venda.tipo === VENDA_TIPO.Reparacao && <ReparacaoExtras venda={venda} />}
 
-      <LotePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={addLote} reservado={reservado} />
+      <LotePicker open={pickerOpen} onClose={() => { setPickerOpen(false); setASubstituir(null); }} onPick={addLote} reservado={reservado} />
     </form>
   );
 }

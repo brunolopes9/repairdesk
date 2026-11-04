@@ -25,6 +25,14 @@ public class VendaItem : BaseEntity, ITenantEntity
 
     /// <summary>IMEI principal (15 dígitos) quando o artigo é um telemóvel. Validado com Luhn.</summary>
     public string? Imei { get; set; }
+
+    /// <summary>
+    /// Sprint 594: peça por encomendar/encomendada (sem lote ainda). O custo estimado fica em
+    /// <see cref="CustoUnitarioPago"/> (c/ IVA) para o lucro aparecer; ao ligar o lote do stock volta a null.
+    /// </summary>
+    public PecaEncomendaEstado? Encomenda { get; set; }
+    /// <summary>Onde/quando ("LC Phones, chega dia 6").</summary>
+    public string? EncomendaNota { get; set; }
     /// <summary>IMEI secundário para equipamentos dual-SIM.</summary>
     public string? Imei2 { get; set; }
 

@@ -19,6 +19,10 @@ public interface IVendaService
     Task<VendaDto> UpdateAsync(Guid id, VendaWriteRequest req, CancellationToken ct = default);
     Task<VendaDto> MudarEstadoAsync(Guid id, MudarEstadoVendaRequest req, CancellationToken ct = default);
     Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 594: peças por encomendar/encomendadas das reparações em curso.</summary>
+    Task<IReadOnlyList<PecaEncomendaDto>> PecasEncomendaAsync(CancellationToken ct = default);
+    /// <summary>Sprint 594: "já encomendei" / "afinal ainda não" numa peça em falta, sem abrir a venda.</summary>
+    Task<VendaDto> MarcarEncomendaAsync(Guid vendaId, Guid itemId, MarcarEncomendaRequest req, CancellationToken ct = default);
     /// <summary>Sprint 563: corrige preços/IVA de uma venda entregue (erro de lançamento). Só valores; auditado.</summary>
     Task<VendaDto> CorrigirPrecosAsync(Guid id, CorrigirPrecosRequest req, CancellationToken ct = default);
     Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default);
@@ -243,6 +247,30 @@ public class VendaService : IVendaService
         return ToDto(venda);
     }
 
+    public async Task<IReadOnlyList<PecaEncomendaDto>> PecasEncomendaAsync(CancellationToken ct = default)
+    {
+        var vendas = await _vendas.ListComPecasEncomendaAsync(ct);
+        return vendas.SelectMany(v => v.Items.Where(i => i.Encomenda is not null).OrderBy(i => i.CreatedAt).Select(i => new PecaEncomendaDto(
+                v.Id, v.Numero, v.Tipo, v.Estado, v.Cliente?.Nome, v.Equipamento, i.Id, i.Descricao, i.Quantidade,
+                i.CustoUnitarioPago ?? 0m, i.PrecoUnitarioCents, i.Encomenda!.Value, i.EncomendaNota, i.UpdatedAt ?? i.CreatedAt)))
+            // Primeiro o que falta encomendar; depois o que está a chegar.
+            .OrderBy(p => p.Encomenda).ThenBy(p => p.Desde)
+            .ToList();
+    }
+
+    public async Task<VendaDto> MarcarEncomendaAsync(Guid vendaId, Guid itemId, MarcarEncomendaRequest req, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
+        var item = venda.Items.FirstOrDefault(i => i.Id == itemId) ?? throw new NotFoundException("VendaItem", itemId);
+        if (item.Encomenda is null)
+            throw new ConflictException("nao_e_encomenda", "Esta linha não é uma peça por encomendar.");
+        item.Encomenda = req.Encomenda;
+        if (req.Nota is not null) item.EncomendaNota = Clean(req.Nota, 300);
+        await _vendas.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new { operation = "peca_encomenda", venda.Numero, item.Descricao, encomenda = req.Encomenda.ToString() }, ct: ct);
+        return ToDto(venda);
+    }
+
     // ---------- regras ----------
 
     /// <summary>Sprint 575: faturas da série TRADING (ex.: "FT TRADING/7") são da atividade de trading.</summary>
@@ -307,7 +335,22 @@ public class VendaService : IVendaService
             }
 
             CompraLinha? lote = l.CompraLinhaId is { } loteId ? lotes[loteId] : null;
-            if (item.CompraLinhaId != lote?.Id || item.CustoUnitarioPago is null) SnapshotLote(item, lote);
+            var eraEncomenda = item.Encomenda is not null;
+            if (lote is null && l.Encomenda is { } encomenda)
+            {
+                // Sprint 594: peça que ainda não há — fica com o custo estimado (c/ IVA) para o lucro já se ver.
+                item.Encomenda = encomenda;
+                item.EncomendaNota = Clean(l.EncomendaNota, 300);
+                item.CustoUnitarioPago = (l.CustoEstimadoCents ?? 0) / 100m;
+                item.TaxaIvaCompra = FiscalDefaults.TaxaIvaNormal;
+            }
+            else
+            {
+                // Peça do stock (incl. a que chegou e passou a usar o lote) ou serviço.
+                item.Encomenda = null;
+                item.EncomendaNota = null;
+                if (eraEncomenda || item.CompraLinhaId != lote?.Id || item.CustoUnitarioPago is null) SnapshotLote(item, lote);
+            }
             item.CompraLinhaId = lote?.Id;
             item.CompraLinha = lote;
             item.Descricao = Clean(l.Descricao, 300) ?? lote?.Descricao
@@ -327,6 +370,7 @@ public class VendaService : IVendaService
         if (l.DescontoCents < 0 || l.DescontoCents > l.Quantidade * l.PrecoUnitarioCents)
             throw new ValidationException("desconto_invalido", "Desconto entre 0 e o total da linha.");
         if (l.IvaRate is < 0 or > 100) throw new ValidationException("iva_invalido", "Taxa de IVA entre 0 e 100%.");
+        if (l.CustoEstimadoCents is < 0 or > 100_000_000) throw new ValidationException("custo_invalido", "Custo estimado inválido.");
     }
 
     private static string? NormalizeImei(string? imei)
@@ -539,7 +583,7 @@ public class VendaService : IVendaService
             var c = Calcular(i);
             return new VendaItemDto(i.Id, i.CompraLinhaId, i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents,
                 i.IvaRate, i.TotalCents, CalculateIvaCents(i), i.Imei, i.CustoUnitarioPago, i.TaxaIvaCompra,
-                c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro);
+                c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro, i.Encomenda, i.EncomendaNota);
         }).ToList();
 
         return new VendaDto(

@@ -16,6 +16,14 @@ public class VendaRepository : IVendaRepository
             .Include(v => v.Cliente)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
 
+    public async Task<IReadOnlyList<Venda>> ListComPecasEncomendaAsync(CancellationToken ct = default)
+        => await _db.Vendas.AsNoTracking()
+            .Include(v => v.Cliente)
+            .Include(v => v.Items)
+            .Where(v => v.Estado != VendaEstado.Entregue && v.Estado != VendaEstado.Cancelada && v.Items.Any(i => i.Encomenda != null))
+            .OrderBy(v => v.Data)
+            .ToListAsync(ct);
+
     public Task<Venda?> FindByIdWithItemsAsync(Guid id, CancellationToken ct = default)
         => _db.Vendas
             .Include(v => v.Cliente)

@@ -28,6 +28,8 @@ public interface IVendaRepository
     /// <summary>Sprint 575: data da primeira venda faturada (início de atividade por defeito).</summary>
     Task<DateTime?> PrimeiraFaturaAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Venda>> ListByMoloniIdsAsync(IReadOnlyCollection<int> documentIds, CancellationToken ct = default);
+    /// <summary>Sprint 594: vendas em curso (não entregues/canceladas) com peças por encomendar ou encomendadas.</summary>
+    Task<IReadOnlyList<Venda>> ListComPecasEncomendaAsync(CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }
 

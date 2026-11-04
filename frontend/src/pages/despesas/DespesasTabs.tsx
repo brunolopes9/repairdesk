@@ -41,9 +41,8 @@ export default function DespesasTabs() {
   }), [pending.data, recurring.data]);
 
   function setTab(tab: TabKey) {
-    const next = new URLSearchParams(params);
-    next.set('tab', tab);
-    setParams(next, { replace: true });
+    // Sprint 592: cada separador começa sem os filtros/página do outro.
+    setParams(new URLSearchParams({ tab }), { replace: true });
   }
 
   return (

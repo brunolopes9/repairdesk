@@ -25,7 +25,9 @@ import {
 } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, EmptyState, PageHeader, SkeletonCard, SortableTh } from '../../components/ui';
-import { useOrdenacao } from '../../lib/useOrdenacao';
+import { useOrdenacaoUrl } from '../../lib/useOrdenacao';
+import { useFiltrosUrl } from '../../lib/useFiltrosUrl';
+import { Paginacao } from '../../components/ui/Paginacao';
 import { isAxiosError } from 'axios';
 import { clientesApi, type ImportClientesResponse } from '../../lib/clientes/api';
 import { clienteTagsApi } from '../../lib/clienteTags/api';
@@ -75,8 +77,10 @@ export default function Clientes() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  // Sprint 592: pesquisa, etiqueta, ordem e página no URL — ao voltar de um cliente, a lista está como se deixou.
+  const { f, set, page, setPage } = useFiltrosUrl({ q: '', tag: '', page: '1', sort: 'nome', dir: 'asc' });
+  const search = f.q;
+  const tagFilter = f.tag || null;
   const pageSize = 20;
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -84,9 +88,7 @@ export default function Clientes() {
   const [importOpen, setImportOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const { ordem, alternar, params: ordemParams } = useOrdenacao<'nome' | 'nif' | 'criado'>('nome', false);
-  function ordenar(c: typeof ordem.campo) { alternar(c); setPage(1); }
+  const { ordem, alternar: ordenar, params: ordemParams } = useOrdenacaoUrl<'nome' | 'nif' | 'criado'>('nome', f, set);
 
   const list = useQuery({
     queryKey: ['clientes', search, page, tagFilter, ordemParams],
@@ -230,10 +232,7 @@ export default function Clientes() {
             inputMode="search"
             placeholder="Pesquisar nome, telefone, email ou NIF..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => set({ q: e.target.value })}
             className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
@@ -261,10 +260,7 @@ export default function Clientes() {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => {
-                  setTagFilter(active ? null : t.id);
-                  setPage(1);
-                }}
+                onClick={() => set({ tag: active ? '' : t.id })}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                   active
                     ? 'border-transparent text-white shadow-sm'
@@ -295,6 +291,7 @@ export default function Clientes() {
             <h2 className="text-sm font-semibold">Lista de clientes</h2>
             <span className="text-xs text-zinc-500">{filtered.length} {filtered.length === 1 ? 'resultado' : 'resultados'}</span>
           </div>
+          <Paginacao posicao="cima" page={page} pages={lastPage} total={total} label="clientes" onPage={setPage} />
 
           {list.isLoading ? (
             <div className="space-y-2 p-3">
@@ -412,25 +409,7 @@ export default function Clientes() {
             </div>
           )}
 
-          {lastPage > 1 && (
-            <div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="min-h-9 rounded-md px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40"
-              >
-                ← Anterior
-              </button>
-              <span>{page} / {lastPage}</span>
-              <button
-                disabled={page >= lastPage}
-                onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-                className="min-h-9 rounded-md px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-40"
-              >
-                Seguinte →
-              </button>
-            </div>
-          )}
+          <Paginacao page={page} pages={lastPage} total={total} label="clientes" onPage={setPage} />
         </div>
 
         {/* Inspector de perfil */}

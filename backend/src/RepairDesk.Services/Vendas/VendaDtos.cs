@@ -16,7 +16,11 @@ public sealed record VendaLinhaWriteRequest(
     int DescontoCents = 0,
     /// <summary>Taxa de IVA da venda em % (23, 13, 6, 0). Null → taxa normal.</summary>
     decimal? IvaRate = null,
-    string? Imei = null);
+    string? Imei = null,
+    /// <summary>Sprint 594: peça ainda sem stock — estado da encomenda, custo estimado (c/ IVA, cêntimos) e nota.</summary>
+    PecaEncomendaEstado? Encomenda = null,
+    int? CustoEstimadoCents = null,
+    string? EncomendaNota = null);
 
 public sealed record VendaWriteRequest(
     VendaTipo Tipo,
@@ -61,7 +65,18 @@ public sealed record VendaItemDto(
     decimal? TaxaIvaCompra,
     decimal CustoDasPecas,
     decimal IvaAPagarEstado,
-    decimal Lucro);
+    decimal Lucro,
+    /// <summary>Sprint 594: peça por encomendar/encomendada (sem lote ainda); o custo estimado vem em CustoUnitarioPago.</summary>
+    PecaEncomendaEstado? Encomenda = null,
+    string? EncomendaNota = null);
+
+/// <summary>Sprint 594: uma peça em falta numa reparação — para saber o que encomendar e o que está a chegar.</summary>
+public sealed record PecaEncomendaDto(
+    Guid VendaId, int VendaNumero, VendaTipo Tipo, VendaEstado Estado, string? Cliente, string? Equipamento,
+    Guid ItemId, string Descricao, int Quantidade, decimal CustoEstimado, int PrecoUnitarioCents,
+    PecaEncomendaEstado Encomenda, string? Nota, DateTime Desde);
+
+public sealed record MarcarEncomendaRequest(PecaEncomendaEstado Encomenda, string? Nota = null);
 
 public sealed record VendaDto(
     Guid Id,

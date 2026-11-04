@@ -51,6 +51,14 @@ public class VendasController : ControllerBase
     [HttpGet("{id:guid}")]
     public Task<VendaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);
 
+    /// <summary>Sprint 594: peças em falta nas reparações em curso — o que encomendar e o que está a chegar.</summary>
+    [HttpGet("pecas-encomenda")]
+    public Task<IReadOnlyList<PecaEncomendaDto>> PecasEncomenda(CancellationToken ct) => _service.PecasEncomendaAsync(ct);
+
+    [HttpPost("{id:guid}/itens/{itemId:guid}/encomenda")]
+    public Task<VendaDto> MarcarEncomenda(Guid id, Guid itemId, [FromBody] MarcarEncomendaRequest req, CancellationToken ct)
+        => _service.MarcarEncomendaAsync(id, itemId, req, ct);
+
     [HttpGet("imei-lookup/{imei}")]
     public async Task<ActionResult<VendaImeiLookupDto>> ImeiLookup(string imei, CancellationToken ct)
     {
