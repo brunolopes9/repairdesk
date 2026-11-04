@@ -16,10 +16,10 @@ using UglyToad.PdfPig.Writer;
 
 namespace RepairDesk.Services.Impressao;
 
-/// <summary>O que vai no PDF: a lista (com totais) seguida das faturas, sÃ³ as faturas, ou sÃ³ a lista.</summary>
+/// <summary>O que vai no PDF: a lista (com totais) seguida das faturas, só as faturas, ou só a lista.</summary>
 public enum ConteudoImpressao { Tudo, Faturas, Lista }
 
-/// <summary>Filtros da lista de despesas (os mesmos do ecrÃ£).</summary>
+/// <summary>Filtros da lista de despesas (os mesmos do ecrã).</summary>
 public sealed record DespesaFiltroImpressao(
     string? Query, DespesaCategoria? Categoria, bool? IsRecorrente, DateTime? De, DateTime? Ate);
 
@@ -31,10 +31,10 @@ public interface IImpressaoService
 }
 
 /// <summary>
-/// Sprint 593: imprimir de uma vez â€” as vendas de hoje, as compras do mÃªs, as despesas de um fornecedorâ€¦ Usa os
-/// mesmos filtros das listas e devolve UM PDF: primeiro uma pÃ¡gina com a lista (nÂº, data, cliente/fornecedor,
-/// documento, IVA e total, com os totais â€” para a contabilidade), depois cada fatura pela ordem das datas.
-/// Documentos sem PDF ficam na lista assinalados. MÃ¡ximo <see cref="Maximo"/> documentos por impressÃ£o.
+/// Sprint 593: imprimir de uma vez — as vendas de hoje, as compras do mês, as despesas de um fornecedor… Usa os
+/// mesmos filtros das listas e devolve UM PDF: primeiro uma página com a lista (nº, data, cliente/fornecedor,
+/// documento, IVA e total, com os totais — para a contabilidade), depois cada fatura pela ordem das datas.
+/// Documentos sem PDF ficam na lista assinalados. Máximo <see cref="Maximo"/> documentos por impressão.
 /// </summary>
 public sealed class ImpressaoService : IImpressaoService
 {
@@ -86,12 +86,12 @@ public sealed class ImpressaoService : IImpressaoService
         var compras = await TodasAsync((p, n) => _compras.SearchAsync(filtro, p, n, ct), 200);
         var linhas = compras.Select(c => new Linha(
             c.Numero.ToString(Pt), c.Data, c.FornecedorNome,
-            c.NumeroFatura ?? (c.NumerosEncomenda.Count > 0 ? $"Enc. {string.Join(", ", c.NumerosEncomenda)}" : "sem referÃªncia"),
+            c.NumeroFatura ?? (c.NumerosEncomenda.Count > 0 ? $"Enc. {string.Join(", ", c.NumerosEncomenda)}" : "sem referência"),
             null, c.TotalDocumento ?? c.TotalCalculado,
             c.SupplierInvoiceImportId is { } imp ? async k => await _faturasFornecedor.GetPdfAsync(imp, k) : null,
             c.FaturaEmFalta ? "fatura em falta" : null)).ToList();
         var fornecedor = filtro.FornecedorId is { } fid ? (await _fornecedores.FindByIdAsync(fid, ct))?.Name : null;
-        var titulo = "Compras" + (fornecedor is null ? "" : $" Â· {fornecedor}") + Periodo(filtro.DeUtc, filtro.AteUtc?.AddDays(-1)) + Pesquisa(filtro.Query);
+        var titulo = "Compras" + (fornecedor is null ? "" : $" · {fornecedor}") + Periodo(filtro.DeUtc, filtro.AteUtc?.AddDays(-1)) + Pesquisa(filtro.Query);
         return (await MontarAsync(titulo, "Fornecedor", linhas, conteudo, ct), Nome("Compras", filtro.DeUtc, filtro.AteUtc?.AddDays(-1)));
     }
 
@@ -100,7 +100,7 @@ public sealed class ImpressaoService : IImpressaoService
         var despesas = await TodasAsync((p, n) => _despesas.SearchAsync(filtro.Query, filtro.Categoria, null, false, false,
             filtro.De, filtro.Ate, filtro.IsRecorrente, p, n, ct), 100);
         var linhas = despesas.OrderBy(d => d.Data).ThenBy(d => d.Numero).Select(d => new Linha(
-            d.Numero.ToString(Pt), d.Data, d.Fornecedor ?? "â€”", d.NumeroEncomenda ?? d.Descricao,
+            d.Numero.ToString(Pt), d.Data, d.Fornecedor ?? "—", d.NumeroEncomenda ?? d.Descricao,
             d.ReverseCharge ? 0 : d.IvaCents / 100m, d.ValorCents / 100m,
             d.SupplierInvoiceImportId is { } imp ? async k => await _faturasFornecedor.GetPdfAsync(imp, k) : null,
             null)).ToList();
@@ -110,7 +110,7 @@ public sealed class ImpressaoService : IImpressaoService
 
     // ---------- montagem ----------
 
-    /// <summary>Junta todas as pÃ¡ginas da pesquisa (os serviÃ§os paginam), atÃ© ao mÃ¡ximo.</summary>
+    /// <summary>Junta todas as páginas da pesquisa (os serviços paginam), até ao máximo.</summary>
     private static async Task<List<T>> TodasAsync<T>(Func<int, int, Task<PagedResult<T>>> pagina, int tamanho)
     {
         var todas = new List<T>();
@@ -119,7 +119,7 @@ public sealed class ImpressaoService : IImpressaoService
             var r = await pagina(p, tamanho);
             if (r.Total > Maximo)
                 throw new ValidationException("demasiados_documentos",
-                    $"SÃ£o {r.Total} documentos â€” o mÃ¡ximo por impressÃ£o Ã© {Maximo}. Escolhe um perÃ­odo mais curto (ex.: um mÃªs).");
+                    $"São {r.Total} documentos — o máximo por impressão é {Maximo}. Escolhe um período mais curto (ex.: um mês).");
             todas.AddRange(r.Items);
             if (r.Items.Count == 0 || todas.Count >= r.Total) return todas;
         }
@@ -127,7 +127,7 @@ public sealed class ImpressaoService : IImpressaoService
 
     private static async Task<byte[]> MontarAsync(string titulo, string colunaEntidade, List<Linha> linhas, ConteudoImpressao conteudo, CancellationToken ct)
     {
-        if (linhas.Count == 0) throw new ValidationException("sem_documentos", "NÃ£o hÃ¡ documentos com estes filtros.");
+        if (linhas.Count == 0) throw new ValidationException("sem_documentos", "Não há documentos com estes filtros.");
         var partes = new List<byte[]>();
         var notas = new string?[linhas.Count];
         if (conteudo != ConteudoImpressao.Lista)
@@ -140,7 +140,7 @@ public sealed class ImpressaoService : IImpressaoService
                 try { bytes = await l.Pdf(ct); }
                 catch (Exception ex) when (ex is not OperationCanceledException) { bytes = null; }
                 var pdf = bytes is null ? null : ComoPdf(bytes);
-                if (pdf is null) { notas[i] = "PDF indisponÃ­vel"; continue; }
+                if (pdf is null) { notas[i] = "PDF indisponível"; continue; }
                 partes.Add(pdf);
             }
         }
@@ -156,7 +156,7 @@ public sealed class ImpressaoService : IImpressaoService
         return resultado.Count == 1 ? resultado[0] : PdfMerger.Merge(resultado.ToArray());
     }
 
-    /// <summary>PDF tal como estÃ¡; uma imagem (foto da fatura) vira uma pÃ¡gina A4. Null se nÃ£o se consegue abrir.</summary>
+    /// <summary>PDF tal como está; uma imagem (foto da fatura) vira uma página A4. Null se não se consegue abrir.</summary>
     private static byte[]? ComoPdf(byte[] bytes)
     {
         if (bytes.Length > 4 && bytes[0] == '%' && bytes[1] == 'P' && bytes[2] == 'D' && bytes[3] == 'F')
@@ -193,7 +193,7 @@ public sealed class ImpressaoService : IImpressaoService
                 col.Item().Text(titulo).FontSize(16).Bold();
                 var semPdf = notas.Count(n => n is not null);
                 col.Item().Text($"{linhas.Count} documento(s)" + (comFaturas
-                    ? semPdf == 0 ? " â€” as faturas seguem nas pÃ¡ginas seguintes, pela mesma ordem." : $" â€” {semPdf} sem PDF (assinalados); as outras seguem a seguir."
+                    ? semPdf == 0 ? " — as faturas seguem nas páginas seguintes, pela mesma ordem." : $" — {semPdf} sem PDF (assinalados); as outras seguem a seguir."
                     : "")).FontColor(Colors.Grey.Darken1);
             });
             page.Content().PaddingTop(12).Table(table =>
@@ -209,7 +209,7 @@ public sealed class ImpressaoService : IImpressaoService
                 });
                 table.Header(h =>
                 {
-                    Th(h.Cell(), "NÂº");
+                    Th(h.Cell(), "Nº");
                     Th(h.Cell(), "Data");
                     Th(h.Cell(), colunaEntidade);
                     Th(h.Cell(), "Documento");
@@ -227,7 +227,7 @@ public sealed class ImpressaoService : IImpressaoService
                         t.Span(l.Documento).FontSize(8);
                         if (notas[i] is { } n) t.Span($"  ({n})").FontSize(7).FontColor(Colors.Orange.Darken2);
                     });
-                    if (temIva) Td(table.Cell(), l.Iva is { } iva ? Eur(iva) : "â€”", true);
+                    if (temIva) Td(table.Cell(), l.Iva is { } iva ? Eur(iva) : "—", true);
                     Td(table.Cell(), Eur(l.Total), true);
                 }
                 table.Cell().ColumnSpan(4).PaddingTop(6).Text("Total").Bold();
@@ -236,7 +236,7 @@ public sealed class ImpressaoService : IImpressaoService
             });
             page.Footer().Row(r =>
             {
-                r.RelativeItem().Text($"Impresso em {DateTime.Now:dd/MM/yyyy HH:mm} Â· Mender").FontSize(7).FontColor(Colors.Grey.Darken1);
+                r.RelativeItem().Text($"Impresso em {DateTime.Now:dd/MM/yyyy HH:mm} · Mender").FontSize(7).FontColor(Colors.Grey.Darken1);
                 r.AutoItem().Text(t => { t.CurrentPageNumber().FontSize(7); t.Span(" / ").FontSize(7); t.TotalPages().FontSize(7); });
             });
         })).GeneratePdf();
@@ -254,18 +254,18 @@ public sealed class ImpressaoService : IImpressaoService
         (direita ? cell.AlignRight() : cell).Text(texto).FontSize(8);
     }
 
-    private static string Eur(decimal v) => v.ToString("#,##0.00", Pt) + " â‚¬";
+    private static string Eur(decimal v) => v.ToString("#,##0.00", Pt) + " €";
 
     private static string Periodo(DateTime? de, DateTime? ate) => (de, ate) switch
     {
         (null, null) => "",
-        ({ } a, { } b) when a.Date == b.Date => $" Â· {a:dd/MM/yyyy}",
-        ({ } a, { } b) => $" Â· {a:dd/MM/yyyy} a {b:dd/MM/yyyy}",
-        ({ } a, null) => $" Â· desde {a:dd/MM/yyyy}",
-        (null, { } b) => $" Â· atÃ© {b:dd/MM/yyyy}",
+        ({ } a, { } b) when a.Date == b.Date => $" · {a:dd/MM/yyyy}",
+        ({ } a, { } b) => $" · {a:dd/MM/yyyy} a {b:dd/MM/yyyy}",
+        ({ } a, null) => $" · desde {a:dd/MM/yyyy}",
+        (null, { } b) => $" · até {b:dd/MM/yyyy}",
     };
 
-    private static string Pesquisa(string? q) => string.IsNullOrWhiteSpace(q) ? "" : $" Â· \"{q.Trim()}\"";
+    private static string Pesquisa(string? q) => string.IsNullOrWhiteSpace(q) ? "" : $" · \"{q.Trim()}\"";
 
     private static string Nome(string o, DateTime? de, DateTime? ate)
         => o + (de is { } a ? $"_{a:yyyy-MM-dd}" : "") + (ate is { } b && b.Date != de?.Date ? $"_a_{b:yyyy-MM-dd}" : "") + ".pdf";

@@ -33,8 +33,8 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    // Sprint 250 (Doc 75 Ã¡rea 11 P0): Sentry para captura de exceptions nÃ£o-tratadas.
-    // Env-gated â€” sem SENTRY_DSN o SDK Ã© no-op e nÃ£o envia nada. Bruno mete o DSN
+    // Sprint 250 (Doc 75 área 11 P0): Sentry para captura de exceptions não-tratadas.
+    // Env-gated — sem SENTRY_DSN o SDK é no-op e não envia nada. Bruno mete o DSN
     // como secret no docker-compose.prod.yml (Sentry__Dsn) quando a infra estiver pronta.
     var sentryDsn = builder.Configuration["Sentry:Dsn"];
     if (!string.IsNullOrWhiteSpace(sentryDsn))
@@ -44,7 +44,7 @@ try
             o.Dsn = sentryDsn;
             o.Environment = builder.Environment.EnvironmentName;
             o.TracesSampleRate = builder.Environment.IsProduction() ? 0.1 : 0.0;
-            // NÃ£o envia HTTP request body por defeito (PII risk). Bruno active manualmente
+            // Não envia HTTP request body por defeito (PII risk). Bruno active manualmente
             // via env var se precisar de debug profundo.
             o.MaxRequestBodySize = Sentry.Extensibility.RequestSize.None;
             o.SendDefaultPii = false;
@@ -63,7 +63,7 @@ try
     var dpKeysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/data/dp-keys";
     if (!builder.Environment.IsEnvironment("Testing"))
     {
-        try { Directory.CreateDirectory(dpKeysPath); } catch { /* ignore â€” bind mount tratara */ }
+        try { Directory.CreateDirectory(dpKeysPath); } catch { /* ignore — bind mount tratara */ }
         builder.Services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath))
             .SetApplicationName("RepairDesk");
@@ -123,11 +123,11 @@ try
         .AddEntityFrameworkStores<AppDbContext>()
         .AddDefaultTokenProviders();
 
-    // JWT auth â€” TokenValidationParameters configured lazily via IOptions<JwtOptions>
+    // JWT auth — TokenValidationParameters configured lazily via IOptions<JwtOptions>
     builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
     builder.Services.AddSingleton<Microsoft.Extensions.Options.IConfigureOptions<JwtBearerOptions>, ConfigureJwtBearerOptions>();
 
-    // Sprint 71: PolicyScheme "Multi" decide entre JWT (utilizadores) e ApiKey (integraÃ§Ãµes servidor-a-servidor).
+    // Sprint 71: PolicyScheme "Multi" decide entre JWT (utilizadores) e ApiKey (integrações servidor-a-servidor).
     builder.Services
         .AddAuthentication("Multi")
         .AddJwtBearer()
@@ -154,7 +154,7 @@ try
         }
 
         // Sprint 311 (Doc 72 Fase D): policies de roles granulares. Controllers existentes
-        // com [Authorize(Roles = "Admin")] continuam a funcionar â€” estas policies sÃ£o
+        // com [Authorize(Roles = "Admin")] continuam a funcionar — estas policies são
         // ADITIVAS para refactor incremental.
         options.AddPolicy(RepairDesk.Core.Auth.AppPolicies.RequireAdmin, p =>
             p.RequireAuthenticatedUser().RequireRole(RepairDesk.Core.Auth.AppRoles.Admin));
@@ -187,7 +187,7 @@ try
     builder.Services.AddScoped<IAuditRepository, AuditRepository>();
     builder.Services.AddScoped<IAuditService, AuditService>();
     builder.Services.AddScoped<IAtNifLookupService, AtNifLookupService>();
-    // Sprint 364: lookup de NIF encadeado â€” AT dadosTOI (cert) â†’ VIES (grÃ¡tis, empresas).
+    // Sprint 364: lookup de NIF encadeado — AT dadosTOI (cert) → VIES (grátis, empresas).
     builder.Services.AddSingleton<AtDadosToiSoapClient>();
     builder.Services.AddHttpClient<ViesNifRemoteClient>(c =>
     {
@@ -206,7 +206,7 @@ try
     builder.Services.AddScoped<FluentValidation.IValidator<CreateClienteRequest>, CreateClienteValidator>();
     builder.Services.AddScoped<FluentValidation.IValidator<UpdateClienteRequest>, UpdateClienteValidator>();
 
-    // ReparaÃ§Ãµes (Venda tipo ReparaÃ§Ã£o) â€” extras: assinatura, fotos, portal, garantia.
+    // Reparações (Venda tipo Reparação) — extras: assinatura, fotos, portal, garantia.
     // Sprint 551: assinatura do cliente (canvas) na entrada/entrega.
     builder.Services.AddScoped<IVendaAssinaturaRepository, VendaAssinaturaRepository>();
     builder.Services.AddScoped<IAssinaturaService, AssinaturaService>();
@@ -241,20 +241,20 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Artigos.IEtiquetaPdfService, RepairDesk.Services.Artigos.EtiquetaPdfService>();
 
 
-    // Documents (PDF orÃ§amento)
+    // Documents (PDF orçamento)
     QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
     builder.Services.AddScoped<ITenantRepository, TenantRepository>();
     builder.Services.AddScoped<ITenantPreferencesRepository, TenantPreferencesRepository>();
     builder.Services.AddScoped<ITenantPreferencesService, TenantPreferencesService>();
     builder.Services.AddScoped<IWhatsAppNotificationLogRepository, WhatsAppNotificationLogRepository>();
     builder.Services.AddScoped<IOrcamentoPdfService, OrcamentoPdfService>();
-    // Sprint 347 (fix Sprint 360): registo do serviÃ§o de etiquetas â€” em falta desde a criaÃ§Ã£o,
+    // Sprint 347 (fix Sprint 360): registo do serviço de etiquetas — em falta desde a criação,
     // causava 500 'No service for ILabelPdfService' no GET /label.pdf.
     builder.Services.AddScoped<ILabelPdfService, LabelPdfService>();
     builder.Services.AddScoped<IVendaPdfService, VendaPdfService>();
     // Sprint 450 (Doc 91 ponto 4): comprovativo de entrada de equipamento.
     builder.Services.AddScoped<IEntradaPdfService, EntradaPdfService>();
-    // Sprint 451 (Doc 91 ponto 4 â€” par de S450): recibo de entrega.
+    // Sprint 451 (Doc 91 ponto 4 — par de S450): recibo de entrega.
     builder.Services.AddScoped<IEntregaPdfService, EntregaPdfService>();
 
     // Tenant settings
@@ -268,7 +268,7 @@ try
     builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
     builder.Services.AddSingleton<IPushNotificationQueue, PushNotificationQueue>();
     builder.Services.AddSingleton<IWebPushSender, WebPushSender>();
-    // Sprint 366: push de staff (eventos internos: pedido online, venda, stock, reparaÃ§Ã£o parada).
+    // Sprint 366: push de staff (eventos internos: pedido online, venda, stock, reparação parada).
     builder.Services.AddScoped<IStaffPushSubscriptionRepository, StaffPushSubscriptionRepository>();
     builder.Services.AddScoped<IStaffPushService, StaffPushService>();
     builder.Services.AddSingleton<IStaffPushQueue, StaffPushQueue>();
@@ -277,17 +277,17 @@ try
         builder.Services.AddHostedService<PushNotificationWorker>();
         builder.Services.AddHostedService<PushSubscriptionCleanupWorker>();
         builder.Services.AddHostedService<StaffPushWorker>();
-        // Sprint 428 (Doc 90 cross-feature): digest diÃ¡rio de tarefas internas atrasadas.
+        // Sprint 428 (Doc 90 cross-feature): digest diário de tarefas internas atrasadas.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.OverdueTasksHostedService>();
-        // Sprint 441 (Doc 91 follow-up): digest diÃ¡rio de reparaÃ§Ãµes Pronto hÃ¡ +N dias sem ser levantadas.
+        // Sprint 441 (Doc 91 follow-up): digest diário de reparações Pronto há +N dias sem ser levantadas.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ReadyForPickupHostedService>();
-        // Sprint 468 (Doc 90 Tier 2 #6 â€” cross-sell): digest Devices em fim de garantia
-        // fabricante (prÃ³ximos N dias). Combina com widget S467 no Dashboard.
+        // Sprint 468 (Doc 90 Tier 2 #6 — cross-sell): digest Devices em fim de garantia
+        // fabricante (próximos N dias). Combina com widget S467 no Dashboard.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.DeviceGarantiaFabricanteExpiryHostedService>();
     }
 
 
-    // Garantia + AvaliaÃ§Ãµes
+    // Garantia + Avaliações
     builder.Services.AddScoped<IGarantiaRepository, RepairDesk.DAL.Persistence.GarantiaRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Garantias.IGarantiaService, RepairDesk.Services.Garantias.GarantiaService>();
     builder.Services.AddScoped<IAvaliacaoRepository, RepairDesk.DAL.Persistence.AvaliacaoRepository>();
@@ -298,12 +298,12 @@ try
     // Fornecedores (Sprint 120)
     builder.Services.AddScoped<IFornecedorRepository, RepairDesk.DAL.Persistence.FornecedorRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Fornecedores.IFornecedorService, RepairDesk.Services.Fornecedores.FornecedorService>();
-    // Doc 94 Fase 3: compras por lote + motor de IVA + importaÃ§Ã£o do Excel de compras.
+    // Doc 94 Fase 3: compras por lote + motor de IVA + importação do Excel de compras.
     builder.Services.AddScoped<ICompraRepository, RepairDesk.DAL.Persistence.CompraRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Compras.ICompraService, RepairDesk.Services.Compras.CompraService>();
     builder.Services.AddScoped<RepairDesk.Services.Compras.ICompraFaturaService, RepairDesk.Services.Compras.CompraFaturaService>();
     builder.Services.AddScoped<RepairDesk.Services.Compras.Import.IComprasExcelImporter, RepairDesk.Services.Compras.Import.ComprasExcelImporter>();
-    // Sprint 175: retention cleanup diÃ¡rio Ã s 3h UTC.
+    // Sprint 175: retention cleanup diário às 3h UTC.
     builder.Services.AddHostedService<RepairDesk.API.HostedServices.SupplierInvoiceRetentionHostedService>();
     if (!builder.Environment.IsEnvironment("Testing"))
         builder.Services.AddHostedService<RefreshTokenCleanupHostedService>();
@@ -313,7 +313,7 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierFingerprintingService, RepairDesk.Services.Documents.SupplierFingerprintingService>();
     // Sprint 163: LLM fallback parser (Claude Haiku) com PII redaction. Configured via ANTHROPIC_API_KEY env.
     builder.Services.AddHttpClient<RepairDesk.Services.Documents.IAnthropicSupplierParser, RepairDesk.Services.Documents.AnthropicSupplierParser>();
-    // Sprint 167a: tracking de uso LLM per-tenant (DB â†’ UI /definicoes/llm-usage).
+    // Sprint 167a: tracking de uso LLM per-tenant (DB → UI /definicoes/llm-usage).
     builder.Services.AddScoped<ILlmUsageRepository, RepairDesk.DAL.Persistence.LlmUsageRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmUsageTracker, RepairDesk.Services.Documents.LlmUsageTracker>();
     // Sprint 167b: quota enforcement per-tenant (free/pro/enterprise).
@@ -322,35 +322,35 @@ try
     builder.Services.AddHttpClient<RepairDesk.API.Assistant.IAssistantService, RepairDesk.API.Assistant.AssistantService>();
     // Sprint 371: agendamentos (booking).
     builder.Services.AddScoped<IAppointmentRepository, RepairDesk.DAL.Persistence.AppointmentRepository>();
-    // Sprint 421 (Doc 90 Tier 1 #3): inventÃ¡rio fÃ­sico.
+    // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();
     builder.Services.AddScoped<RepairDesk.Services.InternalTasks.IInternalTaskService, RepairDesk.Services.InternalTasks.InternalTaskService>();
-    // Sprint 452 (Doc 91 ponto 1): Conversas omnicanal v1 â€” registo de comunicaÃ§Ãµes por reparaÃ§Ã£o.
+    // Sprint 452 (Doc 91 ponto 1): Conversas omnicanal v1 — registo de comunicações por reparação.
     builder.Services.AddScoped<IVendaComunicacaoRepository, RepairDesk.DAL.Persistence.VendaComunicacaoRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Comunicacoes.IVendaComunicacaoService, RepairDesk.Services.Comunicacoes.VendaComunicacaoService>();
-    // Sprint 461 (Doc 90 Tier 2 #6 â€” Asset registry): equipamentos persistentes do cliente.
+    // Sprint 461 (Doc 90 Tier 2 #6 — Asset registry): equipamentos persistentes do cliente.
     builder.Services.AddScoped<IDeviceRepository, RepairDesk.DAL.Persistence.DeviceRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Devices.IDeviceService, RepairDesk.Services.Devices.DeviceService>();
     builder.Services.AddScoped<RepairDesk.Services.Appointments.IAppointmentService, RepairDesk.Services.Appointments.AppointmentService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 
-    // Sprint 354 (Doc 83 Pillar 9): pedidos de reparaÃ§Ã£o via widget pÃºblico.
+    // Sprint 354 (Doc 83 Pillar 9): pedidos de reparação via widget público.
     builder.Services.AddScoped<IRepairRequestRepository, RepairDesk.DAL.Persistence.RepairRequestRepository>();
-    // Sprint 390 (Doc 04): lookup TACâ†’modelo offline. Base num JSON em disco (mountar volume em prod
+    // Sprint 390 (Doc 04): lookup TAC→modelo offline. Base num JSON em disco (mountar volume em prod
     // para sobreviver a redeploys; override via TacDb:Path). Importada pelo admin a partir de dump aberto.
     var tacDbPath = builder.Configuration["TacDb:Path"]
         ?? Path.Combine(builder.Environment.ContentRootPath, "Data", "tac-db.json");
     builder.Services.AddSingleton<RepairDesk.Services.Imei.ITacLookupService>(
         _ => new RepairDesk.Services.Imei.TacLookupService(tacDbPath));
 
-    // Sprint 303: Payments â€” providers (Mock + IFTHENPAY) + orquestrador.
+    // Sprint 303: Payments — providers (Mock + IFTHENPAY) + orquestrador.
     builder.Services.AddScoped<IPaymentRepository, RepairDesk.DAL.Persistence.PaymentRepository>();
     builder.Services.AddSingleton<IPaymentProvider, RepairDesk.Services.Payments.MockPaymentProvider>();
     builder.Services.AddScoped<RepairDesk.Services.Payments.IPaymentService, RepairDesk.Services.Payments.PaymentService>();
-    // IFTHENPAY: registado apenas quando hÃ¡ pelo menos uma chave configurada. Caso contrÃ¡rio
-    // Mock continua a ser o Ãºnico provider (Ãºtil para dev sem credenciais).
+    // IFTHENPAY: registado apenas quando há pelo menos uma chave configurada. Caso contrário
+    // Mock continua a ser o único provider (útil para dev sem credenciais).
     var ifthenpayOptions = new RepairDesk.Services.Payments.Ifthenpay.IfthenpayOptions
     {
         MBWayKey = builder.Configuration["Ifthenpay:MBWayKey"],
@@ -364,10 +364,10 @@ try
         builder.Services.AddHttpClient<IPaymentProvider, RepairDesk.Services.Payments.Ifthenpay.IfthenpayProvider>();
     }
 
-    // Tabela de preÃ§os
+    // Tabela de preços
 
 
-    // Fotos (storage abstracto â€” default: local filesystem)
+    // Fotos (storage abstracto — default: local filesystem)
     builder.Services.AddScoped<IVendaFotoRepository, RepairDesk.DAL.Persistence.VendaFotoRepository>();
     var storageProvider = builder.Configuration["Storage:Provider"]?.Trim().ToLowerInvariant() ?? "local";
     switch (storageProvider)
@@ -395,13 +395,13 @@ try
     if (builder.Configuration.GetValue("Backup:Enabled", false))
         builder.Services.AddHostedService<BackupHostedService>();
 
-    // Sprint 352 (Doc 76 gap crÃ­tico): dp-keys backup off-VPS encriptado.
+    // Sprint 352 (Doc 76 gap crítico): dp-keys backup off-VPS encriptado.
     var dpBackupOptions = new DpKeysBackupOptions();
     builder.Configuration.GetSection("DpKeysBackup").Bind(dpBackupOptions);
     if (!string.IsNullOrWhiteSpace(builder.Configuration["DpKeysBackup:R2:Bucket"]))
     {
-        // R2 dpBackupOptions partilha BackupR2Options â€” bind manual das credenciais R2 padrÃ£o
-        // se DpKeysBackup:R2 nÃ£o tiver â€” Bruno pode reutilizar mesmo bucket.
+        // R2 dpBackupOptions partilha BackupR2Options — bind manual das credenciais R2 padrão
+        // se DpKeysBackup:R2 não tiver — Bruno pode reutilizar mesmo bucket.
         builder.Configuration.GetSection("DpKeysBackup:R2").Bind(dpBackupOptions.R2);
     }
     builder.Services.AddSingleton(dpBackupOptions);
@@ -424,7 +424,7 @@ try
     builder.Services.AddRateLimiter(opt =>
     {
         opt.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-        // Reset de palavra-passe tem quota prÃ³pria: quem se esqueceu da passe normalmente jÃ¡ gastou
+        // Reset de palavra-passe tem quota própria: quem se esqueceu da passe normalmente já gastou
         // as tentativas de login (auth-strict) e tem de conseguir pedir o link.
         opt.AddPolicy("auth-reset", ctx =>
         {
@@ -465,15 +465,15 @@ try
                 AutoReplenishment = true
             });
         });
-        // Sprint 80: rate limit por API key (nÃ£o por IP â€” lojas Vercel partilham egress).
-        // 120 req/min por chave: generoso para webhook bursts + paginaÃ§Ã£o catÃ¡logo,
-        // suficiente para impedir runaway loop de uma integraÃ§Ã£o com bug.
+        // Sprint 80: rate limit por API key (não por IP — lojas Vercel partilham egress).
+        // 120 req/min por chave: generoso para webhook bursts + paginação catálogo,
+        // suficiente para impedir runaway loop de uma integração com bug.
         opt.AddPolicy("external-apikey", ctx =>
         {
             if (disableAuthRateLimits)
                 return RateLimitPartition.GetNoLimiter("external-apikey");
             // Particiona pelo claim service_api_key_id (preenchido pelo ApiKeyAuthHandler).
-            // Sem chave vÃ¡lida, particiona por IP (defensa em profundidade â€” request rejeitado
+            // Sem chave válida, particiona por IP (defensa em profundidade — request rejeitado
             // depois pelo auth, mas evita brute-force scanning).
             var keyId = ctx.User.FindFirst("service_api_key_id")?.Value;
             var partition = keyId ?? $"ip:{ctx.Connection.RemoteIpAddress}";
@@ -490,8 +490,8 @@ try
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
 
-    // Sprint 252 (Doc 75 Ã¡rea 9 P2): output cache em endpoints portal pÃºblico.
-    // In-memory por defeito â€” quando houver >1 instÃ¢ncia da API, Redis cache.
+    // Sprint 252 (Doc 75 área 9 P2): output cache em endpoints portal público.
+    // In-memory por defeito — quando houver >1 instância da API, Redis cache.
     builder.Services.AddOutputCache(options =>
     {
         options.AddPolicy("public-portal-30s", b => b
@@ -502,10 +502,10 @@ try
             .SetVaryByRouteValue("slug"));
     });
 
-    // Sprint 250 (Doc 75 Ã¡rea 9 P2): response compression Brotli + Gzip.
-    // Reduz payload de JSON/HTML/SVG em 70-90%. ASP.NET Core nÃ£o comprime HTTPS
-    // por defeito (BREACH/CRIME), mas vamos correr atrÃ¡s de Caddy/Cloudflare â€”
-    // o downstream tem TLS. Aqui o link APIâ†”proxy Ã© HTTP em rede privada.
+    // Sprint 250 (Doc 75 área 9 P2): response compression Brotli + Gzip.
+    // Reduz payload de JSON/HTML/SVG em 70-90%. ASP.NET Core não comprime HTTPS
+    // por defeito (BREACH/CRIME), mas vamos correr atrás de Caddy/Cloudflare —
+    // o downstream tem TLS. Aqui o link API↔proxy é HTTP em rede privada.
     builder.Services.AddResponseCompression(options =>
     {
         options.EnableForHttps = true;
@@ -531,9 +531,9 @@ try
         c.SwaggerDoc("v1", new() { Title = "Mender API", Version = "v1" });
     });
 
-    // Sprint 249 (Doc 74): CORS apertado â€” apenas origens explÃ­citas em Cors:AllowedOrigins
-    // (mais Frontend:BaseUrl), headers e mÃ©todos restringidos ao que a SPA realmente envia.
-    // AllowCredentials necessÃ¡rio para enviar refresh cookie no /api/auth/refresh.
+    // Sprint 249 (Doc 74): CORS apertado — apenas origens explícitas em Cors:AllowedOrigins
+    // (mais Frontend:BaseUrl), headers e métodos restringidos ao que a SPA realmente envia.
+    // AllowCredentials necessário para enviar refresh cookie no /api/auth/refresh.
     var corsOrigins = BuildCorsOrigins(builder.Configuration, builder.Environment);
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
         .WithOrigins(corsOrigins)
@@ -544,8 +544,8 @@ try
             "Accept",
             "X-Correlation-Id",
             "X-Requested-With",
-            // Webhooks externos tÃªm o seu prÃ³prio handler â€” estes sÃ³ aparecem aqui se um
-            // cliente integrador chamar a SPA com a sua API key. MantÃ©m compatibilidade.
+            // Webhooks externos têm o seu próprio handler — estes só aparecem aqui se um
+            // cliente integrador chamar a SPA com a sua API key. Mantém compatibilidade.
             "X-API-Key")
         .WithExposedHeaders("X-Correlation-Id")
         .AllowCredentials()
@@ -553,7 +553,7 @@ try
 
     var app = builder.Build();
 
-    // Sprint 250 (Doc 75): response compression antes de tudo â€” comprime mesmo
+    // Sprint 250 (Doc 75): response compression antes de tudo — comprime mesmo
     // as responses de erro do exception middleware.
     app.UseResponseCompression();
     app.UseMiddleware<CorrelationIdMiddleware>();
@@ -582,9 +582,9 @@ try
 
     app.UseCors();
     app.UseRateLimiter();
-    // Sprint 252 (Doc 75): output cache nos endpoints pÃºblicos (atributo [OutputCache]).
-    // ApÃ³s rate-limiter para que rate-limit seja sempre verificado, mesmo em cache hit
-    // (caso contrÃ¡rio um Ãºnico IP podia spammar via cache warm).
+    // Sprint 252 (Doc 75): output cache nos endpoints públicos (atributo [OutputCache]).
+    // Após rate-limiter para que rate-limit seja sempre verificado, mesmo em cache hit
+    // (caso contrário um único IP podia spammar via cache warm).
     app.UseOutputCache();
     app.UseAuthentication();
     app.UseAuthorization();
