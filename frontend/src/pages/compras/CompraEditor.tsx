@@ -202,8 +202,18 @@ export default function CompraEditor() {
   const paraVender = linhas.filter((l) => l.id && l.emStock > 0);
   // Sprint 589: soma do lucro das vendas deste documento (null se ainda não se vendeu nada).
   const lucroVendido = linhas.some((l) => l.vendas.length) ? linhas.reduce((t, l) => t + l.vendas.reduce((s2, v) => s2 + v.lucro, 0), 0) : null;
-  function vender(lotes: [string, number][]) {
-    navigate(`/vendas/nova?tipo=${VENDA_TIPO.Produto}&lotes=${lotes.map(([lid, q]) => `${lid}:${q}`).join(',')}`);
+  // Sprint 590: o lucro que se está a experimentar na linha é o que segue para a venda — o preço c/ IVA que se vê
+  // em "Venda c/ IVA" vai no link (ganha ao preço do artigo) e, se o lucro mudou, a compra grava-se antes de sair.
+  const lucroGravado = (l: LinhaForm) => num(existente.data?.linhas.find((x) => x.id === l.id)?.lucroUnitario);
+  async function vender(lotes: [LinhaForm, number][]) {
+    if (!isNew && linhas.some((l) => l.id && l.lucro !== lucroGravado(l))) {
+      try { await save.mutateAsync(false); } catch { return; }
+    }
+    const parte = ([l, q]: [LinhaForm, number]) => {
+      const c = calc.porLinha[linhas.indexOf(l)];
+      return l.lucro !== '' && c ? `${l.id}:${q}:${Math.round(c.precoFinalComIva * 100)}` : `${l.id}:${q}`;
+    };
+    navigate(`/vendas/nova?tipo=${VENDA_TIPO.Produto}&lotes=${lotes.map(parte).join(',')}`);
   }
 
   function buildRequest(ignorarDuplicado: boolean): CompraDocumentoWrite {
@@ -310,7 +320,7 @@ export default function CompraEditor() {
             {paraVender.length > 0 && (
               <Button type="button" variant="secondary" leftIcon={<ShoppingCart size={15} />}
                 title="Cria uma venda com as linhas desta compra que ainda estão em stock — só falta o preço final"
-                onClick={() => vender(paraVender.map((l) => [l.id!, l.emStock]))}>
+                onClick={() => vender(paraVender.map((l) => [l, l.emStock]))} disabled={save.isPending}>
                 {paraVender.length > 1 || paraVender[0].emStock > 1 ? 'Vender tudo' : 'Vender'}
               </Button>
             )}
@@ -475,7 +485,7 @@ export default function CompraEditor() {
                     <td className="flex gap-1 py-2">
                       {l.id && l.emStock > 0 && (
                         <Button type="button" variant="icon" aria-label="Vender este artigo" title={`Vender (${l.emStock} em stock)`}
-                          onClick={() => vender([[l.id!, 1]])}>
+                          onClick={() => vender([[l, 1]])} disabled={save.isPending}>
                           <ShoppingCart size={15} />
                         </Button>
                       )}

@@ -138,10 +138,12 @@ export default function VendaEditor() {
     const porId = new Map(inventario.data.map((l) => [l.linhaId, l]));
     let n = 0;
     for (const par of lotesPedidos.split(',')) {
-      const [linhaId, q] = par.split(':');
+      // Sprint 590: <linhaId>:<qtd>[:<preço c/ IVA em cêntimos>] — o preço que se acertou na compra com o lucro.
+      const [linhaId, q, cents] = par.split(':');
       const lote = porId.get(linhaId);
       if (!lote) continue;
-      addLote(lote, Math.min(Math.max(1, Number(q) || 1), lote.quantidadeEmStock));
+      const preco = Number(cents) > 0 ? Number(cents) / 100 : undefined;
+      addLote(lote, Math.min(Math.max(1, Number(q) || 1), lote.quantidadeEmStock), preco);
       n++;
     }
     setVindoDaCompra(n);
@@ -233,7 +235,8 @@ export default function VendaEditor() {
     setLinhas((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
-  function addLote(lote: InventarioLinha, quantidade = 1) {
+  function addLote(lote: InventarioLinha, quantidade = 1, precoComIvaDado?: number) {
+    const precoComIvaLote = precoComIvaDado ?? lote.precoVendaArtigo ?? lote.precoFinalComIva;
     setLinhas((ls) => [...ls, {
       key: crypto.randomUUID(),
       id: null,
@@ -242,7 +245,7 @@ export default function VendaEditor() {
       descricao: lote.textoVenda ?? lote.descricao,
       quantidade: String(quantidade),
       // Sprint 570: lote de um artigo → preço do artigo (próprio ou da categoria, ex.: películas a 15 €).
-      preco: fmt2(semIva ? (lote.precoVendaArtigo ?? lote.precoFinalComIva) / (1 + IVA_NORMAL / 100) : (lote.precoVendaArtigo ?? lote.precoFinalComIva)),
+      preco: fmt2(semIva ? precoComIvaLote / (1 + IVA_NORMAL / 100) : precoComIvaLote),
       iva: String(IVA_NORMAL),
       custoUnit: lote.precoUnitarioPago,
       taxaCompra: lote.taxaIvaCompra,
