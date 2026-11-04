@@ -8,4 +8,7 @@ public enum AssinaturaTipo
 
     /// <summary>Ao levantar o equipamento — confirma a entrega (recibo de entrega).</summary>
     Entrega = 1,
+
+    /// <summary>Sprint 595: o técnico que recebeu o equipamento (na ordem de reparação).</summary>
+    Tecnico = 2,
 }

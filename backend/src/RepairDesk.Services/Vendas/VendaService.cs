@@ -54,6 +54,7 @@ public class VendaService : IVendaService
     private readonly ITenantPreferencesService _preferences;
     private readonly IAuditLogger _audit;
     private readonly Push.IPushNotificationQueue _push;
+    private readonly IVendaFichaRepository? _fichas;
 
     public VendaService(
         IVendaRepository vendas,
@@ -64,8 +65,10 @@ public class VendaService : IVendaService
         ITenantRepository tenants,
         ITenantPreferencesService preferences,
         IAuditLogger audit,
-        Push.IPushNotificationQueue push)
+        Push.IPushNotificationQueue push,
+        IVendaFichaRepository? fichas = null)
     {
+        _fichas = fichas;
         _vendas = vendas;
         _compras = compras;
         _clientes = clientes;
@@ -179,6 +182,10 @@ public class VendaService : IVendaService
             MarcarEntregue(venda, req.PaymentMethod, lotes);
             RecalculateTotals(venda);
         }
+        // Sprint 595: a senha do equipamento só é precisa enquanto está na loja (RGPD) — apaga-se ao fechar.
+        if (para is VendaEstado.Entregue or VendaEstado.Cancelada && _fichas is not null
+            && await _fichas.FindByVendaAsync(venda.Id, ct) is { } ficha)
+            ficha.SenhaCifrada = null;
 
         await _vendas.SaveAsync(ct);
         string? garantiaSlug = para == VendaEstado.Entregue

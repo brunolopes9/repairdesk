@@ -80,6 +80,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     // Sprint 546 (Doc 93 #1): avenças — faturação recorrente a clientes (mensalidades software).
     // Sprint 551 (Doc 80/93): assinatura do cliente (canvas) na entrada/entrega do equipamento.
     public DbSet<VendaAssinatura> VendaAssinaturas => Set<VendaAssinatura>();
+    // Sprint 595: ficha de entrada (ordem de reparação) — IMEI, senha cifrada, checklist.
+    public DbSet<VendaFicha> VendaFichas => Set<VendaFicha>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

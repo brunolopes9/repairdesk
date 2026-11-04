@@ -52,6 +52,7 @@ public sealed class AssinaturaService : IAssinaturaService
         {
             existente.PngBytes = png;
             existente.AssinadaEm = DateTime.UtcNow;
+            existente.PeloLink = false;
             await _assinaturas.SaveAsync(ct);
             return new AssinaturaDto(tipoEnum.ToString().ToLowerInvariant(), existente.AssinadaEm);
         }
@@ -81,10 +82,11 @@ public sealed class AssinaturaService : IAssinaturaService
     {
         "entrada" => AssinaturaTipo.Entrada,
         "entrega" => AssinaturaTipo.Entrega,
-        _ => throw new ValidationException("invalid_tipo", "Tipo de assinatura deve ser 'entrada' ou 'entrega'."),
+        "tecnico" => AssinaturaTipo.Tecnico,
+        _ => throw new ValidationException("invalid_tipo", "Tipo de assinatura deve ser 'entrada', 'entrega' ou 'tecnico'."),
     };
 
-    private static byte[] DecodePng(string dataUrl)
+    internal static byte[] DecodePng(string dataUrl)
     {
         if (string.IsNullOrWhiteSpace(dataUrl) || !dataUrl.StartsWith(PngDataUrlPrefix, StringComparison.OrdinalIgnoreCase))
             throw new ValidationException("invalid_signature", "Assinatura tem de ser um data-URL PNG (data:image/png;base64,...).");

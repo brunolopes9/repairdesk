@@ -58,6 +58,7 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
         var timeline = await _db.VendaEstadoLogs.Where(t => vendaIds.Contains(t.VendaId)).ToListAsync(ct);
         var fotos = await _db.VendaFotos.Where(f => vendaIds.Contains(f.VendaId)).ToListAsync(ct);
         var assinaturas = await _db.VendaAssinaturas.Where(a => vendaIds.Contains(a.VendaId)).ToListAsync(ct);
+        var fichas = await _db.VendaFichas.Where(f => vendaIds.Contains(f.VendaId)).ToListAsync(ct);
         var comunicacoes = await _db.VendaComunicacoes
             .Where(c => c.ClienteId == clienteId || vendaIds.Contains(c.VendaId)).ToListAsync(ct);
         var garantias = await _db.Garantias.Where(g => g.VendaId != null && vendaIds.Contains(g.VendaId.Value)).ToListAsync(ct);
@@ -83,6 +84,7 @@ public class ClienteRgpdRepository : IClienteRgpdRepository
         _db.Garantias.RemoveRange(garantias);
         _db.VendaComunicacoes.RemoveRange(comunicacoes);
         _db.VendaAssinaturas.RemoveRange(assinaturas);
+        _db.VendaFichas.RemoveRange(fichas);
         _db.VendaFotos.RemoveRange(fotos);
         _db.VendaEstadoLogs.RemoveRange(timeline);
         _db.VendaItems.RemoveRange(vendas.SelectMany(v => v.Items));

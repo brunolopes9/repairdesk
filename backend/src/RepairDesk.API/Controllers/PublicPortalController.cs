@@ -31,6 +31,25 @@ public class PublicPortalController : ControllerBase
     public Task<PublicRepairDto> Get(string slug, CancellationToken ct)
         => _service.GetBySlugAsync(slug, ct);
 
+    /// <summary>Sprint 595: a ordem de reparação para o cliente ver e assinar (sem a senha). Sem cache: muda ao assinar.</summary>
+    [HttpGet("{slug}/ficha")]
+    public Task<RepairDesk.Services.Reparacoes.PublicFichaDto> Ficha(string slug, [FromServices] RepairDesk.Services.Reparacoes.IFichaReparacaoService fichas, CancellationToken ct)
+        => fichas.PublicAsync(slug, ct);
+
+    /// <summary>Sprint 595: o cliente assina a ordem de reparação no telemóvel dele (só uma vez).</summary>
+    [HttpPost("{slug}/assinar")]
+    public Task<RepairDesk.Services.Reparacoes.PublicFichaDto> Assinar(string slug, [FromBody] RepairDesk.Services.Reparacoes.AssinarFichaRequest req,
+        [FromServices] RepairDesk.Services.Reparacoes.IFichaReparacaoService fichas, CancellationToken ct)
+        => fichas.AssinarPublicoAsync(slug, req, ct);
+
+    /// <summary>Sprint 595: a via do cliente da ordem de reparação (PDF, sem a senha).</summary>
+    [HttpGet("{slug}/ordem.pdf")]
+    public async Task<IActionResult> OrdemPdf(string slug, [FromServices] RepairDesk.Services.Reparacoes.IFichaReparacaoService fichas, CancellationToken ct)
+    {
+        var (pdf, nome) = await fichas.PublicPdfAsync(slug, ct);
+        return File(pdf, "application/pdf", nome);
+    }
+
     [HttpPost("{slug}/orcamento")]
     public Task<PublicRepairDto> AprovarOrcamento(string slug, [FromBody] AprovarOrcamentoRequest req, CancellationToken ct)
         => _service.AprovarOrcamentoAsync(slug, req.Aceitar, ct);

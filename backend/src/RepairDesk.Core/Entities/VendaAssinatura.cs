@@ -23,4 +23,7 @@ public class VendaAssinatura : BaseEntity, ITenantEntity
     public byte[] PngBytes { get; set; } = [];
 
     public DateTime AssinadaEm { get; set; }
+
+    /// <summary>Sprint 595: assinada pelo cliente no link público (no telemóvel dele), não no balcão.</summary>
+    public bool PeloLink { get; set; }
 }

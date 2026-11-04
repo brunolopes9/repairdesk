@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:cd3a0163c9272de9 -->
+<!-- roles-matrix-snapshot:7c0aa65931d71c3e -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -41,6 +41,8 @@ testes e esta matriz com snapshot.
 | SupplierInvoicesController | `approve` (despesa), `reject`, `reprocess` | `Admin` |
 | DespesasController | `GET /api/despesas`, `GET /resumo` (S574, totais do filtro), `GET /{id}` | `Authenticated`; `POST`, `PUT`, `DELETE`, `POST /{id}/pdf` (S586, anexar fatura) (afecta IVA dedutível) `Admin` |
 | VendasController (S594) | `GET /api/vendas/pecas-encomenda` (peças em falta nas reparações em curso), `POST /api/vendas/{id}/itens/{itemId}/encomenda` (por encomendar ↔ encomendada) | `Authenticated` |
+| VendasController (S595) | `GET/PUT /api/vendas/{id}/ficha` (ordem de reparação: IMEI, senha cifrada, testes, checklist), `GET /api/vendas/{id}/ordem.pdf` (2 vias) | `Authenticated` |
+| PublicPortalController (S595) | `GET /api/public/repair/{slug}/ficha`, `POST /api/public/repair/{slug}/assinar` (uma vez), `GET /api/public/repair/{slug}/ordem.pdf` (via do cliente, sem senha) | `Anonymous` + rate limit `public-portal` |
 | ImpressaoController (S593) | `GET /api/imprimir/vendas`, `GET /api/imprimir/compras`, `GET /api/imprimir/despesas` (lista + faturas num só PDF, com os filtros das listas) | `Authenticated` |
 | TenantPreferencesController | `PUT /`, `POST /reset/{group}` | `Admin` |
 | LlmUsageController | `POST/DELETE /anthropic-key` (BYOK credencial) | `Admin` |

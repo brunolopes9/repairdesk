@@ -10,6 +10,7 @@ import { vendasApi } from '../../lib/vendas/api';
 import { VENDA_ESTADO, type Venda } from '../../lib/vendas/types';
 import { AssinaturasVenda } from './AssinaturasVenda';
 import { ComunicacoesVenda } from './ComunicacoesVenda';
+import FichaReparacao from './FichaReparacao';
 
 /**
  * Doc 94 Fase 4c: o que a Reparação antiga tinha e ficou — portal do cliente, PDFs de entrada/entrega
@@ -31,6 +32,7 @@ export default function ReparacaoExtras({ venda }: { venda: Venda }) {
 
   return (
     <>
+      <FichaReparacao venda={venda} />
       <SectionCard title="Cliente e documentos">
         <div className="space-y-4">
           {portalUrl && (

@@ -52,7 +52,7 @@ export const vendasApi = {
   listAssinaturas(id: string) {
     return api.get<AssinaturaVenda[]>(`/vendas/${id}/assinaturas`).then((r) => r.data);
   },
-  saveAssinatura(id: string, tipo: 'entrada' | 'entrega', dataUrl: string) {
+  saveAssinatura(id: string, tipo: 'entrada' | 'entrega' | 'tecnico', dataUrl: string) {
     return api.post<AssinaturaVenda>(`/vendas/${id}/assinaturas`, { tipo, dataUrl }).then((r) => r.data);
   },
   /** PDFs da venda (path relativo ao baseURL, para openPdfInNewTab). */
@@ -79,6 +79,6 @@ export interface VendaImeiLookup {
 }
 
 export interface AssinaturaVenda {
-  tipo: 'entrada' | 'entrega';
+  tipo: 'entrada' | 'entrega' | 'tecnico';
   assinadaEm: string;
 }

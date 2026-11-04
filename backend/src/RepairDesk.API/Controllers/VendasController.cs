@@ -130,6 +130,24 @@ public class VendasController : ControllerBase
     }
 
     /// <summary>Assinatura do cliente (canvas → PNG) na entrada ou entrega. Recapturar substitui.</summary>
+    /// <summary>Sprint 595: ficha de entrada da reparação (ordem de reparação) — IMEI, senha, testes, checklist.</summary>
+    [HttpGet("{id:guid}/ficha")]
+    public Task<RepairDesk.Services.Reparacoes.FichaReparacaoDto> Ficha(Guid id, [FromServices] RepairDesk.Services.Reparacoes.IFichaReparacaoService fichas, CancellationToken ct)
+        => fichas.GetAsync(id, ct);
+
+    [HttpPut("{id:guid}/ficha")]
+    public Task<RepairDesk.Services.Reparacoes.FichaReparacaoDto> GuardarFicha(Guid id, [FromBody] RepairDesk.Services.Reparacoes.FichaReparacaoWriteRequest req,
+        [FromServices] RepairDesk.Services.Reparacoes.IFichaReparacaoService fichas, CancellationToken ct)
+        => fichas.SaveAsync(id, req, ct);
+
+    /// <summary>Sprint 595: ordem de reparação em A4, 2 vias (loja com a senha / cliente) + checklist em 2 vias.</summary>
+    [HttpGet("{id:guid}/ordem.pdf")]
+    public async Task<IActionResult> OrdemPdf(Guid id, [FromServices] RepairDesk.Services.Reparacoes.IFichaReparacaoService fichas, CancellationToken ct)
+    {
+        var (pdf, nome) = await fichas.OrdemPdfAsync(id, ct);
+        return File(pdf, "application/pdf", nome);
+    }
+
     [HttpPost("{id:guid}/assinaturas")]
     public Task<AssinaturaDto> SaveAssinatura(
         Guid id, [FromBody] SaveAssinaturaRequest req, [FromServices] IAssinaturaService assinaturas, CancellationToken ct)

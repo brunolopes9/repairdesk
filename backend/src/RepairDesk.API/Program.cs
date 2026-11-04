@@ -209,6 +209,8 @@ try
     // Reparações (Venda tipo Reparação) — extras: assinatura, fotos, portal, garantia.
     // Sprint 551: assinatura do cliente (canvas) na entrada/entrega.
     builder.Services.AddScoped<IVendaAssinaturaRepository, VendaAssinaturaRepository>();
+    builder.Services.AddScoped<IVendaFichaRepository, VendaFichaRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Reparacoes.IFichaReparacaoService, RepairDesk.Services.Reparacoes.FichaReparacaoService>();
     builder.Services.AddScoped<IAssinaturaService, AssinaturaService>();
 
 

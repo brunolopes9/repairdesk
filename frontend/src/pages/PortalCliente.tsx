@@ -38,6 +38,7 @@ import {
 import { usePushSubscription } from '../lib/publicPortal/usePushSubscription';
 import { formatCents } from '../lib/money';
 import { SkeletonCard } from '../components/ui';
+import OrdemReparacaoPublica from './portal/OrdemReparacaoPublica';
 
 type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
 
@@ -112,6 +113,9 @@ export default function PortalCliente() {
         <Greeting nome={data.clientePrimeiroNome} estado={data.estado} />
 
         <EstadoCard data={data} />
+
+        {/* Sprint 595: a ordem de reparação — o cliente vê o que ficou registado e assina aqui. */}
+        <OrdemReparacaoPublica slug={data.slug} />
 
         <PushNotificationsCard slug={data.slug} />
 
