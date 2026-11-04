@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, FileText, Lock, Plus, Save, ShoppingCart, Trash2 } from 'lucide-react';
 import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
@@ -8,7 +8,7 @@ import { toast } from '../../lib/toast';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { comprasApi } from '../../lib/compras/api';
-import type { CompraDocumento, CompraDocumentoWrite } from '../../lib/compras/types';
+import type { CompraDocumento, CompraDocumentoWrite, CompraLinhaVenda } from '../../lib/compras/types';
 import { formatEur, formatPct, lucroPorDefeito, parseDecimal, previewUnidade } from '../../lib/compras/format';
 import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor } from '../../lib/fornecedores/api';
 import { supplierInvoicesApi, type SupplierInvoiceImport } from '../../lib/supplierInvoices/api';
@@ -37,6 +37,8 @@ interface LinhaForm {
   artigoNome: string | null;
   /** Sprint 586: unidades deste lote ainda em stock (gravado) — para o botão "Vender". */
   emStock: number;
+  /** Sprint 589: vendas deste lote (só leitura). */
+  vendas: CompraLinhaVenda[];
 }
 
 interface DocForm {
@@ -52,7 +54,7 @@ interface DocForm {
 }
 
 const novaLinha = (): LinhaForm => ({
-  key: crypto.randomUUID(), id: null, numero: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0, sku: '', artigoNome: null, emStock: 0,
+  key: crypto.randomUUID(), id: null, numero: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0, sku: '', artigoNome: null, emStock: 0, vendas: [],
 });
 
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -85,6 +87,7 @@ function fromDoc(doc: CompraDocumento): { form: DocForm; linhas: LinhaForm[] } {
       sku: l.skuFornecedor ?? '',
       artigoNome: l.artigoNome,
       emStock: l.quantidadeEmStock,
+      vendas: l.vendas ?? [],
     })),
   };
 }
@@ -197,6 +200,8 @@ export default function CompraEditor() {
 
   // Sprint 586: "Vender" — abre uma venda nova com estes lotes (texto da fatura em português, preço sugerido).
   const paraVender = linhas.filter((l) => l.id && l.emStock > 0);
+  // Sprint 589: soma do lucro das vendas deste documento (null se ainda não se vendeu nada).
+  const lucroVendido = linhas.some((l) => l.vendas.length) ? linhas.reduce((t, l) => t + l.vendas.reduce((s2, v) => s2 + v.lucro, 0), 0) : null;
   function vender(lotes: [string, number][]) {
     navigate(`/vendas/nova?tipo=${VENDA_TIPO.Produto}&lotes=${lotes.map(([lid, q]) => `${lid}:${q}`).join(',')}`);
   }
@@ -448,6 +453,17 @@ export default function CompraEditor() {
                       {l.movimentos > 0 && (l.id && l.emStock === 0
                         ? <span className="mt-1 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Vendido — já não está em stock</span>
                         : <span className="mt-1 block text-xs text-zinc-500">{l.movimentos} já saíram do stock · {l.emStock} em stock</span>)}
+                      {/* Sprint 589: em que venda saiu e o lucro que deu de facto (ao preço a que se vendeu). */}
+                      {l.vendas.map((v) => (
+                        <Link key={`${v.vendaId}-${v.quantidade}`} to={`/vendas/${v.vendaId}`}
+                          className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs text-zinc-600 hover:text-brand-700 dark:text-zinc-300">
+                          <span className="font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300">Venda #{v.numero}</span>
+                          <span>· {new Date(v.data).toLocaleDateString('pt-PT')}{v.fatura ? ` · ${v.fatura}` : ''}</span>
+                          <span>· {v.quantidade} un. por {formatEur(v.totalComIva)}</span>
+                          <span className={`font-semibold ${v.lucro >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600'}`}>· lucro {formatEur(v.lucro)}</span>
+                          {!v.entregue && <span className="text-amber-700 dark:text-amber-400">(ainda não entregue)</span>}
+                        </Link>
+                      ))}
                     </td>
                     <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} /></td>
                     <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Preço unitário pago" inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" /></td>
@@ -488,6 +504,7 @@ export default function CompraEditor() {
             <dt className="text-zinc-500">Artigos</dt><dd className="text-right">{formatEur(calc.totalLinhas)}</dd>
             <dt className="text-zinc-500">+ Portes</dt><dd className="text-right">{formatEur(parseDecimal(form.portes) ?? 0)}</dd>
             <dt className="font-medium">Total calculado</dt><dd className="text-right font-medium">{formatEur(calc.calculado)}</dd>
+            {lucroVendido != null && <><dt className="text-emerald-700 dark:text-emerald-400">Lucro real do que já vendeste</dt><dd className="text-right font-semibold text-emerald-700 dark:text-emerald-400">{formatEur(lucroVendido)}</dd></>}
             {calc.diferenca != null && (
               <>
                 <dt className="text-zinc-500">Diferença p/ documento</dt>

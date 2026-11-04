@@ -59,7 +59,20 @@ public class CompraService : ICompraService
     }
 
     public async Task<CompraDocumentoDto> GetAsync(Guid id, CancellationToken ct = default)
-        => ToDto(await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("CompraDocumento", id));
+        => await ComVendasAsync(ToDto(await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("CompraDocumento", id)), ct);
+
+    /// <summary>Sprint 589: junta a cada linha as vendas que a tiraram do stock, com o lucro que deram de facto.</summary>
+    private async Task<CompraDocumentoDto> ComVendasAsync(CompraDocumentoDto dto, CancellationToken ct)
+    {
+        var itens = await _repo.VendasDosLotesAsync(dto.Linhas.Select(l => l.Id).ToList(), ct);
+        if (itens.Count == 0) return dto;
+        var porLote = itens.GroupBy(i => i.CompraLinhaId!.Value).ToDictionary(g => g.Key, g => (IReadOnlyList<CompraLinhaVendaDto>)g
+            .OrderBy(i => i.Venda!.Data)
+            .Select(i => new CompraLinhaVendaDto(i.VendaId, i.Venda!.Numero, i.Venda.Data, i.Quantidade, i.TotalCents / 100m,
+                IvaEngine.Euros(Vendas.VendaService.Calcular(i).Lucro), i.Venda.InvoiceNumber, i.Venda.Estado == VendaEstado.Entregue))
+            .ToList());
+        return dto with { Linhas = dto.Linhas.Select(l => porLote.TryGetValue(l.Id, out var v) ? l with { Vendas = v } : l).ToList() };
+    }
 
     public Task<CompraDocumentoDto> CreateAsync(CompraDocumentoWriteRequest req, CancellationToken ct = default)
         => CreateInternalAsync(req, null, ct);
@@ -162,7 +175,7 @@ public class CompraService : ICompraService
         await _audit.LogAsync(AuditAction.Update, nameof(CompraDocumento), doc.Id,
             new { fornecedor = fornecedor.Name, doc.NumeroFatura, linhas = doc.Linhas.Count,
                 operation = faturada && req.CorrigirDadosDaFatura ? "corrigir_dados_fatura" : "update" }, ct: ct);
-        return ToDto(doc);
+        return await ComVendasAsync(ToDto(doc), ct);
     }
 
     /// <summary>

@@ -6,6 +6,9 @@ public interface ICompraRepository
 {
     Task<(IReadOnlyList<CompraDocumento> Items, int Total)> SearchAsync(CompraFiltro filtro, int page, int pageSize, CancellationToken ct = default);
 
+    /// <summary>Sprint 589: linhas de venda que tiraram unidades destes lotes (vendas que consomem stock), com a venda.</summary>
+    Task<IReadOnlyList<VendaItem>> VendasDosLotesAsync(IReadOnlyCollection<Guid> loteIds, CancellationToken ct = default);
+
     /// <summary>Documento com fornecedor e linhas (tracked, para edição).</summary>
     Task<CompraDocumento?> FindByIdAsync(Guid id, CancellationToken ct = default);
 

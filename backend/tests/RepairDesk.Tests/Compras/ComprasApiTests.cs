@@ -243,6 +243,34 @@ public class ComprasApiTests : IClassFixture<RepairDeskApiFactory>
 
     // ---------- helpers ----------
 
+    [Fact]
+    public async Task LoteVendido_ACompraMostraAVendaEOLucroReal_ENaoDeixaVenderOutraVez()
+    {
+        var client = await AuthedClient();
+        var ue = await CriarFornecedor(client, RegimeIvaFornecedor.UeAutoliquidacao);
+        var resp = await client.PostAsJsonAsync("/api/compras", Doc(ue, "INV-" + Guid.NewGuid().ToString("N")[..6],
+            new CompraLinhaWriteRequest(null, "Battery cover Samsung A15", 1, 3.91m, null, null, null)));
+        var doc = (await resp.Content.ReadFromJsonAsync<CompraDocumentoDto>())!;
+        var lote = doc.Linhas.Single();
+
+        Task<HttpResponseMessage> Vender(int precoCents) => client.PostAsJsonAsync("/api/vendas", new RepairDesk.Services.Vendas.VendaWriteRequest(
+            VendaTipo.Produto, null, null, null, null, [new RepairDesk.Services.Vendas.VendaLinhaWriteRequest(null, lote.Id, "Tampa traseira Samsung A15", 1, precoCents)],
+            VendaEstado.Entregue, PaymentMethod.Dinheiro));
+        (await Vender(738)).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var depois = (await client.GetFromJsonAsync<CompraDocumentoDto>($"/api/compras/{doc.Id}"))!.Linhas.Single();
+        depois.QuantidadeEmStock.Should().Be(0);
+        var venda = depois.Vendas.Should().ContainSingle().Subject;
+        venda.TotalComIva.Should().Be(7.38m);
+        // 7,38 € c/ IVA → 6,00 € s/ IVA − 3,91 € da peça = 2,09 € (o mesmo que a venda mostra).
+        venda.Lucro.Should().Be(2.09m);
+        venda.Entregue.Should().BeTrue();
+
+        var outra = await Vender(738);
+        outra.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await outra.Content.ReadAsStringAsync()).Should().Contain("stock_insuficiente");
+    }
+
     private static CompraDocumentoWriteRequest Doc(Guid fornecedorId, string? numero, params CompraLinhaWriteRequest[] linhas)
         => new(fornecedorId, new DateTime(2026, 9, 15), numero, null, "MB Way", 0m, null, null, null, linhas);
 

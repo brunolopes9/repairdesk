@@ -1,6 +1,17 @@
 import type { RegimeIva } from '../fornecedores/api';
 
 /** Linha de compra = lote de stock. Valores em euros (decimais), calculados pelo motor de IVA do backend. */
+export interface CompraLinhaVenda {
+  vendaId: string;
+  numero: number;
+  data: string;
+  quantidade: number;
+  totalComIva: number;
+  lucro: number;
+  fatura: string | null;
+  entregue: boolean;
+}
+
 export interface CompraLinha {
   id: string;
   /** Nº do lote (sequencial por empresa, como o nº de linha do Excel). */
@@ -29,6 +40,8 @@ export interface CompraLinha {
   artigoId: string | null;
   artigoNome: string | null;
   pecaReparacao: boolean;
+  /** Sprint 589: vendas que tiraram unidades deste lote, com o lucro real (depois da peça e do IVA). */
+  vendas?: CompraLinhaVenda[] | null;
 }
 
 export interface CompraDocumento {

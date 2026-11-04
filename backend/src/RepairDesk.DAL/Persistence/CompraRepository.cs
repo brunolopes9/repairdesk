@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
+using RepairDesk.Core.Enums;
 
 namespace RepairDesk.DAL.Persistence;
 
@@ -53,6 +54,17 @@ public class CompraRepository : ICompraRepository
             .AsSplitQuery()
             .ToListAsync(ct);
         return (items, total);
+    }
+
+    public async Task<IReadOnlyList<VendaItem>> VendasDosLotesAsync(IReadOnlyCollection<Guid> loteIds, CancellationToken ct = default)
+    {
+        if (loteIds.Count == 0) return [];
+        // Orçamentos não tiram stock e as canceladas devolvem-no — ficam de fora (espelha VendaService.ConsomeStock).
+        return await _db.VendaItems.AsNoTracking().Include(i => i.Venda)
+            .Where(i => i.CompraLinhaId != null && loteIds.Contains(i.CompraLinhaId.Value)
+                && (i.Venda!.Estado == VendaEstado.EmCurso || i.Venda.Estado == VendaEstado.AEsperaPeca
+                    || i.Venda.Estado == VendaEstado.Pronta || i.Venda.Estado == VendaEstado.Entregue))
+            .ToListAsync(ct);
     }
 
     public Task<CompraDocumento?> FindByIdAsync(Guid id, CancellationToken ct = default)

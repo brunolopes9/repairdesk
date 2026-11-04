@@ -31,7 +31,13 @@ public sealed record CompraLinhaDto(
     string? SkuFornecedor = null,
     Guid? ArtigoId = null,
     string? ArtigoNome = null,
-    bool PecaReparacao = false);
+    bool PecaReparacao = false,
+    /// <summary>Sprint 589: as vendas que tiraram unidades deste lote, com o lucro real de cada uma.</summary>
+    IReadOnlyList<CompraLinhaVendaDto>? Vendas = null);
+
+/// <summary>Sprint 589: uma venda de um lote — preço cobrado (c/ IVA) e lucro real (depois da peça e do IVA).</summary>
+public sealed record CompraLinhaVendaDto(Guid VendaId, int Numero, DateTime Data, int Quantidade, decimal TotalComIva, decimal Lucro,
+    string? Fatura, bool Entregue);
 
 public sealed record CompraDocumentoDto(
     Guid Id,
