@@ -10,7 +10,7 @@ import { inputCls } from '../../components/ui/formClasses';
 import { artigosApi } from '../../lib/artigos/api';
 import type { Artigo, ArtigoLote } from '../../lib/artigos/types';
 import EscolherModelo from './EscolherModelo';
-import { formatEur } from '../../lib/compras/format';
+import { formatEur, parseDecimal } from '../../lib/compras/format';
 import { toast } from '../../lib/toast';
 import { PAYMENT_METHOD, PAYMENT_METHOD_LABEL, type PaymentMethod } from '../../lib/vendas/types';
 import DadosFatura, { escolhaInicial, pedidoFatura, problemaFatura, type EscolhaFatura } from '../vendas/DadosFatura';
@@ -22,10 +22,19 @@ interface LinhaCarrinho {
   lote: ArtigoLote | null;
   /** Sprint 583: modelo escrito à mão (o lote não o diz) — vai para a fatura. */
   modelo: string | null;
+  /** Sprint 588: preço un. c/ IVA desta venda (começa no do artigo; muda-se por cliente). */
+  preco: string;
 }
 
 const chave = (l: { artigo: Artigo; lote: ArtigoLote | null; modelo: string | null }) => `${l.artigo.id}:${l.lote?.linhaId ?? ''}:${l.modelo ?? ''}`;
-const textoLinha = (l: LinhaCarrinho) => (l.modelo ? `${l.artigo.nome} – ${l.modelo}` : l.lote?.textoFatura ?? l.artigo.nome);
+// Sprint 588: com o modelo escrito à mão, o texto da fatura (nome na fatura + tipo da folha), não o nome interno.
+const textoLinha = (l: LinhaCarrinho) => (l.modelo
+  ? `${l.lote?.textoFatura ?? l.artigo.nomeFatura ?? l.artigo.nome} – ${l.modelo}`
+  : l.lote?.textoFatura ?? l.artigo.nomeFatura ?? l.artigo.nome);
+
+const precoTexto = (cents: number | null) => (cents == null ? '' : (cents / 100).toFixed(2).replace('.', ','));
+/** Cêntimos do preço escrito; null se não for um preço válido. */
+const precoCents = (l: LinhaCarrinho) => { const v = parseDecimal(l.preco); return v != null && v > 0 ? Math.round(v * 100) : null; };
 
 const PAGAMENTOS: PaymentMethod[] = [PAYMENT_METHOD.Dinheiro, PAYMENT_METHOD.MBWay, PAYMENT_METHOD.Cartao, PAYMENT_METHOD.Multibanco, PAYMENT_METHOD.TransferenciaBancaria];
 
@@ -81,7 +90,7 @@ export default function Balcao() {
         toast.error('Sem stock suficiente', `${lote?.descricao ?? a.nome}: há ${disponivel} em stock.`);
         return c;
       }
-      if (i < 0) return [...c, { artigo: a, quantidade: qtd, lote, modelo }];
+      if (i < 0) return [...c, { artigo: a, quantidade: qtd, lote, modelo, preco: precoTexto(a.precoEfetivoCents) }];
       return c.map((l, j) => (j === i ? { ...l, quantidade: l.quantidade + qtd } : l));
     });
   }
@@ -112,11 +121,14 @@ export default function Balcao() {
     }
   }
 
-  const total = useMemo(() => carrinho.reduce((s, l) => s + l.quantidade * (l.artigo.precoEfetivoCents ?? 0), 0), [carrinho]);
+  const total = useMemo(() => carrinho.reduce((s, l) => s + l.quantidade * (precoCents(l) ?? 0), 0), [carrinho]);
+  const precoEmFalta = carrinho.some((l) => precoCents(l) == null);
 
   const vender = useMutation({
     mutationFn: () => artigosApi.vender({
-      linhas: carrinho.map((l) => ({ artigoId: l.artigo.id, quantidade: l.quantidade, loteId: l.lote?.linhaId ?? null, modelo: l.modelo })),
+      // Sprint 588: só manda o preço quando foi mudado — senão o servidor usa o do artigo.
+      linhas: carrinho.map((l) => ({ artigoId: l.artigo.id, quantidade: l.quantidade, loteId: l.lote?.linhaId ?? null, modelo: l.modelo,
+        precoUnitarioCents: precoCents(l) === l.artigo.precoEfetivoCents ? null : precoCents(l) })),
       paymentMethod: pagamento,
       comNif: pedidoFatura(fatura).comNif,
     }),
@@ -204,7 +216,13 @@ export default function Balcao() {
                   <span className="min-w-0 flex-1">
                     {/* Sprint 582: o texto exato da linha da fatura. */}
                     <span className="font-medium">{textoLinha(l)}</span>
-                    <span className="block text-xs text-zinc-500">{formatEur((l.artigo.precoEfetivoCents ?? 0) / 100)} / un</span>
+                    {/* Sprint 588: o preço muda-se aqui, venda a venda (ex.: película de gel 10 € → 8 €). */}
+                    <label className="mt-0.5 flex items-center gap-1 text-xs text-zinc-500">
+                      <input value={l.preco} inputMode="decimal" aria-label={`Preço de ${textoLinha(l)}`}
+                        onChange={(e) => setCarrinho((c) => c.map((x) => (chave(x) === chave(l) ? { ...x, preco: e.target.value } : x)))}
+                        className={`w-16 rounded border px-1.5 py-0.5 text-right tabular-nums ${precoCents(l) == null ? 'border-red-400' : 'border-zinc-300 dark:border-zinc-700'} bg-white dark:bg-zinc-950`} />
+                      € / un{precoCents(l) !== l.artigo.precoEfetivoCents && l.artigo.precoEfetivoCents != null && <span className="text-amber-700 dark:text-amber-400">(tabela {formatEur(l.artigo.precoEfetivoCents / 100)})</span>}
+                    </label>
                   </span>
                   <button type="button" aria-label="Menos uma" className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     onClick={() => setCarrinho((c) => c.map((x) => (chave(x) === chave(l) ? { ...x, quantidade: Math.max(1, x.quantidade - 1) } : x)))}>
@@ -214,7 +232,7 @@ export default function Balcao() {
                   <button type="button" aria-label="Mais uma" className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => adicionar(l.artigo, 1, l.lote, l.modelo)}>
                     <Plus size={14} />
                   </button>
-                  <span className="w-16 text-right tabular-nums">{formatEur((l.quantidade * (l.artigo.precoEfetivoCents ?? 0)) / 100)}</span>
+                  <span className="w-16 text-right tabular-nums">{formatEur((l.quantidade * (precoCents(l) ?? 0)) / 100)}</span>
                   <button type="button" aria-label="Tirar" className="rounded p-1 text-zinc-400 hover:text-red-600"
                     onClick={() => setCarrinho((c) => c.filter((x) => chave(x) !== chave(l)))}>
                     <Trash2 size={14} />
@@ -242,7 +260,7 @@ export default function Balcao() {
           {problemaFatura(fatura) && carrinho.length > 0 && <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">{problemaFatura(fatura)}</p>}
 
           <Button type="button" className="mt-4 w-full" leftIcon={<ShoppingCart size={16} />} loading={vender.isPending}
-            disabled={carrinho.length === 0 || !!problemaFatura(fatura)} onClick={() => vender.mutate()}>
+            disabled={carrinho.length === 0 || precoEmFalta || !!problemaFatura(fatura)} onClick={() => vender.mutate()}>
             Fechar venda · {formatEur(total / 100)}
           </Button>
         </SectionCard>

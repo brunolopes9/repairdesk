@@ -26,6 +26,18 @@ public class ModeloDispositivoTests
     public void TextoFatura(string artigo, string lote, string esperado) => ModeloDispositivo.TextoFatura(artigo, lote).Should().Be(esperado);
 
     [Theory]
+    // Sprint 588: película de gel (Sunshine) — o tipo vem da folha usada; o modelo escreve-se no balcão.
+    [InlineData("SUNSHINE SS-057E Matte Imported Hydrogel Film (50pcs)", "Película de hidrogel mate – iPhone 14")]
+    [InlineData("SUNSHINE SS-057S Privacy Imported Flexible Hydrogel Film (50pcs)", "Película de hidrogel de privacidade – iPhone 14")]
+    [InlineData("SUNSHINE SS-057 HD Hydrogel Film (50pcs)", "Película de hidrogel – iPhone 14")]
+    public void PeliculaDeGel_TipoDaFolha_EModeloEscrito(string lote, string esperado)
+        => ModeloDispositivo.TextoFatura("Película de hidrogel", lote, "iPhone 14").Should().Be(esperado);
+
+    [Fact]
+    public void Variante_NaoRepeteONomeDoArtigo()
+        => ModeloDispositivo.TextoFatura("Película de privacidade", "Rixus Privacy Tempered Glass For Apple iPhone 15").Should().Be("Película de privacidade – iPhone 15");
+
+    [Theory]
     [InlineData("Capa", "Capa – iPhone 14 preta")]
     [InlineData("Cabo", "Cabo – iPhone 14 preto")]
     public void Cor_ConcordaComOGeneroDoArtigo(string artigo, string esperado)

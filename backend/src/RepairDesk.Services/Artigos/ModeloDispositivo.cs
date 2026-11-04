@@ -44,9 +44,11 @@ public static partial class ModeloDispositivo
     /// </summary>
     public static string TextoFatura(string nomeArtigo, string descricaoLote, string? modeloManual = null)
     {
-        if (!string.IsNullOrWhiteSpace(modeloManual)) return $"{nomeArtigo} – {modeloManual.Trim()}";
-        if (Extrair(descricaoLote, Feminino(nomeArtigo)) is { } modelo) return $"{nomeArtigo} – {modelo}";
-        return DescricaoServe(nomeArtigo, descricaoLote) ? descricaoLote.Trim() : nomeArtigo;
+        // Sprint 588: o tipo da folha/película (mate, privacidade, UV…) vem do lote — "Película de hidrogel mate – iPhone 14".
+        var nome = nomeArtigo + Variante(nomeArtigo, descricaoLote);
+        if (!string.IsNullOrWhiteSpace(modeloManual)) return $"{nome} – {modeloManual.Trim()}";
+        if (Extrair(descricaoLote, Feminino(nomeArtigo)) is { } modelo) return $"{nome} – {modelo}";
+        return DescricaoServe(nomeArtigo, descricaoLote) ? descricaoLote.Trim() : nome;
     }
 
     /// <summary>
@@ -80,6 +82,23 @@ public static partial class ModeloDispositivo
     /// </summary>
     public static bool PrecisaModelo(string nomeArtigo, string descricaoLote)
         => Extrair(descricaoLote) is null && !DescricaoServe(nomeArtigo, descricaoLote);
+
+    private static readonly (Regex Lote, string Texto)[] Variantes =
+    [
+        (new Regex(@"privacy|privacidade|anti-?spy", RegexOptions.IgnoreCase), "de privacidade"),
+        (new Regex(@"\bmatt?e\b|\bfosc[ao]\b", RegexOptions.IgnoreCase), "mate"),
+        (new Regex(@"\bUV\b"), "UV"),
+        (new Regex(@"blue\s*light|anti-?blue|luz\s+azul", RegexOptions.IgnoreCase), "anti-luz azul"),
+    ];
+
+    /// <summary>" mate", " de privacidade"… quando o lote o diz e o nome do artigo ainda não.</summary>
+    private static string Variante(string nomeArtigo, string descricaoLote)
+    {
+        var v = Variantes.FirstOrDefault(x => x.Lote.IsMatch(descricaoLote)).Texto;
+        if (v is null) return "";
+        var chave = v.Split(' ')[^1];
+        return nomeArtigo.Contains(chave, StringComparison.OrdinalIgnoreCase) ? "" : " " + v;
+    }
 
     private static bool DescricaoServe(string nomeArtigo, string descricaoLote)
     {

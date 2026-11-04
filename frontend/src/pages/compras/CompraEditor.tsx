@@ -444,7 +444,10 @@ export default function CompraEditor() {
                           className={`${inputCls} min-h-8 w-36 py-1 text-xs`} placeholder="SKU do fornecedor" maxLength={64} />
                         {l.artigoNome && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-950/40 dark:text-brand-300" title="Artigo da loja deste lote">{l.artigoNome}</span>}
                       </div>
-                      {l.movimentos > 0 && <span className="mt-1 block text-xs text-zinc-500">{l.movimentos} já saíram do stock</span>}
+                      {/* Sprint 588: vendido/saído — a linha fica (é a fatura do fornecedor), o stock é que acaba. */}
+                      {l.movimentos > 0 && (l.id && l.emStock === 0
+                        ? <span className="mt-1 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Vendido — já não está em stock</span>
+                        : <span className="mt-1 block text-xs text-zinc-500">{l.movimentos} já saíram do stock · {l.emStock} em stock</span>)}
                     </td>
                     <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} /></td>
                     <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Preço unitário pago" inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" /></td>
