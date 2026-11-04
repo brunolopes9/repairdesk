@@ -71,14 +71,17 @@ public class DespesaRepository : IDespesaRepository
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var like = $"%{query.Trim()}%";
             // Sprint 584: também pelo nº da despesa e pelo nº do documento do fornecedor.
+            // Sprint 591: por palavras, sem olhar a acentos.
             var numero = int.TryParse(query.Trim(), out var n) ? n : -1;
-            q = q.Where(d =>
-                d.Numero == numero ||
-                EF.Functions.Like(d.Descricao, like) ||
-                (d.Fornecedor != null && EF.Functions.Like(d.Fornecedor, like)) ||
-                (d.NumeroEncomenda != null && EF.Functions.Like(d.NumeroEncomenda, like)));
+            var termos = PesquisaTexto.Termos(query);
+            var t0 = PesquisaTexto.Padrao(query.Trim());
+            foreach (var termo in termos)
+            {
+                var t = termo;
+                q = q.Where(d => d.Numero == numero || PesquisaTexto.Contem(d.NumeroEncomenda, t0)
+                    || PesquisaTexto.Contem(d.Descricao, t) || PesquisaTexto.Contem(d.Fornecedor, t));
+            }
         }
         return q;
     }

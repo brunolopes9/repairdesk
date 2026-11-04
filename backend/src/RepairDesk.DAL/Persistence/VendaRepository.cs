@@ -119,13 +119,13 @@ public class VendaRepository : IVendaRepository
             else
                 foreach (var termo in PesquisaTexto.Termos(filtro.Q))
                 {
-                    var t = termo.ToUpper();
+                    var t = termo;
                     q = q.Where(v =>
-                        (v.Cliente != null && v.Cliente.Nome.ToUpper().Contains(t))
-                        || (v.Equipamento != null && v.Equipamento.ToUpper().Contains(t))
-                        || (v.Problema != null && v.Problema.ToUpper().Contains(t))
-                        || (v.InvoiceNumber != null && v.InvoiceNumber.ToUpper().Contains(t))
-                        || v.Items.Any(i => i.Descricao.ToUpper().Contains(t)));
+                        (v.Cliente != null && PesquisaTexto.Contem(v.Cliente.Nome, t))
+                        || PesquisaTexto.Contem(v.Equipamento, t)
+                        || PesquisaTexto.Contem(v.Problema, t)
+                        || PesquisaTexto.Contem(v.InvoiceNumber, t)
+                        || v.Items.Any(i => PesquisaTexto.Contem(i.Descricao, t)));
                 }
         }
 

@@ -138,12 +138,12 @@ public class ClienteRepository : IClienteRepository
             // Sprint 562: por palavras — "joão silva" encontra "João Pedro Silva".
             foreach (var termo in PesquisaTexto.Termos(query))
             {
-                var like = $"%{termo}%";
+                var t = termo;
                 q = q.Where(c =>
-                    EF.Functions.Like(c.Nome, like) ||
-                    EF.Functions.Like(c.Telefone, like) ||
-                    (c.Email != null && EF.Functions.Like(c.Email, like)) ||
-                    (c.Nif != null && EF.Functions.Like(c.Nif, like)));
+                    PesquisaTexto.Contem(c.Nome, t) ||
+                    PesquisaTexto.Contem(c.Telefone, t) ||
+                    PesquisaTexto.Contem(c.Email, t) ||
+                    PesquisaTexto.Contem(c.Nif, t));
             }
         }
 

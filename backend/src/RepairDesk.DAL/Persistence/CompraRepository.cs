@@ -29,12 +29,12 @@ public class CompraRepository : ICompraRepository
             else
                 foreach (var termo in PesquisaTexto.Termos(filtro.Query))
                 {
-                    var t = termo.ToUpper();
+                    var t = termo;
                     q = q.Where(d =>
-                        (d.NumeroFatura != null && d.NumeroFatura.ToUpper().Contains(t)) ||
-                        (d.NumerosEncomenda != null && d.NumerosEncomenda.ToUpper().Contains(t)) ||
-                        d.Fornecedor!.Name.ToUpper().Contains(t) ||
-                        d.Linhas.Any(l => l.Descricao.ToUpper().Contains(t)));
+                        PesquisaTexto.Contem(d.NumeroFatura, t) ||
+                        PesquisaTexto.Contem(d.NumerosEncomenda, t) ||
+                        PesquisaTexto.Contem(d.Fornecedor!.Name, t) ||
+                        d.Linhas.Any(l => PesquisaTexto.Contem(l.Descricao, t)));
                 }
         }
 

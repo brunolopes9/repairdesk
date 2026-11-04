@@ -94,6 +94,12 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
         modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityUserToken<Guid>>().ToTable("Auth_UserTokens");
         modelBuilder.Entity<Microsoft.AspNetCore.Identity.IdentityRoleClaim<Guid>>().ToTable("Auth_RoleClaims");
 
+        // Sprint 591: pesquisa sem acentos — PesquisaTexto.Contem(texto, padrão) → texto COLLATE …_CI_AI LIKE padrão.
+        modelBuilder.HasDbFunction(typeof(PesquisaTexto).GetMethod(nameof(PesquisaTexto.Contem))!)
+            .HasTranslation(args => new Microsoft.EntityFrameworkCore.Query.SqlExpressions.LikeExpression(
+                new Microsoft.EntityFrameworkCore.Query.SqlExpressions.CollateExpression(args[0], PesquisaTexto.Collation),
+                args[1], null, new Microsoft.EntityFrameworkCore.Storage.BoolTypeMapping("bit")));
+
         ApplyGlobalFilters(modelBuilder);
     }
 

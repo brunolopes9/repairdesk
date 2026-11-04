@@ -19,11 +19,11 @@ public class ArtigoRepository : IArtigoRepository
         var query = ComLotes().AsNoTracking().Where(a => incluirInativos || a.Ativo);
         foreach (var termo in PesquisaTexto.Termos(q))
         {
-            var t = termo.ToUpper();
-            query = query.Where(a => a.Nome.ToUpper().Contains(t) || a.Sku.ToUpper().Contains(t) || a.CodigoBarras.Contains(t)
-                || (a.CodigoFabricante != null && a.CodigoFabricante.Contains(t)) || (a.Categoria != null && a.Categoria.ToUpper().Contains(t))
+            var t = termo;
+            query = query.Where(a => PesquisaTexto.Contem(a.Nome, t) || PesquisaTexto.Contem(a.NomeFatura, t) || PesquisaTexto.Contem(a.Sku, t)
+                || PesquisaTexto.Contem(a.CodigoBarras, t) || PesquisaTexto.Contem(a.CodigoFabricante, t) || PesquisaTexto.Contem(a.Categoria, t)
                 // Sprint 581: e pelos modelos dos lotes em stock (artigos agrupados: "iphone 11" → "Película vidro").
-                || a.Lotes.Any(l => l.Quantidade - l.QuantidadeVendida - l.QuantidadeAbatida > 0 && l.Descricao.ToUpper().Contains(t)));
+                || a.Lotes.Any(l => l.Quantidade - l.QuantidadeVendida - l.QuantidadeAbatida > 0 && PesquisaTexto.Contem(l.Descricao, t)));
         }
         return await query.OrderBy(a => a.Nome).ToListAsync(ct);
     }

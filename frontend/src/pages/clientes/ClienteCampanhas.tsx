@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button, EmptyState, PageHeader, SkeletonCard } from '../../components/ui';
 import { clienteTagsApi } from '../../lib/clienteTags/api';
+import { correspondeTermos } from '../../lib/pesquisa';
 import type { Cliente, ClienteTag } from '../../lib/clientes/types';
 import { displayPhone } from '../../lib/phone/formatter';
 
@@ -97,9 +98,7 @@ export default function ClienteCampanhas() {
   const filteredClientes = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return clientes;
-    return clientes.filter((c) =>
-      [c.nome, c.telefone, c.email, c.nif, tagLabel(c.tags)].some((value) => (value ?? '').toLowerCase().includes(term)),
-    );
+    return clientes.filter((c) => correspondeTermos([c.nome, c.telefone, c.email, c.nif, tagLabel(c.tags)].join(' '), term));
   }, [clientes, search]);
 
   const excluidos = Math.max(0, (segmento?.totalSegmento ?? 0) - (segmento?.totalElegiveis ?? 0));
