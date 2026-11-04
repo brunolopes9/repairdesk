@@ -30,7 +30,8 @@ public sealed class MoloniConfig
     public Dictionary<string, int> MetodosPagamento { get; set; } = new();
 }
 
-public sealed record MoloniSerieDto(int Id, string Nome, bool Predefinida);
+/// <summary>Sprint 587: <paramref name="AtivaNaAt"/> — série comunicada e ativa na AT (null = o Moloni não disse).</summary>
+public sealed record MoloniSerieDto(int Id, string Nome, bool Predefinida, bool? AtivaNaAt = null);
 
 public sealed record MoloniEstadoDto(
     bool Configurado,
@@ -173,8 +174,9 @@ public partial class MoloniService : IMoloniService
                 return series.Any(s => s.Id == p) ? p : throw new ValidationException("serie_invalida", "Essa série não existe no Moloni ON.");
             return series.Any(s => s.Id == atual) ? atual : omissao()?.Id ?? series[0].Id;
         }
-        MoloniSerieDto? PorNome(string nome) => series.FirstOrDefault(s => s.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase));
-        var predefinida = series.FirstOrDefault(s => s.Predefinida) ?? series[0];
+        // Sprint 587: por omissão só séries que podem emitir (ativas na AT).
+        MoloniSerieDto? PorNome(string nome) => series.FirstOrDefault(s => s.AtivaNaAt != false && s.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase));
+        var predefinida = series.FirstOrDefault(s => s.Predefinida && s.AtivaNaAt != false) ?? series.FirstOrDefault(s => s.AtivaNaAt != false) ?? series[0];
         cfg.SerieServico = Serie(req.SerieServico, cfg.SerieServico, () => predefinida);
         cfg.SerieReparacao = Serie(req.SerieReparacao, cfg.SerieReparacao, () => PorNome("REPARACAO") ?? predefinida);
         cfg.SerieProduto = Serie(req.SerieProduto, cfg.SerieProduto, () => PorNome("REPARACAO") ?? predefinida);
@@ -229,6 +231,7 @@ public partial class MoloniService : IMoloniService
         if (req.VencimentoDias is < 0 or > 365) throw new ValidationException("vencimento_invalido", "Prazo de vencimento entre 0 e 365 dias.");
 
         var serie = req.SerieId ?? SeriePorTipo(cfg, venda.Tipo);
+        await GarantirSerieNaAtAsync(key, companyId, serie, ct);
         var customerId = await ClienteDaFaturaAsync(key, companyId, cfg, venda, req, ct);
         var produtos = await LinhasAsync(key, companyId, cfg, t, venda, req.MotivoIsencao, ct);
         var agora = DateTime.UtcNow;
@@ -436,8 +439,36 @@ public partial class MoloniService : IMoloniService
         await _tenants.SaveAsync(ct);
     }
 
+    /// <summary>
+    /// Sprint 587: uma série que não está comunicada à AT não emite ("Can't use this document set because it is not
+    /// setup for AT"). Avisa-se antes, em português, com a saída (outra série ou comunicá-la no Moloni ON).
+    /// </summary>
+    private async Task GarantirSerieNaAtAsync(string key, int companyId, int serieId, CancellationToken ct)
+    {
+        var serie = (await SeriesAsync(key, companyId, ct)).FirstOrDefault(s => s.Id == serieId);
+        if (serie?.AtivaNaAt == false) throw SerieSemAt(serie.Nome);
+    }
+
+    private static ValidationException SerieSemAt(string? nome) => new("serie_sem_at",
+        $"A série {nome ?? "escolhida"} não está comunicada à AT no Moloni ON, por isso não pode emitir faturas. " +
+        "Escolhe outra série (ex.: REPARACAO) ou comunica esta em Moloni ON › Definições › Séries de documentos.");
+
     private async Task<IReadOnlyList<MoloniSerieDto>> SeriesAsync(string key, int companyId, CancellationToken ct)
     {
+        try
+        {
+            // Sprint 587: com o estado de cada tipo de documento da série na AT (só "active" emite).
+            var c = await _client.ExecutarAsync(key,
+                "query($c:Int!){ documentSetsForDocument(companyId:$c, documentTypeId:1) { errors { field msg } data { documentSetId name isDefault documentTypes { documentTypeId at { state } } } } }",
+                new { c = companyId }, "documentSetsForDocument", ct);
+            var comAt = c?.AsArray().Select(s => new MoloniSerieDto(s!["documentSetId"]!.GetValue<int>(), s["name"]!.GetValue<string>(),
+                s["isDefault"]?.GetValue<bool>() ?? false,
+                s["documentTypes"] is JsonArray tipos
+                    ? tipos.Any(x => x?["at"]?["state"]?.GetValue<string>() is "active")
+                    : null)).ToList() ?? [];
+            if (comAt.Count > 0) return comAt;
+        }
+        catch (MoloniException) { /* campos AT indisponíveis — segue sem eles */ }
         var d = await _client.ExecutarAsync(key,
             "query($c:Int!){ documentSetsForDocument(companyId:$c, documentTypeId:1) { errors { field msg } data { documentSetId name isDefault } } }",
             new { c = companyId }, "documentSetsForDocument", ct);
@@ -707,9 +738,17 @@ public partial class MoloniService : IMoloniService
     private async Task<(int DocumentId, decimal Total)> CriarRascunhoAsync(string key, int companyId, string apiCode, string tipoInput,
         Dictionary<string, object?> dados, CancellationToken ct)
     {
-        var d = await _client.ExecutarAsync(key,
-            $"mutation($c:Int!,$d:{tipoInput}!){{ {apiCode}Create(companyId:$c, data:$d) {{ errors {{ field msg }} data {{ documentId totalValue }} }} }}",
-            new { c = companyId, d = dados.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value) }, apiCode + "Create", ct);
+        JsonNode? d;
+        try
+        {
+            d = await _client.ExecutarAsync(key,
+                $"mutation($c:Int!,$d:{tipoInput}!){{ {apiCode}Create(companyId:$c, data:$d) {{ errors {{ field msg }} data {{ documentId totalValue }} }} }}",
+                new { c = companyId, d = dados.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value) }, apiCode + "Create", ct);
+        }
+        catch (MoloniException e) when (e.Message.Contains("for AT", StringComparison.OrdinalIgnoreCase))
+        {
+            throw SerieSemAt(null); // Sprint 587: o Moloni recusou a série (não comunicada/ativa na AT)
+        }
         return (d!["documentId"]!.GetValue<int>(), d["totalValue"]!.GetValue<decimal>());
     }
 

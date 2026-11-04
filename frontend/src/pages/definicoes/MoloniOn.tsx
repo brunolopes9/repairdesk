@@ -13,7 +13,11 @@ function SerieSelect({ series, label, value, onChange }: { series: MoloniSerie[]
     <label>
       <span className={labelCls}>{label}</span>
       <select value={value} onChange={(ev) => onChange(ev.target.value ? Number(ev.target.value) : '')} className={inputCls}>
-        {series.map((s) => <option key={s.id} value={s.id}>{s.nome}{s.predefinida ? ' (predefinida)' : ''}</option>)}
+        {series.map((s) => (
+          <option key={s.id} value={s.id} disabled={s.ativaNaAt === false && s.id !== value}>
+            {s.nome}{s.predefinida ? ' (predefinida)' : ''}{s.ativaNaAt === false ? ' — não comunicada à AT' : ''}
+          </option>
+        ))}
       </select>
     </label>
   );

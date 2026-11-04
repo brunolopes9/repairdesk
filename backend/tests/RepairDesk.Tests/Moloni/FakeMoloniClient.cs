@@ -75,6 +75,15 @@ public class FakeMoloniClient : IMoloniClient
         {
             case "me": return Node(new { userCompanies = new[] { new { companyId = 2855 } } });
             case "documentSetsForDocument":
+                // Sprint 587: com o estado na AT quando pedido — EQUIPAMENTOS existe mas não está comunicada.
+                if (query.Contains("documentTypes"))
+                {
+                    object Tipo(string estado) => new[] { new { documentTypeId = 1, at = new { state = estado } } };
+                    return Node(new object[] {
+                        new { documentSetId = 3216, name = "SOFTWARE", isDefault = true, documentTypes = Tipo("active") },
+                        new { documentSetId = 3413, name = "REPARACAO", isDefault = false, documentTypes = Tipo("active") },
+                        new { documentSetId = 3500, name = "EQUIPAMENTOS", isDefault = false, documentTypes = Tipo("initialise") } });
+                }
                 return Node(new object[] { new { documentSetId = 3216, name = "SOFTWARE", isDefault = true }, new { documentSetId = 3413, name = "REPARACAO", isDefault = false } });
             case "taxes":
                 return Node(new object[] { new { taxId = 12733, value = 23, type = 1 }, new { taxId = 12734, value = 13, type = 1 }, new { taxId = 12735, value = 6, type = 1 } });

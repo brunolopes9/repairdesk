@@ -48,7 +48,10 @@ public class ModeloDispositivoTests
     [InlineData("iPhone 15 - Battery A3018 3349mAh 12.981Wh (NO Error, Run Diagnostics)", "Bateria iPhone 15")]
     [InlineData("Touch e lcd para iph 11 preto", "Ecrã iPhone 11 preto")]
     [InlineData("Touch para apple iph 5s telemovel", "Ecrã iPhone 5s")]
-    [InlineData("REALME 12X 5G 6.67 INCH REALME V60 REALME V60S PANTALLA LCD", "Ecrã REALME 12X 5G")]
+    [InlineData("REALME 12X 5G 6.67 INCH REALME V60 REALME V60S PANTALLA LCD", "Ecrã Realme 12X 5G")]
+    // Sprint 587: cauda em espanhol e códigos do fornecedor fora; marcas com a grafia certa.
+    [InlineData("TAPA TRASERA SAMSUNG GALAXY A15 4G A155 A15 5G A156 TAPA TRASERA O TAPA", "Tampa traseira Samsung Galaxy A15 4G A155 A15 5G A156")]
+    [InlineData("BATERIA IPHONE 5S APN: 616-0720", "Bateria iPhone 5S")]
     [InlineData("Pantalla Lcd para Realme 12x RMX3997 Marco Negro", "Ecrã Realme 12x RMX3997")]
     [InlineData("Amaoe - BGA Reballing Stencil With CPU Position For iPhone 12", null)]
     public void NomePeca(string descricao, string? esperado) => ModeloDispositivo.NomePeca(descricao).Should().Be(esperado);

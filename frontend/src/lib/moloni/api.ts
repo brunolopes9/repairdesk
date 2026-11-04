@@ -6,6 +6,8 @@ export interface MoloniSerie {
   id: number;
   nome: string;
   predefinida: boolean;
+  /** Sprint 587: comunicada e ativa na AT (false = não emite; null = o Moloni não disse). */
+  ativaNaAt?: boolean | null;
 }
 
 export interface MoloniEstado {

@@ -57,6 +57,23 @@ public class MoloniApiTests : IClassFixture<MoloniApiFactory>
     }
 
     [Fact]
+    public async Task SerieNaoComunicadaAAt_RecusaEmPortugues_SemCriarRascunho()
+    {
+        var client = await ClienteMoloniAsync();
+        var estado = await client.GetFromJsonAsync<MoloniEstadoDto>("/api/moloni/estado");
+        estado!.Series.Single(s => s.Nome == "EQUIPAMENTOS").AtivaNaAt.Should().BeFalse();
+        estado.Series.Single(s => s.Nome == "REPARACAO").AtivaNaAt.Should().BeTrue();
+
+        var venda = await VendaServicoAsync(client, comCliente: false, precoCents: 1476, iva: 23m);
+        var antes = _factory.Moloni.Operacoes.Count(o => o.EndsWith("Create"));
+        var resp = await client.PostAsJsonAsync($"/api/vendas/{venda.Id}/moloni/emitir", new MoloniEmitirRequest(MoloniDocumento.FaturaRecibo, SerieId: 3500));
+        resp.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var corpo = await resp.Content.ReadAsStringAsync();
+        corpo.Should().Contain("serie_sem_at").And.Contain("EQUIPAMENTOS");
+        _factory.Moloni.Operacoes.Count(o => o.EndsWith("Create")).Should().Be(antes);
+    }
+
+    [Fact]
     public async Task TotalDoMoloniDiferente_ApagaORascunho_ENaoEmiteNada()
     {
         var client = await ClienteMoloniAsync();

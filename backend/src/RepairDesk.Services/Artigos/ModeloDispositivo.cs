@@ -28,7 +28,9 @@ public static partial class ModeloDispositivo
         resto = CodigoInterno().Replace(resto, " ");
         resto = Virgulas().Replace(resto, " / ");
         resto = Barras().Replace(resto, " / ");
-        resto = Espacos().Replace(resto, " ").Trim(' ', ',', '/', '-', '.');
+        resto = Espacos().Replace(resto, " ").Trim(' ', ',', '/', '-', '.', ':');
+        // Sprint 587: marcas como se escrevem ("SAMSUNG GALAXY" → "Samsung Galaxy", "IPHONE" → "iPhone").
+        foreach (var marca in Marcas) resto = Regex.Replace(resto, $@"\b{marca}\b", marca, RegexOptions.IgnoreCase);
         // Sprint 583: a cor concorda com o artigo — "Capa – iPhone 14 preta", "Cabo – … preto".
         foreach (var (en, masc, fem) in Cores) resto = Regex.Replace(resto, $@"\b{en}\b", feminino ? fem : masc, RegexOptions.IgnoreCase);
         return resto.Length is 0 or > 80 ? null : resto;
@@ -94,6 +96,9 @@ public static partial class ModeloDispositivo
         return p.EndsWith('a') || p.EndsWith("ção") || p.EndsWith("gem") || p.EndsWith("ade");
     }
 
+    private static readonly string[] Marcas =
+        ["iPhone", "iPad", "Samsung", "Galaxy", "Xiaomi", "Redmi", "Poco", "Oppo", "Huawei", "Honor", "Realme", "Motorola", "OnePlus", "Google", "Pixel", "Nokia", "Vivo"];
+
     private static readonly (string En, string Masc, string Fem)[] Cores =
     [
         ("Black", "preto", "preta"), ("White", "branco", "branca"), ("Blue", "azul", "azul"), ("Red", "vermelho", "vermelha"),
@@ -103,7 +108,7 @@ public static partial class ModeloDispositivo
     [GeneratedRegex(@"\b(?:Apple\s+iPhone|iPhone|iph(?=\s)|Samsung|Galaxy|Xiaomi|Redmi|Poco|Oppo|Huawei|Honor|Realme|Motorola|Moto\s+[EG]\d|OnePlus|Google\s+Pixel|Pixel\s+\d|Nokia|Vivo|Microsoft\s+Surface|iPad)\b", RegexOptions.IgnoreCase)]
     private static partial Regex MarcaRegex();
 
-    [GeneratedRegex(@"\s+-\s+|\s*\(|\s+(?:With|Display|Battery|Full\s+Front|Tempered|Glass|Screen|telem[oó]vel|pantalla|marco|\d+(?:[.,]\d+)?\s*inch)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\s+-\s+|\s*\(|\s+(?:With|Display|Battery|Full\s+Front|Tempered|Glass|Screen|telem[oó]vel|pantalla|marco|tapa|trasera|carcasa|bater[ií]a|apn|\d+(?:[.,]\d+)?\s*inch)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Cauda();
 
     [GeneratedRegex(@"\b(?:For|Black\s+OEM|OEM)\b", RegexOptions.IgnoreCase)]

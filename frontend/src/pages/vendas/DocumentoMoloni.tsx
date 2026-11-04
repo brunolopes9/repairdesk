@@ -33,7 +33,11 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   const [motivo, setMotivo] = useState<string>('');
   const [anular, setAnular] = useState<string | null>(null);
 
-  useEffect(() => { setSerie(serieDefault ?? ''); }, [serieDefault]);
+  // Sprint 587: uma série que não está ativa na AT não emite — começa numa que emite.
+  const serieInicial = e?.series.some((s) => s.id === serieDefault && s.ativaNaAt === false)
+    ? (e.series.find((s) => s.ativaNaAt !== false)?.id ?? serieDefault)
+    : serieDefault;
+  useEffect(() => { setSerie(serieInicial ?? ''); }, [serieInicial]);
   // Sprint 571: sem NIF / com NIF — proposto a partir do cliente da venda, decidido no momento.
   const [fatura, setFatura] = useState<EscolhaFatura>(() => escolhaInicial(venda.cliente));
   const chaveCliente = `${venda.cliente?.id ?? ""}|${venda.cliente?.nif ?? ""}`;
@@ -90,7 +94,11 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
     <label className="block">
       <span className={labelCls}>Série</span>
       <select value={serie} onChange={(ev) => setSerie(ev.target.value ? Number(ev.target.value) : '')} className={inputCls}>
-        {e.series.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+        {e.series.map((s) => (
+          <option key={s.id} value={s.id} disabled={s.ativaNaAt === false}>
+            {s.nome}{s.ativaNaAt === false ? ' — não comunicada à AT' : ''}
+          </option>
+        ))}
       </select>
     </label>
   );
