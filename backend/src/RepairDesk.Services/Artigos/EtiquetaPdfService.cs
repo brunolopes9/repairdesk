@@ -10,8 +10,8 @@ namespace RepairDesk.Services.Artigos;
 
 public sealed record EtiquetaPedido(Guid ArtigoId, int Copias = 1);
 
-/// <summary>Tamanho do rolo em mm (Marklife P50: 50×30 por defeito). Uma etiqueta por página.</summary>
-public sealed record EtiquetasRequest(IReadOnlyList<EtiquetaPedido> Itens, decimal LarguraMm = 50, decimal AlturaMm = 30, bool MostrarPreco = true);
+/// <summary>Tamanho do rolo em mm (Marklife P50: 40×30 por defeito). Uma etiqueta por página.</summary>
+public sealed record EtiquetasRequest(IReadOnlyList<EtiquetaPedido> Itens, decimal LarguraMm = 40, decimal AlturaMm = 30, bool MostrarPreco = true);
 
 public interface IEtiquetaPdfService
 {
@@ -26,8 +26,15 @@ public class EtiquetaPdfService : IEtiquetaPdfService
 {
     private const int MaxEtiquetas = 500;
     private readonly IArtigoService _artigos;
+    private readonly ITenantRepository? _tenants;
+    private readonly ITenantContext? _tenant;
 
-    public EtiquetaPdfService(IArtigoService artigos) => _artigos = artigos;
+    public EtiquetaPdfService(IArtigoService artigos, ITenantRepository? tenants = null, ITenantContext? tenant = null)
+    {
+        _artigos = artigos;
+        _tenants = tenants;
+        _tenant = tenant;
+    }
 
     public async Task<byte[]> GerarAsync(EtiquetasRequest req, CancellationToken ct = default)
     {
@@ -46,14 +53,23 @@ public class EtiquetaPdfService : IEtiquetaPdfService
             etiquetas.AddRange(Enumerable.Repeat(a, item.Copias));
         }
 
+        // Sprint 596: a marca da loja no topo (preto e branco, nítida numa térmica), o nome em português (o que sai
+        // na fatura), o preço em grande, o código de barras e o SKU — numa etiqueta de 40×30 mm.
+        var loja = _tenant?.TenantId is { } tid && _tenants is not null ? await _tenants.FindByIdAsync(tid, ct) : null;
+        return Documento(etiquetas, req, loja?.Name ?? "LopesTech").GeneratePdf();
+    }
+
+    /// <summary>O desenho das etiquetas (separado para se poder ver em imagem nos testes).</summary>
+    public static Document Documento(IReadOnlyList<ArtigoDto> etiquetas, EtiquetasRequest req, string marca)
+    {
         var largura = (float)req.LarguraMm;
         var altura = (float)req.AlturaMm;
-        const float margem = 1.5f;
-        var pequena = altura < 20; // rolos estreitos: nome numa linha, letra mais pequena
-        var cabecalhoMm = pequena ? 3f : 6.5f;
-        var rodapeMm = pequena ? 2.2f : 2.8f;
-        // As barras ocupam exatamente o espaço do meio (largura toda) — a proporção vai no próprio SVG.
-        var barrasMm = Math.Max(3f, altura - 2 * margem - cabecalhoMm - rodapeMm - 1f);
+        const float margem = 1.2f;
+        var pequena = altura < 20; // rolos estreitos: só preço, nome numa linha e barras
+        var topoMm = pequena ? 3.2f : 4.6f;
+        var nomeMm = pequena ? 2.4f : 5.2f;
+        var rodapeMm = pequena ? 2.2f : 2.6f;
+        var barrasMm = Math.Max(3f, altura - 2 * margem - topoMm - nomeMm - rodapeMm - 0.8f);
         var alturaModulos = (int)Math.Round(113 * barrasMm / (largura - 2 * margem));
         var pt = CultureInfo.GetCultureInfo("pt-PT");
 
@@ -65,25 +81,30 @@ public class EtiquetaPdfService : IEtiquetaPdfService
                 {
                     page.Size(largura, altura, Unit.Millimetre);
                     page.Margin(margem, Unit.Millimetre);
-                    page.DefaultTextStyle(t => t.FontSize(pequena ? 5.5f : 7).FontColor(Colors.Black).LineHeight(1f));
-                    page.Header().Height(cabecalhoMm, Unit.Millimetre).Row(row =>
+                    page.DefaultTextStyle(t => t.FontSize(pequena ? 5.5f : 6.5f).FontColor(Colors.Black).LineHeight(1f));
+                    page.Content().Column(col =>
                     {
-                        row.RelativeItem().Text(a.Nome).Bold().ClampLines(pequena ? 1 : 2);
-                        if (req.MostrarPreco && a.PrecoEfetivoCents is { } p)
-                            row.AutoItem().PaddingLeft(1, Unit.Millimetre).AlignRight()
-                                .Text((p / 100m).ToString("0.00", pt) + " €").Bold().FontSize(pequena ? 7 : 10);
-                    });
-                    page.Content().PaddingVertical(0.5f, Unit.Millimetre).Element(e =>
-                    {
-                        if (Ean13.Valido(a.CodigoBarras)) e.Svg(Ean13.Svg(a.CodigoBarras, alturaModulos)).FitArea();
-                    });
-                    page.Footer().Height(rodapeMm, Unit.Millimetre).Row(row =>
-                    {
-                        row.RelativeItem().AlignCenter().Text(a.CodigoBarras).FontSize(pequena ? 5 : 6).LetterSpacing(0.15f);
-                        row.AutoItem().Text(a.Sku).FontSize(pequena ? 5 : 6).Bold();
+                        col.Item().Height(topoMm, Unit.Millimetre).Row(row =>
+                        {
+                            row.RelativeItem().AlignBottom().Text(marca).Bold().FontSize(pequena ? 5.5f : 7).LetterSpacing(0.02f);
+                            if (req.MostrarPreco && a.PrecoEfetivoCents is { } p)
+                                row.AutoItem().AlignRight().AlignBottom()
+                                    .Text((p / 100m).ToString("0.00", pt) + " €").Bold().FontSize(pequena ? 8 : 12);
+                        });
+                        col.Item().Height(nomeMm, Unit.Millimetre).AlignMiddle()
+                            .Text(a.NomeFatura ?? a.Nome).SemiBold().ClampLines(pequena ? 1 : 2);
+                        col.Item().Height(barrasMm, Unit.Millimetre).PaddingTop(0.4f, Unit.Millimetre).Element(e =>
+                        {
+                            if (Ean13.Valido(a.CodigoBarras)) e.Svg(Ean13.Svg(a.CodigoBarras, alturaModulos)).FitArea();
+                        });
+                        col.Item().Height(rodapeMm, Unit.Millimetre).Row(row =>
+                        {
+                            row.RelativeItem().AlignCenter().AlignBottom().Text(a.CodigoBarras).FontSize(pequena ? 4.8f : 5.5f).LetterSpacing(0.12f);
+                            row.AutoItem().AlignBottom().Text(a.Sku).FontSize(pequena ? 4.8f : 5.5f).Bold();
+                        });
                     });
                 });
             }
-        }).GeneratePdf();
+        });
     }
 }

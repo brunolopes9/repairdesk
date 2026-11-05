@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download, Printer } from 'lucide-react';
 import Modal from '../../components/Modal';
@@ -15,8 +15,15 @@ function tamanhoGuardado(): { l: number; a: number } {
     const v = JSON.parse(localStorage.getItem('mender.etiquetas.tamanho') ?? 'null');
     if (v && typeof v.l === 'number' && typeof v.a === 'number') return v;
   } catch { /* sem storage */ }
-  return { l: 50, a: 30 };
+  return { l: 40, a: 30 };
 }
+
+/** Sprint 596: rolos conhecidos — um toque e o PDF sai do tamanho certo (uma etiqueta por página). */
+const PREDEFINIDOS = [
+  { nome: 'Marklife P50 · 40×30', l: 40, a: 30 },
+  { nome: '50×30', l: 50, a: 30 },
+  { nome: 'Epson TM · papel 80 mm', l: 72, a: 35 },
+];
 
 interface Props {
   open: boolean;
@@ -69,6 +76,10 @@ export default function EtiquetasModal({ open, onClose, escolhidos, onChange, no
   }
 
   const pronto = !!pdf.data && !pdf.isFetching && JSON.stringify(pedidoEstavel) === chave;
+  // Pré-visualização do PDF (a 1.ª etiqueta), para ver o tamanho e o desenho antes de gastar rolo.
+  const previa = useMemo(() => (pdf.data ? URL.createObjectURL(pdf.data) : null), [pdf.data]);
+  useEffect(() => () => { if (previa) URL.revokeObjectURL(previa); }, [previa]);
+  const epson = tamanho.l > 60;
   return (
     <Modal open={open} onClose={onClose} title={`Imprimir ${total} etiqueta(s)`}
       footer={<>
@@ -83,6 +94,14 @@ export default function EtiquetasModal({ open, onClose, escolhidos, onChange, no
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
         Uma etiqueta por página, do tamanho do rolo. No telemóvel, <strong>Imprimir</strong> abre a partilha: escolhe a app da Marklife.
       </p>
+      <div className="mb-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Rolo">
+        {PREDEFINIDOS.map((p) => (
+          <button key={p.nome} type="button" role="radio" aria-checked={tamanho.l === p.l && tamanho.a === p.a} onClick={() => setTamanho({ l: p.l, a: p.a })}
+            className={`min-h-9 rounded-lg border px-3 text-xs font-medium ${tamanho.l === p.l && tamanho.a === p.a ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-300 dark:border-zinc-700'}`}>
+            {p.nome}
+          </button>
+        ))}
+      </div>
       {pdf.isError && <p className="mb-3 text-sm text-rose-600">Não foi possível preparar as etiquetas. Fecha e tenta outra vez.</p>}
       <div className="grid grid-cols-2 gap-3">
         <label><span className={labelCls}>Largura (mm)</span>
@@ -91,6 +110,20 @@ export default function EtiquetasModal({ open, onClose, escolhidos, onChange, no
           <input type="number" inputMode="numeric" min={10} max={120} value={tamanho.a} onChange={(e) => setTamanho((t) => ({ ...t, a: Number(e.target.value) }))} className={inputCls} /></label>
       </div>
       <label className="mt-3 flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={comPreco} onChange={(e) => setComPreco(e.target.checked)} /> Mostrar o preço na etiqueta</label>
+      {previa && (
+        <div className="mt-2 flex justify-center rounded-lg bg-zinc-100 p-3 dark:bg-zinc-800">
+          <iframe title="Pré-visualização da etiqueta" src={`${previa}#toolbar=0&navpanes=0&view=Fit`}
+            style={{ width: `${tamanho.l * 4}px`, height: `${tamanho.a * 4 + 8}px` }} className="max-w-full rounded border border-zinc-300 bg-white" />
+        </div>
+      )}
+      <details className="mt-3 text-xs text-zinc-600 dark:text-zinc-300">
+        <summary className="cursor-pointer font-medium">Imprimir no computador (Windows)</summary>
+        <ul className="mt-1 list-disc space-y-1 pl-4">
+          <li>Na janela de impressão escolhe a impressora e, em <em>Mais definições</em>: tamanho do papel <strong>{tamanho.l}×{tamanho.a} mm</strong>, margens <strong>Nenhuma</strong>, escala <strong>100 %</strong> (ou «Ajustar à área»).</li>
+          <li>Se o tamanho não existir na lista, cria-o nas preferências da impressora do Windows (papel personalizado {tamanho.l}×{tamanho.a} mm) — senão sai uma folha comprida por etiqueta.</li>
+          {epson && <li>Epson TM: no controlador escolhe papel <strong>80 × {tamanho.a} mm</strong> (ou «Roll Paper 80 × Receipt») e «Corte por página». O papel de talão normal não é autocolante — para colar nos artigos usa a Marklife.</li>}
+        </ul>
+      </details>
       <ul className="mt-3 divide-y divide-zinc-100 rounded-lg border border-zinc-200 text-sm dark:divide-zinc-800 dark:border-zinc-800">
         {Object.entries(escolhidos).map(([id, n]) => (
           <li key={id} className="flex items-center gap-2 px-3 py-2">
