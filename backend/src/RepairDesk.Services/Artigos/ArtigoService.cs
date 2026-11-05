@@ -30,7 +30,14 @@ public sealed record ArtigoDto(
     /// <summary>Sprint 581: artigo agrupado (vários modelos, um código) — o balcão pergunta o modelo.</summary>
     bool Agrupado = false,
     /// <summary>Sprint 584: nome na fatura ao cliente (português); null = o Nome.</summary>
-    string? NomeFatura = null);
+    string? NomeFatura = null,
+    /// <summary>
+    /// Sprint 597: quanto custou cada unidade, sem IVA (o custo real — o IVA da compra recupera-se: nacional deduz-se,
+    /// UE autoliquida-se e deduz-se). Média dos lotes em stock; sem stock, o da última compra.
+    /// </summary>
+    decimal? CustoUnitarioSemIva = null,
+    /// <summary>Sprint 597: o que fica por unidade ao preço de venda atual: preço ÷ 1,23 − custo s/ IVA.</summary>
+    decimal? LucroUnitario = null);
 
 public sealed record ArtigoLoteDto(
     Guid LinhaId,
@@ -579,10 +586,28 @@ public class ArtigoService : IArtigoService
         return lote is null ? null : (int)Math.Round(PrecoCalculado(lote) * 100m, MidpointRounding.AwayFromZero);
     }
 
-    private ArtigoDto ToDto(Artigo a) => new(
-        a.Id, a.Numero, a.Sku, a.CodigoBarras, a.CodigoFabricante, a.Nome, a.Categoria, a.PrecoVendaCents, PrecoEfetivo(a),
-        a.PrecoVendaCents is not null ? "artigo" : PrecoCategoria(a) is not null ? "categoria" : "calculado",
-        Stock(a), a.Lotes.Count(l => !l.IsDeleted), a.Localizacao, a.Ativo, a.Notas, a.Agrupado, a.NomeFatura);
+    private ArtigoDto ToDto(Artigo a)
+    {
+        var preco = PrecoEfetivo(a);
+        var custo = CustoSemIva(a);
+        return new(
+            a.Id, a.Numero, a.Sku, a.CodigoBarras, a.CodigoFabricante, a.Nome, a.Categoria, a.PrecoVendaCents, preco,
+            a.PrecoVendaCents is not null ? "artigo" : PrecoCategoria(a) is not null ? "categoria" : "calculado",
+            Stock(a), a.Lotes.Count(l => !l.IsDeleted), a.Localizacao, a.Ativo, a.Notas, a.Agrupado, a.NomeFatura,
+            custo is { } c ? Math.Round(c, 4) : null,
+            custo is { } c2 && preco is { } p ? Math.Round(p / 100m / (1 + FiscalDefaults.TaxaIvaNormal) - c2, 2) : null);
+    }
+
+    /// <summary>Custo s/ IVA por unidade: média ponderada dos lotes em stock; sem stock, o lote mais recente.</summary>
+    private static decimal? CustoSemIva(Artigo a)
+    {
+        static decimal SemIva(CompraLinha l) => l.PrecoUnitarioPago / (1 + l.TaxaIvaCompra);
+        var comStock = a.Lotes.Where(l => !l.IsDeleted && l.QuantidadeEmStock > 0).ToList();
+        if (comStock.Count > 0)
+            return comStock.Sum(l => SemIva(l) * l.QuantidadeEmStock) / comStock.Sum(l => l.QuantidadeEmStock);
+        var ultimo = a.Lotes.Where(l => !l.IsDeleted).OrderByDescending(l => l.Documento?.Data ?? l.CreatedAt).FirstOrDefault();
+        return ultimo is null ? null : SemIva(ultimo);
+    }
 
     private ArtigoDetalheDto Detalhe(Artigo a) => new(ToDto(a), a.Lotes
         .Where(l => !l.IsDeleted)

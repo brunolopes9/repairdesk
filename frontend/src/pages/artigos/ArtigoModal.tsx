@@ -132,7 +132,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
       open={open}
       onClose={onClose}
       wide
-      title={a ? `${a.sku} · ${a.nome}` : 'Novo artigo'}
+      title={a ? `${a.sku} · ${a.nomeFatura ?? a.nome}` : 'Novo artigo'}
       footer={<>
         {a && onEtiquetas && (
           <Button type="button" variant="secondary" leftIcon={<Printer size={15} />} onClick={() => onEtiquetas(a)}>Imprimir etiquetas</Button>
@@ -184,6 +184,8 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
           </label>
         )}
       </div>
+
+      {a && <ContasArtigo custo={a.custoUnitarioSemIva ?? null} precoEscrito={preco} precoEfetivoCents={a.precoEfetivoCents} stock={a.stock} />}
 
       {detalhe.data?.codigos && detalhe.data.codigos.length > 0 && (
         <div className="mt-4">
@@ -242,6 +244,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
                 <span className="w-14 font-mono text-xs text-zinc-500">#{l.numero}</span>
                 <span className="flex-1 truncate">{l.descricao} <span className="text-zinc-500">· {l.fornecedor}{l.skuFornecedor ? ` · ${l.skuFornecedor}` : ''}</span></span>
                 <span className="tabular-nums">{l.quantidadeEmStock}/{l.quantidade}</span>
+                <span className="w-24 text-right tabular-nums text-zinc-500" title="Quanto custou cada unidade deste lote (como na fatura)">custou {formatEur(l.custoUnitarioPago)}</span>
                 <span className="w-20 text-right tabular-nums text-zinc-500">{formatEur(l.precoCalculadoComIva)}</span>
                 <button type="button" title="Desligar este lote do artigo" className="text-zinc-400 hover:text-red-600" onClick={() => desligar.mutate(l.linhaId)}>
                   <Link2Off size={15} />
@@ -271,5 +274,37 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
         </ul>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Sprint 597: as contas do artigo à vista — quanto custou cada unidade (sem IVA, porque o IVA da compra recupera-se),
+ * a quanto se vende, quanto fica por unidade e a margem. Mudam enquanto se escreve o preço, para decidir a quanto vender.
+ */
+function ContasArtigo({ custo, precoEscrito, precoEfetivoCents, stock }: { custo: number | null; precoEscrito: string; precoEfetivoCents: number | null; stock: number }) {
+  const escrito = Number(precoEscrito.replace(',', '.'));
+  const preco = precoEscrito.trim() && Number.isFinite(escrito) ? escrito : precoEfetivoCents != null ? precoEfetivoCents / 100 : null;
+  const semIva = preco != null ? preco / 1.23 : null;
+  const lucro = semIva != null && custo != null ? semIva - custo : null;
+  const margem = lucro != null && semIva ? lucro / semIva : null;
+  const cel = (label: string, valor: string, destaque?: 'verde' | 'vermelho') => (
+    <div className="rounded-lg bg-white px-3 py-2 dark:bg-zinc-900">
+      <div className="text-[11px] text-zinc-500">{label}</div>
+      <div className={`text-base font-semibold tabular-nums ${destaque === 'verde' ? 'text-emerald-700 dark:text-emerald-400' : destaque === 'vermelho' ? 'text-rose-600' : ''}`}>{valor}</div>
+    </div>
+  );
+  return (
+    <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {cel('Custou (por unidade, s/ IVA)', custo != null ? formatEur(custo) : '—')}
+        {cel('Vendes a (c/ IVA)', preco != null ? formatEur(preco) : '—')}
+        {cel('Ganhas por unidade', lucro != null ? formatEur(lucro) : '—', lucro == null ? undefined : lucro > 0 ? 'verde' : 'vermelho')}
+        {cel('Margem', margem != null ? `${Math.round(margem * 100)} %` : '—')}
+      </div>
+      <p className="mt-2 text-[11px] text-zinc-500">
+        Ganhas = preço ÷ 1,23 − custo. O IVA da compra não é custo: o nacional deduz-se e o da UE autoliquida-se e deduz-se na mesma declaração.
+        {lucro != null && stock > 1 && <> Com o stock todo ({stock} un.): <strong>{formatEur(lucro * stock)}</strong>.</>}
+      </p>
+    </div>
   );
 }

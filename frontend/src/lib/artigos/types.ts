@@ -25,6 +25,10 @@ export interface Artigo {
   agrupado: boolean;
   /** Sprint 584: nome na fatura ao cliente, em português (null = o nome). */
   nomeFatura: string | null;
+  /** Sprint 597: quanto custou cada unidade, sem IVA (o IVA da compra recupera-se). */
+  custoUnitarioSemIva?: number | null;
+  /** Sprint 597: o que fica por unidade ao preço atual (preço ÷ 1,23 − custo). */
+  lucroUnitario?: number | null;
 }
 
 /** Sprint 581: código que leva ao artigo — SKU de um fornecedor ou etiqueta antiga (fornecedor null). */

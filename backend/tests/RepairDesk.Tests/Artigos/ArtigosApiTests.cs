@@ -96,6 +96,18 @@ public class ArtigosApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Artigo_MostraOCustoPorUnidadeSemIva_EOQueSeGanha()
+    {
+        // Sprint 597: fornecedor nacional, 1,845 € c/ IVA → custa 1,50 € (o IVA deduz-se); a 9,90 € ganha-se 9,90/1,23 − 1,50 = 6,55 €.
+        var client = await AuthedClient();
+        var lote = await CriarLote(client, "Capa silicone Samsung A16 preta", 2, 1.845m);
+        var a = (await Post<ArtigoDetalheDto>(client, "/api/artigos",
+            new ArtigoWriteRequest("Capa silicone Samsung A16", null, 990, null, null, null, null, true, [lote]))).Artigo;
+        a.CustoUnitarioSemIva.Should().Be(1.5m);
+        a.LucroUnitario.Should().Be(6.55m);
+    }
+
+    [Fact]
     public async Task CodigoInvalidoOuRepetido_ERecusado()
     {
         var client = await AuthedClient();
