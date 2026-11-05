@@ -271,7 +271,10 @@ public sealed partial class FichaReparacaoService : IFichaReparacaoService
         var morada = string.Join(", ", new[] { c?.Morada, string.Join(" ", new[] { c?.CodigoPostal, c?.Localidade }.Where(s => !string.IsNullOrWhiteSpace(s))) }
             .Where(s => !string.IsNullOrWhiteSpace(s)));
         var data = new OrdemReparacaoData(
-            $"R-{venda.Numero:D5}", PdfEmissor.From(tenant), c?.Nome ?? "—", c?.Telefone, morada.Length == 0 ? null : morada, c?.Nif,
+            $"R-{venda.Numero:D5}",
+            // A marca da loja em destaque (o nome fiscal e o NIF vão em letra pequena no cabeçalho).
+            PdfEmissor.From(tenant) with { Nome = tenant?.Name ?? tenant?.LegalName ?? "Loja" },
+            c?.Nome ?? "—", c?.Telefone, morada.Length == 0 ? null : morada, c?.Nif,
             venda.CreatedAt, venda.PrevistoPara, venda.Estado == VendaEstado.Entregue ? venda.Data : null,
             venda.Equipamento ?? "—", ficha?.Imei, venda.Problema ?? "—",
             ficha?.SenhaTipo ?? SenhaTipo.Nenhuma, soCliente ? null : Senha(ficha), ficha?.PermiteTestes, ficha?.EstadoFisico, ficha?.Acessorios,
@@ -279,7 +282,8 @@ public sealed partial class FichaReparacaoService : IFichaReparacaoService
             Checklist(ficha), tenant?.TermosCondicoes, AvisoLevantamento,
             assinaturas.FirstOrDefault(a => a.Tipo == AssinaturaTipo.Entrada) is { } ac ? new OrdemAssinatura(ac.PngBytes, ac.AssinadaEm, ac.PeloLink) : null,
             assinaturas.FirstOrDefault(a => a.Tipo == AssinaturaTipo.Tecnico) is { } at ? new OrdemAssinatura(at.PngBytes, at.AssinadaEm, false) : null,
-            EntradaPdfService.PortalUrl(_config, venda.PublicSlug));
+            EntradaPdfService.PortalUrl(_config, venda.PublicSlug),
+            tenant?.LegalName);
         return OrdemReparacaoPdfRenderer.Render(data, soCliente);
     }
 

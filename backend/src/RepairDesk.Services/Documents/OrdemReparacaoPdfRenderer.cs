@@ -36,7 +36,9 @@ public sealed record OrdemReparacaoData(
     string Aviso,
     OrdemAssinatura? AssinaturaCliente,
     OrdemAssinatura? AssinaturaTecnico,
-    string? PortalUrl);
+    string? PortalUrl,
+    /// <summary>Nome fiscal do titular, quando difere da marca (vai em letra pequena com o NIF).</summary>
+    string? NomeFiscal = null);
 
 /// <summary>
 /// Sprint 595: ordem de reparação em A4 para cortar ao meio — em cima a via da loja (com a senha), em baixo a via do
@@ -99,6 +101,8 @@ public static class OrdemReparacaoPdfRenderer
                 if (contactos.Length > 0) col.Item().Text(contactos).FontSize(7.5f).FontColor(Colors.Grey.Darken1);
                 var morada = string.Join(", ", new[] { d.Loja.Morada, d.Loja.CodigoPostal, d.Loja.Localidade }.Where(s => !string.IsNullOrWhiteSpace(s)));
                 if (morada.Length > 0) col.Item().Text(morada).FontSize(7.5f).FontColor(Colors.Grey.Darken1);
+                var fiscal = string.Join(" · ", new[] { d.NomeFiscal != d.Loja.Nome ? d.NomeFiscal : null, d.Loja.Nif is null ? null : $"NIF {d.Loja.Nif}" }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                if (fiscal.Length > 0) col.Item().Text(fiscal).FontSize(6.5f).FontColor(Colors.Grey.Medium);
             });
             r.AutoItem().AlignRight().Column(col =>
             {
