@@ -39,5 +39,7 @@ export const redesSociaisApi = {
   autoPublicar: (ligado: boolean) => api.put<RedesSociaisEstado>('/redes/auto-publicar', { ligado }).then((r) => r.data),
   urlLigar: (plataforma: 'meta' | 'threads') =>
     api.get<{ url: string }>(`/redes/${plataforma}/url-ligar`).then((r) => r.data.url),
+  ligarThreadsComToken: (token: string) =>
+    api.put<RedesSociaisEstado>('/redes/threads/token', { token }).then((r) => r.data),
   desligar: (rede: RedeSocial) => api.delete<RedesSociaisEstado>(`/redes/ligacoes/${rede}`).then((r) => r.data),
 };

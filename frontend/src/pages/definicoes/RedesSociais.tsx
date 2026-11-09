@@ -202,8 +202,40 @@ function PassoContas({ estado, onMudou }: { estado: RedesSociaisEstado; onMudou:
           onDesligar={pedirDesligar}
         />
       </div>
+      <TokenThreads onLigado={onMudou} />
       <p className="text-xs text-zinc-500">TikTok: até o TikTok aprovar a app, continua a ser publicado à mão.</p>
     </Passo>
+  );
+}
+
+/**
+ * Alternativa ao OAuth do Threads: o dono gera um token no painel da Meta (casos de uso → Threads →
+ * Settings → «User Token Generator») e cola-o aqui. Não precisa do App Secret.
+ */
+function TokenThreads({ onLigado }: { onLigado: (e: RedesSociaisEstado) => void }) {
+  const [token, setToken] = useState('');
+  const ligar = useMutation({
+    mutationFn: () => redesSociaisApi.ligarThreadsComToken(token.trim()),
+    onSuccess: (e) => {
+      onLigado(e);
+      setToken('');
+      toast.success('Threads ligado.');
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+  return (
+    <div className="rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+      <p className="text-sm font-medium">Threads com token (sem App Secret)</p>
+      <p className="mt-1 text-xs text-zinc-500">
+        Na app da Meta: Casos de utilização → Access the Threads API → Settings → «User Token Generator» → gerar
+        o token da conta @lopestech.pt e colá-lo aqui.
+      </p>
+      <div className="mt-2 flex gap-2">
+        <input className={inputCls} type="password" autoComplete="off" placeholder="Cola aqui o token"
+          value={token} onChange={(e) => setToken(e.target.value)} />
+        <Button loading={ligar.isPending} disabled={token.trim().length < 20} onClick={() => ligar.mutate()}>Ligar</Button>
+      </div>
+    </div>
   );
 }
 

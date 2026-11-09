@@ -34,6 +34,11 @@ public interface IRedesSociaisService
     /// <summary>Troca o código por tokens e grava as ligações. Devolve o caminho do frontend para onde voltar.</summary>
     Task<string> CallbackAsync(string plataforma, string? code, string? state, string? erro, CancellationToken ct = default);
     Task<RedesSociaisEstadoDto> DesligarAsync(RedeSocial rede, CancellationToken ct = default);
+    /// <summary>
+    /// Liga o Threads com um token gerado no painel da Meta («User Token Generator» dos testers),
+    /// sem passar pelo OAuth nem precisar do App Secret.
+    /// </summary>
+    Task<RedesSociaisEstadoDto> LigarThreadsComTokenAsync(string token, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -176,6 +181,41 @@ public sealed class RedesSociaisService : IRedesSociaisService
         foreach (var l in (await _repo.ListLigacoesAsync(t.Id, ct)).Where(l => l.Rede == rede)) _repo.Remove(l);
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Delete, "RedesSociais", t.Id, new { rede = rede.ToString() }, t.Id, _user.UserId, ct);
+        return await EstadoAsync(ct);
+    }
+
+    public async Task<RedesSociaisEstadoDto> LigarThreadsComTokenAsync(string token, CancellationToken ct = default)
+    {
+        var t = await TenantAtual(ct);
+        var uid = _user.UserId ?? throw new ForbiddenException("so_utilizador", "Só o dono liga contas.");
+        var tk = (token ?? "").Trim();
+        if (tk.Length is < 20 or > 1000 || tk.Any(char.IsWhiteSpace))
+            throw new ValidationException("token_invalido", "Esse token não parece completo — copia-o outra vez.");
+        try
+        {
+            var eu = await _g.GetAsync($"{_g.ThreadsBase}/me", new Dictionary<string, string?> { ["fields"] = "id,username", ["access_token"] = tk }, ct);
+            // Renovar logo dá um token de 60 dias e diz quando expira (os do gerador já são de longa duração).
+            DateTime expira;
+            try
+            {
+                var r = await _g.GetAsync("https://graph.threads.net/refresh_access_token",
+                    new Dictionary<string, string?> { ["grant_type"] = "th_refresh_token", ["access_token"] = tk }, ct);
+                tk = MetaGraphClient.Str(r, "access_token");
+                expira = DateTime.UtcNow.AddSeconds(long.TryParse(MetaGraphClient.StrOuNull(r, "expires_in"), out var s) ? s : 60 * 86400);
+            }
+            catch (RedeSocialException)
+            {
+                expira = DateTime.UtcNow.AddDays(55); // conservador; o publicador avisa antes de expirar
+            }
+            var nome = "@" + (MetaGraphClient.StrOuNull(eu, "username") ?? "threads");
+            await Gravar(t.Id, RedeSocial.Threads, MetaGraphClient.Str(eu, "id"), nome, _secrets.Protect(tk), expira, uid, ct);
+            await _repo.SaveAsync(ct);
+            await _audit.LogAsync(AuditAction.Update, "RedesSociais", t.Id, new { ligadas = new[] { $"Threads ({nome}) por token" } }, t.Id, uid, ct);
+        }
+        catch (RedeSocialException ex)
+        {
+            throw new ValidationException("token_recusado", $"O Threads recusou esse token: {ex.Message}");
+        }
         return await EstadoAsync(ct);
     }
 

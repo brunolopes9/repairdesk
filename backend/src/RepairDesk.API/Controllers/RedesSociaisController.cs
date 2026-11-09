@@ -7,6 +7,7 @@ namespace RepairDesk.API.Controllers;
 
 public sealed record AutoPublicarRequest(bool Ligado);
 public sealed record UrlLigarDto(string Url);
+public sealed record TokenThreadsRequest(string Token);
 
 /// <summary>
 /// Sprint 599 (Doc 95 Fase B): ligar as contas Facebook/Instagram/Threads e o interruptor da
@@ -36,6 +37,10 @@ public sealed class RedesSociaisController : ControllerBase
     [HttpGet("{plataforma:regex(^(meta|threads)$)}/url-ligar")]
     public async Task<ActionResult<UrlLigarDto>> UrlLigar(string plataforma, CancellationToken ct)
         => Ok(new UrlLigarDto(await _service.UrlLigarAsync(plataforma, ct)));
+
+    [HttpPut("threads/token")]
+    public async Task<ActionResult<RedesSociaisEstadoDto>> LigarThreadsComToken([FromBody] TokenThreadsRequest req, CancellationToken ct)
+        => Ok(await _service.LigarThreadsComTokenAsync(req.Token, ct));
 
     [HttpDelete("ligacoes/{rede}")]
     public async Task<ActionResult<RedesSociaisEstadoDto>> Desligar(RedeSocial rede, CancellationToken ct)
