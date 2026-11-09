@@ -96,7 +96,7 @@ export function FilaAprovacao({ itens }: { itens: ConteudoPublicacao[] }) {
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid items-start gap-4 xl:grid-cols-2">
         {itens.map((p) => (
           <PublicacaoCard
             key={p.id}
