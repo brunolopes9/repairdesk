@@ -5,7 +5,7 @@ import { AlertTriangle, CheckCircle2, Clock3, Cloud, Copy, DatabaseBackup, HardD
 import Modal from '../../components/Modal';
 import { EmptyState, PageHeader, SkeletonCard, SkeletonRow } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
-import { serviceKeysApi, type ServiceApiKey } from '../../lib/serviceKeys/api';
+import { API_KEY_SCOPES, serviceKeysApi, type ApiKeyScope, type ServiceApiKey } from '../../lib/serviceKeys/api';
 import { toast } from '../../lib/toast';
 import { validateNif } from '../../lib/nif/validator';
 import { validateIban } from '../../lib/iban/validator';
@@ -618,22 +618,20 @@ function ApiKeysSection() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
-  const [newKeyScopes, setNewKeyScopes] = useState<Set<'read' | 'write'>>(new Set(['read', 'write']));
+  const [newKeyScopes, setNewKeyScopes] = useState<Set<ApiKeyScope>>(new Set());
   const [revokedFor, setRevokedFor] = useState<ServiceApiKey | null>(null);
   const [revokeReason, setRevokeReason] = useState('');
   const [plainKey, setPlainKey] = useState<{ value: string; name: string } | null>(null);
 
   const create = useMutation({
-    mutationFn: () => serviceKeysApi.create(
-      newKeyName.trim(),
-      newKeyScopes.size === 2 ? null : (Array.from(newKeyScopes) as ('read' | 'write')[]),
-    ),
+    // Sprint 598: scopes sempre explícitos — nunca criar chaves novas com acesso total (wildcard).
+    mutationFn: () => serviceKeysApi.create(newKeyName.trim(), Array.from(newKeyScopes)),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['service-keys'] });
       setPlainKey({ value: res.plainKey, name: res.key.name });
       setCreateOpen(false);
       setNewKeyName('');
-      setNewKeyScopes(new Set(['read', 'write']));
+      setNewKeyScopes(new Set());
     },
     onError: (err) => toast.fromError(err, 'Não foi possível criar a chave.'),
   });
@@ -760,7 +758,7 @@ function ApiKeysSection() {
             Princípio menor privilégio. Se a chave só lê dados (ex: dashboard externa), desactiva <strong>write</strong> — atacante que apanhe a chave não consegue criar/cancelar vendas.
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            {(['read', 'write'] as const).map((s) => (
+            {API_KEY_SCOPES.map(({ scope: s, descricao }) => (
               <label key={s} className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 text-xs ${
                 newKeyScopes.has(s)
                   ? 'border-brand-300 bg-brand-50/50 dark:border-brand-700 dark:bg-brand-950/30'
@@ -778,9 +776,7 @@ function ApiKeysSection() {
                 />
                 <div>
                   <div className="font-mono font-medium">{s}</div>
-                  <div className="text-[10px] text-zinc-500">
-                    {s === 'read' ? 'GETs (orders, parts, clientes, garantias)' : 'POSTs (checkout, cancel)'}
-                  </div>
+                  <div className="text-[10px] text-zinc-500">{descricao}</div>
                 </div>
               </label>
             ))}

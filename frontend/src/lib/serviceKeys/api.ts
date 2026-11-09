@@ -1,6 +1,14 @@
 import { api } from '../api';
 
-export type ApiKeyScope = 'read' | 'write';
+// Sprint 598: «conteudo» = calendário das redes sociais (Doc 95); «ingest» = faturas de fornecedor.
+export type ApiKeyScope = 'read' | 'write' | 'ingest' | 'conteudo';
+
+export const API_KEY_SCOPES: { scope: ApiKeyScope; descricao: string }[] = [
+  { scope: 'read', descricao: 'GETs (orders, parts, clientes, garantias)' },
+  { scope: 'write', descricao: 'POSTs (checkout, cancel)' },
+  { scope: 'ingest', descricao: 'Enviar faturas de fornecedor (n8n, email)' },
+  { scope: 'conteudo', descricao: 'Redes sociais: criar publicações e ler vídeos — não aprova' },
+];
 
 export interface ServiceApiKey {
   id: string;
