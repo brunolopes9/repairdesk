@@ -40,6 +40,7 @@ const Preferencias = lazy(() => import('./pages/definicoes/Preferencias'));
 const Fornecedores = lazy(() => import('./pages/definicoes/Fornecedores'));
 const Automacoes = lazy(() => import('./pages/definicoes/Automacoes'));
 const LlmUsage = lazy(() => import('./pages/definicoes/LlmUsage'));
+const RedesSociais = lazy(() => import('./pages/definicoes/RedesSociais'));
 const UsersDefinicoes = lazy(() => import('./pages/definicoes/Users'));
 const MoloniOn = lazy(() => import('./pages/definicoes/MoloniOn'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
@@ -179,6 +180,7 @@ export default function App() {
               <Route path="/definicoes/fornecedores" element={<Fornecedores />} />
               <Route path="/definicoes/automacoes" element={<Automacoes />} />
               <Route path="/definicoes/llm-usage" element={<LlmUsage />} />
+              <Route path="/definicoes/redes-sociais" element={<RedesSociais />} />
               <Route path="/definicoes/utilizadores" element={<UsersDefinicoes />} />
               <Route path="/definicoes/moloni" element={<MoloniOn />} />
               <Route path="/faturacao" element={<Navigate to="/vendas?vista=documentos" replace />} />

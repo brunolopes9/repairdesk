@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
-  Building2, SlidersHorizontal, Truck, Boxes, Workflow, Sparkles, Users, UserCircle, Wrench,
+  Building2, SlidersHorizontal, Truck, Boxes, Workflow, Sparkles, Users, UserCircle, Wrench, Share2,
 } from 'lucide-react';
 
 /**
@@ -17,6 +17,7 @@ const ITEMS = [
   { to: '/definicoes/servicos', label: 'Catálogo de serviços', icon: Wrench },
   { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
   { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },
+  { to: '/definicoes/redes-sociais', label: 'Redes sociais', icon: Share2 },
   { to: '/definicoes/utilizadores', label: 'Utilizadores', icon: Users },
 ];
 

@@ -99,6 +99,7 @@ const nav: NavItem[] = [
       { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2 },
       { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
       { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },
+      { to: '/definicoes/redes-sociais', label: 'Redes sociais', icon: Share2 },
       { to: '/definicoes/utilizadores', label: 'Utilizadores', icon: UserCog },
     ],
   },
