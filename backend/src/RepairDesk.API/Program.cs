@@ -288,6 +288,8 @@ try
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.DeviceGarantiaFabricanteExpiryHostedService>();
         // Sprint 598 (Doc 95): regra CORS do R2 para uploads diretos de vídeo do browser.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ConteudoStorageCorsHostedService>();
+        // Sprint 599 (Doc 95 Fase B): publica o conteúdo aprovado à hora marcada.
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.ConteudoPublicadorHostedService>();
     }
 
 
@@ -334,6 +336,13 @@ try
     builder.Services.AddScoped<IConteudoRepository, RepairDesk.DAL.Persistence.ConteudoRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Conteudo.IConteudoService, RepairDesk.Services.Conteudo.ConteudoService>();
     builder.Services.AddSingleton<RepairDesk.Services.Conteudo.IConteudoLinkSigner, RepairDesk.Services.Conteudo.ConteudoLinkSigner>();
+    // Sprint 599 (Doc 95 Fase B): ligação das contas por OAuth e publicação automática.
+    builder.Services.AddHttpClient<RepairDesk.Services.Conteudo.Redes.MetaGraphClient>(c => c.Timeout = TimeSpan.FromMinutes(2));
+    builder.Services.AddTransient<RepairDesk.Services.Conteudo.Redes.IPublicadorRede, RepairDesk.Services.Conteudo.Redes.FacebookPublicador>();
+    builder.Services.AddTransient<RepairDesk.Services.Conteudo.Redes.IPublicadorRede, RepairDesk.Services.Conteudo.Redes.InstagramPublicador>();
+    builder.Services.AddTransient<RepairDesk.Services.Conteudo.Redes.IPublicadorRede, RepairDesk.Services.Conteudo.Redes.ThreadsPublicador>();
+    builder.Services.AddScoped<RepairDesk.Services.Conteudo.Redes.IRedesSociaisService, RepairDesk.Services.Conteudo.Redes.RedesSociaisService>();
+    builder.Services.AddScoped<RepairDesk.Services.Conteudo.Redes.IConteudoPublicadorService, RepairDesk.Services.Conteudo.Redes.ConteudoPublicadorService>();
     // Sprint 452 (Doc 91 ponto 1): Conversas omnicanal v1 — registo de comunicações por reparação.
     builder.Services.AddScoped<IVendaComunicacaoRepository, RepairDesk.DAL.Persistence.VendaComunicacaoRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Comunicacoes.IVendaComunicacaoService, RepairDesk.Services.Comunicacoes.VendaComunicacaoService>();

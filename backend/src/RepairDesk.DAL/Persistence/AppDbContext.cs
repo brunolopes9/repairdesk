@@ -86,6 +86,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<ConteudoPublicacao> ConteudoPublicacoes => Set<ConteudoPublicacao>();
     public DbSet<ConteudoFicheiro> ConteudoFicheiros => Set<ConteudoFicheiro>();
     public DbSet<ConteudoDestino> ConteudoDestinos => Set<ConteudoDestino>();
+    // Sprint 599 (Doc 95 Fase B): contas ligadas por OAuth (tokens cifrados).
+    public DbSet<RedeSocialLigacao> RedeSocialLigacoes => Set<RedeSocialLigacao>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -63,6 +63,18 @@ public class Tenant : BaseEntity
     /// <summary>Séries por tipo de venda, ids de artigos genéricos e métodos de pagamento (JSON, ver MoloniConfig).</summary>
     public string? MoloniConfigJson { get; set; }
 
+    // Sprint 599 (Doc 95 Fase B): app Meta (Facebook+Instagram) e app Threads do tenant — o dono
+    // escreve-as em Definições → Redes sociais; o secret fica cifrado (como o BYOK Anthropic).
+    public string? MetaAppId { get; set; }
+    public string? MetaAppSecretCipherText { get; set; }
+    public string? ThreadsAppId { get; set; }
+    public string? ThreadsAppSecretCipherText { get; set; }
+    /// <summary>
+    /// O servidor publica sozinho o conteúdo aprovado. Desligado por defeito: enquanto o Claude agenda
+    /// à mão nas redes, ligar isto faria publicações duplicadas.
+    /// </summary>
+    public bool ConteudoAutoPublicar { get; set; }
+
     /// <summary>
     /// Sprint 575: data de início de atividade nas Finanças — conta para as estimativas (redução dos coeficientes
     /// de IRS nos 2 primeiros anos; isenção de Segurança Social nos primeiros 12 meses). Null = data da 1.ª venda.

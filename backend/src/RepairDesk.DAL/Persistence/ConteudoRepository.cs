@@ -71,6 +71,51 @@ public class ConteudoRepository : IConteudoRepository
     public void Remove(ConteudoFicheiro ficheiro) => _db.ConteudoFicheiros.Remove(ficheiro);
     public void Remove(ConteudoDestino destino) => _db.ConteudoDestinos.Remove(destino);
 
+    // ---- Sprint 599 (Fase B) ----
+    // As consultas do publicador correm fora de um pedido HTTP (sem tenant no contexto), por isso
+    // filtram o tenant explicitamente — nunca dependem do filtro global.
+
+    public async Task<IReadOnlyList<RedeSocialLigacao>> ListLigacoesAsync(Guid tenantId, CancellationToken ct = default)
+        => await _db.RedeSocialLigacoes.Where(l => l.TenantId == tenantId).OrderBy(l => l.Rede).ToListAsync(ct);
+
+    public async Task AddAsync(RedeSocialLigacao ligacao, CancellationToken ct = default)
+        => await _db.RedeSocialLigacoes.AddAsync(ligacao, ct);
+
+    public void Remove(RedeSocialLigacao ligacao) => _db.RedeSocialLigacoes.Remove(ligacao);
+
+    public async Task<IReadOnlyList<RedeSocialLigacao>> ListLigacoesAExpirarAsync(DateTime limite, CancellationToken ct = default)
+        => await _db.RedeSocialLigacoes
+            .Where(l => l.Valida && l.TokenExpiraEm != null && l.TokenExpiraEm < limite)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<Guid>> ListIdsParaPublicarAsync(DateTime agora, IReadOnlyCollection<RedeSocial> redes, CancellationToken ct = default)
+    {
+        var tenantsAuto = _db.Tenants.Where(t => t.ConteudoAutoPublicar).Select(t => t.Id);
+        return await _db.ConteudoPublicacoes.AsNoTracking()
+            .Where(p => p.Estado == ConteudoEstado.Aprovada && p.AgendadoPara != null && p.AgendadoPara <= agora)
+            .Where(p => tenantsAuto.Contains(p.TenantId))
+            .Where(p => p.Destinos.Any(d => d.Estado == ConteudoDestinoEstado.Pendente
+                                            && redes.Contains(d.Rede)
+                                            && (d.ProximaTentativaEm == null || d.ProximaTentativaEm <= agora)))
+            .OrderBy(p => p.AgendadoPara)
+            .Select(p => p.Id)
+            .Take(20)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Reserva com leitura + gravação no mesmo contexto. Chega porque só corre um publicador (uma
+    /// instância da API); se um dia houver várias, trocar por UPDATE condicional (ExecuteUpdate).
+    /// </summary>
+    public async Task<bool> ReservarParaPublicarAsync(Guid id, CancellationToken ct = default)
+    {
+        var p = await _db.ConteudoPublicacoes.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (p is null || p.Estado != ConteudoEstado.Aprovada) return false;
+        p.Estado = ConteudoEstado.APublicar;
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
     /// <summary>
     /// Grava e atribui o nº visível (por tenant) às publicações novas. Dois pedidos em simultâneo
     /// podem calcular o mesmo nº: o índice único rejeita um deles e tenta-se outra vez (como nas despesas).

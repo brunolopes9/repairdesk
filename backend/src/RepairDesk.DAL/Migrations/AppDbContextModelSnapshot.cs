@@ -1868,6 +1868,73 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("PushSubscriptions", (string)null);
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.RedeSocialLigacao", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContaId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ContaNome")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LigadaEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("LigadaPorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Rede")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TokenCipherText")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime?>("TokenExpiraEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UltimoErro")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Valida")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Rede")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("RedeSocialLigacoes", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2303,6 +2370,11 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<DateTime?>("CodigoTradingRevistoEm")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("ConteudoAutoPublicar")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Country")
                         .HasMaxLength(2)
                         .HasColumnType("nvarchar(2)");
@@ -2392,6 +2464,14 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("MetaAppId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("MetaAppSecretCipherText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<string>("MoloniApiKeyCipherText")
                         .HasColumnType("nvarchar(max)");
 
@@ -2451,6 +2531,14 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<string>("TermosCondicoes")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("ThreadsAppId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ThreadsAppSecretCipherText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<bool>("TradingNaTabela151")
                         .HasColumnType("bit");

@@ -34,6 +34,12 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(x => x.GarantiaVendaCoberturaDefault).HasMaxLength(2000);
         builder.Property(x => x.GarantiaVendaExclusoesDefault).HasMaxLength(2000);
         builder.Property(x => x.GoogleReviewUrl).HasMaxLength(500);
+        // Sprint 599 (Doc 95 Fase B): apps Meta/Threads do tenant.
+        builder.Property(x => x.MetaAppId).HasMaxLength(50);
+        builder.Property(x => x.MetaAppSecretCipherText).HasMaxLength(1000);
+        builder.Property(x => x.ThreadsAppId).HasMaxLength(50);
+        builder.Property(x => x.ThreadsAppSecretCipherText).HasMaxLength(1000);
+        builder.Property(x => x.ConteudoAutoPublicar).HasDefaultValue(false);
 
         builder.HasIndex(x => x.Nif).IsUnique().HasFilter("[Nif] IS NOT NULL");
     }

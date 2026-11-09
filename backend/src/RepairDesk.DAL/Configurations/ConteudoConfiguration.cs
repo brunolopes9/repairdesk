@@ -76,3 +76,22 @@ public class ConteudoDestinoConfiguration : IEntityTypeConfiguration<ConteudoDes
         builder.HasIndex(x => new { x.TenantId, x.Estado, x.ProximaTentativaEm });
     }
 }
+
+public class RedeSocialLigacaoConfiguration : IEntityTypeConfiguration<RedeSocialLigacao>
+{
+    public void Configure(EntityTypeBuilder<RedeSocialLigacao> builder)
+    {
+        builder.ToTable("RedeSocialLigacoes");
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.TenantId).IsRequired();
+        builder.Property(x => x.Rede).HasConversion<int>();
+        builder.Property(x => x.ContaId).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.ContaNome).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.TokenCipherText).HasMaxLength(4000).IsRequired();
+        builder.Property(x => x.UltimoErro).HasMaxLength(1000);
+
+        // Uma ligação ativa por rede e tenant (ligar outra vez substitui a anterior).
+        builder.HasIndex(x => new { x.TenantId, x.Rede }).IsUnique().HasFilter("[IsDeleted] = 0");
+    }
+}

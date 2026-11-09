@@ -497,7 +497,8 @@ public sealed class ConteudoService : IConteudoService
         }
     }
 
-    private static void RecalcularEstado(ConteudoPublicacao p)
+    /// <summary>Partilhado com o publicador automático (Fase B).</summary>
+    internal static void RecalcularEstado(ConteudoPublicacao p)
     {
         if (p.Destinos.Count == 0) return;
         if (p.Destinos.All(d => d.Estado is ConteudoDestinoEstado.Publicado or ConteudoDestinoEstado.AgendadoNaRede))
