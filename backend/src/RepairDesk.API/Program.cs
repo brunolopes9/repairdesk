@@ -286,6 +286,8 @@ try
         // Sprint 468 (Doc 90 Tier 2 #6 — cross-sell): digest Devices em fim de garantia
         // fabricante (próximos N dias). Combina com widget S467 no Dashboard.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.DeviceGarantiaFabricanteExpiryHostedService>();
+        // Sprint 598 (Doc 95): regra CORS do R2 para uploads diretos de vídeo do browser.
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.ConteudoStorageCorsHostedService>();
     }
 
 
@@ -328,6 +330,10 @@ try
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();
     builder.Services.AddScoped<RepairDesk.Services.InternalTasks.IInternalTaskService, RepairDesk.Services.InternalTasks.InternalTaskService>();
+    // Sprint 598 (Doc 95): calendário de conteúdo das redes sociais.
+    builder.Services.AddScoped<IConteudoRepository, RepairDesk.DAL.Persistence.ConteudoRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Conteudo.IConteudoService, RepairDesk.Services.Conteudo.ConteudoService>();
+    builder.Services.AddSingleton<RepairDesk.Services.Conteudo.IConteudoLinkSigner, RepairDesk.Services.Conteudo.ConteudoLinkSigner>();
     // Sprint 452 (Doc 91 ponto 1): Conversas omnicanal v1 — registo de comunicações por reparação.
     builder.Services.AddScoped<IVendaComunicacaoRepository, RepairDesk.DAL.Persistence.VendaComunicacaoRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Comunicacoes.IVendaComunicacaoService, RepairDesk.Services.Comunicacoes.VendaComunicacaoService>();
@@ -378,7 +384,10 @@ try
             builder.Services.AddSingleton<IPhotoStorage, LocalFileSystemPhotoStorage>();
             break;
         case "r2":
-            builder.Services.AddSingleton<IPhotoStorage, CloudflareR2PhotoStorage>();
+            builder.Services.AddSingleton<CloudflareR2PhotoStorage>();
+            builder.Services.AddSingleton<IPhotoStorage>(sp => sp.GetRequiredService<CloudflareR2PhotoStorage>());
+            // Sprint 598 (Doc 95): vídeos grandes sobem/descem direto do browser para o R2.
+            builder.Services.AddSingleton<IDirectAccessStorage>(sp => sp.GetRequiredService<CloudflareR2PhotoStorage>());
             break;
         default:
             throw new InvalidOperationException("Storage:Provider must be 'local' or 'r2'.");
@@ -537,6 +546,7 @@ try
     // (mais Frontend:BaseUrl), headers e métodos restringidos ao que a SPA realmente envia.
     // AllowCredentials necessário para enviar refresh cookie no /api/auth/refresh.
     var corsOrigins = BuildCorsOrigins(builder.Configuration, builder.Environment);
+    builder.Services.AddSingleton(new RepairDesk.API.HostedServices.ConteudoCorsOrigins(corsOrigins));
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
         .WithOrigins(corsOrigins)
         .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")

@@ -35,8 +35,10 @@ public static class ServiceApiKeyScopes
     public const string Write = "write";
     /// <summary>Sprint 147: submete faturas de fornecedor (n8n IMAP → ingest). Não dá acesso a leituras.</summary>
     public const string Ingest = "ingest";
+    /// <summary>Sprint 598 (Doc 95): calendário de conteúdo das redes sociais. Não dá acesso a clientes nem faturas.</summary>
+    public const string Conteudo = "conteudo";
 
-    public static readonly IReadOnlyList<string> All = new[] { Read, Write, Ingest };
+    public static readonly IReadOnlyList<string> All = new[] { Read, Write, Ingest, Conteudo };
 
     /// <summary>Parsing tolerante: split, trim, lowercase, distinct. Devolve null se input null/vazio.</summary>
     public static string[]? Parse(string? csv)

@@ -1,4 +1,5 @@
 using System.Net;
+using Amazon;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -10,10 +11,16 @@ namespace RepairDesk.Infrastructure.Storage;
 /// <summary>
 /// Cloudflare R2 implementation of IPhotoStorage using the standard S3-compatible AWSSDK.S3 client.
 /// </summary>
-public sealed class CloudflareR2PhotoStorage : IPhotoStorage, IDisposable
+public sealed class CloudflareR2PhotoStorage : IPhotoStorage, IDirectAccessStorage, IDisposable
 {
     private readonly R2StorageOptions _options;
     private readonly Lazy<IAmazonS3> _client;
+
+    static CloudflareR2PhotoStorage()
+    {
+        // URLs pré-assinados do R2 exigem SigV4 (o SDK usa SigV2 por defeito com ServiceURL custom).
+        AWSConfigsS3.UseSignatureVersion4 = true;
+    }
 
     public CloudflareR2PhotoStorage(IConfiguration configuration)
     {
@@ -82,6 +89,97 @@ public sealed class CloudflareR2PhotoStorage : IPhotoStorage, IDisposable
             return false;
         }
     }
+
+    // ---- Sprint 598 (Doc 95 §6): acesso direto por URLs pré-assinados ---------------------------
+
+    /// <summary>O R2 só aceita validade até 7 dias.</summary>
+    private static readonly TimeSpan MaxPresignValidity = TimeSpan.FromDays(7);
+
+    public string CreateUploadUrl(string key, string contentType, TimeSpan validFor)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+        return _client.Value.GetPreSignedURL(new GetPreSignedUrlRequest
+        {
+            BucketName = _options.Bucket,
+            Key = NormalizeKey(key),
+            Verb = HttpVerb.PUT,
+            ContentType = contentType,
+            Expires = DateTime.UtcNow.Add(Clamp(validFor)),
+            Protocol = Protocol.HTTPS,
+        });
+    }
+
+    public string CreateDownloadUrl(string key, TimeSpan validFor, string? downloadFileName = null)
+    {
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _options.Bucket,
+            Key = NormalizeKey(key),
+            Verb = HttpVerb.GET,
+            Expires = DateTime.UtcNow.Add(Clamp(validFor)),
+            Protocol = Protocol.HTTPS,
+        };
+        if (!string.IsNullOrWhiteSpace(downloadFileName))
+            request.ResponseHeaderOverrides.ContentDisposition =
+                $"attachment; filename*=UTF-8''{Uri.EscapeDataString(downloadFileName)}";
+        return _client.Value.GetPreSignedURL(request);
+    }
+
+    public async Task<long?> GetSizeAsync(string key, CancellationToken ct = default)
+    {
+        try
+        {
+            var meta = await _client.Value.GetObjectMetadataAsync(_options.Bucket, NormalizeKey(key), ct);
+            return meta.ContentLength;
+        }
+        catch (AmazonS3Exception ex) when (IsNotFound(ex))
+        {
+            return null;
+        }
+    }
+
+    public async Task EnsureBrowserCorsAsync(IReadOnlyCollection<string> origins, CancellationToken ct = default)
+    {
+        if (origins.Count == 0) return;
+
+        // Junta à configuração existente em vez de a substituir — o bucket pode ter outras regras.
+        var rules = new List<CORSRule>();
+        try
+        {
+            var current = await _client.Value.GetCORSConfigurationAsync(_options.Bucket, ct);
+            if (current.Configuration?.Rules is { } existing) rules.AddRange(existing);
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound
+                                           || string.Equals(ex.ErrorCode, "NoSuchCORSConfiguration", StringComparison.OrdinalIgnoreCase))
+        {
+            // Sem regras ainda.
+        }
+
+        const string ruleId = "mender-browser-direct";
+        var wanted = origins.Select(o => o.TrimEnd('/')).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(o => o).ToList();
+        var mine = rules.FirstOrDefault(r => r.Id == ruleId);
+        if (mine is not null && mine.AllowedOrigins.OrderBy(o => o).SequenceEqual(wanted, StringComparer.OrdinalIgnoreCase))
+            return;
+
+        rules.RemoveAll(r => r.Id == ruleId);
+        rules.Add(new CORSRule
+        {
+            Id = ruleId,
+            AllowedOrigins = wanted,
+            AllowedMethods = new List<string> { "GET", "PUT", "HEAD" },
+            AllowedHeaders = new List<string> { "content-type" },
+            ExposeHeaders = new List<string> { "ETag" },
+            MaxAgeSeconds = 3600,
+        });
+        await _client.Value.PutCORSConfigurationAsync(new PutCORSConfigurationRequest
+        {
+            BucketName = _options.Bucket,
+            Configuration = new CORSConfiguration { Rules = rules },
+        }, ct);
+    }
+
+    private static TimeSpan Clamp(TimeSpan validFor)
+        => validFor <= TimeSpan.Zero ? TimeSpan.FromMinutes(15) : validFor > MaxPresignValidity ? MaxPresignValidity : validFor;
 
     public void Dispose()
     {

@@ -82,6 +82,10 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<VendaAssinatura> VendaAssinaturas => Set<VendaAssinatura>();
     // Sprint 595: ficha de entrada (ordem de reparação) — IMEI, senha cifrada, checklist.
     public DbSet<VendaFicha> VendaFichas => Set<VendaFicha>();
+    // Sprint 598 (Doc 95): calendário de conteúdo das redes sociais.
+    public DbSet<ConteudoPublicacao> ConteudoPublicacoes => Set<ConteudoPublicacao>();
+    public DbSet<ConteudoFicheiro> ConteudoFicheiros => Set<ConteudoFicheiro>();
+    public DbSet<ConteudoDestino> ConteudoDestinos => Set<ConteudoDestino>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
