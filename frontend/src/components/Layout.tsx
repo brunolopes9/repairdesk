@@ -16,6 +16,7 @@ import {
   Plus,
   Settings,
   Megaphone,
+  Share2,
   Workflow,
   Sparkles,
   Building2,
@@ -38,6 +39,7 @@ import HealthIndicator from './HealthIndicator';
 import { AssistantWidget } from './AssistantWidget';
 import { tenantSettingsApi } from '../lib/tenantSettings/api';
 import { repairRequestsApi } from '../lib/repairRequests/api';
+import { conteudoApi } from '../lib/conteudo/api';
 import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Theme } from '../lib/theme';
 
 type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
@@ -49,7 +51,7 @@ type NavItem = {
   /** Sprint 368: roles que veem este item (além de Admin, que vê tudo). Vazio = todos. */
   roles?: string[];
   /** Sprint 356: mostra bolha de contagem (ex: pedidos online pendentes). */
-  badgeKey?: 'repair-requests';
+  badgeKey?: 'repair-requests' | 'conteudo';
   children?: Array<{ to: string; label: string; icon: IconCmp; adminOnly?: boolean; roles?: string[] }>;
 };
 
@@ -80,6 +82,8 @@ const nav: NavItem[] = [
   { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   // Sprint 422 (Doc 90 Tier 2 #7): TODO list interna.
   { to: '/tarefas', label: 'Tarefas', icon: ClipboardList },
+  // Sprint 598 (Doc 95): redes sociais — aprovar publicações e enviar vídeos (só o dono).
+  { to: '/conteudo', label: 'Conteúdo', icon: Share2, adminOnly: true, badgeKey: 'conteudo' },
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
   // Sprint 240: agrupar tudo de configuração num único dropdown "Definições" — antes eram
   // 6 items soltos na sidebar (Preferências, Webhooks, Fornecedores, Automações, Uso de IA,
@@ -174,8 +178,17 @@ export default function Layout() {
     enabled: Boolean(user),
     refetchInterval: 60_000,
   });
+  // Sprint 598 (Doc 95): publicações à espera de aprovação do dono.
+  const conteudoResumo = useQuery({
+    queryKey: ['conteudo', 'resumo'],
+    queryFn: () => conteudoApi.resumo(),
+    enabled: Boolean(user) && hasRole('Admin'),
+    refetchInterval: 60_000,
+  });
   const badgeCount = (key?: NavItem['badgeKey']) =>
-    key === 'repair-requests' ? (pedidosPendentes.data ?? 0) : 0;
+    key === 'repair-requests' ? (pedidosPendentes.data ?? 0)
+      : key === 'conteudo' ? (conteudoResumo.data?.porAprovar ?? 0)
+        : 0;
 
   useEffect(() => {
     if (!user || !hasRole('Admin') || !onboarding.data || onboarding.data.onboardingCompletado) return;
@@ -322,7 +335,7 @@ export default function Layout() {
       <AssistantWidget />
 
       {/* Sprint 572: navegação no telemóvel — 4 separadores + "Mais". */}
-      <MobileNav items={mobileNav} badge={(to) => (to === '/pedidos-online' ? (pedidosPendentes.data ?? 0) : 0)}
+      <MobileNav items={mobileNav} badge={(to) => badgeCount(nav.find((n) => n.to === to)?.badgeKey)}
         tema={{ Icon: ThemeIcon, label: themeLabel, alternar: cycleTheme }} onSair={handleLogout} />
 
       {/* Sidebar (desktop) — permanente e larga (w-56), como os mockups (Doc 88) */}
