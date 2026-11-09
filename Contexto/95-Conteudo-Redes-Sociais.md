@@ -129,3 +129,12 @@ Rascunho ──submeter──▶ PorAprovar ──aprovar──▶ Aprovada ─�
 - **Tokens expiram** (Threads: 60 dias): refresh automático e push 7 dias antes.
 - **Vídeos que o Instagram rejeita** (codec, proporção): validar com ffprobe no upload (H.264/AAC, 9:16, ≤ 90 s para reels) e mostrar o aviso antes de aprovar.
 - **Disco**: os vídeos brutos vão para o R2, não para o disco do VPS (61 GB livres, partilhado com outros projetos).
+
+## 12. Fase B — decisões de implementação (09/11/2026)
+
+- **Credenciais da app Meta/Threads por tenant, cifradas** (`Tenant.MetaAppId` + `MetaAppSecretCipherText`, idem Threads), escritas pelo dono em Definições → Redes sociais — mesmo padrão do BYOK Anthropic (S172). Nunca passam pelo chat nem pelo git.
+- **OAuth**: o frontend pede o URL de ligação (JWT) e navega; o callback `/api/redes/{meta|threads}/callback` é anónimo e valida um `state` assinado (HMAC: tenant + utilizador + rede + expiração 15 min). Redirect URIs a registar na app: `https://app.lopestech.pt/api/redes/meta/callback` e `.../threads/callback`.
+- **Tokens** em `RedeSocialLigacao` (cifrados): Facebook = token da Página (não expira, obtido de user token de longa duração); Instagram = mesma Página + id da conta IG profissional; Threads = token de 60 dias, renovado automaticamente quando faltam < 15 dias (push se falhar).
+- **Interruptor «Publicação automática»** (`Tenant.ConteudoAutoPublicar`, desligado por defeito): enquanto eu ainda agendo à mão no Business Suite, o servidor não publica — evita duplicados. Só destinos `Pendente` são publicados; `AgendadoNaRede` nunca.
+- **Publicador** (BackgroundService, 1/min): publicações `Aprovada` com hora ≤ agora → reserva (`APublicar`, UPDATE condicional) → publica cada destino suportado (FB, IG, Threads; TikTok fica manual) → grava `ExternalId` logo após cada sucesso (idempotência) → falhas com backoff 2/10/30 min, à 3.ª `Falhou` + push. Token inválido (erro 190) marca a ligação como inválida e avisa.
+- **Media**: URLs pré-assinados do R2 com 24 h — o Meta e o Threads vão buscar os ficheiros diretamente.
