@@ -87,6 +87,7 @@ function Copiar({ valor }: { valor: string }) {
 function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuardado: (e: RedesSociaisEstado) => void }) {
   const [metaId, setMetaId] = useState(estado.metaAppId ?? '');
   const [metaSecret, setMetaSecret] = useState('');
+  const [metaConfig, setMetaConfig] = useState(estado.metaLoginConfigId ?? '');
   const [thId, setThId] = useState(estado.threadsAppId ?? '');
   const [thSecret, setThSecret] = useState('');
 
@@ -97,6 +98,7 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
         metaAppSecret: metaSecret.trim() || null,
         threadsAppId: thId.trim() || null,
         threadsAppSecret: thSecret.trim() || null,
+        metaLoginConfigId: metaConfig.trim() || null,
       }),
     onSuccess: (e) => {
       onGuardado(e);
@@ -128,6 +130,10 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
           <span className={labelCls}>Meta — App Secret {estado.metaAppSecretDefinido && '(guardado)'}</span>
           <input className={inputCls} type="password" autoComplete="off" placeholder={estado.metaAppSecretDefinido ? '••••••••  (deixa vazio para manter)' : ''}
             value={metaSecret} onChange={(e) => setMetaSecret(e.target.value)} />
+        </label>
+        <label className="sm:col-span-2">
+          <span className={labelCls}>Meta — ID da configuração do login (Facebook Login for Business → Configurations)</span>
+          <input className={inputCls} inputMode="numeric" value={metaConfig} onChange={(e) => setMetaConfig(e.target.value)} />
         </label>
         <label>
           <span className={labelCls}>Threads — App ID</span>

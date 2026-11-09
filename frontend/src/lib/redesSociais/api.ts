@@ -16,6 +16,7 @@ export interface RedeLigada {
 export interface RedesSociaisEstado {
   metaAppId: string | null;
   metaAppSecretDefinido: boolean;
+  metaLoginConfigId: string | null;
   threadsAppId: string | null;
   threadsAppSecretDefinido: boolean;
   autoPublicar: boolean;
@@ -29,6 +30,7 @@ export interface GuardarAppsForm {
   metaAppSecret: string | null;
   threadsAppId: string | null;
   threadsAppSecret: string | null;
+  metaLoginConfigId: string | null;
 }
 
 export const redesSociaisApi = {

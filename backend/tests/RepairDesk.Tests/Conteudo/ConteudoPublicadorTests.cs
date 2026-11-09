@@ -150,7 +150,7 @@ public class ConteudoPublicadorTests : IClassFixture<RepairDeskApiFactory>
         var client = await AdminClient();
 
         var resp = await client.PutAsJsonAsync("/api/redes/apps",
-            new GuardarAppsRedesRequest("1234567890", "segredo-muito-secreto-123", null, null));
+            new GuardarAppsRedesRequest("1234567890", "segredo-muito-secreto-123", null, null, "555666777"));
 
         var body = await resp.Content.ReadAsStringAsync();
         resp.IsSuccessStatusCode.Should().BeTrue(body);
@@ -160,7 +160,7 @@ public class ConteudoPublicadorTests : IClassFixture<RepairDeskApiFactory>
         estado.RedirectMeta.Should().EndWith("/api/redes/meta/callback");
 
         var url = await client.GetFromJsonAsync<UrlLigarResposta>("/api/redes/meta/url-ligar");
-        url!.Url.Should().Contain("client_id=1234567890").And.Contain("state=");
+        url!.Url.Should().Contain("client_id=1234567890").And.Contain("state=").And.Contain("config_id=555666777").And.NotContain("scope=");
     }
 
     // ---------- helpers ----------

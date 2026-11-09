@@ -2472,6 +2472,10 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("MetaLoginConfigId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("MoloniApiKeyCipherText")
                         .HasColumnType("nvarchar(max)");
 

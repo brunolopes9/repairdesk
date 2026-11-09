@@ -67,6 +67,8 @@ public class Tenant : BaseEntity
     // escreve-as em Definições → Redes sociais; o secret fica cifrado (como o BYOK Anthropic).
     public string? MetaAppId { get; set; }
     public string? MetaAppSecretCipherText { get; set; }
+    /// <summary>Configuração do «Facebook Login for Business» (config_id) — define as permissões pedidas no login.</summary>
+    public string? MetaLoginConfigId { get; set; }
     public string? ThreadsAppId { get; set; }
     public string? ThreadsAppSecretCipherText { get; set; }
     /// <summary>

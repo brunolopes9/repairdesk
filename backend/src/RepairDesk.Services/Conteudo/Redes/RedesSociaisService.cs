@@ -13,6 +13,7 @@ public sealed record RedeLigadaDto(RedeSocial Rede, string ContaNome, string Con
 public sealed record RedesSociaisEstadoDto(
     string? MetaAppId,
     bool MetaAppSecretDefinido,
+    string? MetaLoginConfigId,
     string? ThreadsAppId,
     bool ThreadsAppSecretDefinido,
     bool AutoPublicar,
@@ -21,7 +22,7 @@ public sealed record RedesSociaisEstadoDto(
     IReadOnlyList<RedeLigadaDto> Ligacoes);
 
 /// <summary>Secrets null = manter o que está guardado.</summary>
-public sealed record GuardarAppsRedesRequest(string? MetaAppId, string? MetaAppSecret, string? ThreadsAppId, string? ThreadsAppSecret);
+public sealed record GuardarAppsRedesRequest(string? MetaAppId, string? MetaAppSecret, string? ThreadsAppId, string? ThreadsAppSecret, string? MetaLoginConfigId = null);
 
 public interface IRedesSociaisService
 {
@@ -88,7 +89,7 @@ public sealed class RedesSociaisService : IRedesSociaisService
         var t = await TenantAtual(ct);
         var ligacoes = await _repo.ListLigacoesAsync(t.Id, ct);
         return new RedesSociaisEstadoDto(
-            t.MetaAppId, t.MetaAppSecretCipherText is not null,
+            t.MetaAppId, t.MetaAppSecretCipherText is not null, t.MetaLoginConfigId,
             t.ThreadsAppId, t.ThreadsAppSecretCipherText is not null,
             t.ConteudoAutoPublicar, Redirect("meta"), Redirect("threads"),
             ligacoes.Select(l => new RedeLigadaDto(l.Rede, l.ContaNome, l.ContaId, l.LigadaEm, l.TokenExpiraEm, l.Valida, l.UltimoErro)).ToList());
@@ -99,6 +100,7 @@ public sealed class RedesSociaisService : IRedesSociaisService
         var t = await TenantAtual(ct);
         t.MetaAppId = AppId(req.MetaAppId);
         t.ThreadsAppId = AppId(req.ThreadsAppId);
+        t.MetaLoginConfigId = AppId(req.MetaLoginConfigId);
         if (!string.IsNullOrWhiteSpace(req.MetaAppSecret)) t.MetaAppSecretCipherText = _secrets.Protect(Secret(req.MetaAppSecret));
         if (!string.IsNullOrWhiteSpace(req.ThreadsAppSecret)) t.ThreadsAppSecretCipherText = _secrets.Protect(Secret(req.ThreadsAppSecret));
         await _tenants.SaveAsync(ct);
@@ -126,8 +128,11 @@ public sealed class RedesSociaisService : IRedesSociaisService
         return plataforma switch
         {
             "meta" => $"https://www.facebook.com/{_g.GraphBase.Split('/').Last()}/dialog/oauth?client_id={Uri.EscapeDataString(t.MetaAppId ?? throw SemApp("Meta"))}"
-                      + $"&redirect_uri={Uri.EscapeDataString(Redirect("meta"))}&state={Uri.EscapeDataString(state)}"
-                      + $"&response_type=code&scope={Uri.EscapeDataString(string.Join(',', ScopesMeta))}",
+                      + $"&redirect_uri={Uri.EscapeDataString(Redirect("meta"))}&state={Uri.EscapeDataString(state)}&response_type=code"
+                      // Apps com «Facebook Login for Business» pedem as permissões pela configuração (config_id), não por scope.
+                      + (t.MetaLoginConfigId is { } cfg
+                          ? $"&config_id={Uri.EscapeDataString(cfg)}&override_default_response_type=true"
+                          : $"&scope={Uri.EscapeDataString(string.Join(',', ScopesMeta))}"),
             "threads" => $"https://threads.net/oauth/authorize?client_id={Uri.EscapeDataString(t.ThreadsAppId ?? throw SemApp("Threads"))}"
                          + $"&redirect_uri={Uri.EscapeDataString(Redirect("threads"))}&state={Uri.EscapeDataString(state)}"
                          + "&response_type=code&scope=threads_basic,threads_content_publish",
