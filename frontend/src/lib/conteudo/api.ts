@@ -57,7 +57,11 @@ export const conteudoApi = {
 function normalizarTipo(file: File): string {
   if (file.type) return file.type;
   const ext = file.name.split('.').pop()?.toLowerCase();
-  return ext === 'mov' ? 'video/quicktime' : ext === 'mp4' ? 'video/mp4' : ext === 'png' ? 'image/png' : 'image/jpeg';
+  const porExtensao: Record<string, string> = {
+    mov: 'video/quicktime', mp4: 'video/mp4', m4v: 'video/x-m4v',
+    png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+  };
+  return (ext && porExtensao[ext]) || 'image/jpeg';
 }
 
 function putComProgresso(

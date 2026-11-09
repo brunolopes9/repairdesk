@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Clapperboard, Download, Trash2, Upload, XCircle } from 'lucide-react';
 import { useConfirm } from '../../components/ConfirmDialog';
-import { Button, EmptyState, StatusBadge } from '../../components/ui';
+import { EmptyState, StatusBadge } from '../../components/ui';
 import { conteudoApi } from '../../lib/conteudo/api';
 import { ConteudoFicheiroTipo, type ConteudoFicheiro } from '../../lib/conteudo/types';
 import { apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
+import { bloquearReload } from '../../lib/reloadGuard';
 import { duracao, tamanho } from './conteudoUi';
 
 type Envio = {
@@ -26,7 +27,6 @@ type Envio = {
 export function BibliotecaVideos() {
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const input = useRef<HTMLInputElement>(null);
   const [notas, setNotas] = useState('');
   const [envios, setEnvios] = useState<Envio[]>([]);
   const aEnviar = envios.some((e) => e.estado === 'a-enviar');
@@ -68,7 +68,12 @@ export function BibliotecaVideos() {
         }
       }
     };
-    await Promise.all([trabalhar(), trabalhar()]);
+    const libertar = bloquearReload();
+    try {
+      await Promise.all([trabalhar(), trabalhar()]);
+    } finally {
+      libertar();
+    }
     qc.invalidateQueries({ queryKey: ['conteudo'] });
     setNotas('');
   }
@@ -98,21 +103,30 @@ export function BibliotecaVideos() {
           value={notas}
           onChange={(e) => setNotas(e.target.value)}
         />
-        <input
-          ref={input}
-          type="file"
-          accept="video/*,image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            e.target.value = '';
-            if (files.length > 0) void enviarTodos(files);
-          }}
-        />
-        <Button className="mt-3 w-full sm:w-auto" size="lg" leftIcon={<Upload size={18} />} onClick={() => input.current?.click()}>
-          Escolher vídeos ou fotos
-        </Button>
+        {/*
+          O toque tem de cair no próprio <input> (dentro do <label>): no Safari do iPhone, abrir o
+          seletor por input.click() num input escondido (display:none) às vezes não devolve os
+          ficheiros à página. sr-only mantém-no acessível sem o mostrar.
+        */}
+        <label className="mt-3 inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-brand-700 active:bg-brand-800 sm:w-auto">
+          <Upload size={18} />
+          Escolher ficheiros
+          <input
+            type="file"
+            accept="video/*,image/*"
+            multiple
+            className="sr-only"
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              e.target.value = '';
+              if (files.length > 0) void enviarTodos(files);
+            }}
+          />
+        </label>
+        <p className="mt-2 text-xs text-zinc-500">
+          Vídeos e fotos misturados, quantos quiseres. No iPhone, com muitos vídeos o telemóvel demora a preparar
+          antes de começar — se houver «Opções» no topo da fototeca, escolhe «Atual» (é mais rápido).
+        </p>
 
         {envios.length > 0 && (
           <ul className="mt-4 space-y-2">

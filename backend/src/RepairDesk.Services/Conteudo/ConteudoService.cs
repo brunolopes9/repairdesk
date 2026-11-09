@@ -54,9 +54,17 @@ public sealed class ConteudoService : IConteudoService
         ["image/jpeg"] = (ConteudoFicheiroTipo.Imagem, ".jpg"),
         ["image/png"] = (ConteudoFicheiroTipo.Imagem, ".png"),
         ["image/webp"] = (ConteudoFicheiroTipo.Imagem, ".webp"),
+        // Fotos do iPhone: o material bruto vem em HEIC; serve para a biblioteca mas não sai nas redes.
+        ["image/heic"] = (ConteudoFicheiroTipo.Imagem, ".heic"),
+        ["image/heif"] = (ConteudoFicheiroTipo.Imagem, ".heif"),
         ["video/mp4"] = (ConteudoFicheiroTipo.Video, ".mp4"),
         ["video/quicktime"] = (ConteudoFicheiroTipo.Video, ".mov"),
+        ["video/x-m4v"] = (ConteudoFicheiroTipo.Video, ".m4v"),
     };
+
+    /// <summary>Formatos que as redes aceitam numa publicação (HEIC fica só como material bruto).</summary>
+    private static readonly HashSet<string> TiposPublicaveis = new(StringComparer.OrdinalIgnoreCase)
+        { "image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime" };
 
     private static readonly ConteudoEstado[] EstadosEditaveis =
         { ConteudoEstado.Rascunho, ConteudoEstado.PorAprovar, ConteudoEstado.Aprovada, ConteudoEstado.Rejeitada };
@@ -450,6 +458,8 @@ public sealed class ConteudoService : IConteudoService
             throw new ValidationException("sem_hora", "Define a data e hora de publicação.");
         if (p.Ficheiros.Any(f => f.Estado != ConteudoFicheiroEstado.Pronto))
             throw new ValidationException("ficheiro_por_enviar", "Há ficheiros que ainda não acabaram de subir.");
+        if (p.Ficheiros.FirstOrDefault(f => !TiposPublicaveis.Contains(f.ContentType)) is { } bruto)
+            throw new ValidationException("formato_nao_publicavel", $"«{bruto.NomeOriginal}» tem de ser convertido para JPG/MP4 antes de publicar.");
 
         var n = p.Ficheiros.Count;
         var videos = p.Ficheiros.Count(f => f.Tipo == ConteudoFicheiroTipo.Video);

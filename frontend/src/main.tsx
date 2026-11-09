@@ -8,6 +8,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { applyTheme, getStoredTheme } from './lib/theme';
 import { apiErrorMessage } from './lib/errors';
 import { initSentry } from './lib/monitoring/sentry';
+import { reloadQuandoPossivel } from './lib/reloadGuard';
 
 // Sprint 250: Sentry primeiro para apanhar erros do bootstrap. No-op sem DSN.
 initSentry();
@@ -27,7 +28,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (refreshing) return;
     refreshing = true;
-    window.location.reload();
+    // Sprint 598: nunca a meio de um envio de vídeos — espera que termine.
+    reloadQuandoPossivel(() => window.location.reload());
   });
   window.addEventListener('load', async () => {
     try {
