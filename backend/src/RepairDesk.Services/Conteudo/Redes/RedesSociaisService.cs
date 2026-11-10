@@ -244,10 +244,10 @@ public sealed class RedesSociaisService : IRedesSociaisService
         var lista = paginas.TryGetProperty("data", out var d) ? d.EnumerateArray().ToList() : new();
         if (lista.Count == 0)
             throw new RedeSocialException("Não escolheste nenhuma Página — liga outra vez e marca a Página da loja.");
-        if (lista.Count > 1)
-            throw new RedeSocialException($"Escolheste {lista.Count} Páginas ({string.Join(", ", lista.Select(p => MetaGraphClient.StrOuNull(p, "name")))}). Liga outra vez e marca só a da loja.");
-
-        var pagina = lista[0];
+        // Quem gere várias Páginas (clientes, projetos) dá acesso a todas no ecrã da Meta: escolhe-se a
+        // da empresa pelo nome (sem espaços/acentos/maiúsculas). Se não houver uma só correspondência, pede-se para escolher.
+        var pagina = lista.Count == 1 ? lista[0] : PaginaDaEmpresa(lista, t)
+            ?? throw new RedeSocialException($"Não sei qual destas Páginas é a da loja: {string.Join(", ", lista.Select(p => MetaGraphClient.StrOuNull(p, "name")))}. Liga outra vez e marca só a da loja.");
         var tokenPagina = _secrets.Protect(MetaGraphClient.Str(pagina, "access_token"));
         var ligadas = new List<string>();
         await Gravar(t.Id, RedeSocial.Facebook, MetaGraphClient.Str(pagina, "id"), MetaGraphClient.Str(pagina, "name"), tokenPagina, null, userId, ct);
@@ -281,6 +281,15 @@ public sealed class RedesSociaisService : IRedesSociaisService
         var nome = "@" + (MetaGraphClient.StrOuNull(eu, "username") ?? "threads");
         await Gravar(t.Id, RedeSocial.Threads, MetaGraphClient.Str(eu, "id"), nome, _secrets.Protect(token), expiraEm, userId, ct);
         return new List<string> { $"Threads ({nome})" };
+    }
+
+    private static System.Text.Json.JsonElement? PaginaDaEmpresa(List<System.Text.Json.JsonElement> paginas, Tenant t)
+    {
+        static string Norm(string? s) => new string((s ?? "").Normalize(NormalizationForm.FormD)
+            .Where(c => char.IsLetterOrDigit(c)).ToArray()).ToLowerInvariant();
+        var nomes = new[] { t.Name, t.LegalName }.Select(Norm).Where(n => n.Length >= 3).ToList();
+        var iguais = paginas.Where(p => nomes.Contains(Norm(MetaGraphClient.StrOuNull(p, "name")))).ToList();
+        return iguais.Count == 1 ? iguais[0] : null;
     }
 
     /// <summary>Ligar outra vez atualiza a linha existente (o índice único por rede não permite duas).</summary>
