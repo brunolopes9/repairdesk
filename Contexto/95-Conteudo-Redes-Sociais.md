@@ -138,3 +138,25 @@ Rascunho ──submeter──▶ PorAprovar ──aprovar──▶ Aprovada ─�
 - **Interruptor «Publicação automática»** (`Tenant.ConteudoAutoPublicar`, desligado por defeito): enquanto eu ainda agendo à mão no Business Suite, o servidor não publica — evita duplicados. Só destinos `Pendente` são publicados; `AgendadoNaRede` nunca.
 - **Publicador** (BackgroundService, 1/min): publicações `Aprovada` com hora ≤ agora → reserva (`APublicar`, UPDATE condicional) → publica cada destino suportado (FB, IG, Threads; TikTok fica manual) → grava `ExternalId` logo após cada sucesso (idempotência) → falhas com backoff 2/10/30 min, à 3.ª `Falhou` + push. Token inválido (erro 190) marca a ligação como inválida e avisa.
 - **Media**: URLs pré-assinados do R2 com 24 h — o Meta e o Threads vão buscar os ficheiros diretamente.
+
+## 13. Sprint 603 — TikTok segundo as regras de publicação direta (10/11/2026)
+
+O TikTok só aprova apps de publicação direta se o utilizador escolher tudo no momento
+(https://developers.tiktok.com/doc/content-sharing-guidelines). Por isso:
+
+- **Ecrã:** o cartão de aprovação tem o painel «Publicar no TikTok» (`TikTokPainel`):
+  - conta lida na hora (`GET /api/redes/tiktok/criador` → creator_info);
+  - texto editável (até 2200 caracteres);
+  - privacidade escolhida numa lista sem valor por omissão, só com as opções que a conta permite;
+  - comentários, dueto e stitch desligados até os ligar, e bloqueados se a conta os desligou;
+  - divulgação comercial (a tua marca / conteúdo de marca, este último não pode ser «Só eu»);
+  - consentimento com os links Music Usage Confirmation / Branded Content Policy;
+  - aviso de que o processamento demora.
+- **Gravação:** `PUT /api/conteudo/{id}/tiktok` (só o dono) grava em `ConteudoDestino.OpcoesJson` + `LegendaPropria`.
+- **Aprovação:** um reel com TikTok pendente e conta ligada só se aprova com a privacidade escolhida.
+- **Publicador:**
+  - sem opções não pega no destino TikTok (também filtrado na query);
+  - antes de publicar relê o creator_info: se a privacidade já não é permitida ou o vídeo excede `max_video_post_duration_sec`, falha com mensagem clara;
+  - envia `disable_*` e `brand_*_toggle` conforme as escolhas.
+- **Definições:** a privacidade deixou de ser escolhida em Definições (o campo `Tenant.TikTokPrivacidade` fica sem uso).
+- **Enquanto a app não está auditada:** só SELF_ONLY, e a conta TikTok tem de estar privada no momento da publicação.

@@ -65,6 +65,10 @@ public sealed class ConteudoController : ControllerBase
     public async Task<ActionResult<ConteudoPublicacaoDto>> AtualizarDestino(Guid id, RedeSocial rede, [FromBody] AtualizarDestinoRequest req, CancellationToken ct)
         => Ok(await _service.AtualizarDestinoAsync(id, rede, req, ct));
 
+    [HttpPut("{id:guid}/tiktok")]
+    public async Task<ActionResult<ConteudoPublicacaoDto>> OpcoesTikTok(Guid id, [FromBody] GuardarOpcoesTikTokRequest req, CancellationToken ct)
+        => Ok(await _service.GuardarOpcoesTikTokAsync(id, req, ct));
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {

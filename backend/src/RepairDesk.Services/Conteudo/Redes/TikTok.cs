@@ -144,11 +144,14 @@ public sealed class TikTokPublicador : IPublicadorRede
         if (p.Formato != ConteudoFormato.Reel || p.AbrirVideo is null)
             throw new RedeSocialException("No TikTok só se publicam vídeos automaticamente.");
 
-        var info = await _tt.PostJsonAsync("/post/publish/creator_info/query/", p.Token, new { }, ct);
-        var opcoes = info.TryGetProperty("privacy_level_options", out var o) ? o.EnumerateArray().Select(x => x.GetString()).ToList() : new();
-        var privacidade = p.Privacidade is { } pref && opcoes.Contains(pref) ? pref
-            : opcoes.Contains("SELF_ONLY") ? "SELF_ONLY" : opcoes.FirstOrDefault()
-            ?? throw new RedeSocialException("O TikTok não devolveu opções de privacidade.");
+        // Sprint 603: as escolhas são do dono (regras do TikTok); aqui só se confirma que a conta as aceita hoje.
+        var escolha = p.TikTok ?? throw new RedeSocialException("Faltam as opções do TikTok (privacidade) — escolhe-as na publicação.");
+        var info = TikTokCriador.De(await _tt.PostJsonAsync("/post/publish/creator_info/query/", p.Token, new { }, ct));
+        if (!info.Privacidades.Contains(escolha.Privacidade))
+            throw new RedeSocialException($"A conta TikTok já não permite «{escolha.Privacidade}» — escolhe outra privacidade e aprova outra vez.");
+        if (p.DuracaoSeg is { } dur && info.MaxDuracaoSeg > 0 && dur > info.MaxDuracaoSeg)
+            throw new RedeSocialException($"O vídeo tem {dur:0} s e esta conta TikTok só aceita até {info.MaxDuracaoSeg} s.");
+        var privacidade = escolha.Privacidade;
 
         byte[] video;
         await using (var s = await p.AbrirVideo(ct))
@@ -163,7 +166,16 @@ public sealed class TikTokPublicador : IPublicadorRede
         var titulo = p.Legenda is { Length: > 2200 } l ? l[..2200] : p.Legenda ?? "";
         var init = await _tt.PostJsonAsync("/post/publish/video/init/", p.Token, new
         {
-            post_info = new { title = titulo, privacy_level = privacidade, disable_comment = false, disable_duet = false, disable_stitch = false },
+            post_info = new
+            {
+                title = titulo,
+                privacy_level = privacidade,
+                disable_comment = !escolha.PermitirComentarios || info.ComentariosDesligados,
+                disable_duet = !escolha.PermitirDueto || info.DuetoDesligado,
+                disable_stitch = !escolha.PermitirStitch || info.StitchDesligado,
+                brand_organic_toggle = escolha.Divulgacao && escolha.SuaMarca,
+                brand_content_toggle = escolha.Divulgacao && escolha.ConteudoPatrocinado,
+            },
             source_info = new { source = "FILE_UPLOAD", video_size = video.Length, chunk_size = video.Length, total_chunk_count = 1 },
         }, ct);
         var publishId = MetaGraphClient.Str(init, "publish_id");
@@ -186,5 +198,36 @@ public sealed class TikTokPublicador : IPublicadorRede
             if (DateTime.UtcNow > fim) return new Publicado(publishId, null);
             await Task.Delay(TimeSpan.FromSeconds(5), ct);
         }
+    }
+}
+
+/// <summary>
+/// Sprint 603: resposta de <c>creator_info/query</c> — quem vai receber o vídeo e o que a conta
+/// permite agora (lida de novo sempre que o ecrã abre e antes de publicar, como o TikTok exige).
+/// </summary>
+public sealed record TikTokCriador(
+    string Nickname,
+    string? Username,
+    string? AvatarUrl,
+    IReadOnlyList<string> Privacidades,
+    bool ComentariosDesligados,
+    bool DuetoDesligado,
+    bool StitchDesligado,
+    int MaxDuracaoSeg)
+{
+    public static TikTokCriador De(JsonElement d)
+    {
+        static bool B(JsonElement e, string p) => e.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.True;
+        var privacidades = d.TryGetProperty("privacy_level_options", out var o) && o.ValueKind == JsonValueKind.Array
+            ? o.EnumerateArray().Select(x => x.GetString()).OfType<string>().ToList()
+            : new List<string>();
+        if (privacidades.Count == 0) throw new RedeSocialException("O TikTok não devolveu opções de privacidade.");
+        return new TikTokCriador(
+            MetaGraphClient.StrOuNull(d, "creator_nickname") ?? MetaGraphClient.StrOuNull(d, "creator_username") ?? "TikTok",
+            MetaGraphClient.StrOuNull(d, "creator_username"),
+            MetaGraphClient.StrOuNull(d, "creator_avatar_url"),
+            privacidades,
+            B(d, "comment_disabled"), B(d, "duet_disabled"), B(d, "stitch_disabled"),
+            d.TryGetProperty("max_video_post_duration_sec", out var m) && m.TryGetInt32(out var mi) ? mi : 0);
     }
 }

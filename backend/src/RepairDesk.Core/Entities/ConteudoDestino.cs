@@ -19,6 +19,12 @@ public class ConteudoDestino : BaseEntity, ITenantEntity
     /// <summary>Legenda específica desta rede (null = usa a da publicação).</summary>
     public string? LegendaPropria { get; set; }
 
+    /// <summary>
+    /// Sprint 603: opções escolhidas pelo dono para esta rede, em JSON (TikTok: privacidade, comentários,
+    /// dueto, stitch e divulgação comercial — o TikTok exige que seja o utilizador a escolhê-las).
+    /// </summary>
+    public string? OpcoesJson { get; set; }
+
     public ConteudoDestinoEstado Estado { get; set; } = ConteudoDestinoEstado.Pendente;
 
     /// <summary>Id do post na rede (idempotência da publicação automática).</summary>

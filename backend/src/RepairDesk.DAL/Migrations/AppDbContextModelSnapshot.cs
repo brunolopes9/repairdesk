@@ -1081,6 +1081,10 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("OpcoesJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("Permalink")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");

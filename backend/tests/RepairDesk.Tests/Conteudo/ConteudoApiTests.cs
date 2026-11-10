@@ -220,6 +220,55 @@ public class ConteudoApiTests : IClassFixture<RepairDeskApiFactory>
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    // Sprint 603: regras do TikTok para quem publica pela API — a escolha é sempre do dono.
+    [Fact]
+    public async Task OpcoesTikTok_RegrasDoTikTok()
+    {
+        var client = await AdminClient();
+        var img = await EnviarImagem(client);
+        var p = await Criar(client, PostFbIg("Para TikTok", img.Id) with
+        {
+            Destinos = new[] { new ConteudoDestinoInput(RedeSocial.TikTok, null) },
+        });
+        var url = $"/api/conteudo/{p.Id}/tiktok";
+
+        // Divulgação comercial ligada sem dizer de quem é a marca.
+        (await client.PutAsJsonAsync(url, new GuardarOpcoesTikTokRequest(null, "PUBLIC_TO_EVERYONE", false, false, false, true, false, false)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        // Conteúdo patrocinado não pode ficar privado.
+        (await client.PutAsJsonAsync(url, new GuardarOpcoesTikTokRequest(null, "SELF_ONLY", false, false, false, true, false, true)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        // Privacidade inventada.
+        (await client.PutAsJsonAsync(url, new GuardarOpcoesTikTokRequest(null, "TODA_A_GENTE", false, false, false, false, false, false)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        var ok = await Ok(await client.PutAsJsonAsync(url,
+            new GuardarOpcoesTikTokRequest("Título só do TikTok", "SELF_ONLY", true, false, false, false, true, false)));
+        var tt = ok.Destinos.Single(d => d.Rede == RedeSocial.TikTok);
+        tt.LegendaPropria.Should().Be("Título só do TikTok");
+        tt.TikTok.Should().NotBeNull();
+        tt.TikTok!.Privacidade.Should().Be("SELF_ONLY");
+        tt.TikTok.PermitirComentarios.Should().BeTrue();
+        tt.TikTok.SuaMarca.Should().BeFalse("sem divulgação ligada as marcas não contam");
+    }
+
+    [Fact]
+    public async Task OpcoesTikTok_ApiKeyNaoMexe()
+    {
+        var admin = await AdminClient();
+        var img = await EnviarImagem(admin);
+        var p = await Criar(admin, PostFbIg("TikTok chave", img.Id) with
+        {
+            Destinos = new[] { new ConteudoDestinoInput(RedeSocial.TikTok, null) },
+        });
+        var key = await ApiKeyClient(admin, "conteudo");
+
+        var resp = await key.PutAsJsonAsync($"/api/conteudo/{p.Id}/tiktok",
+            new GuardarOpcoesTikTokRequest(null, "SELF_ONLY", false, false, false, false, false, false));
+
+        resp.IsSuccessStatusCode.Should().BeFalse();
+    }
+
     // ---------- helpers ----------
 
     private static GuardarPublicacaoRequest Texto(string titulo) => new(

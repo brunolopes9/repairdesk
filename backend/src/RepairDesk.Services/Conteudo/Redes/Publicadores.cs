@@ -11,8 +11,10 @@ public sealed record PedidoPublicacao(
     IReadOnlyList<MediaPublica> Media,
     string ContaId,
     string Token,
-    /// <summary>Privacidade preferida (TikTok).</summary>
-    string? Privacidade = null,
+    /// <summary>Sprint 603: escolhas do dono para o TikTok (privacidade, interações, divulgação).</summary>
+    TikTokOpcoes? TikTok = null,
+    /// <summary>Duração do vídeo (TikTok recusa acima do máximo da conta).</summary>
+    decimal? DuracaoSeg = null,
     /// <summary>Abre o 1.º vídeo do storage (TikTok envia o ficheiro, não um URL).</summary>
     Func<CancellationToken, Task<Stream>>? AbrirVideo = null);
 

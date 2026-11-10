@@ -65,6 +65,7 @@ public class ConteudoDestinoConfiguration : IEntityTypeConfiguration<ConteudoDes
 
         builder.Property(x => x.TenantId).IsRequired();
         builder.Property(x => x.LegendaPropria).HasMaxLength(5000);
+        builder.Property(x => x.OpcoesJson).HasMaxLength(2000);
         builder.Property(x => x.ExternalId).HasMaxLength(200);
         builder.Property(x => x.Permalink).HasMaxLength(500);
         builder.Property(x => x.UltimoErro).HasMaxLength(2000);

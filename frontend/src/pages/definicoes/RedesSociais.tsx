@@ -7,7 +7,7 @@ import { BackButton, Button } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { RedeSocial, REDE_LABEL } from '../../lib/conteudo/types';
 import { apiErrorMessage } from '../../lib/errors';
-import { redesSociaisApi, TIKTOK_PRIVACIDADE_LABEL, type RedeLigada, type RedesSociaisEstado, type TikTokPrivacidade } from '../../lib/redesSociais/api';
+import { redesSociaisApi, type RedeLigada, type RedesSociaisEstado } from '../../lib/redesSociais/api';
 import { toast } from '../../lib/toast';
 
 /**
@@ -90,7 +90,6 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
   const [metaConfig, setMetaConfig] = useState(estado.metaLoginConfigId ?? '');
   const [ttKey, setTtKey] = useState(estado.tikTokClientKey ?? '');
   const [ttSecret, setTtSecret] = useState('');
-  const [ttPriv, setTtPriv] = useState<TikTokPrivacidade | ''>(estado.tikTokPrivacidade ?? '');
   const [thId, setThId] = useState(estado.threadsAppId ?? '');
   const [thSecret, setThSecret] = useState('');
 
@@ -104,7 +103,7 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
         metaLoginConfigId: metaConfig.trim() || null,
         tikTokClientKey: ttKey.trim() || null,
         tikTokClientSecret: ttSecret.trim() || null,
-        tikTokPrivacidade: ttPriv || null,
+        tikTokPrivacidade: estado.tikTokPrivacidade ?? null,
       }),
     onSuccess: (e) => {
       onGuardado(e);
@@ -167,16 +166,10 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
           <input className={inputCls} type="password" autoComplete="off" placeholder={estado.tikTokClientSecretDefinido ? '••••••••  (deixa vazio para manter)' : ''}
             value={ttSecret} onChange={(e) => setTtSecret(e.target.value)} />
         </label>
-        <label className="sm:col-span-2">
-          <span className={labelCls}>Quem vê os vídeos publicados no TikTok</span>
-          <select className={inputCls} value={ttPriv} onChange={(e) => setTtPriv(e.target.value as TikTokPrivacidade | '')}>
-            <option value="">— escolhe —</option>
-            {(Object.keys(TIKTOK_PRIVACIDADE_LABEL) as TikTokPrivacidade[]).map((p) => (
-              <option key={p} value={p}>{TIKTOK_PRIVACIDADE_LABEL[p]}</option>
-            ))}
-          </select>
-          <span className="mt-1 block text-xs text-zinc-500">Enquanto o TikTok não aprovar a app, os vídeos só podem sair em privado.</span>
-        </label>
+        <p className="text-xs text-zinc-500 sm:col-span-2">
+          A privacidade, os comentários, os duetos e o stitch escolhem-se em cada vídeo, ao aprovar (regra do TikTok).
+          Enquanto o TikTok não aprovar a app, os vídeos só saem em privado e a conta tem de estar privada.
+        </p>
       </div>
       <div className="flex justify-end">
         <Button loading={guardar.isPending} onClick={() => guardar.mutate()}>Guardar</Button>
@@ -237,7 +230,7 @@ function PassoContas({ estado, onMudou }: { estado: RedesSociaisEstado; onMudou:
         <CartaoRede
           titulo="TikTok"
           contas={[porRede(RedeSocial.TikTok)]}
-          podeLigar={Boolean(estado.tikTokClientKey && estado.tikTokClientSecretDefinido && estado.tikTokPrivacidade)}
+          podeLigar={Boolean(estado.tikTokClientKey && estado.tikTokClientSecretDefinido)}
           aLigar={ligar.isPending && ligar.variables === 'tiktok'}
           dica="Entra com a conta @lopestech.pt. Só vídeos (reels) saem sozinhos; carrosséis de fotos continuam à mão."
           onLigar={() => ligar.mutate('tiktok')}

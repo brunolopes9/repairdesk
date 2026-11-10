@@ -61,6 +61,23 @@ export interface ConteudoDestino {
   tentativas: number;
   ultimoErro: string | null;
   publicadoEm: string | null;
+  /** Sprint 603: escolhas do dono para o TikTok (null = ainda por escolher). */
+  tikTok: TikTokOpcoes | null;
+}
+
+export interface TikTokOpcoes {
+  privacidade: string;
+  permitirComentarios: boolean;
+  permitirDueto: boolean;
+  permitirStitch: boolean;
+  divulgacao: boolean;
+  suaMarca: boolean;
+  conteudoPatrocinado: boolean;
+}
+
+export interface GuardarOpcoesTikTok extends Omit<TikTokOpcoes, 'privacidade'> {
+  titulo: string | null;
+  privacidade: string | null;
 }
 
 export interface ConteudoPublicacao {

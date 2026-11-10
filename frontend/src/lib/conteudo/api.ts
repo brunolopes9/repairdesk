@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { ConteudoEstado, ConteudoFicheiro, ConteudoPublicacao, ConteudoResumo, UploadTicket } from './types';
+import type { ConteudoEstado, ConteudoFicheiro, ConteudoPublicacao, ConteudoResumo, GuardarOpcoesTikTok, UploadTicket } from './types';
 
 export const conteudoApi = {
   list: (filtros: { estados?: ConteudoEstado[]; de?: string; ate?: string } = {}) =>
@@ -14,6 +14,8 @@ export const conteudoApi = {
   resumo: () => api.get<ConteudoResumo>('/conteudo/resumo').then((r) => r.data),
 
   aprovar: (id: string) => api.post<ConteudoPublicacao>(`/conteudo/${id}/aprovar`).then((r) => r.data),
+  guardarTikTok: (id: string, o: GuardarOpcoesTikTok) =>
+    api.put<ConteudoPublicacao>(`/conteudo/${id}/tiktok`, o).then((r) => r.data),
 
   rejeitar: (id: string, motivo: string | null) =>
     api.post<ConteudoPublicacao>(`/conteudo/${id}/rejeitar`, { motivo }).then((r) => r.data),

@@ -44,6 +44,8 @@ public interface IRedesSociaisService
     /// sem passar pelo OAuth nem precisar do App Secret.
     /// </summary>
     Task<RedesSociaisEstadoDto> LigarThreadsComTokenAsync(string token, CancellationToken ct = default);
+    /// <summary>Sprint 603: conta TikTok ligada e o que permite agora (creator_info), para o ecrã de publicação.</summary>
+    Task<TikTokCriador> CriadorTikTokAsync(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -393,6 +395,16 @@ public sealed class RedesSociaisService : IRedesSociaisService
     {
         var t = s.Replace('-', '+').Replace('_', '/');
         return Convert.FromBase64String(t.PadRight(t.Length + (4 - t.Length % 4) % 4, '='));
+    }
+
+    public async Task<TikTokCriador> CriadorTikTokAsync(CancellationToken ct = default)
+    {
+        var t = await TenantAtual(ct);
+        var lig = (await _repo.ListLigacoesAsync(t.Id, ct)).FirstOrDefault(l => l.Rede == RedeSocial.TikTok && l.Valida)
+                  ?? throw new NotFoundException("RedeSocialLigacao", "TikTok");
+        var token = await _ttTokens.TokenValidoAsync(lig, ct);
+        await _repo.SaveAsync(ct); // o token pode ter sido renovado
+        return TikTokCriador.De(await _tt.PostJsonAsync("/post/publish/creator_info/query/", token, new { }, ct));
     }
 
     // ---- utilitários ------------------------------------------------------------------------

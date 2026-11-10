@@ -98,7 +98,7 @@ public class ConteudoRepository : IConteudoRepository
             // a publicação era reservada e devolvida a cada minuto sem fazer nada.
             .Where(p => p.Destinos.Any(d => d.Estado == ConteudoDestinoEstado.Pendente
                                             && redes.Contains(d.Rede)
-                                            && (d.Rede != RedeSocial.TikTok || p.Formato == ConteudoFormato.Reel)
+                                            && (d.Rede != RedeSocial.TikTok || (p.Formato == ConteudoFormato.Reel && d.OpcoesJson != null))
                                             && _db.RedeSocialLigacoes.Any(l => l.TenantId == p.TenantId && l.Rede == d.Rede && l.Valida)
                                             && (d.ProximaTentativaEm == null || d.ProximaTentativaEm <= agora)))
             .OrderBy(p => p.AgendadoPara)

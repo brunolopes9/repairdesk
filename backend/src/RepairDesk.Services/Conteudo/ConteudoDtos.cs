@@ -31,7 +31,8 @@ public sealed record ConteudoDestinoDto(
     string? Permalink,
     int Tentativas,
     string? UltimoErro,
-    DateTime? PublicadoEm);
+    DateTime? PublicadoEm,
+    TikTokOpcoes? TikTok = null);
 
 public sealed record ConteudoPublicacaoDto(
     Guid Id,
@@ -86,3 +87,28 @@ public sealed record UploadTicketDto(Guid FicheiroId, string UploadUrl, string M
 public sealed record ConfirmarUploadRequest(int? Largura, int? Altura, decimal? DuracaoSeg);
 
 public sealed record ConteudoResumoDto(int PorAprovar, int BibliotecaPorProcessar);
+
+/// <summary>
+/// Sprint 603: o que o dono escolhe antes de um vídeo sair no TikTok. As regras do TikTok para
+/// apps que publicam por conta do utilizador obrigam a que seja ele a escolher — privacidade sem
+/// valor por omissão, interações desligadas até as ligar, divulgação comercial explícita.
+/// </summary>
+public sealed record TikTokOpcoes(
+    string Privacidade,
+    bool PermitirComentarios,
+    bool PermitirDueto,
+    bool PermitirStitch,
+    bool Divulgacao,
+    bool SuaMarca,
+    bool ConteudoPatrocinado);
+
+/// <summary>Sprint 603: <see cref="Titulo"/> é o texto do post no TikTok (null = a legenda da publicação).</summary>
+public sealed record GuardarOpcoesTikTokRequest(
+    string? Titulo,
+    string? Privacidade,
+    bool PermitirComentarios,
+    bool PermitirDueto,
+    bool PermitirStitch,
+    bool Divulgacao,
+    bool SuaMarca,
+    bool ConteudoPatrocinado);

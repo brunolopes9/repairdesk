@@ -115,6 +115,9 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
                 continue; // rede não ligada: fica pendente (publicação manual)
             if (d.Rede == RedeSocial.TikTok && p.Formato != ConteudoFormato.Reel)
                 continue; // TikTok automático só para vídeo; fotos ficam à mão
+            var opcoesTikTok = d.Rede == RedeSocial.TikTok ? ConteudoService.LerOpcoesTikTok(d.OpcoesJson) : null;
+            if (d.Rede == RedeSocial.TikTok && opcoesTikTok is null)
+                continue; // Sprint 603: sem as escolhas do dono não se publica no TikTok
             if (!string.IsNullOrEmpty(d.ExternalId))
             {
                 // Já saiu numa volta anterior (falha ao gravar depois) — só acerta o estado.
@@ -128,9 +131,8 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
                     ? await _tiktok.TokenValidoAsync(lig, ct)
                     : _secrets.Unprotect(lig.TokenCipherText);
                 var video = p.Ficheiros.OrderBy(f => f.Ordem).FirstOrDefault(f => f.Tipo == ConteudoFicheiroTipo.Video);
-                var privacidade = d.Rede == RedeSocial.TikTok ? (await _tenants.FindByIdAsync(p.TenantId, ct))?.TikTokPrivacidade : null;
                 var r = await publicador.PublicarAsync(new PedidoPublicacao(
-                    p.Formato, d.LegendaPropria ?? p.Legenda, media, lig.ContaId, token, privacidade,
+                    p.Formato, d.LegendaPropria ?? p.Legenda, media, lig.ContaId, token, opcoesTikTok, video?.DuracaoSeg,
                     video is null ? null : c => _storage.DownloadAsync(video.StorageKey, c)), ct);
                 d.ExternalId = r.ExternalId;
                 d.Permalink = r.Permalink;

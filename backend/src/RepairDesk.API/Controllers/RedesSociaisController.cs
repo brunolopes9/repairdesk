@@ -42,6 +42,11 @@ public sealed class RedesSociaisController : ControllerBase
     public async Task<ActionResult<RedesSociaisEstadoDto>> LigarThreadsComToken([FromBody] TokenThreadsRequest req, CancellationToken ct)
         => Ok(await _service.LigarThreadsComTokenAsync(req.Token, ct));
 
+    /// <summary>Sprint 603: lido sempre que o ecrã de publicação no TikTok abre (regra do TikTok).</summary>
+    [HttpGet("tiktok/criador")]
+    public async Task<ActionResult<TikTokCriador>> CriadorTikTok(CancellationToken ct)
+        => Ok(await _service.CriadorTikTokAsync(ct));
+
     [HttpDelete("ligacoes/{rede}")]
     public async Task<ActionResult<RedesSociaisEstadoDto>> Desligar(RedeSocial rede, CancellationToken ct)
         => Ok(await _service.DesligarAsync(rede, ct));

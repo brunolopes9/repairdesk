@@ -19,6 +19,7 @@ public interface IConteudoService
     Task<ConteudoPublicacaoDto> RejeitarAsync(Guid id, string? motivo, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> CancelarAsync(Guid id, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> AtualizarDestinoAsync(Guid id, RedeSocial rede, AtualizarDestinoRequest req, CancellationToken ct = default);
+    Task<ConteudoPublicacaoDto> GuardarOpcoesTikTokAsync(Guid id, GuardarOpcoesTikTokRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 
     Task<IReadOnlyList<ConteudoFicheiroDto>> BibliotecaAsync(bool soPorProcessar, CancellationToken ct = default);
@@ -208,6 +209,7 @@ public sealed class ConteudoService : IConteudoService
         if (p.Estado != ConteudoEstado.PorAprovar)
             throw new ConflictException("conteudo_estado_invalido", $"Esta publicação está «{Nome(p.Estado)}», não «Por aprovar».");
         ValidarParaAprovacao(p);
+        await ExigirOpcoesTikTok(p, ct);
         p.Estado = ConteudoEstado.Aprovada;
         p.AprovadoEm = DateTime.UtcNow;
         p.AprovadoPorUserId = uid;
@@ -276,6 +278,67 @@ public sealed class ConteudoService : IConteudoService
         await _repo.SaveAsync(ct);
         await Auditar(AuditAction.Update, p, new { rede = rede.ToString(), destino = req.Estado.ToString(), estado = p.Estado.ToString() }, ct);
         return ToDto(p);
+    }
+
+    // ---- TikTok (Sprint 603) --------------------------------------------------------------------
+
+    public static readonly IReadOnlySet<string> PrivacidadesTikTok =
+        new HashSet<string> { "PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY" };
+
+    /// <summary>
+    /// Guarda as escolhas do dono para o TikTok. É o próprio dono no ecrã de aprovação (não muda o
+    /// estado: escolher a privacidade faz parte de aprovar). Validações = regras do TikTok.
+    /// </summary>
+    public async Task<ConteudoPublicacaoDto> GuardarOpcoesTikTokAsync(Guid id, GuardarOpcoesTikTokRequest req, CancellationToken ct = default)
+    {
+        if (_user.UserId is null)
+            throw new ForbiddenException("aprovacao_so_utilizador", "Só o dono escolhe as opções do TikTok.");
+        var p = await Load(id, ct);
+        if (p.Estado is not (ConteudoEstado.Rascunho or ConteudoEstado.PorAprovar or ConteudoEstado.Aprovada))
+            throw new ConflictException("conteudo_estado_invalido", $"Esta publicação está «{Nome(p.Estado)}» e já não se muda.");
+        var d = p.Destinos.FirstOrDefault(x => x.Rede == RedeSocial.TikTok)
+                ?? throw new ValidationException("sem_tiktok", "Esta publicação não vai para o TikTok.");
+        if (d.Estado != ConteudoDestinoEstado.Pendente)
+            throw new ConflictException("destino_ja_tratado", "Já saiu (ou foi agendado) no TikTok.");
+
+        var titulo = TrimOrNull(req.Titulo);
+        if (titulo is { Length: > 2200 }) throw new ValidationException("titulo_longo", "No TikTok o texto vai até 2200 caracteres.");
+        var privacidade = TrimOrNull(req.Privacidade);
+        if (privacidade is not null && !PrivacidadesTikTok.Contains(privacidade))
+            throw new ValidationException("privacidade_invalida", "Privacidade do TikTok desconhecida.");
+        if (req.Divulgacao && !req.SuaMarca && !req.ConteudoPatrocinado)
+            throw new ValidationException("divulgacao_incompleta", "Indica se o conteúdo promove a tua marca, uma marca de terceiros, ou ambas.");
+        if (req.Divulgacao && req.ConteudoPatrocinado && privacidade == "SELF_ONLY")
+            throw new ValidationException("patrocinado_privado", "Conteúdo patrocinado não pode ficar «Só eu».");
+
+        d.LegendaPropria = titulo;
+        d.OpcoesJson = privacidade is null ? null : System.Text.Json.JsonSerializer.Serialize(new TikTokOpcoes(
+            privacidade, req.PermitirComentarios, req.PermitirDueto, req.PermitirStitch,
+            req.Divulgacao, req.Divulgacao && req.SuaMarca, req.Divulgacao && req.ConteudoPatrocinado));
+        await _repo.SaveAsync(ct);
+        await Auditar(AuditAction.Update, p, new { tiktok = privacidade ?? "(por escolher)" }, ct);
+        return ToDto(p);
+    }
+
+    public static TikTokOpcoes? LerOpcoesTikTok(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try { return System.Text.Json.JsonSerializer.Deserialize<TikTokOpcoes>(json); }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
+
+    /// <summary>
+    /// Um vídeo com TikTok automático (conta ligada) só se aprova com a privacidade escolhida — o
+    /// TikTok não permite publicar com uma escolha por omissão.
+    /// </summary>
+    private async Task ExigirOpcoesTikTok(ConteudoPublicacao p, CancellationToken ct)
+    {
+        if (p.Formato != ConteudoFormato.Reel) return;
+        var d = p.Destinos.FirstOrDefault(x => x.Rede == RedeSocial.TikTok && x.Estado == ConteudoDestinoEstado.Pendente);
+        if (d is null || LerOpcoesTikTok(d.OpcoesJson) is not null) return;
+        var ligado = (await _repo.ListLigacoesAsync(p.TenantId, ct)).Any(l => l.Rede == RedeSocial.TikTok && l.Valida);
+        if (ligado)
+            throw new ValidationException("tiktok_sem_opcoes", "Escolhe a privacidade do TikTok antes de aprovar.");
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
@@ -539,7 +602,8 @@ public sealed class ConteudoService : IConteudoService
         p.CreatedAt, p.UpdatedAt,
         p.Ficheiros.OrderBy(f => f.Ordem).Select(ToDto).ToList(),
         p.Destinos.OrderBy(d => d.Rede).Select(d => new ConteudoDestinoDto(
-            d.Id, d.Rede, d.LegendaPropria, d.Estado, d.ExternalId, d.Permalink, d.Tentativas, d.UltimoErro, d.PublicadoEm)).ToList());
+            d.Id, d.Rede, d.LegendaPropria, d.Estado, d.ExternalId, d.Permalink, d.Tentativas, d.UltimoErro, d.PublicadoEm,
+            d.Rede == RedeSocial.TikTok ? LerOpcoesTikTok(d.OpcoesJson) : null)).ToList());
 
     private ConteudoFicheiroDto ToDto(ConteudoFicheiro f) => new(
         f.Id, f.PublicacaoId, f.Ordem, f.Tipo, f.Estado, f.NomeOriginal, f.ContentType, f.Bytes,

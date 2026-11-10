@@ -31,6 +31,17 @@ export interface RedesSociaisEstado {
 
 // Sprint 601: privacidade dos vídeos no TikTok (o dono escolhe — o TikTok não deixa haver valor por defeito).
 export type TikTokPrivacidade = 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
+export interface TikTokCriador {
+  nickname: string;
+  username: string | null;
+  avatarUrl: string | null;
+  privacidades: string[];
+  comentariosDesligados: boolean;
+  duetoDesligado: boolean;
+  stitchDesligado: boolean;
+  maxDuracaoSeg: number;
+}
+
 export const TIKTOK_PRIVACIDADE_LABEL: Record<TikTokPrivacidade, string> = {
   PUBLIC_TO_EVERYONE: 'Público (todos)',
   MUTUAL_FOLLOW_FRIENDS: 'Amigos',
@@ -51,6 +62,8 @@ export interface GuardarAppsForm {
 
 export const redesSociaisApi = {
   estado: () => api.get<RedesSociaisEstado>('/redes').then((r) => r.data),
+  /** Sprint 603: lido sempre que o painel do TikTok abre (regra do TikTok). */
+  criadorTikTok: () => api.get<TikTokCriador>('/redes/tiktok/criador').then((r) => r.data),
   guardarApps: (f: GuardarAppsForm) => api.put<RedesSociaisEstado>('/redes/apps', f).then((r) => r.data),
   autoPublicar: (ligado: boolean) => api.put<RedesSociaisEstado>('/redes/auto-publicar', { ligado }).then((r) => r.data),
   urlLigar: (plataforma: 'meta' | 'threads' | 'tiktok') =>
