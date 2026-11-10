@@ -77,6 +77,12 @@ public class Tenant : BaseEntity
     /// </summary>
     public bool ConteudoAutoPublicar { get; set; }
 
+    // Sprint 601 (Doc 95 Fase B2): app TikTok (Content Posting API). Secret cifrado.
+    public string? TikTokClientKey { get; set; }
+    public string? TikTokClientSecretCipherText { get; set; }
+    /// <summary>Privacidade escolhida pelo dono para os vídeos (PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY).</summary>
+    public string? TikTokPrivacidade { get; set; }
+
     /// <summary>
     /// Sprint 575: data de início de atividade nas Finanças — conta para as estimativas (redução dos coeficientes
     /// de IRS nos 2 primeiros anos; isenção de Segurança Social nos primeiros 12 meses). Null = data da 1.ª venda.

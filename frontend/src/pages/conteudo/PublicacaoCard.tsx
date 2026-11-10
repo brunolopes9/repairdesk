@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react';
 import { CalendarClock, ChevronDown } from 'lucide-react';
 import {
+  ConteudoFormato,
   ConteudoOrigem,
   FORMATO_LABEL,
+  RedeSocial,
   LINHA_LABEL,
   REDE_LABEL,
   type ConteudoPublicacao,
@@ -14,7 +16,13 @@ import { EstadoBadge, RedesChips, quando } from './conteudoUi';
  * Sprint 598 (Doc 95): uma publicação tal como vai sair — media, legenda e, quando uma rede tem
  * texto próprio (ex.: Threads mais curto), essa variante à parte. As ações vêm de fora.
  */
-export function PublicacaoCard({ p, actions }: { p: ConteudoPublicacao; actions?: ReactNode }) {
+export interface AvisoTikTok {
+  conta: string;
+  privacidade: string;
+}
+
+export function PublicacaoCard({ p, actions, tiktok }: { p: ConteudoPublicacao; actions?: ReactNode; tiktok?: AvisoTikTok | null }) {
+  const vaiParaTikTok = p.destinos.some((d) => d.rede === RedeSocial.TikTok) && p.formato === ConteudoFormato.Reel;
   const variantes = p.destinos.filter((d) => d.legendaPropria);
   const [verVariantes, setVerVariantes] = useState(false);
 
@@ -66,6 +74,17 @@ export function PublicacaoCard({ p, actions }: { p: ConteudoPublicacao; actions?
               </div>
             )}
           </div>
+        )}
+
+        {vaiParaTikTok && tiktok && (
+          // Exigência do TikTok (Content Posting API): mostrar conta, privacidade e consentimento antes de publicar.
+          <p className="rounded-md border border-zinc-200 px-3 py-2 text-xs leading-5 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
+            <span className="font-semibold text-zinc-800 dark:text-zinc-200">TikTok:</span> sai na conta <b>{tiktok.conta}</b> · visível para{' '}
+            <b>{tiktok.privacidade}</b> · comentários, duetos e stitch permitidos. Ao aprovar, aceitas a{' '}
+            <a className="underline" href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noreferrer">
+              Music Usage Confirmation
+            </a>{' '}do TikTok.
+          </p>
         )}
 
         {p.notas && (

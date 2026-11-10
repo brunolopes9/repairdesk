@@ -29,7 +29,7 @@ public interface IConteudoPublicadorService
 /// </summary>
 public sealed class ConteudoPublicadorService : IConteudoPublicadorService
 {
-    public static readonly RedeSocial[] RedesAutomaticas = { RedeSocial.Facebook, RedeSocial.Instagram, RedeSocial.Threads };
+    public static readonly RedeSocial[] RedesAutomaticas = { RedeSocial.Facebook, RedeSocial.Instagram, RedeSocial.Threads, RedeSocial.TikTok };
     private static readonly TimeSpan[] Backoff = { TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(30) };
     private static readonly TimeSpan ValidadeMedia = TimeSpan.FromHours(24);
 
@@ -39,6 +39,9 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
     private readonly ISecretProtector _secrets;
     private readonly IStaffPushQueue _push;
     private readonly MetaGraphClient _g;
+    private readonly IPhotoStorage _storage;
+    private readonly TikTokTokens _tiktok;
+    private readonly ITenantRepository _tenants;
     private readonly ILogger<ConteudoPublicadorService> _logger;
 
     public ConteudoPublicadorService(
@@ -48,6 +51,9 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
         ISecretProtector secrets,
         IStaffPushQueue push,
         MetaGraphClient g,
+        IPhotoStorage storage,
+        TikTokTokens tiktok,
+        ITenantRepository tenants,
         ILogger<ConteudoPublicadorService> logger)
     {
         _repo = repo;
@@ -56,6 +62,9 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
         _secrets = secrets;
         _push = push;
         _g = g;
+        _storage = storage;
+        _tiktok = tiktok;
+        _tenants = tenants;
         _logger = logger;
     }
 
@@ -104,6 +113,8 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
         {
             if (!ligacoes.TryGetValue(d.Rede, out var lig) || !_publicadores.TryGetValue(d.Rede, out var publicador))
                 continue; // rede não ligada: fica pendente (publicação manual)
+            if (d.Rede == RedeSocial.TikTok && p.Formato != ConteudoFormato.Reel)
+                continue; // TikTok automático só para vídeo; fotos ficam à mão
             if (!string.IsNullOrEmpty(d.ExternalId))
             {
                 // Já saiu numa volta anterior (falha ao gravar depois) — só acerta o estado.
@@ -113,8 +124,14 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
 
             try
             {
+                var token = d.Rede == RedeSocial.TikTok
+                    ? await _tiktok.TokenValidoAsync(lig, ct)
+                    : _secrets.Unprotect(lig.TokenCipherText);
+                var video = p.Ficheiros.OrderBy(f => f.Ordem).FirstOrDefault(f => f.Tipo == ConteudoFicheiroTipo.Video);
+                var privacidade = d.Rede == RedeSocial.TikTok ? (await _tenants.FindByIdAsync(p.TenantId, ct))?.TikTokPrivacidade : null;
                 var r = await publicador.PublicarAsync(new PedidoPublicacao(
-                    p.Formato, d.LegendaPropria ?? p.Legenda, media, lig.ContaId, _secrets.Unprotect(lig.TokenCipherText)), ct);
+                    p.Formato, d.LegendaPropria ?? p.Legenda, media, lig.ContaId, token, privacidade,
+                    video is null ? null : c => _storage.DownloadAsync(video.StorageKey, c)), ct);
                 d.ExternalId = r.ExternalId;
                 d.Permalink = r.Permalink;
                 d.Estado = ConteudoDestinoEstado.Publicado;

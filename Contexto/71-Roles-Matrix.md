@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:3af7f935db3df242 -->
+<!-- roles-matrix-snapshot:cb628900085f792a -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -59,8 +59,8 @@ testes e esta matriz com snapshot.
 | ConteudoController (S598, Doc 95) | `GET/POST/PUT/DELETE /api/conteudo*` — calendário de redes sociais, incl. `aprovar`/`rejeitar` (só aqui) e pedidos de upload | `Admin` |
 | ConteudoBinarioController (S598) | `GET/PUT /api/conteudo/ficheiros/{id}/binario` — proxy de ficheiros quando o storage não pré-assina (dev) | `Anonymous` + link HMAC com expiração |
 | ExternalConteudoController (S598) | `GET/POST/PUT /api/external/conteudo*` — Claude cria/submete/regista publicações e lê a biblioteca; **sem aprovar** | API key scope `conteudo` |
-| RedesSociaisController (S599, Doc 95 Fase B) | `GET /api/redes`, `PUT /api/redes/apps`, `PUT /api/redes/auto-publicar`, `PUT /api/redes/threads/token` (S600, ligar Threads com token gerado na Meta), `GET /api/redes/{meta,threads}/url-ligar`, `DELETE /api/redes/ligacoes/{rede}` | `Admin` |
-| RedesSociaisController (S599) | `GET /api/redes/{meta,threads}/callback` — regresso do OAuth | `Anonymous` + `state` HMAC (tenant+utilizador+15 min) |
+| RedesSociaisController (S599, Doc 95 Fase B) | `GET /api/redes`, `PUT /api/redes/apps`, `PUT /api/redes/auto-publicar`, `PUT /api/redes/threads/token` (S600, ligar Threads com token gerado na Meta), `GET /api/redes/{meta,threads,tiktok}/url-ligar`, `DELETE /api/redes/ligacoes/{rede}` | `Admin` |
+| RedesSociaisController (S599) | `GET /api/redes/{meta,threads,tiktok}/callback` — regresso do OAuth | `Anonymous` + `state` HMAC (tenant+utilizador+15 min) |
 | **Sprint 435-439 (Doc 91) — catálogo serviços + inbox pedidos online** | | |
 | RepairRequestsController | `PUT /{id}/triagem` (notas internas + prioridade) | `Authenticated` |
 | RepairRequestsController | `POST /{id}/converter-em-venda` (cria reparação em orçamento) | `Authenticated` |

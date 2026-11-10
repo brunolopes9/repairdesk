@@ -8,7 +8,10 @@ import { conteudoApi } from '../../lib/conteudo/api';
 import type { ConteudoPublicacao } from '../../lib/conteudo/types';
 import { apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
-import { PublicacaoCard } from './PublicacaoCard';
+import { PublicacaoCard, type AvisoTikTok } from './PublicacaoCard';
+import { useQuery } from '@tanstack/react-query';
+import { RedeSocial } from '../../lib/conteudo/types';
+import { redesSociaisApi, TIKTOK_PRIVACIDADE_LABEL } from '../../lib/redesSociais/api';
 
 const MOTIVOS_RAPIDOS = ['Foto cortada', 'Texto a mudar', 'Outra hora', 'Não gosto', 'Preço errado'];
 
@@ -21,6 +24,11 @@ export function FilaAprovacao({ itens }: { itens: ConteudoPublicacao[] }) {
   const confirm = useConfirm();
   const [rejeitar, setRejeitar] = useState<ConteudoPublicacao | null>(null);
   const [motivo, setMotivo] = useState('');
+  const redes = useQuery({ queryKey: ['redes-sociais'], queryFn: redesSociaisApi.estado, staleTime: 300_000 });
+  const ligTikTok = redes.data?.ligacoes.find((l) => l.rede === RedeSocial.TikTok);
+  const avisoTikTok: AvisoTikTok | null = ligTikTok && redes.data?.tikTokPrivacidade
+    ? { conta: ligTikTok.contaNome, privacidade: TIKTOK_PRIVACIDADE_LABEL[redes.data.tikTokPrivacidade] }
+    : null;
 
   const refrescar = () => qc.invalidateQueries({ queryKey: ['conteudo'] });
 
@@ -101,6 +109,7 @@ export function FilaAprovacao({ itens }: { itens: ConteudoPublicacao[] }) {
           <PublicacaoCard
             key={p.id}
             p={p}
+            tiktok={avisoTikTok}
             actions={
               <div className="grid grid-cols-2 gap-2">
                 <Button

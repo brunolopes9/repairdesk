@@ -341,6 +341,10 @@ try
     builder.Services.AddTransient<RepairDesk.Services.Conteudo.Redes.IPublicadorRede, RepairDesk.Services.Conteudo.Redes.FacebookPublicador>();
     builder.Services.AddTransient<RepairDesk.Services.Conteudo.Redes.IPublicadorRede, RepairDesk.Services.Conteudo.Redes.InstagramPublicador>();
     builder.Services.AddTransient<RepairDesk.Services.Conteudo.Redes.IPublicadorRede, RepairDesk.Services.Conteudo.Redes.ThreadsPublicador>();
+    // Sprint 601 (Doc 95 Fase B2): TikTok (Content Posting API, envio do ficheiro).
+    builder.Services.AddHttpClient<RepairDesk.Services.Conteudo.Redes.TikTokClient>(c => c.Timeout = TimeSpan.FromMinutes(5));
+    builder.Services.AddScoped<RepairDesk.Services.Conteudo.Redes.TikTokTokens>();
+    builder.Services.AddTransient<RepairDesk.Services.Conteudo.Redes.IPublicadorRede, RepairDesk.Services.Conteudo.Redes.TikTokPublicador>();
     builder.Services.AddScoped<RepairDesk.Services.Conteudo.Redes.IRedesSociaisService, RepairDesk.Services.Conteudo.Redes.RedesSociaisService>();
     builder.Services.AddScoped<RepairDesk.Services.Conteudo.Redes.IConteudoPublicadorService, RepairDesk.Services.Conteudo.Redes.ConteudoPublicadorService>();
     // Sprint 452 (Doc 91 ponto 1): Conversas omnicanal v1 — registo de comunicações por reparação.

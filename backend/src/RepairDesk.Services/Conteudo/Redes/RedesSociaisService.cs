@@ -19,10 +19,15 @@ public sealed record RedesSociaisEstadoDto(
     bool AutoPublicar,
     string RedirectMeta,
     string RedirectThreads,
-    IReadOnlyList<RedeLigadaDto> Ligacoes);
+    IReadOnlyList<RedeLigadaDto> Ligacoes,
+    string? TikTokClientKey = null,
+    bool TikTokClientSecretDefinido = false,
+    string? TikTokPrivacidade = null,
+    string? RedirectTikTok = null);
 
 /// <summary>Secrets null = manter o que está guardado.</summary>
-public sealed record GuardarAppsRedesRequest(string? MetaAppId, string? MetaAppSecret, string? ThreadsAppId, string? ThreadsAppSecret, string? MetaLoginConfigId = null);
+public sealed record GuardarAppsRedesRequest(string? MetaAppId, string? MetaAppSecret, string? ThreadsAppId, string? ThreadsAppSecret, string? MetaLoginConfigId = null,
+    string? TikTokClientKey = null, string? TikTokClientSecret = null, string? TikTokPrivacidade = null);
 
 public interface IRedesSociaisService
 {
@@ -63,6 +68,8 @@ public sealed class RedesSociaisService : IRedesSociaisService
     private readonly ISecretProtector _secrets;
     private readonly IAuditLogger _audit;
     private readonly MetaGraphClient _g;
+    private readonly TikTokClient _tt;
+    private readonly TikTokTokens _ttTokens;
     private readonly string _baseUrl;
     private readonly byte[] _stateKey;
 
@@ -74,6 +81,8 @@ public sealed class RedesSociaisService : IRedesSociaisService
         ISecretProtector secrets,
         IAuditLogger audit,
         MetaGraphClient g,
+        TikTokClient tt,
+        TikTokTokens ttTokens,
         IConfiguration config)
     {
         _repo = repo;
@@ -83,6 +92,8 @@ public sealed class RedesSociaisService : IRedesSociaisService
         _secrets = secrets;
         _audit = audit;
         _g = g;
+        _tt = tt;
+        _ttTokens = ttTokens;
         _baseUrl = (config["Frontend:BaseUrl"] ?? "https://app.lopestech.pt").TrimEnd('/');
         _stateKey = Encoding.UTF8.GetBytes(config["Storage:SignedUrlKey"] ?? config["Jwt:SigningKey"] ?? "repairdesk-dev-signed-url-key-change-me");
     }
@@ -97,7 +108,8 @@ public sealed class RedesSociaisService : IRedesSociaisService
             t.MetaAppId, t.MetaAppSecretCipherText is not null, t.MetaLoginConfigId,
             t.ThreadsAppId, t.ThreadsAppSecretCipherText is not null,
             t.ConteudoAutoPublicar, Redirect("meta"), Redirect("threads"),
-            ligacoes.Select(l => new RedeLigadaDto(l.Rede, l.ContaNome, l.ContaId, l.LigadaEm, l.TokenExpiraEm, l.Valida, l.UltimoErro)).ToList());
+            ligacoes.Select(l => new RedeLigadaDto(l.Rede, l.ContaNome, l.ContaId, l.LigadaEm, l.TokenExpiraEm, l.Valida, l.UltimoErro)).ToList(),
+            t.TikTokClientKey, t.TikTokClientSecretCipherText is not null, t.TikTokPrivacidade, Redirect("tiktok"));
     }
 
     public async Task<RedesSociaisEstadoDto> GuardarAppsAsync(GuardarAppsRedesRequest req, CancellationToken ct = default)
@@ -108,6 +120,11 @@ public sealed class RedesSociaisService : IRedesSociaisService
         t.MetaLoginConfigId = AppId(req.MetaLoginConfigId);
         if (!string.IsNullOrWhiteSpace(req.MetaAppSecret)) t.MetaAppSecretCipherText = _secrets.Protect(Secret(req.MetaAppSecret));
         if (!string.IsNullOrWhiteSpace(req.ThreadsAppSecret)) t.ThreadsAppSecretCipherText = _secrets.Protect(Secret(req.ThreadsAppSecret));
+        t.TikTokClientKey = ClientKey(req.TikTokClientKey);
+        if (!string.IsNullOrWhiteSpace(req.TikTokClientSecret)) t.TikTokClientSecretCipherText = _secrets.Protect(Secret(req.TikTokClientSecret));
+        t.TikTokPrivacidade = req.TikTokPrivacidade is null or "" ? null
+            : PrivacidadesTikTok.Contains(req.TikTokPrivacidade) ? req.TikTokPrivacidade
+            : throw new ValidationException("privacidade_invalida", "Privacidade do TikTok inválida.");
         await _tenants.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, "RedesSociais", t.Id,
             new { t.MetaAppId, t.ThreadsAppId, metaSecret = req.MetaAppSecret is not null, threadsSecret = req.ThreadsAppSecret is not null }, t.Id, _user.UserId, ct);
@@ -141,6 +158,9 @@ public sealed class RedesSociaisService : IRedesSociaisService
             "threads" => $"https://threads.net/oauth/authorize?client_id={Uri.EscapeDataString(t.ThreadsAppId ?? throw SemApp("Threads"))}"
                          + $"&redirect_uri={Uri.EscapeDataString(Redirect("threads"))}&state={Uri.EscapeDataString(state)}"
                          + "&response_type=code&scope=threads_basic,threads_content_publish",
+            "tiktok" => $"https://www.tiktok.com/v2/auth/authorize/?client_key={Uri.EscapeDataString(t.TikTokClientKey ?? throw SemApp("TikTok"))}"
+                        + $"&redirect_uri={Uri.EscapeDataString(Redirect("tiktok"))}&state={Uri.EscapeDataString(state)}"
+                        + "&response_type=code&scope=user.info.basic,video.upload,video.publish",
             _ => throw new ValidationException("plataforma_invalida", "Plataforma desconhecida."),
         };
     }
@@ -162,9 +182,12 @@ public sealed class RedesSociaisService : IRedesSociaisService
         var t = await _tenants.FindByIdAsync(tenantId, ct) ?? throw new NotFoundException("Tenant", tenantId);
         try
         {
-            var ligadas = plataforma == "meta"
-                ? await LigarMetaAsync(t, code, userId, ct)
-                : await LigarThreadsAsync(t, code, userId, ct);
+            var ligadas = plataforma switch
+            {
+                "meta" => await LigarMetaAsync(t, code, userId, ct),
+                "tiktok" => await LigarTikTokAsync(t, code, userId, ct),
+                _ => await LigarThreadsAsync(t, code, userId, ct),
+            };
             await _repo.SaveAsync(ct);
             await _audit.LogAsync(AuditAction.Update, "RedesSociais", t.Id, new { ligadas }, t.Id, userId, ct);
             return $"{VoltarPara}?ligado={Uri.EscapeDataString(string.Join(", ", ligadas))}";
@@ -292,6 +315,25 @@ public sealed class RedesSociaisService : IRedesSociaisService
         return iguais.Count == 1 ? iguais[0] : null;
     }
 
+    private async Task<List<string>> LigarTikTokAsync(Tenant t, string code, Guid userId, CancellationToken ct)
+    {
+        var key = t.TikTokClientKey ?? throw new RedeSocialException("Falta o Client key do TikTok.");
+        var secret = t.TikTokClientSecretCipherText is { } c ? _secrets.Unprotect(c) : throw new RedeSocialException("Falta o Client secret do TikTok.");
+        var r = await _tt.OAuthTokenAsync(new Dictionary<string, string>
+        {
+            ["client_key"] = key, ["client_secret"] = secret, ["code"] = code,
+            ["grant_type"] = "authorization_code", ["redirect_uri"] = Redirect("tiktok"),
+        }, ct);
+        var access = MetaGraphClient.Str(r, "access_token");
+        var expira = DateTime.UtcNow.AddSeconds(long.TryParse(MetaGraphClient.StrOuNull(r, "expires_in"), out var s) ? s : 86400);
+        var eu = await _tt.GetAsync("/user/info/?fields=open_id,display_name", access, ct);
+        var user = eu.TryGetProperty("user", out var u) ? u : eu;
+        var nome = MetaGraphClient.StrOuNull(user, "display_name") ?? "TikTok";
+        await Gravar(t.Id, RedeSocial.TikTok, MetaGraphClient.StrOuNull(user, "open_id") ?? MetaGraphClient.Str(r, "open_id"), nome,
+            _ttTokens.Cifrar(access, MetaGraphClient.Str(r, "refresh_token")), expira, userId, ct);
+        return new List<string> { $"TikTok ({nome})" };
+    }
+
     /// <summary>Ligar outra vez atualiza a linha existente (o índice único por rede não permite duas).</summary>
     private async Task Gravar(Guid tenantId, RedeSocial rede, string contaId, string nome, string tokenCifrado, DateTime? expira, Guid userId, CancellationToken ct)
     {
@@ -359,6 +401,16 @@ public sealed class RedesSociaisService : IRedesSociaisService
     {
         var id = _tenant.TenantId ?? throw new ForbiddenException("tenant_required", "Sem tenant.");
         return await _tenants.FindByIdAsync(id, ct) ?? throw new NotFoundException("Tenant", id);
+    }
+
+    private static readonly string[] PrivacidadesTikTok = { "PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY" };
+
+    private static string? ClientKey(string? v)
+    {
+        var s = v?.Trim();
+        if (string.IsNullOrEmpty(s)) return null;
+        if (s.Length > 100 || !s.All(char.IsLetterOrDigit)) throw new ValidationException("client_key_invalido", "O Client key do TikTok só tem letras e algarismos.");
+        return s;
     }
 
     private static ValidationException SemApp(string qual)

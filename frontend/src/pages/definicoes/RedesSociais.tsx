@@ -7,7 +7,7 @@ import { BackButton, Button } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { RedeSocial, REDE_LABEL } from '../../lib/conteudo/types';
 import { apiErrorMessage } from '../../lib/errors';
-import { redesSociaisApi, type RedeLigada, type RedesSociaisEstado } from '../../lib/redesSociais/api';
+import { redesSociaisApi, TIKTOK_PRIVACIDADE_LABEL, type RedeLigada, type RedesSociaisEstado, type TikTokPrivacidade } from '../../lib/redesSociais/api';
 import { toast } from '../../lib/toast';
 
 /**
@@ -88,6 +88,9 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
   const [metaId, setMetaId] = useState(estado.metaAppId ?? '');
   const [metaSecret, setMetaSecret] = useState('');
   const [metaConfig, setMetaConfig] = useState(estado.metaLoginConfigId ?? '');
+  const [ttKey, setTtKey] = useState(estado.tikTokClientKey ?? '');
+  const [ttSecret, setTtSecret] = useState('');
+  const [ttPriv, setTtPriv] = useState<TikTokPrivacidade | ''>(estado.tikTokPrivacidade ?? '');
   const [thId, setThId] = useState(estado.threadsAppId ?? '');
   const [thSecret, setThSecret] = useState('');
 
@@ -99,11 +102,15 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
         threadsAppId: thId.trim() || null,
         threadsAppSecret: thSecret.trim() || null,
         metaLoginConfigId: metaConfig.trim() || null,
+        tikTokClientKey: ttKey.trim() || null,
+        tikTokClientSecret: ttSecret.trim() || null,
+        tikTokPrivacidade: ttPriv || null,
       }),
     onSuccess: (e) => {
       onGuardado(e);
       setMetaSecret('');
       setThSecret('');
+      setTtSecret('');
       toast.success('Dados das apps guardados.');
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -145,6 +152,32 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
             value={thSecret} onChange={(e) => setThSecret(e.target.value)} />
         </label>
       </div>
+      <div className="space-y-1.5 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+        <p className="text-sm font-medium">App TikTok (developers.tiktok.com)</p>
+        <p className={labelCls}>Redirecionamento TikTok (Login Kit → Redirect URI)</p>
+        <Copiar valor={estado.redirectTikTok} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label>
+          <span className={labelCls}>TikTok — Client key</span>
+          <input className={inputCls} autoComplete="off" value={ttKey} onChange={(e) => setTtKey(e.target.value)} />
+        </label>
+        <label>
+          <span className={labelCls}>TikTok — Client secret {estado.tikTokClientSecretDefinido && '(guardado)'}</span>
+          <input className={inputCls} type="password" autoComplete="off" placeholder={estado.tikTokClientSecretDefinido ? '••••••••  (deixa vazio para manter)' : ''}
+            value={ttSecret} onChange={(e) => setTtSecret(e.target.value)} />
+        </label>
+        <label className="sm:col-span-2">
+          <span className={labelCls}>Quem vê os vídeos publicados no TikTok</span>
+          <select className={inputCls} value={ttPriv} onChange={(e) => setTtPriv(e.target.value as TikTokPrivacidade | '')}>
+            <option value="">— escolhe —</option>
+            {(Object.keys(TIKTOK_PRIVACIDADE_LABEL) as TikTokPrivacidade[]).map((p) => (
+              <option key={p} value={p}>{TIKTOK_PRIVACIDADE_LABEL[p]}</option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-zinc-500">Enquanto o TikTok não aprovar a app, os vídeos só podem sair em privado.</span>
+        </label>
+      </div>
       <div className="flex justify-end">
         <Button loading={guardar.isPending} onClick={() => guardar.mutate()}>Guardar</Button>
       </div>
@@ -157,7 +190,7 @@ function PassoContas({ estado, onMudou }: { estado: RedesSociaisEstado; onMudou:
   const porRede = (r: RedeSocial) => estado.ligacoes.find((l) => l.rede === r);
 
   const ligar = useMutation({
-    mutationFn: (p: 'meta' | 'threads') => redesSociaisApi.urlLigar(p),
+    mutationFn: (p: 'meta' | 'threads' | 'tiktok') => redesSociaisApi.urlLigar(p),
     onSuccess: (url) => window.location.assign(url),
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
@@ -201,9 +234,17 @@ function PassoContas({ estado, onMudou }: { estado: RedesSociaisEstado; onMudou:
           onLigar={() => ligar.mutate('threads')}
           onDesligar={pedirDesligar}
         />
+        <CartaoRede
+          titulo="TikTok"
+          contas={[porRede(RedeSocial.TikTok)]}
+          podeLigar={Boolean(estado.tikTokClientKey && estado.tikTokClientSecretDefinido && estado.tikTokPrivacidade)}
+          aLigar={ligar.isPending && ligar.variables === 'tiktok'}
+          dica="Entra com a conta @lopestech.pt. Só vídeos (reels) saem sozinhos; carrosséis de fotos continuam à mão."
+          onLigar={() => ligar.mutate('tiktok')}
+          onDesligar={pedirDesligar}
+        />
       </div>
       <TokenThreads onLigado={onMudou} />
-      <p className="text-xs text-zinc-500">TikTok: até o TikTok aprovar a app, continua a ser publicado à mão.</p>
     </Passo>
   );
 }

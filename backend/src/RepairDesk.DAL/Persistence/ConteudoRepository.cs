@@ -94,8 +94,12 @@ public class ConteudoRepository : IConteudoRepository
         return await _db.ConteudoPublicacoes.AsNoTracking()
             .Where(p => p.Estado == ConteudoEstado.Aprovada && p.AgendadoPara != null && p.AgendadoPara <= agora)
             .Where(p => tenantsAuto.Contains(p.TenantId))
+            // Só destinos que o publicador consegue mesmo tratar (rede ligada; TikTok só vídeo) — senão
+            // a publicação era reservada e devolvida a cada minuto sem fazer nada.
             .Where(p => p.Destinos.Any(d => d.Estado == ConteudoDestinoEstado.Pendente
                                             && redes.Contains(d.Rede)
+                                            && (d.Rede != RedeSocial.TikTok || p.Formato == ConteudoFormato.Reel)
+                                            && _db.RedeSocialLigacoes.Any(l => l.TenantId == p.TenantId && l.Rede == d.Rede && l.Valida)
                                             && (d.ProximaTentativaEm == null || d.ProximaTentativaEm <= agora)))
             .OrderBy(p => p.AgendadoPara)
             .Select(p => p.Id)

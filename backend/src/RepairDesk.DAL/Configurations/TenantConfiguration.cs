@@ -41,6 +41,9 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(x => x.ThreadsAppId).HasMaxLength(50);
         builder.Property(x => x.ThreadsAppSecretCipherText).HasMaxLength(1000);
         builder.Property(x => x.ConteudoAutoPublicar).HasDefaultValue(false);
+        builder.Property(x => x.TikTokClientKey).HasMaxLength(100);
+        builder.Property(x => x.TikTokClientSecretCipherText).HasMaxLength(1000);
+        builder.Property(x => x.TikTokPrivacidade).HasMaxLength(40);
 
         builder.HasIndex(x => x.Nif).IsUnique().HasFilter("[Nif] IS NOT NULL");
     }

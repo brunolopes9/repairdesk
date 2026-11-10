@@ -10,7 +10,11 @@ public sealed record PedidoPublicacao(
     string? Legenda,
     IReadOnlyList<MediaPublica> Media,
     string ContaId,
-    string Token);
+    string Token,
+    /// <summary>Privacidade preferida (TikTok).</summary>
+    string? Privacidade = null,
+    /// <summary>Abre o 1.º vídeo do storage (TikTok envia o ficheiro, não um URL).</summary>
+    Func<CancellationToken, Task<Stream>>? AbrirVideo = null);
 
 public sealed record Publicado(string ExternalId, string? Permalink);
 
