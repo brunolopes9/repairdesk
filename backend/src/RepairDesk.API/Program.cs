@@ -80,6 +80,7 @@ try
     builder.Services.Configure<AtNifLookupOptions>(builder.Configuration.GetSection(AtNifLookupOptions.SectionName));
     builder.Services.Configure<PushOptions>(builder.Configuration.GetSection(PushOptions.SectionName));
     builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
+    builder.Services.AddScoped<RepairDesk.API.Infrastructure.AcessosEmpresaService>(); // Sprint 606
     builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
     var redisConnection = builder.Configuration["Redis:Connection"];

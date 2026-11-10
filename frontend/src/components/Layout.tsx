@@ -41,6 +41,7 @@ import { tenantSettingsApi } from '../lib/tenantSettings/api';
 import { repairRequestsApi } from '../lib/repairRequests/api';
 import { conteudoApi } from '../lib/conteudo/api';
 import { applyTheme, getStoredTheme, setStoredTheme, watchSystemTheme, type Theme } from '../lib/theme';
+import { EmpresaSwitcher } from './EmpresaSwitcher';
 
 type IconCmp = ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
 type NavItem = {
@@ -215,20 +216,13 @@ export default function Layout() {
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="flex h-14 w-full items-center justify-between gap-3 px-4 sm:pl-[15rem] sm:pr-6">
-          {/* Seletor de loja (esq) — como nos mockups. v1: nome estático + chevron. */}
-          <button
-            type="button"
-            className="hidden h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 sm:flex"
-            title="Loja"
-          >
-            <Building2 size={15} className="text-zinc-400" />
-            <span className="hidden sm:inline">Loja Principal</span>
-            <ChevronDown size={14} className="text-zinc-400" />
-          </button>
+          {/* Sprint 606: empresa ativa e troca (LopesTech ↔ Cortex) — no lugar do antigo «Loja Principal» estático. */}
+          <EmpresaSwitcher className="hidden sm:block" />
           <NavLink to="/" className="flex items-center gap-2 sm:hidden" aria-label="Início">
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">M</span>
             <span className="text-base font-semibold tracking-tight">Mender</span>
           </NavLink>
+          <EmpresaSwitcher className="sm:hidden" soComVarias />
           <div className="flex items-center gap-2">
             {/* Sprint 379: ação primária no topo (como o mockup) */}
             <button

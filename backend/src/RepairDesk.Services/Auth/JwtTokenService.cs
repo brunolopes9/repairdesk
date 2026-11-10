@@ -25,14 +25,14 @@ public class JwtTokenService : ITokenService
 
     public DateTime AccessTokenExpiry => _clock.GetUtcNow().UtcDateTime.AddMinutes(_opt.AccessTokenMinutes);
 
-    public string IssueAccessToken(AppUser user, IEnumerable<string> roles)
+    public string IssueAccessToken(AppUser user, IEnumerable<string> roles, Guid? tenantId = null)
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
-            new(TenantIdClaim, user.TenantId.ToString()),
+            new(TenantIdClaim, (tenantId ?? user.TenantId).ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new("name", user.DisplayName)
         };

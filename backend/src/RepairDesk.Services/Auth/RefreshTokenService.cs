@@ -19,14 +19,18 @@ public class RefreshTokenService : IRefreshTokenService
         _clock = clock;
     }
 
-    public async Task<(string PlaintextToken, RefreshToken Stored)> IssueAsync(AppUser user, string? ip, CancellationToken ct = default)
+    public Task<(string PlaintextToken, RefreshToken Stored)> IssueAsync(AppUser user, string? ip, CancellationToken ct = default)
+        => IssueParaEmpresaAsync(user, user.TenantId, ip, ct);
+
+    /// <summary>Sprint 606: a empresa ativa fica no próprio refresh token — o refresh mantém-na.</summary>
+    public async Task<(string PlaintextToken, RefreshToken Stored)> IssueParaEmpresaAsync(AppUser user, Guid tenantId, string? ip, CancellationToken ct = default)
     {
         var (plaintext, hash) = GenerateToken();
         var now = _clock.GetUtcNow().UtcDateTime;
         var entity = new RefreshToken
         {
             UserId = user.Id,
-            TenantId = user.TenantId,
+            TenantId = tenantId,
             TokenHash = hash,
             ExpiresAt = now.AddDays(_opt.RefreshTokenDays),
             LastUsedAt = now,
@@ -51,7 +55,7 @@ public class RefreshTokenService : IRefreshTokenService
 
     public async Task<(string PlaintextToken, RefreshToken Stored)> RotateAsync(RefreshToken existing, AppUser user, string? ip, CancellationToken ct = default)
     {
-        var (plaintext, replacement) = await IssueAsync(user, ip, ct);
+        var (plaintext, replacement) = await IssueParaEmpresaAsync(user, existing.TenantId, ip, ct);
         var now = _clock.GetUtcNow().UtcDateTime;
         existing.LastUsedAt = now;
         existing.RevokedAt = now;

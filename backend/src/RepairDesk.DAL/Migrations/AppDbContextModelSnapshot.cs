@@ -125,6 +125,31 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("Auth_UserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.AcessoEmpresa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("UserId", "TenantId")
+                        .IsUnique();
+
+                    b.ToTable("AcessosEmpresa", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.AppRole", b =>
                 {
                     b.Property<Guid>("Id")

@@ -14,7 +14,8 @@ using RepairDesk.DAL.Persistence;
 
 namespace RepairDesk.API.Controllers;
 
-public sealed record NovaEmpresaRequest(string Nome, string Email);
+/// <summary>Sprint 606: sem <see cref="Email"/> a empresa fica com acesso para quem a cria (a mesma conta).</summary>
+public sealed record NovaEmpresaRequest(string Nome, string? Email = null);
 public sealed record NovaEmpresaDto(Guid TenantId, string Nome, string Email);
 
 /// <summary>
@@ -62,6 +63,19 @@ public sealed class EmpresasController : ControllerBase
         var email = req.Email?.Trim() ?? "";
         if (nome.Length is < 2 or > 120)
             return UnprocessableEntity(new { code = "nome_invalido", detail = "O nome da empresa tem de ter entre 2 e 120 caracteres." });
+
+        // Sprint 606: o caso normal — a mesma pessoa, a mesma conta, mais uma empresa.
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            var eu = await _users.GetUserAsync(User);
+            if (eu is null) return Unauthorized();
+            var nova = new Tenant { Id = Guid.NewGuid(), Name = nome, Email = eu.Email, IsActive = true };
+            _db.Tenants.Add(nova);
+            _db.AcessosEmpresa.Add(new AcessoEmpresa { UserId = eu.Id, TenantId = nova.Id });
+            await _db.SaveChangesAsync(ct);
+            await _audit.LogAsync(AuditAction.Create, "Tenant", nova.Id, new { nome, acessoPara = eu.Id }, nova.Id, eu.Id, ct);
+            return Created($"/api/plataforma/empresas/{nova.Id}", new NovaEmpresaDto(nova.Id, nome, eu.Email ?? ""));
+        }
         if (!MailAddress.TryCreate(email, out _))
             return UnprocessableEntity(new { code = "email_invalido", detail = "Email inválido." });
 

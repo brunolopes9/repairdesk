@@ -26,6 +26,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<TenantPreferences> TenantPreferences => Set<TenantPreferences>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AcessoEmpresa> AcessosEmpresa => Set<AcessoEmpresa>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
     // Sprint 480: customer segment tags.
     public DbSet<ClienteTag> ClienteTags => Set<ClienteTag>();
@@ -108,7 +109,21 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
                 new Microsoft.EntityFrameworkCore.Query.SqlExpressions.CollateExpression(args[0], PesquisaTexto.Collation),
                 args[1], null, new Microsoft.EntityFrameworkCore.Storage.BoolTypeMapping("bit")));
 
+        // Sprint 606: acessos a outras empresas (globais, fora do tenant).
+        modelBuilder.Entity<AcessoEmpresa>(b =>
+        {
+            b.ToTable("AcessosEmpresa");
+            b.HasIndex(x => new { x.UserId, x.TenantId }).IsUnique();
+            b.HasIndex(x => x.TenantId);
+        });
+
         ApplyGlobalFilters(modelBuilder);
+
+        // Sprint 606: o utilizador vê-se na sua empresa e nas empresas a que tem acesso. Sem isto, ao
+        // trabalhar na Cortex o próprio dono deixava de existir para o Identity (GetUserAsync → null).
+        modelBuilder.Entity<AppUser>().HasQueryFilter(u => CurrentTenantId == null
+            || u.TenantId == CurrentTenantId
+            || AcessosEmpresa.Any(a => a.UserId == u.Id && a.TenantId == CurrentTenantId));
     }
 
     private void ApplyGlobalFilters(ModelBuilder modelBuilder)
@@ -116,6 +131,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             var clrType = entityType.ClrType;
+            if (clrType == typeof(AppUser)) continue; // Sprint 606: filtro próprio (acessos a outras empresas)
 
             var isSoftDelete = typeof(BaseEntity).IsAssignableFrom(clrType);
             var isMultiTenant = typeof(ITenantEntity).IsAssignableFrom(clrType);

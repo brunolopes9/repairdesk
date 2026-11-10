@@ -52,6 +52,42 @@ public class EmpresasApiTests : IClassFixture<RepairDeskApiFactory>
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    // Sprint 606: a mesma conta trabalha em duas empresas e troca entre elas.
+    [Fact]
+    public async Task MesmaConta_CriaEmpresa_TrocaEMantemNaSessao()
+    {
+        var client = await Login(RepairDeskApiFactory.AdminEmail);
+        var criada = await client.PostAsJsonAsync("/api/plataforma/empresas", new NovaEmpresaRequest("Cortex Teste"));
+        criada.StatusCode.Should().Be(HttpStatusCode.Created, await criada.Content.ReadAsStringAsync());
+        var cortex = (await criada.Content.ReadFromJsonAsync<NovaEmpresaDto>())!;
+
+        var lista = await client.GetFromJsonAsync<List<EmpresaDisponivelDto>>("/api/auth/empresas");
+        lista!.Select(e => e.Id).Should().Contain(new[] { RepairDeskApiFactory.TenantId, cortex.TenantId });
+        lista.Single(e => e.Principal).Id.Should().Be(RepairDeskApiFactory.TenantId);
+
+        var ativar = await client.PostAsync($"/api/auth/empresas/{cortex.TenantId}/ativar", null);
+        ativar.StatusCode.Should().Be(HttpStatusCode.OK, await ativar.Content.ReadAsStringAsync());
+        var sessao = (await ativar.Content.ReadFromJsonAsync<AuthResponse>())!;
+        sessao.User.TenantId.Should().Be(cortex.TenantId);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessao.AccessToken);
+
+        // O dono continua a existir para o Identity dentro da Cortex, e os dados são os da Cortex.
+        (await client.GetFromJsonAsync<UserInfo>("/api/auth/me"))!.TenantId.Should().Be(cortex.TenantId);
+        var conteudo = await client.GetAsync("/api/conteudo");
+        conteudo.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await conteudo.Content.ReadAsStringAsync()).Should().Be("[]");
+
+        // Renovar a sessão (cookie) mantém a empresa ativa.
+        var refresh = await client.PostAsync("/api/auth/refresh", null);
+        refresh.StatusCode.Should().Be(HttpStatusCode.OK, await refresh.Content.ReadAsStringAsync());
+        (await refresh.Content.ReadFromJsonAsync<AuthResponse>())!.User.TenantId.Should().Be(cortex.TenantId);
+
+        // Outra empresa não entra na Cortex.
+        var outro = await Login(RepairDeskApiFactory.SecondAdminEmail);
+        (await outro.PostAsync($"/api/auth/empresas/{cortex.TenantId}/ativar", null))
+            .StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     private async Task<HttpClient> Login(string email)
     {
         var client = _factory.CreateClient();

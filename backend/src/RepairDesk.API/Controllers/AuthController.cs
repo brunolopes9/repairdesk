@@ -86,7 +86,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
-    public async Task<ActionResult<AuthResponse>> Refresh(CancellationToken ct)
+    public async Task<ActionResult<AuthResponse>> Refresh([FromServices] AcessosEmpresaService acessos, CancellationToken ct)
     {
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (!Request.Cookies.TryGetValue(RefreshCookieName, out var plaintext) || string.IsNullOrEmpty(plaintext))
@@ -98,8 +98,15 @@ public class AuthController : ControllerBase
         var user = await _users.FindByIdAsync(token.UserId.ToString());
         if (user is null || !user.IsActive) return Unauthorized(new { code = "user_inactive" });
 
+        // Sprint 606: a sessão continua na empresa onde estava — se ainda tiver acesso a ela.
+        if (token.TenantId != user.TenantId && !await acessos.PodeAsync(user, token.TenantId, ct))
+        {
+            await _refresh.RevokeAsync(token, ip, ct);
+            var (casa, _) = await _refresh.IssueAsync(user, ip, ct);
+            return Ok(await BuildResponse(user, casa, user.TenantId));
+        }
         var (newPlaintext, _) = await _refresh.RotateAsync(token, user, ip, ct);
-        return Ok(await BuildResponse(user, newPlaintext));
+        return Ok(await BuildResponse(user, newPlaintext, token.TenantId));
     }
 
     [HttpPost("logout")]
@@ -163,7 +170,7 @@ public class AuthController : ControllerBase
         var user = await _users.GetUserAsync(User);
         if (user is null) return Unauthorized();
         var roles = await _users.GetRolesAsync(user);
-        return Ok(ToUserInfo(user, roles));
+        return Ok(ToUserInfo(user, roles, TenantAtivo()));
     }
 
     /// <summary>Sprint 420: editar perfil próprio (DisplayName + PhoneNumber).</summary>
@@ -229,7 +236,7 @@ public class AuthController : ControllerBase
             ct);
 
         var roles = await _users.GetRolesAsync(user);
-        return Ok(ToUserInfo(user, roles));
+        return Ok(ToUserInfo(user, roles, TenantAtivo()));
     }
 
     private async Task<ActionResult<AuthResponse>> IssueTokensAsync(AppUser user, string? ip, CancellationToken ct)
@@ -248,25 +255,32 @@ public class AuthController : ControllerBase
             user?.Id,
             ct);
 
-    private async Task<AuthResponse> BuildResponse(AppUser user, string refreshPlaintext)
+    private async Task<AuthResponse> BuildResponse(AppUser user, string refreshPlaintext, Guid? tenantId = null)
     {
         Response.Cookies.Append(RefreshCookieName, refreshPlaintext, BuildRefreshCookieOptions(DateTimeOffset.UtcNow.AddDays(7)));
-        return await BuildAccessResponse(user);
+        return await BuildAccessResponse(user, tenantId);
     }
 
-    private async Task<AuthResponse> BuildAccessResponse(AppUser user)
+    /// <summary>Sprint 606: empresa ativa desta sessão (claim do token), se houver.</summary>
+    private Guid? TenantAtivo()
+        => Guid.TryParse(User.FindFirst(HttpTenantContext.TenantIdClaim)?.Value, out var t) ? t : null;
+
+    private async Task<AuthResponse> BuildAccessResponse(AppUser user, Guid? tenantId = null)
     {
         var roles = await _users.GetRolesAsync(user);
-        var access = _tokens.IssueAccessToken(user, roles);
+        var ativa = tenantId ?? TenantAtivo() ?? user.TenantId;
+        var access = ativa == user.TenantId ? _tokens.IssueAccessToken(user, roles) : _tokens.IssueAccessToken(user, roles, ativa);
 
-        return new AuthResponse(access, _tokens.AccessTokenExpiry, ToUserInfo(user, roles));
+        return new AuthResponse(access, _tokens.AccessTokenExpiry, ToUserInfo(user, roles, ativa));
     }
 
-    private CookieOptions BuildRefreshCookieOptions(DateTimeOffset? expires = null) => new()
+    private CookieOptions BuildRefreshCookieOptions(DateTimeOffset? expires = null) => RefreshCookieOptions(Request, _env.IsProduction(), expires);
+
+    internal static CookieOptions RefreshCookieOptions(HttpRequest request, bool producao, DateTimeOffset? expires = null) => new()
     {
         HttpOnly = true,
-        Secure = string.Equals(Request.Scheme, "https", StringComparison.OrdinalIgnoreCase),
-        SameSite = _env.IsProduction() ? SameSiteMode.Strict : SameSiteMode.Lax,
+        Secure = string.Equals(request.Scheme, "https", StringComparison.OrdinalIgnoreCase),
+        SameSite = producao ? SameSiteMode.Strict : SameSiteMode.Lax,
         Path = "/api/auth",
         Expires = expires
     };
@@ -276,7 +290,7 @@ public class AuthController : ControllerBase
         Response.Cookies.Delete(RefreshCookieName, BuildRefreshCookieOptions());
     }
 
-    private static UserInfo ToUserInfo(AppUser user, IEnumerable<string> roles)
-        => new(user.Id, user.Email!, user.DisplayName, user.TenantId, roles.ToList(), user.RequireChangePasswordOnNextLogin, user.PhoneNumber,
+    internal static UserInfo ToUserInfo(AppUser user, IEnumerable<string> roles, Guid? tenantAtivo = null)
+        => new(user.Id, user.Email!, user.DisplayName, tenantAtivo ?? user.TenantId, roles.ToList(), user.RequireChangePasswordOnNextLogin, user.PhoneNumber,
             string.Equals(user.UserName, user.Email, StringComparison.OrdinalIgnoreCase) ? null : user.UserName);
 }
