@@ -92,6 +92,8 @@ services:
       Sentry__Dsn: ${SENTRY_DSN:-}
       # Cors: lista de origens permitidas em produção. Apertado em Sprint 249.
       Cors__AllowedOrigins__0: ${CORS_ORIGIN_PRIMARY:-https://app.mender.pt}
+      # Sprint 605: o formulário de contacto do site lopestech.pt envia pedidos para a API.
+      Cors__AllowedOrigins__1: ${CORS_ORIGIN_SITE:-https://lopestech.pt}
       Frontend__BaseUrl: ${FRONTEND_BASE_URL:-https://app.mender.pt}
       # Emails transacionais (reset de palavra-passe) via Resend. Domínio lopestech.pt verificado no Resend.
       Email__From: ${EMAIL_FROM:-Mender <no-reply@lopestech.pt>}

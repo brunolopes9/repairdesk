@@ -576,7 +576,22 @@ try
         .AllowCredentials()
         .SetPreflightMaxAge(TimeSpan.FromMinutes(10))));
 
+    // Sprint 605: IP real do cliente. Cadeia: Caddy (no host, ignora X-Forwarded-For de fora e
+    // escreve o IP de quem ligou) → nginx (contentor) → API. Só se confia em redes privadas
+    // (Docker/localhost), por isso um cliente não consegue forjar o IP. Sem isto todos os pedidos
+    // tinham o IP do nginx: o limite «5 pedidos por IP» valia para toda a gente junta.
+    builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o =>
+    {
+        o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+        o.ForwardLimit = 2;
+        o.KnownProxies.Clear();
+        o.KnownIPNetworks.Clear();
+        foreach (var rede in new[] { "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8" })
+            o.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(rede));
+    });
+
     var app = builder.Build();
+    app.UseForwardedHeaders();
 
     // Sprint 250 (Doc 75): response compression antes de tudo — comprime mesmo
     // as responses de erro do exception middleware.
