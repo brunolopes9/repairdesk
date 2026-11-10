@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { AlertTriangle, CheckCircle2, Clock3, Cloud, Copy, DatabaseBackup, HardDrive, Key, Loader2, Plus, RefreshCw, RotateCcw, Settings, ShieldCheck, Star } from 'lucide-react';
 import Modal from '../../components/Modal';
+import { NovaEmpresa } from './NovaEmpresa';
 import { EmptyState, PageHeader, SkeletonCard, SkeletonRow } from '../../components/ui';
 import { tenantSettingsApi } from '../../lib/tenantSettings/api';
 import { API_KEY_SCOPES, serviceKeysApi, type ApiKeyScope, type ServiceApiKey } from '../../lib/serviceKeys/api';
@@ -162,6 +163,7 @@ export default function Definicoes() {
         {section === 'apikeys' && <ApiKeysSection />}
         {section === 'backups' && <BackupsSection />}
       </div>
+      {section === 'empresa' && <NovaEmpresa />}
     </div>
   );
 }

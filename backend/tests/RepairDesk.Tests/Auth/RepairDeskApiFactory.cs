@@ -36,6 +36,7 @@ public class RepairDeskApiFactory : WebApplicationFactory<Program>
                 ["Jwt:AccessTokenMinutes"] = "15",
                 ["Jwt:RefreshTokenDays"] = "7",
                 ["Seed:AdminEmail"] = AdminEmail,
+                ["Plataforma:TenantDono"] = TenantId.ToString(),
                 ["Seed:AdminPassword"] = AdminPassword,
                 ["Seed:AdminDisplayName"] = AdminDisplayName,
                 ["Storage:Provider"] = "local",
