@@ -223,7 +223,7 @@ function PassoContas({ estado, onMudou }: { estado: RedesSociaisEstado; onMudou:
           contas={[porRede(RedeSocial.Threads)]}
           podeLigar={Boolean(estado.threadsAppId && estado.threadsAppSecretDefinido)}
           aLigar={ligar.isPending && ligar.variables === 'threads'}
-          dica="Entra com a conta @lopestech.pt."
+          dica="Entra com a conta Threads da empresa."
           onLigar={() => ligar.mutate('threads')}
           onDesligar={pedirDesligar}
         />
@@ -232,7 +232,7 @@ function PassoContas({ estado, onMudou }: { estado: RedesSociaisEstado; onMudou:
           contas={[porRede(RedeSocial.TikTok)]}
           podeLigar={Boolean(estado.tikTokClientKey && estado.tikTokClientSecretDefinido)}
           aLigar={ligar.isPending && ligar.variables === 'tiktok'}
-          dica="Entra com a conta @lopestech.pt. Só vídeos (reels) saem sozinhos; carrosséis de fotos continuam à mão."
+          dica="Entra com a conta TikTok da empresa. Só vídeos (reels) saem sozinhos; carrosséis de fotos continuam à mão."
           onLigar={() => ligar.mutate('tiktok')}
           onDesligar={pedirDesligar}
         />
