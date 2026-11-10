@@ -74,12 +74,7 @@ export function PublicacaoCard({ p, actions, tiktokEditavel = false }: { p: Cont
 
         {vaiParaTikTok && tiktokEditavel && <TikTokPainel p={p} />}
 
-        {p.notas && (
-          <p className="rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
-            <span className="font-semibold">Nota: </span>
-            {p.notas}
-          </p>
-        )}
+        {p.notas && <Notas texto={p.notas} />}
 
         {p.motivoRejeicao && (
           <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
@@ -101,5 +96,30 @@ export function PublicacaoCard({ p, actions, tiktokEditavel = false }: { p: Cont
 
       {actions && <footer className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">{actions}</footer>}
     </article>
+  );
+}
+
+/** Notas da publicação — muitas vezes o guião do reel: mantém as quebras de linha e abre-se por inteiro. */
+function Notas({ texto }: { texto: string }) {
+  const longo = texto.length > 280 || texto.split('\n').length > 4;
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
+      <p className={`whitespace-pre-wrap break-words ${longo && !aberto ? 'line-clamp-4' : ''}`}>
+        <span className="font-semibold">Nota: </span>
+        {texto}
+      </p>
+      {longo && (
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          aria-expanded={aberto}
+          className="mt-1 inline-flex min-h-8 items-center gap-1 font-semibold text-brand-700 dark:text-brand-300"
+        >
+          {aberto ? 'Esconder' : 'Ver tudo (guião)'}
+          <ChevronDown size={14} className={`transition ${aberto ? 'rotate-180' : ''}`} />
+        </button>
+      )}
+    </div>
   );
 }

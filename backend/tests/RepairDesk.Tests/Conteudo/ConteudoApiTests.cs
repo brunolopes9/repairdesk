@@ -37,6 +37,20 @@ public class ConteudoApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Notas_GuiaoLongo_GuardaInteiro_EAcimaDoLimiteRecusa()
+    {
+        var client = await AdminClient();
+        var guiao = string.Join("\n", Enumerable.Range(1, 120).Select(i => $"Cena {i}: fala e imagem de apoio."));
+        guiao.Length.Should().BeGreaterThan(2000);
+
+        var p = await Criar(client, Texto("Guião") with { Notas = guiao });
+        p.Notas.Should().Be(guiao); // inteiro, com as quebras de linha
+
+        var resp = await client.PutAsJsonAsync($"/api/conteudo/{p.Id}", Texto("Guião") with { Notas = new string('x', 8001) });
+        resp.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
     public async Task Submeter_SemHora_Recusa()
     {
         var client = await AdminClient();

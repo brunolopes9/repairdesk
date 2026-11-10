@@ -169,3 +169,10 @@ O TikTok só aprova apps de publicação direta se o utilizador escolher tudo no
 - **Tokens:** acesso de 1 h renovado antes de publicar (`YouTubeTokens`, como o TikTok). Em modo «Testing» do ecrã de consentimento os refresh tokens expiram em 7 dias: passar o projeto a «In production».
 - **Publicação:** só reels (vídeo). Upload *resumable* num pedido; título = 1.ª linha da legenda (≤100, `#Shorts` se ≤3 min e couber), descrição = legenda (≤5000 bytes, sem `<`/`>`), categoria 28 (Ciência e tecnologia), `public`, `selfDeclaredMadeForKids=false`. Permalink `youtube.com/shorts/{id}`.
 - **Limites:** quota diária de 10 000 unidades, 1600 por vídeo, ~6 vídeos/dia por projeto. `quotaExceeded` conta como erro temporário (tenta 2/10/30 min). Projetos não auditados ficam com os vídeos **privados** até à auditoria de conformidade da YouTube API.
+
+## 15. Guiões nas notas (Sprint 609)
+
+- `ConteudoPublicacao.Notas` passa de 2000 para **8000 caracteres** (coluna `nvarchar(max)`, limite no serviço: `ConteudoService.MaxNotas`). As notas levam o guião completo dos reels (2500–4000 caracteres).
+- Antes cortava-se **em silêncio** aos 2000; agora acima do limite a API responde **422 `notas_longas`** — um guião truncado não serve, o erro tem de ser explícito.
+- No cartão da publicação as notas mantêm as quebras de linha (`whitespace-pre-wrap`); se forem longas (mais de 280 caracteres ou 4 linhas) aparecem resumidas, com o botão «Ver tudo (guião)».
+- Não se criou um campo «Guiao» à parte: as notas da publicação já são isso, e um campo novo só duplicava API, DTO e UI.

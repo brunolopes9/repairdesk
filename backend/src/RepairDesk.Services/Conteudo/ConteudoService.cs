@@ -47,6 +47,7 @@ public interface IConteudoService
 public sealed class ConteudoService : IConteudoService
 {
     public const long MaxBytes = 5L * 1024 * 1024 * 1024; // limite de um PUT simples no R2
+    public const int MaxNotas = 8000; // cabe um guião completo de reel (Sprint 609)
     private static readonly TimeSpan ValidadeUpload = TimeSpan.FromHours(2);
     private static readonly TimeSpan ValidadeLeitura = TimeSpan.FromHours(6);
 
@@ -457,6 +458,9 @@ public sealed class ConteudoService : IConteudoService
             throw new ValidationException("titulo_invalido", "Título obrigatório (2 a 200 caracteres).");
         var legenda = TrimOrNull(req.Legenda);
         if (legenda is { Length: > 5000 }) throw new ValidationException("legenda_longa", "Legenda até 5000 caracteres.");
+        // As notas levam o guião do reel: nunca cortar em silêncio (um guião truncado não serve).
+        var notas = TrimOrNull(req.Notas);
+        if (notas is { Length: > MaxNotas }) throw new ValidationException("notas_longas", $"Notas/guião até {MaxNotas} caracteres.");
         if (req.AutoAprovada && (req.Formato != ConteudoFormato.Post || req.ArtigoId is null))
             throw new ValidationException("auto_aprovacao_invalida", "Só a foto promo de um artigo pode sair sem aprovação.");
 
@@ -465,7 +469,7 @@ public sealed class ConteudoService : IConteudoService
         p.Titulo = titulo;
         p.Legenda = legenda;
         p.AgendadoPara = ToUtc(req.AgendadoPara);
-        p.Notas = Truncar(TrimOrNull(req.Notas), 2000);
+        p.Notas = notas;
         p.ArtigoId = req.ArtigoId;
 
         // Ficheiros: a ordem do pedido é a ordem dos slides. Os que saem voltam à biblioteca.

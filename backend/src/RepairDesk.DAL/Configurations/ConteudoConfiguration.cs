@@ -17,7 +17,7 @@ public class ConteudoPublicacaoConfiguration : IEntityTypeConfiguration<Conteudo
         builder.Property(x => x.Titulo).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Legenda).HasMaxLength(5000);
         builder.Property(x => x.MotivoRejeicao).HasMaxLength(1000);
-        builder.Property(x => x.Notas).HasMaxLength(2000);
+        builder.Property(x => x.Notas).HasMaxLength(8000); // guiões de reels (Sprint 609)
         builder.Property(x => x.Linha).HasConversion<int>();
         builder.Property(x => x.Formato).HasConversion<int>();
         builder.Property(x => x.Estado).HasConversion<int>();

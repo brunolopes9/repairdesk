@@ -1285,8 +1285,8 @@ namespace RepairDesk.DAL.Migrations
                         .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Notas")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Numero")
                         .HasColumnType("int");
