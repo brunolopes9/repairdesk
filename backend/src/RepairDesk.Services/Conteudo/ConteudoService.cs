@@ -548,6 +548,8 @@ public sealed class ConteudoService : IConteudoService
         }
         if (p.Destinos.Any(d => d.Rede == RedeSocial.TikTok) && p.Formato is not (ConteudoFormato.Reel or ConteudoFormato.Carrossel))
             throw new ValidationException("tiktok_formato", "No TikTok só saem reels ou carrosséis de fotos.");
+        if (p.Destinos.Any(d => d.Rede == RedeSocial.YouTube) && p.Formato != ConteudoFormato.Reel)
+            throw new ValidationException("youtube_formato", "No YouTube só saem vídeos (Shorts).");
 
         foreach (var d in p.Destinos)
         {

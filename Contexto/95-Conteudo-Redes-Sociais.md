@@ -160,3 +160,12 @@ O TikTok só aprova apps de publicação direta se o utilizador escolher tudo no
   - envia `disable_*` e `brand_*_toggle` conforme as escolhas.
 - **Definições:** a privacidade deixou de ser escolhida em Definições (o campo `Tenant.TikTokPrivacidade` fica sem uso).
 - **Enquanto a app não está auditada:** só SELF_ONLY, e a conta TikTok tem de estar privada no momento da publicação.
+
+## 14. Sprint 608 — YouTube Shorts (10/11/2026)
+
+- **Credenciais por empresa:** `Tenant.YouTubeClientId` + `YouTubeClientSecretCipherText` (cifrado). Cliente OAuth «Aplicação Web» do projeto Google «Mender Redes». Redirect `https://app.lopestech.pt/api/redes/youtube/callback`.
+- **Ligar:** `GET /api/redes/youtube/url-ligar` com `access_type=offline` + `prompt=consent select_account` (sem isto a Google não dá refresh token nem deixa escolher o canal de marca). Scopes `youtube.upload` + `youtube.readonly`.
+- **Canal certo:** a mesma conta Google tem vários canais (LopesTech, Bruno Lopes/Cortex). No callback guarda-se o `channelId` (`channels?mine=true`) como `ContaId`. Antes de cada envio o publicador confirma que o token ainda é desse canal; se não for, falha com código 190 (liga-se outra vez) e **nunca** publica no canal errado.
+- **Tokens:** acesso de 1 h renovado antes de publicar (`YouTubeTokens`, como o TikTok). Em modo «Testing» do ecrã de consentimento os refresh tokens expiram em 7 dias: passar o projeto a «In production».
+- **Publicação:** só reels (vídeo). Upload *resumable* num pedido; título = 1.ª linha da legenda (≤100, `#Shorts` se ≤3 min e couber), descrição = legenda (≤5000 bytes, sem `<`/`>`), categoria 28 (Ciência e tecnologia), `public`, `selfDeclaredMadeForKids=false`. Permalink `youtube.com/shorts/{id}`.
+- **Limites:** quota diária de 10 000 unidades, 1600 por vídeo, ~6 vídeos/dia por projeto. `quotaExceeded` conta como erro temporário (tenta 2/10/30 min). Projetos não auditados ficam com os vídeos **privados** até à auditoria de conformidade da YouTube API.

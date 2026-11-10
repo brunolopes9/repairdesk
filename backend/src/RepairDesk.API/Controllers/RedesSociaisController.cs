@@ -34,7 +34,7 @@ public sealed class RedesSociaisController : ControllerBase
     public async Task<ActionResult<RedesSociaisEstadoDto>> AutoPublicar([FromBody] AutoPublicarRequest req, CancellationToken ct)
         => Ok(await _service.DefinirAutoPublicarAsync(req.Ligado, ct));
 
-    [HttpGet("{plataforma:regex(^(meta|threads|tiktok)$)}/url-ligar")]
+    [HttpGet("{plataforma:regex(^(meta|threads|tiktok|youtube)$)}/url-ligar")]
     public async Task<ActionResult<UrlLigarDto>> UrlLigar(string plataforma, CancellationToken ct)
         => Ok(new UrlLigarDto(await _service.UrlLigarAsync(plataforma, ct)));
 
@@ -55,7 +55,7 @@ public sealed class RedesSociaisController : ControllerBase
     /// Volta do diálogo da Meta/Threads. Anónimo (é o browser a regressar de outro site); a
     /// autorização é o <c>state</c> assinado com tenant + utilizador + expiração.
     /// </summary>
-    [HttpGet("{plataforma:regex(^(meta|threads|tiktok)$)}/callback")]
+    [HttpGet("{plataforma:regex(^(meta|threads|tiktok|youtube)$)}/callback")]
     [AllowAnonymous]
     public async Task<IActionResult> Callback(
         string plataforma, [FromQuery] string? code, [FromQuery] string? state,

@@ -50,6 +50,8 @@ public enum RedeSocial
     Instagram = 1,
     Threads = 2,
     TikTok = 3,
+    /// <summary>Sprint 608: YouTube Shorts (vídeos verticais até 3 min).</summary>
+    YouTube = 4,
 }
 
 /// <summary>Estado de uma publicação numa rede concreta — cada rede pode falhar ou sair sozinha.</summary>

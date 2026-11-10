@@ -29,7 +29,7 @@ public interface IConteudoPublicadorService
 /// </summary>
 public sealed class ConteudoPublicadorService : IConteudoPublicadorService
 {
-    public static readonly RedeSocial[] RedesAutomaticas = { RedeSocial.Facebook, RedeSocial.Instagram, RedeSocial.Threads, RedeSocial.TikTok };
+    public static readonly RedeSocial[] RedesAutomaticas = { RedeSocial.Facebook, RedeSocial.Instagram, RedeSocial.Threads, RedeSocial.TikTok, RedeSocial.YouTube };
     private static readonly TimeSpan[] Backoff = { TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(30) };
     private static readonly TimeSpan ValidadeMedia = TimeSpan.FromHours(24);
 
@@ -41,6 +41,7 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
     private readonly MetaGraphClient _g;
     private readonly IPhotoStorage _storage;
     private readonly TikTokTokens _tiktok;
+    private readonly YouTubeTokens _youtube;
     private readonly ITenantRepository _tenants;
     private readonly ILogger<ConteudoPublicadorService> _logger;
 
@@ -53,9 +54,11 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
         MetaGraphClient g,
         IPhotoStorage storage,
         TikTokTokens tiktok,
+        YouTubeTokens youtube,
         ITenantRepository tenants,
         ILogger<ConteudoPublicadorService> logger)
     {
+        _youtube = youtube;
         _repo = repo;
         _publicadores = publicadores.ToDictionary(p => p.Rede);
         _direct = direct.FirstOrDefault();
@@ -113,8 +116,8 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
         {
             if (!ligacoes.TryGetValue(d.Rede, out var lig) || !_publicadores.TryGetValue(d.Rede, out var publicador))
                 continue; // rede não ligada: fica pendente (publicação manual)
-            if (d.Rede == RedeSocial.TikTok && p.Formato != ConteudoFormato.Reel)
-                continue; // TikTok automático só para vídeo; fotos ficam à mão
+            if (d.Rede is RedeSocial.TikTok or RedeSocial.YouTube && p.Formato != ConteudoFormato.Reel)
+                continue; // TikTok/YouTube automáticos só para vídeo; fotos ficam à mão
             var opcoesTikTok = d.Rede == RedeSocial.TikTok ? ConteudoService.LerOpcoesTikTok(d.OpcoesJson) : null;
             if (d.Rede == RedeSocial.TikTok && opcoesTikTok is null)
                 continue; // Sprint 603: sem as escolhas do dono não se publica no TikTok
@@ -127,9 +130,12 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
 
             try
             {
-                var token = d.Rede == RedeSocial.TikTok
-                    ? await _tiktok.TokenValidoAsync(lig, ct)
-                    : _secrets.Unprotect(lig.TokenCipherText);
+                var token = d.Rede switch
+                {
+                    RedeSocial.TikTok => await _tiktok.TokenValidoAsync(lig, ct),
+                    RedeSocial.YouTube => await _youtube.TokenValidoAsync(lig, ct),
+                    _ => _secrets.Unprotect(lig.TokenCipherText),
+                };
                 var video = p.Ficheiros.OrderBy(f => f.Ordem).FirstOrDefault(f => f.Tipo == ConteudoFicheiroTipo.Video);
                 var r = await publicador.PublicarAsync(new PedidoPublicacao(
                     p.Formato, d.LegendaPropria ?? p.Legenda, media, lig.ContaId, token, opcoesTikTok, video?.DuracaoSeg,

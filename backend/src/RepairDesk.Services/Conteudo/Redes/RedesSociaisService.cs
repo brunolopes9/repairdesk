@@ -23,11 +23,15 @@ public sealed record RedesSociaisEstadoDto(
     string? TikTokClientKey = null,
     bool TikTokClientSecretDefinido = false,
     string? TikTokPrivacidade = null,
-    string? RedirectTikTok = null);
+    string? RedirectTikTok = null,
+    string? YouTubeClientId = null,
+    bool YouTubeClientSecretDefinido = false,
+    string? RedirectYouTube = null);
 
 /// <summary>Secrets null = manter o que está guardado.</summary>
 public sealed record GuardarAppsRedesRequest(string? MetaAppId, string? MetaAppSecret, string? ThreadsAppId, string? ThreadsAppSecret, string? MetaLoginConfigId = null,
-    string? TikTokClientKey = null, string? TikTokClientSecret = null, string? TikTokPrivacidade = null);
+    string? TikTokClientKey = null, string? TikTokClientSecret = null, string? TikTokPrivacidade = null,
+    string? YouTubeClientId = null, string? YouTubeClientSecret = null);
 
 public interface IRedesSociaisService
 {
@@ -72,6 +76,8 @@ public sealed class RedesSociaisService : IRedesSociaisService
     private readonly MetaGraphClient _g;
     private readonly TikTokClient _tt;
     private readonly TikTokTokens _ttTokens;
+    private readonly YouTubeClient _yt;
+    private readonly YouTubeTokens _ytTokens;
     private readonly string _baseUrl;
     private readonly byte[] _stateKey;
 
@@ -85,8 +91,12 @@ public sealed class RedesSociaisService : IRedesSociaisService
         MetaGraphClient g,
         TikTokClient tt,
         TikTokTokens ttTokens,
+        YouTubeClient yt,
+        YouTubeTokens ytTokens,
         IConfiguration config)
     {
+        _yt = yt;
+        _ytTokens = ytTokens;
         _repo = repo;
         _tenants = tenants;
         _tenant = tenant;
@@ -111,7 +121,8 @@ public sealed class RedesSociaisService : IRedesSociaisService
             t.ThreadsAppId, t.ThreadsAppSecretCipherText is not null,
             t.ConteudoAutoPublicar, Redirect("meta"), Redirect("threads"),
             ligacoes.Select(l => new RedeLigadaDto(l.Rede, l.ContaNome, l.ContaId, l.LigadaEm, l.TokenExpiraEm, l.Valida, l.UltimoErro)).ToList(),
-            t.TikTokClientKey, t.TikTokClientSecretCipherText is not null, t.TikTokPrivacidade, Redirect("tiktok"));
+            t.TikTokClientKey, t.TikTokClientSecretCipherText is not null, t.TikTokPrivacidade, Redirect("tiktok"),
+            t.YouTubeClientId, t.YouTubeClientSecretCipherText is not null, Redirect("youtube"));
     }
 
     public async Task<RedesSociaisEstadoDto> GuardarAppsAsync(GuardarAppsRedesRequest req, CancellationToken ct = default)
@@ -124,6 +135,8 @@ public sealed class RedesSociaisService : IRedesSociaisService
         if (!string.IsNullOrWhiteSpace(req.ThreadsAppSecret)) t.ThreadsAppSecretCipherText = _secrets.Protect(Secret(req.ThreadsAppSecret));
         t.TikTokClientKey = ClientKey(req.TikTokClientKey);
         if (!string.IsNullOrWhiteSpace(req.TikTokClientSecret)) t.TikTokClientSecretCipherText = _secrets.Protect(Secret(req.TikTokClientSecret));
+        t.YouTubeClientId = ClientIdGoogle(req.YouTubeClientId);
+        if (!string.IsNullOrWhiteSpace(req.YouTubeClientSecret)) t.YouTubeClientSecretCipherText = _secrets.Protect(SecretGoogle(req.YouTubeClientSecret));
         t.TikTokPrivacidade = req.TikTokPrivacidade is null or "" ? null
             : PrivacidadesTikTok.Contains(req.TikTokPrivacidade) ? req.TikTokPrivacidade
             : throw new ValidationException("privacidade_invalida", "Privacidade do TikTok inválida.");
@@ -163,6 +176,12 @@ public sealed class RedesSociaisService : IRedesSociaisService
             "tiktok" => $"https://www.tiktok.com/v2/auth/authorize/?client_key={Uri.EscapeDataString(t.TikTokClientKey ?? throw SemApp("TikTok"))}"
                         + $"&redirect_uri={Uri.EscapeDataString(Redirect("tiktok"))}&state={Uri.EscapeDataString(state)}"
                         + "&response_type=code&scope=user.info.basic,video.upload,video.publish",
+            // access_type=offline + prompt=consent: o Google só devolve refresh_token assim. select_account
+            // deixa escolher a conta/canal de marca (a mesma conta Google pode ter vários canais).
+            "youtube" => $"https://accounts.google.com/o/oauth2/v2/auth?client_id={Uri.EscapeDataString(t.YouTubeClientId ?? throw SemApp("YouTube"))}"
+                         + $"&redirect_uri={Uri.EscapeDataString(Redirect("youtube"))}&state={Uri.EscapeDataString(state)}"
+                         + $"&response_type=code&access_type=offline&prompt={Uri.EscapeDataString("consent select_account")}"
+                         + $"&scope={Uri.EscapeDataString(YouTubeClient.Scopes)}",
             _ => throw new ValidationException("plataforma_invalida", "Plataforma desconhecida."),
         };
     }
@@ -188,6 +207,7 @@ public sealed class RedesSociaisService : IRedesSociaisService
             {
                 "meta" => await LigarMetaAsync(t, code, userId, ct),
                 "tiktok" => await LigarTikTokAsync(t, code, userId, ct),
+                "youtube" => await LigarYouTubeAsync(t, code, userId, ct),
                 _ => await LigarThreadsAsync(t, code, userId, ct),
             };
             await _repo.SaveAsync(ct);
@@ -336,6 +356,26 @@ public sealed class RedesSociaisService : IRedesSociaisService
         return new List<string> { $"TikTok ({nome})" };
     }
 
+    private async Task<List<string>> LigarYouTubeAsync(Tenant t, string code, Guid userId, CancellationToken ct)
+    {
+        var id = t.YouTubeClientId ?? throw new RedeSocialException("Falta o Client ID do YouTube.");
+        var secret = t.YouTubeClientSecretCipherText is { } c ? _secrets.Unprotect(c) : throw new RedeSocialException("Falta o Client secret do YouTube.");
+        var r = await _yt.OAuthTokenAsync(new Dictionary<string, string>
+        {
+            ["client_id"] = id, ["client_secret"] = secret, ["code"] = code,
+            ["grant_type"] = "authorization_code", ["redirect_uri"] = Redirect("youtube"),
+        }, ct);
+        var access = MetaGraphClient.Str(r, "access_token");
+        var refresh = MetaGraphClient.StrOuNull(r, "refresh_token")
+                      ?? throw new RedeSocialException("O Google não deu acesso permanente — liga outra vez e aceita todas as permissões.");
+        var expira = DateTime.UtcNow.AddSeconds(long.TryParse(MetaGraphClient.StrOuNull(r, "expires_in"), out var s) ? s : 3600);
+        // O canal é o que a pessoa escolheu no ecrã da Google (conta pessoal ou de marca). Fica guardado
+        // e o publicador confirma-o antes de cada vídeo.
+        var (canalId, canalNome) = await _yt.MeuCanalAsync(access, ct);
+        await Gravar(t.Id, RedeSocial.YouTube, canalId, canalNome, _ytTokens.Cifrar(access, refresh), expira, userId, ct);
+        return new List<string> { $"YouTube ({canalNome})" };
+    }
+
     /// <summary>Ligar outra vez atualiza a linha existente (o índice único por rede não permite duas).</summary>
     private async Task Gravar(Guid tenantId, RedeSocial rede, string contaId, string nome, string tokenCifrado, DateTime? expira, Guid userId, CancellationToken ct)
     {
@@ -422,6 +462,22 @@ public sealed class RedesSociaisService : IRedesSociaisService
         var s = v?.Trim();
         if (string.IsNullOrEmpty(s)) return null;
         if (s.Length > 100 || !s.All(char.IsLetterOrDigit)) throw new ValidationException("client_key_invalido", "O Client key do TikTok só tem letras e algarismos.");
+        return s;
+    }
+
+    private static string? ClientIdGoogle(string? v)
+    {
+        var s = v?.Trim();
+        if (string.IsNullOrEmpty(s)) return null;
+        if (s.Length > 200 || !s.EndsWith(".apps.googleusercontent.com", StringComparison.Ordinal) || s.Any(char.IsWhiteSpace))
+            throw new ValidationException("client_id_invalido", "O Client ID do Google acaba em «.apps.googleusercontent.com».");
+        return s;
+    }
+
+    private static string SecretGoogle(string v)
+    {
+        var s = v.Trim();
+        if (s.Length is < 20 or > 200 || s.Any(char.IsWhiteSpace)) throw new ValidationException("client_secret_invalido", "O Client secret do Google parece incompleto.");
         return s;
     }
 

@@ -44,6 +44,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(x => x.TikTokClientKey).HasMaxLength(100);
         builder.Property(x => x.TikTokClientSecretCipherText).HasMaxLength(1000);
         builder.Property(x => x.TikTokPrivacidade).HasMaxLength(40);
+        builder.Property(x => x.YouTubeClientId).HasMaxLength(200);
+        builder.Property(x => x.YouTubeClientSecretCipherText).HasMaxLength(1000);
 
         builder.HasIndex(x => x.Nif).IsUnique().HasFilter("[Nif] IS NOT NULL");
     }

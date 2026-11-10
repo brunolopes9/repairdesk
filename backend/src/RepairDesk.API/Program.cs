@@ -346,6 +346,10 @@ try
     builder.Services.AddHttpClient<RepairDesk.Services.Conteudo.Redes.TikTokClient>(c => c.Timeout = TimeSpan.FromMinutes(5));
     builder.Services.AddScoped<RepairDesk.Services.Conteudo.Redes.TikTokTokens>();
     builder.Services.AddTransient<RepairDesk.Services.Conteudo.Redes.IPublicadorRede, RepairDesk.Services.Conteudo.Redes.TikTokPublicador>();
+    // Sprint 608 (Doc 95 Fase B3): YouTube Shorts (upload resumable do ficheiro).
+    builder.Services.AddHttpClient<RepairDesk.Services.Conteudo.Redes.YouTubeClient>(c => c.Timeout = TimeSpan.FromMinutes(10));
+    builder.Services.AddScoped<RepairDesk.Services.Conteudo.Redes.YouTubeTokens>();
+    builder.Services.AddTransient<RepairDesk.Services.Conteudo.Redes.IPublicadorRede, RepairDesk.Services.Conteudo.Redes.YouTubePublicador>();
     builder.Services.AddScoped<RepairDesk.Services.Conteudo.Redes.IRedesSociaisService, RepairDesk.Services.Conteudo.Redes.RedesSociaisService>();
     builder.Services.AddScoped<RepairDesk.Services.Conteudo.Redes.IConteudoPublicadorService, RepairDesk.Services.Conteudo.Redes.ConteudoPublicadorService>();
     // Sprint 452 (Doc 91 ponto 1): Conversas omnicanal v1 — registo de comunicações por reparação.

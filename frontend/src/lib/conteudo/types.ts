@@ -21,7 +21,7 @@ export type ConteudoFormato = (typeof ConteudoFormato)[keyof typeof ConteudoForm
 export const ConteudoOrigem = { Manual: 0, Claude: 1, Automatico: 2 } as const;
 export type ConteudoOrigem = (typeof ConteudoOrigem)[keyof typeof ConteudoOrigem];
 
-export const RedeSocial = { Facebook: 0, Instagram: 1, Threads: 2, TikTok: 3 } as const;
+export const RedeSocial = { Facebook: 0, Instagram: 1, Threads: 2, TikTok: 3, YouTube: 4 } as const;
 export type RedeSocial = (typeof RedeSocial)[keyof typeof RedeSocial];
 
 export const ConteudoDestinoEstado = { Pendente: 0, AgendadoNaRede: 1, Publicado: 2, Falhou: 3 } as const;
@@ -120,6 +120,7 @@ export const REDE_LABEL: Record<RedeSocial, string> = {
   [RedeSocial.Instagram]: 'Instagram',
   [RedeSocial.Threads]: 'Threads',
   [RedeSocial.TikTok]: 'TikTok',
+  [RedeSocial.YouTube]: 'YouTube',
 };
 
 export const FORMATO_LABEL: Record<ConteudoFormato, string> = {

@@ -83,6 +83,10 @@ public class Tenant : BaseEntity
     /// <summary>Privacidade escolhida pelo dono para os vídeos (PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY).</summary>
     public string? TikTokPrivacidade { get; set; }
 
+    // Sprint 608 (Doc 95 Fase B3): cliente OAuth do Google (YouTube Data API v3). Secret cifrado.
+    public string? YouTubeClientId { get; set; }
+    public string? YouTubeClientSecretCipherText { get; set; }
+
     /// <summary>
     /// Sprint 575: data de início de atividade nas Finanças — conta para as estimativas (redução dos coeficientes
     /// de IRS nos 2 primeiros anos; isenção de Segurança Social nos primeiros 12 meses). Null = data da 1.ª venda.

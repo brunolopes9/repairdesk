@@ -27,6 +27,10 @@ export interface RedesSociaisEstado {
   tikTokClientSecretDefinido: boolean;
   tikTokPrivacidade: TikTokPrivacidade | null;
   redirectTikTok: string;
+  // Sprint 608: cliente OAuth do Google (YouTube Shorts).
+  youTubeClientId: string | null;
+  youTubeClientSecretDefinido: boolean;
+  redirectYouTube: string;
 }
 
 // Sprint 601: privacidade dos vídeos no TikTok (o dono escolhe — o TikTok não deixa haver valor por defeito).
@@ -58,7 +62,11 @@ export interface GuardarAppsForm {
   tikTokClientKey: string | null;
   tikTokClientSecret: string | null;
   tikTokPrivacidade: TikTokPrivacidade | null;
+  youTubeClientId: string | null;
+  youTubeClientSecret: string | null;
 }
+
+export type PlataformaLigar = 'meta' | 'threads' | 'tiktok' | 'youtube';
 
 export const redesSociaisApi = {
   estado: () => api.get<RedesSociaisEstado>('/redes').then((r) => r.data),
@@ -66,7 +74,7 @@ export const redesSociaisApi = {
   criadorTikTok: () => api.get<TikTokCriador>('/redes/tiktok/criador').then((r) => r.data),
   guardarApps: (f: GuardarAppsForm) => api.put<RedesSociaisEstado>('/redes/apps', f).then((r) => r.data),
   autoPublicar: (ligado: boolean) => api.put<RedesSociaisEstado>('/redes/auto-publicar', { ligado }).then((r) => r.data),
-  urlLigar: (plataforma: 'meta' | 'threads' | 'tiktok') =>
+  urlLigar: (plataforma: PlataformaLigar) =>
     api.get<{ url: string }>(`/redes/${plataforma}/url-ligar`).then((r) => r.data.url),
   ligarThreadsComToken: (token: string) =>
     api.put<RedesSociaisEstado>('/redes/threads/token', { token }).then((r) => r.data),

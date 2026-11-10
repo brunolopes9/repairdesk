@@ -7,7 +7,7 @@ import { BackButton, Button } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { RedeSocial, REDE_LABEL } from '../../lib/conteudo/types';
 import { apiErrorMessage } from '../../lib/errors';
-import { redesSociaisApi, type RedeLigada, type RedesSociaisEstado } from '../../lib/redesSociais/api';
+import { redesSociaisApi, type PlataformaLigar, type RedeLigada, type RedesSociaisEstado } from '../../lib/redesSociais/api';
 import { toast } from '../../lib/toast';
 
 /**
@@ -92,6 +92,8 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
   const [ttSecret, setTtSecret] = useState('');
   const [thId, setThId] = useState(estado.threadsAppId ?? '');
   const [thSecret, setThSecret] = useState('');
+  const [ytId, setYtId] = useState(estado.youTubeClientId ?? '');
+  const [ytSecret, setYtSecret] = useState('');
 
   const guardar = useMutation({
     mutationFn: () =>
@@ -104,19 +106,22 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
         tikTokClientKey: ttKey.trim() || null,
         tikTokClientSecret: ttSecret.trim() || null,
         tikTokPrivacidade: estado.tikTokPrivacidade ?? null,
+        youTubeClientId: ytId.trim() || null,
+        youTubeClientSecret: ytSecret.trim() || null,
       }),
     onSuccess: (e) => {
       onGuardado(e);
       setMetaSecret('');
       setThSecret('');
       setTtSecret('');
+      setYtSecret('');
       toast.success('Dados das apps guardados.');
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
   return (
-    <Passo n={1} titulo="App da Meta (feito uma vez)">
+    <Passo n={1} titulo="Apps das redes (feito uma vez)">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Em developers.facebook.com cria uma app (tipo Empresa) com os casos de uso de Facebook/Instagram e de
         Threads. Copia para aqui o App ID e o App Secret de cada um, e regista estes endereços de redirecionamento:
@@ -171,6 +176,25 @@ function PassoApps({ estado, onGuardado }: { estado: RedesSociaisEstado; onGuard
           Enquanto o TikTok não aprovar a app, os vídeos só saem em privado e a conta tem de estar privada.
         </p>
       </div>
+      <div className="space-y-1.5 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+        <p className="text-sm font-medium">YouTube (console.cloud.google.com → APIs e serviços → Credenciais)</p>
+        <p className={labelCls}>URI de redirecionamento autorizado (cliente OAuth «Aplicação Web»)</p>
+        <Copiar valor={estado.redirectYouTube} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label>
+          <span className={labelCls}>YouTube — Client ID</span>
+          <input className={inputCls} autoComplete="off" placeholder="…apps.googleusercontent.com" value={ytId} onChange={(e) => setYtId(e.target.value)} />
+        </label>
+        <label>
+          <span className={labelCls}>YouTube — Client secret {estado.youTubeClientSecretDefinido && '(guardado)'}</span>
+          <input className={inputCls} type="password" autoComplete="off" placeholder={estado.youTubeClientSecretDefinido ? '••••••••  (deixa vazio para manter)' : ''}
+            value={ytSecret} onChange={(e) => setYtSecret(e.target.value)} />
+        </label>
+        <p className="text-xs text-zinc-500 sm:col-span-2">
+          Só vídeos (Shorts). Enquanto a Google não auditar o projeto, os vídeos enviados pela API ficam em privado.
+        </p>
+      </div>
       <div className="flex justify-end">
         <Button loading={guardar.isPending} onClick={() => guardar.mutate()}>Guardar</Button>
       </div>
@@ -183,7 +207,7 @@ function PassoContas({ estado, onMudou }: { estado: RedesSociaisEstado; onMudou:
   const porRede = (r: RedeSocial) => estado.ligacoes.find((l) => l.rede === r);
 
   const ligar = useMutation({
-    mutationFn: (p: 'meta' | 'threads' | 'tiktok') => redesSociaisApi.urlLigar(p),
+    mutationFn: (p: PlataformaLigar) => redesSociaisApi.urlLigar(p),
     onSuccess: (url) => window.location.assign(url),
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
@@ -234,6 +258,15 @@ function PassoContas({ estado, onMudou }: { estado: RedesSociaisEstado; onMudou:
           aLigar={ligar.isPending && ligar.variables === 'tiktok'}
           dica="Entra com a conta TikTok da empresa. Só vídeos (reels) saem sozinhos; carrosséis de fotos continuam à mão."
           onLigar={() => ligar.mutate('tiktok')}
+          onDesligar={pedirDesligar}
+        />
+        <CartaoRede
+          titulo="YouTube"
+          contas={[porRede(RedeSocial.YouTube)]}
+          podeLigar={Boolean(estado.youTubeClientId && estado.youTubeClientSecretDefinido)}
+          aLigar={ligar.isPending && ligar.variables === 'youtube'}
+          dica="No ecrã da Google escolhe o canal da empresa (se a conta tiver vários). Só vídeos (Shorts) saem sozinhos."
+          onLigar={() => ligar.mutate('youtube')}
           onDesligar={pedirDesligar}
         />
       </div>

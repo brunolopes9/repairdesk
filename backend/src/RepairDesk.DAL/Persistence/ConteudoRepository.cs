@@ -99,6 +99,7 @@ public class ConteudoRepository : IConteudoRepository
             .Where(p => p.Destinos.Any(d => d.Estado == ConteudoDestinoEstado.Pendente
                                             && redes.Contains(d.Rede)
                                             && (d.Rede != RedeSocial.TikTok || (p.Formato == ConteudoFormato.Reel && d.OpcoesJson != null))
+                                            && (d.Rede != RedeSocial.YouTube || p.Formato == ConteudoFormato.Reel)
                                             && _db.RedeSocialLigacoes.Any(l => l.TenantId == p.TenantId && l.Rede == d.Rede && l.Valida)
                                             && (d.ProximaTentativaEm == null || d.ProximaTentativaEm <= agora)))
             .OrderBy(p => p.AgendadoPara)
