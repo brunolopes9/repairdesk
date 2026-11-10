@@ -262,7 +262,7 @@ function TokenThreads({ onLigado }: { onLigado: (e: RedesSociaisEstado) => void 
       <p className="text-sm font-medium">Threads com token (sem App Secret)</p>
       <p className="mt-1 text-xs text-zinc-500">
         Na app da Meta: Casos de utilização → Access the Threads API → Settings → «User Token Generator» → gerar
-        o token da conta @lopestech.pt e colá-lo aqui.
+        o token da conta Threads da empresa e colá-lo aqui.
       </p>
       <div className="mt-2 flex gap-2">
         <input className={inputCls} type="password" autoComplete="off" placeholder="Cola aqui o token"
