@@ -70,6 +70,26 @@ public class PublicPortalPreferencesTests
             .Where(e => e.Code == "orcamento_aprovacao_desactivada");
     }
 
+    // Sprint 602: as regras do Google proíbem pedir avaliações só a quem gostou («review gating»).
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    public async Task SubmeterAvaliacaoAsync_QualquerNota_DevolveLinkGoogle(int score)
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = NewDb(tenantId);
+        var rep = await SeedRepairAsync(db, tenantId);
+        rep.Estado = VendaEstado.Entregue;
+        await db.SaveChangesAsync();
+        var prefs = TenantPreferencesDefaults.Create();
+        prefs = prefs with { Portal = prefs.Portal with { GoogleReviewUrl = "https://g.page/r/teste/review" } };
+        var service = NewService(db, tenantId, prefs);
+
+        var r = await service.SubmeterAvaliacaoAsync(rep.PublicSlug!, score, null, false);
+
+        r.GoogleReviewUrl.Should().Be("https://g.page/r/teste/review");
+    }
+
     // Sprint 480: mensagens enviadas pelo cliente via portal público.
 
     [Fact]

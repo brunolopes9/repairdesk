@@ -26,4 +26,6 @@ public sealed record EntregaEquipamentoData(
     // Sprint 551: assinatura digital do cliente (canvas) — quando presente, substitui a
     // linha em branco de assinatura manual.
     byte[]? AssinaturaPng = null,
-    DateTime? AssinaturaEm = null);
+    DateTime? AssinaturaEm = null,
+    // Sprint 602: link de avaliação no Google (Definições) — QR «Avalia-nos no Google» no recibo.
+    string? GoogleReviewUrl = null);

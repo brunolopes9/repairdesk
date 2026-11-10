@@ -540,6 +540,7 @@ function AvaliacaoCard({ slug }: { slug: string }) {
           {resultado.score >= 4
             ? 'Ficamos contentes que tenhas gostado!'
             : 'Lamentamos não ter atingido as tuas expectativas. A loja vai contactar-te para perceber o que melhorar.'}
+          {resultado.googleReviewUrl && ' Partilha também a tua opinião no Google — ajuda outros clientes a decidir.'}
         </p>
         {resultado.googleReviewUrl && (
           <a

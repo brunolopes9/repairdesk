@@ -74,6 +74,8 @@ export default function WhatsAppMenu({
   if (!phone) return null;
   if (prefs.data && !prefs.data.communication.whatsAppEnabled) return null;
 
+  // Sprint 602: o link de avaliação vem das Preferências (Portal) — quem chama não precisa de o saber.
+  const varsComReview: WhatsAppVars = { ...vars, link_review_google: vars.link_review_google ?? prefs.data?.portal.googleReviewUrl ?? undefined };
   const configuredTemplates = templatesFromPreferences(prefs.data);
   const configuredByKey = prefs.data?.communication.templatesByState;
   const list = (customList
@@ -98,7 +100,7 @@ export default function WhatsAppMenu({
         }
       }
 
-      const url = waMeLink(phone, template.build(vars));
+      const url = waMeLink(phone, template.build(varsComReview));
       window.open(url, '_blank', 'noopener,noreferrer');
       if (entityId) {
         await whatsappNotificationsApi.create({
@@ -168,7 +170,7 @@ export default function WhatsAppMenu({
           {preview && (
             <div className="border-t border-zinc-100 bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
               <div className="mb-1 font-medium text-zinc-700 dark:text-zinc-300">Preview:</div>
-              <div className="whitespace-pre-line italic">"{preview.build(vars)}"</div>
+              <div className="whitespace-pre-line italic">"{preview.build(varsComReview)}"</div>
             </div>
           )}
           <div className="border-t border-zinc-100 px-3 py-1.5 text-[10px] text-zinc-400 dark:border-zinc-800">

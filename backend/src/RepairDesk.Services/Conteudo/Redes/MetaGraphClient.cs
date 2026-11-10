@@ -40,7 +40,7 @@ public sealed class MetaGraphClient
     }
 
     public Task<JsonElement> GetAsync(string url, IDictionary<string, string?> query, CancellationToken ct)
-        => EnviarAsync(new HttpRequestMessage(HttpMethod.Get, ComQuery(url, query)), ct);
+        => EnviarAsync(new HttpRequestMessage(HttpMethod.Get, ComQuery(url, query)), Segredos(query), ct);
 
     public Task<JsonElement> PostAsync(string url, IDictionary<string, string?> form, CancellationToken ct, IDictionary<string, string>? headers = null)
     {
@@ -50,10 +50,10 @@ public sealed class MetaGraphClient
         };
         if (headers is not null)
             foreach (var (k, v) in headers) req.Headers.TryAddWithoutValidation(k, v);
-        return EnviarAsync(req, ct);
+        return EnviarAsync(req, Segredos(form), ct);
     }
 
-    private async Task<JsonElement> EnviarAsync(HttpRequestMessage req, CancellationToken ct)
+    private async Task<JsonElement> EnviarAsync(HttpRequestMessage req, IReadOnlyList<string> segredos, CancellationToken ct)
     {
         using (req)
         {
@@ -90,13 +90,26 @@ public sealed class MetaGraphClient
                         : err.TryGetProperty("message", out var m) ? m.GetString() : null;
                     // 4/17/32/613 = limites de pedidos; 1/2 = erro temporário do lado da Meta; 9007 = media ainda a processar.
                     var temporario = codigo is 1 or 2 or 4 or 17 or 32 or 613 or 9007 || (int)res.StatusCode >= 500;
-                    throw new RedeSocialException(msg ?? $"Erro {(int)res.StatusCode} da rede social.", codigo, temporario);
+                    throw new RedeSocialException(msg is null ? $"Erro {(int)res.StatusCode} da rede social." : SemSegredos(msg, segredos), codigo, temporario);
                 }
                 if (!res.IsSuccessStatusCode)
                     throw new RedeSocialException($"Erro {(int)res.StatusCode} da rede social.", temporario: (int)res.StatusCode >= 500);
                 return body.Clone();
             }
         }
+    }
+
+    // A Threads devolve o client_secret em claro no erro («Invalid client_secret: <valor>») e a mensagem
+    // chega ao ecrã e aos logs: tudo o que foi enviado como segredo é tapado antes.
+    private static readonly string[] CamposSecretos = ["client_secret", "access_token", "refresh_token", "fb_exchange_token", "code", "input_token"];
+
+    public static IReadOnlyList<string> Segredos(IDictionary<string, string?> campos)
+        => campos.Where(kv => kv.Value is { Length: >= 6 } && CamposSecretos.Contains(kv.Key)).Select(kv => kv.Value!).ToList();
+
+    public static string SemSegredos(string msg, IEnumerable<string> segredos)
+    {
+        foreach (var s in segredos) msg = msg.Replace(s, "•••", StringComparison.Ordinal);
+        return System.Text.RegularExpressions.Regex.Replace(msg, @"(client_secret|access_token|refresh_token)(\W{1,3})[A-Za-z0-9|._\-]{6,}", "$1$2•••");
     }
 
     private static string ComQuery(string url, IDictionary<string, string?> query)

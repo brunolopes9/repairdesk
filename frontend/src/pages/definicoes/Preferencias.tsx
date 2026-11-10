@@ -314,18 +314,9 @@ export default function Preferencias() {
             <ToggleRow label="Mostrar timeline" checked={draft.portal.mostrarTimeline} onChange={(v) => patchPortal({ mostrarTimeline: v })} />
             <ToggleRow label="Mostrar avaliação" checked={draft.portal.mostrarAvaliacao} onChange={(v) => patchPortal({ mostrarAvaliacao: v })} />
             <ToggleRow label="Permitir aprovar orçamento online" checked={draft.portal.permitirAprovarOrcamento} onChange={(v) => patchPortal({ permitirAprovarOrcamento: v })} />
+            {/* Sprint 602: o link do Google aparece a todas as notas — filtrar por nota viola as regras do Google. */}
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Score mínimo Google Review">
-                <input
-                  type="number"
-                  min={1}
-                  max={5}
-                  value={draft.portal.googleReviewMinScore}
-                  onChange={(e) => patchPortal({ googleReviewMinScore: Number(e.target.value) || 4 })}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="URL Google Review">
+              <Field label="Link de avaliação Google (vazio = usa o de Definições → Empresa)">
                 <input
                   value={draft.portal.googleReviewUrl ?? ''}
                   onChange={(e) => patchPortal({ googleReviewUrl: e.target.value.trim() || null })}

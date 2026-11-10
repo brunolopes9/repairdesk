@@ -123,7 +123,10 @@ public class PublicPortalService : IPublicPortalService
         var tenant = await _tenants.FindByIdAsync(v.TenantId, ct);
         var prefs = await _preferences.GetForTenantAsync(v.TenantId, ct);
         var googleReviewUrl = prefs.Portal.GoogleReviewUrl ?? tenant?.GoogleReviewUrl;
-        var dirigirGoogle = score >= prefs.Portal.GoogleReviewMinScore && !string.IsNullOrWhiteSpace(googleReviewUrl);
+        // Sprint 602: o link do Google vai para TODAS as notas. As regras do Google proíbem pedir avaliações
+        // só a quem gostou («review gating»): arrisca a remoção das avaliações e penalização do perfil.
+        // A nota baixa continua a avisar a loja (fica registada aqui) para ela contactar o cliente.
+        var dirigirGoogle = !string.IsNullOrWhiteSpace(googleReviewUrl);
 
         var avaliacao = new Avaliacao
         {

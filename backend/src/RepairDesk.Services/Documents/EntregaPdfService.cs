@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.TenantPreferences;
 
 namespace RepairDesk.Services.Documents;
 
@@ -22,19 +23,22 @@ public sealed class EntregaPdfService : IEntregaPdfService
     private readonly IGarantiaRepository _garantias;
     private readonly IVendaAssinaturaRepository _assinaturas;
     private readonly IConfiguration _config;
+    private readonly ITenantPreferencesService _preferences;
 
     public EntregaPdfService(
         IVendaRepository vendas,
         ITenantRepository tenants,
         IGarantiaRepository garantias,
         IVendaAssinaturaRepository assinaturas,
-        IConfiguration config)
+        IConfiguration config,
+        ITenantPreferencesService preferences)
     {
         _vendas = vendas;
         _tenants = tenants;
         _garantias = garantias;
         _assinaturas = assinaturas;
         _config = config;
+        _preferences = preferences;
     }
 
     public async Task<(byte[] Pdf, string Filename)> ForVendaAsync(Guid vendaId, CancellationToken ct = default)
@@ -46,6 +50,8 @@ public sealed class EntregaPdfService : IEntregaPdfService
         var tenant = await _tenants.FindByIdAsync(v.TenantId, ct);
         var assinatura = await _assinaturas.FindAsync(v.Id, AssinaturaTipo.Entrega, ct);
         var garantia = await _garantias.FindByVendaAsync(v.Id, ct);
+        var prefs = await _preferences.GetForTenantAsync(v.TenantId, ct);
+        var googleReviewUrl = prefs.Portal.GoogleReviewUrl ?? tenant?.GoogleReviewUrl;
 
         var linhas = v.Items
             .OrderBy(i => i.CreatedAt)
@@ -70,7 +76,8 @@ public sealed class EntregaPdfService : IEntregaPdfService
             GarantiaUrl: GarantiaUrl(garantia?.Slug),
             PortalUrl: EntradaPdfService.PortalUrl(_config, v.PublicSlug),
             AssinaturaPng: assinatura?.PngBytes,
-            AssinaturaEm: assinatura?.AssinadaEm);
+            AssinaturaEm: assinatura?.AssinadaEm,
+            GoogleReviewUrl: string.IsNullOrWhiteSpace(googleReviewUrl) ? null : googleReviewUrl.Trim());
 
         return (EntregaPdfRenderer.Render(data), $"Entrega_R-{v.Numero:D5}.pdf");
     }

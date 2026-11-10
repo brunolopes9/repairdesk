@@ -203,6 +203,22 @@ public static class EntregaPdfRenderer
                     });
                 });
             }
+
+            // Sprint 602: pedido de avaliação no Google — no momento da entrega é quando o cliente
+            // está mais satisfeito. Pedido a todos (as regras do Google proíbem filtrar por nota).
+            if (!string.IsNullOrWhiteSpace(d.GoogleReviewUrl))
+            {
+                col.Item().PaddingTop(12).Background(Colors.Grey.Lighten4).Padding(10).Row(row =>
+                {
+                    row.ConstantItem(80).Image(GenerateQrPng(d.GoogleReviewUrl!));
+                    row.RelativeItem().PaddingLeft(12).AlignMiddle().Column(c =>
+                    {
+                        c.Item().Text("Ficou tudo bem? Avalia-nos no Google ★★★★★").FontSize(11).Bold().FontColor(brand);
+                        c.Item().PaddingTop(3).Text("Demora 30 segundos e ajuda muito um negócio local. Aponta a câmara ao código.")
+                            .FontSize(9).FontColor(Colors.Grey.Darken1);
+                    });
+                });
+            }
         });
     }
 

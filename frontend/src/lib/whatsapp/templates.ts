@@ -98,8 +98,13 @@ export const TEMPLATES: Record<TemplateKey, TemplateMeta> = {
     key: 'Entregue',
     label: 'Agradecer entrega',
     hint: 'Cliente acabou de levantar — agradecer.',
-    build: (v) =>
-      `Olá ${v.cliente_nome}, obrigado por teres confiado em nós para tratar do teu ${v.equipamento}. Se notares alguma coisa estranha nos próximos dias, responde por aqui.`,
+    build: (v) => {
+      // Sprint 602: o pedido de avaliação vai logo na entrega — é quando o cliente está mais satisfeito.
+      const review = v.link_review_google
+        ? ` Se ficou tudo bem, uma avaliação no Google ajuda-nos muito (demora 30 segundos): ${v.link_review_google}`
+        : '';
+      return `Olá ${v.cliente_nome}, obrigado por teres confiado em nós para tratar do teu ${v.equipamento}.${review} Se notares alguma coisa estranha nos próximos dias, responde por aqui.`;
+    },
   },
 
   Cancelada: {
@@ -124,7 +129,7 @@ export const TEMPLATES: Record<TemplateKey, TemplateMeta> = {
   PedidoReview: {
     key: 'PedidoReview',
     label: 'Pedir avaliação Google',
-    hint: 'Entregue há 5+ dias, sem reclamação. Requer opt-in.',
+    hint: 'Lembrete uns dias depois, se ainda não avaliou.',
     build: (v) => {
       const link = v.link_review_google ? ` ${v.link_review_google}` : '';
       return `Olá ${v.cliente_nome}, passaram alguns dias desde que levantaste o ${v.equipamento}. Se ficou tudo bem, ajudava-nos muito deixares uma avaliação no Google:${link}. Obrigado pela confiança.`;

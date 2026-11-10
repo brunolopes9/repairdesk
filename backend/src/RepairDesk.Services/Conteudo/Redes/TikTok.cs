@@ -25,7 +25,8 @@ public sealed class TikTokClient
         if (body.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String && e.GetString() is { Length: > 0 } erro)
         {
             var desc = body.TryGetProperty("error_description", out var d) ? d.GetString() : erro;
-            throw new RedeSocialException($"TikTok: {desc}", erro is "invalid_grant" ? 190 : null);
+            var segredos = form.Where(kv => kv.Key is "client_secret" or "refresh_token" or "code").Select(kv => kv.Value).Where(v => v.Length >= 6);
+            throw new RedeSocialException($"TikTok: {MetaGraphClient.SemSegredos(desc ?? erro, segredos)}", erro is "invalid_grant" ? 190 : null);
         }
         return body;
     }
