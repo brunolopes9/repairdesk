@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Building2, Check, ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
 import { setAccessToken } from '../lib/auth/token';
+import { avisarTrocaDeEmpresa } from '../lib/auth/empresaAtiva';
 import { apiErrorMessage } from '../lib/errors';
 import { toast } from '../lib/toast';
 import type { AuthResponse } from '../lib/auth/types';
@@ -31,6 +32,7 @@ export function EmpresaSwitcher({ className = '', soComVarias = false }: { class
     mutationFn: (id: string) => api.post<AuthResponse>(`/auth/empresas/${id}/ativar`).then((r) => r.data),
     onSuccess: (data) => {
       setAccessToken(data.accessToken, data.accessTokenExpiresAt);
+      avisarTrocaDeEmpresa(data.user.tenantId);
       window.location.assign('/');
     },
     onError: (err) => toast.error(apiErrorMessage(err)),

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import axios from 'axios';
 import { api } from '../api';
 import { clearAccessToken, setAccessToken } from './token';
+import { definirEmpresaDoSeparador, ouvirTrocasDeEmpresa } from './empresaAtiva';
 import type { AuthResponse, ChangePasswordRequest, LoginRequest, UpdateMeRequest, UserInfo } from './types';
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
@@ -26,13 +27,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setAuth = useCallback((data: AuthResponse) => {
     setAccessToken(data.accessToken, data.accessTokenExpiresAt);
+    definirEmpresaDoSeparador(data.user.tenantId);
     setState({ status: 'authenticated', user: data.user });
   }, []);
 
   const setAnon = useCallback(() => {
     clearAccessToken();
+    definirEmpresaDoSeparador(null);
     setState({ status: 'anonymous', user: null });
   }, []);
+
+  // Sprint 607: se outro separador trocar de empresa, este recarrega (a sessão é partilhada).
+  useEffect(() => ouvirTrocasDeEmpresa(), []);
 
   const bootstrap = useCallback(async () => {
     try {
