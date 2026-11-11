@@ -73,6 +73,9 @@ public sealed record GuardarPublicacaoRequest(
 
 public sealed record RejeitarPublicacaoRequest(string? Motivo);
 
+/// <summary>Sprint 610: hora de publicação escolhida pelo dono — <see cref="Agora"/> = sai no próximo minuto.</summary>
+public sealed record HoraPublicacaoRequest(DateTime? AgendadoPara, bool Agora = false);
+
 /// <summary>Registo do que aconteceu numa rede (publicação manual nesta fase, automática na Fase B).</summary>
 public sealed record AtualizarDestinoRequest(
     ConteudoDestinoEstado Estado,

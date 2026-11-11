@@ -15,7 +15,10 @@ public interface IConteudoService
     Task<ConteudoPublicacaoDto> CreateAsync(GuardarPublicacaoRequest req, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> UpdateAsync(Guid id, GuardarPublicacaoRequest req, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> SubmeterAsync(Guid id, CancellationToken ct = default);
-    Task<ConteudoPublicacaoDto> AprovarAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Aprova; com <paramref name="hora"/> aprova já para essa hora (ou «agora»).</summary>
+    Task<ConteudoPublicacaoDto> AprovarAsync(Guid id, HoraPublicacaoRequest? hora = null, CancellationToken ct = default);
+    /// <summary>Muda a hora de uma publicação por aprovar ou aprovada, sem a devolver à fila.</summary>
+    Task<ConteudoPublicacaoDto> MudarHoraAsync(Guid id, HoraPublicacaoRequest req, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> RejeitarAsync(Guid id, string? motivo, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> CancelarAsync(Guid id, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> AtualizarDestinoAsync(Guid id, RedeSocial rede, AtualizarDestinoRequest req, CancellationToken ct = default);
@@ -202,13 +205,14 @@ public sealed class ConteudoService : IConteudoService
         return ToDto(p);
     }
 
-    public async Task<ConteudoPublicacaoDto> AprovarAsync(Guid id, CancellationToken ct = default)
+    public async Task<ConteudoPublicacaoDto> AprovarAsync(Guid id, HoraPublicacaoRequest? hora = null, CancellationToken ct = default)
     {
         if (_user.UserId is not { } uid)
             throw new ForbiddenException("aprovacao_so_utilizador", "Só o dono pode aprovar publicações.");
         var p = await Load(id, ct);
         if (p.Estado != ConteudoEstado.PorAprovar)
             throw new ConflictException("conteudo_estado_invalido", $"Esta publicação está «{Nome(p.Estado)}», não «Por aprovar».");
+        if (hora is not null) p.AgendadoPara = ResolverHora(hora);
         ValidarParaAprovacao(p);
         await ExigirOpcoesTikTok(p, ct);
         p.Estado = ConteudoEstado.Aprovada;
@@ -236,6 +240,31 @@ public sealed class ConteudoService : IConteudoService
         await _repo.SaveAsync(ct);
         await Auditar(AuditAction.Update, p, new { estado = "Rejeitada", motivo = m }, ct);
         return ToDto(p);
+    }
+
+    public async Task<ConteudoPublicacaoDto> MudarHoraAsync(Guid id, HoraPublicacaoRequest req, CancellationToken ct = default)
+    {
+        // Só o dono: a chave do Claude muda a hora pelo PUT normal, que devolve a publicação à fila.
+        if (_user.UserId is null)
+            throw new ForbiddenException("hora_so_utilizador", "Só o dono pode mudar a hora sem nova aprovação.");
+        var p = await Load(id, ct);
+        if (p.Estado is not (ConteudoEstado.PorAprovar or ConteudoEstado.Aprovada))
+            throw new ConflictException("conteudo_estado_invalido", $"Uma publicação «{Nome(p.Estado)}» já não muda de hora.");
+        var antes = p.AgendadoPara;
+        p.AgendadoPara = ResolverHora(req);
+        await _repo.SaveAsync(ct);
+        await Auditar(AuditAction.Update, p, new { agendadoPara = p.AgendadoPara, antes }, ct);
+        return ToDto(p);
+    }
+
+    /// <summary>«Agora» sai no próximo minuto (o publicador corre de minuto a minuto). Horas já passadas são recusadas.</summary>
+    private static DateTime ResolverHora(HoraPublicacaoRequest req)
+    {
+        if (req.Agora) return DateTime.UtcNow;
+        var h = ToUtc(req.AgendadoPara) ?? throw new ValidationException("hora_obrigatoria", "Escolhe a hora ou usa «Publicar já».");
+        if (h < DateTime.UtcNow.AddMinutes(-1))
+            throw new ValidationException("hora_passada", "Essa hora já passou — escolhe outra ou usa «Publicar já».");
+        return h;
     }
 
     public async Task<ConteudoPublicacaoDto> CancelarAsync(Guid id, CancellationToken ct = default)

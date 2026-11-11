@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { ConteudoEstado, ConteudoFicheiro, ConteudoPublicacao, ConteudoResumo, GuardarOpcoesTikTok, UploadTicket } from './types';
+import type { ConteudoEstado, HoraPublicacao, ConteudoFicheiro, ConteudoPublicacao, ConteudoResumo, GuardarOpcoesTikTok, UploadTicket } from './types';
 
 export const conteudoApi = {
   list: (filtros: { estados?: ConteudoEstado[]; de?: string; ate?: string } = {}) =>
@@ -13,7 +13,13 @@ export const conteudoApi = {
 
   resumo: () => api.get<ConteudoResumo>('/conteudo/resumo').then((r) => r.data),
 
-  aprovar: (id: string) => api.post<ConteudoPublicacao>(`/conteudo/${id}/aprovar`).then((r) => r.data),
+  /** Sem `hora` fica a hora marcada; com `hora` aprova para essa hora (ou «agora»). */
+  aprovar: (id: string, hora?: HoraPublicacao) =>
+    api.post<ConteudoPublicacao>(`/conteudo/${id}/aprovar`, hora).then((r) => r.data),
+
+  /** Muda a hora (ou publica já) sem devolver a publicação à fila «Por aprovar». */
+  mudarHora: (id: string, hora: HoraPublicacao) =>
+    api.patch<ConteudoPublicacao>(`/conteudo/${id}/hora`, hora).then((r) => r.data),
   guardarTikTok: (id: string, o: GuardarOpcoesTikTok) =>
     api.put<ConteudoPublicacao>(`/conteudo/${id}/tiktok`, o).then((r) => r.data),
 

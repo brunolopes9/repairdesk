@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.RateLimiting;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Enums;
@@ -50,8 +51,13 @@ public sealed class ConteudoController : ControllerBase
         => Ok(await _service.SubmeterAsync(id, ct));
 
     [HttpPost("{id:guid}/aprovar")]
-    public async Task<ActionResult<ConteudoPublicacaoDto>> Aprovar(Guid id, CancellationToken ct)
-        => Ok(await _service.AprovarAsync(id, ct));
+    public async Task<ActionResult<ConteudoPublicacaoDto>> Aprovar(Guid id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] HoraPublicacaoRequest? hora, CancellationToken ct)
+        => Ok(await _service.AprovarAsync(id, hora, ct));
+
+    /// <summary>Sprint 610: mudar a hora (ou «Publicar já») sem voltar a «Por aprovar».</summary>
+    [HttpPatch("{id:guid}/hora")]
+    public async Task<ActionResult<ConteudoPublicacaoDto>> MudarHora(Guid id, [FromBody] HoraPublicacaoRequest req, CancellationToken ct)
+        => Ok(await _service.MudarHoraAsync(id, req, ct));
 
     [HttpPost("{id:guid}/rejeitar")]
     public async Task<ActionResult<ConteudoPublicacaoDto>> Rejeitar(Guid id, [FromBody] RejeitarPublicacaoRequest req, CancellationToken ct)

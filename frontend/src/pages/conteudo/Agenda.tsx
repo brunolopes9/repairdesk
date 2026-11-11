@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarDays, FileText, Film, Images } from 'lucide-react';
+import { CalendarClock, CalendarDays, FileText, Film, Images, Send } from 'lucide-react';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button, EmptyState } from '../../components/ui';
 import { conteudoApi } from '../../lib/conteudo/api';
@@ -10,10 +10,12 @@ import {
   ConteudoFormato,
   FORMATO_LABEL,
   type ConteudoPublicacao,
+  type HoraPublicacao,
 } from '../../lib/conteudo/types';
 import { apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
 import { PublicacaoCard } from './PublicacaoCard';
+import { EscolherHora } from './EscolherHora';
 import { EstadoBadge, RedesChips, chaveDia, horaCurta, tituloDia } from './conteudoUi';
 
 /**
@@ -98,34 +100,69 @@ function Miniatura({ p }: { p: ConteudoPublicacao }) {
 function AcoesAgenda({ p }: { p: ConteudoPublicacao }) {
   const qc = useQueryClient();
   const confirm = useConfirm();
+  const [escolher, setEscolher] = useState(false);
+  const refrescar = () => qc.invalidateQueries({ queryKey: ['conteudo'] });
+
   const cancelar = useMutation({
     mutationFn: () => conteudoApi.cancelar(p.id),
     onSuccess: () => {
       toast.success(`#${p.numero} cancelada.`);
-      qc.invalidateQueries({ queryKey: ['conteudo'] });
+      refrescar();
     },
     onError: (err) => toast.error(apiErrorMessage(err) || 'Não foi possível cancelar.'),
   });
 
-  const podeCancelar = p.estado === ConteudoEstado.Aprovada || p.estado === ConteudoEstado.PorAprovar;
-  if (!podeCancelar) return null;
+  // Sprint 610: mudar a hora não devolve à fila; «Publicar já» de uma por aprovar também a aprova.
+  const hora = useMutation({
+    mutationFn: (h: HoraPublicacao) =>
+      h.agora && p.estado === ConteudoEstado.PorAprovar ? conteudoApi.aprovar(p.id, h) : conteudoApi.mudarHora(p.id, h),
+    onSuccess: (r, h) => {
+      toast.success(h.agora ? `#${r.numero} sai dentro de 1 minuto.` : `#${r.numero}: hora mudada.`);
+      setEscolher(false);
+      refrescar();
+    },
+    onError: (err) => toast.error(apiErrorMessage(err) || 'Não foi possível mudar a hora.'),
+  });
+
+  const editavel = p.estado === ConteudoEstado.Aprovada || p.estado === ConteudoEstado.PorAprovar;
+  if (!editavel) return null;
   return (
-    <div className="flex justify-end">
-      <Button
-        variant="ghost"
-        loading={cancelar.isPending}
-        onClick={async () => {
-          const ok = await confirm({
-            title: `Cancelar #${p.numero}?`,
-            description: 'Deixa de sair. Se já estiver agendada no Business Suite, tenho de a tirar de lá.',
-            confirmLabel: 'Cancelar publicação',
-            destructive: true,
-          });
-          if (ok) cancelar.mutate();
-        }}
-      >
+    <div className="flex flex-wrap justify-end gap-2">
+      <Button variant="ghost" loading={cancelar.isPending} onClick={async () => {
+        const ok = await confirm({
+          title: `Cancelar #${p.numero}?`,
+          description: 'Deixa de sair. Se já estiver agendada no Business Suite, tenho de a tirar de lá.',
+          confirmLabel: 'Cancelar publicação',
+          destructive: true,
+        });
+        if (ok) cancelar.mutate();
+      }}>
         Cancelar publicação
       </Button>
+      <Button variant="secondary" leftIcon={<CalendarClock size={16} />} onClick={() => setEscolher(true)}>
+        Mudar hora
+      </Button>
+      <Button leftIcon={<Send size={16} />} loading={hora.isPending && Boolean(hora.variables?.agora)} onClick={async () => {
+        const ok = await confirm({
+          title: `Publicar #${p.numero} já?`,
+          description: p.estado === ConteudoEstado.PorAprovar
+            ? 'Fica aprovada e sai em todas as redes dentro de 1 minuto.'
+            : 'Sai em todas as redes dentro de 1 minuto.',
+          confirmLabel: 'Publicar já',
+        });
+        if (ok) hora.mutate({ agendadoPara: null, agora: true });
+      }}>
+        Publicar já
+      </Button>
+      <EscolherHora
+        open={escolher}
+        titulo={`Nova hora para #${p.numero}`}
+        inicial={p.agendadoPara}
+        confirmar="Guardar hora"
+        loading={hora.isPending}
+        onClose={() => setEscolher(false)}
+        onConfirm={(iso) => hora.mutate({ agendadoPara: iso, agora: false })}
+      />
     </div>
   );
 }

@@ -176,3 +176,10 @@ O TikTok só aprova apps de publicação direta se o utilizador escolher tudo no
 - Antes cortava-se **em silêncio** aos 2000; agora acima do limite a API responde **422 `notas_longas`** — um guião truncado não serve, o erro tem de ser explícito.
 - No cartão da publicação as notas mantêm as quebras de linha (`whitespace-pre-wrap`); se forem longas (mais de 280 caracteres ou 4 linhas) aparecem resumidas, com o botão «Ver tudo (guião)».
 - Não se criou um campo «Guiao» à parte: as notas da publicação já são isso, e um campo novo só duplicava API, DTO e UI.
+
+## 16. Escolher a hora e «Publicar já» (Sprint 610)
+
+- **Por aprovar:** além de Rejeitar/Aprovar, cada cartão tem **«Mudar hora»** (aprova já para a hora escolhida — atalhos «daqui a 1 hora», 13:00, 18:30, 21:00, amanhã 09:30, ou data e hora à escolha) e **«Publicar já»** (aprova com hora = agora; o publicador corre de minuto a minuto, por isso sai em ≤ 1 min).
+- **Agenda:** numa publicação aprovada (ou por aprovar), **«Mudar hora»** e **«Publicar já»** sem a devolver a «Por aprovar» — é o dono que muda, não há nada novo a aprovar. Editar o conteúdo continua a obrigar a nova aprovação.
+- API: `POST /api/conteudo/{id}/aprovar` aceita corpo opcional `{ agendadoPara, agora }`; novo `PATCH /api/conteudo/{id}/hora` (só utilizador autenticado — a chave do Claude não muda horas sem aprovação; usa o PUT, que devolve à fila).
+- Horas já passadas (mais de 1 min) → 422 `hora_passada`.

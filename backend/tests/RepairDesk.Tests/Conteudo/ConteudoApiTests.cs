@@ -88,6 +88,41 @@ public class ConteudoApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task PublicarJa_AprovaParaAgora_EMudarHoraNaoDevolveAFila()
+    {
+        var client = await AdminClient();
+        var img = await EnviarImagem(client);
+        var p = await Criar(client, PostFbIg("Publicar já", img.Id) with { Submeter = true });
+
+        var ja = await Ok(await client.PostAsJsonAsync($"/api/conteudo/{p.Id}/aprovar", new HoraPublicacaoRequest(null, Agora: true)));
+        ja.Estado.Should().Be(ConteudoEstado.Aprovada);
+        ja.AgendadoPara.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+
+        // Mudar a hora de uma aprovada é do dono: não volta a «Por aprovar».
+        var depois = DateTime.UtcNow.Date.AddDays(2).AddHours(18);
+        var mudada = await Ok(await client.PatchAsJsonAsync($"/api/conteudo/{p.Id}/hora", new HoraPublicacaoRequest(depois)));
+        mudada.Estado.Should().Be(ConteudoEstado.Aprovada);
+        mudada.AgendadoPara.Should().Be(depois);
+
+        var passada = await client.PatchAsJsonAsync($"/api/conteudo/{p.Id}/hora", new HoraPublicacaoRequest(DateTime.UtcNow.AddHours(-2)));
+        passada.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task Aprovar_AOutraHora_GuardaEssaHora()
+    {
+        var client = await AdminClient();
+        var img = await EnviarImagem(client);
+        var p = await Criar(client, PostFbIg("Outra hora", img.Id) with { Submeter = true });
+        var hora = DateTime.UtcNow.Date.AddDays(3).AddHours(9).AddMinutes(30);
+
+        var aprovada = await Ok(await client.PostAsJsonAsync($"/api/conteudo/{p.Id}/aprovar", new HoraPublicacaoRequest(hora)));
+
+        aprovada.Estado.Should().Be(ConteudoEstado.Aprovada);
+        aprovada.AgendadoPara.Should().Be(hora);
+    }
+
+    [Fact]
     public async Task Post_ComImagemEnviada_CicloCompletoDeAprovacao()
     {
         var client = await AdminClient();

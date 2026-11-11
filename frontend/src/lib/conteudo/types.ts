@@ -135,3 +135,9 @@ export const LINHA_LABEL: Record<ConteudoLinha, string> = {
   [ConteudoLinha.Reparacoes]: 'Reparações e loja',
   [ConteudoLinha.Web]: 'Sites e software',
 };
+
+/** Sprint 610: hora escolhida pelo dono — `agora` sai no próximo minuto. */
+export interface HoraPublicacao {
+  agendadoPara: string | null;
+  agora: boolean;
+}
