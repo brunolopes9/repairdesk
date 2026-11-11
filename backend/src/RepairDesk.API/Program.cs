@@ -291,6 +291,8 @@ try
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ConteudoStorageCorsHostedService>();
         // Sprint 599 (Doc 95 Fase B): publica o conteúdo aprovado à hora marcada.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ConteudoPublicadorHostedService>();
+        // Sprint 611: lembretes da agenda (1 h antes) e resumos do dia/semana no telemóvel.
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.AgendaAvisosHostedService>();
     }
 
 
@@ -329,6 +331,7 @@ try
     builder.Services.AddHttpClient<RepairDesk.API.Assistant.IAssistantService, RepairDesk.API.Assistant.AssistantService>();
     // Sprint 371: agendamentos (booking).
     builder.Services.AddScoped<IAppointmentRepository, RepairDesk.DAL.Persistence.AppointmentRepository>();
+    builder.Services.AddScoped<IAgendaAvisosRepository, RepairDesk.DAL.Persistence.AgendaAvisosRepository>();
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();
@@ -359,6 +362,7 @@ try
     builder.Services.AddScoped<IDeviceRepository, RepairDesk.DAL.Persistence.DeviceRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Devices.IDeviceService, RepairDesk.Services.Devices.DeviceService>();
     builder.Services.AddScoped<RepairDesk.Services.Appointments.IAppointmentService, RepairDesk.Services.Appointments.AppointmentService>();
+    builder.Services.AddScoped<RepairDesk.Services.Appointments.IAgendaAvisosService, RepairDesk.Services.Appointments.AgendaAvisosService>();
     builder.Services.AddSingleton<RepairDesk.Services.Documents.ISupplierInvoiceStorage, RepairDesk.Services.Documents.SupplierInvoiceStorage>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierInvoiceImportService, RepairDesk.Services.Documents.SupplierInvoiceImportService>();
 

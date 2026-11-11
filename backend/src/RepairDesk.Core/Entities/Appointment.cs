@@ -26,6 +26,9 @@ public class Appointment : BaseEntity, ITenantEntity
 
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Agendado;
     public AppointmentSource Source { get; set; } = AppointmentSource.Balcao;
+
+    /// <summary>Sprint 611: quando saiu o lembrete «daqui a pouco» (null = ainda não). Reagendar limpa.</summary>
+    public DateTime? LembreteEnviadoEm { get; set; }
 }
 
 public enum AppointmentStatus

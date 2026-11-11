@@ -8,6 +8,7 @@ import { formatEur } from '../lib/compras/format';
 import { formatDateOnly } from '../lib/money';
 import { apiErrorMessage } from '../lib/errors';
 import LembretesFiscais from './apuramento/LembretesFiscais';
+import { AgendaProximos } from './agendamentos/AgendaProximos';
 import { VENDA_ESTADO_COLOR, VENDA_ESTADO_LABEL, VENDA_TIPO } from '../lib/vendas/types';
 
 const TIPO_ICON = { 0: Package, 1: Wrench, 2: Code2 } as const;
@@ -99,6 +100,7 @@ export default function Dashboard() {
         </SectionCard>
 
         <div className="space-y-4">
+          <AgendaProximos />
           <SectionCard title="Em curso">
             <dl className="grid grid-cols-2 gap-3 text-sm">
               <Contador label="Orçamentos" valor={emCurso.orcamentos} />

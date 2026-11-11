@@ -41,6 +41,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
     public DbSet<StaffPushSubscription> StaffPushSubscriptions => Set<StaffPushSubscription>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<AgendaAviso> AgendaAvisos => Set<AgendaAviso>();
     public DbSet<WhatsAppNotificationLog> WhatsAppNotificationLogs => Set<WhatsAppNotificationLog>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();

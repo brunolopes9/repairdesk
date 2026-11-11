@@ -111,6 +111,7 @@ public sealed class AppointmentService : IAppointmentService
             throw new ValidationException("appointment_data_invalida", "Data/hora obrigatória.");
         var entity = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Appointment", id);
         entity.ScheduledAt = DateTime.SpecifyKind(scheduledAt, DateTimeKind.Utc);
+        entity.LembreteEnviadoEm = null; // nova hora → novo lembrete
         if (durationMin is { } d) entity.DurationMin = Math.Clamp(d, 5, 480);
         await _repo.SaveAsync(ct);
         return ToDto(entity);

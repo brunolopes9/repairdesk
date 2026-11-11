@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { CalendarClock, ChevronLeft, ChevronRight, Copy, Download, List, Plus, RefreshCw, Rss, Wrench, X } from 'lucide-react';
+import { CalendarClock, ChevronLeft, ChevronRight, Copy, Download, List, Plus, RefreshCw, Rss, Wrench } from 'lucide-react';
 import { Button, DetailWorkspace, InspectorRail } from '../../components/ui';
 import { toast } from '../../lib/toast';
 import { liveListOptions } from '../../lib/queryOptions';
@@ -12,9 +12,9 @@ import {
   APPOINTMENT_STATUS_LABEL,
   type Appointment,
   type AppointmentStatus,
-  type CreateAppointmentRequest,
 } from '../../lib/appointments/api';
 import { vendasApi } from '../../lib/vendas/api';
+import { MarcarRapidoModal } from './MarcarRapido';
 import { VENDA_TIPO, type Venda } from '../../lib/vendas/types';
 
 // Sprint 419: estados em curso (0=Recebido, 1=Diagnóstico, 2=AguardaPeça, 3=EmReparação, 4=Pronto).
@@ -56,18 +56,14 @@ function addDays(d: Date, n: number): Date {
 }
 const HOURS = Array.from({ length: 11 }, (_, i) => i + 9); // 9h–19h
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-function toLocalInput(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 export default function Agendamentos() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [prefilledAt, setPrefilledAt] = useState<string | null>(null);
-  const [view, setView] = useState<'week' | 'list'>('week');
+  // Sprint 611: no telemóvel a grelha de 7 colunas não cabe — abre na lista.
+  const [view, setView] = useState<'week' | 'list'>(() => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'list' : 'week'));
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
 
   const range = useMemo(() => {
@@ -247,7 +243,7 @@ export default function Agendamentos() {
           <p className="text-sm text-zinc-500">
             {view === 'week'
               ? 'Semana visual — clica num slot livre para marcar, ou no cartão para mudar estado.'
-              : 'Próximos 30 dias. Marca horas para os clientes deixarem equipamentos.'}
+              : 'Próximos 30 dias. Marca horas para os clientes deixarem equipamentos. Recebes um lembrete no telemóvel 1 hora antes e o resumo do dia às 08:00.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -345,7 +341,13 @@ export default function Agendamentos() {
 
       </DetailWorkspace>
 
-      {showForm && <NovoAgendamentoModal initialIso={prefilledAt} onClose={() => { setShowForm(false); setPrefilledAt(null); }} onSaved={() => { setShowForm(false); setPrefilledAt(null); qc.invalidateQueries({ queryKey: ['appointments'] }); }} />}
+      {/* Sprint 611: botão fixo para marcar no telemóvel. */}
+      <button type="button" onClick={() => { setPrefilledAt(null); setShowForm(true); }} aria-label="Marcar"
+        className="fixed bottom-5 right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-900/30 sm:hidden">
+        <Plus size={26} />
+      </button>
+
+      {showForm && <MarcarRapidoModal initialIso={prefilledAt} onClose={() => { setShowForm(false); setPrefilledAt(null); }} onSaved={() => { setShowForm(false); setPrefilledAt(null); qc.invalidateQueries({ queryKey: ['appointments'] }); }} />}
     </div>
   );
 }
@@ -497,48 +499,6 @@ function WeekGrid({
       </div>
 
       {loading && <div className="border-t border-zinc-100 px-3 py-2 text-center text-xs text-zinc-400 dark:border-zinc-800">A carregar…</div>}
-    </div>
-  );
-}
-
-function NovoAgendamentoModal({ onClose, onSaved, initialIso }: { onClose: () => void; onSaved: () => void; initialIso?: string | null }) {
-  const initLocal = initialIso ? toLocalInput(initialIso) : '';
-  const [form, setForm] = useState<CreateAppointmentRequest>({ nome: '', scheduledAt: '', durationMin: 30 });
-  const [localDt, setLocalDt] = useState(initLocal);
-
-  const create = useMutation({
-    mutationFn: () => {
-      if (!form.nome.trim() || !localDt) throw new Error('Nome e data/hora são obrigatórios.');
-      return appointmentsApi.create({ ...form, scheduledAt: new Date(localDt).toISOString() });
-    },
-    onSuccess: () => { toast.success('Agendamento criado.'); onSaved(); },
-    onError: (e) => toast.error(e instanceof Error ? e.message : 'Erro ao criar.'),
-  });
-
-  const input = 'w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400 dark:border-zinc-700 dark:bg-zinc-950';
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Novo agendamento</h2>
-          <button type="button" onClick={onClose} className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"><X size={18} /></button>
-        </div>
-        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
-          <input className={input} placeholder="Nome do cliente *" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} autoFocus />
-          <input className={input} placeholder="Telefone" value={form.telefone ?? ''} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
-          <input className={input} placeholder="Equipamento (ex: iPhone 13)" value={form.equipamento ?? ''} onChange={(e) => setForm({ ...form, equipamento: e.target.value })} />
-          <div className="flex gap-2">
-            <input type="datetime-local" className={input} value={localDt} onChange={(e) => setLocalDt(e.target.value)} />
-            <input type="number" min={5} step={5} className="w-24 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" value={form.durationMin ?? 30} onChange={(e) => setForm({ ...form, durationMin: Number(e.target.value) })} />
-          </div>
-          <textarea className={input} rows={2} placeholder="Notas" value={form.notas ?? ''} onChange={(e) => setForm({ ...form, notas: e.target.value })} />
-          <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" loading={create.isPending}>Guardar</Button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }
