@@ -13,6 +13,13 @@ public class StaffPushSubscriptionRepository : IStaffPushSubscriptionRepository
     public Task<StaffPushSubscription?> FindByEndpointAsync(Guid userId, string endpoint, CancellationToken ct = default)
         => _db.StaffPushSubscriptions.FirstOrDefaultAsync(x => x.UserId == userId && x.Endpoint == endpoint, ct);
 
+    public async Task<IReadOnlyList<StaffPushSubscription>> ListByUserAsync(Guid userId, CancellationToken ct = default)
+        => await _db.StaffPushSubscriptions
+            .IgnoreQueryFilters()
+            .Where(x => x.UserId == userId && !x.IsDeleted)
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<StaffPushSubscription>> ListByTenantAsync(Guid tenantId, CancellationToken ct = default)
         => await _db.StaffPushSubscriptions
             .IgnoreQueryFilters() // chamado a partir de um worker sem tenant no contexto

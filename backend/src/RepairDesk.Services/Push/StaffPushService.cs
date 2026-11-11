@@ -100,9 +100,10 @@ public class StaffPushService : IStaffPushService
         if (!_options.Value.Enabled)
             return 0;
 
-        var subscriptions = await _subscriptions.ListByTenantAsync(job.TenantId, ct);
-        if (job.UserId is { } paraUser)
-            subscriptions = subscriptions.Where(s => s.UserId == paraUser).ToList();
+        // Sprint 623: avisos pessoais (rotina) vão para os dispositivos do utilizador em qualquer empresa.
+        var subscriptions = job.UserId is { } paraUser
+            ? await _subscriptions.ListByUserAsync(paraUser, ct)
+            : await _subscriptions.ListByTenantAsync(job.TenantId, ct);
         if (subscriptions.Count == 0)
             return 0;
 

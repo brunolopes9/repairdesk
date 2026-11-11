@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <None Include="Fiscal/Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Rotina/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

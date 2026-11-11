@@ -10,10 +10,10 @@ public class CalendarioExternoRepository : ICalendarioExternoRepository
     public CalendarioExternoRepository(AppDbContext db) => _db = db;
 
     public async Task<IReadOnlyList<CalendarioExterno>> DoUtilizadorAsync(Guid userId, CancellationToken ct = default)
-        => await _db.CalendariosExternos.Where(c => c.UserId == userId).OrderBy(c => c.Nome).ToListAsync(ct);
+        => await _db.CalendariosExternos.IgnoreQueryFilters().Where(c => !c.IsDeleted && c.UserId == userId).OrderBy(c => c.Nome).ToListAsync(ct);
 
     public Task<CalendarioExterno?> FindAsync(Guid id, CancellationToken ct = default)
-        => _db.CalendariosExternos.FirstOrDefaultAsync(c => c.Id == id, ct);
+        => _db.CalendariosExternos.IgnoreQueryFilters().FirstOrDefaultAsync(c => !c.IsDeleted && c.Id == id, ct);
 
     public async Task AddAsync(CalendarioExterno c, CancellationToken ct = default) => await _db.CalendariosExternos.AddAsync(c, ct);
 
