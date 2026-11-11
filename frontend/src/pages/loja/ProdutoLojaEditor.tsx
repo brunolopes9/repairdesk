@@ -112,7 +112,7 @@ export default function ProdutoLojaEditor() {
     mutationFn: (sim: boolean) => lojaApi.publicar(id!, sim),
     onSuccess: (p) => {
       refrescar(p);
-      toast.success(p.publicado ? 'Publicado — aparece no site em até 15 minutos.' : 'Retirado do site.');
+      toast.success(p.publicado ? 'Publicado — aparece no site amanhã às 07:30.' : 'Sai do site amanhã às 07:30.');
     },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });

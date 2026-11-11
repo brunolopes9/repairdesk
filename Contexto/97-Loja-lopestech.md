@@ -25,7 +25,7 @@ Proposta do Claude do Mender, revista pelo Claude da Cortex. Consenso fechado. *
   - páginas de produto e de categoria em HTML completo, com JSON-LD Product/Offer (`itemCondition` New/Refurbished/Used, `availability`, `priceValidUntil`);
   - sitemap e IndexNow;
   - feed XML do Google Merchant com a política de envio (6,50 €) e de devolução (14 dias).
-- **Rebuild quando o catálogo muda**: gatilho do Mender + o processo atómico de publicação já usado pelo artigo diário, com verificação da página inicial e volta à versão anterior se falhar.
+- **Rebuild uma vez por dia (07:30, decisão do Bruno)**, só se o catálogo mudou — mesmo processo atómico do artigo diário (verificação da página inicial e volta atrás se falhar).
 - **Filtros no cliente**, sobre um JSON do catálogo: marca, memória (RAM), armazenamento, cor, estado e preço. As listagens base são estáticas, para o Google.
 - **Imagens**: WebP/AVIF em 3 tamanhos com `srcset`, para um bom LCP. Ficam no R2, como as do módulo Conteúdo.
 - **Carrinho lateral** em JS simples:
@@ -79,6 +79,6 @@ Proposta do Claude do Mender, revista pelo Claude da Cortex. Consenso fechado. *
 - **Mender (em produção, v0.48.0):** Sprint 613 (modelo ProdutoLoja, regras legais, fotos R2, catálogo `/api/external/loja/catalogo` com scope «loja») e Sprint 614 (página «Loja online» + editor com IVA/lucro em tempo real).
 - **Site (f87cff6, publicado):** `_gerador/loja.py` (listagem com filtros, categorias, página de produto, JSON-LD, feed Merchant), `loja_sync.py` (Pillow no contentor `lopestech-diario`), `diario/loja.sh` (cron 15 min, lock partilhado com o artigo diário) e `diario/publicar_local.sh` (publicação partilhada). `/loja` existe mas está `noindex` e fora do sitemap enquanto não houver produtos.
 - **Falta para ligar:**
-  1. O cron `*/15 * * * * bash /opt/lopestech-diario/site/_gerador/diario/loja.sh` (instalação bloqueada pelas permissões do Claude — o Bruno aprova).
+  1. O cron `30 7 * * * bash /opt/lopestech-diario/site/_gerador/diario/loja.sh` (uma vez por dia) (instalação bloqueada pelas permissões do Claude — o Bruno aprova).
   2. Chave de API com a permissão «loja» (Mender → Definições → Empresa → Chaves de API, na empresa LopesTech), guardada em `/opt/lopestech-diario/loja.env` como `MENDER_LOJA_KEY=…` (chmod 600).
   3. O 1.º produto publicado → acrescentar «Loja» ao menu do site (`js/shared.js`) e pedir ao Claude da Cortex a revisão do schema/feed/IndexNow.

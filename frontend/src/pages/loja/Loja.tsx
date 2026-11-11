@@ -19,7 +19,7 @@ export default function Loja() {
     <div className="space-y-4">
       <PageHeader
         title="Loja online"
-        description="Produtos à venda em lopestech.pt/loja. Publicas aqui e o site atualiza sozinho (até 15 min)."
+        description="Produtos à venda em lopestech.pt/loja. Publicas aqui e o site atualiza sozinho todas as manhãs (07:30)."
         actions={<Button leftIcon={<Plus size={16} />} onClick={() => navigate('/loja/novo')}>Novo produto</Button>}
       />
 
