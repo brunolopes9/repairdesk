@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
+using RepairDesk.Core.Enums;
 
 namespace RepairDesk.DAL.Persistence;
 
@@ -20,6 +21,13 @@ public class AgendaAvisosRepository : IAgendaAvisosRepository
     public async Task<IReadOnlyList<Appointment>> AtivosEntreAsync(DateTime deUtc, DateTime ateUtc, CancellationToken ct = default)
         => await Ativos().AsNoTracking().Where(a => a.ScheduledAt >= deUtc && a.ScheduledAt < ateUtc)
             .OrderBy(a => a.ScheduledAt).ToListAsync(ct);
+
+    public async Task<IReadOnlyList<PecaPorEncomendar>> PecasPorEncomendarAsync(CancellationToken ct = default)
+        => await _db.Vendas.IgnoreQueryFilters().AsNoTracking()
+            .Where(v => !v.IsDeleted && v.Estado != VendaEstado.Entregue && v.Estado != VendaEstado.Cancelada)
+            .SelectMany(v => v.Items.Where(i => i.Encomenda == PecaEncomendaEstado.PorEncomendar),
+                (v, i) => new PecaPorEncomendar(v.TenantId, v.Numero, v.Equipamento, i.Descricao, i.Quantidade))
+            .ToListAsync(ct);
 
     public Task<bool> AvisoJaEnviadoAsync(Guid tenantId, string chave, CancellationToken ct = default)
         => _db.AgendaAvisos.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenantId && x.Chave == chave, ct);

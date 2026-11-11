@@ -9,7 +9,12 @@ public interface IAgendaAvisosRepository
     Task<IReadOnlyList<Appointment>> SemLembreteEntreAsync(DateTime deUtc, DateTime ateUtc, CancellationToken ct = default);
     /// <summary>Agendados/confirmados entre as duas horas (só leitura), de todas as empresas.</summary>
     Task<IReadOnlyList<Appointment>> AtivosEntreAsync(DateTime deUtc, DateTime ateUtc, CancellationToken ct = default);
+    /// <summary>Sprint 618: peças ainda por encomendar em reparações em curso, de todas as empresas.</summary>
+    Task<IReadOnlyList<PecaPorEncomendar>> PecasPorEncomendarAsync(CancellationToken ct = default);
     Task<bool> AvisoJaEnviadoAsync(Guid tenantId, string chave, CancellationToken ct = default);
     Task AddAvisoAsync(AgendaAviso aviso, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }
+
+/// <summary>Sprint 618: uma peça por encomendar (para o aviso antes do prazo do fornecedor).</summary>
+public sealed record PecaPorEncomendar(Guid TenantId, int VendaNumero, string? Equipamento, string Descricao, int Quantidade);

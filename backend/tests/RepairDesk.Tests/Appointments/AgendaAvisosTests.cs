@@ -78,6 +78,31 @@ public class AgendaAvisosTests : IClassFixture<RepairDeskApiFactory>
         (await Processar(new DateTime(2031, 3, 17, 8, 2, 0, DateTimeKind.Utc))).ResumosSemana.Should().Be(0);
     }
 
+    [Fact]
+    public async Task PecasPorEncomendar_AvisaAs1040_EAs1115_SoEmDiasUteis()
+    {
+        var client = await Admin();
+        var cliente = (await (await client.PostAsJsonAsync("/api/clientes", new RepairDesk.Services.Clientes.CreateClienteRequest("Cliente Peças", "912345679", null, null, null)))
+            .Content.ReadFromJsonAsync<RepairDesk.Services.Clientes.ClienteDto>())!.Id;
+        (await client.PostAsJsonAsync("/api/vendas", new RepairDesk.Services.Vendas.VendaWriteRequest(RepairDesk.Core.Enums.VendaTipo.Reparacao, cliente, "iPhone 13", "Ecrã", null,
+            [new RepairDesk.Services.Vendas.VendaLinhaWriteRequest(null, null, "Ecrã iPhone 13 OLED", 1, 9000, Encomenda: RepairDesk.Core.Enums.PecaEncomendaEstado.PorEncomendar, CustoEstimadoCents: 4500)],
+            RepairDesk.Core.Enums.VendaEstado.AEsperaPeca, null))).EnsureSuccessStatusCode();
+        await Jobs();
+
+        // Sábado: nada.
+        (await Processar(new DateTime(2031, 3, 15, 10, 41, 0, DateTimeKind.Utc))).AvisosPecas.Should().Be(0);
+        // Terça 10:41: lista; segunda passagem não repete.
+        (await Processar(new DateTime(2031, 3, 18, 10, 41, 0, DateTimeKind.Utc))).AvisosPecas.Should().Be(1);
+        var aviso = (await Jobs()).Single(j => j.Tag == "pecas:2031-03-18");
+        aviso.Title.Should().Contain("por encomendar").And.Contain("11:30");
+        aviso.Body.Should().Contain("Ecrã iPhone 13 OLED").And.Contain("iPhone 13");
+        aviso.Url.Should().Be("/vendas?vista=pecas");
+        (await Processar(new DateTime(2031, 3, 18, 10, 50, 0, DateTimeKind.Utc))).AvisosPecas.Should().Be(0);
+        // 11:16: último aviso, insistente.
+        (await Processar(new DateTime(2031, 3, 18, 11, 16, 0, DateTimeKind.Utc))).AvisosPecas.Should().Be(1);
+        (await Jobs()).Single(j => j.Tag == "pecas2:2031-03-18").Insistente.Should().BeTrue();
+    }
+
     private async Task<AgendaAvisosResultado> Processar(DateTime agoraUtc)
     {
         using var scope = _factory.Services.CreateScope();

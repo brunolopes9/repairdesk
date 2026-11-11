@@ -39,8 +39,8 @@ public sealed class AgendaAvisosHostedService : BackgroundService
                 using var scope = _scopes.CreateScope();
                 var avisos = scope.ServiceProvider.GetRequiredService<IAgendaAvisosService>();
                 var r = await avisos.ProcessarAsync(DateTime.UtcNow, stoppingToken);
-                if (r.Lembretes + r.ResumosDia + r.ResumosSemana > 0)
-                    _logger.LogInformation("Agenda: {L} lembrete(s), {D} resumo(s) do dia, {S} da semana.", r.Lembretes, r.ResumosDia, r.ResumosSemana);
+                if (r.Lembretes + r.ResumosDia + r.ResumosSemana + r.AvisosPecas > 0)
+                    _logger.LogInformation("Agenda: {L} lembrete(s), {D} resumo(s) do dia, {S} da semana, {P} aviso(s) de peças.", r.Lembretes, r.ResumosDia, r.ResumosSemana, r.AvisosPecas);
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex) { _logger.LogError(ex, "Avisos da agenda falharam — tenta no próximo minuto."); }

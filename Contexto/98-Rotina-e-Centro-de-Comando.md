@@ -17,8 +17,8 @@ O Mender não deve servir para fazer mais coisas. Deve **dizer qual é a próxim
 | Fase | O quê | Estado |
 |---|---|---|
 | **F1 — Rotina (Sprint 615)** | Itens recorrentes (refeições, suplementos, meditação, ginásio, trading, trabalho, limite, pessoal, peso de N em N dias); avisos por níveis; ecrã «Agora»; Feito / +15 / Saltar com motivo; peso com histórico | **feito** |
-| F2 — Tarefas e Inbox | Tarefas com foco Hoje (máx. 3), Semana e Ideias; botão global «Capturar ideia» («guardado, volta ao bloco») | a seguir |
-| F3 — Material para reparações | Peças a encomendar por reparação, prazo do fornecedor (ex.: 11:30) e aviso às 10:45 com o que falta encomendar (já existe `Encomenda` nas linhas da venda) | a seguir |
+| F2 — Tarefas e Inbox (Sprint 617) | Tarefas com foco Hoje (máx. 3 pendentes por pessoa), Semana e Ideias; botão 💡 «Ideia» no topo (Alt+I); cartão «Prioridades de hoje» na Rotina | **feito** |
+| F3 — Material para reparações (Sprint 618) | A lista «Peças a encomendar» já existia (Sprint 594). Novo: push em dias úteis às 10:40 com as peças por encomendar e às 11:15 o último aviso (insistente) — o fornecedor aceita até às 11:30. Só sai se houver peças | **feito** |
 | F4 — Google Calendar | O Mender já publica um feed ICS (`PublicCalendarFeedController`) que o Google subscreve. Falta importar o calendário Google (endereço secreto iCal, colado pelo Bruno) para a vista do Mender. Escrita no Google em tempo real (OAuth) só se o ICS não chegar | a seguir |
 | F5 — Faturas por email | Gmail/Outlook → regra de reencaminhamento só para os remetentes conhecidos → endereço de receção → webhook de ingest que já existe (Sprint 173) → por aprovar. Sem OAuth às caixas inteiras (acordado com o Claude fiscal). Duplicados por SHA do PDF + NIF + nº | a seguir |
 | F6 — Motor fiscal (sujeito passivo misto) | ver §4 | a seguir, com o Claude fiscal |

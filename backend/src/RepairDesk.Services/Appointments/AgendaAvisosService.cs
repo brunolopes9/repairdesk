@@ -5,7 +5,7 @@ using RepairDesk.Services.Push;
 
 namespace RepairDesk.Services.Appointments;
 
-public sealed record AgendaAvisosResultado(int Lembretes, int ResumosDia, int ResumosSemana);
+public sealed record AgendaAvisosResultado(int Lembretes, int ResumosDia, int ResumosSemana, int AvisosPecas = 0);
 
 public interface IAgendaAvisosService
 {
@@ -26,6 +26,9 @@ public sealed class AgendaAvisosService : IAgendaAvisosService
     private const int HoraResumo = 8;
     /// <summary>Se o servidor esteve parado às 08:00, o resumo ainda sai até às 10:00 — depois já não faz sentido.</summary>
     private const int HoraLimiteResumo = 10;
+    private const int HoraPecas1 = 10 * 60 + 40;
+    private const int HoraPecas2 = 11 * 60 + 15;
+    private const int LimitePecas = 11 * 60 + 30;
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-PT");
     private static readonly TimeZoneInfo Lisboa = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");
 
@@ -49,7 +52,14 @@ public sealed class AgendaAvisosService : IAgendaAvisosService
             if (local.DayOfWeek == DayOfWeek.Monday) semana = await ResumoSemanaAsync(local, ct);
             dia = await ResumoDiaAsync(local, ct);
         }
-        return new AgendaAvisosResultado(lembretes, dia, semana);
+        var pecas = 0;
+        if (local.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday))
+        {
+            var minuto = local.Hour * 60 + local.Minute;
+            if (minuto is >= HoraPecas1 and < HoraPecas2) pecas = await AvisoPecasAsync(local, "pecas", false, ct);
+            else if (minuto is >= HoraPecas2 and < LimitePecas) pecas = await AvisoPecasAsync(local, "pecas2", true, ct);
+        }
+        return new AgendaAvisosResultado(lembretes, dia, semana, pecas);
     }
 
     private async Task<int> LembretesAsync(DateTime agoraUtc, CancellationToken ct)
@@ -70,6 +80,37 @@ public sealed class AgendaAvisosService : IAgendaAvisosService
         }
         if (proximos.Count > 0) await _repo.SaveAsync(ct);
         return proximos.Count;
+    }
+
+    /// <summary>
+    /// Sprint 618 (Doc 98 F3): os fornecedores aceitam encomendas para o próprio dia até às 11:30.
+    /// 10:40 — lista do que falta encomendar; 11:15 — último aviso se ainda houver. Só em dias úteis e só se houver peças.
+    /// </summary>
+    private async Task<int> AvisoPecasAsync(DateTime local, string prefixo, bool ultimo, CancellationToken ct)
+    {
+        var chave = $"{prefixo}:{local:yyyy-MM-dd}";
+        var pecas = await _repo.PecasPorEncomendarAsync(ct);
+        var enviados = 0;
+        foreach (var grupo in pecas.GroupBy(p => p.TenantId))
+        {
+            if (!await Marcar(grupo.Key, chave, ct)) continue;
+            var lista = grupo.ToList();
+            var n = lista.Sum(p => p.Quantidade);
+            const int max = 5;
+            var corpo = string.Join("\n", lista.Take(max).Select(p =>
+                $"{(p.Quantidade > 1 ? $"{p.Quantidade}× " : "")}{p.Descricao} — #{p.VendaNumero}{(p.Equipamento is { Length: > 0 } eq ? $" {eq}" : "")}"));
+            if (lista.Count > max) corpo += $"\n+ {lista.Count - max} mais";
+            await _push.EnqueueAsync(new StaffPushJob(
+                grupo.Key,
+                ultimo
+                    ? $"⏰ 15 min para o limite: {n} peça(s) por encomendar"
+                    : $"📦 {n} peça(s) por encomendar — fornecedor até às 11:30",
+                corpo,
+                "/vendas?vista=pecas",
+                chave) { Insistente = ultimo }, ct);
+            enviados++;
+        }
+        return enviados;
     }
 
     private async Task<int> ResumoDiaAsync(DateTime local, CancellationToken ct)
