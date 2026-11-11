@@ -74,3 +74,11 @@ Proposta do Claude do Mender, revista pelo Claude da Cortex. Consenso fechado. *
 3. **Klarna** não existe para empresas PT no Stripe. Avançamos sem prestações, ou avalia-se Cofidis Pay / SeQura / Scalapay?
 4. **Começar pela F1** (Google já, encomenda por mensagem)?
 5. **Conta Stripe** em nome da LopesTech. Criada pelo Bruno; o Claude não cria contas.
+
+## 8. Estado (11/11/2026)
+- **Mender (em produção, v0.48.0):** Sprint 613 (modelo ProdutoLoja, regras legais, fotos R2, catálogo `/api/external/loja/catalogo` com scope «loja») e Sprint 614 (página «Loja online» + editor com IVA/lucro em tempo real).
+- **Site (f87cff6, publicado):** `_gerador/loja.py` (listagem com filtros, categorias, página de produto, JSON-LD, feed Merchant), `loja_sync.py` (Pillow no contentor `lopestech-diario`), `diario/loja.sh` (cron 15 min, lock partilhado com o artigo diário) e `diario/publicar_local.sh` (publicação partilhada). `/loja` existe mas está `noindex` e fora do sitemap enquanto não houver produtos.
+- **Falta para ligar:**
+  1. O cron `*/15 * * * * bash /opt/lopestech-diario/site/_gerador/diario/loja.sh` (instalação bloqueada pelas permissões do Claude — o Bruno aprova).
+  2. Chave de API com a permissão «loja» (Mender → Definições → Empresa → Chaves de API, na empresa LopesTech), guardada em `/opt/lopestech-diario/loja.env` como `MENDER_LOJA_KEY=…` (chmod 600).
+  3. O 1.º produto publicado → acrescentar «Loja» ao menu do site (`js/shared.js`) e pedir ao Claude da Cortex a revisão do schema/feed/IndexNow.
