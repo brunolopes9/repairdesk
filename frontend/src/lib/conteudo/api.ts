@@ -74,7 +74,7 @@ function normalizarTipo(file: File): string {
   return (ext && porExtensao[ext]) || 'image/jpeg';
 }
 
-function putComProgresso(
+export function putComProgresso(
   url: string,
   file: File,
   contentType: string,

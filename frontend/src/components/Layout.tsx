@@ -17,6 +17,7 @@ import {
   Settings,
   Megaphone,
   Share2,
+  ShoppingBag,
   Workflow,
   Sparkles,
   Building2,
@@ -85,6 +86,8 @@ const nav: NavItem[] = [
   { to: '/tarefas', label: 'Tarefas', icon: ClipboardList },
   // Sprint 598 (Doc 95): redes sociais — aprovar publicações e enviar vídeos (só o dono).
   { to: '/conteudo', label: 'Conteúdo', icon: Share2, adminOnly: true, badgeKey: 'conteudo' },
+  // Sprint 614 (Doc 97): loja do lopestech.pt.
+  { to: '/loja', label: 'Loja online', icon: ShoppingBag, adminOnly: true },
   { to: '/auditoria', label: 'Auditoria', icon: ClipboardList, adminOnly: true },
   // Sprint 240: agrupar tudo de configuração num único dropdown "Definições" — antes eram
   // 6 items soltos na sidebar (Preferências, Webhooks, Fornecedores, Automações, Uso de IA,
