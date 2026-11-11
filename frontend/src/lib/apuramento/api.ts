@@ -73,6 +73,9 @@ export interface ApuramentoEstimativas {
   /** Sprint 622: sujeito passivo misto — pro rata provisória (%) e data de efeitos. */
   proRataPercent?: number | null;
   proRataInicio?: string | null;
+  /** Sprint 624: até quando o trading esteve no 1519 (0,75) e quanto foi faturado até lá. */
+  tradingTabela151Ate?: string | null;
+  receitasTradingTabela151?: number;
 }
 
 export interface PressupostosRequest {
@@ -86,6 +89,8 @@ export interface PressupostosRequest {
   proRataPercent?: number | null;
   proRataInicio?: string | null;
   semProRata?: boolean;
+  tradingTabela151Ate?: string | null;
+  semTradingTabela151Ate?: boolean;
 }
 
 /** Sprint 580: lembrete fiscal com prazo (ex.: rever o código de atividade do trading em janeiro). */

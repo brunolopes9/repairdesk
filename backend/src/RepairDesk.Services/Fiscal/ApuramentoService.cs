@@ -57,7 +57,10 @@ public sealed record PressupostosRequest(
     /// <summary>Sprint 622: pro rata provisória (%) e data de efeitos; SemProRata limpa (deixa de ser misto).</summary>
     decimal? ProRataPercent = null,
     DateTime? ProRataInicio = null,
-    bool SemProRata = false);
+    bool SemProRata = false,
+    /// <summary>Sprint 624: data em que o trading deixou o código da tabela do art. 151.º (0,75 → 0,35).</summary>
+    DateTime? TradingTabela151Ate = null,
+    bool SemTradingTabela151Ate = false);
 
 /// <summary>Sprint 580: lembrete fiscal com prazo (ex.: rever o código de atividade do trading).</summary>
 public sealed record LembreteFiscalDto(string Codigo, string Titulo, string Texto, bool Urgente);
@@ -107,7 +110,10 @@ public sealed record ApuramentoEstimativasDto(
     decimal? DeducoesColeta = null,
     /// <summary>Sprint 622: sujeito passivo misto — pro rata provisória (%) e data de efeitos.</summary>
     decimal? ProRataPercent = null,
-    DateTime? ProRataInicio = null);
+    DateTime? ProRataInicio = null,
+    /// <summary>Sprint 624: até quando o trading foi a 0,75 e quanto do trading desse período.</summary>
+    DateTime? TradingTabela151Ate = null,
+    decimal ReceitasTradingTabela151 = 0m);
 
 /// <summary>Campo da declaração periódica de IVA (Continente) — a confirmar com o contabilista.</summary>
 public sealed record ApuramentoCampoDto(string Campo, string Descricao, decimal Valor);
@@ -203,6 +209,8 @@ public class ApuramentoService : IApuramentoService
         if (req.DeducoesColeta is { } deducoes) t.DeducoesColeta = deducoes;
         if (req.ServicosNaTabela151 is { } servTabela) t.ServicosNaTabela151 = servTabela;
         if (req.TradingNaTabela151 is { } tradTabela) t.TradingNaTabela151 = tradTabela;
+        if (req.SemTradingTabela151Ate) t.TradingTabela151Ate = null;
+        else if (req.TradingTabela151Ate is { } tradAte) t.TradingTabela151Ate = tradAte.Date;
         if (req.SemProRata)
         {
             t.ProRataPercent = null;
@@ -256,7 +264,7 @@ public class ApuramentoService : IApuramentoService
     {
         var t = await TenantAsync(ct);
         var lembretes = new List<LembreteFiscalDto>();
-        if (!t.TradingNaTabela151 || t.CodigoTradingRevistoEm is not null) return lembretes;
+        if (!t.TradingNaTabela151 || t.CodigoTradingRevistoEm is not null || t.TradingTabela151Ate is not null) return lembretes;
 
         var hoje = DateTime.UtcNow;
         var desde = new DateTime(hoje.Year - 1, 1, 1);
@@ -493,7 +501,8 @@ public class ApuramentoService : IApuramentoService
 
         var vendasAno = (await _vendas.ListParaApuramentoAsync(ParaUtc(inicioAno).AddDays(-1), ParaUtc(ate).AddDays(1), ct))
             .Where(v => v.InvoiceNumber is not null && DentroDe(DeLisboa(v.InvoiceEmittedAt ?? v.Data), inicioAno, ate)).ToList();
-        decimal bens = 0, s075 = 0, s035 = 0, trading = 0, bensTrim = 0, servTrim = 0;
+        decimal bens = 0, s075 = 0, s035 = 0, trading = 0, tradingAntes = 0, bensTrim = 0, servTrim = 0;
+        var tradingAte = t?.TradingTabela151Ate;
         foreach (var v in vendasAno)
         {
             var noTrimestre = DentroDe(DeLisboa(v.InvoiceEmittedAt ?? v.Data), de, ate);
@@ -501,7 +510,11 @@ public class ApuramentoService : IApuramentoService
             {
                 var b = BaseSemIva(i);
                 var ehBem = v.Atividade == VendaAtividade.Loja && (i.CompraLinhaId is not null || v.Tipo == VendaTipo.Produto);
-                if (v.Atividade == VendaAtividade.Trading) trading += b;
+                if (v.Atividade == VendaAtividade.Trading)
+                {
+                    trading += b;
+                    if (tradingAte is { } limite && DeLisboa(v.InvoiceEmittedAt ?? v.Data).Date <= limite.Date) tradingAntes += b;
+                }
                 else if (ehBem) bens += b;
                 else if (v.Tipo == VendaTipo.Reparacao) s035 += b;
                 else s075 += b;
@@ -516,15 +529,19 @@ public class ApuramentoService : IApuramentoService
         var tradingNaTabela = t?.TradingNaTabela151 ?? true;
         var coefServicos = servicosNaTabela ? EstimativasFiscais.CoefServicosTabela : EstimativasFiscais.CoefOutrosServicos;
         var coefTrading = tradingNaTabela ? EstimativasFiscais.CoefServicosTabela : EstimativasFiscais.CoefOutrosServicos;
-        // Regra dos 15% (art. 31.º n.º 13): só sobre o que está a 0,75.
-        var receitas075 = (servicosNaTabela ? s075 + s035 : 0m) + (tradingNaTabela ? trading : 0m);
+        // Sprint 624: com data de mudança, o trading até essa data vai a 0,75 e o resto a 0,35.
+        var (trading075, trading035) = tradingAte is not null
+            ? (tradingAntes, trading - tradingAntes)
+            : tradingNaTabela ? (trading, 0m) : (0m, trading);
+        // Regra dos 15% (art. 31.º n.º 13): sobre os rendimentos de serviços a 0,75 e a 0,35 (Doc 98 §4.1).
+        var receitas075 = s075 + s035 + trading;
         var justificadas = EstimativasFiscais.DeducaoEspecifica
             + (await _despesas.ListPeriodoAsync(inicioAno, ate, ct)).Sum(d => d.ValorCents / 100m)
             + (await _compras.ListDocumentosPeriodoAsync(inicioAno, ate, ct)).Sum(d => d.Linhas.Sum(l => l.Quantidade * l.PrecoUnitarioPago) + d.PortesPagos);
         var acrescimo = Math.Max(0m, EstimativasFiscais.Regra15 * receitas075 - justificadas);
         var rendimento = bens * EstimativasFiscais.CoefBens
             + (s075 + s035) * coefServicos * fator
-            + trading * coefTrading * fator
+            + (trading075 * EstimativasFiscais.CoefServicosTabela + trading035 * EstimativasFiscais.CoefOutrosServicos) * fator
             + acrescimo;
         // Sprint 580: o IRS Jovem isenta parte do rendimento; as deduções à coleta (e-fatura) abatem ao imposto até 0.
         var isencaoJovem = EstimativasFiscais.IrsJovemIsencao(rendimento, t?.IrsJovemAno);
@@ -543,7 +560,7 @@ public class ApuramentoService : IApuramentoService
             Euros(relevante), isento ? 0m : Euros(relevante / 3m * EstimativasFiscais.SsTaxa), isento, isentoAte,
             t?.SsContribuicaoAtual,
             coefServicos, coefTrading, servicosNaTabela, tradingNaTabela,
-            t?.IrsJovemAno, EstimativasFiscais.IrsJovemPercentagem(t?.IrsJovemAno), Euros(isencaoJovem), Euros(coleta), t?.DeducoesColeta, t?.ProRataPercent, t?.ProRataInicio);
+            t?.IrsJovemAno, EstimativasFiscais.IrsJovemPercentagem(t?.IrsJovemAno), Euros(isencaoJovem), Euros(coleta), t?.DeducoesColeta, t?.ProRataPercent, t?.ProRataInicio, tradingAte, Euros(trading075));
     }
 
     /// <summary>Taxa da compra guardada como fração (0,23); tolera valores antigos em % (23).</summary>

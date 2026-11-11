@@ -19,7 +19,7 @@ const txt = (v: number | null | undefined) => (v ? v.toFixed(2).replace('.', ','
  */
 export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEstimativas; ano: number; trimestre: number }) {
   const qc = useQueryClient();
-  const [f, setF] = useState({ inicio: '', ss: '', jovem: '', deducoes: '', servicosTabela: false, tradingTabela: true, proRata: '', proRataInicio: '' });
+  const [f, setF] = useState({ inicio: '', ss: '', jovem: '', deducoes: '', servicosTabela: false, tradingTabela: true, proRata: '', proRataInicio: '', tradingAte: '' });
   useEffect(() => {
     setF({
       inicio: e.inicioAtividade?.slice(0, 10) ?? '',
@@ -30,6 +30,7 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
       tradingTabela: e.tradingNaTabela151,
       proRata: e.proRataPercent != null ? String(e.proRataPercent).replace('.', ',') : '',
       proRataInicio: e.proRataInicio?.slice(0, 10) ?? '',
+      tradingAte: e.tradingTabela151Ate?.slice(0, 10) ?? '',
     });
   }, [e]);
   const num = (s: string) => parseDecimal(s) ?? 0;
@@ -45,6 +46,8 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
       proRataPercent: f.proRata.trim() ? num(f.proRata) : null,
       proRataInicio: f.proRata.trim() && f.proRataInicio ? f.proRataInicio : null,
       semProRata: !f.proRata.trim(),
+      tradingTabela151Ate: f.tradingAte || null,
+      semTradingTabela151Ate: !f.tradingAte,
     }),
     onSuccess: () => { toast.success('Pressupostos guardados'); qc.invalidateQueries({ queryKey: ['apuramento'] }); },
     onError: (err) => toast.fromError(err, 'Não foi possível guardar.'),
@@ -74,7 +77,14 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
             <Linha label="Vendas de bens (peças, artigos) × 0,15" valor={e.receitasBens} />
             <Linha label={`Informática / software × ${coef(e.coefServicos)}${reducao}`} valor={e.receitasInformatica} />
             <Linha label={`Reparações × ${coef(e.coefServicos)}${reducao}`} valor={e.receitasReparacoes} />
-            <Linha label={`Trading × ${coef(e.coefTrading)}${reducao}`} valor={e.receitasTrading} />
+            {e.tradingTabela151Ate ? (
+              <>
+                <Linha label={`Trading até ${dataPt(e.tradingTabela151Ate)} (1519) × 0,75${reducao}`} valor={e.receitasTradingTabela151 ?? 0} />
+                <Linha label={`Trading depois (CAE) × 0,35${reducao}`} valor={e.receitasTrading - (e.receitasTradingTabela151 ?? 0)} />
+              </>
+            ) : (
+              <Linha label={`Trading × ${coef(e.coefTrading)}${reducao}`} valor={e.receitasTrading} />
+            )}
             {e.acrescimoRegra15 > 0 && <Linha label="Acréscimo da regra dos 15% (faltam despesas)" valor={e.acrescimoRegra15} />}
             <Linha label="Rendimento tributável estimado" valor={e.rendimentoTributavel} forte />
             {e.irsJovemIsencao > 0 && <Linha label={`IRS Jovem (${e.irsJovemAno}.º ano, ${pct(e.irsJovemPercentagem)} isento)`} valor={-e.irsJovemIsencao} />}
@@ -134,6 +144,10 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
           <label className="block">
             <span className={labelCls}>Pro rata em vigor desde</span>
             <input type="date" value={f.proRataInicio} onChange={(ev) => setF({ ...f, proRataInicio: ev.target.value })} className={inputCls} disabled={!f.proRata.trim()} />
+          </label>
+          <label className="block sm:col-span-2">
+            <span className={labelCls}>O trading saiu do código 1519 (0,75) em — as faturas depois desta data vão a 0,35</span>
+            <input type="date" value={f.tradingAte} onChange={(ev) => setF({ ...f, tradingAte: ev.target.value })} className={inputCls} />
           </label>
           <p className="text-xs text-zinc-500 sm:col-span-2">
             Nas despesas escolhes a atividade: LopesTech deduz o IVA, Trading não deduz, «as duas» deduz × pro rata (só a partir desta data).

@@ -95,6 +95,12 @@ public class Tenant : BaseEntity
 
     /// <summary>Sprint 622 (Doc 98 F6): sujeito passivo misto — percentagem de dedução provisória (ex.: 20) e desde quando vale.</summary>
     public decimal? ProRataPercent { get; set; }
+
+    /// <summary>
+    /// Sprint 624 (Doc 98 §4.1): o trading esteve num código da tabela do art. 151.º (CIRS 1519, coeficiente 0,75) até
+    /// esta data; as faturas depois dela vão a 0,35 (ex.: 66190 desde 09/11/2026). Null = usa só TradingNaTabela151.
+    /// </summary>
+    public DateTime? TradingTabela151Ate { get; set; }
     public DateTime? ProRataInicio { get; set; }
 
     /// <summary>Sprint 576: contribuição mensal à Segurança Social que paga hoje (para comparar com a estimativa).</summary>

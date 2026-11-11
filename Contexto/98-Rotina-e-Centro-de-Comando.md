@@ -75,6 +75,43 @@ O Mender não deve servir para fazer mais coisas. Deve **dizer qual é a próxim
   - IRS Jovem 75% com limite de 55 × IAS;
   - sem mínimo de existência em 2026.
 
+### 4.2 Fornecedores do Bruno — entidade, tratamento e afetação (Claude fiscal, 11/11, a partir das faturas)
+
+**Serviços de fora da UE** → campos 3/4 + 98, dedução no 24 × afetação:
+- Anthropic (PBC, EUA; o «EU VAT IE…» é só o OSS) — Mista.
+- TradersConnect (Reino Unido; fatura em USD, câmbio BCE) — Trading.
+- FX Replay (presumo Inc., EUA — confirmar na fatura; USD) — Trading.
+
+**Serviços da UE** → campos 16/17, dedução no 24:
+- Hetzner (DE) — LopesTech (Mista se também alojar trading).
+- 5G-M/Earth Trading (IT): os diagramas são serviço (16/17); as ferramentas são bens (12/13) — LopesTech.
+
+**Bens intracomunitários** → campos 12/13; dedução no 22 (inventário) ou 24 (outros); tudo LopesTech:
+- 4Phones, iPartsTrade, MobileSentrix e Eleshop (NL);
+- Utopya (FR);
+- LC Phones/POCINHAS (LU) — nota de crédito Honor X7b por refletir;
+- LTronics (IE);
+- Tectake (ES) — retificativa N1147902; devem 8,78 €;
+- PowerPlanet/LEASK, KaQuu, Inter Movil e SpainSellers (ES);
+- IluminaShop (ES) — confirmar se veio com IVA ES;
+- VEVOR via Amazon (FR, 0%).
+
+**Com IVA estrangeiro** (custo, não vai à DP):
+- Amazon com vendedores DE/UK;
+- AliExpress (Bailisun, Geeboon) — ver IOSS/importação.
+
+**Nacionais:**
+- peças: Tudo4Mobile, Microwire, Robert Mauser — LopesTech;
+- material: Leroy, IKEA, Brico Depot, FCL, Volter — LopesTech;
+- CTT: parte isenta;
+- MEO: Mista;
+- refeições: não dedutível (art. 21.º);
+- Pingo Doce (secador-ferramenta): LopesTech.
+
+**Avisos:**
+- Volter: fatura em nome de «João Lopes» com o NIF do Bruno → pedir 2.ª via.
+- Moloni: IVA PT normal.
+
 ## 5. Vendas «sem fatura» (registo interno) — Sprint 616, decisão do Bruno
 - O Bruno emite sempre fatura nas vendas do momento (balcão/Moloni). Algumas reparações seguem outro enquadramento, combinado com a contabilista Susana, e são faturadas fora do Mender (AT/Moloni). O Mender é registo interno, como um Excel: a declaração oficial sai da AT, não daqui.
 - Na venda: botão **«Registar sem fatura»**. A venda fica com a etiqueta «Sem fatura». O motivo é opcional; por omissão fica «Sem fatura (registo interno)».

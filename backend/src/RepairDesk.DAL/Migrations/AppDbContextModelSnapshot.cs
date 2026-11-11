@@ -3041,6 +3041,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<bool>("TradingNaTabela151")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("TradingTabela151Ate")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
