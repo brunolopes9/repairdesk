@@ -12,6 +12,10 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.FaturasImapHost).HasMaxLength(120);
+        builder.Property(x => x.FaturasImapUser).HasMaxLength(200);
+        builder.Property(x => x.FaturasImapPasswordCifrada).HasMaxLength(2000);
+        builder.Property(x => x.FaturasImapUltimoErro).HasMaxLength(300);
         builder.Property(x => x.LegalName).HasMaxLength(300);
         builder.Property(x => x.Nif).HasMaxLength(20);
         builder.Property(x => x.Address).HasMaxLength(500);

@@ -123,6 +123,14 @@ public class Tenant : BaseEntity
     // Sprint 173: email forwarding ingest per-tenant (RGPD-clean).
     public string? IngestEmailSlug { get; set; }
 
+    // Sprint 620 (Doc 98 F5): caixa dedicada às faturas (IMAP) — o Mender lê de 5 em 5 min. Palavra-passe cifrada.
+    public string? FaturasImapHost { get; set; }
+    public int? FaturasImapPort { get; set; }
+    public string? FaturasImapUser { get; set; }
+    public string? FaturasImapPasswordCifrada { get; set; }
+    public DateTime? FaturasImapUltimaLeitura { get; set; }
+    public string? FaturasImapUltimoErro { get; set; }
+
     // Sprint 354 (Doc 83 Pillar 9): slug público para widget de repair-request no website.
     // NULL = widget desactivado. Gerado on-demand em Definições.
     public string? IntakeSlug { get; set; }

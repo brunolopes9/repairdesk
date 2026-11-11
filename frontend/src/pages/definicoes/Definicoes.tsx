@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { FaturasEmailSection } from './FaturasEmailSection';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { AlertTriangle, CheckCircle2, Clock3, Cloud, Copy, DatabaseBackup, HardDrive, Key, Loader2, Plus, RefreshCw, RotateCcw, Settings, ShieldCheck, Star } from 'lucide-react';
@@ -26,6 +27,7 @@ const SECTIONS = [
   { id: 'pagamentos', label: 'Pagamentos' },
   { id: 'posvenda', label: 'Pós-venda' },
   { id: 'aparencia', label: 'Aparência' },
+  { id: 'faturasemail', label: 'Faturas por email' },
   { id: 'apikeys', label: 'Chaves de API' },
   { id: 'backups', label: 'Backups' },
 ] as const;
@@ -160,6 +162,7 @@ export default function Definicoes() {
         {section === 'pagamentos' && <PagamentosSection form={form} update={update} />}
         {section === 'posvenda' && <PosVendaSection form={form} update={update} />}
         {section === 'aparencia' && <AparenciaSection form={form} update={update} />}
+        {section === 'faturasemail' && <FaturasEmailSection />}
         {section === 'apikeys' && <ApiKeysSection />}
         {section === 'backups' && <BackupsSection />}
       </div>

@@ -2843,6 +2843,28 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("FaturasImapHost")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("FaturasImapPasswordCifrada")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int?>("FaturasImapPort")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("FaturasImapUltimaLeitura")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FaturasImapUltimoErro")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("FaturasImapUser")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("GarantiaCoberturaDefault")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");

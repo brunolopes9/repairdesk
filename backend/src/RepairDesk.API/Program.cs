@@ -294,6 +294,7 @@ try
         // Sprint 611: lembretes da agenda (1 h antes) e resumos do dia/semana no telemóvel.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.AgendaAvisosHostedService>();
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.RotinaAvisosHostedService>();
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.FaturasImapHostedService>();
     }
 
 
@@ -335,6 +336,7 @@ try
     builder.Services.AddScoped<IAgendaAvisosRepository, RepairDesk.DAL.Persistence.AgendaAvisosRepository>();
     builder.Services.AddScoped<IRotinaRepository, RepairDesk.DAL.Persistence.RotinaRepository>();
     builder.Services.AddMemoryCache();
+    builder.Services.AddSingleton<RepairDesk.API.HostedServices.FaturasImapLeitor>();
     builder.Services.AddScoped<ICalendarioExternoRepository, RepairDesk.DAL.Persistence.CalendarioExternoRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Calendario.ICalendarioExternoService, RepairDesk.Services.Calendario.CalendarioExternoService>();
     builder.Services.AddHttpClient<RepairDesk.Services.Calendario.IIcsFetcher, RepairDesk.Services.Calendario.IcsFetcher>(c =>
