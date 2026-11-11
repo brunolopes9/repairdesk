@@ -69,6 +69,8 @@ export interface Despesa {
   deducaoPercent?: number;
   /** Fornecedor intra-UE: autoliquidação (fatura a 0%). */
   reverseCharge?: boolean;
+  /** Sprint 622: 0 = LopesTech, 1 = Trading (sem dedução), 2 = Mista (pro rata). */
+  afetacao?: AfetacaoIva;
   /** Sprint 584: nº visível (sequencial por empresa), como nas compras. */
   numero?: number;
   /** Sprint 586: fatura (PDF ou foto) desta despesa — abre em supplierInvoicesApi.pdfPath; null = por anexar. */
@@ -89,6 +91,16 @@ export interface CreateDespesaForm {
   ivaCents?: number | null;
   deducaoPercent?: number;
   reverseCharge?: boolean;
+  afetacao?: AfetacaoIva;
 }
 
 export type DespesasPage = PagedResult<Despesa>;
+
+/** Sprint 622 (Doc 98 F6): a que atividade serve o gasto — num sujeito passivo misto define o IVA dedutível. */
+export const AFETACAO = { LopesTech: 0, Trading: 1, Mista: 2 } as const;
+export type AfetacaoIva = (typeof AFETACAO)[keyof typeof AFETACAO];
+export const AFETACAO_LABEL: Record<AfetacaoIva, string> = {
+  0: 'LopesTech (reparações, loja, software)',
+  1: 'Trading (sem dedução de IVA)',
+  2: 'As duas — mista (pro rata)',
+};

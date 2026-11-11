@@ -70,6 +70,9 @@ export interface ApuramentoEstimativas {
   irsJovemIsencao: number;
   coletaAntesDeducoes: number;
   deducoesColeta: number | null;
+  /** Sprint 622: sujeito passivo misto — pro rata provisória (%) e data de efeitos. */
+  proRataPercent?: number | null;
+  proRataInicio?: string | null;
 }
 
 export interface PressupostosRequest {
@@ -80,6 +83,9 @@ export interface PressupostosRequest {
   deducoesColeta: number | null;
   servicosNaTabela151: boolean;
   tradingNaTabela151: boolean;
+  proRataPercent?: number | null;
+  proRataInicio?: string | null;
+  semProRata?: boolean;
 }
 
 /** Sprint 580: lembrete fiscal com prazo (ex.: rever o código de atividade do trading em janeiro). */

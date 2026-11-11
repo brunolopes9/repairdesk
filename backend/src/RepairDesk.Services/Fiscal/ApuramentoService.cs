@@ -53,7 +53,11 @@ public sealed record PressupostosRequest(
     bool? ServicosNaTabela151 = null,
     bool? TradingNaTabela151 = null,
     /// <summary>true = deixa de ter IRS Jovem (limpa o ano); false = segue IrsJovemAno.</summary>
-    bool SemIrsJovem = false);
+    bool SemIrsJovem = false,
+    /// <summary>Sprint 622: pro rata provisória (%) e data de efeitos; SemProRata limpa (deixa de ser misto).</summary>
+    decimal? ProRataPercent = null,
+    DateTime? ProRataInicio = null,
+    bool SemProRata = false);
 
 /// <summary>Sprint 580: lembrete fiscal com prazo (ex.: rever o código de atividade do trading).</summary>
 public sealed record LembreteFiscalDto(string Codigo, string Titulo, string Texto, bool Urgente);
@@ -100,7 +104,10 @@ public sealed record ApuramentoEstimativasDto(
     decimal IrsJovemPercentagem = 0m,
     decimal IrsJovemIsencao = 0m,
     decimal ColetaAntesDeducoes = 0m,
-    decimal? DeducoesColeta = null);
+    decimal? DeducoesColeta = null,
+    /// <summary>Sprint 622: sujeito passivo misto — pro rata provisória (%) e data de efeitos.</summary>
+    decimal? ProRataPercent = null,
+    DateTime? ProRataInicio = null);
 
 /// <summary>Campo da declaração periódica de IVA (Continente) — a confirmar com o contabilista.</summary>
 public sealed record ApuramentoCampoDto(string Campo, string Descricao, decimal Valor);
@@ -196,6 +203,18 @@ public class ApuramentoService : IApuramentoService
         if (req.DeducoesColeta is { } deducoes) t.DeducoesColeta = deducoes;
         if (req.ServicosNaTabela151 is { } servTabela) t.ServicosNaTabela151 = servTabela;
         if (req.TradingNaTabela151 is { } tradTabela) t.TradingNaTabela151 = tradTabela;
+        if (req.SemProRata)
+        {
+            t.ProRataPercent = null;
+            t.ProRataInicio = null;
+        }
+        else if (req.ProRataPercent is { } pr)
+        {
+            if (pr is < 0 or > 100) throw new ValidationException("pro_rata_invalida", "Pro rata de 0 a 100%.");
+            if (req.ProRataInicio is not { } inicioPr) throw new ValidationException("pro_rata_inicio", "Indica desde quando vale a pro rata.");
+            t.ProRataPercent = pr;
+            t.ProRataInicio = inicioPr.Date;
+        }
         await _tenants.SaveAsync(ct);
     }
 
@@ -268,6 +287,22 @@ public class ApuramentoService : IApuramentoService
             ?? throw new ForbiddenException("tenant_required", "Sem tenant no contexto.");
 
     private static decimal Taxa => FiscalDefaults.TaxaIvaNormal;
+
+    /// <summary>
+    /// Sprint 622 (Doc 98 §4.1): fração do IVA de uma despesa que se deduz.
+    /// Trading → 0; LopesTech → % da despesa; Mista → % da despesa × pro rata, só a partir de ProRataInicio
+    /// (antes disso a mista deduz como LopesTech — tratamento anterior, sem pro rata).
+    /// </summary>
+    public static decimal FracaoDedutivel(AfetacaoIva afetacao, int deducaoPercent, DateTime data, decimal? proRataPercent, DateTime? proRataInicio)
+    {
+        var base100 = Math.Clamp(deducaoPercent, 0, 100) / 100m;
+        return afetacao switch
+        {
+            AfetacaoIva.Trading => 0m,
+            AfetacaoIva.Mista when proRataPercent is { } pr && proRataInicio is { } ini && data.Date >= ini.Date => base100 * pr / 100m,
+            _ => base100,
+        };
+    }
 
     public async Task<ApuramentoDto> TrimestreAsync(int ano, int trimestre, CancellationToken ct = default)
     {
@@ -342,16 +377,22 @@ public class ApuramentoService : IApuramentoService
 
         // ---- despesas ----
         var despesas = await _despesas.ListPeriodoAsync(de, ate, ct);
-        decimal baseDesp = 0, ivaDed = 0, ivaNaoDed = 0, baseAuto = 0;
+        var tenantFiscal = await TenantAsync(ct);
+        decimal baseDesp = 0, ivaDed = 0, ivaNaoDed = 0, baseAuto = 0, ivaAutoDedDesp = 0;
         foreach (var d in despesas)
         {
             var valor = d.ValorCents / 100m;
             if (d.Categoria is DespesaCategoria.Pecas or DespesaCategoria.PecasUsadas)
                 pendentes.Add(new("despesa_pecas", d.Id, $"{d.Descricao} — peças como despesa: confirma que não está também em Compras", valor, d.Data));
+            var fracao = FracaoDedutivel(d.Afetacao, d.DeducaoPercent, d.Data, tenantFiscal.ProRataPercent, tenantFiscal.ProRataInicio);
             if (d.ReverseCharge)
             {
+                // Autoliquidação: liquida-se tudo; deduz-se conforme a afetação (Trading 0, Mista × pro rata).
+                var ivaAuto = valor * Taxa;
                 baseAuto += valor;
                 baseDesp += valor;
+                ivaAutoDedDesp += ivaAuto * fracao;
+                ivaNaoDed += ivaAuto - ivaAuto * fracao;
                 continue;
             }
             if (d.IvaCents is not { } ivaCents)
@@ -362,7 +403,7 @@ public class ApuramentoService : IApuramentoService
                 continue;
             }
             var iva = ivaCents / 100m;
-            var dedutivel = Euros(iva * Math.Clamp(d.DeducaoPercent, 0, 100) / 100m);
+            var dedutivel = Euros(iva * fracao);
             ivaDed += dedutivel;
             ivaNaoDed += iva - dedutivel;
             baseDesp += valor - iva;
@@ -373,7 +414,8 @@ public class ApuramentoService : IApuramentoService
         // ---- totais ----
         var ivaAutoliquidado = ivaAutoUe + ivaAutoDesp;
         var ivaLiquidado = ivaLiquidadoVendas + ivaAutoliquidado;
-        var ivaDedutivel = compras.IvaNacional + compras.IvaPortes + despesasDto.IvaDedutivel + ivaAutoliquidado;
+        // Compras de stock UE são sempre LopesTech (deduz tudo); as despesas em autoliquidação deduzem pela afetação.
+        var ivaDedutivel = compras.IvaNacional + compras.IvaPortes + despesasDto.IvaDedutivel + ivaAutoUe + Euros(ivaAutoDedDesp);
         var saldo = ivaLiquidado - ivaDedutivel;
 
         // Sprint 575: o trading entra no IVA (a declaração é uma por NIF) mas não no resultado da loja.
@@ -413,7 +455,7 @@ public class ApuramentoService : IApuramentoService
             new("4", "IVA liquidado à taxa normal (23%)", IvaTaxa(23)),
             new("—", "Vendas sem IVA (0%, com motivo de isenção)", BaseTaxa(0)),
             new("—", "Aquisições intracomunitárias e serviços em autoliquidação (base)", Euros(baseUe + baseAuto)),
-            new("—", "IVA autoliquidado (liquida e deduz — efeito 0 €)", ivaAutoliquidado),
+            new("—", "IVA autoliquidado (liquida-se tudo; deduz-se conforme a afetação)", ivaAutoliquidado),
             new("22", "IVA dedutível — existências à taxa normal (peças e portes nacionais)", Euros(ivaNac + ivaPortes)),
             new("24", "IVA dedutível — outros bens e serviços (despesas)", despesasDto.IvaDedutivel),
         };
@@ -501,7 +543,7 @@ public class ApuramentoService : IApuramentoService
             Euros(relevante), isento ? 0m : Euros(relevante / 3m * EstimativasFiscais.SsTaxa), isento, isentoAte,
             t?.SsContribuicaoAtual,
             coefServicos, coefTrading, servicosNaTabela, tradingNaTabela,
-            t?.IrsJovemAno, EstimativasFiscais.IrsJovemPercentagem(t?.IrsJovemAno), Euros(isencaoJovem), Euros(coleta), t?.DeducoesColeta);
+            t?.IrsJovemAno, EstimativasFiscais.IrsJovemPercentagem(t?.IrsJovemAno), Euros(isencaoJovem), Euros(coleta), t?.DeducoesColeta, t?.ProRataPercent, t?.ProRataInicio);
     }
 
     /// <summary>Taxa da compra guardada como fração (0,23); tolera valores antigos em % (23).</summary>

@@ -19,7 +19,7 @@ const txt = (v: number | null | undefined) => (v ? v.toFixed(2).replace('.', ','
  */
 export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEstimativas; ano: number; trimestre: number }) {
   const qc = useQueryClient();
-  const [f, setF] = useState({ inicio: '', ss: '', jovem: '', deducoes: '', servicosTabela: false, tradingTabela: true });
+  const [f, setF] = useState({ inicio: '', ss: '', jovem: '', deducoes: '', servicosTabela: false, tradingTabela: true, proRata: '', proRataInicio: '' });
   useEffect(() => {
     setF({
       inicio: e.inicioAtividade?.slice(0, 10) ?? '',
@@ -28,6 +28,8 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
       deducoes: txt(e.deducoesColeta),
       servicosTabela: e.servicosNaTabela151,
       tradingTabela: e.tradingNaTabela151,
+      proRata: e.proRataPercent != null ? String(e.proRataPercent).replace('.', ',') : '',
+      proRataInicio: e.proRataInicio?.slice(0, 10) ?? '',
     });
   }, [e]);
   const num = (s: string) => parseDecimal(s) ?? 0;
@@ -40,6 +42,9 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
       deducoesColeta: f.deducoes.trim() ? num(f.deducoes) : 0,
       servicosNaTabela151: f.servicosTabela,
       tradingNaTabela151: f.tradingTabela,
+      proRataPercent: f.proRata.trim() ? num(f.proRata) : null,
+      proRataInicio: f.proRata.trim() && f.proRataInicio ? f.proRataInicio : null,
+      semProRata: !f.proRata.trim(),
     }),
     onSuccess: () => { toast.success('Pressupostos guardados'); qc.invalidateQueries({ queryKey: ['apuramento'] }); },
     onError: (err) => toast.fromError(err, 'Não foi possível guardar.'),
@@ -122,6 +127,17 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
             </select>
           </label>
           {campo('deducoes', 'Deduções à coleta previstas (€) — o total do e-fatura', 'ex.: 503,94')}
+          <label className="block">
+            <span className={labelCls}>Pro rata de dedução (%) — sujeito passivo misto</span>
+            <input value={f.proRata} onChange={(ev) => setF({ ...f, proRata: ev.target.value })} className={inputCls} inputMode="decimal" placeholder="vazio = não é misto (ex.: 20)" />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Pro rata em vigor desde</span>
+            <input type="date" value={f.proRataInicio} onChange={(ev) => setF({ ...f, proRataInicio: ev.target.value })} className={inputCls} disabled={!f.proRata.trim()} />
+          </label>
+          <p className="text-xs text-zinc-500 sm:col-span-2">
+            Nas despesas escolhes a atividade: LopesTech deduz o IVA, Trading não deduz, «as duas» deduz × pro rata (só a partir desta data).
+          </p>
           <label className="flex items-start gap-2 text-sm sm:col-span-2">
             <input type="checkbox" className="mt-1" checked={f.tradingTabela} onChange={(ev) => setF({ ...f, tradingTabela: ev.target.checked })} />
             <span>O trading está num código da tabela do art. 151.º (ex.: CIRS 1519) → coeficiente 0,75. <span className="text-zinc-500">Desmarca se estiver num CAE fora da tabela (ex.: 66190) → 0,35.</span></span>

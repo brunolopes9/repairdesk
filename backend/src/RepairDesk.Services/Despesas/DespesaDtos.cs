@@ -17,7 +17,8 @@ public sealed record CreateDespesaRequest(
     bool ReverseCharge = false,
     // Sprint 573: IVA da fatura e % dedutível (apuramento trimestral).
     int? IvaCents = null,
-    int DeducaoPercent = 100);
+    int DeducaoPercent = 100,
+    AfetacaoIva Afetacao = AfetacaoIva.LopesTech);
 
 public sealed record UpdateDespesaRequest(
     string Descricao,
@@ -32,7 +33,8 @@ public sealed record UpdateDespesaRequest(
     int? PeriodicidadeMeses = null,
     int? IvaCents = null,
     int DeducaoPercent = 100,
-    bool ReverseCharge = false);
+    bool ReverseCharge = false,
+    AfetacaoIva Afetacao = AfetacaoIva.LopesTech);
 
 /// <summary>Sprint 574: resumo do filtro inteiro (todas as páginas).</summary>
 public sealed record DespesasResumoDto(int Registos, int TotalCents, int IvaCents, int SemIva, int Recorrentes,
@@ -58,6 +60,7 @@ public sealed record DespesaDto(
     /// <summary>Sprint 584: nº visível (sequencial por empresa).</summary>
     int Numero = 0,
     /// <summary>Sprint 586: a fatura (PDF) desta despesa, para abrir e imprimir; null = sem PDF anexado.</summary>
-    Guid? SupplierInvoiceImportId = null);
+    Guid? SupplierInvoiceImportId = null,
+    AfetacaoIva Afetacao = AfetacaoIva.LopesTech);
 
 

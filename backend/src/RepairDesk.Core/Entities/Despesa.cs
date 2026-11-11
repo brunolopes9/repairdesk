@@ -59,4 +59,7 @@ public class Despesa : BaseEntity, ITenantEntity
 
     /// <summary>Sprint 573: % desse IVA que é dedutível (100 normal; 50 gasóleo; 0 refeições/viatura ligeira…).</summary>
     public int DeducaoPercent { get; set; } = 100;
+
+    /// <summary>Sprint 622: LopesTech / Trading / Mista (pro rata) — ver <see cref="AfetacaoIva"/>.</summary>
+    public AfetacaoIva Afetacao { get; set; } = AfetacaoIva.LopesTech;
 }

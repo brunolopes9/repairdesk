@@ -93,6 +93,10 @@ public class Tenant : BaseEntity
     /// </summary>
     public DateTime? InicioAtividade { get; set; }
 
+    /// <summary>Sprint 622 (Doc 98 F6): sujeito passivo misto — percentagem de dedução provisória (ex.: 20) e desde quando vale.</summary>
+    public decimal? ProRataPercent { get; set; }
+    public DateTime? ProRataInicio { get; set; }
+
     /// <summary>Sprint 576: contribuição mensal à Segurança Social que paga hoje (para comparar com a estimativa).</summary>
     public decimal? SsContribuicaoAtual { get; set; }
 

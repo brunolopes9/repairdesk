@@ -84,6 +84,7 @@ public class DespesaService : IDespesaService
             ReverseCharge = req.ReverseCharge,
             IvaCents = req.ReverseCharge ? 0 : req.IvaCents,
             DeducaoPercent = req.DeducaoPercent,
+            Afetacao = req.Afetacao,
         };
         await _repo.AddAsync(d, ct);
         await _repo.SaveAsync(ct);
@@ -108,6 +109,7 @@ public class DespesaService : IDespesaService
         d.ReverseCharge = req.ReverseCharge;
         d.IvaCents = req.ReverseCharge ? 0 : req.IvaCents;
         d.DeducaoPercent = req.DeducaoPercent;
+        d.Afetacao = req.Afetacao;
 
         await _repo.SaveAsync(ct);
         return ToDto(d, _imports is null ? null : (await _imports.FindByDespesaIdAsync(id, ct))?.Id);
@@ -133,5 +135,5 @@ public class DespesaService : IDespesaService
 
     private static DespesaDto ToDto(Despesa d, Guid? importId) =>
         new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas,
-            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero, importId);
+            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero, importId, d.Afetacao);
 }

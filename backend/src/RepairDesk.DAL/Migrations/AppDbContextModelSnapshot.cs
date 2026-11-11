@@ -1429,6 +1429,9 @@ namespace RepairDesk.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("Afetacao")
+                        .HasColumnType("int");
+
                     b.Property<int>("Categoria")
                         .HasColumnType("int");
 
@@ -2986,6 +2989,12 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<string>("PrimaryColor")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("ProRataInicio")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("ProRataPercent")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("RegimeFiscal")
                         .HasColumnType("int");

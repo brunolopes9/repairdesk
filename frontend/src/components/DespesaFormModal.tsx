@@ -8,6 +8,9 @@ import {
   DESPESA_LABEL,
   type Despesa,
   type DespesaCategoria,
+  AFETACAO,
+  AFETACAO_LABEL,
+  type AfetacaoIva,
 } from '../lib/despesas/types';
 import { parseEuros } from '../lib/money';
 import { FaturaDespesa } from '../pages/despesas/FaturaDespesa';
@@ -42,6 +45,7 @@ export function useDespesaForm({
   const [iva, setIva] = useState('');
   const [deducao, setDeducao] = useState(100);
   const [reverseCharge, setReverseCharge] = useState(false);
+  const [afetacao, setAfetacao] = useState<AfetacaoIva>(AFETACAO.LopesTech);
   const [error, setError] = useState<string | null>(null);
   // Sprint 586: a despesa aberta com o PDF anexado entretanto (o botão passa logo a "PDF da fatura").
   const [comFatura, setComFatura] = useState<Despesa | null>(null);
@@ -61,6 +65,7 @@ export function useDespesaForm({
       setIva(editing.ivaCents != null ? (editing.ivaCents / 100).toFixed(2) : '');
       setDeducao(editing.deducaoPercent ?? 100);
       setReverseCharge(!!editing.reverseCharge);
+      setAfetacao(editing.afetacao ?? AFETACAO.LopesTech);
     } else if (open) {
       setDescricao('');
       setCategoria(initialCategoria);
@@ -74,6 +79,7 @@ export function useDespesaForm({
       setIva('');
       setDeducao(100);
       setReverseCharge(false);
+      setAfetacao(AFETACAO.LopesTech);
     }
     setError(null);
   }, [editing, initialCategoria, open]);
@@ -96,6 +102,7 @@ export function useDespesaForm({
         reverseCharge,
         ivaCents: reverseCharge ? 0 : iva.trim() ? parseEuros(iva) : null,
         deducaoPercent: deducao,
+        afetacao,
       };
       if (editing) {
         return despesasApi.update(editing.id, {
@@ -120,6 +127,7 @@ export function useDespesaForm({
     editing, descricao, setDescricao, categoria, setCategoria, valor, setValor, fornecedor, setFornecedor,
     numeroEncomenda, setNumeroEncomenda, data, setData, notas, setNotas, isRecorrente, setIsRecorrente,
     periodicidadeMeses, setPeriodicidadeMeses, iva, setIva, deducao, setDeducao, reverseCharge, setReverseCharge,
+    afetacao, setAfetacao,
     error, comFatura, setComFatura, save, valorCents, podeGravar: !!descricao && !!valorCents && !save.isPending,
   };
 }
@@ -178,6 +186,7 @@ export function DespesaCampos({ form, allowedCategorias, autoFocus = false, most
     editing, descricao, setDescricao, categoria, setCategoria, valor, setValor, fornecedor, setFornecedor,
     numeroEncomenda, setNumeroEncomenda, data, setData, notas, setNotas, isRecorrente, setIsRecorrente,
     periodicidadeMeses, setPeriodicidadeMeses, iva, setIva, deducao, setDeducao, reverseCharge, setReverseCharge,
+    afetacao, setAfetacao,
     error, comFatura, setComFatura, valorCents,
   } = form;
   const categoriaOptions = allowedCategorias?.length
@@ -240,6 +249,11 @@ export function DespesaCampos({ form, allowedCategorias, autoFocus = false, most
               </div>
             )}
           </div>
+        </Field>
+        <Field label="Para que atividade">
+          <select value={afetacao} onChange={e => setAfetacao(Number(e.target.value) as AfetacaoIva)} className={inputCls} aria-label="Afetação do IVA">
+            {(Object.entries(AFETACAO_LABEL) as [string, string][]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
         </Field>
         <Field label="Nº encomenda no fornecedor">
           <input value={numeroEncomenda} onChange={e => setNumeroEncomenda(e.target.value)} className={inputCls} placeholder="opcional — para histórico" />
