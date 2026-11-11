@@ -45,6 +45,11 @@ public sealed class InternalTasksController : ControllerBase
     public async Task<ActionResult<InternalTaskDto>> ChangeStatus(Guid id, [FromBody] ChangeInternalTaskStatusRequest req, CancellationToken ct)
         => Ok(await _service.ChangeStatusAsync(id, req.Status, ct));
 
+    /// <summary>Sprint 617: Hoje (máx. 3) / Semana / Ideia.</summary>
+    [HttpPost("{id:guid}/foco")]
+    public async Task<ActionResult<InternalTaskDto>> MudarFoco(Guid id, [FromBody] MudarFocoRequest req, CancellationToken ct)
+        => Ok(await _service.MudarFocoAsync(id, req.Foco, ct));
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {

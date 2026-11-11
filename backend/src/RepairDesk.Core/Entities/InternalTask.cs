@@ -30,6 +30,9 @@ public class InternalTask : BaseEntity, ITenantEntity
 
     public Guid CreatedByUserId { get; set; }
 
+    /// <summary>Sprint 617: Hoje (máx. 3 pendentes por pessoa), Semana ou Ideia (capturada para mais tarde).</summary>
+    public TarefaFoco Foco { get; set; } = TarefaFoco.Nenhum;
+
     /// <summary>Opcional: tarefa associada a uma reparação específica.</summary>
     public Guid? VendaId { get; set; }
     public Venda? Venda { get; set; }

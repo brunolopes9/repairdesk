@@ -12,6 +12,11 @@ public class InternalTaskRepository : IInternalTaskRepository
 
     public InternalTaskRepository(AppDbContext db) => _db = db;
 
+    public Task<int> ContarHojePendentesAsync(Guid userId, Guid? exceptoId, CancellationToken ct = default)
+        => _db.InternalTasks.CountAsync(t => t.Foco == TarefaFoco.Hoje && t.Status == InternalTaskStatus.Pendente
+            && (t.AssignedToUserId == userId || (t.AssignedToUserId == null && t.CreatedByUserId == userId))
+            && (exceptoId == null || t.Id != exceptoId), ct);
+
     public async Task<IReadOnlyList<InternalTask>> ListAsync(
         InternalTaskStatus? status,
         Guid? assignedToUserId,

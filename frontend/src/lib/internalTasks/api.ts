@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { CreateInternalTaskForm, InternalTask, InternalTaskStatus, UpdateInternalTaskForm } from './types';
+import type { CreateInternalTaskForm, InternalTask, InternalTaskStatus, TarefaFoco, UpdateInternalTaskForm } from './types';
 
 export const internalTasksApi = {
   list: (filters: { status?: InternalTaskStatus; assignedToUserId?: string; vendaId?: string } = {}) =>
@@ -23,6 +23,9 @@ export const internalTasksApi = {
 
   changeStatus: (id: string, status: InternalTaskStatus) =>
     api.post<InternalTask>(`/internal-tasks/${id}/status`, { status }).then((r) => r.data),
+
+  mudarFoco: (id: string, foco: TarefaFoco) =>
+    api.post<InternalTask>(`/internal-tasks/${id}/foco`, { foco }).then((r) => r.data),
 
   remove: (id: string) => api.delete(`/internal-tasks/${id}`),
 };

@@ -17,14 +17,16 @@ public sealed record InternalTaskDto(
     Guid CreatedByUserId,
     DateTime CreatedAt,
     Guid? VendaId,
-    int? VendaNumero);
+    int? VendaNumero,
+    TarefaFoco Foco = TarefaFoco.Nenhum);
 
 public sealed record CreateInternalTaskRequest(
     string Title,
     string? Description,
     DateTime? DueAt,
     Guid? AssignedToUserId,
-    Guid? VendaId);
+    Guid? VendaId,
+    TarefaFoco Foco = TarefaFoco.Nenhum);
 
 public sealed record UpdateInternalTaskRequest(
     string Title,
@@ -34,6 +36,9 @@ public sealed record UpdateInternalTaskRequest(
     Guid? VendaId);
 
 public sealed record ChangeInternalTaskStatusRequest(InternalTaskStatus Status);
+
+/// <summary>Sprint 617: mudar o foco (Hoje / Semana / Ideia / nenhum).</summary>
+public sealed record MudarFocoRequest(TarefaFoco Foco);
 
 public interface IInternalTaskService
 {
@@ -46,6 +51,7 @@ public interface IInternalTaskService
     Task<InternalTaskDto> CreateAsync(CreateInternalTaskRequest req, CancellationToken ct = default);
     Task<InternalTaskDto> UpdateAsync(Guid id, UpdateInternalTaskRequest req, CancellationToken ct = default);
     Task<InternalTaskDto> ChangeStatusAsync(Guid id, InternalTaskStatus status, CancellationToken ct = default);
+    Task<InternalTaskDto> MudarFocoAsync(Guid id, TarefaFoco foco, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
@@ -103,7 +109,9 @@ public sealed class InternalTaskService : IInternalTaskService
             VendaId = req.VendaId,
             CreatedByUserId = uid,
             Status = InternalTaskStatus.Pendente,
+            Foco = req.Foco,
         };
+        await ValidarFocoAsync(task, req.Foco, ct);
         await _repo.AddAsync(task, ct);
         await _repo.SaveAsync(ct);
 
@@ -148,6 +156,31 @@ public sealed class InternalTaskService : IInternalTaskService
         return ToDto(t);
     }
 
+    public const int MaxHoje = 3;
+
+    public async Task<InternalTaskDto> MudarFocoAsync(Guid id, TarefaFoco foco, CancellationToken ct = default)
+    {
+        var t = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("InternalTask", id);
+        if (t.Foco == foco) return ToDto(t);
+        await ValidarFocoAsync(t, foco, ct);
+        t.Foco = foco;
+        await _repo.SaveAsync(ct);
+        return ToDto(t);
+    }
+
+    /// <summary>
+    /// «Hoje» tem no máximo 3 tarefas pendentes por pessoa — o objetivo é escolher, não acumular.
+    /// Conta para quem a tarefa está atribuída (ou para quem a criou, se não estiver atribuída).
+    /// </summary>
+    private async Task ValidarFocoAsync(InternalTask t, TarefaFoco foco, CancellationToken ct)
+    {
+        if (!Enum.IsDefined(foco)) throw new ValidationException("foco_invalido", "Foco inválido.");
+        if (foco != TarefaFoco.Hoje || t.Status != InternalTaskStatus.Pendente) return;
+        var dono = t.AssignedToUserId ?? t.CreatedByUserId;
+        if (await _repo.ContarHojePendentesAsync(dono, t.Id, ct) >= MaxHoje)
+            throw new ValidationException("max_hoje", $"«Hoje» já tem {MaxHoje} prioridades. Conclui uma ou passa-a para «Semana» antes de pôr outra.");
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var t = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("InternalTask", id);
@@ -172,5 +205,6 @@ public sealed class InternalTaskService : IInternalTaskService
         t.CreatedByUserId,
         t.CreatedAt,
         t.VendaId,
-        t.Venda?.Numero);
+        t.Venda?.Numero,
+        t.Foco);
 }

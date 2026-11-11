@@ -6,6 +6,8 @@ namespace RepairDesk.Core.Abstractions;
 /// <summary>Sprint 422: persistência de tarefas internas.</summary>
 public interface IInternalTaskRepository
 {
+    /// <summary>Sprint 617: tarefas pendentes em «Hoje» de um utilizador (criadas por ele ou atribuídas a ele).</summary>
+    Task<int> ContarHojePendentesAsync(Guid userId, Guid? exceptoId, CancellationToken ct = default);
     Task<IReadOnlyList<InternalTask>> ListAsync(
         InternalTaskStatus? status,
         Guid? assignedToUserId,

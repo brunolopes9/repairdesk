@@ -13,6 +13,7 @@ import {
 import RotinaItemForm from './RotinaItemForm';
 import ImportarRotina from './ImportarRotina';
 import PesoHistorico from './PesoHistorico';
+import PrioridadesHoje from './PrioridadesHoje';
 
 /**
  * Sprint 615 (Doc 98): «Agora» — o que é suposto estares a fazer, o que vem a seguir e o plano de hoje.
@@ -112,6 +113,8 @@ export default function Rotina() {
               )}
             </div>
           </section>
+
+          <PrioridadesHoje />
 
           <ul className="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
             {d.itens.map((l) => (

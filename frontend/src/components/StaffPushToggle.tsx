@@ -32,8 +32,8 @@ export function StaffPushToggle() {
             <p className="text-sm font-medium">Notificações neste dispositivo</p>
             <p className="text-xs text-zinc-500">
               {subscribed
-                ? 'Ativas. Recebes aviso de pedidos online novos mesmo com a app fechada.'
-                : 'Ativa para seres avisado de pedidos online novos — ideal no telemóvel (instala a app primeiro).'}
+                ? 'Ativas. Recebes os avisos da rotina, da agenda e dos pedidos online, mesmo com a app fechada.'
+                : 'Ativa para receberes os avisos da rotina, da agenda e dos pedidos online — ideal no telemóvel (instala a app primeiro).'}
             </p>
             {status === 'denied' && (
               <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">

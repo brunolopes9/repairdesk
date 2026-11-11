@@ -1716,6 +1716,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<DateTime?>("DueAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("Foco")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 

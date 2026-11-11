@@ -26,6 +26,33 @@ public class InternalTaskApiTests : IClassFixture<RepairDeskApiFactory>
     public InternalTaskApiTests(RepairDeskApiFactory factory) => _factory = factory;
 
     [Fact]
+    public async Task Foco_HojeNoMaximo3_IdeiaCapturaSemLimite()
+    {
+        var client = await NewAuthedClient();
+        async Task<HttpResponseMessage> Criar(string titulo, TarefaFoco foco)
+            => await client.PostAsJsonAsync("/api/internal-tasks", new CreateInternalTaskRequest($"{Prefix} {titulo}", null, null, null, null, foco));
+
+        // Limpa «Hoje» de outros testes desta classe.
+        var todas = await client.GetFromJsonAsync<List<InternalTaskDto>>("/api/internal-tasks");
+        foreach (var t in todas!.Where(t => t.Foco == TarefaFoco.Hoje))
+            await client.PostAsJsonAsync($"/api/internal-tasks/{t.Id}/foco", new MudarFocoRequest(TarefaFoco.Semana));
+
+        for (var i = 1; i <= 3; i++) (await Criar($"Hoje {i}", TarefaFoco.Hoje)).StatusCode.Should().Be(HttpStatusCode.Created);
+        (await Criar("Hoje 4", TarefaFoco.Hoje)).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        var ideia = (await (await Criar("Integração financeira", TarefaFoco.Ideia)).Content.ReadFromJsonAsync<InternalTaskDto>())!;
+        ideia.Foco.Should().Be(TarefaFoco.Ideia);
+        (await client.PostAsJsonAsync($"/api/internal-tasks/{ideia.Id}/foco", new MudarFocoRequest(TarefaFoco.Hoje)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        // Concluir uma de «Hoje» liberta o lugar.
+        var hoje = (await client.GetFromJsonAsync<List<InternalTaskDto>>("/api/internal-tasks"))!
+            .First(t => t.Foco == TarefaFoco.Hoje && t.Status == InternalTaskStatus.Pendente);
+        (await client.PostAsJsonAsync($"/api/internal-tasks/{hoje.Id}/status", new ChangeInternalTaskStatusRequest(InternalTaskStatus.Concluida))).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync($"/api/internal-tasks/{ideia.Id}/foco", new MudarFocoRequest(TarefaFoco.Hoje))).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task Create_ValidPayload_ReturnsTaskWithPendenteStatus()
     {
         var client = await NewAuthedClient();

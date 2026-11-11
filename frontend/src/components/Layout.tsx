@@ -1,6 +1,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { CapturarIdeia } from './CapturarIdeia';
 import DefinicoesSubNav from './DefinicoesSubNav';
 import {
   LayoutDashboard,
@@ -239,6 +240,8 @@ export default function Layout() {
               <Plus size={16} strokeWidth={2.5} />
               <span className="hidden sm:inline">Nova reparação</span>
             </button>
+            {/* Sprint 617: ideia a meio de um bloco → guarda e volta (Tarefas → Ideias). */}
+            <CapturarIdeia />
             {/* Pesquisa global — ocupa espaço como uma barra, estilo SaaS */}
             <button
               type="button"
