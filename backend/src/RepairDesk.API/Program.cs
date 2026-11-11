@@ -332,6 +332,8 @@ try
     // Sprint 371: agendamentos (booking).
     builder.Services.AddScoped<IAppointmentRepository, RepairDesk.DAL.Persistence.AppointmentRepository>();
     builder.Services.AddScoped<IAgendaAvisosRepository, RepairDesk.DAL.Persistence.AgendaAvisosRepository>();
+    builder.Services.AddScoped<IProdutoLojaRepository, RepairDesk.DAL.Persistence.ProdutoLojaRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Loja.ILojaService, RepairDesk.Services.Loja.LojaService>();
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();

@@ -37,8 +37,10 @@ public static class ServiceApiKeyScopes
     public const string Ingest = "ingest";
     /// <summary>Sprint 598 (Doc 95): calendário de conteúdo das redes sociais. Não dá acesso a clientes nem faturas.</summary>
     public const string Conteudo = "conteudo";
+    /// <summary>Sprint 613 (Doc 97): o gerador do lopestech.pt lê o catálogo publicado da loja (sem custos).</summary>
+    public const string Loja = "loja";
 
-    public static readonly IReadOnlyList<string> All = new[] { Read, Write, Ingest, Conteudo };
+    public static readonly IReadOnlyList<string> All = new[] { Read, Write, Ingest, Conteudo, Loja };
 
     /// <summary>Parsing tolerante: split, trim, lowercase, distinct. Devolve null se input null/vazio.</summary>
     public static string[]? Parse(string? csv)

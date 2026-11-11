@@ -1877,6 +1877,184 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("Payments");
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.ProdutoLoja", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("ArmazenamentoGb")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Categoria")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Cor")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long?>("CustoCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Descricao")
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Disponibilidade")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("FornecedorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("GarantiaMeses")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Grau")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Marca")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Modelo")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("Numero")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Origem")
+                        .HasColumnType("int");
+
+                    b.Property<long>("PrecoCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("Publicado")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("PublicadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("RamGb")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RegimeIva")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SeoDescricao")
+                        .HasMaxLength(170)
+                        .HasColumnType("nvarchar(170)");
+
+                    b.Property<string>("SeoTitulo")
+                        .HasMaxLength(70)
+                        .HasColumnType("nvarchar(70)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("SpecsJson")
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Numero")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Publicado");
+
+                    b.HasIndex("TenantId", "Slug")
+                        .IsUnique();
+
+                    b.ToTable("ProdutosLoja", (string)null);
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.ProdutoLojaFoto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Alt")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("Bytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Enviada")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProdutoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProdutoId", "Ordem");
+
+                    b.ToTable("ProdutosLojaFotos", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.PushSubscription", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3472,6 +3650,17 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Venda");
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.ProdutoLojaFoto", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.ProdutoLoja", "Produto")
+                        .WithMany("Fotos")
+                        .HasForeignKey("ProdutoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Produto");
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.PushSubscription", b =>
                 {
                     b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
@@ -3630,6 +3819,11 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Destinos");
 
                     b.Navigation("Ficheiros");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.ProdutoLoja", b =>
+                {
+                    b.Navigation("Fotos");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.Venda", b =>
