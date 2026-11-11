@@ -101,12 +101,14 @@ public class StaffPushService : IStaffPushService
             return 0;
 
         var subscriptions = await _subscriptions.ListByTenantAsync(job.TenantId, ct);
+        if (job.UserId is { } paraUser)
+            subscriptions = subscriptions.Where(s => s.UserId == paraUser).ToList();
         if (subscriptions.Count == 0)
             return 0;
 
         var keys = await _vapid.GetKeysAsync(ct);
         var payloadJson = JsonSerializer.Serialize(
-            new StaffPushPayload(job.Title, job.Body, job.Url, job.Tag), JsonOptions);
+            new StaffPushPayload(job.Title, job.Body, job.Url, job.Tag, job.Acoes, job.Insistente), JsonOptions);
         var sent = 0;
         var stale = new List<StaffPushSubscription>();
 

@@ -36,6 +36,7 @@ const Tarefas = lazy(() => import('./pages/tarefas/Tarefas'));
 const Conteudo = lazy(() => import('./pages/conteudo/Conteudo'));
 const PartilharPerfil = lazy(() => import('./pages/conteudo/PartilharPerfil'));
 const Loja = lazy(() => import('./pages/loja/Loja'));
+const Rotina = lazy(() => import('./pages/rotina/Rotina'));
 const ProdutoLojaEditor = lazy(() => import('./pages/loja/ProdutoLojaEditor'));
 const Definicoes = lazy(() => import('./pages/definicoes/Definicoes'));
 const Perfil = lazy(() => import('./pages/definicoes/Perfil'));
@@ -176,6 +177,7 @@ export default function App() {
               <Route path="/tarefas" element={<Tarefas />} />
               <Route path="/conteudo" element={<Conteudo />} />
               <Route path="/conteudo/partilhar/:id" element={<PartilharPerfil />} />
+              <Route path="/rotina" element={<Rotina />} />
               <Route path="/loja" element={<Loja />} />
               <Route path="/loja/:id" element={<ProdutoLojaEditor />} />
               <Route path="/auditoria" element={<Auditoria />} />

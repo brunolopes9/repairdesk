@@ -18,9 +18,19 @@ public sealed record VapidPublicKeyDto(string PublicKey);
 public sealed record RepairStatusChangedPushJob(Guid VendaId);
 
 // Sprint 366: notificação push para os dispositivos de staff de um tenant.
-public sealed record StaffPushJob(Guid TenantId, string Title, string Body, string Url, string Tag);
+// Sprint 615: UserId (só os dispositivos desse utilizador), botões na notificação e «insistente»
+// (fica no ecrã até tocar — requireInteraction).
+public sealed record StaffPushJob(Guid TenantId, string Title, string Body, string Url, string Tag)
+{
+    public Guid? UserId { get; init; }
+    public IReadOnlyList<PushAcao>? Acoes { get; init; }
+    public bool Insistente { get; init; }
+}
 
-internal sealed record StaffPushPayload(string Title, string Body, string Url, string Tag);
+/// <summary>Botão de uma notificação: o service worker abre <see cref="Url"/> quando é tocado.</summary>
+public sealed record PushAcao(string Action, string Title, string Url);
+
+internal sealed record StaffPushPayload(string Title, string Body, string Url, string Tag, IReadOnlyList<PushAcao>? Actions, bool RequireInteraction);
 
 public sealed record VapidKeys(string PublicKey, string PrivateKey, string Subject);
 

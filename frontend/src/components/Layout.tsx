@@ -18,6 +18,7 @@ import {
   Megaphone,
   Share2,
   ShoppingBag,
+  Timer,
   Workflow,
   Sparkles,
   Building2,
@@ -80,6 +81,8 @@ const nav: NavItem[] = [
       { to: '/clientes/campanhas', label: 'Campanhas', icon: Megaphone },
     ],
   },
+  // Sprint 615 (Doc 98): rotina pessoal — o que fazer agora, com avisos no telemóvel.
+  { to: '/rotina', label: 'Rotina', icon: Timer },
   { to: '/agendamentos', label: 'Agendamentos', icon: CalendarClock },
   { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   // Sprint 422 (Doc 90 Tier 2 #7): TODO list interna.

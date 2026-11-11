@@ -2324,6 +2324,145 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("RepairRequests");
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.RotinaItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AvisarFim")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("AvisosAntes")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("DataInicio")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Detalhe")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Dias")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DuracaoMin")
+                        .HasColumnType("int");
+
+                    b.Property<TimeOnly>("Hora")
+                        .HasColumnType("time");
+
+                    b.Property<bool>("Insistir")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("IntervaloDias")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "UserId");
+
+                    b.ToTable("RotinaItens", (string)null);
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.RotinaRegisto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AdiadoAte")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Avisos")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("Dia")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("Estado")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("RegistadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("RotinaItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("Valor")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("decimal(6,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RotinaItemId", "Dia")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "UserId", "Dia");
+
+                    b.ToTable("RotinaRegistos", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.ServiceApiKey", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3679,6 +3818,17 @@ namespace RepairDesk.DAL.Migrations
                         .HasForeignKey("VendaId");
 
                     b.Navigation("Venda");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.RotinaRegisto", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.RotinaItem", "Item")
+                        .WithMany()
+                        .HasForeignKey("RotinaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Item");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.SupplierInvoiceImport", b =>

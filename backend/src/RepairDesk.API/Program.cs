@@ -293,6 +293,7 @@ try
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.ConteudoPublicadorHostedService>();
         // Sprint 611: lembretes da agenda (1 h antes) e resumos do dia/semana no telemóvel.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.AgendaAvisosHostedService>();
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.RotinaAvisosHostedService>();
     }
 
 
@@ -332,6 +333,9 @@ try
     // Sprint 371: agendamentos (booking).
     builder.Services.AddScoped<IAppointmentRepository, RepairDesk.DAL.Persistence.AppointmentRepository>();
     builder.Services.AddScoped<IAgendaAvisosRepository, RepairDesk.DAL.Persistence.AgendaAvisosRepository>();
+    builder.Services.AddScoped<IRotinaRepository, RepairDesk.DAL.Persistence.RotinaRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Rotina.IRotinaService, RepairDesk.Services.Rotina.RotinaService>();
+    builder.Services.AddScoped<RepairDesk.Services.Rotina.IRotinaAvisosService, RepairDesk.Services.Rotina.RotinaAvisosService>();
     builder.Services.AddScoped<IProdutoLojaRepository, RepairDesk.DAL.Persistence.ProdutoLojaRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.ILojaService, RepairDesk.Services.Loja.LojaService>();
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.

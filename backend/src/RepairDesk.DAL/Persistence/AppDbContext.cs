@@ -43,6 +43,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<AgendaAviso> AgendaAvisos => Set<AgendaAviso>();
     public DbSet<ProdutoLoja> ProdutosLoja => Set<ProdutoLoja>();
+    public DbSet<RotinaItem> RotinaItens => Set<RotinaItem>();
+    public DbSet<RotinaRegisto> RotinaRegistos => Set<RotinaRegisto>();
     public DbSet<ProdutoLojaFoto> ProdutosLojaFotos => Set<ProdutoLojaFoto>();
     public DbSet<WhatsAppNotificationLog> WhatsAppNotificationLogs => Set<WhatsAppNotificationLog>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
@@ -261,7 +263,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
         var now = DateTime.UtcNow;
         var entries = new List<AuditEntry>();
         foreach (var entry in ChangeTracker.Entries()
-                     .Where(e => e.Entity is not AuditEntry && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+                     .Where(e => e.Entity is not AuditEntry and not RotinaRegisto && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
         {
             var tenantId = GetTenantId(entry);
             if (tenantId is null) continue;

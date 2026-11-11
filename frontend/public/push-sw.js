@@ -26,7 +26,19 @@ self.addEventListener('push', (event) => {
     // tag agrupa notificações do mesmo assunto; renotify volta a vibrar/alertar.
     tag: data.tag || undefined,
     renotify: Boolean(data.tag),
-    data: { url: data.url || '/' },
+    // Sprint 615 (rotina): avisos insistentes ficam no ecrã até tocar e vibram com mais força.
+    requireInteraction: Boolean(data.requireInteraction),
+    vibrate: data.requireInteraction ? [300, 150, 300, 150, 600] : [200, 100, 200],
+    // Botões («✓ Feito», «+15 min») — cada um abre o seu URL (o ecrã da rotina faz a ação).
+    actions: Array.isArray(data.actions)
+      ? data.actions.slice(0, 2).map((a) => ({ action: a.action, title: a.title }))
+      : undefined,
+    data: {
+      url: data.url || '/',
+      acoes: Array.isArray(data.actions)
+        ? Object.fromEntries(data.actions.map((a) => [a.action, a.url]))
+        : {},
+    },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -34,7 +46,8 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  const dados = event.notification.data || {};
+  const targetUrl = (event.action && dados.acoes && dados.acoes[event.action]) || dados.url || '/';
 
   event.waitUntil(
     (async () => {

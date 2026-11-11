@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:3ab261e39f3a6cb2 -->
+<!-- roles-matrix-snapshot:75529f1623c291b4 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -94,3 +94,5 @@ precisar de abrir acesso a roles não-Admin).
 Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por reflection dos controllers.
 
 > Out/2026 (Doc 94 Fase 2): removidos Moloni/InvoiceXpress (emissão/anulação de faturas, orçamentos, recibos, OAuth), Documentos, Avenças, Webhooks, API externa da loja, Produtos/Catálogo e relatório de IVA/Extrato.
+
+> Nov/2026 (Sprint 615, Doc 98): `api/rotina` — qualquer utilizador autenticado; cada um só vê e regista a sua rotina pessoal (filtro por UserId no serviço).
