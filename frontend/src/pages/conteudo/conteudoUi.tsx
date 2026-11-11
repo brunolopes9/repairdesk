@@ -112,3 +112,11 @@ export function duracao(seg: number | null): string | null {
   const s = Math.round(seg % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+/**
+ * Sprint 612: a API do Facebook não publica em perfis pessoais. Este link abre a janela de partilha
+ * com a publicação da página — o dono escolhe «Com…» → a página e publica no perfil.
+ */
+export function linkPartilhaFacebook(permalink: string): string {
+  return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(permalink)}`;
+}

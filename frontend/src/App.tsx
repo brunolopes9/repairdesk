@@ -34,6 +34,7 @@ const VendaEditor = lazy(() => import('./pages/vendas/VendaEditor'));
 const Auditoria = lazy(() => import('./pages/auditoria/Auditoria'));
 const Tarefas = lazy(() => import('./pages/tarefas/Tarefas'));
 const Conteudo = lazy(() => import('./pages/conteudo/Conteudo'));
+const PartilharPerfil = lazy(() => import('./pages/conteudo/PartilharPerfil'));
 const Definicoes = lazy(() => import('./pages/definicoes/Definicoes'));
 const Perfil = lazy(() => import('./pages/definicoes/Perfil'));
 const Preferencias = lazy(() => import('./pages/definicoes/Preferencias'));
@@ -172,6 +173,7 @@ export default function App() {
               <Route path="/inventario" element={<Navigate to="/compras?tab=stock" replace />} />
               <Route path="/tarefas" element={<Tarefas />} />
               <Route path="/conteudo" element={<Conteudo />} />
+              <Route path="/conteudo/partilhar/:id" element={<PartilharPerfil />} />
               <Route path="/auditoria" element={<Auditoria />} />
               <Route path="/definicoes" element={<Definicoes />} />
               <Route path="/definicoes/perfil" element={<Perfil />} />

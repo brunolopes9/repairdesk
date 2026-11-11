@@ -11,6 +11,8 @@ export const conteudoApi = {
       })
       .then((r) => r.data),
 
+  obter: (id: string) => api.get<ConteudoPublicacao>(`/conteudo/${id}`).then((r) => r.data),
+
   resumo: () => api.get<ConteudoResumo>('/conteudo/resumo').then((r) => r.data),
 
   /** Sem `hora` fica a hora marcada; com `hora` aprova para essa hora (ou «agora»). */

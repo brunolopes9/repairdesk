@@ -70,6 +70,22 @@ public class ConteudoPublicadorTests : IClassFixture<RepairDeskApiFactory>
         var depois = await Ler(client, p.Id);
         depois.Estado.Should().Be(ConteudoEstado.Publicada);
         depois.Destinos.Should().OnlyContain(d => d.Estado == ConteudoDestinoEstado.Publicado && d.ExternalId != null);
+
+        // Sprint 612: saiu no Facebook → notificação para partilhar no perfil pessoal (uma só vez).
+        var jobs = await JobsPush();
+        jobs.Count(j => j.Url == $"/conteudo/partilhar/{p.Id}").Should().Be(1);
+    }
+
+    private async Task<List<RepairDesk.Services.Push.StaffPushJob>> JobsPush()
+    {
+        var fila = _app.Services.GetRequiredService<RepairDesk.Services.Push.IStaffPushQueue>();
+        var jobs = new List<RepairDesk.Services.Push.StaffPushJob>();
+        while (true)
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
+            try { jobs.Add(await fila.DequeueAsync(cts.Token)); }
+            catch (OperationCanceledException) { return jobs; }
+        }
     }
 
     [Fact]

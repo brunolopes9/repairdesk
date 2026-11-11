@@ -183,3 +183,9 @@ O TikTok só aprova apps de publicação direta se o utilizador escolher tudo no
 - **Agenda:** numa publicação aprovada (ou por aprovar), **«Mudar hora»** e **«Publicar já»** sem a devolver a «Por aprovar» — é o dono que muda, não há nada novo a aprovar. Editar o conteúdo continua a obrigar a nova aprovação.
 - API: `POST /api/conteudo/{id}/aprovar` aceita corpo opcional `{ agendadoPara, agora }`; novo `PATCH /api/conteudo/{id}/hora` (só utilizador autenticado — a chave do Claude não muda horas sem aprovação; usa o PUT, que devolve à fila).
 - Horas já passadas (mais de 1 min) → 422 `hora_passada`.
+
+## 17. Partilhar no perfil pessoal (Sprint 612)
+
+- A API do Facebook não publica em perfis pessoais (desde 2018) nem faz a marcação «está com Lopes Tech». Solução: 2 toques do dono.
+- Quando um destino Facebook passa a «Publicado» (com permalink), o publicador envia um push «📣 #N saiu no Facebook — toca para partilhar no teu perfil» → abre `/conteudo/partilhar/{id}`: botão grande «Partilhar no meu perfil» (abre `facebook.com/sharer/sharer.php?u=<permalink>`) + 3 passos (Com quem estás → Lopes Tech → Publicar).
+- O mesmo botão aparece em qualquer cartão já publicado no Facebook (Histórico/Agenda).

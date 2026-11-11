@@ -148,6 +148,12 @@ public sealed class ConteudoPublicadorService : IConteudoPublicadorService
                 d.ProximaTentativaEm = null;
                 await _repo.SaveAsync(CancellationToken.None); // grava já: idempotência
                 _logger.LogInformation("Conteúdo #{Numero} publicado no {Rede} ({ExternalId}).", p.Numero, d.Rede, r.ExternalId);
+                if (d.Rede == RedeSocial.Facebook && !string.IsNullOrEmpty(d.Permalink))
+                {
+                    // Sprint 612: a API não publica em perfis pessoais — o dono partilha com 2 toques.
+                    await _push.EnqueueAsync(new StaffPushJob(p.TenantId, $"📣 #{p.Numero} saiu no Facebook",
+                        "Toca para partilhar no teu perfil.", $"/conteudo/partilhar/{p.Id}", $"partilhar-{p.Id:N}"), ct);
+                }
             }
             catch (RedeSocialException ex)
             {
