@@ -9,6 +9,7 @@ import { formatDateOnly } from '../lib/money';
 import { apiErrorMessage } from '../lib/errors';
 import LembretesFiscais from './apuramento/LembretesFiscais';
 import { AgendaProximos } from './agendamentos/AgendaProximos';
+import { RotinaAgora } from './rotina/RotinaAgora';
 import { VENDA_ESTADO_COLOR, VENDA_ESTADO_LABEL, VENDA_TIPO } from '../lib/vendas/types';
 
 const TIPO_ICON = { 0: Package, 1: Wrench, 2: Code2 } as const;
@@ -45,6 +46,8 @@ export default function Dashboard() {
           </>
         }
       />
+
+      <RotinaAgora />
 
       <LembretesFiscais />
 

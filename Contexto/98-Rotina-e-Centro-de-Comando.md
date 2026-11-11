@@ -48,6 +48,33 @@ O Mender não deve servir para fazer mais coisas. Deve **dizer qual é a próxim
 - **Coeficientes de IRS por linha**: bens 0,15; serviços com CAE 0,35. Aplica-se o corte do art. 31.º n.º 10 (2.º ano). O mínimo de existência não se aplica a 2026.
 - Retirar o lembrete «passar a 66190 em jan/2027», porque já foi feito.
 
+### 4.1 Validação do Claude fiscal (11/11, instruções oficiais da DP) — modelo da F6
+- **Afetação** por compra/despesa (override por linha): LopesTech (100%), Trading (0%), Mista (pro rata). Por omissão: stock/peças = LopesTech; FX Replay, prop firms e challenges = Trading; Anthropic, Google Workspace e alojamento = Mista (ou LopesTech, se forem só para clientes).
+- **ProRataInicio = 2026-11-09** (efeitos da alteração). Antes disso: as mistas deduzem por inteiro se ligadas à atividade tributada; as de trading nunca deduzem.
+- **Regularização anual** (última DP do ano, passo manual explícito):
+  - definitiva = bases com direito à dedução (incl. campo 8) ÷ todas as bases ativas (1+3+5+7+8+9);
+  - excluir as do art. 23.º n.º 5 e os subsídios não tributados;
+  - arredondar às unidades, por excesso;
+  - diferença × IVA das mistas → campo 40 ou 41, mais o Anexo de Regularizações.
+- **Autoliquidação:**
+  - serviços da UE → base 16, IVA 17, dedução 24 × afetação (não vai a 3/4 nem 97);
+  - serviços de fora da UE → base 3, IVA 4, Quadro 06 «SIM» + campo 98, dedução 24 × afetação;
+  - bens da UE → 12/13, dedução 21–24 (inventários no 22);
+  - fatura com IVA estrangeiro → sem autoliquidação; o IVA é custo.
+  - **O fornecedor guarda o país da entidade que fatura** (Anthropic Ireland vs PBC, OpenAI, Vercel…).
+- **Vendas:**
+  - Normal → 1/5/3 + 2/6/4.
+  - Margem → base = margem ÷ 1,23 nos campos 3/4, sem IVA discriminado na fatura; margem negativa por bem = 0.
+  - Payout com cliente fora da UE → **campo 8** (com dedução; entra no numerador da pro rata).
+  - Payout com cliente na UE → nem 7 nem 8; proposta **campo 9**, configurável, **a validar com a Susana**, tal como a recapitulativa.
+  - Payouts de antes de 09/11 → mesmo mapeamento por localização, sem pro rata.
+- **IRS:**
+  - 1519 a 0,75 até 09/11/2026 (posição da AT; o CAAD defende 0,35 — o Mender mostra só um aviso);
+  - corte do art. 31.º n.º 10 só no 0,35 e no 0,75;
+  - regra dos 15% só sobre o 0,35 e o 0,75 (4.104 € OU SS, se maior, + pessoal, rendas, e-fatura);
+  - IRS Jovem 75% com limite de 55 × IAS;
+  - sem mínimo de existência em 2026.
+
 ## 5. Vendas «sem fatura» (registo interno) — Sprint 616, decisão do Bruno
 - O Bruno emite sempre fatura nas vendas do momento (balcão/Moloni). Algumas reparações seguem outro enquadramento, combinado com a contabilista Susana, e são faturadas fora do Mender (AT/Moloni). O Mender é registo interno, como um Excel: a declaração oficial sai da AT, não daqui.
 - Na venda: botão **«Registar sem fatura»**. A venda fica com a etiqueta «Sem fatura». O motivo é opcional; por omissão fica «Sem fatura (registo interno)».
