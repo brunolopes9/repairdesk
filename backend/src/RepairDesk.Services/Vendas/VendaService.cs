@@ -19,6 +19,7 @@ public interface IVendaService
     Task<VendaDto> UpdateAsync(Guid id, VendaWriteRequest req, CancellationToken ct = default);
     Task<VendaDto> MudarEstadoAsync(Guid id, MudarEstadoVendaRequest req, CancellationToken ct = default);
     Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default);
+    Task<VendaDto> ForaApuramentoAsync(Guid id, ForaApuramentoRequest req, CancellationToken ct = default);
     /// <summary>Sprint 594: peças por encomendar/encomendadas das reparações em curso.</summary>
     Task<IReadOnlyList<PecaEncomendaDto>> PecasEncomendaAsync(CancellationToken ct = default);
     /// <summary>Sprint 594: "já encomendei" / "afinal ainda não" numa peça em falta, sem abrir a venda.</summary>
@@ -236,11 +237,44 @@ public class VendaService : IVendaService
         return ToDto(venda);
     }
 
+    public const string MotivoForaApuramentoPadrao = "Sem fatura (registo interno)";
+
+    public async Task<VendaDto> ForaApuramentoAsync(Guid id, ForaApuramentoRequest req, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        var motivo = Clean(req.Motivo, 200);
+        if (req.Ativo)
+        {
+            if (venda.InvoiceNumber is not null || venda.MoloniDocumentoId is not null)
+                throw new ConflictException("ja_tem_fatura", $"Esta venda tem a fatura {venda.InvoiceNumber}: conta no IVA. Anula a fatura primeiro.");
+            motivo ??= MotivoForaApuramentoPadrao;
+        }
+        venda.ForaApuramento = req.Ativo;
+        venda.ForaApuramentoMotivo = req.Ativo ? motivo : null;
+        RecalculateTotals(venda);
+        await _vendas.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new
+        {
+            operation = "fora_apuramento",
+            venda.Numero,
+            ativo = req.Ativo,
+            motivo = venda.ForaApuramentoMotivo,
+        }, ct: ct);
+        return ToDto(venda);
+    }
+
     public async Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default)
     {
         var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
         var numero = Clean(req.InvoiceNumber, 120);
         venda.InvoiceNumber = numero;
+        // Com fatura, a venda conta no IVA: deixa de estar «fora do Mender».
+        if (numero is not null && venda.ForaApuramento)
+        {
+            venda.ForaApuramento = false;
+            venda.ForaApuramentoMotivo = null;
+            RecalculateTotals(venda);
+        }
         venda.Atividade = AtividadeDaFatura(numero);
         venda.InvoiceEmittedAt = numero is null
             ? null
@@ -461,17 +495,22 @@ public class VendaService : IVendaService
     }
 
     /// <summary>Contas da linha pelo motor de IVA (SPEC §3.3). Serviço = custo 0 e IVA de compra 0.</summary>
-    public static CalculoVenda Calcular(VendaItem i)
-        => IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, i.TaxaIvaCompra ?? 0m, i.IvaRate / 100m);
+    public static CalculoVenda Calcular(VendaItem i) => Calcular(i, false);
+
+    /// <summary>Sprint 616: numa venda tratada fora do Mender não há IVA — lucro = cobrado − custo das peças.</summary>
+    public static CalculoVenda Calcular(VendaItem i, bool foraApuramento)
+        => foraApuramento
+            ? IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, 0m, 0m)
+            : IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, i.TaxaIvaCompra ?? 0m, i.IvaRate / 100m);
 
     private static void RecalculateTotals(Venda venda)
     {
         venda.TotalCents = venda.Items.Sum(i => i.TotalCents);
-        venda.IvaCents = venda.Items.Sum(CalculateIvaCents);
+        venda.IvaCents = venda.Items.Sum(i => CalculateIvaCents(i, venda.ForaApuramento));
     }
 
-    private static int CalculateIvaCents(VendaItem item)
-        => (int)Math.Round(Calcular(item).IvaDaVenda * 100m, MidpointRounding.AwayFromZero);
+    private static int CalculateIvaCents(VendaItem item, bool foraApuramento = false)
+        => (int)Math.Round(Calcular(item, foraApuramento).IvaDaVenda * 100m, MidpointRounding.AwayFromZero);
 
     /// <summary>
     /// Emite garantia automática para a Venda ao ser entregue.
@@ -587,7 +626,7 @@ public class VendaService : IVendaService
                 venda.Cliente.NomeFaturacao, venda.Cliente.Morada, venda.Cliente.CodigoPostal, venda.Cliente.Localidade);
         var items = venda.Items.OrderBy(i => i.CreatedAt).Select(i =>
         {
-            var c = Calcular(i);
+            var c = Calcular(i, venda.ForaApuramento);
             return new VendaItemDto(i.Id, i.CompraLinhaId, i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents,
                 i.IvaRate, i.TotalCents, CalculateIvaCents(i), i.Imei, i.CustoUnitarioPago, i.TaxaIvaCompra,
                 c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro, i.Encomenda, i.EncomendaNota);
@@ -598,11 +637,13 @@ public class VendaService : IVendaService
             venda.Equipamento, venda.Problema, venda.TotalCents, venda.IvaCents,
             items.Sum(i => i.IvaAPagarEstado), items.Sum(i => i.Lucro),
             venda.PaymentMethod, venda.InvoiceNumber, venda.InvoiceEmittedAt,
-            venda.Estado == VendaEstado.Entregue && venda.InvoiceNumber is null,
+            venda.Estado == VendaEstado.Entregue && venda.InvoiceNumber is null && !venda.ForaApuramento,
             venda.Notas, items, venda.PublicSlug, venda.PrevistoPara, garantiaSlug, venda.FaturaPdfPath is not null,
             venda.MoloniDocumentoTipo, venda.MoloniReciboNumero, venda.MoloniOrcamentoNumero,
             venda.MoloniDocumentoTipo is null ? null : venda.MoloniDocumentoTipo == "invoiceReceipt" || venda.MoloniReciboId is not null,
-            venda.Atividade);
+            venda.Atividade,
+            venda.ForaApuramento,
+            venda.ForaApuramentoMotivo);
     }
 
     private static string? Clean(string? s, int max)

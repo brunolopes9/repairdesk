@@ -149,6 +149,9 @@ export interface Venda {
   paga: boolean | null;
   /** Sprint 575: 0 = loja, 1 = trading (série TRADING; fora das listas e do resultado da loja). */
   atividade?: 0 | 1;
+  /** Sprint 616: venda sem fatura (registo interno) — não conta no IVA do Mender; o lucro conta o valor inteiro. */
+  foraApuramento?: boolean;
+  foraApuramentoMotivo?: string | null;
 }
 
 /** Sprint 565: resultado de importar o PDF de uma fatura de venda. */

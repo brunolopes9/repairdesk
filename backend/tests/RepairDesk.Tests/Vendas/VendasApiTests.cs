@@ -158,6 +158,36 @@ public class VendasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task SemFatura_RegistoInterno_LucroInteiro_SemIva_ENaoFicaPorFaturar()
+    {
+        var client = await AuthedClient();
+        var venda = await Criar(client, new VendaWriteRequest(VendaTipo.Produto, null, null, null, null,
+            [new VendaLinhaWriteRequest(null, null, "Limpeza PS5", 1, 4000)], VendaEstado.Entregue));
+        venda.Lucro.Should().BeLessThan(40m); // por omissão o IVA é descontado
+
+        var resp = await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/fora-apuramento", new ForaApuramentoRequest(true, null));
+        resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync());
+        var marcada = (await resp.Content.ReadFromJsonAsync<VendaDto>())!;
+        marcada.ForaApuramento.Should().BeTrue();
+        marcada.ForaApuramentoMotivo.Should().Be("Sem fatura (registo interno)");
+        marcada.Lucro.Should().Be(40m);
+        marcada.IvaCents.Should().Be(0);
+        marcada.IvaAPagarEstado.Should().Be(0m);
+        marcada.FaturaPorRegistar.Should().BeFalse();
+
+        var porFaturar = await client.GetFromJsonAsync<PagedResult<VendaDto>>("/api/vendas?faturaPorRegistar=true&pageSize=100");
+        porFaturar!.Items.Should().NotContain(v => v.Id == venda.Id);
+
+        // Se depois tiver fatura, volta a contar no IVA.
+        var faturada = (await (await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/fatura", new RegistarFaturaRequest("FR 2026/999", null)))
+            .Content.ReadFromJsonAsync<VendaDto>())!;
+        faturada.ForaApuramento.Should().BeFalse();
+        faturada.IvaCents.Should().BeGreaterThan(0);
+        (await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/fora-apuramento", new ForaApuramentoRequest(true, null)))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task EditarQuantidade_EmPronta_AjustaOStock()
     {
         var client = await AuthedClient();

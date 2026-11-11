@@ -3052,6 +3052,13 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<bool>("ForaApuramento")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ForaApuramentoMotivo")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<DateTime?>("InvoiceEmittedAt")
                         .HasColumnType("datetime2");
 

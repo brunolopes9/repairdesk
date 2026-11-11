@@ -48,8 +48,15 @@ O Mender não deve servir para fazer mais coisas. Deve **dizer qual é a próxim
 - **Coeficientes de IRS por linha**: bens 0,15; serviços com CAE 0,35. Aplica-se o corte do art. 31.º n.º 10 (2.º ano). O mínimo de existência não se aplica a 2026.
 - Retirar o lembrete «passar a 66190 em jan/2027», porque já foi feito.
 
-## 5. «Vendas sem fatura e sem IVA» — decisão
-O Bruno pediu para vender sem fatura e sem o IVA contar.
-- **O Mender já permite**, e continua a permitir: criar uma reparação ou venda, marcá-la entregue e paga, não emitir nada no Moloni. O valor conta no painel e no relatório mensal.
-- **Não se implementa**: tirar uma venda tributável do IVA ou pô-la a 0% por não ter fatura. O IVA é devido com ou sem fatura (CIVA art. 7.º/8.º e art. 29.º n.º 1 b)). O apuramento continua a mostrá-la em «pendentes» (venda sem fatura). O Claude fiscal concorda.
-- As únicas operações sem IVA, ou com IVA reduzido, têm base legal e tratam-se como tipo de operação: payouts das prop firms (isenção/não localização) e bens no regime da margem.
+## 5. Vendas «sem fatura» (registo interno) — Sprint 616, decisão do Bruno
+- O Bruno emite sempre fatura nas vendas do momento (balcão/Moloni). Algumas reparações seguem outro enquadramento, combinado com a contabilista Susana, e são faturadas fora do Mender (AT/Moloni). O Mender é registo interno, como um Excel: a declaração oficial sai da AT, não daqui.
+- Na venda: botão **«Registar sem fatura»**. A venda fica com a etiqueta «Sem fatura». O motivo é opcional; por omissão fica «Sem fatura (registo interno)».
+- Efeitos:
+  - não entra no apuramento de IVA do Mender;
+  - não aparece nos avisos «por faturar» do painel;
+  - o lucro conta o valor inteiro (cobrado − custo das peças, sem IVA).
+- Transparência:
+  - o apuramento mostra quantas vendas e que total ficaram de fora;
+  - a alteração fica na auditoria;
+  - «Desfazer» reverte.
+- Se a venda passar a ter fatura (nº registado ou documento Moloni), volta automaticamente a contar no IVA. Não se pode marcar uma venda já faturada.

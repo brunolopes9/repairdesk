@@ -18,6 +18,7 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
 
     public void Configure(EntityTypeBuilder<Venda> builder)
     {
+        builder.Property(x => x.ForaApuramentoMotivo).HasMaxLength(200);
         builder.ToTable("Vendas");
         builder.HasKey(x => x.Id);
 

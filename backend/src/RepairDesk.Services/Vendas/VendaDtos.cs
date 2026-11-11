@@ -40,6 +40,9 @@ public sealed record MudarEstadoVendaRequest(VendaEstado Estado, PaymentMethod? 
 /// <summary>Nº da fatura emitida fora do Mender (Moloni). Vazio = limpar.</summary>
 public sealed record RegistarFaturaRequest(string? InvoiceNumber, DateTime? InvoiceEmittedAt);
 
+/// <summary>Sprint 616: marcar/desmarcar uma venda como tratada fora do Mender (motivo obrigatório ao marcar).</summary>
+public sealed record ForaApuramentoRequest(bool Ativo, string? Motivo);
+
 /// <summary>Sprint 563: corrigir preço/IVA de uma linha de venda já entregue (sem mexer em qtd nem stock).</summary>
 public sealed record CorrigirPrecoLinha(Guid Id, int PrecoUnitarioCents, decimal IvaRate);
 
@@ -111,7 +114,10 @@ public sealed record VendaDto(
     string? MoloniOrcamentoNumero = null,
     /// <summary>Fatura-recibo, ou fatura com recibo. Null quando não há documento Moloni.</summary>
     bool? Paga = null,
-    VendaAtividade Atividade = VendaAtividade.Loja);
+    VendaAtividade Atividade = VendaAtividade.Loja,
+    /// <summary>Sprint 616: tratada fora do Mender — sem IVA no Mender, lucro pelo valor inteiro.</summary>
+    bool ForaApuramento = false,
+    string? ForaApuramentoMotivo = null);
 
 public sealed record VendaImeiLookupDto(
     Guid VendaId,

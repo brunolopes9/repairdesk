@@ -133,7 +133,10 @@ public sealed record ApuramentoDto(
     /// <summary>Sprint 578: crédito de IVA do trimestre anterior (excesso a reportar) que abate a este.</summary>
     decimal Reporte = 0m,
     /// <summary>Saldo − reporte: o que se paga (positivo) ou fica a crédito para o próximo (negativo).</summary>
-    decimal SaldoFinal = 0m);
+    decimal SaldoFinal = 0m,
+    /// <summary>Sprint 616: vendas entregues marcadas «tratada fora do Mender» no trimestre (não entram no IVA do Mender).</summary>
+    int ForaApuramentoVendas = 0,
+    decimal ForaApuramentoTotal = 0m);
 
 public interface IApuramentoService
 {
@@ -279,7 +282,8 @@ public class ApuramentoService : IApuramentoService
         var vendas = await _vendas.ListParaApuramentoAsync(ParaUtc(de).AddDays(-1), ParaUtc(ate).AddDays(1), ct);
         var noTrimestre = vendas.Where(v => DentroDe(DeLisboa(v.InvoiceEmittedAt ?? v.Data), de, ate)).ToList();
         var faturadas = noTrimestre.Where(v => v.InvoiceNumber is not null).ToList();
-        foreach (var v in noTrimestre.Where(v => v.InvoiceNumber is null && v.Estado == VendaEstado.Entregue))
+        var fora = noTrimestre.Where(v => v.InvoiceNumber is null && v.ForaApuramento && v.Estado == VendaEstado.Entregue).ToList();
+        foreach (var v in noTrimestre.Where(v => v.InvoiceNumber is null && !v.ForaApuramento && v.Estado == VendaEstado.Entregue))
             pendentes.Add(new("venda_sem_fatura", v.Id, $"Venda #{v.Numero}{(v.Cliente is { } c ? $" · {c.Nome}" : string.Empty)}",
                 v.TotalCents / 100m, DeLisboa(v.Data)));
 
@@ -417,7 +421,7 @@ public class ApuramentoService : IApuramentoService
         return new ApuramentoDto(ano, trimestre, de, ate.AddDays(-1), porTaxa, faturadas.Count, Euros(ivaLiquidado), compras, despesasDto,
             Euros(ivaDedutivel), ivaAutoliquidado, Euros(saldo), resultado, campos, estimativas,
             pendentes.OrderBy(p => p.Tipo).ThenBy(p => p.Data).ToList(), Euros(isentasUe), Euros(isentasFora), fechoDto,
-            Euros(reporte), saldoFinal);
+            Euros(reporte), saldoFinal, fora.Count, Euros(fora.Sum(v => v.TotalCents) / 100m));
     }
 
     private static decimal BaseSemIva(VendaItem i) => i.TotalCents / 100m / (1 + i.IvaRate / 100m);

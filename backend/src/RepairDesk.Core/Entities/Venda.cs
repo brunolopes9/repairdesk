@@ -48,6 +48,14 @@ public class Venda : BaseEntity, ITenantEntity
     /// <summary>Sprint 575: loja ou trading (definido pela série da fatura — ver VendaService.RegistarFaturaAsync).</summary>
     public VendaAtividade Atividade { get; set; } = VendaAtividade.Loja;
 
+    /// <summary>
+    /// Sprint 616: venda tratada fora do Mender (outro enquadramento, combinado com a contabilista). Não entra no
+    /// apuramento de IVA do Mender nem nos «por faturar», e o lucro conta o valor inteiro (sem IVA). Exige motivo.
+    /// O Mender é registo interno: a declaração oficial sai da AT/Moloni.
+    /// </summary>
+    public bool ForaApuramento { get; set; }
+    public string? ForaApuramentoMotivo { get; set; }
+
     public string? Notas { get; set; }
     public List<VendaItem> Items { get; set; } = new();
 }

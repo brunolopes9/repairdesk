@@ -230,6 +230,12 @@ export default function VendaEditor() {
     onError: (err) => toast.fromError(err),
   });
 
+  const semFatura = useMutation({
+    mutationFn: (ativo: boolean) => vendasApi.foraApuramento(id!, ativo),
+    onSuccess: (v) => onSaved(v, v.foraApuramento ? 'Marcada como sem fatura' : 'Voltou a precisar de fatura'),
+    onError: (err) => toast.fromError(err),
+  });
+
   const registarFatura = useMutation({
     mutationFn: () => vendasApi.registarFatura(id!, fatura.trim() || null, faturaData),
     onSuccess: (v) => onSaved(v, v.invoiceNumber ? 'Fatura registada' : 'Fatura removida'),
@@ -352,9 +358,26 @@ export default function VendaEditor() {
       />
 
       {venda?.faturaPorRegistar && (
-        <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+        <div role="alert" className="flex flex-wrap items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          Esta venda ainda não tem fatura — emite-a no Moloni ON abaixo (ou regista o nº se já a emitiste). Não existe venda sem fatura.
+          <span className="flex-1">Esta venda ainda não tem fatura — emite-a no Moloni ON abaixo (ou regista o nº se já a emitiste).</span>
+          {isAdmin && (
+            <Button type="button" size="sm" variant="secondary" loading={semFatura.isPending} onClick={() => semFatura.mutate(true)}>
+              Registar sem fatura
+            </Button>
+          )}
+        </div>
+      )}
+
+      {venda?.foraApuramento && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">Sem fatura</span>
+          <span className="flex-1">{venda.foraApuramentoMotivo ?? 'Registo interno'} — não conta no IVA; o lucro conta o valor inteiro.</span>
+          {isAdmin && (
+            <Button type="button" size="sm" variant="ghost" loading={semFatura.isPending} onClick={() => semFatura.mutate(false)}>
+              Desfazer
+            </Button>
+          )}
         </div>
       )}
 

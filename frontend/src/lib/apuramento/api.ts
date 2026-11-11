@@ -32,6 +32,9 @@ export interface Apuramento {
   /** Sprint 578: crédito do trimestre anterior que abate a este, e o valor final a pagar / a reportar. */
   reporte: number;
   saldoFinal: number;
+  /** Sprint 616: vendas «sem fatura» (registo interno) do trimestre — não entram no IVA do Mender. */
+  foraApuramentoVendas?: number;
+  foraApuramentoTotal?: number;
 }
 
 
