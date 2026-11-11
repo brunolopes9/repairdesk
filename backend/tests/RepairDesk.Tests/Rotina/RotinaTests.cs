@@ -115,6 +115,23 @@ public class RotinaTests : IClassFixture<RepairDeskApiFactory>
             .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
+    [Fact]
+    public async Task Importar_TudoOuNada()
+    {
+        var client = await Admin();
+        var antes = (await client.GetFromJsonAsync<List<RotinaItemDto>>("/api/rotina/itens"))!.Count;
+        var ok = new GuardarRotinaItemRequest("Import A", "Banana\nCafé", RotinaTipo.Refeicao, "08:00", 0, Todos, null, null, null, true, false);
+        var mau = ok with { Titulo = "Import B", Hora = "8h" };
+
+        var falha = await client.PostAsJsonAsync("/api/rotina/importar", new[] { ok, mau });
+        falha.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await falha.Content.ReadAsStringAsync()).Should().Contain("Item 2");
+        (await client.GetFromJsonAsync<List<RotinaItemDto>>("/api/rotina/itens"))!.Count.Should().Be(antes);
+
+        (await client.PostAsJsonAsync("/api/rotina/importar", new[] { ok, mau with { Hora = "08:30" } })).EnsureSuccessStatusCode();
+        (await client.GetFromJsonAsync<List<RotinaItemDto>>("/api/rotina/itens"))!.Count.Should().Be(antes + 2);
+    }
+
     private async Task<int> Processar(DateTime agoraUtc)
     {
         using var scope = _factory.Services.CreateScope();

@@ -36,6 +36,8 @@ public interface IRotinaService
     Task<RotinaDiaDto> DiaAsync(DateOnly? dia, CancellationToken ct = default);
     Task<RotinaDiaItemDto> RegistarAsync(Guid itemId, DateOnly dia, RegistarRotinaRequest req, CancellationToken ct = default);
     Task<IReadOnlyList<RotinaValorDto>> ValoresAsync(Guid itemId, CancellationToken ct = default);
+    /// <summary>Acrescenta vários itens de uma vez (tudo ou nada) — modelos de rotina e cópias de segurança.</summary>
+    Task<IReadOnlyList<RotinaItemDto>> ImportarAsync(IReadOnlyList<GuardarRotinaItemRequest> itens, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -74,6 +76,26 @@ public sealed class RotinaService : IRotinaService
         await _repo.AddItemAsync(item, ct);
         await _repo.SaveAsync(ct);
         return Dto(item);
+    }
+
+    public async Task<IReadOnlyList<RotinaItemDto>> ImportarAsync(IReadOnlyList<GuardarRotinaItemRequest> itens, CancellationToken ct = default)
+    {
+        var userId = UserId;
+        if (itens is null || itens.Count == 0) throw new ValidationException("sem_itens", "Não há itens para importar.");
+        var existentes = (await _repo.ItensDoUtilizadorAsync(userId, ct)).Count;
+        if (existentes + itens.Count > MaxItens)
+            throw new ValidationException("demasiados_itens", $"A rotina tem no máximo {MaxItens} itens (já tens {existentes}).");
+        var novos = new List<RotinaItem>();
+        for (var n = 0; n < itens.Count; n++)
+        {
+            var item = new RotinaItem { Titulo = "", UserId = userId, TenantId = _tenant.TenantId ?? Guid.Empty };
+            try { Aplicar(item, itens[n]); }
+            catch (ValidationException e) { throw new ValidationException(e.Code, $"Item {n + 1}: {e.Message}"); }
+            novos.Add(item);
+        }
+        foreach (var item in novos) await _repo.AddItemAsync(item, ct);
+        await _repo.SaveAsync(ct);
+        return novos.Select(Dto).ToList();
     }
 
     public async Task<RotinaItemDto> AtualizarAsync(Guid id, GuardarRotinaItemRequest req, CancellationToken ct = default)

@@ -20,6 +20,10 @@ public sealed class RotinaController : ControllerBase
     public async Task<ActionResult<RotinaItemDto>> Criar([FromBody] GuardarRotinaItemRequest req, CancellationToken ct)
         => Ok(await _service.CriarAsync(req, ct));
 
+    [HttpPost("importar")]
+    public async Task<ActionResult<IReadOnlyList<RotinaItemDto>>> Importar([FromBody] IReadOnlyList<GuardarRotinaItemRequest> itens, CancellationToken ct)
+        => Ok(await _service.ImportarAsync(itens, ct));
+
     [HttpPut("itens/{id:guid}")]
     public async Task<ActionResult<RotinaItemDto>> Atualizar(Guid id, [FromBody] GuardarRotinaItemRequest req, CancellationToken ct)
         => Ok(await _service.AtualizarAsync(id, req, ct));

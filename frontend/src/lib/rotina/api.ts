@@ -88,6 +88,7 @@ export const rotinaApi = {
   atualizar: (id: string, req: GuardarRotinaItem) => api.put<RotinaItem>(`/rotina/itens/${id}`, req).then((r) => r.data),
   apagar: (id: string) => api.delete(`/rotina/itens/${id}`),
   valores: (id: string) => api.get<RotinaValor[]>(`/rotina/itens/${id}/valores`).then((r) => r.data),
+  importar: (itens: GuardarRotinaItem[]) => api.post<RotinaItem[]>('/rotina/importar', itens).then((r) => r.data),
   dia: (dia?: string) => api.get<RotinaDia>('/rotina/dia', { params: dia ? { dia } : undefined }).then((r) => r.data),
   registar: (itemId: string, dia: string, req: RegistarRotina) =>
     api.post<RotinaDiaItem>(`/rotina/itens/${itemId}/dia/${dia}`, req).then((r) => r.data),

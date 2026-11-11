@@ -11,6 +11,7 @@ import {
   type RegistarRotina, type RotinaDia, type RotinaDiaItem, type RotinaItem,
 } from '../../lib/rotina/api';
 import RotinaItemForm from './RotinaItemForm';
+import ImportarRotina from './ImportarRotina';
 import PesoHistorico from './PesoHistorico';
 
 /**
@@ -21,6 +22,7 @@ export default function Rotina() {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [editar, setEditar] = useState<RotinaItem | 'novo' | null>(null);
+  const [importar, setImportar] = useState(false);
   const [pedido, setPedido] = useState<{ linha: RotinaDiaItem; tipo: 'adiar' | 'saltar' | 'peso' } | null>(null);
   const [agora, setAgora] = useState(() => Date.now());
 
@@ -76,6 +78,7 @@ export default function Rotina() {
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <StaffPushToggle />
+            <Button variant="ghost" onClick={() => setImportar(true)}>Importar</Button>
             <Button variant="secondary" leftIcon={<Plus size={16} />} onClick={() => setEditar('novo')}>Novo item</Button>
           </div>
         )}
@@ -136,6 +139,7 @@ export default function Rotina() {
 
       <TodosItens onEditar={setEditar} />
 
+      {importar && <ImportarRotina onClose={() => setImportar(false)} />}
       {editar && <RotinaItemForm item={editar === 'novo' ? null : editar} onClose={() => setEditar(null)} />}
       {pedido && (
         <PedidoDialog
