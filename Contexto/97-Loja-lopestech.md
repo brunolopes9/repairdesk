@@ -80,5 +80,5 @@ Proposta do Claude do Mender, revista pelo Claude da Cortex. Consenso fechado. *
 - **Site (f87cff6, publicado):** `_gerador/loja.py` (listagem com filtros, categorias, página de produto, JSON-LD, feed Merchant), `loja_sync.py` (Pillow no contentor `lopestech-diario`), `diario/loja.sh` (cron 15 min, lock partilhado com o artigo diário) e `diario/publicar_local.sh` (publicação partilhada). `/loja` existe mas está `noindex` e fora do sitemap enquanto não houver produtos.
 - **Falta para ligar:**
   1. O cron `30 7 * * * bash /opt/lopestech-diario/site/_gerador/diario/loja.sh` (uma vez por dia) (instalação bloqueada pelas permissões do Claude — o Bruno aprova).
-  2. Chave de API com a permissão «loja» (Mender → Definições → Empresa → Chaves de API, na empresa LopesTech), guardada em `/opt/lopestech-diario/loja.env` como `MENDER_LOJA_KEY=…` (chmod 600).
+  2. ~~Chave de API «loja»~~ — feita a 11/11 («Site lopestech.pt — loja», em /opt/lopestech-diario/loja.env, 600). Sincronização testada (0 produtos).
   3. O 1.º produto publicado → acrescentar «Loja» ao menu do site (`js/shared.js`) e pedir ao Claude da Cortex a revisão do schema/feed/IndexNow.
