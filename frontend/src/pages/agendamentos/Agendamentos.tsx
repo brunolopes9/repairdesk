@@ -15,6 +15,8 @@ import {
 } from '../../lib/appointments/api';
 import { vendasApi } from '../../lib/vendas/api';
 import { MarcarRapidoModal } from './MarcarRapido';
+import { CalendariosExternos } from './CalendariosExternos';
+import { calendarioApi, type EventoExterno } from '../../lib/calendario/api';
 import { VENDA_TIPO, type Venda } from '../../lib/vendas/types';
 
 // Sprint 419: estados em curso (0=Recebido, 1=Diagnóstico, 2=AguardaPeça, 3=EmReparação, 4=Pronto).
@@ -84,6 +86,14 @@ export default function Agendamentos() {
     queryFn: () => appointmentsApi.list(range.from, range.to),
     ...liveListOptions,
   });
+
+  // Sprint 619 (Doc 98 F4): eventos do Google/Outlook/iCloud (só leitura), no mesmo intervalo.
+  const externos = useQuery({
+    queryKey: ['eventos-externos', range.from, range.to],
+    queryFn: () => calendarioApi.eventos(range.from, range.to),
+    staleTime: 5 * 60_000,
+  });
+  const eventosExternos = externos.data?.eventos ?? [];
 
   // Sprint 443 (Doc 91 ponto 3): subscrição calendar feed. Lazy — só lê quando user abre a secção.
   const [feedOpen, setFeedOpen] = useState(false);
@@ -184,6 +194,8 @@ export default function Agendamentos() {
         <AgendaStat label="ETAs" value={reparacoesEta.length} />
       </div>
 
+      <CalendariosExternos />
+
       <details
         open={feedOpen}
         onToggle={(e) => setFeedOpen((e.target as HTMLDetailsElement).open)}
@@ -280,6 +292,7 @@ export default function Agendamentos() {
           onToday={() => setWeekStart(startOfWeek(new Date()))}
           appointments={list.data ?? []}
           reparacoesEta={reparacoesEta}
+          externos={eventosExternos}
           loading={list.isLoading}
           onSlotClick={(iso) => { setPrefilledAt(iso); setShowForm(true); }}
           onCardClick={(a) => {
@@ -295,6 +308,22 @@ export default function Agendamentos() {
         <div className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
           <CalendarClock className="mx-auto mb-2 text-zinc-400" size={28} />
           Sem agendamentos nos próximos 30 dias.
+        </div>
+      )}
+
+      {view === 'list' && eventosExternos.length > 0 && (
+        <div>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-violet-500">Do teu calendário (Google)</h2>
+          <ul className="space-y-1">
+            {eventosExternos.map((e, i) => (
+              <li key={`${e.calendarioId}-${e.inicioUtc}-${i}`} className="flex items-center gap-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm dark:border-violet-900/50 dark:bg-violet-950/30">
+                <span className="w-28 flex-none text-xs tabular-nums text-violet-700 dark:text-violet-300">
+                  {new Date(e.inicioUtc).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit' })} {e.diaInteiro ? 'dia todo' : hhmm(e.inicioUtc)}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{e.titulo}{e.local && <span className="text-zinc-500"> · {e.local}</span>}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -363,7 +392,7 @@ function AgendaStat({ label, value }: { label: string; value: number }) {
 
 // Sprint 418: vista calendário semanal (grelha 7d × slots horários 9-19).
 function WeekGrid({
-  weekStart, onPrev, onNext, onToday, appointments, reparacoesEta, loading, onSlotClick, onCardClick, onRepairClick,
+  weekStart, onPrev, onNext, onToday, appointments, reparacoesEta, externos, loading, onSlotClick, onCardClick, onRepairClick,
 }: {
   weekStart: Date;
   onPrev: () => void;
@@ -371,6 +400,7 @@ function WeekGrid({
   onToday: () => void;
   appointments: Appointment[];
   reparacoesEta: Venda[];
+  externos: EventoExterno[];
   loading: boolean;
   onSlotClick: (iso: string) => void;
   onCardClick: (a: Appointment) => void;
@@ -407,6 +437,24 @@ function WeekGrid({
     }
     return m;
   }, [reparacoesEta]);
+
+  // Sprint 619: eventos do Google — os de hora marcada vão para o slot da hora (fora das 9–19 h ficam no topo do dia).
+  const { externosSlot, externosDia } = useMemo(() => {
+    const slot = new Map<string, EventoExterno[]>();
+    const dia = new Map<number, EventoExterno[]>();
+    for (const e of externos) {
+      const dt = new Date(e.inicioUtc);
+      const di = Math.floor((new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime() - weekStart.getTime()) / 86_400_000);
+      if (di < 0 || di > 6) continue;
+      if (e.diaInteiro || dt.getHours() < HOURS[0] || dt.getHours() > HOURS[HOURS.length - 1]) {
+        (dia.get(di) ?? dia.set(di, []).get(di)!).push(e);
+      } else {
+        const k = `${di}-${dt.getHours()}`;
+        (slot.get(k) ?? slot.set(k, []).get(k)!).push(e);
+      }
+    }
+    return { externosSlot: slot, externosDia: dia };
+  }, [externos, weekStart]);
 
   const todayKey = new Date().toDateString();
 
@@ -446,6 +494,12 @@ function WeekGrid({
                 <div key={i} className={`border-l border-zinc-200 px-2 py-2 text-center text-xs dark:border-zinc-800 ${isToday ? 'bg-brand-50 dark:bg-brand-950/30' : ''}`}>
                   <div className="font-semibold uppercase tracking-wider text-zinc-500">{WEEKDAYS[i]}</div>
                   <div className={`mt-0.5 text-base ${isToday ? 'font-bold text-brand-700 dark:text-brand-300' : 'text-zinc-700 dark:text-zinc-300'}`}>{d.getDate()}</div>
+                  {(externosDia.get(i) ?? []).map((e, k) => (
+                    <div key={k} title={`${e.calendario}: ${e.titulo}${e.diaInteiro ? '' : ` · ${hhmm(e.inicioUtc)}`}`}
+                      className="mt-1 truncate rounded bg-violet-100 px-1 py-0.5 text-left text-[10px] text-violet-800 dark:bg-violet-950/50 dark:text-violet-200">
+                      {e.diaInteiro ? '' : `${hhmm(e.inicioUtc)} `}{e.titulo}
+                    </div>
+                  ))}
                 </div>
               );
             })}
@@ -476,6 +530,12 @@ function WeekGrid({
                         <span className="truncate font-semibold w-full">{hhmm(a.scheduledAt)} {a.nome}</span>
                         {a.equipamento && <span className="truncate text-[10px] opacity-75 w-full">{a.equipamento}</span>}
                       </button>
+                    ))}
+                    {(externosSlot.get(`${di}-${h}`) ?? []).map((e, k) => (
+                      <div key={`g-${k}`} title={`${e.calendario}: ${e.titulo} · ${hhmm(e.inicioUtc)}–${hhmm(e.fimUtc)}${e.local ? ` · ${e.local}` : ''}`}
+                        className="pointer-events-none m-0.5 w-[calc(100%-4px)] truncate rounded-md border border-violet-200 bg-violet-50 px-1.5 py-1 text-[11px] leading-tight text-violet-800 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-200">
+                        {hhmm(e.inicioUtc)} {e.titulo}
+                      </div>
                     ))}
                     {/* Sprint 419: overlay reparações com ETA — cor distinta (laranja), ícone chave-de-fendas. */}
                     {reps.map((r) => (

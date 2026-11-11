@@ -44,6 +44,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<AgendaAviso> AgendaAvisos => Set<AgendaAviso>();
     public DbSet<ProdutoLoja> ProdutosLoja => Set<ProdutoLoja>();
     public DbSet<RotinaItem> RotinaItens => Set<RotinaItem>();
+    public DbSet<CalendarioExterno> CalendariosExternos => Set<CalendarioExterno>();
     public DbSet<RotinaRegisto> RotinaRegistos => Set<RotinaRegisto>();
     public DbSet<ProdutoLojaFoto> ProdutosLojaFotos => Set<ProdutoLojaFoto>();
     public DbSet<WhatsAppNotificationLog> WhatsAppNotificationLogs => Set<WhatsAppNotificationLog>();

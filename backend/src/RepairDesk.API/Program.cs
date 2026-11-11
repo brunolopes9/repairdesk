@@ -334,6 +334,14 @@ try
     builder.Services.AddScoped<IAppointmentRepository, RepairDesk.DAL.Persistence.AppointmentRepository>();
     builder.Services.AddScoped<IAgendaAvisosRepository, RepairDesk.DAL.Persistence.AgendaAvisosRepository>();
     builder.Services.AddScoped<IRotinaRepository, RepairDesk.DAL.Persistence.RotinaRepository>();
+    builder.Services.AddMemoryCache();
+    builder.Services.AddScoped<ICalendarioExternoRepository, RepairDesk.DAL.Persistence.CalendarioExternoRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Calendario.ICalendarioExternoService, RepairDesk.Services.Calendario.CalendarioExternoService>();
+    builder.Services.AddHttpClient<RepairDesk.Services.Calendario.IIcsFetcher, RepairDesk.Services.Calendario.IcsFetcher>(c =>
+    {
+        c.Timeout = TimeSpan.FromSeconds(15);
+        c.DefaultRequestHeaders.UserAgent.ParseAdd("Mender-Calendario/1.0");
+    }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
     builder.Services.AddScoped<RepairDesk.Services.Rotina.IRotinaService, RepairDesk.Services.Rotina.RotinaService>();
     builder.Services.AddScoped<RepairDesk.Services.Rotina.IRotinaAvisosService, RepairDesk.Services.Rotina.RotinaAvisosService>();
     builder.Services.AddScoped<IProdutoLojaRepository, RepairDesk.DAL.Persistence.ProdutoLojaRepository>();

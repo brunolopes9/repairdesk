@@ -97,7 +97,7 @@ public class LojaApiTests : IClassFixture<RepairDeskApiFactory>
         var resp = await loja.GetAsync("/api/external/loja/catalogo");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var json = await resp.Content.ReadAsStringAsync();
-        json.Should().NotContainAny("custo", "Custo", "lucro", "Lucro", "219");
+        json.Should().NotContainAny("custo", "Custo", "lucro", "Lucro", "21900"); // 219 € em cêntimos (o hash da versão pode ter «219» por acaso)
         var cat = (await resp.Content.ReadFromJsonAsync<CatalogoDto>())!;
         cat.Produtos.Should().Contain(x => x.Slug == publicado.Slug && x.Categoria == "computadores"
             && x.CondicaoSchema == "https://schema.org/NewCondition" && x.Disponibilidade == "PorEncomenda" && x.Fotos.Count == 1);
