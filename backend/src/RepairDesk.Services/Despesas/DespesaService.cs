@@ -14,6 +14,7 @@ public interface IDespesaService
     Task<DespesasResumoDto> ResumoAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente, CancellationToken ct = default, DespesaAmbito? ambito = null);
     Task<DespesaDto> CreateAsync(CreateDespesaRequest req, CancellationToken ct = default);
     Task<DespesaDto> UpdateAsync(Guid id, UpdateDespesaRequest req, CancellationToken ct = default);
+    Task<ClassificarDespesasResultado> ClassificarAsync(IReadOnlyList<ClassificarDespesa> itens, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
@@ -92,6 +93,35 @@ public class DespesaService : IDespesaService
         await _repo.AddAsync(d, ct);
         await _repo.SaveAsync(ct);
         return ToDto(d);
+    }
+
+    public async Task<ClassificarDespesasResultado> ClassificarAsync(IReadOnlyList<ClassificarDespesa> itens, CancellationToken ct = default)
+    {
+        if (itens is null || itens.Count == 0) throw new Core.Exceptions.ValidationException("sem_itens", "Lista vazia.");
+        if (itens.Count > 500) throw new Core.Exceptions.ValidationException("demasiados_itens", "No máximo 500 de cada vez.");
+        var porNumero = (await _repo.FindByNumerosAsync(itens.Select(i => i.Numero).Distinct().ToList(), ct)).ToDictionary(d => d.Numero);
+        var naoEncontradas = new List<int>();
+        var atualizadas = 0;
+        foreach (var i in itens)
+        {
+            if (!porNumero.TryGetValue(i.Numero, out var d)) { naoEncontradas.Add(i.Numero); continue; }
+            if (i.SoGestao is { } sg) d.SemFaturaValida = sg;
+            if (i.Ambito is { } a)
+            {
+                d.Ambito = a;
+                if (a != DespesaAmbito.Negocio) d.DeducaoPercent = 0;
+            }
+            if (i.Afetacao is { } af) d.Afetacao = af;
+            if (!string.IsNullOrWhiteSpace(i.Nota))
+            {
+                var nota = i.Nota.Trim();
+                if (d.Notas?.Contains(nota, StringComparison.OrdinalIgnoreCase) != true)
+                    d.Notas = string.IsNullOrWhiteSpace(d.Notas) ? nota : $"{d.Notas} · {nota}";
+            }
+            atualizadas++;
+        }
+        await _repo.SaveAsync(ct);
+        return new ClassificarDespesasResultado(atualizadas, naoEncontradas);
     }
 
     public async Task<DespesaDto> UpdateAsync(Guid id, UpdateDespesaRequest req, CancellationToken ct = default)

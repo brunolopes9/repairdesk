@@ -69,6 +69,12 @@ public class DespesasController : ControllerBase
     public Task<DespesaDto> Update(Guid id, [FromBody] UpdateDespesaRequest req, CancellationToken ct)
         => _service.UpdateAsync(id, req, ct);
 
+    /// <summary>Sprint 646: classificação em lote (só gestão / pertence a / afetação) pelo nº visível.</summary>
+    [HttpPost("classificar")]
+    [Authorize(Roles = "Admin")]
+    public Task<ClassificarDespesasResultado> Classificar([FromBody] IReadOnlyList<ClassificarDespesa> itens, CancellationToken ct)
+        => _service.ClassificarAsync(itens, ct);
+
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)

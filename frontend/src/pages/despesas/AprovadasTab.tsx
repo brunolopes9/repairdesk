@@ -7,6 +7,7 @@ import { Button, DateRangeFilter, DetailWorkspace, EmptyState, InspectorRail, Pa
 import { useFiltrosUrl } from '../../lib/useFiltrosUrl';
 import { DespesaFormModal } from '../../components/DespesaFormModal';
 import { FaturaDespesa } from './FaturaDespesa';
+import { ClassificarDespesas } from './ClassificarDespesas';
 import { BotaoImprimir } from '../../components/BotaoImprimir';
 import { despesasApi } from '../../lib/despesas/api';
 import {
@@ -58,6 +59,7 @@ export default function AprovadasTab({
   const onlyRecurring = f.recorrentes === '1';
   const datas = { de: f.de, ate: f.ate };
   const [createOpen, setCreateOpen] = useState(false);
+  const [classificarOpen, setClassificarOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Despesa | null>(null);
   const list = useQuery({
     queryKey: ['despesas', categoriaIn ?? null, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, categoria, search, onlyRecurring, datas.de, datas.ate, page],
@@ -213,6 +215,7 @@ export default function AprovadasTab({
 
   return (
     <div className="space-y-4">
+      {classificarOpen && <ClassificarDespesas onClose={() => setClassificarOpen(false)} />}
       <PageHeader
         title={title}
         description={description}
@@ -221,6 +224,8 @@ export default function AprovadasTab({
           {/* Sprint 593: imprime as despesas da lista (ex.: o mês inteiro) num só PDF — a lista e as faturas. */}
           <BotaoImprimir caminho="/imprimir/despesas" total={total} nome={`Despesas${datas.de ? '_' + datas.de : ''}${datas.ate && datas.ate !== datas.de ? '_a_' + datas.ate : ''}.pdf`}
             params={{ q: search, categoria: categoria ?? undefined, isRecorrente: showRecurringToggle && onlyRecurring ? true : undefined, from: datas.de, to: datas.ate }} />
+          {/* Sprint 646: livros fiscal/gestão — várias de uma vez pelo nº. */}
+          <Button type="button" variant="secondary" onClick={() => setClassificarOpen(true)}>Classificar em lote</Button>
           <Button type="button" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={15} />}>{createLabel}</Button>
         </>}
       />

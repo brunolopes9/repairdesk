@@ -311,6 +311,28 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
         depois.Pendentes.Should().NotContain(p => p.Descricao.Contains("Challenge FTMO"));
     }
 
+    [Fact]
+    public async Task ClassificarEmLote_PeloNumero_SoMudaOQueVem()
+    {
+        var client = await AuthedClient();
+        var d = await Despesa(client, "Gasolina lote", 2900, new DateTime(2035, 9, 2), null, 100);
+        var r = await client.PostAsJsonAsync("/api/despesas/classificar", new[]
+        {
+            new ClassificarDespesa(d.Numero, SoGestao: true, Ambito: DespesaAmbito.Pessoal, Nota: "sem fatura"),
+            new ClassificarDespesa(999_999, SoGestao: true),
+        });
+        r.StatusCode.Should().Be(HttpStatusCode.OK, await r.Content.ReadAsStringAsync());
+        var res = (await r.Content.ReadFromJsonAsync<ClassificarDespesasResultado>())!;
+        res.Atualizadas.Should().Be(1);
+        res.NaoEncontradas.Should().Equal(999_999);
+
+        var depois = await client.GetFromJsonAsync<DespesaDto>($"/api/despesas/{d.Id}");
+        depois!.SemFaturaValida.Should().BeTrue();
+        depois.Ambito.Should().Be(DespesaAmbito.Pessoal);
+        depois.Notas.Should().Contain("sem fatura");
+        depois.Afetacao.Should().Be(d.Afetacao);
+    }
+
     private static Task<DespesaDto> Despesa(HttpClient client, string descricao, int valorCents, DateTime data, int? ivaCents, int deducao, bool reverseCharge = false)
         => Post<DespesaDto>(client, "/api/despesas", new CreateDespesaRequest(descricao, DespesaCategoria.Outro, valorCents, data, null, null, null,
             ReverseCharge: reverseCharge, IvaCents: ivaCents, DeducaoPercent: deducao));

@@ -44,6 +44,14 @@ public sealed record UpdateDespesaRequest(
     /// <summary>Sprint 644: sem fatura com o NIF da empresa — só gestão, fora do fiscal.</summary>
     bool SemFaturaValida = false);
 
+/// <summary>
+/// Sprint 646: classificação em lote (livros fiscal/gestão) — por nº visível. Só muda o que vem preenchido;
+/// «Nota» junta-se às notas existentes (ex.: «duplicado de FT MV-595155249»).
+/// </summary>
+public sealed record ClassificarDespesa(int Numero, bool? SoGestao = null, DespesaAmbito? Ambito = null, AfetacaoIva? Afetacao = null, string? Nota = null);
+
+public sealed record ClassificarDespesasResultado(int Atualizadas, IReadOnlyList<int> NaoEncontradas);
+
 /// <summary>Sprint 574: resumo do filtro inteiro (todas as páginas).</summary>
 public sealed record DespesasResumoDto(int Registos, int TotalCents, int IvaCents, int SemIva, int Recorrentes,
     IReadOnlyList<Core.Abstractions.DespesaResumoCategoria> PorCategoria);

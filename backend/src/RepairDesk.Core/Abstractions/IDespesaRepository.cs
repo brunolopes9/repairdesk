@@ -9,6 +9,8 @@ public sealed record DespesaResumoCategoria(DespesaCategoria Categoria, int Regi
 public interface IDespesaRepository
 {
     Task<Despesa?> FindByIdAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Sprint 646: despesas desta empresa com estes números visíveis (com tracking, para editar).</summary>
+    Task<IReadOnlyList<Despesa>> FindByNumerosAsync(IReadOnlyCollection<int> numeros, CancellationToken ct = default);
     Task<(IReadOnlyList<Despesa> Items, int Total)> SearchAsync(
         string? query,
         DespesaCategoria? categoria,
