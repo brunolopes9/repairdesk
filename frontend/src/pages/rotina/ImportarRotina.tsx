@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../components/ui';
 import { apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
-import { rotinaApi, type GuardarRotinaItem } from '../../lib/rotina/api';
+import { rotinaApi, type GuardarRotinaItem, type RotinaAlimento } from '../../lib/rotina/api';
 
 /** Sprint 615: importar vários itens de uma vez (lista JSON) — modelos de rotina e cópias de segurança. */
 export default function ImportarRotina({ onClose }: { onClose: () => void }) {
@@ -12,10 +12,19 @@ export default function ImportarRotina({ onClose }: { onClose: () => void }) {
   const [erro, setErro] = useState<string | null>(null);
 
   const importar = useMutation({
-    mutationFn: (itens: GuardarRotinaItem[]) => rotinaApi.importar(itens),
-    onSuccess: (r) => {
+    mutationFn: async (dados: unknown[]) => {
+      // Sprint 635: [{ titulo, alimentos: [...] }] é um plano alimentar; o resto são itens da rotina.
+      const ehPlano = dados.every((d) => typeof d === 'object' && d !== null && 'alimentos' in d && !('hora' in d));
+      if (ehPlano) {
+        const r = await rotinaApi.importarAlimentos(dados as { titulo: string; alimentos: RotinaAlimento[] }[]);
+        return `Alimentação de ${r.refeicoes} refeição(ões) importada`;
+      }
+      const r = await rotinaApi.importar(dados as GuardarRotinaItem[]);
+      return `${r.length} itens importados`;
+    },
+    onSuccess: (msg) => {
       qc.invalidateQueries({ queryKey: ['rotina'] });
-      toast.success(`${r.length} itens importados`, 'Os avisos começam já a seguir este plano.');
+      toast.success(msg, 'Já está na tua rotina.');
       onClose();
     },
     onError: (e) => setErro(apiErrorMessage(e)),
@@ -26,7 +35,7 @@ export default function ImportarRotina({ onClose }: { onClose: () => void }) {
     try {
       const dados = JSON.parse(texto) as unknown;
       if (!Array.isArray(dados)) throw new Error('Tem de ser uma lista [ … ].');
-      importar.mutate(dados as GuardarRotinaItem[]);
+      importar.mutate(dados);
     } catch (e) {
       setErro(e instanceof Error ? `JSON inválido: ${e.message}` : 'JSON inválido.');
     }

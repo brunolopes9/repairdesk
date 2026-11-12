@@ -2395,6 +2395,49 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("RepairRequests");
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.RotinaAlimento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("GorduraG")
+                        .HasPrecision(6, 1)
+                        .HasColumnType("decimal(6,1)");
+
+                    b.Property<decimal>("HidratosG")
+                        .HasPrecision(6, 1)
+                        .HasColumnType("decimal(6,1)");
+
+                    b.Property<decimal>("Kcal")
+                        .HasPrecision(7, 1)
+                        .HasColumnType("decimal(7,1)");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("ProteinaG")
+                        .HasPrecision(6, 1)
+                        .HasColumnType("decimal(6,1)");
+
+                    b.Property<string>("Quantidade")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid>("RotinaItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RotinaItemId");
+
+                    b.ToTable("RotinaAlimentos", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.RotinaItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3948,6 +3991,15 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Venda");
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.RotinaAlimento", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.RotinaItem", null)
+                        .WithMany("Alimentos")
+                        .HasForeignKey("RotinaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.RotinaRegisto", b =>
                 {
                     b.HasOne("RepairDesk.Core.Entities.RotinaItem", "Item")
@@ -4102,6 +4154,11 @@ namespace RepairDesk.DAL.Migrations
             modelBuilder.Entity("RepairDesk.Core.Entities.ProdutoLoja", b =>
                 {
                     b.Navigation("Fotos");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.RotinaItem", b =>
+                {
+                    b.Navigation("Alimentos");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.Venda", b =>

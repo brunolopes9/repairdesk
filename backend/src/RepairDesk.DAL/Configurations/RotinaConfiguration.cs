@@ -15,6 +15,23 @@ public class RotinaItemConfiguration : IEntityTypeConfiguration<RotinaItem>
         builder.Property(x => x.AvisosAntes).HasMaxLength(40);
         builder.Property(x => x.Tipo).HasConversion<int>();
         builder.HasIndex(x => new { x.TenantId, x.UserId });
+        builder.HasMany(x => x.Alimentos).WithOne().HasForeignKey(a => a.RotinaItemId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class RotinaAlimentoConfiguration : IEntityTypeConfiguration<RotinaAlimento>
+{
+    public void Configure(EntityTypeBuilder<RotinaAlimento> builder)
+    {
+        builder.ToTable("RotinaAlimentos");
+        builder.Property(x => x.Id).ValueGeneratedNever();
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Nome).HasMaxLength(80).IsRequired();
+        builder.Property(x => x.Quantidade).HasMaxLength(40);
+        builder.Property(x => x.Kcal).HasPrecision(7, 1);
+        builder.Property(x => x.ProteinaG).HasPrecision(6, 1);
+        builder.Property(x => x.HidratosG).HasPrecision(6, 1);
+        builder.Property(x => x.GorduraG).HasPrecision(6, 1);
     }
 }
 

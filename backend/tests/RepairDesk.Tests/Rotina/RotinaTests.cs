@@ -132,6 +132,31 @@ public class RotinaTests : IClassFixture<RepairDeskApiFactory>
         (await client.GetFromJsonAsync<List<RotinaItemDto>>("/api/rotina/itens"))!.Count.Should().Be(antes + 2);
     }
 
+    [Fact]
+    public async Task Alimentacao_MacrosPorRefeicao_PlaneadoEComido()
+    {
+        var client = await Admin();
+        var hoje = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, RotinaCalendario.Lisboa));
+        var almoco = await Criar(client, new GuardarRotinaItemRequest("Almoço macros", null, RotinaTipo.Refeicao, "00:02", 0, Todos, null, null, null, false, false));
+        var r = await client.PostAsJsonAsync("/api/rotina/alimentos/importar", new[]
+        {
+            new ImportarAlimentosRequest("Almoço macros", new[]
+            {
+                new RotinaAlimentoDto("Arroz", "150 g", 195, 4, 42, 0.5m),
+                new RotinaAlimentoDto("Frango", "175 g", 290, 52, 0, 7),
+            }),
+        });
+        r.EnsureSuccessStatusCode();
+        var dia = await client.GetFromJsonAsync<RotinaDiaDto>("/api/rotina/dia");
+        dia!.Itens.Single(l => l.Item.Id == almoco.Id).Item.Macros!.Kcal.Should().Be(485);
+        dia.MacrosComidos!.Kcal.Should().Be(0);
+        (await client.PostAsJsonAsync($"/api/rotina/itens/{almoco.Id}/dia/{hoje:yyyy-MM-dd}", new RegistarRotinaRequest(RotinaRegistoEstado.Feito, null, null, null))).EnsureSuccessStatusCode();
+        dia = await client.GetFromJsonAsync<RotinaDiaDto>("/api/rotina/dia");
+        dia!.MacrosComidos!.ProteinaG.Should().Be(56);
+        (await client.PostAsJsonAsync("/api/rotina/alimentos/importar", new[] { new ImportarAlimentosRequest("Não existe", Array.Empty<RotinaAlimentoDto>()) }))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
     private async Task<int> Processar(DateTime agoraUtc)
     {
         using var scope = _factory.Services.CreateScope();

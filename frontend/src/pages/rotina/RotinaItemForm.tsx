@@ -4,7 +4,7 @@ import { Trash2, X } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
-import { DIAS, RotinaTipo, TIPO_INFO, TODOS_OS_DIAS, rotinaApi, type GuardarRotinaItem, type RotinaItem } from '../../lib/rotina/api';
+import { DIAS, RotinaTipo, TIPO_INFO, TODOS_OS_DIAS, rotinaApi, type GuardarRotinaItem, type RotinaAlimento, type RotinaItem } from '../../lib/rotina/api';
 
 const VAZIO: GuardarRotinaItem = {
   titulo: '', detalhe: null, tipo: RotinaTipo.Trabalho, hora: '09:00', duracaoMin: 60, dias: TODOS_OS_DIAS,
@@ -16,12 +16,21 @@ const campo = 'mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm d
 /** Sprint 615: criar/editar um item da rotina (hora, dias, avisos). */
 export default function RotinaItemForm({ item, onClose }: { item: RotinaItem | null; onClose: () => void }) {
   const qc = useQueryClient();
-  const [f, setF] = useState<GuardarRotinaItem>(() => (item ? { ...item } : VAZIO));
+  const [f, setF] = useState<GuardarRotinaItem>(() => {
+    if (!item) return VAZIO;
+    const { id: _id, alimentos: _a, macros: _m, ...resto } = item;
+    return resto;
+  });
+  const [alimentos, setAlimentos] = useState<RotinaAlimento[]>(() => item?.alimentos ?? []);
   const set = <K extends keyof GuardarRotinaItem>(k: K, v: GuardarRotinaItem[K]) => setF((x) => ({ ...x, [k]: v }));
   const repetir = f.intervaloDias ? 'intervalo' : 'semana';
 
   const guardar = useMutation({
-    mutationFn: () => (item ? rotinaApi.atualizar(item.id, f) : rotinaApi.criar(f)),
+    mutationFn: async () => {
+      const r = item ? await rotinaApi.atualizar(item.id, f) : await rotinaApi.criar(f);
+      if (f.tipo === RotinaTipo.Refeicao) await rotinaApi.alimentos(r.id, alimentos.filter((a) => a.nome.trim()));
+      return r;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['rotina'] });
       toast.success(item ? 'Guardado' : 'Criado', 'Os avisos seguem esta configuração a partir de agora.');
@@ -68,6 +77,33 @@ export default function RotinaItemForm({ item, onClose }: { item: RotinaItem | n
           <label className="block text-sm">Detalhe — uma linha por passo
             <textarea rows={3} maxLength={1000} value={f.detalhe ?? ''} onChange={(e) => set('detalhe', e.target.value || null)} className={campo} placeholder={'Arroz\n150–200 g carne ou peixe\nAnanás'} />
           </label>
+
+          {f.tipo === RotinaTipo.Refeicao && (
+            <fieldset className="space-y-1 text-sm">
+              <legend>Alimentos (valores da quantidade indicada)</legend>
+              <div className="grid grid-cols-[1fr_4.5rem_3.5rem_3rem_3rem_3rem_1.5rem] gap-1 text-[11px] text-zinc-500">
+                <span>Alimento</span><span>Qtd.</span><span>kcal</span><span>P</span><span>H</span><span>G</span><span />
+              </div>
+              {alimentos.map((a, i) => (
+                <div key={i} className="grid grid-cols-[1fr_4.5rem_3.5rem_3rem_3rem_3rem_1.5rem] gap-1">
+                  {(['nome', 'quantidade'] as const).map((k) => (
+                    <input key={k} aria-label={k} value={a[k] ?? ''} className="rounded border border-zinc-300 px-1.5 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                      onChange={(e) => setAlimentos((xs) => xs.map((x, j) => (j === i ? { ...x, [k]: e.target.value } : x)))} />
+                  ))}
+                  {(['kcal', 'proteinaG', 'hidratosG', 'gorduraG'] as const).map((k) => (
+                    <input key={k} aria-label={k} inputMode="decimal" value={a[k]} className="rounded border border-zinc-300 px-1 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                      onChange={(e) => setAlimentos((xs) => xs.map((x, j) => (j === i ? { ...x, [k]: Number(e.target.value.replace(',', '.')) || 0 } : x)))} />
+                  ))}
+                  <button type="button" aria-label={`Remover ${a.nome}`} className="text-zinc-400 hover:text-rose-600"
+                    onClick={() => setAlimentos((xs) => xs.filter((_, j) => j !== i))}>×</button>
+                </div>
+              ))}
+              <Button type="button" size="sm" variant="ghost"
+                onClick={() => setAlimentos((xs) => [...xs, { nome: '', quantidade: '', kcal: 0, proteinaG: 0, hidratosG: 0, gorduraG: 0 }])}>
+                + Alimento
+              </Button>
+            </fieldset>
+          )}
 
           <fieldset className="text-sm">
             <legend>Repete</legend>

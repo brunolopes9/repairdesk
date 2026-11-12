@@ -6,9 +6,19 @@ using RepairDesk.Core.Exceptions;
 
 namespace RepairDesk.Services.Rotina;
 
+public sealed record RotinaAlimentoDto(string Nome, string? Quantidade, decimal Kcal, decimal ProteinaG, decimal HidratosG, decimal GorduraG);
+public sealed record MacrosDto(decimal Kcal, decimal ProteinaG, decimal HidratosG, decimal GorduraG)
+{
+    public static readonly MacrosDto Zero = new(0, 0, 0, 0);
+    public static MacrosDto Soma(IEnumerable<MacrosDto> xs) => xs.Aggregate(Zero, (a, b) => new(a.Kcal + b.Kcal, a.ProteinaG + b.ProteinaG, a.HidratosG + b.HidratosG, a.GorduraG + b.GorduraG));
+}
+/// <summary>Sprint 635: importar alimentos por título da refeição (ex.: «Almoço»).</summary>
+public sealed record ImportarAlimentosRequest(string Titulo, IReadOnlyList<RotinaAlimentoDto> Alimentos);
+
 public sealed record RotinaItemDto(
     Guid Id, string Titulo, string? Detalhe, RotinaTipo Tipo, string Hora, int DuracaoMin, int Dias,
-    int? IntervaloDias, DateOnly? DataInicio, string? AvisosAntes, bool Insistir, bool AvisarFim, bool Ativo);
+    int? IntervaloDias, DateOnly? DataInicio, string? AvisosAntes, bool Insistir, bool AvisarFim, bool Ativo,
+    IReadOnlyList<RotinaAlimentoDto>? Alimentos = null, MacrosDto? Macros = null);
 
 public sealed record GuardarRotinaItemRequest(
     string Titulo, string? Detalhe, RotinaTipo Tipo, string Hora, int DuracaoMin, int Dias,
@@ -20,7 +30,9 @@ public sealed record RotinaDiaItemDto(
 
 public sealed record RotinaDiaDto(
     DateOnly Dia, DateTime AgoraUtc, Guid? AtualId, Guid? ProximoId, IReadOnlyList<RotinaDiaItemDto> Itens,
-    int Feitos, int Devidos, int MeditacoesFeitas, int MeditacoesTotal);
+    int Feitos, int Devidos, int MeditacoesFeitas, int MeditacoesTotal,
+    /// <summary>Sprint 635: macros planeados para o dia e os das refeições já marcadas como feitas.</summary>
+    MacrosDto? MacrosPlaneados = null, MacrosDto? MacrosComidos = null);
 
 /// <summary>Estado null = desfazer o registo do dia.</summary>
 public sealed record RegistarRotinaRequest(RotinaRegistoEstado? Estado, string? Motivo, decimal? Valor, int? AdiarMin);
@@ -39,6 +51,10 @@ public interface IRotinaService
     /// <summary>Acrescenta vários itens de uma vez (tudo ou nada) — modelos de rotina e cópias de segurança.</summary>
     /// <summary>Sprint 626: visão panorâmica dos últimos N dias (7–370) — percentagens, dias cumpridos e sequências.</summary>
     Task<RotinaHistoricoDto> HistoricoAsync(int dias, CancellationToken ct = default);
+    /// <summary>Sprint 635: define os alimentos de uma refeição (substitui a lista).</summary>
+    Task<RotinaItemDto> GuardarAlimentosAsync(Guid itemId, IReadOnlyList<RotinaAlimentoDto> alimentos, CancellationToken ct = default);
+    /// <summary>Sprint 635: alimentos para várias refeições pelo título (ex.: plano alimentar). Devolve as refeições atualizadas.</summary>
+    Task<int> ImportarAlimentosAsync(IReadOnlyList<ImportarAlimentosRequest> planos, CancellationToken ct = default);
     Task<IReadOnlyList<RotinaItemDto>> ImportarAsync(IReadOnlyList<GuardarRotinaItemRequest> itens, CancellationToken ct = default);
 }
 
@@ -78,6 +94,51 @@ public sealed class RotinaService : IRotinaService
         await _repo.AddItemAsync(item, ct);
         await _repo.SaveAsync(ct);
         return Dto(item);
+    }
+
+    public const int MaxAlimentos = 20;
+
+    public async Task<RotinaItemDto> GuardarAlimentosAsync(Guid itemId, IReadOnlyList<RotinaAlimentoDto> alimentos, CancellationToken ct = default)
+    {
+        var item = await MeuItemAsync(itemId, ct);
+        if (item.Tipo != RotinaTipo.Refeicao) throw new ValidationException("nao_refeicao", "Só as refeições têm alimentos.");
+        AplicarAlimentos(item, alimentos);
+        await _repo.SaveAsync(ct);
+        return Dto(item);
+    }
+
+    public async Task<int> ImportarAlimentosAsync(IReadOnlyList<ImportarAlimentosRequest> planos, CancellationToken ct = default)
+    {
+        var itens = (await _repo.ItensDoUtilizadorAsync(UserId, ct)).Where(i => i.Tipo == RotinaTipo.Refeicao).ToList();
+        var n = 0;
+        foreach (var p in planos)
+        {
+            var alvo = itens.Where(i => string.Equals(i.Titulo.Trim(), p.Titulo?.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+            if (alvo.Count == 0) throw new ValidationException("refeicao_nao_existe", $"Não há nenhuma refeição «{p.Titulo}» na tua rotina.");
+            foreach (var i in alvo) { AplicarAlimentos(i, p.Alimentos); n++; }
+        }
+        await _repo.SaveAsync(ct);
+        return n;
+    }
+
+    private static void AplicarAlimentos(RotinaItem item, IReadOnlyList<RotinaAlimentoDto> alimentos)
+    {
+        if (alimentos.Count > MaxAlimentos) throw new ValidationException("demasiados_alimentos", $"No máximo {MaxAlimentos} alimentos por refeição.");
+        foreach (var a in alimentos)
+        {
+            if (string.IsNullOrWhiteSpace(a.Nome) || a.Nome.Trim().Length > 80) throw new ValidationException("alimento_invalido", "Cada alimento precisa de nome (até 80 caracteres).");
+            if (a.Kcal is < 0 or > 5000 || a.ProteinaG is < 0 or > 500 || a.HidratosG is < 0 or > 1000 || a.GorduraG is < 0 or > 500)
+                throw new ValidationException("macros_invalidos", $"Valores fora do normal em «{a.Nome}».");
+        }
+        item.Alimentos.Clear();
+        var ordem = 0;
+        foreach (var a in alimentos)
+            item.Alimentos.Add(new RotinaAlimento
+            {
+                RotinaItemId = item.Id, Ordem = ordem++, Nome = a.Nome.Trim(),
+                Quantidade = string.IsNullOrWhiteSpace(a.Quantidade) ? null : a.Quantidade.Trim()[..Math.Min(40, a.Quantidade.Trim().Length)],
+                Kcal = a.Kcal, ProteinaG = a.ProteinaG, HidratosG = a.HidratosG, GorduraG = a.GorduraG,
+            });
     }
 
     public async Task<RotinaHistoricoDto> HistoricoAsync(int dias, CancellationToken ct = default)
@@ -146,8 +207,11 @@ public sealed class RotinaService : IRotinaService
         var feitos = linhas.Count(l => l.Estado == RotinaRegistoEstado.Feito);
         var med = linhas.Where(l => l.Item.Tipo == RotinaTipo.Meditacao).ToList();
 
+        var refeicoes = linhas.Where(l => l.Item.Tipo == RotinaTipo.Refeicao && l.Item.Macros is not null).ToList();
         return new RotinaDiaDto(d, agora, atual?.Item.Id, proximo?.Item.Id, linhas, feitos, devidos,
-            med.Count(l => l.Estado == RotinaRegistoEstado.Feito), med.Count);
+            med.Count(l => l.Estado == RotinaRegistoEstado.Feito), med.Count,
+            MacrosDto.Soma(refeicoes.Select(l => l.Item.Macros!)),
+            MacrosDto.Soma(refeicoes.Where(l => l.Estado == RotinaRegistoEstado.Feito).Select(l => l.Item.Macros!)));
     }
 
     public async Task<RotinaDiaItemDto> RegistarAsync(Guid itemId, DateOnly dia, RegistarRotinaRequest req, CancellationToken ct = default)
@@ -267,7 +331,14 @@ public sealed class RotinaService : IRotinaService
         item.Ativo = req.Ativo;
     }
 
-    public static RotinaItemDto Dto(RotinaItem i) => new(
-        i.Id, i.Titulo, i.Detalhe, i.Tipo, i.Hora.ToString("HH:mm", CultureInfo.InvariantCulture), i.DuracaoMin, i.Dias,
-        i.IntervaloDias, i.DataInicio, i.AvisosAntes, i.Insistir, i.AvisarFim, i.Ativo);
+    public static RotinaItemDto Dto(RotinaItem i)
+    {
+        var alimentos = i.Alimentos.OrderBy(a => a.Ordem)
+            .Select(a => new RotinaAlimentoDto(a.Nome, a.Quantidade, a.Kcal, a.ProteinaG, a.HidratosG, a.GorduraG)).ToList();
+        return new(
+            i.Id, i.Titulo, i.Detalhe, i.Tipo, i.Hora.ToString("HH:mm", CultureInfo.InvariantCulture), i.DuracaoMin, i.Dias,
+            i.IntervaloDias, i.DataInicio, i.AvisosAntes, i.Insistir, i.AvisarFim, i.Ativo,
+            alimentos.Count == 0 ? null : alimentos,
+            alimentos.Count == 0 ? null : MacrosDto.Soma(alimentos.Select(a => new MacrosDto(a.Kcal, a.ProteinaG, a.HidratosG, a.GorduraG))));
+    }
 }

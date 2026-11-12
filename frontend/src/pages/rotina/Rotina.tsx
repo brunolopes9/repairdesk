@@ -137,6 +137,19 @@ export default function Rotina() {
 
           {ehHoje && <PrioridadesHoje />}
 
+          {d.macrosPlaneados && d.macrosPlaneados.kcal > 0 && (
+            <section className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <h2 className="font-semibold">🍽️ Alimentação {ehHoje ? 'de hoje' : 'do dia'}</h2>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                <MacroBox label="Calorias" comido={d.macrosComidos?.kcal ?? 0} plano={d.macrosPlaneados.kcal} unidade="kcal" />
+                <MacroBox label="Proteína" comido={d.macrosComidos?.proteinaG ?? 0} plano={d.macrosPlaneados.proteinaG} unidade="g" />
+                <MacroBox label="Hidratos" comido={d.macrosComidos?.hidratosG ?? 0} plano={d.macrosPlaneados.hidratosG} unidade="g" />
+                <MacroBox label="Gordura" comido={d.macrosComidos?.gorduraG ?? 0} plano={d.macrosPlaneados.gorduraG} unidade="g" />
+              </div>
+              <p className="mt-2 text-xs text-zinc-500">Conta o que marcas como «Feito» nas refeições. Valores aproximados — ajusta os alimentos no lápis de cada refeição.</p>
+            </section>
+          )}
+
           <ul className="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
             {d.itens.map((l) => (
               <LinhaDia
@@ -240,7 +253,12 @@ function LinhaDia({ linha, destaque, ocupado, podeAdiar, onFeito, onAdiar, onSal
           {estado === RotinaEstado.Adiado && linha.adiadoAte && <span className="text-xs text-amber-600">adiado para {horaLocal(linha.adiadoAte)}{linha.motivo && ` — ${linha.motivo}`}</span>}
           {linha.atrasado && !fechado && <span className="text-xs font-medium text-amber-600">por fazer</span>}
         </p>
-        {passos.length > 0 && (
+        {item.macros && (
+          <p className="mt-0.5 text-xs tabular-nums text-zinc-500">
+            {Math.round(item.macros.kcal)} kcal · P {Math.round(item.macros.proteinaG)} g · H {Math.round(item.macros.hidratosG)} g · G {Math.round(item.macros.gorduraG)} g
+          </p>
+        )}
+        {passos.length > 0 && !item.alimentos?.length && (
           <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-zinc-500">
             {passos.map((p) => <li key={p}>• {p}</li>)}
           </ul>
@@ -356,4 +374,15 @@ function resumoDias(i: RotinaItem) {
   if (i.dias === 127) return 'todos os dias';
   const nomes = [[2, 'Seg'], [4, 'Ter'], [8, 'Qua'], [16, 'Qui'], [32, 'Sex'], [64, 'Sáb'], [1, 'Dom']] as const;
   return nomes.filter(([b]) => (i.dias & b) !== 0).map(([, n]) => n).join(' ');
+}
+
+function MacroBox({ label, comido, plano, unidade }: { label: string; comido: number; plano: number; unidade: string }) {
+  const pct = plano > 0 ? Math.min(100, Math.round((comido / plano) * 100)) : 0;
+  return (
+    <div className="rounded-xl border border-zinc-200 p-2 dark:border-zinc-800">
+      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="font-semibold tabular-nums">{Math.round(comido)} <span className="text-xs font-normal text-zinc-500">/ {Math.round(plano)} {unidade}</span></p>
+      <div className="mt-1 h-1.5 rounded bg-zinc-100 dark:bg-zinc-800"><div className="h-1.5 rounded bg-emerald-500" style={{ width: `${pct}%` }} /></div>
+    </div>
+  );
 }

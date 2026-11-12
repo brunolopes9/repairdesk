@@ -20,6 +20,16 @@ public sealed class RotinaController : ControllerBase
     public async Task<ActionResult<RotinaItemDto>> Criar([FromBody] GuardarRotinaItemRequest req, CancellationToken ct)
         => Ok(await _service.CriarAsync(req, ct));
 
+    /// <summary>Sprint 635: alimentos (com macros) de uma refeição.</summary>
+    [HttpPut("itens/{id:guid}/alimentos")]
+    public async Task<ActionResult<RotinaItemDto>> Alimentos(Guid id, [FromBody] IReadOnlyList<RotinaAlimentoDto> alimentos, CancellationToken ct)
+        => Ok(await _service.GuardarAlimentosAsync(id, alimentos, ct));
+
+    /// <summary>Sprint 635: plano alimentar para várias refeições, pelo título.</summary>
+    [HttpPost("alimentos/importar")]
+    public async Task<ActionResult<object>> ImportarAlimentos([FromBody] IReadOnlyList<ImportarAlimentosRequest> planos, CancellationToken ct)
+        => Ok(new { refeicoes = await _service.ImportarAlimentosAsync(planos, ct) });
+
     [HttpPost("importar")]
     public async Task<ActionResult<IReadOnlyList<RotinaItemDto>>> Importar([FromBody] IReadOnlyList<GuardarRotinaItemRequest> itens, CancellationToken ct)
         => Ok(await _service.ImportarAsync(itens, ct));

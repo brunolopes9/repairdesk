@@ -29,6 +29,17 @@ export const DIAS = [
 ] as const;
 export const TODOS_OS_DIAS = 127;
 
+/** Sprint 635: alimento de uma refeição (macros da quantidade indicada). */
+export interface RotinaAlimento {
+  nome: string;
+  quantidade: string | null;
+  kcal: number;
+  proteinaG: number;
+  hidratosG: number;
+  gorduraG: number;
+}
+export interface Macros { kcal: number; proteinaG: number; hidratosG: number; gorduraG: number }
+
 export interface RotinaItem {
   id: string;
   titulo: string;
@@ -43,9 +54,11 @@ export interface RotinaItem {
   insistir: boolean;
   avisarFim: boolean;
   ativo: boolean;
+  alimentos?: RotinaAlimento[] | null;
+  macros?: Macros | null;
 }
 
-export type GuardarRotinaItem = Omit<RotinaItem, 'id'>;
+export type GuardarRotinaItem = Omit<RotinaItem, 'id' | 'alimentos' | 'macros'>;
 
 export interface RotinaDiaItem {
   item: RotinaItem;
@@ -68,6 +81,8 @@ export interface RotinaDia {
   devidos: number;
   meditacoesFeitas: number;
   meditacoesTotal: number;
+  macrosPlaneados?: Macros | null;
+  macrosComidos?: Macros | null;
 }
 
 export interface RegistarRotina {
@@ -117,6 +132,9 @@ export const rotinaApi = {
   apagar: (id: string) => api.delete(`/rotina/itens/${id}`),
   valores: (id: string) => api.get<RotinaValor[]>(`/rotina/itens/${id}/valores`).then((r) => r.data),
   importar: (itens: GuardarRotinaItem[]) => api.post<RotinaItem[]>('/rotina/importar', itens).then((r) => r.data),
+  alimentos: (id: string, alimentos: RotinaAlimento[]) => api.put<RotinaItem>(`/rotina/itens/${id}/alimentos`, alimentos).then((r) => r.data),
+  importarAlimentos: (planos: { titulo: string; alimentos: RotinaAlimento[] }[]) =>
+    api.post<{ refeicoes: number }>('/rotina/alimentos/importar', planos).then((r) => r.data),
   historico: (dias = 91) => api.get<RotinaHistorico>('/rotina/historico', { params: { dias } }).then((r) => r.data),
   dia: (dia?: string) => api.get<RotinaDia>('/rotina/dia', { params: dia ? { dia } : undefined }).then((r) => r.data),
   registar: (itemId: string, dia: string, req: RegistarRotina) =>

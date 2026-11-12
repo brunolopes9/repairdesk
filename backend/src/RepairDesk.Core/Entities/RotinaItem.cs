@@ -35,4 +35,7 @@ public class RotinaItem : BaseEntity, ITenantEntity
     /// <summary>Avisa quando o bloco acaba (para não passar do tempo).</summary>
     public bool AvisarFim { get; set; }
     public bool Ativo { get; set; } = true;
+
+    /// <summary>Sprint 635: alimentos da refeição (só para itens do tipo Refeição).</summary>
+    public List<RotinaAlimento> Alimentos { get; set; } = new();
 }

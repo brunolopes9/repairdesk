@@ -14,10 +14,10 @@ public class RotinaRepository : IRotinaRepository
     public RotinaRepository(AppDbContext db) => _db = db;
 
     public async Task<IReadOnlyList<RotinaItem>> ItensDoUtilizadorAsync(Guid userId, CancellationToken ct = default)
-        => await _db.RotinaItens.IgnoreQueryFilters().Where(i => !i.IsDeleted && i.UserId == userId).OrderBy(i => i.Hora).ThenBy(i => i.Titulo).ToListAsync(ct);
+        => await _db.RotinaItens.IgnoreQueryFilters().Include(i => i.Alimentos).Where(i => !i.IsDeleted && i.UserId == userId).OrderBy(i => i.Hora).ThenBy(i => i.Titulo).ToListAsync(ct);
 
     public Task<RotinaItem?> FindItemAsync(Guid id, CancellationToken ct = default)
-        => _db.RotinaItens.IgnoreQueryFilters().FirstOrDefaultAsync(i => !i.IsDeleted && i.Id == id, ct);
+        => _db.RotinaItens.IgnoreQueryFilters().Include(i => i.Alimentos).FirstOrDefaultAsync(i => !i.IsDeleted && i.Id == id, ct);
 
     public async Task AddItemAsync(RotinaItem item, CancellationToken ct = default) => await _db.RotinaItens.AddAsync(item, ct);
 
