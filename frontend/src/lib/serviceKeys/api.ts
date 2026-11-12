@@ -1,7 +1,7 @@
 import { api } from '../api';
 
 // Sprint 598: «conteudo» = calendário das redes sociais (Doc 95); «ingest» = faturas de fornecedor.
-export type ApiKeyScope = 'read' | 'write' | 'ingest' | 'conteudo' | 'loja';
+export type ApiKeyScope = 'read' | 'write' | 'ingest' | 'conteudo' | 'loja' | 'assistente';
 
 export const API_KEY_SCOPES: { scope: ApiKeyScope; descricao: string }[] = [
   { scope: 'read', descricao: 'GETs (orders, parts, clientes, garantias)' },
@@ -9,6 +9,7 @@ export const API_KEY_SCOPES: { scope: ApiKeyScope; descricao: string }[] = [
   { scope: 'ingest', descricao: 'Enviar faturas de fornecedor (n8n, email)' },
   { scope: 'conteudo', descricao: 'Redes sociais: criar publicações e ler vídeos — não aprova' },
   { scope: 'loja', descricao: 'Site lopestech.pt: ler o catálogo publicado da loja (sem custos)' },
+  { scope: 'assistente', descricao: 'Assistente por voz/chat: age em teu nome (tarefas, rotina, agenda, leituras). Sem vendas, faturas nem apagar.' },
 ];
 
 export interface ServiceApiKey {

@@ -44,6 +44,7 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<AgendaAviso> AgendaAvisos => Set<AgendaAviso>();
     public DbSet<ProdutoLoja> ProdutosLoja => Set<ProdutoLoja>();
     public DbSet<RotinaItem> RotinaItens => Set<RotinaItem>();
+    public DbSet<AssistenteAcao> AssistenteAcoes => Set<AssistenteAcao>();
     public DbSet<RotinaAlimento> RotinaAlimentos => Set<RotinaAlimento>();
     public DbSet<CalendarioExterno> CalendariosExternos => Set<CalendarioExterno>();
     public DbSet<RotinaRegisto> RotinaRegistos => Set<RotinaRegisto>();

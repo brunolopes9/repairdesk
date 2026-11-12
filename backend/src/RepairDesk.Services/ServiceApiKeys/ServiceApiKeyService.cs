@@ -37,10 +37,13 @@ public class ServiceApiKeyService : IServiceApiKeyService
     private readonly ITenantContext _tenant;
     private readonly IAuditLogger _audit;
 
-    public ServiceApiKeyService(IServiceApiKeyRepository repo, ITenantContext tenant, IAuditLogger audit)
+    private readonly ICurrentUser? _user;
+
+    public ServiceApiKeyService(IServiceApiKeyRepository repo, ITenantContext tenant, IAuditLogger audit, ICurrentUser? user = null)
     {
         _repo = repo;
         _tenant = tenant;
+        _user = user;
         _audit = audit;
     }
 
@@ -83,6 +86,8 @@ public class ServiceApiKeyService : IServiceApiKeyService
             KeyPrefix = displayPrefix,
             KeyHash = hash,
             Scopes = scopesCsv,
+            // Sprint 637: guarda quem criou — a chave «assistente» age em nome dessa pessoa.
+            CreatedBy = _user?.UserId,
         };
         await _repo.AddAsync(entity, ct);
         await _repo.SaveAsync(ct);

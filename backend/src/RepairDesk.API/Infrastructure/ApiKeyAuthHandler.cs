@@ -70,6 +70,10 @@ public sealed class ApiKeyAuthHandler : AuthenticationHandler<ApiKeyAuthSchemeOp
         else
         {
             foreach (var s in scopes) identity.AddClaim(new Claim("api_scope", s));
+            // Sprint 637: a chave do assistente age em nome de quem a criou (rotina/tarefas pessoais).
+            // Só com o scope explícito — chaves «*» antigas nunca ganham identidade de utilizador.
+            if (scopes.Contains(RepairDesk.Core.Entities.ServiceApiKeyScopes.Assistente) && apiKey.CreatedBy is { } dono)
+                identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, dono.ToString()));
         }
 
         var principal = new ClaimsPrincipal(identity);

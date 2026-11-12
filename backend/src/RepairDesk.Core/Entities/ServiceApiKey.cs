@@ -39,8 +39,13 @@ public static class ServiceApiKeyScopes
     public const string Conteudo = "conteudo";
     /// <summary>Sprint 613 (Doc 97): o gerador do lopestech.pt lê o catálogo publicado da loja (sem custos).</summary>
     public const string Loja = "loja";
+    /// <summary>
+    /// Sprint 637 (Doc 98 F8): o assistente por voz/chat do dono. A chave age em nome de quem a criou (rotina e
+    /// tarefas pessoais) e só dá acesso a /api/external/assistente.
+    /// </summary>
+    public const string Assistente = "assistente";
 
-    public static readonly IReadOnlyList<string> All = new[] { Read, Write, Ingest, Conteudo, Loja };
+    public static readonly IReadOnlyList<string> All = new[] { Read, Write, Ingest, Conteudo, Loja, Assistente };
 
     /// <summary>Parsing tolerante: split, trim, lowercase, distinct. Devolve null se input null/vazio.</summary>
     public static string[]? Parse(string? csv)
