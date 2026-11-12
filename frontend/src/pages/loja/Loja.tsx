@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, ImageOff, Plus, ShoppingBag } from 'lucide-react';
 import { Button, EmptyState, PageHeader, SkeletonTable } from '../../components/ui';
 import { apiErrorMessage } from '../../lib/errors';
+import { ImportarProdutos } from './ImportarProdutos';
 import { CATEGORIA_LABEL, DISPONIBILIDADE_LABEL, ESTADO_LABEL, euro, lojaApi } from '../../lib/loja/api';
 
 /**
@@ -11,6 +13,7 @@ import { CATEGORIA_LABEL, DISPONIBILIDADE_LABEL, ESTADO_LABEL, euro, lojaApi } f
  */
 export default function Loja() {
   const navigate = useNavigate();
+  const [importar, setImportar] = useState(false);
   const lista = useQuery({ queryKey: ['loja', 'produtos'], queryFn: lojaApi.list });
   const itens = lista.data ?? [];
   const publicados = itens.filter((p) => p.publicado).length;
@@ -20,7 +23,12 @@ export default function Loja() {
       <PageHeader
         title="Loja online"
         description="Produtos à venda em lopestech.pt/loja. Publicas aqui e o site atualiza sozinho todas as manhãs (07:30)."
-        actions={<Button leftIcon={<Plus size={16} />} onClick={() => navigate('/loja/novo')}>Novo produto</Button>}
+        actions={(
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setImportar(true)}>Importar</Button>
+            <Button leftIcon={<Plus size={16} />} onClick={() => navigate('/loja/novo')}>Novo produto</Button>
+          </div>
+        )}
       />
 
       {lista.isLoading ? (
@@ -79,6 +87,7 @@ export default function Loja() {
           </a>
         </>
       )}
+      {importar && <ImportarProdutos onClose={() => setImportar(false)} />}
     </div>
   );
 }

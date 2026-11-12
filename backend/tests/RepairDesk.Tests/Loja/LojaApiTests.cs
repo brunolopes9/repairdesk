@@ -111,6 +111,19 @@ public class LojaApiTests : IClassFixture<RepairDeskApiFactory>
         (await semScope.GetAsync("/api/external/loja/catalogo")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    [Fact]
+    public async Task Importar_CriaRascunhos_ENaoDuplica()
+    {
+        var admin = await Admin();
+        var lista = new[] { Portatil("Import Montra A"), Portatil("Import Montra B") };
+        var r1 = (await (await admin.PostAsJsonAsync("/api/loja/produtos/importar", lista)).Content.ReadFromJsonAsync<ImportarProdutosResultado>())!;
+        r1.Criados.Should().Be(2);
+        r1.Produtos.Should().OnlyContain(p => !p.Publicado);
+        var r2 = (await (await admin.PostAsJsonAsync("/api/loja/produtos/importar", lista)).Content.ReadFromJsonAsync<ImportarProdutosResultado>())!;
+        r2.Criados.Should().Be(0);
+        r2.JaExistiam.Should().Be(2);
+    }
+
     // ---------- helpers ----------
 
     private static GuardarProdutoLojaRequest Portatil(string titulo) => new(

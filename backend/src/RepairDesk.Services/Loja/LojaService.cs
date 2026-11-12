@@ -34,6 +34,8 @@ public sealed record GuardarProdutoLojaRequest(
     string? SeoTitulo,
     string? SeoDescricao);
 
+public sealed record ImportarProdutosResultado(int Criados, int JaExistiam, IReadOnlyList<ProdutoLojaDto> Produtos);
+
 public sealed record ProdutoLojaFotoDto(Guid Id, int Ordem, string? Alt, string? Url, bool Enviada);
 
 /// <summary>Vista do dono — inclui custo, IVA estimado e lucro.</summary>
@@ -65,6 +67,8 @@ public interface ILojaService
     Task<IReadOnlyList<ProdutoLojaDto>> ListAsync(CancellationToken ct = default);
     Task<ProdutoLojaDto> GetAsync(Guid id, CancellationToken ct = default);
     Task<ProdutoLojaDto> CreateAsync(GuardarProdutoLojaRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 636: cria vários produtos como rascunho (não publica). Salta títulos que já existem.</summary>
+    Task<ImportarProdutosResultado> ImportarAsync(IReadOnlyList<GuardarProdutoLojaRequest> produtos, CancellationToken ct = default);
     Task<ProdutoLojaDto> UpdateAsync(Guid id, GuardarProdutoLojaRequest req, CancellationToken ct = default);
     Task<ProdutoLojaDto> PublicarAsync(Guid id, bool publicar, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
@@ -113,6 +117,24 @@ public sealed class LojaService : ILojaService
         => (await _repo.ListAsync(false, ct)).Select(ToDto).ToList();
 
     public async Task<ProdutoLojaDto> GetAsync(Guid id, CancellationToken ct = default) => ToDto(await Load(id, ct));
+
+    public const int MaxImportar = 100;
+
+    public async Task<ImportarProdutosResultado> ImportarAsync(IReadOnlyList<GuardarProdutoLojaRequest> produtos, CancellationToken ct = default)
+    {
+        if (produtos is null || produtos.Count == 0) throw new ValidationException("sem_produtos", "Não há produtos para importar.");
+        if (produtos.Count > MaxImportar) throw new ValidationException("demasiados_produtos", $"No máximo {MaxImportar} de cada vez.");
+        var existentes = (await _repo.ListAsync(false, ct)).Select(p => p.Titulo.Trim().ToLowerInvariant()).ToHashSet();
+        var criados = new List<ProdutoLojaDto>();
+        var saltados = 0;
+        foreach (var req in produtos)
+        {
+            if (existentes.Contains(req.Titulo?.Trim().ToLowerInvariant() ?? string.Empty)) { saltados++; continue; }
+            criados.Add(await CreateAsync(req, ct));
+            existentes.Add(req.Titulo!.Trim().ToLowerInvariant());
+        }
+        return new ImportarProdutosResultado(criados.Count, saltados, criados);
+    }
 
     public async Task<ProdutoLojaDto> CreateAsync(GuardarProdutoLojaRequest req, CancellationToken ct = default)
     {

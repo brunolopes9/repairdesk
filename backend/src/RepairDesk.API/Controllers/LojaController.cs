@@ -28,6 +28,11 @@ public sealed class LojaController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = p.Id }, p);
     }
 
+    /// <summary>Sprint 636: vários produtos de uma vez, como rascunho (ex.: a montra a partir da fatura do fornecedor).</summary>
+    [HttpPost("importar")]
+    public async Task<ActionResult<ImportarProdutosResultado>> Importar([FromBody] IReadOnlyList<GuardarProdutoLojaRequest> produtos, CancellationToken ct)
+        => Ok(await _service.ImportarAsync(produtos, ct));
+
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ProdutoLojaDto>> Update(Guid id, [FromBody] GuardarProdutoLojaRequest req, CancellationToken ct)
         => Ok(await _service.UpdateAsync(id, req, ct));
