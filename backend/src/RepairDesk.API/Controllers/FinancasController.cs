@@ -13,7 +13,22 @@ public sealed record ObjetivoRequest(decimal Objetivo);
 public sealed class FinancasController : ControllerBase
 {
     private readonly IFinancasService _service;
-    public FinancasController(IFinancasService service) => _service = service;
+    private readonly IFinancasExcelImporter _importer;
+    public FinancasController(IFinancasService service, IFinancasExcelImporter importer)
+    {
+        _service = service;
+        _importer = importer;
+    }
+
+    /// <summary>Sprint 634: importa o histórico das folhas Despesas e Fixas do Excel de gestão (idempotente).</summary>
+    [HttpPost("importar-excel")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<ActionResult<FinancasImportResultado>> ImportarExcel(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { code = "sem_ficheiro" });
+        await using var s = file.OpenReadStream();
+        return Ok(await _importer.ImportarAsync(s, ct));
+    }
 
     [HttpGet("mes")]
     public async Task<ActionResult<FinancasMesDto>> Mes([FromQuery] int ano, [FromQuery] int mes, CancellationToken ct)

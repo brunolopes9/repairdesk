@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileUp, Plus } from 'lucide-react';
 import { Button, PageHeader, SkeletonTable } from '../../components/ui';
 import { DespesaFormModal } from '../../components/DespesaFormModal';
 import { api } from '../../lib/api';
@@ -38,6 +38,21 @@ export default function Financas() {
   const dados = useQuery({ queryKey: ['financas', 'mes', ano, mes], queryFn: () => api.get<Mes>('/financas/mes', { params: { ano, mes } }).then((r) => r.data) });
   const anoQ = useQuery({ queryKey: ['financas', 'ano', ano], queryFn: () => api.get<ResumoMes[]>('/financas/ano', { params: { ano } }).then((r) => r.data) });
 
+  const importar = useMutation({
+    mutationFn: (f: File) => {
+      const form = new FormData();
+      form.append('file', f);
+      return api.post<{ importadas: number; jaExistiam: number; ignoradas: number; fixas: number; avisos: string[] }>('/financas/importar-excel', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }).then((r) => r.data);
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['financas'] });
+      toast.success(`${r.importadas} despesa(s) importadas`, `${r.jaExistiam} já existiam · ${r.ignoradas} de fora${r.avisos.length ? ` — ${r.avisos.slice(0, 2).join(' ')}` : ''}`);
+    },
+    onError: (e) => toast.error('Não foi possível importar', apiErrorMessage(e)),
+  });
+
   const guardarObjetivo = useMutation({
     mutationFn: (v: number) => api.put('/financas/objetivo', { objetivo: v }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['financas'] }); setObjetivo(''); toast.success('Objetivo guardado'); },
@@ -56,7 +71,16 @@ export default function Financas() {
       <PageHeader
         title="Finanças"
         description="O teu Excel de gestão, agora aqui: lucro de cada negócio, onde gastaste, e quanto falta para o objetivo."
-        actions={<Button leftIcon={<Plus size={16} />} onClick={() => setNovaDespesa(true)}>Nova despesa</Button>}
+        actions={(
+          <div className="flex flex-wrap gap-2">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+              <FileUp size={16} /> {importar.isPending ? 'A importar…' : 'Importar Excel'}
+              <input type="file" accept=".xlsx" className="sr-only" aria-label="Importar Excel de gestão"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) importar.mutate(f); e.target.value = ''; }} />
+            </label>
+            <Button leftIcon={<Plus size={16} />} onClick={() => setNovaDespesa(true)}>Nova despesa</Button>
+          </div>
+        )}
       />
 
       <div className="flex items-center gap-2">
