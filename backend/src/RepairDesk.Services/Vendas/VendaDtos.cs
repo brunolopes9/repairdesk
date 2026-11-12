@@ -20,7 +20,11 @@ public sealed record VendaLinhaWriteRequest(
     /// <summary>Sprint 594: peça ainda sem stock — estado da encomenda, custo estimado (c/ IVA, cêntimos) e nota.</summary>
     PecaEncomendaEstado? Encomenda = null,
     int? CustoEstimadoCents = null,
-    string? EncomendaNota = null);
+    string? EncomendaNota = null,
+    /// <summary>Sprint 642: parte recebida por fora da fatura (sem IVA, não vai ao Moloni, conta no lucro).</summary>
+    bool PorFora = false,
+    /// <summary>Sprint 642: custo sem fatura desta linha (total, cêntimos) — linhas que não são do stock.</summary>
+    int? CustoSemFaturaCents = null);
 
 public sealed record VendaWriteRequest(
     VendaTipo Tipo,
@@ -71,7 +75,8 @@ public sealed record VendaItemDto(
     decimal Lucro,
     /// <summary>Sprint 594: peça por encomendar/encomendada (sem lote ainda); o custo estimado vem em CustoUnitarioPago.</summary>
     PecaEncomendaEstado? Encomenda = null,
-    string? EncomendaNota = null);
+    string? EncomendaNota = null,
+    bool PorFora = false);
 
 /// <summary>Sprint 594: uma peça em falta numa reparação — para saber o que encomendar e o que está a chegar.</summary>
 public sealed record PecaEncomendaDto(

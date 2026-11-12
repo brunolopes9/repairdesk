@@ -23,6 +23,12 @@ public class VendaItem : BaseEntity, ITenantEntity
     public int DescontoCents { get; set; }
     public decimal IvaRate { get; set; }
 
+    /// <summary>
+    /// Sprint 642: parte recebida «por fora» da fatura (tratada à parte com a contabilista). Não vai ao Moloni nem
+    /// ao IVA, mas conta no dinheiro recebido e no lucro. Também serve para custos extra sem fatura (preço 0).
+    /// </summary>
+    public bool PorFora { get; set; }
+
     /// <summary>IMEI principal (15 dígitos) quando o artigo é um telemóvel. Validado com Luhn.</summary>
     public string? Imei { get; set; }
 

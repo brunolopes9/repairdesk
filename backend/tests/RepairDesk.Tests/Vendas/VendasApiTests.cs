@@ -158,6 +158,35 @@ public class VendasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task PorFora_ParteFaturadaComIva_ParteSemIva_ECustoExtraSemFatura()
+    {
+        // João Filipe: fatura 20 € (IVA 23%), mais 50 € por fora; custos sem fatura 5 € de transporte e 30 € de quem fez o trabalho.
+        var client = await AuthedClient();
+        var venda = await Criar(client, new VendaWriteRequest(VendaTipo.Reparacao, (await CriarCliente(client)), "AirPods", null, null,
+            [
+                new VendaLinhaWriteRequest(null, null, "Baterias AirPods", 1, 2000, IvaRate: 23m),
+                new VendaLinhaWriteRequest(null, null, "Resto do valor", 1, 5000, IvaRate: 23m, PorFora: true),
+                new VendaLinhaWriteRequest(null, null, "Transporte", 1, 0, PorFora: true, CustoSemFaturaCents: 500),
+                new VendaLinhaWriteRequest(null, null, "Profissional", 1, 0, PorFora: true, CustoSemFaturaCents: 3000),
+            ], VendaEstado.Entregue, PaymentMethod.MBWay));
+
+        venda.TotalCents.Should().Be(7000);                       // dinheiro recebido
+        venda.IvaCents.Should().Be(374);                          // só da parte faturada (20 − 20/1,23)
+        venda.Lucro.Should().BeApproximately(20m / 1.23m + 50m - 35m, 0.01m, "lucro real = faturado s/ IVA + por fora − custos");
+        venda.Items.Count(i => i.PorFora).Should().Be(3);
+        venda.Items.Single(i => i.Descricao == "Resto do valor").IvaRate.Should().Be(0m);
+        venda.FaturaPorRegistar.Should().BeTrue();                // a parte faturada ainda precisa de fatura
+
+        // Tudo por fora (limpeza PS5: 40 € com custo médio de 5 €) → não fica «por faturar» e não tem IVA.
+        var ps5 = await Criar(client, new VendaWriteRequest(VendaTipo.Produto, null, "PS5", null, null,
+            [new VendaLinhaWriteRequest(null, null, "Limpeza + metal líquido", 1, 4000, PorFora: true, CustoSemFaturaCents: 500)],
+            VendaEstado.Entregue, PaymentMethod.Dinheiro));
+        ps5.IvaCents.Should().Be(0);
+        ps5.Lucro.Should().Be(35m);
+        ps5.FaturaPorRegistar.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task SemFatura_RegistoInterno_LucroInteiro_SemIva_ENaoFicaPorFaturar()
     {
         var client = await AuthedClient();

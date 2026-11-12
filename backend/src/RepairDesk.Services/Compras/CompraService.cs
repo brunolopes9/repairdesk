@@ -358,7 +358,8 @@ public class CompraService : ICompraService
         => (encomendas ?? [])
             .SelectMany(e => (e ?? string.Empty).Split([',', ';', '+', ' '], StringSplitOptions.RemoveEmptyEntries))
             .Select(e => e.Trim().TrimStart('#'))
-            .Where(e => e.Length > 0 && !e.Equals("Enc.", StringComparison.OrdinalIgnoreCase) && !e.Equals("Enc", StringComparison.OrdinalIgnoreCase))
+            // Sprint 642: prefixos sem dígitos ("MWPT", "Enc.") não são números de encomenda — davam falsos duplicados.
+            .Where(e => e.Any(char.IsDigit))
             .Select(e => e.Length > 60 ? e[..60] : e)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();

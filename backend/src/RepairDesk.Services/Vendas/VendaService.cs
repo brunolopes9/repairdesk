@@ -385,12 +385,22 @@ public class VendaService : IVendaService
                 item.CustoUnitarioPago = (l.CustoEstimadoCents ?? 0) / 100m;
                 item.TaxaIvaCompra = FiscalDefaults.TaxaIvaNormal;
             }
+            else if (lote is null && l.CustoSemFaturaCents is { } custoSemFatura)
+            {
+                // Sprint 642: custo sem fatura (transporte, quem fez o trabalho, média do material) — conta no lucro,
+                // não tem IVA a deduzir.
+                item.Encomenda = null;
+                item.EncomendaNota = null;
+                item.CustoUnitarioPago = custoSemFatura / 100m / Math.Max(1, l.Quantidade);
+                item.TaxaIvaCompra = 0m;
+            }
             else
             {
                 // Peça do stock (incl. a que chegou e passou a usar o lote) ou serviço.
                 item.Encomenda = null;
                 item.EncomendaNota = null;
-                if (eraEncomenda || item.CompraLinhaId != lote?.Id || item.CustoUnitarioPago is null) SnapshotLote(item, lote);
+                if (eraEncomenda || item.CompraLinhaId != lote?.Id || item.CustoUnitarioPago is null
+                    || (lote is null && item.TaxaIvaCompra == 0m)) SnapshotLote(item, lote);
             }
             item.CompraLinhaId = lote?.Id;
             item.CompraLinha = lote;
@@ -399,7 +409,8 @@ public class VendaService : IVendaService
             item.Quantidade = l.Quantidade;
             item.PrecoUnitarioCents = l.PrecoUnitarioCents;
             item.DescontoCents = l.DescontoCents;
-            item.IvaRate = l.IvaRate ?? TaxaVendaNormalPct;
+            item.PorFora = l.PorFora;
+            item.IvaRate = l.PorFora ? 0m : l.IvaRate ?? TaxaVendaNormalPct;
             item.Imei = NormalizeImei(l.Imei);
         }
     }
@@ -412,6 +423,7 @@ public class VendaService : IVendaService
             throw new ValidationException("desconto_invalido", "Desconto entre 0 e o total da linha.");
         if (l.IvaRate is < 0 or > 100) throw new ValidationException("iva_invalido", "Taxa de IVA entre 0 e 100%.");
         if (l.CustoEstimadoCents is < 0 or > 100_000_000) throw new ValidationException("custo_invalido", "Custo estimado inválido.");
+        if (l.CustoSemFaturaCents is < 0 or > 100_000_000) throw new ValidationException("custo_invalido", "Custo sem fatura inválido.");
     }
 
     private static string? NormalizeImei(string? imei)
@@ -499,7 +511,7 @@ public class VendaService : IVendaService
 
     /// <summary>Sprint 616: numa venda tratada fora do Mender não há IVA — lucro = cobrado − custo das peças.</summary>
     public static CalculoVenda Calcular(VendaItem i, bool foraApuramento)
-        => foraApuramento
+        => foraApuramento || i.PorFora
             ? IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, 0m, 0m)
             : IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, i.TaxaIvaCompra ?? 0m, i.IvaRate / 100m);
 
@@ -628,8 +640,8 @@ public class VendaService : IVendaService
         {
             var c = Calcular(i, venda.ForaApuramento);
             return new VendaItemDto(i.Id, i.CompraLinhaId, i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents,
-                i.IvaRate, i.TotalCents, CalculateIvaCents(i), i.Imei, i.CustoUnitarioPago, i.TaxaIvaCompra,
-                c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro, i.Encomenda, i.EncomendaNota);
+                i.IvaRate, i.TotalCents, CalculateIvaCents(i, venda.ForaApuramento), i.Imei, i.CustoUnitarioPago, i.TaxaIvaCompra,
+                c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro, i.Encomenda, i.EncomendaNota, i.PorFora);
         }).ToList();
 
         return new VendaDto(
@@ -637,7 +649,7 @@ public class VendaService : IVendaService
             venda.Equipamento, venda.Problema, venda.TotalCents, venda.IvaCents,
             items.Sum(i => i.IvaAPagarEstado), items.Sum(i => i.Lucro),
             venda.PaymentMethod, venda.InvoiceNumber, venda.InvoiceEmittedAt,
-            venda.Estado == VendaEstado.Entregue && venda.InvoiceNumber is null && !venda.ForaApuramento,
+            venda.Estado == VendaEstado.Entregue && venda.InvoiceNumber is null && !venda.ForaApuramento && venda.Items.Any(i => !i.PorFora),
             venda.Notas, items, venda.PublicSlug, venda.PrevistoPara, garantiaSlug, venda.FaturaPdfPath is not null,
             venda.MoloniDocumentoTipo, venda.MoloniReciboNumero, venda.MoloniOrcamentoNumero,
             venda.MoloniDocumentoTipo is null ? null : venda.MoloniDocumentoTipo == "invoiceReceipt" || venda.MoloniReciboId is not null,

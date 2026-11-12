@@ -86,6 +86,8 @@ export interface VendaItem {
   /** Sprint 594: peça ainda sem stock (o custo estimado vem em custoUnitarioPago). */
   encomenda?: PecaEncomendaEstado | null;
   encomendaNota?: string | null;
+  /** Sprint 642: parte recebida por fora da fatura (sem IVA, não vai ao Moloni, conta no lucro). */
+  porFora?: boolean;
 }
 
 /** Sprint 594: peça de uma reparação que ainda não há em stock. */
@@ -176,6 +178,9 @@ export interface VendaLinhaWrite {
   encomenda?: PecaEncomendaEstado | null;
   custoEstimadoCents?: number | null;
   encomendaNota?: string | null;
+  /** Sprint 642: por fora da fatura; custo sem fatura (total da linha, cêntimos). */
+  porFora?: boolean;
+  custoSemFaturaCents?: number | null;
 }
 
 export interface VendaWrite {

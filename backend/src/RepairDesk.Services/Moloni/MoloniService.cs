@@ -227,7 +227,7 @@ public partial class MoloniService : IMoloniService
             throw new ValidationException("venda_nao_entregue", "Marca a venda como entregue antes de emitir a fatura (ou emite um orçamento).");
         if (venda.InvoiceNumber is not null || venda.MoloniDocumentoId is not null)
             throw new ConflictException("ja_tem_fatura", $"Esta venda já tem a fatura {venda.InvoiceNumber}. Anula-a primeiro se for para emitir outra.");
-        if (venda.Items.Count == 0) throw new ValidationException("venda_sem_linhas", "A venda não tem linhas.");
+        if (!venda.Items.Any(i => !i.PorFora)) throw new ValidationException("venda_sem_linhas", "A venda não tem linhas para faturar (as «por fora» não vão à fatura).");
         if (req.VencimentoDias is < 0 or > 365) throw new ValidationException("vencimento_invalido", "Prazo de vencimento entre 0 e 365 dias.");
 
         var serie = req.SerieId ?? SeriePorTipo(cfg, venda.Tipo);
@@ -235,7 +235,7 @@ public partial class MoloniService : IMoloniService
         var customerId = await ClienteDaFaturaAsync(key, companyId, cfg, venda, req, ct);
         var produtos = await LinhasAsync(key, companyId, cfg, t, venda, req.MotivoIsencao, ct);
         var agora = DateTime.UtcNow;
-        var totalVenda = venda.TotalCents / 100m;
+        var totalVenda = venda.Items.Where(i => !i.PorFora).Sum(i => i.TotalCents) / 100m; // Sprint 642: só o faturado
         var fatura = req.Tipo == MoloniDocumento.Fatura;
         var apiCode = fatura ? "invoice" : "invoiceReceipt";
         var metodo = fatura ? (int?)null : await MetodoPagamentoAsync(key, companyId, cfg, t, req.PaymentMethod ?? venda.PaymentMethod, ct);
@@ -354,7 +354,7 @@ public partial class MoloniService : IMoloniService
         var (t, key, companyId, cfg) = await ContextoAsync(ct);
         var venda = await _vendas.FindByIdWithItemsAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
         if (venda.Estado == VendaEstado.Cancelada) throw new ValidationException("venda_cancelada", "A venda está cancelada.");
-        if (venda.Items.Count == 0) throw new ValidationException("venda_sem_linhas", "A venda não tem linhas.");
+        if (!venda.Items.Any(i => !i.PorFora)) throw new ValidationException("venda_sem_linhas", "A venda não tem linhas para faturar (as «por fora» não vão à fatura).");
         if (req.ValidadeDias is < 1 or > 365) throw new ValidationException("validade_invalida", "Validade do orçamento entre 1 e 365 dias.");
 
         var customerId = await ClienteMoloniAsync(key, companyId, cfg, venda.Cliente, ct);
@@ -371,7 +371,7 @@ public partial class MoloniService : IMoloniService
             ["products"] = produtos,
         };
         var (documentId, totalMoloni) = await CriarRascunhoAsync(key, companyId, "estimate", "EstimateInsert", dados, ct);
-        await GarantirTotalAsync(key, companyId, "estimate", documentId, totalMoloni, venda.TotalCents / 100m, ct);
+        await GarantirTotalAsync(key, companyId, "estimate", documentId, totalMoloni, venda.Items.Where(i => !i.PorFora).Sum(i => i.TotalCents) / 100m, ct);
         var (numero, serieNome) = await FinalizarAsync(key, companyId, "estimate", "EstimateUpdate",
             new Dictionary<string, object?> { ["documentId"] = documentId, ["status"] = 1 }, ct);
 
@@ -625,7 +625,8 @@ public partial class MoloniService : IMoloniService
         var motivo = Limpar(motivoIsencao, 10)?.ToUpperInvariant();
         var linhas = new List<Dictionary<string, object?>>();
         var ordem = 0;
-        foreach (var item in venda.Items.OrderBy(i => i.CreatedAt))
+        // Sprint 642: só o que é faturado — as linhas «por fora» ficam no Mender.
+        foreach (var item in venda.Items.Where(i => !i.PorFora).OrderBy(i => i.CreatedAt))
         {
             var taxa = item.IvaRate;
             var fator = 1m + taxa / 100m;

@@ -326,11 +326,12 @@ public class ApuramentoService : IApuramentoService
         var noTrimestre = vendas.Where(v => DentroDe(DeLisboa(v.InvoiceEmittedAt ?? v.Data), de, ate)).ToList();
         var faturadas = noTrimestre.Where(v => v.InvoiceNumber is not null).ToList();
         var fora = noTrimestre.Where(v => v.InvoiceNumber is null && v.ForaApuramento && v.Estado == VendaEstado.Entregue).ToList();
-        foreach (var v in noTrimestre.Where(v => v.InvoiceNumber is null && !v.ForaApuramento && v.Estado == VendaEstado.Entregue))
+        foreach (var v in noTrimestre.Where(v => v.InvoiceNumber is null && !v.ForaApuramento && v.Estado == VendaEstado.Entregue && v.Items.Any(i => !i.PorFora)))
             pendentes.Add(new("venda_sem_fatura", v.Id, $"Venda #{v.Numero}{(v.Cliente is { } c ? $" · {c.Nome}" : string.Empty)}",
                 v.TotalCents / 100m, DeLisboa(v.Data)));
 
-        var linhas = faturadas.SelectMany(v => v.Items).ToList();
+        // Sprint 642: as linhas «por fora» não estão na fatura — ficam fora do IVA.
+        var linhas = faturadas.SelectMany(v => v.Items.Where(i => !i.PorFora)).ToList();
         var porTaxa = linhas
             .GroupBy(i => i.IvaRate)
             .Select(g =>
@@ -428,7 +429,7 @@ public class ApuramentoService : IApuramentoService
         var saldo = ivaLiquidado - ivaDedutivel;
 
         // Sprint 575: o trading entra no IVA (a declaração é uma por NIF) mas não no resultado da loja.
-        var trading = Euros(faturadas.Where(v => v.Atividade == VendaAtividade.Trading).SelectMany(v => v.Items).Sum(BaseSemIva));
+        var trading = Euros(faturadas.Where(v => v.Atividade == VendaAtividade.Trading).SelectMany(v => v.Items.Where(i => !i.PorFora)).Sum(BaseSemIva));
         var vendasSemIva = porTaxa.Sum(t => t.Base) - trading;
         var gastos = despesasDto.Base + despesasDto.IvaNaoDedutivel;
         var resultado = new ApuramentoResultadoDto(vendasSemIva, custoPecas, Euros(gastos), Euros(vendasSemIva - custoPecas - gastos),
@@ -438,7 +439,7 @@ public class ApuramentoService : IApuramentoService
         // Sprint 576: vendas a 0% pelo país do cliente (prefixo do NIF): UE vai também à declaração recapitulativa.
         decimal isentasUe = 0, isentasFora = 0;
         foreach (var v in faturadas)
-            foreach (var i in v.Items.Where(i => i.IvaRate == 0))
+            foreach (var i in v.Items.Where(i => i.IvaRate == 0 && !i.PorFora))
             {
                 if (ClienteUe(v.Cliente?.Nif)) isentasUe += BaseSemIva(i); else isentasFora += BaseSemIva(i);
             }
@@ -507,7 +508,7 @@ public class ApuramentoService : IApuramentoService
         foreach (var v in vendasAno)
         {
             var noTrimestre = DentroDe(DeLisboa(v.InvoiceEmittedAt ?? v.Data), de, ate);
-            foreach (var i in v.Items)
+            foreach (var i in v.Items.Where(i => !i.PorFora))
             {
                 var b = BaseSemIva(i);
                 var ehBem = v.Atividade == VendaAtividade.Loja && (i.CompraLinhaId is not null || v.Tipo == VendaTipo.Produto);

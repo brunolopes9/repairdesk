@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Boxes, CheckCircle2, FileText, PackageSearch, Save, Trash2, Wrench, XCircle } from 'lucide-react';
+import { AlertTriangle, Boxes, CheckCircle2, FileText, PackageSearch, Plus, Save, Trash2, Wrench, XCircle } from 'lucide-react';
 import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -53,6 +53,9 @@ interface LinhaForm {
   encomenda: PecaEncomendaEstado | null;
   custo: string;
   nota: string;
+  /** Sprint 642: recebido por fora da fatura (sem IVA) e custo sem fatura (transporte, quem fez o trabalho…). */
+  porFora: boolean;
+  custoSemFatura: string;
 }
 
 const num = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
@@ -69,7 +72,7 @@ function precoComIva(preco: string, ivaPct: string, semIva: boolean): number {
 
 /** Linhas gravadas (preço c/ IVA) mostradas no modo escolhido. */
 function linhasNoModo(v: Venda, semIva: boolean): LinhaForm[] {
-  return linhasFrom(v).map((l) => (semIva
+  return linhasFrom(v).map((l) => (semIva && !l.porFora
     ? { ...l, preco: fmt2((parseDecimal(l.preco) ?? 0) / (1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100)) }
     : l));
 }
@@ -92,6 +95,9 @@ function linhasFrom(v: Venda): LinhaForm[] {
     encomenda: i.encomenda ?? null,
     custo: i.encomenda != null && i.custoUnitarioPago != null ? fmt2(i.custoUnitarioPago) : '',
     nota: i.encomendaNota ?? '',
+    porFora: i.porFora ?? false,
+    custoSemFatura: !i.compraLinhaId && i.encomenda == null && i.taxaIvaCompra === 0 && i.custoUnitarioPago != null
+      ? fmt2(i.custoUnitarioPago * i.quantidade) : '',
   }));
 }
 
@@ -166,13 +172,18 @@ export default function VendaEditor() {
   const contas = useMemo(() => {
     const porLinha = linhas.map((l) => {
       const qtd = Number(l.quantidade) || 0;
-      const total = qtd * precoComIva(l.preco, l.iva, semIva);
-      const [custo, taxa] = l.encomenda != null ? [parseDecimal(l.custo) ?? 0, IVA_NORMAL / 100] : [l.custoUnit, l.taxaCompra];
-      return { total, ...previewVenda(qtd, total, custo, taxa, (parseDecimal(l.iva) ?? IVA_NORMAL) / 100) };
+      // Sprint 642: por fora não tem IVA — o valor escrito é o que se recebe.
+      const total = l.porFora ? qtd * (parseDecimal(l.preco) ?? 0) : qtd * precoComIva(l.preco, l.iva, semIva);
+      const semFatura = !l.compraLinhaId && l.encomenda == null && l.custoSemFatura.trim() !== '';
+      const [custo, taxa] = l.encomenda != null ? [parseDecimal(l.custo) ?? 0, IVA_NORMAL / 100]
+        : semFatura ? [(parseDecimal(l.custoSemFatura) ?? 0) / Math.max(1, qtd), 0] : [l.custoUnit, l.taxaCompra];
+      const ivaVenda = l.porFora || venda?.foraApuramento ? 0 : (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
+      return { total, porFora: l.porFora, ...previewVenda(qtd, total, custo, l.porFora ? 0 : taxa, ivaVenda) };
     });
     const soma = (k: 'total' | 'ivaVenda' | 'ivaAPagar' | 'lucro') => porLinha.reduce((s, c) => s + c[k], 0);
-    return { porLinha, total: soma('total'), ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
-  }, [linhas, semIva]);
+    const porFora = porLinha.filter((c) => c.porFora).reduce((s, c) => s + c.total, 0);
+    return { porLinha, total: soma('total'), porFora, ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
+  }, [linhas, semIva, venda?.foraApuramento]);
 
   const reservado = useMemo(() => {
     const r: Record<string, number> = {};
@@ -194,8 +205,11 @@ export default function VendaEditor() {
         compraLinhaId: l.compraLinhaId,
         descricao: l.descricao.trim() || null,
         quantidade: Number(l.quantidade) || 0,
-        precoUnitarioCents: Math.round(precoComIva(l.preco, l.iva, semIva) * 100),
-        ivaRate: parseDecimal(l.iva) ?? IVA_NORMAL,
+        precoUnitarioCents: Math.round((l.porFora ? parseDecimal(l.preco) ?? 0 : precoComIva(l.preco, l.iva, semIva)) * 100),
+        ivaRate: l.porFora ? 0 : parseDecimal(l.iva) ?? IVA_NORMAL,
+        porFora: l.porFora,
+        custoSemFaturaCents: !l.compraLinhaId && l.encomenda == null && l.custoSemFatura.trim() !== ''
+          ? Math.round((parseDecimal(l.custoSemFatura) ?? 0) * 100) : null,
         ...(l.encomenda != null && !l.compraLinhaId ? {
           encomenda: l.encomenda,
           custoEstimadoCents: Math.round((parseDecimal(l.custo) ?? 0) * 100),
@@ -284,7 +298,7 @@ export default function VendaEditor() {
       custoUnit: lote.precoUnitarioPago,
       taxaCompra: lote.taxaIvaCompra,
       maxStock: lote.quantidadeEmStock,
-      encomenda: null, custo: '', nota: '',
+      encomenda: null, custo: '', nota: '', porFora: false, custoSemFatura: '',
     }]);
     setPickerOpen(false);
   }
@@ -294,7 +308,16 @@ export default function VendaEditor() {
       key: crypto.randomUUID(), id: null, compraLinhaId: null,
       descricao: tipo === VENDA_TIPO.Reparacao ? 'Mão de obra' : '',
       quantidade: '1', preco: '', iva: String(IVA_NORMAL), custoUnit: 0, taxaCompra: 0, maxStock: null,
-      encomenda: null, custo: '', nota: '',
+      encomenda: null, custo: '', nota: '', porFora: false, custoSemFatura: '',
+    }]);
+  }
+
+  /** Sprint 642: custo sem fatura (transporte, quem fez o trabalho) — linha a 0 € por fora, só desconta no lucro. */
+  function addCustoExtra() {
+    setLinhas((ls) => [...ls, {
+      key: crypto.randomUUID(), id: null, compraLinhaId: null, descricao: 'Custo extra: ',
+      quantidade: '1', preco: '0', iva: '0', custoUnit: 0, taxaCompra: 0, maxStock: null,
+      encomenda: null, custo: '', nota: '', porFora: true, custoSemFatura: '',
     }]);
   }
 
@@ -303,7 +326,7 @@ export default function VendaEditor() {
     setLinhas((ls) => [...ls, {
       key: crypto.randomUUID(), id: null, compraLinhaId: null, descricao: '',
       quantidade: '1', preco: '', iva: String(IVA_NORMAL), custoUnit: 0, taxaCompra: 0, maxStock: null,
-      encomenda: PECA_ENCOMENDA.PorEncomendar, custo: '', nota: '',
+      encomenda: PECA_ENCOMENDA.PorEncomendar, custo: '', nota: '', porFora: false, custoSemFatura: '',
     }]);
   }
 
@@ -456,6 +479,10 @@ export default function VendaEditor() {
                 Peça a encomendar
               </Button>
             )}
+            <Button type="button" size="sm" variant="secondary" leftIcon={<Plus size={15} />} onClick={addCustoExtra}
+              title="Custo sem fatura (transporte, quem fez o trabalho…) — desconta no lucro, não mexe no IVA">
+              Custo extra
+            </Button>
           </div>
         )}
       >
@@ -541,9 +568,29 @@ export default function VendaEditor() {
                           </div>
                         ) : (
                           <span className="mt-1 block text-xs text-zinc-500">
-                            {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
+                            {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : l.porFora ? 'Por fora · sem IVA, fora da fatura' : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
                           </span>
                         )}
+                        {/* Sprint 642: parte recebida por fora da fatura e custos sem fatura. */}
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                          <label className="inline-flex min-h-8 items-center gap-1.5 text-zinc-600 dark:text-zinc-300"
+                            title="Recebido fora da fatura (tratado à parte com a contabilista): sem IVA e não vai ao Moloni, mas conta no lucro">
+                            <input type="checkbox" checked={l.porFora} disabled={fechada}
+                              onChange={(e) => setLinha(l.key, { porFora: e.target.checked })} />
+                            Por fora
+                          </label>
+                          {l.porFora && <span className="rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora</span>}
+                          {!l.compraLinhaId && l.encomenda == null && (
+                            <label className="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-300"
+                              title="Custo sem fatura desta linha (transporte, quem fez o trabalho, média do material) — desconta no lucro">
+                              custo s/ fatura
+                              <input aria-label="Custo sem fatura" inputMode="decimal" value={l.custoSemFatura} disabled={fechada} placeholder="0,00"
+                                onChange={(e) => setLinha(l.key, { custoSemFatura: e.target.value })}
+                                className="min-h-8 w-20 rounded-md border border-zinc-300 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                              €
+                            </label>
+                          )}
+                        </div>
                       </td>
                       <td className="py-1 sm:py-2 sm:pr-2">
                         <span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Qtd</span>
@@ -576,6 +623,12 @@ export default function VendaEditor() {
         )}
         <dl className="mt-3 ml-auto grid max-w-xs grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm tabular-nums">
           <dt className="font-medium">Total a cobrar</dt><dd className="text-right text-lg font-semibold">{formatEur(contas.total)}</dd>
+          {contas.porFora > 0 && (
+            <>
+              <dt className="text-zinc-500">Na fatura</dt><dd className="text-right">{formatEur(contas.total - contas.porFora)}</dd>
+              <dt className="text-violet-700 dark:text-violet-300" title="Recebido fora da fatura — sem IVA, conta no lucro">Por fora</dt><dd className="text-right text-violet-700 dark:text-violet-300">{formatEur(contas.porFora)}</dd>
+            </>
+          )}
           <dt className="text-zinc-500">IVA na fatura</dt><dd className="text-right">{formatEur(contas.ivaVenda)}</dd>
           <dt className="text-zinc-500" title="IVA da venda − IVA já pago ao fornecedor das peças">IVA a entregar ao Estado</dt><dd className="text-right">{formatEur(contas.ivaAPagar)}</dd>
           <dt className="text-zinc-500" title="Total − custo das peças − IVA a entregar">Lucro que sobra</dt><dd className={`text-right font-medium ${contas.lucro < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatEur(contas.lucro)}</dd>
