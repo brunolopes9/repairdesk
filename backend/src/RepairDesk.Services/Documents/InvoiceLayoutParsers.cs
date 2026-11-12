@@ -21,6 +21,7 @@ public static class InvoiceLayoutParsers
         if (IPartsTrade.Matches(text)) return IPartsTrade.Parse(text);
         if (Microwire.Matches(text)) return Microwire.Parse(text);
         if (Utopya.Matches(text)) return Utopya.Parse(text);
+        if (LcPhones.Matches(text)) return LcPhones.Parse(text);
         return null;
     }
 
@@ -468,6 +469,51 @@ public static class InvoiceLayoutParsers
             }
             var total = Match(text, @"^Total\s+([\d.]*\d,\d{2})€") is { } t ? Virgula(t) : (int?)null;
             return Resultado("Utopya", numero, total, data, items, ivaZero, encomenda);
+        }
+    }
+
+    /// <summary>
+    /// Sprint 641: faturas da LCPhones (POCINHAS SARL, Luxemburgo — IVA 0% M16, art. 14.º RITI; software ATENA).
+    /// "Fatura FT LC26/268", "Data 2026-11-04", "Encomenda: ST26/3763". Artigo: código e descrição podem vir em
+    /// várias linhas antes da cauda "1.0000 UN 6.9000 € 0.0000 % 0.00 % (M16) 6.9000 €". O rodapé tem
+    /// "Capital Social 5000€", que o leitor genérico confundia com um artigo.
+    /// </summary>
+    public static class LcPhones
+    {
+        private static readonly Regex Cauda = new(
+            @"^(?<desc>.*?)\s*(?<qtd>\d+(?:\.\d+)?)\s+UN\s+(?<unit>\d+(?:\.\d+)?)\s*€\s+[\d.]+\s*%\s+(?<iva>\d+(?:\.\d+)?)\s*%\s+\(\w+\)\s+(?<tot>-?\d+(?:\.\d+)?)\s*€$",
+            RegexOptions.Compiled);
+
+        public static bool Matches(string text)
+            => text.Contains("lcphones.com", StringComparison.OrdinalIgnoreCase)
+               && Regex.IsMatch(text, @"(?:Fatura|Nota de Cr[ée]dito)\s+(?:FT|NC)\s+\S+", RegexOptions.IgnoreCase);
+
+        public static SupplierPdfParseResult Parse(string text)
+        {
+            var numero = Match(text, @"(?:Fatura|Nota de Cr[ée]dito)\s+((?:FT|NC)\s+\S+)");
+            var data = ParseIsoDate(Match(text, @"\bData\s+(\d{4}-\d{2}-\d{2})"));
+            var encomenda = Match(text, @"Encomenda:\s*(\S+)");
+            var items = new List<SupplierPdfItem>();
+            var buffer = new List<string>();
+            var dentro = false;
+            var ivaZero = true;
+            foreach (var raw in Linhas(text))
+            {
+                if (raw.StartsWith("CÓDIGO", StringComparison.OrdinalIgnoreCase) || raw.StartsWith("CODIGO", StringComparison.OrdinalIgnoreCase)) { dentro = true; continue; }
+                if (!dentro) continue;
+                if (raw.StartsWith("Imposto", StringComparison.OrdinalIgnoreCase) || raw.StartsWith("Subtotal", StringComparison.OrdinalIgnoreCase)) break;
+                var m = Cauda.Match(raw);
+                if (!m.Success) { buffer.Add(raw); continue; }
+                buffer.Add(m.Groups["desc"].Value);
+                ivaZero &= Dot(m.Groups["iva"].Value) == 0m;
+                var qtd = (int)Math.Max(1, Math.Round(Dot(m.Groups["qtd"].Value)));
+                // O código é o 1.º token (só dígitos ou MAIÚSCULAS_COM_TRAÇOS, ex.: "35098", "ASFALTO_NORMAL").
+                var desc = Regex.Replace(string.Join(' ', buffer.Where(l => l.Length > 0)).Trim(), @"^[A-Z0-9_\-]{3,}\s+", string.Empty).Trim();
+                items.Add(new SupplierPdfItem(desc, qtd, ToCents(m.Groups["tot"].Value)!.Value));
+                buffer.Clear();
+            }
+            var total = ToCents(Match(text, @"^Total\s+(-?[\d.]+)\s*€"));
+            return Resultado("LC Phones", numero, total, data, items, ivaZero, encomenda);
         }
     }
 

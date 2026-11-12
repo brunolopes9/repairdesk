@@ -285,6 +285,40 @@ public class InvoiceLayoutParsersTests
     }
 
     [Fact]
+    public void LcPhones_LeArtigosEmVariasLinhas_SemConfundirOCapitalSocial()
+    {
+        const string texto = """
+            CÓDIGO DESIGNAÇÃO QNT. UND. PREÇO UNT DESCONTO IVA TOTAL
+            35098
+            Xiaomi Redmi 14C 2411DRN47C, 2409BRN2CA,
+            2409BRN2CG, 2409BRN2CY - Placa do
+            Conector de Carregamento < Service Pack >
+            1.0000 UN 6.9000 € 0.0000 % 0.00 % (M16) 6.9000 €
+            ASFALTO_NORMAL Serviço Asfalto 1.0000 UN 6.5000 € 0.0000 % 0.00 % (M16) 6.5000 €
+            Imposto IVA Taxa 0.00% B. Incidência 13.40€ Montante 0.00€ Motivo M16
+            Subtotal 13.40 €
+            IVA 0.00 €
+            Total 13.40€
+            Encomenda: ST26/3763
+            Site : www.lcphones.com
+            Capital Social 5000€
+            Original
+            Fatura FT LC26/268
+            Data 2026-11-04 Vencimento 2026-11-04 Moeda EUR Vendedor N/A Desconto 0%
+            """;
+        var r = SupplierPdfParser.Parse(texto);
+        r.SupplierName.Should().Be("LC Phones");
+        r.OrderId.Should().Be("FT LC26/268");
+        r.OrderReference.Should().Be("ST26/3763");
+        r.DateAdded.Should().Be(new DateTime(2026, 11, 4));
+        r.TotalCents.Should().Be(1340);
+        r.Items.Select(i => i.LineTotalCents).Should().Equal(690, 650);
+        r.Items[0].Description.Should().StartWith("Xiaomi Redmi 14C").And.EndWith("< Service Pack >");
+        r.Items[1].Description.Should().Be("Serviço Asfalto");
+        r.Confidence.Should().Be(ParseConfidence.High);
+    }
+
+    [Fact]
     public void Tudo4MobileAntigo_SemNumeroNemTotal_JaNaoDizConfiancaAlta()
     {
         var r = SupplierPdfParser.Parse("Tudo4Mobile\nAlguma coisa 5.00€\n");
