@@ -13,25 +13,69 @@ export const DESPESA_CATEGORIA = {
   Seguros: 9,
   Combustivel: 10,
   PecasUsadas: 11,
+  // Sprint 633 (Doc 99): categorias do Excel «Gestão Financeira»
+  FerramentasIa: 12,
+  Subscricoes: 13,
+  VpsCopier: 14,
+  PropFirms: 15,
+  Alimentacao: 20,
+  CafeRestaurante: 21,
+  Casa: 22,
+  Ginasio: 23,
+  Suplementacao: 24,
+  Lazer: 25,
+  Saude: 26,
+  Vestuario: 27,
+  SegurancaSocial: 30,
+  PagamentoIva: 31,
+  PagamentoIrs: 32,
   Outro: 99,
   Outras: 99,
 } as const;
 export type DespesaCategoria = (typeof DESPESA_CATEGORIA)[keyof typeof DESPESA_CATEGORIA];
 
 export const DESPESA_LABEL: Record<DespesaCategoria, string> = {
-  0: 'Pecas',
+  0: 'Peças',
   1: 'Material',
-  2: 'Ferramenta',
+  2: 'Ferramentas',
   3: 'Software',
-  4: 'Transporte',
-  5: 'Comunicacoes',
+  4: 'Transportes',
+  5: 'Comunicações',
   6: 'Marketing',
-  7: 'Servicos',
+  7: 'Serviços',
   8: 'Renda',
   9: 'Seguros',
-  10: 'Combustivel',
-  11: 'Pecas usadas',
+  10: 'Combustível',
+  11: 'Peças usadas',
+  12: 'Ferramentas IA',
+  13: 'Subscrições',
+  14: 'VPS/Copier',
+  15: 'Prop firms',
+  20: 'Alimentação',
+  21: 'Café/Restaurante',
+  22: 'Casa',
+  23: 'Ginásio',
+  24: 'Suplementação',
+  25: 'Lazer',
+  26: 'Saúde',
+  27: 'Vestuário',
+  30: 'Segurança Social',
+  31: 'IVA pago ao Estado',
+  32: 'IRS pago',
   99: 'Outras',
+};
+
+/** Sprint 633 (Doc 99): a quem pertence a despesa. Só «Negócio» entra no IVA e no IRS. */
+export const AMBITO = { Negocio: 0, Pessoal: 1, Obrigacao: 2 } as const;
+export type DespesaAmbito = (typeof AMBITO)[keyof typeof AMBITO];
+export const AMBITO_LABEL: Record<DespesaAmbito, string> = { 0: 'Negócio', 1: 'Pessoal', 2: 'Obrigações (SS, IVA, IRS)' };
+export const NATUREZA = { Gasto: 0, Investimento: 1 } as const;
+export type DespesaNatureza = (typeof NATUREZA)[keyof typeof NATUREZA];
+
+export const CATEGORIAS_POR_AMBITO: Record<DespesaAmbito, readonly DespesaCategoria[]> = {
+  0: [1, 2, 3, 12, 13, 14, 15, 4, 10, 5, 6, 7, 8, 9, 99],
+  1: [20, 21, 22, 4, 10, 23, 24, 25, 26, 27, 99],
+  2: [30, 31, 32],
 };
 
 export const STOCK_DESPESA_CATEGORIAS = [
@@ -71,6 +115,8 @@ export interface Despesa {
   reverseCharge?: boolean;
   /** Sprint 622: 0 = LopesTech, 1 = Trading (sem dedução), 2 = Mista (pro rata). */
   afetacao?: AfetacaoIva;
+  ambito?: DespesaAmbito;
+  natureza?: DespesaNatureza;
   /** Sprint 584: nº visível (sequencial por empresa), como nas compras. */
   numero?: number;
   /** Sprint 586: fatura (PDF ou foto) desta despesa — abre em supplierInvoicesApi.pdfPath; null = por anexar. */
@@ -92,6 +138,8 @@ export interface CreateDespesaForm {
   deducaoPercent?: number;
   reverseCharge?: boolean;
   afetacao?: AfetacaoIva;
+  ambito?: DespesaAmbito;
+  natureza?: DespesaNatureza;
 }
 
 export type DespesasPage = PagedResult<Despesa>;

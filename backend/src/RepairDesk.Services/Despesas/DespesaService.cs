@@ -9,9 +9,9 @@ namespace RepairDesk.Services.Despesas;
 
 public interface IDespesaService
 {
-    Task<PagedResult<DespesaDto>> SearchAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default);
+    Task<PagedResult<DespesaDto>> SearchAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente, int page, int pageSize, CancellationToken ct = default, DespesaAmbito? ambito = null);
     Task<DespesaDto> GetAsync(Guid id, CancellationToken ct = default);
-    Task<DespesasResumoDto> ResumoAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente, CancellationToken ct = default);
+    Task<DespesasResumoDto> ResumoAsync(string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn, bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente, CancellationToken ct = default, DespesaAmbito? ambito = null);
     Task<DespesaDto> CreateAsync(CreateDespesaRequest req, CancellationToken ct = default);
     Task<DespesaDto> UpdateAsync(Guid id, UpdateDespesaRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
@@ -39,11 +39,11 @@ public class DespesaService : IDespesaService
     public async Task<PagedResult<DespesaDto>> SearchAsync(
         string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
         bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
-        bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
+        bool? isRecorrente, int page, int pageSize, CancellationToken ct = default, DespesaAmbito? ambito = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var (items, total) = await _repo.SearchAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, page, pageSize, ct);
+        var (items, total) = await _repo.SearchAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, page, pageSize, ct, ambito);
         var pdfs = _imports is null ? null : await _imports.ImportIdsPorDespesaAsync(items.Select(d => d.Id).ToList(), ct);
         return new PagedResult<DespesaDto>(items.Select(d => ToDto(d, pdfs?.GetValueOrDefault(d.Id))).ToList(), page, pageSize, total);
     }
@@ -51,9 +51,9 @@ public class DespesaService : IDespesaService
     public async Task<DespesasResumoDto> ResumoAsync(
         string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
         bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
-        bool? isRecorrente, CancellationToken ct = default)
+        bool? isRecorrente, CancellationToken ct = default, DespesaAmbito? ambito = null)
     {
-        var cats = (await _repo.ResumoAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, ct))
+        var cats = (await _repo.ResumoAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, ct, ambito))
             .OrderByDescending(c => c.TotalCents).ToList();
         return new DespesasResumoDto(cats.Sum(c => c.Registos), cats.Sum(c => c.TotalCents), cats.Sum(c => c.IvaCents),
             cats.Sum(c => c.SemIva), cats.Sum(c => c.Recorrentes), cats);
@@ -85,6 +85,8 @@ public class DespesaService : IDespesaService
             IvaCents = req.ReverseCharge ? 0 : req.IvaCents,
             DeducaoPercent = req.DeducaoPercent,
             Afetacao = req.Afetacao,
+            Ambito = req.Ambito,
+            Natureza = req.Natureza,
         };
         await _repo.AddAsync(d, ct);
         await _repo.SaveAsync(ct);
@@ -110,6 +112,8 @@ public class DespesaService : IDespesaService
         d.IvaCents = req.ReverseCharge ? 0 : req.IvaCents;
         d.DeducaoPercent = req.DeducaoPercent;
         d.Afetacao = req.Afetacao;
+        d.Ambito = req.Ambito;
+        d.Natureza = req.Natureza;
 
         await _repo.SaveAsync(ct);
         return ToDto(d, _imports is null ? null : (await _imports.FindByDespesaIdAsync(id, ct))?.Id);
@@ -135,5 +139,5 @@ public class DespesaService : IDespesaService
 
     private static DespesaDto ToDto(Despesa d, Guid? importId) =>
         new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas,
-            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero, importId, d.Afetacao);
+            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero, importId, d.Afetacao, d.Ambito, d.Natureza);
 }

@@ -17,6 +17,7 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(x => x.FaturasImapPasswordCifrada).HasMaxLength(2000);
         builder.Property(x => x.FaturasImapUltimoErro).HasMaxLength(300);
         builder.Property(x => x.FaturasEmailEndereco).HasMaxLength(120);
+        builder.Property(x => x.ObjetivoMensal).HasPrecision(12, 2);
         builder.Property(x => x.FaturasEmailSegredoHash).HasMaxLength(64);
         builder.HasIndex(x => x.FaturasEmailEndereco).IsUnique().HasFilter("[FaturasEmailEndereco] IS NOT NULL");
         builder.Property(x => x.LegalName).HasMaxLength(300);

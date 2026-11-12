@@ -384,7 +384,8 @@ public class ApuramentoService : IApuramentoService
         var compras = new ApuramentoComprasDto(docs.Count, Euros(baseNac), Euros(ivaNac), Euros(ivaPortes), Euros(baseUe), ivaAutoUe, Euros(baseForaUe), Euros(baseComIvaLocal));
 
         // ---- despesas ----
-        var despesas = await _despesas.ListPeriodoAsync(de, ate, ct);
+        // Sprint 633: despesas pessoais e obrigações (SS, IVA/IRS pagos) não entram no apuramento.
+        var despesas = (await _despesas.ListPeriodoAsync(de, ate, ct)).Where(d => d.Ambito == DespesaAmbito.Negocio).ToList();
         var tenantFiscal = await TenantAsync(ct);
         decimal baseDesp = 0, ivaDed = 0, ivaNaoDed = 0, baseAuto = 0, ivaAutoDedDesp = 0;
         foreach (var d in despesas)
@@ -536,7 +537,7 @@ public class ApuramentoService : IApuramentoService
         // Regra dos 15% (art. 31.º n.º 13): sobre os rendimentos de serviços a 0,75 e a 0,35 (Doc 98 §4.1).
         var receitas075 = s075 + s035 + trading;
         var justificadas = EstimativasFiscais.DeducaoEspecifica
-            + (await _despesas.ListPeriodoAsync(inicioAno, ate, ct)).Sum(d => d.ValorCents / 100m)
+            + (await _despesas.ListPeriodoAsync(inicioAno, ate, ct)).Where(d => d.Ambito == DespesaAmbito.Negocio).Sum(d => d.ValorCents / 100m)
             + (await _compras.ListDocumentosPeriodoAsync(inicioAno, ate, ct)).Sum(d => d.Linhas.Sum(l => l.Quantidade * l.PrecoUnitarioPago) + d.PortesPagos);
         var acrescimo = Math.Max(0m, EstimativasFiscais.Regra15 * receitas075 - justificadas);
         var rendimento = bens * EstimativasFiscais.CoefBens

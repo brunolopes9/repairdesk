@@ -336,6 +336,7 @@ try
     builder.Services.AddScoped<IAgendaAvisosRepository, RepairDesk.DAL.Persistence.AgendaAvisosRepository>();
     builder.Services.AddScoped<IRotinaRepository, RepairDesk.DAL.Persistence.RotinaRepository>();
     builder.Services.AddMemoryCache();
+    builder.Services.AddScoped<RepairDesk.Services.Financas.IFinancasService, RepairDesk.Services.Financas.FinancasService>();
     builder.Services.AddSingleton<RepairDesk.API.HostedServices.FaturasImapLeitor>();
     builder.Services.AddScoped<ICalendarioExternoRepository, RepairDesk.DAL.Persistence.CalendarioExternoRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Calendario.ICalendarioExternoService, RepairDesk.Services.Calendario.CalendarioExternoService>();

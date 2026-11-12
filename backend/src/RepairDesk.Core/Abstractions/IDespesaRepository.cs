@@ -20,11 +20,12 @@ public interface IDespesaRepository
         bool? isRecorrente,
         int page,
         int pageSize,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        DespesaAmbito? ambito = null);
     Task<IReadOnlyList<DespesaResumoCategoria>> ResumoAsync(
         string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
         bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
-        bool? isRecorrente, CancellationToken ct = default);
+        bool? isRecorrente, CancellationToken ct = default, DespesaAmbito? ambito = null);
     /// <summary>Sprint 573: despesas operacionais (sem COGS) com data em [from, to).</summary>
     Task<IReadOnlyList<Despesa>> ListPeriodoAsync(DateTime from, DateTime to, CancellationToken ct = default);
     Task AddAsync(Despesa despesa, CancellationToken ct = default);

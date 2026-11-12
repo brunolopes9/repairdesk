@@ -1432,6 +1432,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("Afetacao")
                         .HasColumnType("int");
 
+                    b.Property<int>("Ambito")
+                        .HasColumnType("int");
+
                     b.Property<int>("Categoria")
                         .HasColumnType("int");
 
@@ -1468,6 +1471,9 @@ namespace RepairDesk.DAL.Migrations
                         .HasDefaultValue(false);
 
                     b.Property<int?>("IvaCents")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Natureza")
                         .HasColumnType("int");
 
                     b.Property<string>("Notas")
@@ -2980,6 +2986,10 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<string>("Nif")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("ObjetivoMensal")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
 
                     b.Property<bool>("OnboardingCompletado")
                         .ValueGeneratedOnAdd()

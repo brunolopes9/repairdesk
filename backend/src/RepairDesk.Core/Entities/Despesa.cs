@@ -62,4 +62,8 @@ public class Despesa : BaseEntity, ITenantEntity
 
     /// <summary>Sprint 622: LopesTech / Trading / Mista (pro rata) — ver <see cref="AfetacaoIva"/>.</summary>
     public AfetacaoIva Afetacao { get; set; } = AfetacaoIva.LopesTech;
+
+    /// <summary>Sprint 633 (Doc 99): Negócio / Pessoal / Obrigação (SS, IVA e IRS pagos). Só «Negócio» entra no IVA e no IRS.</summary>
+    public DespesaAmbito Ambito { get; set; } = DespesaAmbito.Negocio;
+    public DespesaNatureza Natureza { get; set; } = DespesaNatureza.Gasto;
 }

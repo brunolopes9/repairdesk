@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:ddd6c01f75f6185c -->
+<!-- roles-matrix-snapshot:5fef0e0107495597 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -108,3 +108,5 @@ Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por re
 > Nov/2026 (Sprint 629): `POST api/conteudo/{id}/removida` (Admin) e `POST api/external/conteudo/{id}/removida` (scope conteudo) — publicação apagada nas redes.
 
 > Nov/2026 (Sprint 632): `POST api/external/email-ingest/mime` — anónimo com segredo do Email Worker (hash por empresa); `POST/DELETE api/faturas-email/cloudflare` — só Admin.
+
+> Nov/2026 (Sprint 633): `api/financas` — só Admin (finanças do dono, inclui despesas pessoais). Em `GET api/despesas` quem não é Admin só vê o âmbito Negócio.

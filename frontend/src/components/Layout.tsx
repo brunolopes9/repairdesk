@@ -21,6 +21,7 @@ import {
   Share2,
   ShoppingBag,
   Timer,
+  Wallet,
   Workflow,
   Sparkles,
   Building2,
@@ -85,6 +86,8 @@ const nav: NavItem[] = [
   },
   // Sprint 615 (Doc 98): rotina pessoal — o que fazer agora, com avisos no telemóvel.
   { to: '/rotina', label: 'Rotina', icon: Timer },
+  // Sprint 633 (Doc 99): o Excel de gestão financeira do dono.
+  { to: '/financas', label: 'Finanças', icon: Wallet, adminOnly: true },
   { to: '/agendamentos', label: 'Agendamentos', icon: CalendarClock },
   { to: '/pedidos-online', label: 'Pedidos online', icon: Wrench, badgeKey: 'repair-requests' },
   // Sprint 422 (Doc 90 Tier 2 #7): TODO list interna.

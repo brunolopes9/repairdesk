@@ -87,7 +87,7 @@ public sealed class PainelService : IPainelService
         var (entregues, _) = await _vendas.SearchAsync(new VendaFiltro(de, ate, Estado: VendaEstado.Entregue), 1, MaxVendasMes, ct);
         var contas = entregues.SelectMany(v => v.Items.Select(i => VendaService.Calcular(i, v.ForaApuramento))).ToList();
 
-        var (despesas, _) = await _despesas.SearchAsync(null, null, null, false, false, de, ate.AddTicks(-1), null, 1, 10_000, ct);
+        var (despesas, _) = await _despesas.SearchAsync(null, null, null, false, false, de, ate.AddTicks(-1), null, 1, 10_000, ct, DespesaAmbito.Negocio);
 
         var (emCurso, _) = await _vendas.SearchAsync(new VendaFiltro(EmCurso: true), 1, 1000, ct);
         var (porFaturar, totalPorFaturar) = await _vendas.SearchAsync(new VendaFiltro(FaturaPorRegistar: true), 1, 1, ct);

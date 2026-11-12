@@ -27,8 +27,9 @@ public class DespesasController : ControllerBase
         [FromQuery] bool? isRecorrente,
         [FromQuery(Name = "include_supplier_invoice_imports")] bool includeSupplierInvoiceImports,
         [FromQuery(Name = "exclude_supplier_invoice_imports")] bool excludeSupplierInvoiceImports,
+        [FromQuery] DespesaAmbito? ambito = null,
         CancellationToken ct = default)
-        => _service.ResumoAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, ct);
+        => _service.ResumoAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, ct, Ambito(ambito));
 
     [HttpGet]
     public Task<PagedResult<DespesaDto>> Search(
@@ -42,8 +43,12 @@ public class DespesasController : ControllerBase
         [FromQuery(Name = "exclude_supplier_invoice_imports")] bool excludeSupplierInvoiceImports,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] DespesaAmbito? ambito = null,
         CancellationToken ct = default)
-        => _service.SearchAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, page, pageSize, ct);
+        => _service.SearchAsync(q, categoria, ParseCategoriaIn(categoriaIn), includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, page, pageSize, ct, Ambito(ambito));
+
+    /// <summary>Sprint 633: as despesas pessoais e obrigações do dono só o Admin vê; os outros só veem as do negócio.</summary>
+    private DespesaAmbito? Ambito(DespesaAmbito? pedido) => User.IsInRole("Admin") ? pedido : DespesaAmbito.Negocio;
 
     [HttpGet("{id:guid}")]
     public Task<DespesaDto> Get(Guid id, CancellationToken ct) => _service.GetAsync(id, ct);

@@ -10,7 +10,13 @@ import {
   type DespesaCategoria,
   AFETACAO,
   AFETACAO_LABEL,
+  AMBITO,
+  AMBITO_LABEL,
+  CATEGORIAS_POR_AMBITO,
+  NATUREZA,
   type AfetacaoIva,
+  type DespesaAmbito,
+  type DespesaNatureza,
 } from '../lib/despesas/types';
 import { parseEuros } from '../lib/money';
 import { FaturaDespesa } from '../pages/despesas/FaturaDespesa';
@@ -46,6 +52,8 @@ export function useDespesaForm({
   const [deducao, setDeducao] = useState(100);
   const [reverseCharge, setReverseCharge] = useState(false);
   const [afetacao, setAfetacao] = useState<AfetacaoIva>(AFETACAO.LopesTech);
+  const [ambito, setAmbito] = useState<DespesaAmbito>(AMBITO.Negocio);
+  const [natureza, setNatureza] = useState<DespesaNatureza>(NATUREZA.Gasto);
   const [error, setError] = useState<string | null>(null);
   // Sprint 586: a despesa aberta com o PDF anexado entretanto (o botão passa logo a "PDF da fatura").
   const [comFatura, setComFatura] = useState<Despesa | null>(null);
@@ -66,6 +74,8 @@ export function useDespesaForm({
       setDeducao(editing.deducaoPercent ?? 100);
       setReverseCharge(!!editing.reverseCharge);
       setAfetacao(editing.afetacao ?? AFETACAO.LopesTech);
+      setAmbito(editing.ambito ?? AMBITO.Negocio);
+      setNatureza(editing.natureza ?? NATUREZA.Gasto);
     } else if (open) {
       setDescricao('');
       setCategoria(initialCategoria);
@@ -80,6 +90,8 @@ export function useDespesaForm({
       setDeducao(100);
       setReverseCharge(false);
       setAfetacao(AFETACAO.LopesTech);
+      setAmbito(AMBITO.Negocio);
+      setNatureza(NATUREZA.Gasto);
     }
     setError(null);
   }, [editing, initialCategoria, open]);
@@ -101,8 +113,10 @@ export function useDespesaForm({
         periodicidadeMeses: isRecorrente ? periodicidadeMeses : null,
         reverseCharge,
         ivaCents: reverseCharge ? 0 : iva.trim() ? parseEuros(iva) : null,
-        deducaoPercent: deducao,
+        deducaoPercent: ambito === AMBITO.Negocio ? deducao : 0,
         afetacao,
+        ambito,
+        natureza,
       };
       if (editing) {
         return despesasApi.update(editing.id, {
@@ -127,7 +141,7 @@ export function useDespesaForm({
     editing, descricao, setDescricao, categoria, setCategoria, valor, setValor, fornecedor, setFornecedor,
     numeroEncomenda, setNumeroEncomenda, data, setData, notas, setNotas, isRecorrente, setIsRecorrente,
     periodicidadeMeses, setPeriodicidadeMeses, iva, setIva, deducao, setDeducao, reverseCharge, setReverseCharge,
-    afetacao, setAfetacao,
+    afetacao, setAfetacao, ambito, setAmbito, natureza, setNatureza,
     error, comFatura, setComFatura, save, valorCents, podeGravar: !!descricao && !!valorCents && !save.isPending,
   };
 }
@@ -186,10 +200,13 @@ export function DespesaCampos({ form, allowedCategorias, autoFocus = false, most
     editing, descricao, setDescricao, categoria, setCategoria, valor, setValor, fornecedor, setFornecedor,
     numeroEncomenda, setNumeroEncomenda, data, setData, notas, setNotas, isRecorrente, setIsRecorrente,
     periodicidadeMeses, setPeriodicidadeMeses, iva, setIva, deducao, setDeducao, reverseCharge, setReverseCharge,
-    afetacao, setAfetacao,
+    afetacao, setAfetacao, ambito, setAmbito, natureza, setNatureza,
     error, comFatura, setComFatura, valorCents,
   } = form;
-  const categoriaOptions = allowedCategorias?.length
+  // Sprint 633: pessoais e obrigações têm categorias próprias; o negócio mantém as de sempre.
+  const categoriaOptions = ambito !== AMBITO.Negocio
+    ? CATEGORIAS_POR_AMBITO[ambito]
+    : allowedCategorias?.length
     ? Array.from(new Set([...(editing ? [editing.categoria] : []), ...allowedCategorias]))
     // Sprint 574: peças para revenda são Compras (stock), não despesas — só aparecem ao editar uma antiga.
     : Array.from(new Set(Object.values(DESPESA_CATEGORIA))).filter((c) => (c !== DESPESA_CATEGORIA.Pecas && c !== DESPESA_CATEGORIA.PecasUsadas) || c === editing?.categoria);
@@ -203,6 +220,23 @@ export function DespesaCampos({ form, allowedCategorias, autoFocus = false, most
             <FaturaDespesa despesa={comFatura} onAnexada={setComFatura} />
           </div>
         )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Pertence a">
+            <select value={ambito} aria-label="Pertence a" className={inputCls} onChange={e => {
+              const a = Number(e.target.value) as DespesaAmbito;
+              setAmbito(a);
+              if (a !== AMBITO.Negocio) setCategoria(CATEGORIAS_POR_AMBITO[a][0]);
+            }}>
+              {(Object.entries(AMBITO_LABEL) as [string, string][]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </Field>
+          <Field label="Natureza">
+            <select value={natureza} aria-label="Natureza" className={inputCls} onChange={e => setNatureza(Number(e.target.value) as DespesaNatureza)}>
+              <option value={NATUREZA.Gasto}>Gasto</option>
+              <option value={NATUREZA.Investimento}>Investimento</option>
+            </select>
+          </Field>
+        </div>
         <Field label="Descrição *">
           <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} autoFocus={autoFocus} />
         </Field>
@@ -250,11 +284,13 @@ export function DespesaCampos({ form, allowedCategorias, autoFocus = false, most
             )}
           </div>
         </Field>
+{ambito === AMBITO.Negocio && (
         <Field label="Para que atividade">
           <select value={afetacao} onChange={e => setAfetacao(Number(e.target.value) as AfetacaoIva)} className={inputCls} aria-label="Afetação do IVA">
             {(Object.entries(AFETACAO_LABEL) as [string, string][]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </Field>
+        )}
         <Field label="Nº encomenda no fornecedor">
           <input value={numeroEncomenda} onChange={e => setNumeroEncomenda(e.target.value)} className={inputCls} placeholder="opcional — para histórico" />
         </Field>

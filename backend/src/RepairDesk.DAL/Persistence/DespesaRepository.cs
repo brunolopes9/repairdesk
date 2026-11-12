@@ -20,9 +20,9 @@ public class DespesaRepository : IDespesaRepository
     public async Task<(IReadOnlyList<Despesa> Items, int Total)> SearchAsync(
         string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
         bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
-        bool? isRecorrente, int page, int pageSize, CancellationToken ct = default)
+        bool? isRecorrente, int page, int pageSize, CancellationToken ct = default, DespesaAmbito? ambito = null)
     {
-        var q = Filtrar(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente);
+        var q = Filtrar(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, ambito);
         var total = await q.CountAsync(ct);
         var items = await q
             .OrderByDescending(d => d.Data)
@@ -36,8 +36,8 @@ public class DespesaRepository : IDespesaRepository
     public async Task<IReadOnlyList<DespesaResumoCategoria>> ResumoAsync(
         string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
         bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to,
-        bool? isRecorrente, CancellationToken ct = default)
-        => await Filtrar(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente)
+        bool? isRecorrente, CancellationToken ct = default, DespesaAmbito? ambito = null)
+        => await Filtrar(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, ambito)
             .GroupBy(d => d.Categoria)
             .Select(g => new DespesaResumoCategoria(g.Key, g.Count(), g.Sum(d => d.ValorCents),
                 g.Sum(d => d.IvaCents ?? 0), g.Count(d => d.IvaCents == null && !d.ReverseCharge), g.Count(d => d.IsRecorrente)))
@@ -45,9 +45,11 @@ public class DespesaRepository : IDespesaRepository
 
     private IQueryable<Despesa> Filtrar(
         string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
-        bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente)
+        bool includeSupplierInvoiceImports, bool excludeSupplierInvoiceImports, DateTime? from, DateTime? to, bool? isRecorrente,
+        DespesaAmbito? ambito = null)
     {
         var q = _db.Despesas.AsNoTracking().AsQueryable();
+        if (ambito is { } a) q = q.Where(d => d.Ambito == a);
         var supplierImportDespesaIds = _db.SupplierInvoiceImports
             .Where(i => i.DespesaId != null)
             .Select(i => i.DespesaId!.Value);

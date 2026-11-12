@@ -101,6 +101,9 @@ public class Tenant : BaseEntity
     /// esta data; as faturas depois dela vão a 0,35 (ex.: 66190 desde 09/11/2026). Null = usa só TradingNaTabela151.
     /// </summary>
     public DateTime? TradingTabela151Ate { get; set; }
+
+    /// <summary>Sprint 633 (Doc 99): objetivo de saldo mensal do dono (o Excel usava 1 500 €).</summary>
+    public decimal? ObjetivoMensal { get; set; }
     public DateTime? ProRataInicio { get; set; }
 
     /// <summary>Sprint 576: contribuição mensal à Segurança Social que paga hoje (para comparar com a estimativa).</summary>
