@@ -47,7 +47,7 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
         await Despesa(client, "Renda", 12300, dia, 2300, 100);
         await Despesa(client, "Gasóleo", 6150, dia, 1150, 50);
         await Despesa(client, "Fatura sem IVA indicado", 3000, dia, null, 100);
-        await Despesa(client, "Software UE", 1000, dia, null, 100, reverseCharge: true);
+        await Despesa(client, "Software UE", 1000, dia, null, 100, reverseCharge: true, categoria: DespesaCategoria.Software);
 
         // Vendas faturadas no trimestre: 123 a 23% (base 100) e 50 a 0%.
         await VendaFaturada(client, 12300, 23m, "FT T/1", dia.AddDays(10));
@@ -340,8 +340,9 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
         depois.Afetacao.Should().Be(d.Afetacao);
     }
 
-    private static Task<DespesaDto> Despesa(HttpClient client, string descricao, int valorCents, DateTime data, int? ivaCents, int deducao, bool reverseCharge = false)
-        => Post<DespesaDto>(client, "/api/despesas", new CreateDespesaRequest(descricao, DespesaCategoria.Outro, valorCents, data, null, null, null,
+    private static Task<DespesaDto> Despesa(HttpClient client, string descricao, int valorCents, DateTime data, int? ivaCents, int deducao, bool reverseCharge = false,
+        DespesaCategoria categoria = DespesaCategoria.Outro)
+        => Post<DespesaDto>(client, "/api/despesas", new CreateDespesaRequest(descricao, categoria, valorCents, data, null, null, null,
             ReverseCharge: reverseCharge, IvaCents: ivaCents, DeducaoPercent: deducao));
 
     private static async Task VendaFaturada(HttpClient client, int cents, decimal iva, string numero, DateTime emitida)

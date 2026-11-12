@@ -398,7 +398,7 @@ public class ApuramentoService : IApuramentoService
             : (await _fornecedores.ListByTenantAsync(true, ct)).GroupBy(f => f.Name.Trim(), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First().RegimeIva, StringComparer.OrdinalIgnoreCase);
         decimal baseDesp = 0, ivaDed = 0, ivaNaoDed = 0, baseAuto = 0, ivaAutoDedDesp = 0;
-        decimal baseAutoServUe = 0, baseAutoForaUe = 0, ded20 = 0, ded24 = 0;
+        decimal baseAutoServUe = 0, baseAutoBensUe = 0, baseAutoForaUe = 0, ded20 = 0, ded24 = 0;
         foreach (var d in despesas)
         {
             var investimento = d.Natureza == DespesaNatureza.Investimento;
@@ -415,7 +415,10 @@ public class ApuramentoService : IApuramentoService
                 ivaAutoDedDesp += ivaAuto * fracao;
                 ivaNaoDed += ivaAuto - ivaAuto * fracao;
                 var foraUe = d.Fornecedor is { } fn && regimes.TryGetValue(fn.Trim(), out var rg) && rg == RegimeIvaFornecedor.ForaUe;
-                if (foraUe) baseAutoForaUe += valor; else baseAutoServUe += valor;
+                // Bens comprados na UE (tablet, ferramentas, material) vão aos campos 12/13; serviços aos 16/17.
+                var bens = d.Categoria is DespesaCategoria.Pecas or DespesaCategoria.PecasUsadas or DespesaCategoria.Material
+                    or DespesaCategoria.Ferramenta or DespesaCategoria.Outro;
+                if (foraUe) baseAutoForaUe += valor; else if (bens) baseAutoBensUe += valor; else baseAutoServUe += valor;
                 if (investimento) ded20 += ivaAuto * fracao; else ded24 += ivaAuto * fracao;
                 continue;
             }
@@ -494,8 +497,8 @@ public class ApuramentoService : IApuramentoService
             new("7", "Transmissões/serviços isentos com direito à dedução — clientes UE (vai também à declaração recapitulativa)", Euros(c7)),
             new("8", "Operações isentas — clientes fora da UE / exportações", Euros(c8)),
             new("9", "Operações isentas sem direito à dedução — payouts UE (confirmar com a contabilista)", Euros(c9)),
-            new("12", "Aquisições intracomunitárias de bens (base)", Euros(baseUe)),
-            new("13", "IVA das aquisições intracomunitárias de bens (23%)", Euros(baseUe * Taxa)),
+            new("12", "Aquisições intracomunitárias de bens (base) — peças e bens das despesas", Euros(baseUe + baseAutoBensUe)),
+            new("13", "IVA das aquisições intracomunitárias de bens (23%)", Euros((baseUe + baseAutoBensUe) * Taxa)),
             new("16", "Serviços adquiridos a fornecedores da UE em autoliquidação (base)", Euros(baseAutoServUe)),
             new("17", "IVA dos serviços UE autoliquidados (23%)", Euros(baseAutoServUe * Taxa)),
             new("20", "IVA dedutível — imobilizado (despesas marcadas «Investimento»)", Euros(ded20)),
