@@ -22,6 +22,7 @@ public static class InvoiceLayoutParsers
         if (Microwire.Matches(text)) return Microwire.Parse(text);
         if (Utopya.Matches(text)) return Utopya.Parse(text);
         if (LcPhones.Matches(text)) return LcPhones.Parse(text);
+        if (Meo.Matches(text)) return Meo.Parse(text);
         return null;
     }
 
@@ -550,6 +551,38 @@ public static class InvoiceLayoutParsers
     }
 
     // ---------- helpers ----------
+
+    /// <summary>
+    /// Sprint 649: faturas da MEO (telemóvel). O PDF escreve os valores com espaço depois da vírgula
+    /// («7, 96», «7, 960»), por isso o leitor genérico não encontrava o total. Uma linha só (a mensalidade).
+    /// </summary>
+    public static class Meo
+    {
+        public static bool Matches(string text)
+            => text.Contains("MEO", StringComparison.Ordinal)
+               && text.Contains("Serviços de Comunicações e Multimédia", StringComparison.OrdinalIgnoreCase);
+
+        public static SupplierPdfParseResult Parse(string text)
+        {
+            var numero = Match(text, @"(FT\s?MV/\d+)");
+            // A 1.ª data ISO depois do nº é a de emissão (a seguinte é a data limite de pagamento).
+            var depois = numero is null ? text : text[text.IndexOf(numero, StringComparison.Ordinal)..];
+            var dataTxt = Regex.Match(depois, @"\b(\d{4}-\d{2}-\d{2})\b").Groups[1].Value;
+            DateTime? data = DateTime.TryParseExact(dataTxt, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+                ? DateTime.SpecifyKind(d, DateTimeKind.Utc)
+                : null;
+            // «Fatura nº FT MV/597040990 7, 960» no extrato de conta = valor desta fatura (sem saldos anteriores).
+            var m = Regex.Match(text, @"Fatura n\S*\s*FT\s?MV/\d+\s+(?<int>\d+),\s?(?<dec>\d{2,3})");
+            int? total = m.Success
+                ? (int)Math.Round(decimal.Parse($"{m.Groups["int"].Value}.{m.Groups["dec"].Value}", CultureInfo.InvariantCulture) * 100m, MidpointRounding.AwayFromZero)
+                : null;
+            var items = total is { } t
+                ? new List<SupplierPdfItem> { new("Serviços de comunicações (telemóvel)", 1, t) }
+                : new List<SupplierPdfItem>();
+            var confianca = numero is not null && data is not null && total is > 0 ? ParseConfidence.High : ParseConfidence.Low;
+            return new SupplierPdfParseResult("MEO", numero, total, data, confianca, items);
+        }
+    }
 
     private static string? Match(string text, string pattern)
     {

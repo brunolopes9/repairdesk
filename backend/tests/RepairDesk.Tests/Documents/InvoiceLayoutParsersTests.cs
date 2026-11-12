@@ -324,4 +324,38 @@ public class InvoiceLayoutParsersTests
         var r = SupplierPdfParser.Parse("Tudo4Mobile\nAlguma coisa 5.00€\n");
         r.Confidence.Should().NotBe(ParseConfidence.High);
     }
+
+    [Fact]
+    public void Meo_LeNumeroDataEValorComEspacoDepoisDaVirgula()
+    {
+        // Excerto do PDF real (FT MV/597040990, nov/2026): valores «7, 96» e saldo anterior no extrato.
+        const string texto = """
+            NIPC 504 615 947 · CRC de Lisboa · Capital Social € 10.000.000,00
+            MEO
+            - Serviços de Comunicações e Multimédia, S.A. · Sede: Av. Fontes Pereira de Melo, 40 1069-300 Lisboa - Portugal
+            Fatura
+            Nº Fatura:
+            Data de emissão:
+            FT MV/597040990
+            597040990
+            263758141
+            2026-11-04
+            2026-11-27 1-B2
+            Valor a Pagar
+            €  7, 96
+            Mensalidades 7, 4871 6, 087 23, 00 1, 40
+            6, 470 1, 49 7, 96
+            Saldo anterior 7, 490
+            Fatura nº FT MV/597040990 7, 960
+            Pagamento Déb Direto de 28-10-2026 -7, 490
+            """;
+
+        var r = InvoiceLayoutParsers.TryParse(texto)!;
+
+        r.SupplierName.Should().Be("MEO");
+        r.OrderId.Should().Be("FT MV/597040990");
+        r.DateAdded.Should().Be(new DateTime(2026, 11, 4));
+        r.TotalCents.Should().Be(796);
+        r.Confidence.Should().Be(ParseConfidence.High);
+    }
 }
