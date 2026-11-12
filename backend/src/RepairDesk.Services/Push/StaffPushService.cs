@@ -104,6 +104,8 @@ public class StaffPushService : IStaffPushService
         var subscriptions = job.UserId is { } paraUser
             ? await _subscriptions.ListByUserAsync(paraUser, ct)
             : await _subscriptions.ListByTenantAsync(job.TenantId, ct);
+        // O mesmo dispositivo pode estar subscrito em duas empresas: envia uma só vez.
+        subscriptions = subscriptions.GroupBy(x => x.Endpoint).Select(g => g.First()).ToList();
         if (subscriptions.Count == 0)
             return 0;
 

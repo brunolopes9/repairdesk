@@ -23,7 +23,11 @@ public class StaffPushSubscriptionRepository : IStaffPushSubscriptionRepository
     public async Task<IReadOnlyList<StaffPushSubscription>> ListByTenantAsync(Guid tenantId, CancellationToken ct = default)
         => await _db.StaffPushSubscriptions
             .IgnoreQueryFilters() // chamado a partir de um worker sem tenant no contexto
-            .Where(x => x.TenantId == tenantId && !x.IsDeleted)
+            // Sprint 627: quem trabalha em várias empresas (LopesTech + Cortex) recebe os avisos de todas,
+            // seja qual for a empresa que estava ativa quando ativou as notificações no dispositivo.
+            .Where(x => !x.IsDeleted && (x.TenantId == tenantId
+                || _db.Users.IgnoreQueryFilters().Any(u => u.Id == x.UserId && u.TenantId == tenantId)
+                || _db.AcessosEmpresa.IgnoreQueryFilters().Any(a => a.UserId == x.UserId && a.TenantId == tenantId)))
             .OrderBy(x => x.CreatedAt)
             .ToListAsync(ct);
 
