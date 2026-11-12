@@ -21,6 +21,8 @@ public interface IConteudoService
     Task<ConteudoPublicacaoDto> MudarHoraAsync(Guid id, HoraPublicacaoRequest req, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> RejeitarAsync(Guid id, string? motivo, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> CancelarAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Sprint 629: marca uma publicação que já saiu como apagada nas redes (deixa de contar).</summary>
+    Task<ConteudoPublicacaoDto> MarcarRemovidaAsync(Guid id, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> AtualizarDestinoAsync(Guid id, RedeSocial rede, AtualizarDestinoRequest req, CancellationToken ct = default);
     Task<ConteudoPublicacaoDto> GuardarOpcoesTikTokAsync(Guid id, GuardarOpcoesTikTokRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
@@ -270,11 +272,23 @@ public sealed class ConteudoService : IConteudoService
     public async Task<ConteudoPublicacaoDto> CancelarAsync(Guid id, CancellationToken ct = default)
     {
         var p = await Load(id, ct);
-        if (p.Estado is ConteudoEstado.Publicada or ConteudoEstado.Cancelada or ConteudoEstado.APublicar)
+        if (p.Estado is ConteudoEstado.Publicada or ConteudoEstado.Cancelada or ConteudoEstado.APublicar or ConteudoEstado.Removida)
             throw new ConflictException("conteudo_estado_invalido", $"Uma publicação «{Nome(p.Estado)}» não pode ser cancelada.");
         p.Estado = ConteudoEstado.Cancelada;
         await _repo.SaveAsync(ct);
         await Auditar(AuditAction.Update, p, new { estado = "Cancelada" }, ct);
+        return ToDto(p);
+    }
+
+    public async Task<ConteudoPublicacaoDto> MarcarRemovidaAsync(Guid id, CancellationToken ct = default)
+    {
+        var p = await Load(id, ct);
+        if (p.Estado == ConteudoEstado.Removida) return ToDto(p);
+        if (p.Estado is not (ConteudoEstado.Publicada or ConteudoEstado.ComFalhas))
+            throw new ConflictException("conteudo_estado_invalido", $"Só se marca como removida uma publicação que já saiu (esta está «{Nome(p.Estado)}»).");
+        p.Estado = ConteudoEstado.Removida;
+        await _repo.SaveAsync(ct);
+        await Auditar(AuditAction.Update, p, new { estado = "Removida" }, ct);
         return ToDto(p);
     }
 
@@ -660,6 +674,7 @@ public sealed class ConteudoService : IConteudoService
         ConteudoEstado.ComFalhas => "Com falhas",
         ConteudoEstado.Rejeitada => "Rejeitada",
         ConteudoEstado.Cancelada => "Cancelada",
+        ConteudoEstado.Removida => "Removida",
         _ => e.ToString(),
     };
 

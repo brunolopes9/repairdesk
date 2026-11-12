@@ -12,7 +12,7 @@ type Tab = 'aprovar' | 'agenda' | 'videos' | 'historico';
 
 // Sprint 628: a agenda mostra o dia inteiro — o que já saiu (Publicada) também, para saber «a quantos ando».
 const ESTADOS_AGENDA = [ConteudoEstado.PorAprovar, ConteudoEstado.Aprovada, ConteudoEstado.APublicar, ConteudoEstado.ComFalhas, ConteudoEstado.Publicada];
-const ESTADOS_HISTORICO = [ConteudoEstado.Publicada, ConteudoEstado.Rejeitada, ConteudoEstado.Cancelada];
+const ESTADOS_HISTORICO = [ConteudoEstado.Publicada, ConteudoEstado.Rejeitada, ConteudoEstado.Cancelada, ConteudoEstado.Removida];
 
 /**
  * Sprint 598 (Doc 95): módulo Conteúdo — o calendário das redes sociais da LopesTech.

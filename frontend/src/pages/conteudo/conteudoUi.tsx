@@ -19,6 +19,7 @@ const ESTADO: Record<ConteudoEstado, { label: string; tone: Tone }> = {
   [ConteudoEstado.ComFalhas]: { label: 'Com falhas', tone: 'rose' },
   [ConteudoEstado.Rejeitada]: { label: 'Rejeitada', tone: 'zinc' },
   [ConteudoEstado.Cancelada]: { label: 'Cancelada', tone: 'zinc' },
+  [ConteudoEstado.Removida]: { label: 'Removida', tone: 'zinc' },
 };
 
 export function EstadoBadge({ estado }: { estado: ConteudoEstado }) {

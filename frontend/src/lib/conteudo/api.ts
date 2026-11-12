@@ -11,6 +11,8 @@ export const conteudoApi = {
       })
       .then((r) => r.data),
 
+  /** Sprint 629: já saiu mas foi apagada nas redes. */
+  removida: (id: string) => api.post<ConteudoPublicacao>(`/conteudo/${id}/removida`).then((r) => r.data),
   obter: (id: string) => api.get<ConteudoPublicacao>(`/conteudo/${id}`).then((r) => r.data),
 
   resumo: () => api.get<ConteudoResumo>('/conteudo/resumo').then((r) => r.data),

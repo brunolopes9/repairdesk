@@ -16,6 +16,8 @@ public enum ConteudoEstado
     ComFalhas = 5,
     Rejeitada = 6,
     Cancelada = 7,
+    /// <summary>Sprint 629: saiu mas foi apagada nas redes (ex.: substituída por uma versão corrigida). Não conta.</summary>
+    Removida = 8,
 }
 
 /// <summary>As duas linhas de conteúdo diárias da LopesTech.</summary>

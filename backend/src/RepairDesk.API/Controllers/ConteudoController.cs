@@ -67,6 +67,11 @@ public sealed class ConteudoController : ControllerBase
     public async Task<ActionResult<ConteudoPublicacaoDto>> Cancelar(Guid id, CancellationToken ct)
         => Ok(await _service.CancelarAsync(id, ct));
 
+    /// <summary>Sprint 629: já saiu mas foi apagada nas redes — deixa de contar.</summary>
+    [HttpPost("{id:guid}/removida")]
+    public async Task<ActionResult<ConteudoPublicacaoDto>> Removida(Guid id, CancellationToken ct)
+        => Ok(await _service.MarcarRemovidaAsync(id, ct));
+
     [HttpPut("{id:guid}/destinos/{rede}")]
     public async Task<ActionResult<ConteudoPublicacaoDto>> AtualizarDestino(Guid id, RedeSocial rede, [FromBody] AtualizarDestinoRequest req, CancellationToken ct)
         => Ok(await _service.AtualizarDestinoAsync(id, rede, req, ct));
@@ -184,6 +189,11 @@ public sealed class ExternalConteudoController : ControllerBase
     [HttpPost("{id:guid}/cancelar")]
     public async Task<ActionResult<ConteudoPublicacaoDto>> Cancelar(Guid id, CancellationToken ct)
         => Ok(await _service.CancelarAsync(id, ct));
+
+    /// <summary>Sprint 629: já saiu mas foi apagada nas redes — deixa de contar.</summary>
+    [HttpPost("{id:guid}/removida")]
+    public async Task<ActionResult<ConteudoPublicacaoDto>> Removida(Guid id, CancellationToken ct)
+        => Ok(await _service.MarcarRemovidaAsync(id, ct));
 
     [HttpPut("{id:guid}/destinos/{rede}")]
     public async Task<ActionResult<ConteudoPublicacaoDto>> AtualizarDestino(Guid id, RedeSocial rede, [FromBody] AtualizarDestinoRequest req, CancellationToken ct)

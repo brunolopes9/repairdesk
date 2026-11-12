@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:a66c8999c66bb05a -->
+<!-- roles-matrix-snapshot:eeb5346e00eb501f -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -104,3 +104,5 @@ Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por re
 > Nov/2026 (Sprint 619): `api/calendarios-externos` — qualquer utilizador autenticado; cada um só vê os seus calendários (endereço iCal cifrado, nunca devolvido).
 
 > Nov/2026 (Sprint 620): `api/faturas-email` — só Admin (caixa IMAP das faturas; palavra-passe cifrada, nunca devolvida).
+
+> Nov/2026 (Sprint 629): `POST api/conteudo/{id}/removida` (Admin) e `POST api/external/conteudo/{id}/removida` (scope conteudo) — publicação apagada nas redes.

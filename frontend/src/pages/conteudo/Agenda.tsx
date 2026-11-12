@@ -166,7 +166,32 @@ function AcoesAgenda({ p }: { p: ConteudoPublicacao }) {
     onError: (err) => toast.error(apiErrorMessage(err) || 'Não foi possível mudar a hora.'),
   });
 
+  const removida = useMutation({
+    mutationFn: () => conteudoApi.removida(p.id),
+    onSuccess: () => {
+      toast.success(`#${p.numero} marcada como removida.`);
+      refrescar();
+    },
+    onError: (err) => toast.error(apiErrorMessage(err) || 'Não foi possível marcar.'),
+  });
+
   const editavel = p.estado === ConteudoEstado.Aprovada || p.estado === ConteudoEstado.PorAprovar;
+  if (p.estado === ConteudoEstado.Publicada || p.estado === ConteudoEstado.ComFalhas) {
+    return (
+      <div className="flex justify-end">
+        <Button variant="ghost" loading={removida.isPending} onClick={async () => {
+          const ok = await confirm({
+            title: `Marcar #${p.numero} como removida?`,
+            description: 'Usa isto quando a publicação foi apagada nas redes (ex.: substituída por uma corrigida). Deixa de contar no dia.',
+            confirmLabel: 'Marcar como removida',
+          });
+          if (ok) removida.mutate();
+        }}>
+          Foi apagada nas redes
+        </Button>
+      </div>
+    );
+  }
   if (!editavel) return null;
   return (
     <div className="flex flex-wrap justify-end gap-2">

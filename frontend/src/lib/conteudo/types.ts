@@ -9,6 +9,7 @@ export const ConteudoEstado = {
   ComFalhas: 5,
   Rejeitada: 6,
   Cancelada: 7,
+  Removida: 8,
 } as const;
 export type ConteudoEstado = (typeof ConteudoEstado)[keyof typeof ConteudoEstado];
 
