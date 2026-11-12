@@ -3,6 +3,8 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using RepairDesk.API.Infrastructure;
+using RepairDesk.Core.Enums;
+using RepairDesk.Services.Conteudo;
 using RepairDesk.Services.Appointments;
 using RepairDesk.Services.Push;
 using RepairDesk.Tests.Auth;
@@ -101,6 +103,32 @@ public class AgendaAvisosTests : IClassFixture<RepairDeskApiFactory>
         // 11:16: último aviso, insistente.
         (await Processar(new DateTime(2031, 3, 18, 11, 16, 0, DateTimeKind.Utc))).AvisosPecas.Should().Be(1);
         (await Jobs()).Single(j => j.Tag == "pecas2:2031-03-18").Insistente.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ConteudoDoDia_As0730_SoHoje_SemGuioes_UmaVez()
+    {
+        var client = await Admin();
+        async Task Pub(string titulo, DateTime quando)
+        {
+            var req = new GuardarPublicacaoRequest(ConteudoLinha.Reparacoes, ConteudoFormato.Texto, titulo, "Texto",
+                quando, null, null, null, new[] { new ConteudoDestinoInput(RedeSocial.Threads, null) }, Submeter: true);
+            (await client.PostAsJsonAsync("/api/conteudo", req)).EnsureSuccessStatusCode();
+        }
+        await Pub("Thread dados manhã", new DateTime(2031, 3, 20, 13, 0, 0, DateTimeKind.Utc));
+        await Pub("Thread noite", new DateTime(2031, 3, 20, 21, 30, 0, DateTimeKind.Utc));
+        await Pub("⚠️ NÃO APROVAR · GUIÃO teste", new DateTime(2031, 3, 20, 18, 0, 0, DateTimeKind.Utc));
+        await Pub("Thread de amanhã", new DateTime(2031, 3, 21, 13, 0, 0, DateTimeKind.Utc));
+        await Jobs();
+
+        (await Processar(new DateTime(2031, 3, 20, 7, 29, 0, DateTimeKind.Utc))).AvisosConteudo.Should().Be(0);
+        (await Processar(new DateTime(2031, 3, 20, 7, 30, 10, DateTimeKind.Utc))).AvisosConteudo.Should().Be(1);
+        var aviso = (await Jobs()).Single(j => j.Tag == "conteudo:2031-03-20");
+        aviso.Title.Should().StartWith("✅ Tens");
+        aviso.Url.Should().Be("/conteudo?tab=aprovar");
+        var linhas = aviso.Body;
+        linhas.Should().NotContain("GUIÃO").And.NotContain("amanhã");
+        (await Processar(new DateTime(2031, 3, 20, 7, 45, 0, DateTimeKind.Utc))).AvisosConteudo.Should().Be(0);
     }
 
     private async Task<AgendaAvisosResultado> Processar(DateTime agoraUtc)

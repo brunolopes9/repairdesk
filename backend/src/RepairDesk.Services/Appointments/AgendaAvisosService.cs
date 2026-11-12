@@ -5,7 +5,7 @@ using RepairDesk.Services.Push;
 
 namespace RepairDesk.Services.Appointments;
 
-public sealed record AgendaAvisosResultado(int Lembretes, int ResumosDia, int ResumosSemana, int AvisosPecas = 0);
+public sealed record AgendaAvisosResultado(int Lembretes, int ResumosDia, int ResumosSemana, int AvisosPecas = 0, int AvisosConteudo = 0);
 
 public interface IAgendaAvisosService
 {
@@ -29,6 +29,10 @@ public sealed class AgendaAvisosService : IAgendaAvisosService
     private const int HoraPecas1 = 10 * 60 + 40;
     private const int HoraPecas2 = 11 * 60 + 15;
     private const int LimitePecas = 11 * 60 + 30;
+    /// <summary>Sprint 640: às 07:30 o dono aprova só o que sai nesse dia (até às 10:00 se o servidor esteve parado).</summary>
+    private const int HoraConteudo = 7 * 60 + 30;
+    /// <summary>Guiões para gravar não se aprovam — o estúdio põe este prefixo no título.</summary>
+    public const string PrefixoGuiao = "⚠️ NÃO APROVAR";
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-PT");
     private static readonly TimeZoneInfo Lisboa = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");
 
@@ -59,7 +63,10 @@ public sealed class AgendaAvisosService : IAgendaAvisosService
             if (minuto is >= HoraPecas1 and < HoraPecas2) pecas = await AvisoPecasAsync(local, "pecas", false, ct);
             else if (minuto is >= HoraPecas2 and < LimitePecas) pecas = await AvisoPecasAsync(local, "pecas2", true, ct);
         }
-        return new AgendaAvisosResultado(lembretes, dia, semana, pecas);
+        var conteudo = 0;
+        var agoraMin = local.Hour * 60 + local.Minute;
+        if (agoraMin >= HoraConteudo && local.Hour < HoraLimiteResumo) conteudo = await ConteudoDoDiaAsync(local, ct);
+        return new AgendaAvisosResultado(lembretes, dia, semana, pecas, conteudo);
     }
 
     private async Task<int> LembretesAsync(DateTime agoraUtc, CancellationToken ct)
@@ -108,6 +115,32 @@ public sealed class AgendaAvisosService : IAgendaAvisosService
                 corpo,
                 "/vendas?vista=pecas",
                 chave) { Insistente = ultimo }, ct);
+            enviados++;
+        }
+        return enviados;
+    }
+
+    private async Task<int> ConteudoDoDiaAsync(DateTime local, CancellationToken ct)
+    {
+        var inicio = local.Date;
+        var chave = $"conteudo:{inicio:yyyy-MM-dd}";
+        var itens = (await _repo.ConteudoPorAprovarAteAsync(ParaUtc(inicio.AddDays(1)), ct))
+            .Where(c => !c.Titulo.TrimStart().StartsWith(PrefixoGuiao, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var enviados = 0;
+        foreach (var grupo in itens.GroupBy(c => c.TenantId))
+        {
+            if (!await Marcar(grupo.Key, chave, ct)) continue;
+            var lista = grupo.ToList();
+            const int max = 5;
+            var corpo = string.Join("\n", lista.Take(max).Select(c => $"{Hora(c.AgendadoPara)} {c.Titulo}"));
+            if (lista.Count > max) corpo += $"\n+ {lista.Count - max} mais";
+            await _push.EnqueueAsync(new StaffPushJob(
+                grupo.Key,
+                lista.Count == 1 ? "✅ Tens 1 peça para aprovar hoje" : $"✅ Tens {lista.Count} peças para aprovar hoje",
+                corpo,
+                "/conteudo?tab=aprovar",
+                chave), ct);
             enviados++;
         }
         return enviados;

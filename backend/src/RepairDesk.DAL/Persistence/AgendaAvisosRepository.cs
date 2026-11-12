@@ -29,6 +29,13 @@ public class AgendaAvisosRepository : IAgendaAvisosRepository
                 (v, i) => new PecaPorEncomendar(v.TenantId, v.Numero, v.Equipamento, i.Descricao, i.Quantidade))
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<ConteudoPorAprovar>> ConteudoPorAprovarAteAsync(DateTime ateUtc, CancellationToken ct = default)
+        => await _db.ConteudoPublicacoes.IgnoreQueryFilters().AsNoTracking()
+            .Where(p => !p.IsDeleted && p.Estado == ConteudoEstado.PorAprovar && p.AgendadoPara != null && p.AgendadoPara < ateUtc)
+            .OrderBy(p => p.AgendadoPara)
+            .Select(p => new ConteudoPorAprovar(p.TenantId, p.Titulo, p.AgendadoPara!.Value))
+            .ToListAsync(ct);
+
     public Task<bool> AvisoJaEnviadoAsync(Guid tenantId, string chave, CancellationToken ct = default)
         => _db.AgendaAvisos.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenantId && x.Chave == chave, ct);
 
