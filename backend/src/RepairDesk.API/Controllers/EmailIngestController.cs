@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -137,7 +138,8 @@ public class EmailIngestController : ControllerBase
     [AllowAnonymous]
     [RequestSizeLimit(30 * 1024 * 1024)]
     [Consumes("message/rfc822", "application/octet-stream")]
-    public async Task<IActionResult> ReceiveMime([FromServices] HostedServices.FaturasImapLeitor leitor, CancellationToken ct)
+    public async Task<IActionResult> ReceiveMime([FromServices] HostedServices.FaturasImapLeitor leitor,
+        [FromServices] IMemoryCache cache, CancellationToken ct)
     {
         var para = Request.Headers["X-Para"].ToString().Trim().ToLowerInvariant();
         var segredo = Request.Headers["X-Webhook-Secret"].ToString();
@@ -162,6 +164,20 @@ public class EmailIngestController : ControllerBase
         await _db.SaveChangesAsync(ct);
         await leitor.AvisarNovasAsync(tenant.Id, novos, ct);
         _logger.LogInformation("EmailIngest MIME: «{Assunto}» → {Pdfs} PDF(s), {Novos} novo(s), {Falhas} falha(s)", msg.Subject, pdfs, novos, falhas);
+
+        // Sprint 639: o Worker devolve ao Gmail o que falha; se uma regra de reencaminhar do Gmail/Hotmail
+        // o mandar outra vez para aqui, não devolver de novo — senão um PDF estragado andava em círculo.
+        var devolver = pdfs == 0 || falhas > 0;
+        if (devolver && !string.IsNullOrEmpty(msg.MessageId))
+        {
+            var chave = $"faturas-email-devolvido:{tenant.Id:N}:{msg.MessageId}";
+            if (cache.TryGetValue(chave, out _))
+            {
+                _logger.LogWarning("EmailIngest MIME: «{Assunto}» voltou depois de devolvido — não devolvo outra vez.", msg.Subject);
+                return Ok(new { pdfs, novos, falhas = 0, semPdf = false, repetido = true });
+            }
+            cache.Set(chave, true, TimeSpan.FromDays(3));
+        }
         return Ok(new { pdfs, novos, falhas, semPdf = pdfs == 0 });
     }
 

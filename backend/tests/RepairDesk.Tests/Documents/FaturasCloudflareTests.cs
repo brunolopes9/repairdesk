@@ -25,9 +25,10 @@ public class FaturasCloudflareTests : IClassFixture<RepairDeskApiFactory>
         (await admin.GetStringAsync("/api/faturas-email")).Should().NotContain(gerado.Segredo).And.Contain("\"temSegredo\":true");
 
         var anon = _factory.CreateClient();
-        async Task<HttpResponseMessage> Enviar(string segredo, string para)
+        async Task<HttpResponseMessage> Enviar(string segredo, string para, string? messageId = null)
         {
             var msg = new MimeMessage();
+            if (messageId is not null) msg.MessageId = messageId;
             msg.From.Add(MailboxAddress.Parse("forwarding-noreply@google.com"));
             msg.To.Add(MailboxAddress.Parse(para));
             msg.Subject = "Confirmação de reencaminhamento do Gmail";
@@ -46,6 +47,12 @@ public class FaturasCloudflareTests : IClassFixture<RepairDeskApiFactory>
         var ok = await Enviar(gerado.Segredo, "faturas@lopestech.pt");
         ok.StatusCode.Should().Be(HttpStatusCode.OK, await ok.Content.ReadAsStringAsync());
         (await ok.Content.ReadAsStringAsync()).Should().Contain("\"semPdf\":true");
+
+        // Sprint 639: o mesmo email devolvido que volta (regra do Gmail) não é devolvido outra vez.
+        var id = $"{Guid.NewGuid():N}@teste";
+        (await (await Enviar(gerado.Segredo, "faturas@lopestech.pt", id)).Content.ReadAsStringAsync()).Should().Contain("\"semPdf\":true");
+        var volta = await (await Enviar(gerado.Segredo, "faturas@lopestech.pt", id)).Content.ReadAsStringAsync();
+        volta.Should().Contain("\"semPdf\":false").And.Contain("\"repetido\":true");
     }
 
     private async Task<HttpClient> Admin()
