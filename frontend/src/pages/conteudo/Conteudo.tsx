@@ -10,7 +10,8 @@ import { FilaAprovacao } from './FilaAprovacao';
 
 type Tab = 'aprovar' | 'agenda' | 'videos' | 'historico';
 
-const ESTADOS_AGENDA = [ConteudoEstado.PorAprovar, ConteudoEstado.Aprovada, ConteudoEstado.APublicar, ConteudoEstado.ComFalhas];
+// Sprint 628: a agenda mostra o dia inteiro — o que já saiu (Publicada) também, para saber «a quantos ando».
+const ESTADOS_AGENDA = [ConteudoEstado.PorAprovar, ConteudoEstado.Aprovada, ConteudoEstado.APublicar, ConteudoEstado.ComFalhas, ConteudoEstado.Publicada];
 const ESTADOS_HISTORICO = [ConteudoEstado.Publicada, ConteudoEstado.Rejeitada, ConteudoEstado.Cancelada];
 
 /**
@@ -87,7 +88,7 @@ export default function Conteudo() {
       ) : tab === 'aprovar' ? (
         <FilaAprovacao itens={fila.data ?? []} />
       ) : tab === 'agenda' ? (
-        <Agenda itens={agenda.data ?? []} vazio="Nada agendado para os próximos 30 dias" />
+        <Agenda itens={agenda.data ?? []} vazio="Nada agendado para os próximos 30 dias" contadores />
       ) : (
         <Agenda itens={[...(historico.data ?? [])].reverse()} vazio="Ainda não há histórico" />
       )}

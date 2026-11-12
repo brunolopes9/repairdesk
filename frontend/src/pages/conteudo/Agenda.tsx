@@ -9,6 +9,7 @@ import {
   ConteudoFicheiroTipo,
   ConteudoFormato,
   FORMATO_LABEL,
+  RedeSocial,
   type ConteudoPublicacao,
   type HoraPublicacao,
 } from '../../lib/conteudo/types';
@@ -23,7 +24,47 @@ import { EstadoBadge, RedesChips, chaveDia, horaCurta, tituloDia } from './conte
  * linha abre a publicação inteira. Serve para ver de relance se as horas estão espalhadas
  * por manhã, tarde e noite.
  */
-export function Agenda({ itens, vazio }: { itens: ConteudoPublicacao[]; vazio: string }) {
+/**
+ * Sprint 628: tipo para os contadores do dia — Threads (texto com destino Threads), Stories, Carrossel, Reels, Posts.
+ */
+function tipoDe(p: ConteudoPublicacao): string {
+  if (p.formato === ConteudoFormato.Story) return 'Stories';
+  if (p.formato === ConteudoFormato.Carrossel) return 'Carrossel';
+  if (p.formato === ConteudoFormato.Reel) return 'Reels';
+  if (p.formato === ConteudoFormato.Texto) return p.destinos.some((d) => d.rede === RedeSocial.Threads) ? 'Threads' : 'Texto';
+  return 'Posts';
+}
+const ORDEM_TIPOS = ['Threads', 'Stories', 'Carrossel', 'Reels', 'Posts', 'Texto'];
+const CONTA = new Set<ConteudoEstado>([ConteudoEstado.PorAprovar, ConteudoEstado.Aprovada, ConteudoEstado.APublicar, ConteudoEstado.ComFalhas, ConteudoEstado.Publicada]);
+
+function ContadoresDia({ lista }: { lista: ConteudoPublicacao[] }) {
+  const porTipo = new Map<string, { saiu: number; total: number }>();
+  for (const p of lista) {
+    if (!CONTA.has(p.estado)) continue;
+    const t = tipoDe(p);
+    const c = porTipo.get(t) ?? { saiu: 0, total: 0 };
+    c.total++;
+    if (p.estado === ConteudoEstado.Publicada) c.saiu++;
+    porTipo.set(t, c);
+  }
+  const tipos = ORDEM_TIPOS.filter((t) => porTipo.has(t));
+  if (tipos.length === 0) return null;
+  return (
+    <div className="mb-2 flex flex-wrap gap-1.5" aria-label="Publicado face ao planeado">
+      {tipos.map((t) => {
+        const c = porTipo.get(t)!;
+        const completo = c.saiu >= c.total;
+        return (
+          <span key={t} className={`rounded-full px-2 py-0.5 text-xs font-medium ${completo ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'}`}>
+            {t} {c.saiu}/{c.total}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+export function Agenda({ itens, vazio, contadores = false }: { itens: ConteudoPublicacao[]; vazio: string; contadores?: boolean }) {
   const [aberta, setAberta] = useState<string | null>(null);
   const grupos = useMemo(() => {
     const m = new Map<string, ConteudoPublicacao[]>();
@@ -44,6 +85,7 @@ export function Agenda({ itens, vazio }: { itens: ConteudoPublicacao[]; vazio: s
             {tituloDia(dia)}
             <span className="text-xs font-normal text-zinc-500">{lista.length} {lista.length === 1 ? 'publicação' : 'publicações'}</span>
           </h3>
+          {contadores && <ContadoresDia lista={lista} />}
           <ul className="divide-y divide-zinc-100 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
             {lista.map((p) => (
               <li key={p.id}>
