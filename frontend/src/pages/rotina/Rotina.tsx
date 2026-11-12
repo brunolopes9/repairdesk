@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Clock, Pencil, Plus, SkipForward, Undo2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock, Pencil, Plus, SkipForward, Undo2 } from 'lucide-react';
 import { Button, EmptyState, PageHeader, SkeletonTable } from '../../components/ui';
 import { StaffPushToggle } from '../../components/StaffPushToggle';
 import { apiErrorMessage } from '../../lib/errors';
@@ -14,6 +14,7 @@ import RotinaItemForm from './RotinaItemForm';
 import ImportarRotina from './ImportarRotina';
 import PesoHistorico from './PesoHistorico';
 import PrioridadesHoje from './PrioridadesHoje';
+import RotinaVisaoGeral from './RotinaVisaoGeral';
 
 /**
  * Sprint 615 (Doc 98): «Agora» — o que é suposto estares a fazer, o que vem a seguir e o plano de hoje.
@@ -27,7 +28,17 @@ export default function Rotina() {
   const [pedido, setPedido] = useState<{ linha: RotinaDiaItem; tipo: 'adiar' | 'saltar' | 'peso' } | null>(null);
   const [agora, setAgora] = useState(() => Date.now());
 
-  const dia = useQuery({ queryKey: ['rotina', 'dia'], queryFn: () => rotinaApi.dia(), refetchInterval: 60_000 });
+  // Sprint 626: andar para dias anteriores para apontar o que se fez (até 7 dias para trás).
+  const [diaSel, setDiaSel] = useState<string | null>(null);
+  const dia = useQuery({ queryKey: ['rotina', 'dia', diaSel ?? 'hoje'], queryFn: () => rotinaApi.dia(diaSel ?? undefined), refetchInterval: 60_000 });
+  const ehHoje = diaSel == null;
+  function mudarDia(delta: number) {
+    const hojeIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Lisbon' });
+    const base = new Date(`${diaSel ?? hojeIso}T12:00:00`);
+    base.setDate(base.getDate() + delta);
+    const iso = base.toLocaleDateString('sv-SE');
+    setDiaSel(iso >= hojeIso ? null : iso);
+  }
   useEffect(() => {
     const t = setInterval(() => setAgora(Date.now()), 15_000);
     return () => clearInterval(t);
@@ -64,7 +75,7 @@ export default function Rotina() {
   const d = dia.data;
   const atual = d?.itens.find((l) => l.item.id === d.atualId) ?? null;
   const proximo = d?.itens.find((l) => l.item.id === d.proximoId) ?? null;
-  const percent = d && d.devidos > 0 ? Math.round((d.feitos / d.devidos) * 100) : null;
+  const percent = d && d.itens.length > 0 ? Math.round((d.feitos / d.itens.length) * 100) : null;
 
   function feito(linha: RotinaDiaItem) {
     if (linha.item.tipo === RotinaTipo.Peso) setPedido({ linha, tipo: 'peso' });
@@ -98,23 +109,33 @@ export default function Rotina() {
         />
       ) : d ? (
         <>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" aria-label="Dia anterior" onClick={() => mudarDia(-1)}><ChevronLeft size={16} /></Button>
+            <span className="text-sm font-medium">{ehHoje ? 'Hoje' : new Date(`${d.dia}T12:00:00`).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            {!ehHoje && <Button size="sm" variant="ghost" aria-label="Dia seguinte" onClick={() => mudarDia(1)}><ChevronRight size={16} /></Button>}
+            {!ehHoje && <Button size="sm" variant="secondary" onClick={() => setDiaSel(null)}>Voltar a hoje</Button>}
+          </div>
+          {ehHoje && (
           <section className="grid gap-3 lg:grid-cols-3">
             <AgoraCard titulo="Agora" linha={atual} agora={agora} vazio="Sem bloco a decorrer." onFeito={feito} />
             <AgoraCard titulo="A seguir" linha={proximo} agora={agora} vazio="Acabou o plano de hoje." />
             <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Hoje</p>
               <p className="mt-1 text-3xl font-bold text-zinc-950 dark:text-zinc-50">
-                {d.feitos}/{d.devidos}
+                {d.feitos}/{d.itens.length}
                 {percent != null && <span className="ml-2 text-base font-medium text-zinc-500">{percent}%</span>}
               </p>
-              <p className="text-sm text-zinc-500">cumprido até agora</p>
+              <p className="text-sm text-zinc-500">
+                {d.feitos >= d.itens.length ? 'Dia cumprido 💪' : 'Fora de horas também conta — vai fazendo e marcando.'}
+              </p>
               {d.meditacoesTotal > 0 && (
                 <p className="mt-2 text-sm">🧘 Meditação {d.meditacoesFeitas}/{d.meditacoesTotal}</p>
               )}
             </div>
           </section>
+          )}
 
-          <PrioridadesHoje />
+          {ehHoje && <PrioridadesHoje />}
 
           <ul className="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
             {d.itens.map((l) => (
@@ -124,6 +145,7 @@ export default function Rotina() {
                 destaque={l.item.id === d.atualId}
                 ocupado={registar.isPending}
                 onFeito={() => feito(l)}
+                podeAdiar={ehHoje}
                 onAdiar={() => (l.item.tipo === RotinaTipo.Limite
                   ? setPedido({ linha: l, tipo: 'adiar' })
                   : registar.mutate({ linha: l, req: { estado: RotinaEstado.Adiado, adiarMin: 15 } }))}
@@ -139,6 +161,8 @@ export default function Rotina() {
           )}
         </>
       ) : null}
+
+      <RotinaVisaoGeral />
 
       <TodosItens onEditar={setEditar} />
 
@@ -194,8 +218,8 @@ function minutos(ms: number) {
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`;
 }
 
-function LinhaDia({ linha, destaque, ocupado, onFeito, onAdiar, onSaltar, onDesfazer, onEditar }: {
-  linha: RotinaDiaItem; destaque: boolean; ocupado: boolean;
+function LinhaDia({ linha, destaque, ocupado, podeAdiar, onFeito, onAdiar, onSaltar, onDesfazer, onEditar }: {
+  linha: RotinaDiaItem; destaque: boolean; ocupado: boolean; podeAdiar: boolean;
   onFeito: () => void; onAdiar: () => void; onSaltar: () => void; onDesfazer: () => void; onEditar: () => void;
 }) {
   const { item, estado } = linha;
@@ -214,7 +238,7 @@ function LinhaDia({ linha, destaque, ocupado, onFeito, onAdiar, onSaltar, onDesf
           {estado === RotinaEstado.Feito && <span className="text-xs text-emerald-600">✓ feito{linha.valor != null && ` · ${linha.valor} kg`}</span>}
           {estado === RotinaEstado.Saltado && <span className="text-xs text-zinc-500">saltado{linha.motivo && ` — ${linha.motivo}`}</span>}
           {estado === RotinaEstado.Adiado && linha.adiadoAte && <span className="text-xs text-amber-600">adiado para {horaLocal(linha.adiadoAte)}{linha.motivo && ` — ${linha.motivo}`}</span>}
-          {linha.atrasado && !fechado && <span className="text-xs font-semibold text-rose-600">atrasado</span>}
+          {linha.atrasado && !fechado && <span className="text-xs font-medium text-amber-600">por fazer</span>}
         </p>
         {passos.length > 0 && (
           <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-zinc-500">
@@ -228,7 +252,7 @@ function LinhaDia({ linha, destaque, ocupado, onFeito, onAdiar, onSaltar, onDesf
         ) : (
           <>
             <Button size="sm" leftIcon={<Check size={14} />} disabled={ocupado} onClick={onFeito}>Feito</Button>
-            <Button size="sm" variant="secondary" leftIcon={<Clock size={14} />} disabled={ocupado} onClick={onAdiar}>+15</Button>
+            {podeAdiar && <Button size="sm" variant="secondary" leftIcon={<Clock size={14} />} disabled={ocupado} onClick={onAdiar}>+15</Button>}
             <Button size="sm" variant="ghost" leftIcon={<SkipForward size={14} />} disabled={ocupado} onClick={onSaltar}>Saltar</Button>
           </>
         )}

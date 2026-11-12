@@ -37,6 +37,8 @@ public interface IRotinaService
     Task<RotinaDiaItemDto> RegistarAsync(Guid itemId, DateOnly dia, RegistarRotinaRequest req, CancellationToken ct = default);
     Task<IReadOnlyList<RotinaValorDto>> ValoresAsync(Guid itemId, CancellationToken ct = default);
     /// <summary>Acrescenta vários itens de uma vez (tudo ou nada) — modelos de rotina e cópias de segurança.</summary>
+    /// <summary>Sprint 626: visão panorâmica dos últimos N dias (7–370) — percentagens, dias cumpridos e sequências.</summary>
+    Task<RotinaHistoricoDto> HistoricoAsync(int dias, CancellationToken ct = default);
     Task<IReadOnlyList<RotinaItemDto>> ImportarAsync(IReadOnlyList<GuardarRotinaItemRequest> itens, CancellationToken ct = default);
 }
 
@@ -76,6 +78,15 @@ public sealed class RotinaService : IRotinaService
         await _repo.AddItemAsync(item, ct);
         await _repo.SaveAsync(ct);
         return Dto(item);
+    }
+
+    public async Task<RotinaHistoricoDto> HistoricoAsync(int dias, CancellationToken ct = default)
+    {
+        dias = Math.Clamp(dias, 7, 370);
+        var hoje = RotinaCalendario.HojeLisboa(Agora);
+        var itens = await _repo.ItensDoUtilizadorAsync(UserId, ct);
+        var registos = await _repo.RegistosAsync(UserId, hoje.AddDays(-(dias - 1)), hoje, ct);
+        return RotinaHistorico.Calcular(itens, registos, hoje, dias);
     }
 
     public async Task<IReadOnlyList<RotinaItemDto>> ImportarAsync(IReadOnlyList<GuardarRotinaItemRequest> itens, CancellationToken ct = default)

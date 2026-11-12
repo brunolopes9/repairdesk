@@ -77,6 +77,34 @@ export interface RegistarRotina {
   adiarMin?: number | null;
 }
 
+export interface RotinaDiaResumo {
+  dia: string;
+  total: number;
+  feitos: number;
+  saltados: number;
+  percent: number;
+  cumprido: boolean;
+}
+
+export interface RotinaHabito {
+  itemId: string;
+  titulo: string;
+  tipo: RotinaTipo;
+  sequenciaAtual: number;
+  melhorSequencia: number;
+  feitos30: number;
+  previstos30: number;
+}
+
+export interface RotinaHistorico {
+  dias: RotinaDiaResumo[];
+  habitos: RotinaHabito[];
+  diasCumpridosSeguidos: number;
+  melhorSequenciaDias: number;
+  percentSemana: number;
+  percentMes: number;
+}
+
 export interface RotinaValor {
   dia: string;
   valor: number;
@@ -89,6 +117,7 @@ export const rotinaApi = {
   apagar: (id: string) => api.delete(`/rotina/itens/${id}`),
   valores: (id: string) => api.get<RotinaValor[]>(`/rotina/itens/${id}/valores`).then((r) => r.data),
   importar: (itens: GuardarRotinaItem[]) => api.post<RotinaItem[]>('/rotina/importar', itens).then((r) => r.data),
+  historico: (dias = 91) => api.get<RotinaHistorico>('/rotina/historico', { params: { dias } }).then((r) => r.data),
   dia: (dia?: string) => api.get<RotinaDia>('/rotina/dia', { params: dia ? { dia } : undefined }).then((r) => r.data),
   registar: (itemId: string, dia: string, req: RegistarRotina) =>
     api.post<RotinaDiaItem>(`/rotina/itens/${itemId}/dia/${dia}`, req).then((r) => r.data),

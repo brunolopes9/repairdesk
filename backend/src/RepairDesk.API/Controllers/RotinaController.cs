@@ -38,6 +38,11 @@ public sealed class RotinaController : ControllerBase
     [HttpGet("itens/{id:guid}/valores")]
     public async Task<ActionResult<IReadOnlyList<RotinaValorDto>>> Valores(Guid id, CancellationToken ct) => Ok(await _service.ValoresAsync(id, ct));
 
+    /// <summary>Sprint 626: visão panorâmica (dias, semanas, mês) e sequências.</summary>
+    [HttpGet("historico")]
+    public async Task<ActionResult<RotinaHistoricoDto>> Historico([FromQuery] int dias = 91, CancellationToken ct = default)
+        => Ok(await _service.HistoricoAsync(dias, ct));
+
     /// <summary>O dia (hoje por omissão): itens, estado, bloco atual e próximo.</summary>
     [HttpGet("dia")]
     public async Task<ActionResult<RotinaDiaDto>> Dia([FromQuery] DateOnly? dia, CancellationToken ct) => Ok(await _service.DiaAsync(dia, ct));
