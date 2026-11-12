@@ -38,7 +38,10 @@ public class StaffPushWorker : BackgroundService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var service = scope.ServiceProvider.GetRequiredService<IStaffPushService>();
-                await service.NotifyTenantAsync(job, stoppingToken);
+                var enviados = await service.NotifyTenantAsync(job, stoppingToken);
+                // Sprint 625: sem isto não se sabe se um aviso chegou a algum telemóvel (0 = ninguém ativou as notificações).
+                _logger.LogInformation("Push «{Tag}» enviado a {N} dispositivo(s){Para}.", job.Tag, enviados,
+                    job.UserId is null ? "" : " do utilizador");
             }
             catch (Exception ex)
             {
