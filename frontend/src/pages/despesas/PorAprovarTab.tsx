@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Camera, Download, FileText, Inbox, Link2, PackagePlus, ReceiptText, Upload, XCircle } from 'lucide-react';
+import { AlertTriangle, Camera, Download, FileText, Inbox, Link2, PackagePlus, ReceiptText, RefreshCw, Upload, XCircle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { comprasApi } from '../../lib/compras/api';
@@ -360,7 +360,7 @@ export default function PorAprovarTab() {
             <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
               Confidence "None" — Bruno precisa de abrir o PDF e meter valores manuais antes de aprovar.
             </p>
-            <ImportsTable data={failed} ordem={ordem} onOrdenar={alternar} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+            <ImportsTable data={failed} ordem={ordem} onOrdenar={alternar} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} onReprocess={(id) => reprocess.mutate(id)} />
           </section>
         )}
 
@@ -387,7 +387,7 @@ export default function PorAprovarTab() {
                   Sem importações pendentes. Faz upload manual ou aguarda n8n IMAP.
                 </div>
               ) : ready.length > 0 ? (
-                <ImportsTable data={ready} ordem={ordem} onOrdenar={alternar} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} />
+                <ImportsTable data={ready} ordem={ordem} onOrdenar={alternar} onLigar={setLigarTarget} onPdf={openPdf} onCompra={(x) => navigate(`/compras/nova?fatura=${x.id}`)} onDespesa={setApproveTarget} onReject={(x) => { setRejectTarget(x); setRejectReason(''); }} onReprocess={(id) => reprocess.mutate(id)} />
               ) : null
             ) : (
               history.isLoading ? (
@@ -455,7 +455,7 @@ export default function PorAprovarTab() {
 }
 
 function ImportsTable({
-  data, ordem, onOrdenar, onLigar, onPdf, onCompra, onDespesa, onReject,
+  data, ordem, onOrdenar, onLigar, onPdf, onCompra, onDespesa, onReject, onReprocess,
 }: {
   data: SupplierInvoiceImport[];
   ordem: Ordem<CampoFatura>;
@@ -465,6 +465,7 @@ function ImportsTable({
   onCompra: (x: SupplierInvoiceImport) => void;
   onDespesa: (x: SupplierInvoiceImport) => void;
   onReject: (x: SupplierInvoiceImport) => void;
+  onReprocess: (id: string) => void;
 }) {
   return (
     <div className="mt-3 overflow-x-auto">
@@ -481,7 +482,7 @@ function ImportsTable({
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {data.map((x) => (
-            <ImportRow key={x.id} x={x} onLigar={onLigar} onPdf={onPdf} onCompra={onCompra} onDespesa={onDespesa} onReject={onReject} />
+            <ImportRow key={x.id} x={x} onLigar={onLigar} onPdf={onPdf} onCompra={onCompra} onDespesa={onDespesa} onReject={onReject} onReprocess={onReprocess} />
           ))}
         </tbody>
       </table>
@@ -490,7 +491,7 @@ function ImportsTable({
 }
 
 function ImportRow({
-  x, onLigar, onPdf, onCompra, onDespesa, onReject,
+  x, onLigar, onPdf, onCompra, onDespesa, onReject, onReprocess,
 }: {
   x: SupplierInvoiceImport;
   onLigar: (importId: string) => void;
@@ -498,6 +499,8 @@ function ImportRow({
   onCompra: (x: SupplierInvoiceImport) => void;
   onDespesa: (x: SupplierInvoiceImport) => void;
   onReject: (x: SupplierInvoiceImport) => void;
+  /** Sprint 643: volta a ler o PDF com o leitor atual (ex.: depois de corrigir o leitor de um fornecedor). */
+  onReprocess: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasItems = x.items && x.items.length > 0;
@@ -551,6 +554,11 @@ function ImportRow({
               title="Serviços, ferramentas, contas: regista como despesa"
             >
               <ReceiptText size={14} /> Despesa
+            </button>
+            <button type="button" onClick={() => onReprocess(x.id)}
+              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              title="Ler outra vez — volta a ler o PDF (útil se a leitura saiu errada)" aria-label="Ler outra vez">
+              <RefreshCw size={14} />
             </button>
             <button type="button" onClick={() => onReject(x)} className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800/40 dark:bg-zinc-900 dark:text-rose-300" title="Rejeitar">
               <XCircle size={14} />
