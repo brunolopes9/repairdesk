@@ -87,6 +87,7 @@ public class DespesaService : IDespesaService
             Afetacao = req.Afetacao,
             Ambito = req.Ambito,
             Natureza = req.Natureza,
+            SemFaturaValida = req.SemFaturaValida,
         };
         await _repo.AddAsync(d, ct);
         await _repo.SaveAsync(ct);
@@ -114,6 +115,7 @@ public class DespesaService : IDespesaService
         d.Afetacao = req.Afetacao;
         d.Ambito = req.Ambito;
         d.Natureza = req.Natureza;
+        d.SemFaturaValida = req.SemFaturaValida;
 
         await _repo.SaveAsync(ct);
         return ToDto(d, _imports is null ? null : (await _imports.FindByDespesaIdAsync(id, ct))?.Id);
@@ -139,5 +141,5 @@ public class DespesaService : IDespesaService
 
     private static DespesaDto ToDto(Despesa d, Guid? importId) =>
         new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas,
-            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero, importId, d.Afetacao, d.Ambito, d.Natureza);
+            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero, importId, d.Afetacao, d.Ambito, d.Natureza, d.SemFaturaValida);
 }

@@ -123,6 +123,11 @@ export const apuramentoApi = {
 };
 
 /** Último trimestre já fechado (é esse que se declara). */
+/** Sprint 645: trimestre em que caem as vendas de hoje (o ecrã de IVA abre aqui). */
+export function trimestreAtual(hoje = new Date()): { ano: number; trimestre: number } {
+  return { ano: hoje.getFullYear(), trimestre: Math.floor(hoje.getMonth() / 3) + 1 };
+}
+
 export function trimestreAnterior(hoje = new Date()): { ano: number; trimestre: number } {
   const t = Math.floor(hoje.getMonth() / 3) + 1;
   return t === 1 ? { ano: hoje.getFullYear() - 1, trimestre: 4 } : { ano: hoje.getFullYear(), trimestre: t - 1 };

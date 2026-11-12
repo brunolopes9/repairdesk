@@ -20,7 +20,9 @@ public sealed record CreateDespesaRequest(
     int DeducaoPercent = 100,
     AfetacaoIva Afetacao = AfetacaoIva.LopesTech,
     DespesaAmbito Ambito = DespesaAmbito.Negocio,
-    DespesaNatureza Natureza = DespesaNatureza.Gasto);
+    DespesaNatureza Natureza = DespesaNatureza.Gasto,
+    /// <summary>Sprint 644: sem fatura com o NIF da empresa — só gestão, fora do fiscal.</summary>
+    bool SemFaturaValida = false);
 
 public sealed record UpdateDespesaRequest(
     string Descricao,
@@ -38,7 +40,9 @@ public sealed record UpdateDespesaRequest(
     bool ReverseCharge = false,
     AfetacaoIva Afetacao = AfetacaoIva.LopesTech,
     DespesaAmbito Ambito = DespesaAmbito.Negocio,
-    DespesaNatureza Natureza = DespesaNatureza.Gasto);
+    DespesaNatureza Natureza = DespesaNatureza.Gasto,
+    /// <summary>Sprint 644: sem fatura com o NIF da empresa — só gestão, fora do fiscal.</summary>
+    bool SemFaturaValida = false);
 
 /// <summary>Sprint 574: resumo do filtro inteiro (todas as páginas).</summary>
 public sealed record DespesasResumoDto(int Registos, int TotalCents, int IvaCents, int SemIva, int Recorrentes,
@@ -67,6 +71,8 @@ public sealed record DespesaDto(
     Guid? SupplierInvoiceImportId = null,
     AfetacaoIva Afetacao = AfetacaoIva.LopesTech,
     DespesaAmbito Ambito = DespesaAmbito.Negocio,
-    DespesaNatureza Natureza = DespesaNatureza.Gasto);
+    DespesaNatureza Natureza = DespesaNatureza.Gasto,
+    /// <summary>Sprint 644: sem fatura com o NIF da empresa — só gestão, fora do fiscal.</summary>
+    bool SemFaturaValida = false);
 
 

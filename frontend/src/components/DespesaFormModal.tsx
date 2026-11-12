@@ -54,6 +54,8 @@ export function useDespesaForm({
   const [afetacao, setAfetacao] = useState<AfetacaoIva>(AFETACAO.LopesTech);
   const [ambito, setAmbito] = useState<DespesaAmbito>(AMBITO.Negocio);
   const [natureza, setNatureza] = useState<DespesaNatureza>(NATUREZA.Gasto);
+  // Sprint 644: livro fiscal vs gestão — sem fatura com o NIF da empresa fica só na gestão.
+  const [semFaturaValida, setSemFaturaValida] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Sprint 586: a despesa aberta com o PDF anexado entretanto (o botão passa logo a "PDF da fatura").
   const [comFatura, setComFatura] = useState<Despesa | null>(null);
@@ -76,6 +78,7 @@ export function useDespesaForm({
       setAfetacao(editing.afetacao ?? AFETACAO.LopesTech);
       setAmbito(editing.ambito ?? AMBITO.Negocio);
       setNatureza(editing.natureza ?? NATUREZA.Gasto);
+      setSemFaturaValida(!!editing.semFaturaValida);
     } else if (open) {
       setDescricao('');
       setCategoria(initialCategoria);
@@ -92,6 +95,7 @@ export function useDespesaForm({
       setAfetacao(AFETACAO.LopesTech);
       setAmbito(AMBITO.Negocio);
       setNatureza(NATUREZA.Gasto);
+      setSemFaturaValida(false);
     }
     setError(null);
   }, [editing, initialCategoria, open]);
@@ -117,6 +121,7 @@ export function useDespesaForm({
         afetacao,
         ambito,
         natureza,
+        semFaturaValida,
       };
       if (editing) {
         return despesasApi.update(editing.id, {
@@ -141,7 +146,7 @@ export function useDespesaForm({
     editing, descricao, setDescricao, categoria, setCategoria, valor, setValor, fornecedor, setFornecedor,
     numeroEncomenda, setNumeroEncomenda, data, setData, notas, setNotas, isRecorrente, setIsRecorrente,
     periodicidadeMeses, setPeriodicidadeMeses, iva, setIva, deducao, setDeducao, reverseCharge, setReverseCharge,
-    afetacao, setAfetacao, ambito, setAmbito, natureza, setNatureza,
+    afetacao, setAfetacao, ambito, setAmbito, natureza, setNatureza, semFaturaValida, setSemFaturaValida,
     error, comFatura, setComFatura, save, valorCents, podeGravar: !!descricao && !!valorCents && !save.isPending,
   };
 }
@@ -200,7 +205,7 @@ export function DespesaCampos({ form, allowedCategorias, autoFocus = false, most
     editing, descricao, setDescricao, categoria, setCategoria, valor, setValor, fornecedor, setFornecedor,
     numeroEncomenda, setNumeroEncomenda, data, setData, notas, setNotas, isRecorrente, setIsRecorrente,
     periodicidadeMeses, setPeriodicidadeMeses, iva, setIva, deducao, setDeducao, reverseCharge, setReverseCharge,
-    afetacao, setAfetacao, ambito, setAmbito, natureza, setNatureza,
+    afetacao, setAfetacao, ambito, setAmbito, natureza, setNatureza, semFaturaValida, setSemFaturaValida,
     error, comFatura, setComFatura, valorCents,
   } = form;
   // Sprint 633: pessoais e obrigações têm categorias próprias; o negócio mantém as de sempre.
@@ -237,6 +242,16 @@ export function DespesaCampos({ form, allowedCategorias, autoFocus = false, most
             </select>
           </Field>
         </div>
+        {ambito === AMBITO.Negocio && (
+          <label className="flex items-start gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800"
+            title="Sem fatura em nome da empresa (com o NIF): conta nas Finanças, mas fica fora do IVA, do IRS e do resultado fiscal">
+            <input type="checkbox" className="mt-0.5" checked={semFaturaValida} onChange={e => setSemFaturaValida(e.target.checked)} />
+            <span>
+              <span className="font-medium">Sem fatura com o meu NIF — só gestão</span>
+              <span className="block text-xs text-zinc-500">Conta nas Finanças; fica fora do IVA e do IRS. Desmarca quando chegar a fatura certa.</span>
+            </span>
+          </label>
+        )}
         <Field label="Descrição *">
           <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} autoFocus={autoFocus} />
         </Field>

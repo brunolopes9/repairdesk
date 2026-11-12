@@ -292,6 +292,25 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
             fatura is null ? [$"ENC-{Guid.NewGuid():N}"[..12]] : null, null, portes, portesIva, null, null,
             linhas.Select(l => new CompraLinhaWriteRequest(null, $"Peça {Guid.NewGuid():N}"[..14], l.Qtd, l.Preco, null, null, null)).ToList()));
 
+    [Fact]
+    public async Task DespesaSemFaturaValida_FicaSoNaGestao_ForaDoIvaEDosPendentes()
+    {
+        // Sprint 644: um challenge de trading sem fatura com NIF não entra no apuramento nem nos pendentes.
+        var client = await AuthedClient();
+        var dia = new DateTime(2035, 2, 10);
+        await Despesa(client, "Renda 2035", 12300, dia, 2300, 100);
+        var antes = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2035&trimestre=1"))!;
+
+        var challenge = await Post<DespesaDto>(client, "/api/despesas", new CreateDespesaRequest("Challenge FTMO", DespesaCategoria.Outro, 43900, dia,
+            null, null, null, SemFaturaValida: true));
+        challenge.SemFaturaValida.Should().BeTrue();
+        var depois = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2035&trimestre=1"))!;
+
+        depois.Despesas.Despesas.Should().Be(antes.Despesas.Despesas);
+        depois.Despesas.Base.Should().Be(antes.Despesas.Base);
+        depois.Pendentes.Should().NotContain(p => p.Descricao.Contains("Challenge FTMO"));
+    }
+
     private static Task<DespesaDto> Despesa(HttpClient client, string descricao, int valorCents, DateTime data, int? ivaCents, int deducao, bool reverseCharge = false)
         => Post<DespesaDto>(client, "/api/despesas", new CreateDespesaRequest(descricao, DespesaCategoria.Outro, valorCents, data, null, null, null,
             ReverseCharge: reverseCharge, IvaCents: ivaCents, DeducaoPercent: deducao));

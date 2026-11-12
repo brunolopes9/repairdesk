@@ -1555,6 +1555,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<bool>("ReverseCharge")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("SemFaturaValida")
+                        .HasColumnType("bit");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 

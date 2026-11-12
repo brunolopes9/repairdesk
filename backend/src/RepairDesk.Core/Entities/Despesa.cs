@@ -66,4 +66,11 @@ public class Despesa : BaseEntity, ITenantEntity
     /// <summary>Sprint 633 (Doc 99): Negócio / Pessoal / Obrigação (SS, IVA e IRS pagos). Só «Negócio» entra no IVA e no IRS.</summary>
     public DespesaAmbito Ambito { get; set; } = DespesaAmbito.Negocio;
     public DespesaNatureza Natureza { get; set; } = DespesaNatureza.Gasto;
+
+    /// <summary>
+    /// Sprint 644 (livros fiscal/gestão): sem fatura com o NIF da empresa (ex.: challenge de trading, gasolina sem
+    /// fatura). Fica só na gestão financeira (Finanças) — fora do apuramento de IVA, dos pendentes, do «Resultado da
+    /// loja» e da regra dos 15% do IRS. «Promover a fiscal» = voltar a false quando chegar a fatura certa.
+    /// </summary>
+    public bool SemFaturaValida { get; set; }
 }

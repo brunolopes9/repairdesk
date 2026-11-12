@@ -676,6 +676,12 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         var ivaLido = entity.ParsedSubtotalCents is { } sub && entity.ParsedTotalCents is { } tot && tot == req.ValorCents && sub > 0 && tot >= sub
             ? tot - sub : (int?)null;
 
+        // Sprint 644: só é documento fiscal se a fatura estiver em nome da empresa (NIF no PDF). Sem NIF → só gestão.
+        var semFaturaValida = !await TemNifProprioAsync(entity, tenantId, ct);
+        var notas = semFaturaValida
+            ? string.Join(" ", new[] { req.Notas, "Sem fatura válida (o PDF não tem o NIF da empresa) — só gestão, não dedutível." }.Where(s => !string.IsNullOrWhiteSpace(s)))
+            : req.Notas;
+
         // Cria despesa real. Bruno pode ter editado o total/categoria no UI antes de aprovar.
         var despesa = await _despesas.CreateAsync(new Despesas.CreateDespesaRequest(
             Descricao: req.Descricao,
@@ -684,9 +690,10 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             Data: req.Data ?? entity.ParsedDocumentDate ?? entity.CreatedAt,
             Fornecedor: req.Fornecedor ?? entity.FornecedorNameRaw,
             NumeroEncomenda: req.NumeroEncomenda ?? entity.ParsedDocumentNumber,
-            Notas: req.Notas,
+            Notas: notas,
             ReverseCharge: reverseCharge,
-            IvaCents: reverseCharge ? 0 : req.IvaCents ?? ivaLido), ct);
+            IvaCents: reverseCharge ? 0 : req.IvaCents ?? ivaLido,
+            SemFaturaValida: semFaturaValida), ct);
 
         entity.Status = SupplierInvoiceImportStatus.Approved;
         entity.DespesaId = despesa.Id;
@@ -991,6 +998,30 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             Items = items.Select(i => i.Sku is { } sku && (Compacto(sku) is not { Length: >= 3 } c || !texto.Contains(c, StringComparison.Ordinal))
                 ? i with { Sku = null } : i).ToList(),
         };
+    }
+
+    /// <summary>
+    /// Sprint 644: o PDF tem o NIF da empresa (com ou sem «PT», com espaços)? Sem NIF configurado, sem PDF legível
+    /// ou foto (sem texto) → assume que sim, para não tirar do fiscal por falta de dados.
+    /// </summary>
+    private async Task<bool> TemNifProprioAsync(SupplierInvoiceImport entity, Guid tenantId, CancellationToken ct)
+    {
+        var nif = new string((await NifProprioAsync(tenantId, ct) ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (nif.Length < 9 || string.IsNullOrEmpty(entity.PdfRelativePath)) return true;
+        try
+        {
+            var bytes = await _storage.ReadAsync(entity.PdfRelativePath, ct);
+            using var ms = new MemoryStream(bytes);
+            var texto = PdfTextExtractor.Extract(ms, "supplier-invoice.pdf").Text;
+            if (string.IsNullOrWhiteSpace(texto)) return true;
+            var soDigitos = new string(texto.Where(char.IsDigit).ToArray());
+            return soDigitos.Contains(nif, StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Não consegui ler o PDF {Id} para confirmar o NIF", entity.Id);
+            return true;
+        }
     }
 
     /// <summary>Sprint 579: o NIF do próprio negócio — aparece em todas as faturas como cliente, nunca é o emitente.</summary>

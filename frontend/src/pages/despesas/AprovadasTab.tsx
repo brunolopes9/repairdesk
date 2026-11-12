@@ -349,7 +349,12 @@ export default function AprovadasTab({
                       recorrente
                     </span>
                   )}
-                  {d.ivaCents == null && !d.reverseCharge && (
+                  {d.semFaturaValida ? (
+                    <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium text-violet-800 dark:bg-violet-950/40 dark:text-violet-300"
+                      title="Sem fatura com o NIF da empresa: conta nas Finanças, fica fora do IVA e do IRS">
+                      só gestão
+                    </span>
+                  ) : d.ivaCents == null && !d.reverseCharge && (
                     <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
                       IVA por indicar
                     </span>

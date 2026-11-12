@@ -117,6 +117,8 @@ export interface Despesa {
   afetacao?: AfetacaoIva;
   ambito?: DespesaAmbito;
   natureza?: DespesaNatureza;
+  /** Sprint 644: sem fatura com o NIF da empresa — só gestão (fora do IVA/IRS). */
+  semFaturaValida?: boolean;
   /** Sprint 584: nº visível (sequencial por empresa), como nas compras. */
   numero?: number;
   /** Sprint 586: fatura (PDF ou foto) desta despesa — abre em supplierInvoicesApi.pdfPath; null = por anexar. */
@@ -140,6 +142,7 @@ export interface CreateDespesaForm {
   afetacao?: AfetacaoIva;
   ambito?: DespesaAmbito;
   natureza?: DespesaNatureza;
+  semFaturaValida?: boolean;
 }
 
 export type DespesasPage = PagedResult<Despesa>;

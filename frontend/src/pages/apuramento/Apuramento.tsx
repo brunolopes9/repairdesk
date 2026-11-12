@@ -5,7 +5,7 @@ import { AlertTriangle, BadgeCheck, CalendarClock, CheckCircle2, ChevronLeft, Ch
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { toast } from '../../lib/toast';
-import { apuramentoApi, prazos, trimestreAnterior, type ApuramentoPendente, type TipoPendente } from '../../lib/apuramento/api';
+import { apuramentoApi, prazos, trimestreAnterior, trimestreAtual, type ApuramentoPendente, type TipoPendente } from '../../lib/apuramento/api';
 import { formatEur } from '../../lib/compras/format';
 import { apiErrorMessage } from '../../lib/errors';
 import EstimativasCard from './EstimativasCard';
@@ -25,7 +25,14 @@ const dataPt = (d: Date | string) => new Date(d).toLocaleDateString('pt-PT');
  * Mostra primeiro o que interessa (quanto pagar e até quando) e o que falta tratar; o detalhe vem a seguir.
  */
 export default function Apuramento() {
-  const [periodo, setPeriodo] = useState(trimestreAnterior);
+  // Sprint 645: abre no trimestre atual (onde entram as vendas de hoje); o anterior fica a um toque enquanto houver prazo.
+  const [periodo, setPeriodo] = useState(trimestreAtual);
+  const atual = trimestreAtual();
+  const anterior = trimestreAnterior();
+  const prazoAnterior = prazos(anterior.ano, anterior.trimestre);
+  const noAtual = periodo.ano === atual.ano && periodo.trimestre === atual.trimestre;
+  const noAnterior = periodo.ano === anterior.ano && periodo.trimestre === anterior.trimestre;
+  const anteriorEmPrazo = new Date() <= prazoAnterior.pagamento;
   const q = useQuery({
     queryKey: ['apuramento', periodo.ano, periodo.trimestre],
     queryFn: () => apuramentoApi.trimestre(periodo.ano, periodo.trimestre),
@@ -66,6 +73,25 @@ export default function Apuramento() {
       {q.isLoading ? <SkeletonCard /> : q.isError || !r ? <p className="text-sm text-rose-600">{apiErrorMessage(q.error)}</p> : (
         <div className={`space-y-4 ${q.isFetching ? 'opacity-60' : ''}`}>
           <LembretesFiscais />
+          {!noAtual && (
+            <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+              <span>
+                Estás a ver o <strong>{periodo.trimestre}.º trimestre de {periodo.ano}</strong>
+                {noAnterior && anteriorEmPrazo ? ` (declaração até ${dataPt(prazoAnterior.entrega)})` : ''}. As vendas de hoje entram no {atual.trimestre}.º trimestre.
+              </span>
+              <button type="button" onClick={() => setPeriodo(atual)} className="min-h-9 shrink-0 rounded-md border border-amber-300 bg-white px-3 text-xs font-medium hover:bg-amber-100 dark:border-amber-800 dark:bg-zinc-900">
+                Ver o trimestre atual
+              </button>
+            </div>
+          )}
+          {noAtual && anteriorEmPrazo && (
+            <div className="flex flex-col gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 sm:flex-row sm:items-center sm:justify-between dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200">
+              <span>A declaração do <strong>{anterior.trimestre}.º trimestre</strong> é até {dataPt(prazoAnterior.entrega)} (pagamento até {dataPt(prazoAnterior.pagamento)}).</span>
+              <button type="button" onClick={() => setPeriodo(anterior)} className="min-h-9 shrink-0 rounded-md border border-sky-300 bg-white px-3 text-xs font-medium hover:bg-sky-100 dark:border-sky-800 dark:bg-zinc-900">
+                Ver o {anterior.trimestre}.º trimestre
+              </button>
+            </div>
+          )}
           {r.fecho && (
             <div className={`flex flex-col gap-2 rounded-xl border p-3 text-sm sm:flex-row sm:items-center sm:justify-between ${Math.abs(r.fecho.diferenca) >= 0.01
               ? 'border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200'

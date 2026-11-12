@@ -509,7 +509,9 @@ public static class InvoiceLayoutParsers
                 var qtd = (int)Math.Max(1, Math.Round(Dot(m.Groups["qtd"].Value)));
                 // O código é o 1.º token (só dígitos ou MAIÚSCULAS_COM_TRAÇOS, ex.: "35098", "ASFALTO_NORMAL").
                 var desc = Regex.Replace(string.Join(' ', buffer.Where(l => l.Length > 0)).Trim(), @"^[A-Z0-9_\-]{3,}\s+", string.Empty).Trim();
-                items.Add(new SupplierPdfItem(desc, qtd, ToCents(m.Groups["tot"].Value)!.Value));
+                var tot = ToCents(m.Groups["tot"].Value)!.Value;
+                // Portes oferecidos vêm como linha a 0,00 € — não é um artigo.
+                if (tot != 0) items.Add(new SupplierPdfItem(desc, qtd, tot));
                 buffer.Clear();
             }
             var total = ToCents(Match(text, @"^Total\s+(-?[\d.]+)\s*€"));
