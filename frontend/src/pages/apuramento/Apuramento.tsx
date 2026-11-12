@@ -216,11 +216,12 @@ export default function Apuramento() {
             <SectionCard title="Campos da declaração periódica" bodyClassName="p-0">
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {r.campos.map((c, i) => (
+                  {/* Sprint 648 (F6b): só os campos com valor (e sempre o Quadro 06), para copiar para a declaração. */}
+                  {r.campos.filter((c) => c.valor !== 0 || c.campo === '06').map((c, i) => (
                     <tr key={i}>
                       <td className="w-12 px-4 py-2 text-center font-mono text-xs text-zinc-500">{c.campo}</td>
                       <td className="py-2 pr-2">{c.descricao}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{formatEur(c.valor)}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">{c.campo === '06' ? (c.valor ? 'SIM' : 'NÃO') : formatEur(c.valor)}</td>
                     </tr>
                   ))}
                 </tbody>

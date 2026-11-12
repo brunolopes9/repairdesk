@@ -55,6 +55,13 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
 
         var r = (await client.GetFromJsonAsync<ApuramentoDto>("/api/apuramento?ano=2031&trimestre=2"))!;
 
+        // Sprint 648 (F6b): os campos numerados batem com os totais (liquidado = 2+4+6+13+17; dedutível = 20+22+24).
+        decimal C(string n) => r.Campos.Where(c => c.Campo == n).Sum(c => c.Valor);
+        (C("2") + C("4") + C("6") + C("13") + C("17")).Should().BeApproximately(r.IvaLiquidado, 0.02m);
+        (C("20") + C("22") + C("24")).Should().BeApproximately(r.IvaDedutivel, 0.02m);
+        C("12").Should().Be(100m);   // compra UE de 5 × 20
+        C("16").Should().Be(10m);    // software UE em autoliquidação
+
         r.De.Should().Be(new DateTime(2031, 4, 1));
         r.Ate.Should().Be(new DateTime(2031, 6, 30));
         r.Faturas.Should().Be(2);
@@ -84,7 +91,7 @@ public class ApuramentoApiTests : IClassFixture<RepairDeskApiFactory>
 
         r.Campos.Single(c => c.Campo == "3").Valor.Should().Be(100m);
         r.Campos.Single(c => c.Campo == "4").Valor.Should().Be(23m);
-        r.Campos.Single(c => c.Campo == "24").Valor.Should().Be(28.75m);
+        r.Campos.Single(c => c.Campo == "24").Valor.Should().Be(31.05m); // Sprint 648: inclui o IVA autoliquidado dedutível das despesas (software UE 2,30)
         r.Pendentes.Select(p => p.Tipo).Should().Contain(["compra_sem_fatura", "despesa_sem_iva"]);
     }
 

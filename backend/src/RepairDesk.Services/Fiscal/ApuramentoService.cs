@@ -179,11 +179,14 @@ public class ApuramentoService : IApuramentoService
     private readonly ITenantRepository _tenants;
     private readonly ITenantContext _tenant;
     private readonly IApuramentoFechoRepository? _fechos;
+    private readonly IFornecedorRepository? _fornecedores;
 
     public ApuramentoService(IVendaRepository vendas, ICompraRepository compras, IDespesaRepository despesas,
-        ITenantRepository tenants, ITenantContext tenant, IApuramentoFechoRepository? fechos = null)
+        ITenantRepository tenants, ITenantContext tenant, IApuramentoFechoRepository? fechos = null,
+        IFornecedorRepository? fornecedores = null)
     {
         _fechos = fechos;
+        _fornecedores = fornecedores;
         _vendas = vendas;
         _compras = compras;
         _despesas = despesas;
@@ -389,9 +392,16 @@ public class ApuramentoService : IApuramentoService
         // Sprint 644: nem as que não têm fatura com o NIF da empresa (só gestão).
         var despesas = (await _despesas.ListPeriodoAsync(de, ate, ct)).Where(d => d.Ambito == DespesaAmbito.Negocio && !d.SemFaturaValida).ToList();
         var tenantFiscal = await TenantAsync(ct);
+        // Sprint 648 (F6b): regime do fornecedor da despesa, pelo nome — distingue autoliquidação UE (campos 16/17)
+        // de fora da UE (campos 3/4 + Quadro 06-A campo 98).
+        var regimes = _fornecedores is null ? new Dictionary<string, RegimeIvaFornecedor>()
+            : (await _fornecedores.ListByTenantAsync(true, ct)).GroupBy(f => f.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().RegimeIva, StringComparer.OrdinalIgnoreCase);
         decimal baseDesp = 0, ivaDed = 0, ivaNaoDed = 0, baseAuto = 0, ivaAutoDedDesp = 0;
+        decimal baseAutoServUe = 0, baseAutoForaUe = 0, ded20 = 0, ded24 = 0;
         foreach (var d in despesas)
         {
+            var investimento = d.Natureza == DespesaNatureza.Investimento;
             var valor = d.ValorCents / 100m;
             if (d.Categoria is DespesaCategoria.Pecas or DespesaCategoria.PecasUsadas)
                 pendentes.Add(new("despesa_pecas", d.Id, $"{d.Descricao} — peças como despesa: confirma que não está também em Compras", valor, d.Data));
@@ -404,6 +414,9 @@ public class ApuramentoService : IApuramentoService
                 baseDesp += valor;
                 ivaAutoDedDesp += ivaAuto * fracao;
                 ivaNaoDed += ivaAuto - ivaAuto * fracao;
+                var foraUe = d.Fornecedor is { } fn && regimes.TryGetValue(fn.Trim(), out var rg) && rg == RegimeIvaFornecedor.ForaUe;
+                if (foraUe) baseAutoForaUe += valor; else baseAutoServUe += valor;
+                if (investimento) ded20 += ivaAuto * fracao; else ded24 += ivaAuto * fracao;
                 continue;
             }
             if (d.IvaCents is not { } ivaCents)
@@ -416,6 +429,7 @@ public class ApuramentoService : IApuramentoService
             var iva = ivaCents / 100m;
             var dedutivel = Euros(iva * fracao);
             ivaDed += dedutivel;
+            if (investimento) ded20 += dedutivel; else ded24 += dedutivel;
             ivaNaoDed += iva - dedutivel;
             baseDesp += valor - iva;
         }
@@ -456,19 +470,39 @@ public class ApuramentoService : IApuramentoService
 
         decimal BaseTaxa(decimal t) => porTaxa.Where(x => x.Taxa == t).Sum(x => x.Base);
         decimal IvaTaxa(decimal t) => porTaxa.Where(x => x.Taxa == t).Sum(x => x.Iva);
+        // Sprint 648 (F6b, regras do Claude fiscal — Contexto/specs/F6b): campos numerados da declaração periódica.
+        // Vendas a 0%: serviço B2B a SP da UE → 7; fora da UE/exportação → 8; payouts de prop firm da UE → 9.
+        decimal c7 = 0, c8 = 0, c9 = 0;
+        foreach (var v in faturadas)
+            foreach (var i in v.Items.Where(i => i.IvaRate == 0 && !i.PorFora))
+            {
+                var b = BaseSemIva(i);
+                if (!ClienteUe(v.Cliente?.Nif)) c8 += b;
+                else if (v.Atividade == VendaAtividade.Trading) c9 += b;
+                else c7 += b;
+            }
+        var c3 = BaseTaxa(23) + Euros(baseAutoForaUe);
+        var c4 = IvaTaxa(23) + Euros(baseAutoForaUe * Taxa);
         var campos = new List<ApuramentoCampoDto>
         {
             new("1", "Base tributável à taxa reduzida (6%)", BaseTaxa(6)),
             new("2", "IVA liquidado à taxa reduzida (6%)", IvaTaxa(6)),
             new("5", "Base tributável à taxa intermédia (13%)", BaseTaxa(13)),
             new("6", "IVA liquidado à taxa intermédia (13%)", IvaTaxa(13)),
-            new("3", "Base tributável à taxa normal (23%)", BaseTaxa(23)),
-            new("4", "IVA liquidado à taxa normal (23%)", IvaTaxa(23)),
-            new("—", "Vendas sem IVA (0%, com motivo de isenção)", BaseTaxa(0)),
-            new("—", "Aquisições intracomunitárias e serviços em autoliquidação (base)", Euros(baseUe + baseAuto)),
-            new("—", "IVA autoliquidado (liquida-se tudo; deduz-se conforme a afetação)", ivaAutoliquidado),
-            new("22", "IVA dedutível — existências à taxa normal (peças e portes nacionais)", Euros(ivaNac + ivaPortes)),
-            new("24", "IVA dedutível — outros bens e serviços (despesas)", despesasDto.IvaDedutivel),
+            new("3", "Base tributável à taxa normal (23%) — vendas + serviços de fora da UE em autoliquidação", Euros(c3)),
+            new("4", "IVA liquidado à taxa normal (23%)", Euros(c4)),
+            new("7", "Transmissões/serviços isentos com direito à dedução — clientes UE (vai também à declaração recapitulativa)", Euros(c7)),
+            new("8", "Operações isentas — clientes fora da UE / exportações", Euros(c8)),
+            new("9", "Operações isentas sem direito à dedução — payouts UE (confirmar com a contabilista)", Euros(c9)),
+            new("12", "Aquisições intracomunitárias de bens (base)", Euros(baseUe)),
+            new("13", "IVA das aquisições intracomunitárias de bens (23%)", Euros(baseUe * Taxa)),
+            new("16", "Serviços adquiridos a fornecedores da UE em autoliquidação (base)", Euros(baseAutoServUe)),
+            new("17", "IVA dos serviços UE autoliquidados (23%)", Euros(baseAutoServUe * Taxa)),
+            new("20", "IVA dedutível — imobilizado (despesas marcadas «Investimento»)", Euros(ded20)),
+            new("22", "IVA dedutível — existências (peças: nacionais + UE autoliquidadas + portes)", Euros(ivaNac + ivaPortes + ivaAutoUe)),
+            new("24", "IVA dedutível — outros bens e serviços (despesas)", Euros(ded24)),
+            new("06", baseAutoForaUe > 0 ? "Quadro 06 — liquidou imposto como adquirente: SIM" : "Quadro 06 — liquidou imposto como adquirente: NÃO", baseAutoForaUe > 0 ? 1 : 0),
+            new("98", "Quadro 06-A — base das aquisições de serviços a fornecedores de fora da UE", Euros(baseAutoForaUe)),
         };
 
         return new ApuramentoDto(ano, trimestre, de, ate.AddDays(-1), porTaxa, faturadas.Count, Euros(ivaLiquidado), compras, despesasDto,
