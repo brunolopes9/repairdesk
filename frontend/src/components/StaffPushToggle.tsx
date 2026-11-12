@@ -4,7 +4,7 @@ import { useStaffPush } from '../lib/push/useStaffPush';
 
 /**
  * Sprint 366: cartão para ligar/desligar notificações push NESTE dispositivo (telemóvel
- * ou desktop). Avisa de pedidos online novos mesmo com a app fechada/em segundo plano.
+ * ou desktop). Avisos da rotina, da agenda e dos pedidos online, mesmo com a app fechada/em segundo plano.
  * Para o telemóvel: instala primeiro a app (Adicionar ao ecrã principal) e ativa aqui.
  */
 export function StaffPushToggle() {

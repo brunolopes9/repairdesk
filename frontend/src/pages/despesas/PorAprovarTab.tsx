@@ -154,6 +154,8 @@ export default function PorAprovarTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
       qc.invalidateQueries({ queryKey: ['supplier-invoices-history'] });
+      // A correspondência com as compras depende do que foi lido — tem de ser recalculada.
+      qc.invalidateQueries({ queryKey: ['fatura-correspondencia'] });
       toast.success('Reprocessado — verifica items na lista pendente.');
     },
     onError: (err) => toast.fromError(err, 'Falhou reprocesso.'),
@@ -504,10 +506,11 @@ function ImportRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasItems = x.items && x.items.length > 0;
-  const corr = useCorrespondencia(x.id, x.status === 'Pending');
-  const podeLigar = (corr.data?.candidatos.length ?? 0) > 0;
   // Sprint 649: o fornecedor diz o que as faturas dele são (4Phones → compra, MEO → despesa). Esse botão fica em destaque.
   const tipo = x.fornecedorDefaultAction === 'stock' ? 'compra' : x.fornecedorDefaultAction === 'despesa' ? 'despesa' : null;
+  // Faturas de despesa não têm compra para ligar — não vale a pena procurar correspondência.
+  const corr = useCorrespondencia(x.id, x.status === 'Pending' && tipo !== 'despesa');
+  const podeLigar = (corr.data?.candidatos.length ?? 0) > 0;
   const btnCheio = 'flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium text-white';
   const btnVazio = 'flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800';
   return (
@@ -527,7 +530,7 @@ function ImportRow({
         <td className="px-2 py-2">
           <div className="flex flex-col items-start gap-1">
             <ConfidenceBadge value={x.parseConfidence} />
-            {x.status === 'Pending' && <CorrespondenciaBadge data={corr.data} />}
+            {x.status === 'Pending' && tipo !== 'despesa' && <CorrespondenciaBadge data={corr.data} />}
           </div>
         </td>
         <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>

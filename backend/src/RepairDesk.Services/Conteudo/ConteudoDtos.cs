@@ -19,8 +19,10 @@ public sealed record ConteudoFicheiroDto(
     string? Notas,
     DateTime? ProcessadoEm,
     DateTime CreatedAt,
-    /// <summary>URL temporário para ver/descarregar (pré-assinado no R2).</summary>
-    string? Url);
+    /// <summary>URL temporário para ver (pré-assinado no R2). É também o que a publicação nas redes usa.</summary>
+    string? Url,
+    /// <summary>URL temporário que obriga o browser a descarregar com o nome original (botão «Descarregar»).</summary>
+    string? UrlDescarregar = null);
 
 public sealed record ConteudoDestinoDto(
     Guid Id,

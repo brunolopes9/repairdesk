@@ -706,12 +706,19 @@ public sealed class ConteudoService : IConteudoService
     private ConteudoFicheiroDto ToDto(ConteudoFicheiro f) => new(
         f.Id, f.PublicacaoId, f.Ordem, f.Tipo, f.Estado, f.NomeOriginal, f.ContentType, f.Bytes,
         f.Largura, f.Altura, f.DuracaoSeg, f.Notas, f.ProcessadoEm, f.CreatedAt,
-        f.Estado == ConteudoFicheiroEstado.Pronto ? UrlLeitura(f) : null);
+        f.Estado == ConteudoFicheiroEstado.Pronto ? UrlLeitura(f) : null,
+        f.Estado == ConteudoFicheiroEstado.Pronto ? UrlDescarregar(f) : null);
 
     private string UrlLeitura(ConteudoFicheiro f)
         => _direct is not null
             ? _direct.CreateDownloadUrl(f.StorageKey, ValidadeLeitura)
             : _signer.CreatePath(f.Id, "down", DateTimeOffset.UtcNow.Add(ValidadeLeitura));
+
+    // Link à parte para descarregar: o de leitura não pode levar «attachment» porque as redes sociais também o usam.
+    private string UrlDescarregar(ConteudoFicheiro f)
+        => _direct is not null
+            ? _direct.CreateDownloadUrl(f.StorageKey, ValidadeLeitura, f.NomeOriginal)
+            : UrlLeitura(f);
 
     private static string Nome(ConteudoEstado e) => e switch
     {

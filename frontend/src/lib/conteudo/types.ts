@@ -50,6 +50,8 @@ export interface ConteudoFicheiro {
   processadoEm: string | null;
   createdAt: string;
   url: string | null;
+  /** Força o download com o nome original (o «url» abre no separador). */
+  urlDescarregar?: string | null;
 }
 
 export interface ConteudoDestino {

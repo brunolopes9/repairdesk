@@ -311,7 +311,7 @@ function FicheiroTile({ f, onApagar, aApagar }: { f: ConteudoFicheiro; onApagar:
         <div className="flex gap-1 pt-1">
           {f.url && (
             <a
-              href={f.url}
+              href={f.urlDescarregar ?? f.url}
               download={f.nomeOriginal}
               className="grid h-9 w-9 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               title="Descarregar"
