@@ -18,7 +18,13 @@ public class DespesaRepository : IDespesaRepository
         => _db.Despesas.FirstOrDefaultAsync(d => d.Id == id, ct);
 
     public async Task<IReadOnlyList<Despesa>> FindByNumerosAsync(IReadOnlyCollection<int> numeros, CancellationToken ct = default)
-        => await _db.Despesas.Where(d => numeros.Contains(d.Numero)).ToListAsync(ct);
+    {
+        // Uma consulta por nº (como a pesquisa da lista): o «Contains» numa coleção não encontrava nada em produção.
+        var lista = new List<Despesa>();
+        foreach (var n in numeros.Distinct())
+            if (await _db.Despesas.FirstOrDefaultAsync(d => d.Numero == n, ct) is { } d) lista.Add(d);
+        return lista;
+    }
 
     public async Task<(IReadOnlyList<Despesa> Items, int Total)> SearchAsync(
         string? query, DespesaCategoria? categoria, IReadOnlyCollection<DespesaCategoria>? categoriaIn,
