@@ -5,6 +5,7 @@ import { useConfirm } from '../../components/ConfirmDialog';
 import { Button, EmptyState } from '../../components/ui';
 import { conteudoApi } from '../../lib/conteudo/api';
 import {
+  ConteudoDestinoEstado,
   ConteudoEstado,
   ConteudoFicheiroTipo,
   ConteudoFormato,
@@ -37,14 +38,20 @@ function tipoDe(p: ConteudoPublicacao): string {
 const ORDEM_TIPOS = ['Threads', 'Stories', 'Carrossel', 'Reels', 'Posts', 'Texto'];
 const CONTA = new Set<ConteudoEstado>([ConteudoEstado.PorAprovar, ConteudoEstado.Aprovada, ConteudoEstado.APublicar, ConteudoEstado.ComFalhas, ConteudoEstado.Publicada]);
 
+/** Sprint 631: cartões de guião (para o Bruno gravar) não são publicações — ficam fora das contagens. */
+export const ehGuiao = (p: ConteudoPublicacao) => /^⚠️?\s*NÃO APROVAR/i.test(p.titulo) || /GUI[ÃA]O/.test(p.titulo);
+/** Sprint 631: «saiu» quando saiu em pelo menos uma rede (ex.: TikTok ainda à espera da app). */
+const saiu = (p: ConteudoPublicacao) =>
+  p.estado === ConteudoEstado.Publicada || p.destinos.some((d) => d.estado === ConteudoDestinoEstado.Publicado);
+
 function ContadoresDia({ lista }: { lista: ConteudoPublicacao[] }) {
   const porTipo = new Map<string, { saiu: number; total: number }>();
   for (const p of lista) {
-    if (!CONTA.has(p.estado)) continue;
+    if (!CONTA.has(p.estado) || ehGuiao(p)) continue;
     const t = tipoDe(p);
     const c = porTipo.get(t) ?? { saiu: 0, total: 0 };
     c.total++;
-    if (p.estado === ConteudoEstado.Publicada) c.saiu++;
+    if (saiu(p)) c.saiu++;
     porTipo.set(t, c);
   }
   const tipos = ORDEM_TIPOS.filter((t) => porTipo.has(t));
@@ -98,8 +105,12 @@ export function Agenda({ itens, vazio, contadores = false }: { itens: ConteudoPu
                   <span className="w-12 shrink-0 text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{horaCurta(p.agendadoPara)}</span>
                   <Miniatura p={p} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{p.titulo}</span>
-                    <span className="mt-1 block"><RedesChips destinos={p.destinos} /></span>
+                    <span className="block truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{ehGuiao(p) && '📝 '}{p.titulo}</span>
+                    {!ehGuiao(p) && (
+                      <span className="mt-1 block">
+                        <RedesChips destinos={p.destinos} passou={!!p.agendadoPara && new Date(p.agendadoPara).getTime() < Date.now()} />
+                      </span>
+                    )}
                   </span>
                   <span className="hidden sm:block"><EstadoBadge estado={p.estado} /></span>
                 </button>

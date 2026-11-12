@@ -3,6 +3,7 @@ import {
   ConteudoDestinoEstado,
   ConteudoEstado,
   REDE_LABEL,
+  RedeSocial,
   type ConteudoDestino,
 } from '../../lib/conteudo/types';
 
@@ -27,11 +28,12 @@ export function EstadoBadge({ estado }: { estado: ConteudoEstado }) {
   return <StatusBadge tone={e.tone} size="md">{e.label}</StatusBadge>;
 }
 
+// Sprint 631: cores que se leem de relance — verde = saiu (com link), vermelho = falhou (com o erro), neutro = à espera.
 const DESTINO_COR: Record<ConteudoDestinoEstado, string> = {
   [ConteudoDestinoEstado.Pendente]: 'bg-zinc-100 text-zinc-700 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-700',
-  [ConteudoDestinoEstado.AgendadoNaRede]: 'bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950 dark:text-sky-200 dark:ring-sky-800',
-  [ConteudoDestinoEstado.Publicado]: 'bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:ring-emerald-800',
-  [ConteudoDestinoEstado.Falhou]: 'bg-rose-50 text-rose-800 ring-rose-200 dark:bg-rose-950 dark:text-rose-200 dark:ring-rose-800',
+  [ConteudoDestinoEstado.AgendadoNaRede]: 'bg-zinc-100 text-zinc-700 ring-zinc-300 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-600',
+  [ConteudoDestinoEstado.Publicado]: 'bg-emerald-600 text-white ring-emerald-700',
+  [ConteudoDestinoEstado.Falhou]: 'bg-rose-600 text-white ring-rose-700',
 };
 
 const DESTINO_SUFIXO: Record<ConteudoDestinoEstado, string> = {
@@ -41,7 +43,11 @@ const DESTINO_SUFIXO: Record<ConteudoDestinoEstado, string> = {
   [ConteudoDestinoEstado.Falhou]: ' · falhou',
 };
 
-export function RedesChips({ destinos }: { destinos: ConteudoDestino[] }) {
+/**
+ * Sprint 631: o TikTok fica «à espera da app» enquanto a app não estiver aprovada pelo TikTok — não é uma falha
+ * e não impede a peça de contar como «saiu» se já saiu noutra rede.
+ */
+export function RedesChips({ destinos, passou = false }: { destinos: ConteudoDestino[]; passou?: boolean }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {destinos.map((d) => {
@@ -51,7 +57,9 @@ export function RedesChips({ destinos }: { destinos: ConteudoDestino[] }) {
             title={d.ultimoErro ?? undefined}
           >
             {REDE_LABEL[d.rede]}
-            {DESTINO_SUFIXO[d.estado]}
+            {d.rede === RedeSocial.TikTok && d.estado === ConteudoDestinoEstado.Pendente && passou
+              ? ' · à espera da app'
+              : DESTINO_SUFIXO[d.estado]}
           </span>
         );
         return d.permalink ? (

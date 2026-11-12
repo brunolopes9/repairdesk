@@ -2,6 +2,7 @@ import { useEffect, useState, type ComponentType } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { CapturarIdeia } from './CapturarIdeia';
+import { EmpresaDoLink } from './EmpresaDoLink';
 import DefinicoesSubNav from './DefinicoesSubNav';
 import {
   LayoutDashboard,
@@ -311,6 +312,7 @@ export default function Layout() {
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 sm:pt-6 sm:pl-[15.5rem] sm:pr-6">
+        <EmpresaDoLink />
         {location.pathname.startsWith('/definicoes') ? (
           <div className="flex gap-6">
             <div className="hidden md:block"><DefinicoesSubNav /></div>

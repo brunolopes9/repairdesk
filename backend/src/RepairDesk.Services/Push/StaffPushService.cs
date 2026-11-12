@@ -111,7 +111,7 @@ public class StaffPushService : IStaffPushService
 
         var keys = await _vapid.GetKeysAsync(ct);
         var payloadJson = JsonSerializer.Serialize(
-            new StaffPushPayload(job.Title, job.Body, job.Url, job.Tag, job.Acoes, job.Insistente), JsonOptions);
+            new StaffPushPayload(job.Title, job.Body, ComEmpresa(job.Url, job.TenantId), job.Tag, job.Acoes?.Select(a => a with { Url = ComEmpresa(a.Url, job.TenantId) }).ToList(), job.Insistente), JsonOptions);
         var sent = 0;
         var stale = new List<StaffPushSubscription>();
 
@@ -142,4 +142,11 @@ public class StaffPushService : IStaffPushService
         await _subscriptions.SaveAsync(ct);
         return sent;
     }
+
+    /// <summary>
+    /// Sprint 630: o link leva a empresa — quem trabalha em LopesTech e Cortex abre o aviso na empresa certa
+    /// (o frontend troca de empresa se for preciso, em vez de dar «not found»).
+    /// </summary>
+    public static string ComEmpresa(string url, Guid tenantId)
+        => string.IsNullOrEmpty(url) || url.Contains("empresa=") ? url : $"{url}{(url.Contains('?') ? '&' : '?')}empresa={tenantId}";
 }
