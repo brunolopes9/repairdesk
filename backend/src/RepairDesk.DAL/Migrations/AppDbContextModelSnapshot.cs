@@ -3716,6 +3716,9 @@ namespace RepairDesk.DAL.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
+                    b.Property<int>("Ordem")
+                        .HasColumnType("int");
+
                     b.Property<bool>("PorFora")
                         .HasColumnType("bit");
 

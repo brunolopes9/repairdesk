@@ -27,7 +27,7 @@ public class OrcamentoPdfService : IOrcamentoPdfService
     {
         var v = await _vendas.FindByIdWithItemsAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
         var emissor = await BuildEmissorAsync(ct);
-        var linhas = v.Items.OrderBy(i => i.CreatedAt)
+        var linhas = v.Items.OrderBy(i => i.Ordem).ThenBy(i => i.CreatedAt)
             .Select(i => new OrcamentoLinha(i.Quantidade > 1 ? $"{i.Quantidade} × {i.Descricao}" : i.Descricao, i.TotalCents))
             .ToList();
 

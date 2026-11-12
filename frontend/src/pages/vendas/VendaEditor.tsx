@@ -174,9 +174,10 @@ export default function VendaEditor() {
       const qtd = Number(l.quantidade) || 0;
       // Sprint 642: por fora não tem IVA — o valor escrito é o que se recebe.
       const total = l.porFora ? qtd * (parseDecimal(l.preco) ?? 0) : qtd * precoComIva(l.preco, l.iva, semIva);
-      const semFatura = !l.compraLinhaId && l.encomenda == null && l.custoSemFatura.trim() !== '';
+      // Linha de serviço: o único custo é o «custo s/ fatura» (vazio = 0) — apagar o campo tem de se ver logo no lucro.
+      const servico = !l.compraLinhaId && l.encomenda == null;
       const [custo, taxa] = l.encomenda != null ? [parseDecimal(l.custo) ?? 0, IVA_NORMAL / 100]
-        : semFatura ? [(parseDecimal(l.custoSemFatura) ?? 0) / Math.max(1, qtd), 0] : [l.custoUnit, l.taxaCompra];
+        : servico ? [(parseDecimal(l.custoSemFatura) ?? 0) / Math.max(1, qtd), 0] : [l.custoUnit, l.taxaCompra];
       const ivaVenda = l.porFora || venda?.foraApuramento ? 0 : (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
       return { total, porFora: l.porFora, ...previewVenda(qtd, total, custo, l.porFora ? 0 : taxa, ivaVenda) };
     });

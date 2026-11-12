@@ -54,7 +54,7 @@ public sealed class EntregaPdfService : IEntregaPdfService
         var googleReviewUrl = prefs.Portal.GoogleReviewUrl ?? tenant?.GoogleReviewUrl;
 
         var linhas = v.Items
-            .OrderBy(i => i.CreatedAt)
+            .OrderBy(i => i.Ordem).ThenBy(i => i.CreatedAt)
             .Select(i => new OrcamentoLinha(i.Quantidade > 1 ? $"{i.Descricao} (×{i.Quantidade})" : i.Descricao, i.TotalCents))
             .ToList();
 

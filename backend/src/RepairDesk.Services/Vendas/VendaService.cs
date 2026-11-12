@@ -291,7 +291,7 @@ public class VendaService : IVendaService
     public async Task<IReadOnlyList<PecaEncomendaDto>> PecasEncomendaAsync(CancellationToken ct = default)
     {
         var vendas = await _vendas.ListComPecasEncomendaAsync(ct);
-        return vendas.SelectMany(v => v.Items.Where(i => i.Encomenda is not null).OrderBy(i => i.CreatedAt).Select(i => new PecaEncomendaDto(
+        return vendas.SelectMany(v => v.Items.Where(i => i.Encomenda is not null).OrderBy(i => i.Ordem).ThenBy(i => i.CreatedAt).Select(i => new PecaEncomendaDto(
                 v.Id, v.Numero, v.Tipo, v.Estado, v.Cliente?.Nome, v.Equipamento, i.Id, i.Descricao, i.Quantidade,
                 i.CustoUnitarioPago ?? 0m, i.PrecoUnitarioCents, i.Encomenda!.Value, i.EncomendaNota, i.UpdatedAt ?? i.CreatedAt)))
             // Primeiro o que falta encomendar; depois o que está a chegar.
@@ -362,6 +362,7 @@ public class VendaService : IVendaService
         var pedidas = linhas.Where(l => l.Id is not null).Select(l => l.Id!.Value).ToHashSet();
         venda.Items.RemoveAll(i => !pedidas.Contains(i.Id));
 
+        var ordem = 0;
         foreach (var l in linhas)
         {
             Validate(l);
@@ -409,6 +410,7 @@ public class VendaService : IVendaService
             item.Quantidade = l.Quantidade;
             item.PrecoUnitarioCents = l.PrecoUnitarioCents;
             item.DescontoCents = l.DescontoCents;
+            item.Ordem = ordem++;
             item.PorFora = l.PorFora;
             item.IvaRate = l.PorFora ? 0m : l.IvaRate ?? TaxaVendaNormalPct;
             item.Imei = NormalizeImei(l.Imei);
@@ -636,7 +638,7 @@ public class VendaService : IVendaService
             ? null
             : new VendaClienteResumo(venda.Cliente.Id, venda.Cliente.Nome, venda.Cliente.Telefone ?? string.Empty, venda.Cliente.Nif,
                 venda.Cliente.NomeFaturacao, venda.Cliente.Morada, venda.Cliente.CodigoPostal, venda.Cliente.Localidade);
-        var items = venda.Items.OrderBy(i => i.CreatedAt).Select(i =>
+        var items = venda.Items.OrderBy(i => i.Ordem).ThenBy(i => i.CreatedAt).Select(i =>
         {
             var c = Calcular(i, venda.ForaApuramento);
             return new VendaItemDto(i.Id, i.CompraLinhaId, i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents,

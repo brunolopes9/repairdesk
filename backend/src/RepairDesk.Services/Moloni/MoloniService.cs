@@ -626,7 +626,7 @@ public partial class MoloniService : IMoloniService
         var linhas = new List<Dictionary<string, object?>>();
         var ordem = 0;
         // Sprint 642: só o que é faturado — as linhas «por fora» ficam no Mender.
-        foreach (var item in venda.Items.Where(i => !i.PorFora).OrderBy(i => i.CreatedAt))
+        foreach (var item in venda.Items.Where(i => !i.PorFora).OrderBy(i => i.Ordem).ThenBy(i => i.CreatedAt))
         {
             var taxa = item.IvaRate;
             var fator = 1m + taxa / 100m;

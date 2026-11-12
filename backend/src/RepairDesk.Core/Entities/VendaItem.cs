@@ -29,6 +29,9 @@ public class VendaItem : BaseEntity, ITenantEntity
     /// </summary>
     public bool PorFora { get; set; }
 
+    /// <summary>Sprint 647: posição da linha na venda (as linhas gravadas juntas têm o mesmo CreatedAt).</summary>
+    public int Ordem { get; set; }
+
     /// <summary>IMEI principal (15 dígitos) quando o artigo é um telemóvel. Validado com Luhn.</summary>
     public string? Imei { get; set; }
 
