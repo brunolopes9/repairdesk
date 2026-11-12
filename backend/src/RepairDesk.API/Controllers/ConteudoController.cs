@@ -99,6 +99,11 @@ public sealed class ConteudoController : ControllerBase
     public async Task<ActionResult<ConteudoFicheiroDto>> ConfirmarUpload(Guid id, [FromBody] ConfirmarUploadRequest req, CancellationToken ct)
         => Ok(await _service.ConfirmarUploadAsync(id, req, ct));
 
+    /// <summary>Sprint 638: URLs das partes de um envio por partes (pedidos aos lotes, renovam-se se expirarem).</summary>
+    [HttpPost("ficheiros/{id:guid}/partes")]
+    public async Task<ActionResult<IReadOnlyList<UrlParteDto>>> UrlsPartes(Guid id, [FromBody] PedirPartesRequest req, CancellationToken ct)
+        => Ok(await _service.UrlsPartesAsync(id, req.De, req.Ate, ct));
+
     [HttpPost("ficheiros/{id:guid}/processado")]
     public async Task<ActionResult<ConteudoFicheiroDto>> MarcarProcessado(Guid id, CancellationToken ct)
         => Ok(await _service.MarcarProcessadoAsync(id, ct));

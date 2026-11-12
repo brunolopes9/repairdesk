@@ -1349,6 +1349,10 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int?>("Largura")
                         .HasColumnType("int");
 
+                    b.Property<string>("MultipartUploadId")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
                     b.Property<string>("NomeOriginal")
                         .IsRequired()
                         .HasMaxLength(255)

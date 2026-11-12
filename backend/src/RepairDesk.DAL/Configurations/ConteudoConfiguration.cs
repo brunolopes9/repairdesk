@@ -43,6 +43,7 @@ public class ConteudoFicheiroConfiguration : IEntityTypeConfiguration<ConteudoFi
 
         builder.Property(x => x.TenantId).IsRequired();
         builder.Property(x => x.StorageKey).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.MultipartUploadId).HasMaxLength(1024);
         builder.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
         builder.Property(x => x.NomeOriginal).HasMaxLength(255).IsRequired();
         builder.Property(x => x.Notas).HasMaxLength(1000);

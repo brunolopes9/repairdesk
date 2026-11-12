@@ -57,6 +57,17 @@ export const conteudoApi = {
       })
       .then((r) => r.data);
 
+    if (ticket.metodo === 'MULTIPART' && ticket.tamanhoParte && ticket.partes) {
+      const [meta, partes] = await Promise.all([
+        lerDimensoes(file),
+        enviarPorPartes(ticket.ficheiroId, file, ticket.tamanhoParte, ticket.partes, onProgress, signal),
+      ]);
+      return comRetentativas(() =>
+        api.post<ConteudoFicheiro>(`/conteudo/ficheiros/${ticket.ficheiroId}/confirmar`, { ...meta, partes }).then((r) => r.data),
+        signal,
+      );
+    }
+
     const [meta] = await Promise.all([lerDimensoes(file), putComProgresso(ticket.uploadUrl, file, contentType, onProgress, signal)]);
 
     return api
@@ -64,6 +75,123 @@ export const conteudoApi = {
       .then((r) => r.data);
   },
 };
+
+// ---- Sprint 638: envio por partes ------------------------------------------------------------
+
+const PARTES_EM_PARALELO = 3;
+const URLS_POR_PEDIDO = 50;
+const TENTATIVAS = 8;
+
+/**
+ * Sobe o ficheiro em partes direto para o R2. Se a rede cair (dados móveis, elevador…) só se
+ * repete a parte que falhou, com espera crescente; URLs expirados pedem-se outra vez.
+ */
+async function enviarPorPartes(
+  ficheiroId: string,
+  file: File,
+  tamanhoParte: number,
+  total: number,
+  onProgress: (fracao: number) => void,
+  signal?: AbortSignal,
+): Promise<{ numero: number; eTag: string }[]> {
+  const urls = new Map<number, string>();
+  const pedirUrls = async (de: number) => {
+    const ate = Math.min(total, de + URLS_POR_PEDIDO - 1);
+    const lista = await comRetentativas(
+      () => api.post<{ numero: number; url: string }[]>(`/conteudo/ficheiros/${ficheiroId}/partes`, { de, ate }).then((r) => r.data),
+      signal,
+    );
+    lista.forEach((u) => urls.set(u.numero, u.url));
+  };
+
+  const enviadoPorParte = new Map<number, number>();
+  const reportar = () => {
+    let soma = 0;
+    enviadoPorParte.forEach((v) => (soma += v));
+    onProgress(Math.min(1, soma / file.size));
+  };
+
+  const feitas: { numero: number; eTag: string }[] = [];
+  let proxima = 1;
+  const trabalhar = async () => {
+    while (proxima <= total) {
+      const numero = proxima++;
+      const inicio = (numero - 1) * tamanhoParte;
+      const pedaco = file.slice(inicio, Math.min(file.size, inicio + tamanhoParte));
+      for (let tentativa = 1; ; tentativa++) {
+        if (signal?.aborted) throw new DOMException('Envio cancelado.', 'AbortError');
+        try {
+          if (!urls.has(numero)) await pedirUrls(numero);
+          const eTag = await putParte(urls.get(numero)!, pedaco, (enviado) => {
+            enviadoPorParte.set(numero, enviado);
+            reportar();
+          }, signal);
+          feitas.push({ numero, eTag });
+          break;
+        } catch (err) {
+          enviadoPorParte.set(numero, 0);
+          reportar();
+          if (err instanceof DOMException && err.name === 'AbortError') throw err;
+          if (tentativa >= TENTATIVAS)
+            throw new Error(`A parte ${numero} de ${total} falhou várias vezes — verifica a internet e tenta outra vez.`, { cause: err });
+          if (err instanceof ErroParte && err.status === 403) urls.delete(numero); // URL expirado: pedir outro
+          await esperar(Math.min(30_000, 1000 * 2 ** (tentativa - 1)), signal);
+        }
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PARTES_EM_PARALELO, total) }, trabalhar));
+  return feitas.sort((a, b) => a.numero - b.numero);
+}
+
+class ErroParte extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(`Parte recusada (${status}).`);
+    this.status = status;
+  }
+}
+
+function putParte(url: string, pedaco: Blob, onEnviado: (bytes: number) => void, signal?: AbortSignal): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.upload.onprogress = (e) => onEnviado(e.loaded);
+    xhr.onload = () => {
+      const eTag = xhr.getResponseHeader('ETag');
+      if (xhr.status >= 200 && xhr.status < 300 && eTag) resolve(eTag);
+      else reject(new ErroParte(xhr.status));
+    };
+    xhr.onerror = () => reject(new ErroParte(0));
+    xhr.ontimeout = () => reject(new ErroParte(0));
+    xhr.onabort = () => reject(new DOMException('Envio cancelado.', 'AbortError'));
+    signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+    xhr.send(pedaco);
+  });
+}
+
+async function comRetentativas<T>(fn: () => Promise<T>, signal?: AbortSignal, vezes = 5): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      // Erros de validação (4xx) não melhoram a repetir.
+      if (i >= vezes || (status && status >= 400 && status < 500)) throw err;
+      await esperar(1000 * 2 ** (i - 1), signal);
+    }
+  }
+}
+
+function esperar(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = window.setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      window.clearTimeout(t);
+      reject(new DOMException('Envio cancelado.', 'AbortError'));
+    }, { once: true });
+  });
+}
 
 /** Alguns telemóveis não preenchem file.type (ex: .mov no Android) — deduz pela extensão. */
 function normalizarTipo(file: File): string {

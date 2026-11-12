@@ -11,7 +11,7 @@ namespace RepairDesk.Infrastructure.Storage;
 /// <summary>
 /// Cloudflare R2 implementation of IPhotoStorage using the standard S3-compatible AWSSDK.S3 client.
 /// </summary>
-public sealed class CloudflareR2PhotoStorage : IPhotoStorage, IDirectAccessStorage, IDisposable
+public sealed class CloudflareR2PhotoStorage : IPhotoStorage, IDirectAccessStorage, IMultipartUploadStorage, IDisposable
 {
     private readonly R2StorageOptions _options;
     private readonly Lazy<IAmazonS3> _client;
@@ -123,6 +123,48 @@ public sealed class CloudflareR2PhotoStorage : IPhotoStorage, IDirectAccessStora
             request.ResponseHeaderOverrides.ContentDisposition =
                 $"attachment; filename*=UTF-8''{Uri.EscapeDataString(downloadFileName)}";
         return _client.Value.GetPreSignedURL(request);
+    }
+
+    public async Task<string> StartMultipartUploadAsync(string key, string contentType, CancellationToken ct = default)
+    {
+        var r = await _client.Value.InitiateMultipartUploadAsync(new InitiateMultipartUploadRequest
+        {
+            BucketName = _options.Bucket,
+            Key = NormalizeKey(key),
+            ContentType = contentType,
+        }, ct);
+        return r.UploadId;
+    }
+
+    public string CreatePartUploadUrl(string key, string uploadId, int partNumber, TimeSpan validFor)
+        => _client.Value.GetPreSignedURL(new GetPreSignedUrlRequest
+        {
+            BucketName = _options.Bucket,
+            Key = NormalizeKey(key),
+            Verb = HttpVerb.PUT,
+            UploadId = uploadId,
+            PartNumber = partNumber,
+            Expires = DateTime.UtcNow.Add(Clamp(validFor)),
+            Protocol = Protocol.HTTPS,
+        });
+
+    public async Task CompleteMultipartUploadAsync(string key, string uploadId, IReadOnlyList<MultipartPart> parts, CancellationToken ct = default)
+    {
+        var req = new CompleteMultipartUploadRequest { BucketName = _options.Bucket, Key = NormalizeKey(key), UploadId = uploadId };
+        req.AddPartETags(parts.OrderBy(p => p.PartNumber).Select(p => new PartETag(p.PartNumber, p.ETag)));
+        await _client.Value.CompleteMultipartUploadAsync(req, ct);
+    }
+
+    public async Task AbortMultipartUploadAsync(string key, string uploadId, CancellationToken ct = default)
+    {
+        try
+        {
+            await _client.Value.AbortMultipartUploadAsync(_options.Bucket, NormalizeKey(key), uploadId, ct);
+        }
+        catch (AmazonS3Exception ex) when (IsNotFound(ex) || ex.ErrorCode == "NoSuchUpload")
+        {
+            // Já não existe — nada a fazer.
+        }
     }
 
     public async Task<long?> GetSizeAsync(string key, CancellationToken ct = default)

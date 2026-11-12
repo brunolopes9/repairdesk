@@ -25,6 +25,9 @@ public class ConteudoFicheiro : BaseEntity, ITenantEntity
     public required string NomeOriginal { get; set; }
     public long Bytes { get; set; }
 
+    /// <summary>Sprint 638: envio por partes em curso no R2 (null quando acaba ou foi um PUT simples).</summary>
+    public string? MultipartUploadId { get; set; }
+
     public int? Largura { get; set; }
     public int? Altura { get; set; }
     public decimal? DuracaoSeg { get; set; }

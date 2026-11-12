@@ -111,9 +111,12 @@ export interface ConteudoResumo {
 export interface UploadTicket {
   ficheiroId: string;
   uploadUrl: string;
-  metodo: 'PUT';
+  /** «MULTIPART» (Sprint 638): ficheiros grandes sobem em partes de `tamanhoParte`. */
+  metodo: 'PUT' | 'MULTIPART';
   contentType: string;
   expiraEm: string;
+  tamanhoParte?: number | null;
+  partes?: number | null;
 }
 
 export const REDE_LABEL: Record<RedeSocial, string> = {

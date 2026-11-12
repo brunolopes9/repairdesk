@@ -85,9 +85,17 @@ public sealed record AtualizarDestinoRequest(
 
 public sealed record PedirUploadRequest(string NomeOriginal, string ContentType, long Bytes, string? Notas);
 
-public sealed record UploadTicketDto(Guid FicheiroId, string UploadUrl, string Metodo, string ContentType, DateTime ExpiraEm);
+/// <summary>Metodo «PUT» = um só envio para UploadUrl; «MULTIPART» = partes de TamanhoParte (Sprint 638).</summary>
+public sealed record UploadTicketDto(Guid FicheiroId, string UploadUrl, string Metodo, string ContentType, DateTime ExpiraEm,
+    long? TamanhoParte = null, int? Partes = null);
 
-public sealed record ConfirmarUploadRequest(int? Largura, int? Altura, decimal? DuracaoSeg);
+public sealed record UrlParteDto(int Numero, string Url);
+
+public sealed record PedirPartesRequest(int De, int Ate);
+
+public sealed record ParteEnviada(int Numero, string ETag);
+
+public sealed record ConfirmarUploadRequest(int? Largura, int? Altura, decimal? DuracaoSeg, IReadOnlyList<ParteEnviada>? Partes = null);
 
 public sealed record ConteudoResumoDto(int PorAprovar, int BibliotecaPorProcessar);
 

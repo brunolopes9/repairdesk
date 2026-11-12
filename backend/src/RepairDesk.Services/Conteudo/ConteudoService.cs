@@ -30,6 +30,7 @@ public interface IConteudoService
     Task<IReadOnlyList<ConteudoFicheiroDto>> BibliotecaAsync(bool soPorProcessar, CancellationToken ct = default);
     Task<UploadTicketDto> PedirUploadAsync(PedirUploadRequest req, CancellationToken ct = default);
     Task<ConteudoFicheiroDto> ConfirmarUploadAsync(Guid ficheiroId, ConfirmarUploadRequest req, CancellationToken ct = default);
+    Task<IReadOnlyList<UrlParteDto>> UrlsPartesAsync(Guid ficheiroId, int de, int ate, CancellationToken ct = default);
     Task<ConteudoFicheiroDto> MarcarProcessadoAsync(Guid ficheiroId, CancellationToken ct = default);
     Task DeleteFicheiroAsync(Guid ficheiroId, CancellationToken ct = default);
 
@@ -52,6 +53,13 @@ public interface IConteudoService
 public sealed class ConteudoService : IConteudoService
 {
     public const long MaxBytes = 5L * 1024 * 1024 * 1024; // limite de um PUT simples no R2
+    /// <summary>Sprint 638: por partes o limite sobe (vídeos 4K longos do iPhone passam dos 5 GB).</summary>
+    public const long MaxBytesPorPartes = 50L * 1024 * 1024 * 1024;
+    /// <summary>A partir daqui envia por partes — se a rede cair só se repete a parte.</summary>
+    public const long MinBytesPorPartes = 48L * 1024 * 1024;
+    /// <summary>Tamanho de cada parte (o R2 exige ≥ 5 MB e iguais, exceto a última).</summary>
+    public const long TamanhoParte = 32L * 1024 * 1024;
+    public const int MaxUrlsPorPedido = 100;
     public const int MaxNotas = 8000; // cabe um guião completo de reel (Sprint 609)
     private static readonly TimeSpan ValidadeUpload = TimeSpan.FromHours(2);
     private static readonly TimeSpan ValidadeLeitura = TimeSpan.FromHours(6);
@@ -79,6 +87,7 @@ public sealed class ConteudoService : IConteudoService
     private readonly IConteudoRepository _repo;
     private readonly IPhotoStorage _storage;
     private readonly IDirectAccessStorage? _direct;
+    private readonly IMultipartUploadStorage? _multipart;
     private readonly IConteudoLinkSigner _signer;
     private readonly IStaffPushQueue _push;
     private readonly ITenantContext _tenant;
@@ -98,6 +107,7 @@ public sealed class ConteudoService : IConteudoService
         _repo = repo;
         _storage = storage;
         _direct = direct.FirstOrDefault();
+        _multipart = _direct as IMultipartUploadStorage;
         _signer = signer;
         _push = push;
         _tenant = tenant;
@@ -406,8 +416,10 @@ public sealed class ConteudoService : IConteudoService
         var nome = TrimOrNull(req.NomeOriginal) ?? throw new ValidationException("nome_obrigatorio", "Nome do ficheiro obrigatório.");
         if (!TiposPermitidos.TryGetValue(req.ContentType ?? "", out var tipo))
             throw new ValidationException("tipo_nao_suportado", "Só imagens JPG/PNG/WebP e vídeos MP4/MOV.");
-        if (req.Bytes <= 0 || req.Bytes > MaxBytes)
-            throw new ValidationException("tamanho_invalido", "O ficheiro tem de ter entre 1 byte e 5 GB.");
+        var porPartes = _multipart is not null && req.Bytes >= MinBytesPorPartes;
+        var limite = porPartes ? MaxBytesPorPartes : MaxBytes;
+        if (req.Bytes <= 0 || req.Bytes > limite)
+            throw new ValidationException("tamanho_invalido", $"O ficheiro tem de ter entre 1 byte e {limite / (1024 * 1024 * 1024)} GB.");
 
         var tenantId = TenantId;
         var id = Guid.NewGuid();
@@ -424,10 +436,15 @@ public sealed class ConteudoService : IConteudoService
             Bytes = req.Bytes,
             Notas = Truncar(TrimOrNull(req.Notas), 1000),
         };
+        if (porPartes)
+            f.MultipartUploadId = await _multipart!.StartMultipartUploadAsync(f.StorageKey, f.ContentType, ct);
         await _repo.AddAsync(f, ct);
         await _repo.SaveAsync(ct);
 
         var expira = DateTimeOffset.UtcNow.Add(ValidadeUpload);
+        if (porPartes)
+            return new UploadTicketDto(f.Id, "", "MULTIPART", f.ContentType, expira.UtcDateTime,
+                TamanhoParte, (int)((req.Bytes + TamanhoParte - 1) / TamanhoParte));
         var url = _direct is not null
             ? _direct.CreateUploadUrl(f.StorageKey, f.ContentType, ValidadeUpload)
             : _signer.CreatePath(f.Id, "up", expira);
@@ -438,6 +455,23 @@ public sealed class ConteudoService : IConteudoService
     {
         var f = await _repo.FindFicheiroAsync(ficheiroId, ct) ?? throw new NotFoundException("ConteudoFicheiro", ficheiroId);
         if (f.Estado == ConteudoFicheiroEstado.Pronto) return ToDto(f); // idempotente
+
+        if (f.MultipartUploadId is { } uploadId)
+        {
+            // Se a resposta do «completar» se perdeu na rede, o objeto já existe — não completar outra vez.
+            if (await _direct!.GetSizeAsync(f.StorageKey, ct) is null or 0)
+            {
+                var esperadas = (int)((f.Bytes + TamanhoParte - 1) / TamanhoParte);
+                var partes = (req.Partes ?? [])
+                    .Where(p => p.Numero >= 1 && p.Numero <= esperadas && !string.IsNullOrWhiteSpace(p.ETag))
+                    .GroupBy(p => p.Numero).Select(g => g.Last()).ToList();
+                if (partes.Count != esperadas)
+                    throw new ValidationException("partes_em_falta", $"Chegaram {partes.Count} de {esperadas} partes — tenta outra vez.");
+                await _multipart!.CompleteMultipartUploadAsync(f.StorageKey, uploadId,
+                    partes.Select(p => new MultipartPart(p.Numero, p.ETag.Trim())).ToList(), ct);
+            }
+            f.MultipartUploadId = null;
+        }
 
         long? tamanho = _direct is not null
             ? await _direct.GetSizeAsync(f.StorageKey, ct)
@@ -452,6 +486,19 @@ public sealed class ConteudoService : IConteudoService
         f.Estado = ConteudoFicheiroEstado.Pronto;
         await _repo.SaveAsync(ct);
         return ToDto(f);
+    }
+
+    public async Task<IReadOnlyList<UrlParteDto>> UrlsPartesAsync(Guid ficheiroId, int de, int ate, CancellationToken ct = default)
+    {
+        var f = await _repo.FindFicheiroAsync(ficheiroId, ct) ?? throw new NotFoundException("ConteudoFicheiro", ficheiroId);
+        if (f.MultipartUploadId is not { } uploadId || f.Estado != ConteudoFicheiroEstado.AEnviar || _multipart is null)
+            throw new ConflictException("sem_envio_por_partes", "Este ficheiro não está a ser enviado por partes.");
+        var total = (int)((f.Bytes + TamanhoParte - 1) / TamanhoParte);
+        if (de < 1 || ate < de || ate > total || ate - de + 1 > MaxUrlsPorPedido)
+            throw new ValidationException("partes_invalidas", $"Partes de 1 a {total}, no máximo {MaxUrlsPorPedido} de cada vez.");
+        return Enumerable.Range(de, ate - de + 1)
+            .Select(n => new UrlParteDto(n, _multipart.CreatePartUploadUrl(f.StorageKey, uploadId, n, ValidadeUpload)))
+            .ToList();
     }
 
     public async Task<ConteudoFicheiroDto> MarcarProcessadoAsync(Guid ficheiroId, CancellationToken ct = default)
@@ -473,6 +520,8 @@ public sealed class ConteudoService : IConteudoService
         }
         _repo.Remove(f);
         await _repo.SaveAsync(ct);
+        if (f.MultipartUploadId is { } uploadId && _multipart is not null)
+            await _multipart.AbortMultipartUploadAsync(f.StorageKey, uploadId, ct); // liberta as partes já enviadas
         await _storage.DeleteAsync(f.StorageKey, ct); // idempotente; os vídeos brutos ocupam muito
     }
 
