@@ -116,3 +116,4 @@ tacdb-raw.csv
 
 # Claude Code — definições pessoais
 .claude/settings.local.json
+.tmp-upload/
