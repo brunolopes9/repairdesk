@@ -10,6 +10,12 @@ namespace RepairDesk.Services.Financas;
 public sealed record FinancasLinhaDto(string Nome, decimal Valor);
 public sealed record FinancasFixaDto(string Descricao, decimal ValorTipico, decimal RegistadoEsteMes, bool Ok);
 
+/// <summary>Sprint 650: um cliente que ainda deve uma venda entregue.</summary>
+public sealed record FinancasDevedorDto(Guid VendaId, int Numero, string Cliente, string? Telefone, DateTime Data, decimal Valor, int Dias);
+public sealed record FinancasCobrancasDto(decimal RecebidoMes, decimal PorReceberMes, decimal PorReceberTotal, IReadOnlyList<FinancasDevedorDto> Devedores);
+/// <summary>Sprint 650: aviso de qualidade dos dados (SPEC §5). Gravidade: «aviso» ou «info».</summary>
+public sealed record FinancasVerificacaoDto(string Codigo, string Mensagem, int Quantidade, string Gravidade);
+
 public sealed record FinancasMesDto(
     int Ano, int Mes, decimal Objetivo,
     // negócios
@@ -23,7 +29,9 @@ public sealed record FinancasMesDto(
     int Vendas, decimal Faturado, decimal MargemMedia, decimal TicketMedio, decimal Gasto, decimal Investimento,
     IReadOnlyList<FinancasLinhaDto> MaioresDespesas,
     IReadOnlyList<FinancasFixaDto> Fixas,
-    int VendasSemFatura);
+    int VendasSemFatura,
+    FinancasCobrancasDto? Cobrancas = null,
+    IReadOnlyList<FinancasVerificacaoDto>? Verificacoes = null);
 
 public sealed record FinancasResumoMesDto(int Mes, decimal LucroInformatica, decimal PayoutsTrading, decimal DespesasNegocio,
     decimal DespesasPessoais, decimal Saldo, decimal Objetivo);
@@ -65,7 +73,10 @@ public sealed class FinancasService : IFinancasService
         _tenant = tenant;
     }
 
-    public async Task<FinancasMesDto> MesAsync(int ano, int mes, CancellationToken ct = default)
+    public Task<FinancasMesDto> MesAsync(int ano, int mes, CancellationToken ct = default) => CalcularAsync(ano, mes, true, ct);
+
+    /// <summary>completo = false no resumo do ano (sem cobranças nem verificações, que só interessam no mês aberto).</summary>
+    private async Task<FinancasMesDto> CalcularAsync(int ano, int mes, bool completo, CancellationToken ct)
     {
         Validar(ano, mes);
         var objetivo = (await TenantAsync(ct)).ObjetivoMensal ?? ObjetivoPadrao;
@@ -114,6 +125,14 @@ public sealed class FinancasService : IFinancasService
 
         var fixas = await FixasAsync(de, despesas, ct);
 
+        FinancasCobrancasDto? cobrancas = null;
+        IReadOnlyList<FinancasVerificacaoDto>? verificacoes = null;
+        if (completo)
+        {
+            cobrancas = await CobrancasAsync(vendas, de, ate, ct);
+            verificacoes = Verificacoes(vendas, despesas, fixas, cobrancas, de);
+        }
+
         return new FinancasMesDto(ano, mes, objetivo,
             E(lucroInf), E(payouts), E(totalLucros),
             E(despInf), E(despTrad), E(despGer), E(pessoais), E(obrig), E(totalDesp), E(impostos),
@@ -123,7 +142,57 @@ public sealed class FinancasService : IFinancasService
             nInf > 0 ? E(faturadoInf / nInf) : 0m,
             E(contam.Where(d => d.Natureza == DespesaNatureza.Gasto).Sum(Valor)),
             E(contam.Where(d => d.Natureza == DespesaNatureza.Investimento).Sum(Valor)),
-            maiores, fixas, semFatura);
+            maiores, fixas, semFatura, cobrancas, verificacoes);
+    }
+
+    /// <summary>
+    /// Sprint 650 — Cobranças (SPEC §1 regra 6): dinheiro dos clientes, com IVA (o que o cliente paga). «Entregue» é
+    /// pago por omissão; as marcadas «por receber» são a exceção. Payouts de trading não entram (não são clientes).
+    /// <list type="bullet">
+    /// <item>Recebido no mês = entregues no mês pagas na entrega + dívidas de meses anteriores pagas neste mês.</item>
+    /// <item>Por receber do mês = entregues no mês ainda por pagar; acumulado = todas as que faltam.</item>
+    /// </list>
+    /// </summary>
+    private async Task<FinancasCobrancasDto> CobrancasAsync(IReadOnlyList<Venda> doMes, DateTime de, DateTime ate, CancellationToken ct)
+    {
+        static decimal Total(Venda v) => v.TotalCents / 100m;
+        var loja = doMes.Where(v => v.Atividade != VendaAtividade.Trading).ToList();
+        var pagasNaEntrega = loja.Where(v => !v.PorReceber && (v.RecebidoEm is null || (v.RecebidoEm >= de && v.RecebidoEm < ate))).Sum(Total);
+        var dividasPagas = (await _vendas.ListRecebidasAsync(de, ate, ct))
+            .Where(v => v.Data < de && v.Atividade != VendaAtividade.Trading).Sum(Total);
+        var porReceberMes = loja.Where(v => v.PorReceber).Sum(Total);
+
+        var agora = DateTime.UtcNow;
+        var devedores = (await _vendas.ListPorReceberAsync(ct))
+            .Where(v => v.Atividade != VendaAtividade.Trading)
+            .Select(v => new FinancasDevedorDto(v.Id, v.Numero, v.Cliente?.Nome ?? "Sem cliente", v.Cliente?.Telefone,
+                v.Data, E(Total(v)), Math.Max(0, (int)(agora - v.Data).TotalDays)))
+            .OrderByDescending(d => d.Dias).ToList();
+
+        return new FinancasCobrancasDto(E(pagasNaEntrega + dividasPagas), E(porReceberMes), E(devedores.Sum(d => d.Valor)), devedores);
+    }
+
+    /// <summary>Sprint 650 — verificações de dados do Excel (SPEC §5), para o mês aberto.</summary>
+    private static IReadOnlyList<FinancasVerificacaoDto> Verificacoes(IReadOnlyList<Venda> vendas, IReadOnlyList<Despesa> despesas,
+        IReadOnlyList<FinancasFixaDto> fixas, FinancasCobrancasDto cobrancas, DateTime inicioMes)
+    {
+        var lista = new List<FinancasVerificacaoDto>();
+        void Add(string codigo, int n, string msg, string gravidade = "aviso")
+        {
+            if (n > 0) lista.Add(new FinancasVerificacaoDto(codigo, msg, n, gravidade));
+        }
+
+        var amanha = DateTime.UtcNow.AddDays(1);
+        Add("venda_sem_preco", vendas.Count(v => v.Atividade != VendaAtividade.Trading && v.TotalCents == 0),
+            "Vendas entregues a 0 € — falta o preço?");
+        Add("por_receber_30", cobrancas.Devedores.Count(d => d.Dias > 30), "Vendas por receber há mais de 30 dias.");
+        Add("data_futura", vendas.Count(v => v.Data > amanha) + despesas.Count(d => d.Data > amanha),
+            "Registos com data no futuro — ano ou mês trocado?");
+        // Fixas só fazem sentido em meses que já começaram.
+        if (inicioMes <= DateTime.UtcNow)
+            Add("fixas_em_falta", fixas.Count(f => !f.Ok), "Despesas fixas ainda sem registo este mês.", "info");
+        Add("despesa_sem_valor", despesas.Count(d => d.ValorCents == 0), "Despesas a 0 € — falta o valor?");
+        return lista;
     }
 
     public async Task<IReadOnlyList<FinancasResumoMesDto>> AnoAsync(int ano, CancellationToken ct = default)
@@ -134,7 +203,7 @@ public sealed class FinancasService : IFinancasService
         for (var m = 1; m <= 12; m++)
         {
             if (new DateTime(ano, m, 1) > agora) break;
-            var r = await MesAsync(ano, m, ct);
+            var r = await CalcularAsync(ano, m, false, ct);
             lista.Add(new FinancasResumoMesDto(m, r.LucroInformatica, r.PayoutsTrading,
                 r.DespesasInformatica + r.DespesasTrading + r.DespesasGerais, r.DespesasPessoais + r.Obrigacoes, r.Saldo, r.Objetivo));
         }

@@ -30,6 +30,10 @@ public interface IVendaRepository
     Task<IReadOnlyList<Venda>> ListByMoloniIdsAsync(IReadOnlyCollection<int> documentIds, CancellationToken ct = default);
     /// <summary>Sprint 594: vendas em curso (não entregues/canceladas) com peças por encomendar ou encomendadas.</summary>
     Task<IReadOnlyList<Venda>> ListComPecasEncomendaAsync(CancellationToken ct = default);
+    /// <summary>Sprint 650: entregues ainda por receber (todas as datas), com cliente.</summary>
+    Task<IReadOnlyList<Venda>> ListPorReceberAsync(CancellationToken ct = default);
+    /// <summary>Sprint 650: vendas que estavam por receber e foram pagas no intervalo [from, to).</summary>
+    Task<IReadOnlyList<Venda>> ListRecebidasAsync(DateTime from, DateTime to, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }
 

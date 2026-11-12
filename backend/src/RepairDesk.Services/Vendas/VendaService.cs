@@ -20,6 +20,8 @@ public interface IVendaService
     Task<VendaDto> MudarEstadoAsync(Guid id, MudarEstadoVendaRequest req, CancellationToken ct = default);
     Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default);
     Task<VendaDto> ForaApuramentoAsync(Guid id, ForaApuramentoRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 650: venda entregue paga / ainda por receber (cobranças).</summary>
+    Task<VendaDto> PagamentoAsync(Guid id, PagamentoVendaRequest req, CancellationToken ct = default);
     /// <summary>Sprint 594: peças por encomendar/encomendadas das reparações em curso.</summary>
     Task<IReadOnlyList<PecaEncomendaDto>> PecasEncomendaAsync(CancellationToken ct = default);
     /// <summary>Sprint 594: "já encomendei" / "afinal ainda não" numa peça em falta, sem abrir a venda.</summary>
@@ -182,7 +184,10 @@ public class VendaService : IVendaService
         {
             MarcarEntregue(venda, req.PaymentMethod, lotes);
             RecalculateTotals(venda);
+            venda.PorReceber = req.PorReceber;
+            venda.RecebidoEm = null;
         }
+        else if (para == VendaEstado.Cancelada) venda.PorReceber = false; // cancelada não é dívida
         // Sprint 595: a senha do equipamento só é precisa enquanto está na loja (RGPD) — apaga-se ao fechar.
         if (para is VendaEstado.Entregue or VendaEstado.Cancelada && _fichas is not null
             && await _fichas.FindByVendaAsync(venda.Id, ct) is { } ficha)
@@ -259,6 +264,27 @@ public class VendaService : IVendaService
             venda.Numero,
             ativo = req.Ativo,
             motivo = venda.ForaApuramentoMotivo,
+        }, ct: ct);
+        return ToDto(venda);
+    }
+
+    public async Task<VendaDto> PagamentoAsync(Guid id, PagamentoVendaRequest req, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        if (venda.Estado != VendaEstado.Entregue)
+            throw new ConflictException("venda_nao_entregue", "Só as vendas entregues ficam pagas ou por receber.");
+        if (venda.PorReceber == req.PorReceber) return ToDto(venda); // idempotente
+
+        venda.PorReceber = req.PorReceber;
+        // Pago agora: o dinheiro entra nas cobranças deste mês, não no mês da entrega.
+        venda.RecebidoEm = req.PorReceber ? null : DateTime.UtcNow;
+        await _vendas.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new
+        {
+            operation = "pagamento",
+            venda.Numero,
+            porReceber = req.PorReceber,
+            venda.TotalCents,
         }, ct: ct);
         return ToDto(venda);
     }
@@ -657,7 +683,9 @@ public class VendaService : IVendaService
             venda.MoloniDocumentoTipo is null ? null : venda.MoloniDocumentoTipo == "invoiceReceipt" || venda.MoloniReciboId is not null,
             venda.Atividade,
             venda.ForaApuramento,
-            venda.ForaApuramentoMotivo);
+            venda.ForaApuramentoMotivo,
+            venda.PorReceber,
+            venda.RecebidoEm);
     }
 
     private static string? Clean(string? s, int max)

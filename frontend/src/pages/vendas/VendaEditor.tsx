@@ -245,6 +245,22 @@ export default function VendaEditor() {
     onError: (err) => toast.fromError(err),
   });
 
+  // Sprint 650: entregar sem receber já (o cliente paga depois) — fica nas cobranças até ser paga.
+  const entregarPorReceber = useMutation({
+    mutationFn: async () => {
+      if (!fechada) await vendasApi.update(id!, buildRequest());
+      return vendasApi.mudarEstado(id!, VENDA_ESTADO.Entregue, pagamento, true);
+    },
+    onSuccess: (v) => onSaved(v, 'Entregue — fica por receber'),
+    onError: (err) => toast.fromError(err),
+  });
+
+  const marcarPagamento = useMutation({
+    mutationFn: (porReceber: boolean) => vendasApi.pagamento(id!, porReceber),
+    onSuccess: (v) => onSaved(v, v.porReceber ? 'Marcada como por receber' : 'Marcada como paga'),
+    onError: (err) => toast.fromError(err),
+  });
+
   const semFatura = useMutation({
     mutationFn: (ativo: boolean) => vendasApi.foraApuramento(id!, ativo),
     onSuccess: (v) => onSaved(v, v.foraApuramento ? 'Marcada como sem fatura' : 'Voltou a precisar de fatura'),
@@ -403,6 +419,25 @@ export default function VendaEditor() {
             </Button>
           )}
         </div>
+      )}
+
+      {venda?.estado === VENDA_ESTADO.Entregue && venda.atividade !== 1 && (
+        venda.porReceber ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+            <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">Por receber</span>
+            <span className="flex-1">Entregue — o cliente ainda não pagou.</span>
+            <Button type="button" size="sm" loading={marcarPagamento.isPending} onClick={() => marcarPagamento.mutate(false)}>
+              Marcar como paga
+            </Button>
+          </div>
+        ) : (
+          <div className="flex justify-end">
+            <button type="button" className="text-xs text-zinc-500 underline-offset-2 hover:underline disabled:opacity-50"
+              disabled={marcarPagamento.isPending} onClick={() => marcarPagamento.mutate(true)}>
+              {venda.recebidoEm ? `Paga a ${new Date(venda.recebidoEm).toLocaleDateString('pt-PT')} · ` : ''}Ainda não pagou?
+            </button>
+          </div>
+        )
       )}
 
       {isNew && vindoDaCompra > 0 && (
@@ -666,6 +701,10 @@ export default function VendaEditor() {
             </select>
             <Button type="button" leftIcon={<CheckCircle2 size={15} />} disabled={busy || !podeGravar || linhas.length === 0} loading={mudarEstado.isPending && mudarEstado.variables === VENDA_ESTADO.Entregue} onClick={() => mudarEstado.mutate(VENDA_ESTADO.Entregue)}>
               Entregue & paga
+            </Button>
+            <Button type="button" variant="secondary" disabled={busy || !podeGravar || linhas.length === 0} loading={entregarPorReceber.isPending} onClick={() => entregarPorReceber.mutate()}
+              title="O cliente leva já e paga depois — fica em Finanças → Cobranças até marcares como paga">
+              Entregue, paga depois
             </Button>
           </div>
           {pecasEmFalta > 0 && (

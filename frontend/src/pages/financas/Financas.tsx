@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, FileUp, Plus } from 'lucide-react';
 import { Button, PageHeader, SkeletonTable } from '../../components/ui';
@@ -10,6 +11,9 @@ import { toast } from '../../lib/toast';
 
 interface Linha { nome: string; valor: number }
 interface Fixa { descricao: string; valorTipico: number; registadoEsteMes: number; ok: boolean }
+interface Devedor { vendaId: string; numero: number; cliente: string; telefone: string | null; data: string; valor: number; dias: number }
+interface Cobrancas { recebidoMes: number; porReceberMes: number; porReceberTotal: number; devedores: Devedor[] }
+interface Verificacao { codigo: string; mensagem: string; quantidade: number; gravidade: 'aviso' | 'info' }
 interface Mes {
   ano: number; mes: number; objetivo: number;
   lucroInformatica: number; payoutsTrading: number; totalLucros: number;
@@ -18,6 +22,8 @@ interface Mes {
   saldo: number; faltaParaObjetivo: number;
   vendas: number; faturado: number; margemMedia: number; ticketMedio: number; gasto: number; investimento: number;
   maioresDespesas: Linha[]; fixas: Fixa[]; vendasSemFatura: number;
+  /** Sprint 650 */
+  cobrancas?: Cobrancas | null; verificacoes?: Verificacao[] | null;
 }
 interface ResumoMes { mes: number; lucroInformatica: number; payoutsTrading: number; despesasNegocio: number; despesasPessoais: number; saldo: number; objetivo: number }
 
@@ -107,6 +113,20 @@ export default function Financas() {
             </form>
           </section>
 
+          {d.verificacoes && d.verificacoes.length > 0 && (
+            <section className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900" aria-label="Verificações dos dados">
+              <h2 className="mb-2 text-sm font-semibold">A rever</h2>
+              <ul className="space-y-1 text-sm">
+                {d.verificacoes.map((v) => (
+                  <li key={v.codigo} className="flex items-start gap-2">
+                    <span className={`mt-0.5 inline-block min-w-6 rounded-full px-1.5 text-center text-xs font-semibold ${v.gravidade === 'aviso' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>{v.quantidade}</span>
+                    <span>{v.mensagem}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <div className="grid gap-4 lg:grid-cols-2">
             <Bloco titulo="Lucro dos negócios">
               <Linhas linhas={[
@@ -145,6 +165,7 @@ export default function Financas() {
                 <Linhas linhas={d.maioresDespesas.map((l) => [l.nome, l.valor])} />
               )}
             </Bloco>
+            {d.cobrancas && <BlocoCobrancas c={d.cobrancas} />}
             <Bloco titulo="Despesas fixas">
               {d.fixas.length === 0 ? <p className="text-sm text-zinc-500">Marca as despesas mensais como «recorrente» e aparecem aqui.</p> : (
                 <ul className="space-y-1 text-sm">
@@ -168,6 +189,35 @@ export default function Financas() {
       <DespesaFormModal open={novaDespesa} onClose={() => setNovaDespesa(false)}
         onSaved={() => { setNovaDespesa(false); qc.invalidateQueries({ queryKey: ['financas'] }); qc.invalidateQueries({ queryKey: ['despesas'] }); toast.success('Despesa registada'); }} />
     </div>
+  );
+}
+
+/** Sprint 650: recebido / por receber (com IVA — o que o cliente paga) e quem deve. */
+function BlocoCobrancas({ c }: { c: Cobrancas }) {
+  return (
+    <Bloco titulo="Cobranças">
+      <Linhas linhas={[
+        ['Recebido este mês', c.recebidoMes],
+        ['Por receber deste mês', c.porReceberMes],
+      ]} total={['Por receber (todos os meses)', c.porReceberTotal]} />
+      {c.devedores.length === 0 ? (
+        <p className="mt-2 text-xs text-zinc-500">Ninguém te deve nada. Numa venda entregue sem pagamento, usa «Entregue, paga depois».</p>
+      ) : (
+        <ul className="mt-3 space-y-1 text-sm">
+          {c.devedores.map((dv) => (
+            <li key={dv.vendaId}>
+              <Link to={`/vendas/${dv.vendaId}`} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                <span className="min-w-0 truncate">#{dv.numero} · {dv.cliente}</span>
+                <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                  <span className={`text-xs ${dv.dias > 30 ? 'font-semibold text-rose-600' : 'text-zinc-500'}`}>{dv.dias} dia{dv.dias === 1 ? '' : 's'}</span>
+                  <strong>{formatEur(dv.valor)}</strong>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Bloco>
   );
 }
 

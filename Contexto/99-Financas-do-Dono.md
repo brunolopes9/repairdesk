@@ -28,6 +28,12 @@ Pedido do Bruno a 12/11: «quero deixar de usar o Excel; tudo digital no Mender�
 
 ## Por fazer
 1. **Importar o histórico do Excel** (setembro a novembro): despesas com «Pertence a», trabalhos de Informática como vendas «sem fatura (registo interno)» marcadas como históricas, payouts e fixas.
-2. **Cobranças** (recebido / por receber), quando a venda tiver «pago» explícito.
-3. **Verificações de dados** (§5 da especificação).
+2. ~~Cobranças~~ — FEITO Sprint 650 (ver abaixo).
+3. ~~Verificações de dados~~ — FEITO Sprint 650 (ver abaixo).
 4. **Camisolas**, depois do enquadramento fiscal.
+
+## Feito — Sprint 650 (12/11)
+- **Cobranças:** `Venda.PorReceber` + `RecebidoEm`. «Entregue» continua a ser pago por omissão (o histórico fica certo sem migrar dados); a exceção marca-se com o botão **«Entregue, paga depois»** ou, numa venda já entregue, «Ainda não pagou?». **«Marcar como paga»** grava `RecebidoEm`, para o dinheiro contar no mês em que entrou. Endpoint `PUT api/vendas/{id}/pagamento` (auditado, idempotente).
+- Painel: recebido no mês (pagas na entrega + dívidas antigas pagas no mês), por receber do mês, por receber acumulado e lista de devedores com dias (vermelho > 30). Valores com IVA, porque é o que o cliente paga. Os payouts de trading não entram.
+- A vista **«Por pagar»** das Vendas passa a incluir as entregues por receber, além das faturas Moloni sem recibo.
+- **Verificações** (bloco «A rever»): vendas a 0 €, por receber há mais de 30 dias, datas no futuro, despesas a 0 € e fixas em falta. Só no mês aberto; o resumo do ano não as calcula.

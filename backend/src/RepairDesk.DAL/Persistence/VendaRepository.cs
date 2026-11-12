@@ -24,6 +24,18 @@ public class VendaRepository : IVendaRepository
             .OrderBy(v => v.Data)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Venda>> ListPorReceberAsync(CancellationToken ct = default)
+        => await _db.Vendas.AsNoTracking()
+            .Include(v => v.Cliente)
+            .Where(v => v.Estado == VendaEstado.Entregue && v.PorReceber)
+            .OrderBy(v => v.Data)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<Venda>> ListRecebidasAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        => await _db.Vendas.AsNoTracking()
+            .Where(v => v.Estado == VendaEstado.Entregue && !v.PorReceber && v.RecebidoEm >= from && v.RecebidoEm < to)
+            .ToListAsync(ct);
+
     public Task<Venda?> FindByIdWithItemsAsync(Guid id, CancellationToken ct = default)
         => _db.Vendas
             .Include(v => v.Cliente)
@@ -118,7 +130,9 @@ public class VendaRepository : IVendaRepository
         if (filtro.Estado is { } estado) q = q.Where(v => v.Estado == estado);
         if (filtro.EmCurso) q = q.Where(v => v.Estado == VendaEstado.Orcamento || v.Estado == VendaEstado.EmCurso || v.Estado == VendaEstado.AEsperaPeca || v.Estado == VendaEstado.Pronta);
         if (filtro.FaturaPorRegistar) q = q.Where(v => v.Estado == VendaEstado.Entregue && v.InvoiceNumber == null && !v.ForaApuramento && v.Items.Any(i => !i.PorFora));
-        if (filtro.PorPagar) q = q.Where(v => v.MoloniDocumentoTipo == "invoice" && v.MoloniReciboId == null && v.Estado != VendaEstado.Cancelada);
+        // Por pagar: fatura Moloni sem recibo, ou (Sprint 650) entregue e marcada «por receber».
+        if (filtro.PorPagar) q = q.Where(v => v.Estado != VendaEstado.Cancelada
+            && ((v.MoloniDocumentoTipo == "invoice" && v.MoloniReciboId == null) || (v.Estado == VendaEstado.Entregue && v.PorReceber)));
         if (!string.IsNullOrWhiteSpace(filtro.Q))
         {
             var inteiro = filtro.Q.Trim().TrimStart('#');

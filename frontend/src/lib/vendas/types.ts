@@ -154,6 +154,9 @@ export interface Venda {
   /** Sprint 616: venda sem fatura (registo interno) — não conta no IVA do Mender; o lucro conta o valor inteiro. */
   foraApuramento?: boolean;
   foraApuramentoMotivo?: string | null;
+  /** Sprint 650: entregue mas o cliente ainda não pagou (cobranças). */
+  porReceber?: boolean;
+  recebidoEm?: string | null;
 }
 
 /** Sprint 565: resultado de importar o PDF de uma fatura de venda. */

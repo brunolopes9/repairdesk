@@ -3332,6 +3332,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("int");
 
+                    b.Property<bool>("PorReceber")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("PrevistoPara")
                         .HasColumnType("datetime2");
 
@@ -3342,6 +3345,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<string>("PublicSlug")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("RecebidoEm")
+                        .HasColumnType("datetime2");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");

@@ -39,7 +39,10 @@ public sealed record VendaWriteRequest(
     /// <summary>Previsão de entrega mostrada ao cliente no portal.</summary>
     DateTime? PrevistoPara = null);
 
-public sealed record MudarEstadoVendaRequest(VendaEstado Estado, PaymentMethod? PaymentMethod = null);
+public sealed record MudarEstadoVendaRequest(VendaEstado Estado, PaymentMethod? PaymentMethod = null, bool PorReceber = false);
+
+/// <summary>Sprint 650: marca uma venda entregue como paga (false) ou ainda por receber (true).</summary>
+public sealed record PagamentoVendaRequest(bool PorReceber);
 
 /// <summary>Nº da fatura emitida fora do Mender (Moloni). Vazio = limpar.</summary>
 public sealed record RegistarFaturaRequest(string? InvoiceNumber, DateTime? InvoiceEmittedAt);
@@ -122,7 +125,10 @@ public sealed record VendaDto(
     VendaAtividade Atividade = VendaAtividade.Loja,
     /// <summary>Sprint 616: tratada fora do Mender — sem IVA no Mender, lucro pelo valor inteiro.</summary>
     bool ForaApuramento = false,
-    string? ForaApuramentoMotivo = null);
+    string? ForaApuramentoMotivo = null,
+    /// <summary>Sprint 650: entregue mas ainda não paga.</summary>
+    bool PorReceber = false,
+    DateTime? RecebidoEm = null);
 
 public sealed record VendaImeiLookupDto(
     Guid VendaId,

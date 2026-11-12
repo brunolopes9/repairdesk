@@ -56,6 +56,14 @@ public class Venda : BaseEntity, ITenantEntity
     public bool ForaApuramento { get; set; }
     public string? ForaApuramentoMotivo { get; set; }
 
+    /// <summary>
+    /// Sprint 650 (Doc 99 — cobranças): entregue mas o cliente ainda não pagou. «Entregue» é pago por omissão;
+    /// isto marca a exceção (fiado, paga depois). Só faz sentido em vendas entregues.
+    /// </summary>
+    public bool PorReceber { get; set; }
+    /// <summary>Quando uma venda que estava por receber foi paga (para as cobranças do mês certo).</summary>
+    public DateTime? RecebidoEm { get; set; }
+
     public string? Notas { get; set; }
     public List<VendaItem> Items { get; set; } = new();
 }
