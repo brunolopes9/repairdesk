@@ -108,6 +108,8 @@ public class CompraService : ICompraService
             import.Status = SupplierInvoiceImportStatus.Approved;
             import.ProcessedAt = DateTime.UtcNow;
             import.FornecedorId ??= fornecedor.Id;
+            // Sprint 649: fornecedor ainda sem tipo definido → as faturas dele passam a vir marcadas como compra.
+            if (fornecedor.DefaultImportAction == DefaultImportAction.Auto) fornecedor.DefaultImportAction = DefaultImportAction.Stock;
         }
 
         await _repo.AddAsync(doc, ct);

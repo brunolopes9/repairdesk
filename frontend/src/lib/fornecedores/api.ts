@@ -27,7 +27,16 @@ export interface Fornecedor {
   pais: string | null;
   /** Sprint 579: NIF / nº de IVA — identifica o fornecedor nas faturas importadas. */
   nif: string | null;
+  /** Sprint 649: o que as faturas deste fornecedor são — 0 perguntar, 1 compra (peças), 2 despesa. */
+  tipoFaturas: TipoFaturas;
 }
+
+export type TipoFaturas = 0 | 1 | 2;
+export const TIPO_FATURAS_LABEL: Record<TipoFaturas, string> = {
+  0: 'Perguntar sempre',
+  1: 'Compras — peças/artigos para stock',
+  2: 'Despesas — contas, serviços, ferramentas',
+};
 
 export interface FornecedorWriteRequest {
   name: string;
@@ -42,6 +51,7 @@ export interface FornecedorWriteRequest {
   pais?: string | null;
   /** null = não mexe; "" = apaga. */
   nif?: string | null;
+  tipoFaturas?: TipoFaturas;
 }
 
 /** Sprint 548 (Doc 93 #3): histórico consolidado de um fornecedor. */

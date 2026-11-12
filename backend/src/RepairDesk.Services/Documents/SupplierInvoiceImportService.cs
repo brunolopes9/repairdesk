@@ -708,6 +708,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
 
         // Sprint 543: aprende a categoria deste fornecedor com a escolha do Bruno (last-wins —
         // a próxima fatura do mesmo fornecedor vem com esta categoria pré-selecionada no modal).
+        // Sprint 649: fornecedor ainda sem tipo definido → as faturas dele passam a vir marcadas como despesa.
+        if (entity.Fornecedor is { DefaultImportAction: DefaultImportAction.Auto } fd) fd.DefaultImportAction = DefaultImportAction.Despesa;
         if (entity.Fornecedor is not null && entity.Fornecedor.DefaultDespesaCategoria != req.Categoria)
         {
             entity.Fornecedor.DefaultDespesaCategoria = req.Categoria;

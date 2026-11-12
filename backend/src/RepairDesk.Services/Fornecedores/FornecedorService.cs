@@ -31,7 +31,9 @@ public sealed record FornecedorDto(
     bool IntraUe = false,
     RegimeIvaFornecedor RegimeIva = RegimeIvaFornecedor.Nacional,
     string? Pais = null,
-    string? Nif = null);
+    string? Nif = null,
+    // Sprint 649: o que as faturas deste fornecedor costumam ser — compra (peças para stock) ou despesa.
+    DefaultImportAction TipoFaturas = DefaultImportAction.Auto);
 
 public sealed record FornecedorWriteRequest(
     string Name,
@@ -47,7 +49,9 @@ public sealed record FornecedorWriteRequest(
     RegimeIvaFornecedor? RegimeIva = null,
     string? Pais = null,
     /// <summary>Sprint 579: NIF / nº de IVA. Null = não mexe (clientes antigos); "" = apaga.</summary>
-    string? Nif = null);
+    string? Nif = null,
+    /// <summary>Sprint 649: compra / despesa / perguntar. Null = não mexe.</summary>
+    DefaultImportAction? TipoFaturas = null);
 
 public class FornecedorService : IFornecedorService
 {
@@ -92,6 +96,7 @@ public class FornecedorService : IFornecedorService
             RegimeIva = ResolveRegime(req),
             Pais = CleanPais(req.Pais),
             Nif = await NifLivreAsync(req.Nif, null, ct),
+            DefaultImportAction = req.TipoFaturas is { } tf && Enum.IsDefined(tf) ? tf : DefaultImportAction.Auto,
         };
         await _repo.AddAsync(entity, ct);
         await _repo.SaveAsync(ct);
@@ -124,6 +129,7 @@ public class FornecedorService : IFornecedorService
         entity.RegimeIva = ResolveRegime(req);
         entity.Pais = CleanPais(req.Pais);
         if (req.Nif is not null) entity.Nif = await NifLivreAsync(req.Nif, entity.Id, ct);
+        if (req.TipoFaturas is { } tipo && Enum.IsDefined(tipo)) entity.DefaultImportAction = tipo;
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(Fornecedor), entity.Id, new { entity.Name, entity.Active }, ct: ct);
         return ToDto(entity);
@@ -161,6 +167,7 @@ public class FornecedorService : IFornecedorService
         destino.DefaultDespesaCategoria ??= origem.DefaultDespesaCategoria;
         if (destino.RegimeIva == RegimeIvaFornecedor.Nacional && origem.RegimeIva != RegimeIvaFornecedor.Nacional)
             destino.RegimeIva = origem.RegimeIva;
+        if (destino.DefaultImportAction == DefaultImportAction.Auto) destino.DefaultImportAction = origem.DefaultImportAction;
         if (origem.Notas is not null && destino.Notas?.Contains(origem.Notas) != true)
             destino.Notas = destino.Notas is null ? origem.Notas : $"{destino.Notas}\n{origem.Notas}";
         if (destino.Notas?.Length > 2000) destino.Notas = destino.Notas[..2000];
@@ -223,5 +230,5 @@ public class FornecedorService : IFornecedorService
     }
 
     private static FornecedorDto ToDto(Fornecedor f) =>
-        new(f.Id, f.Name, f.Code, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt, f.IntraUe, f.RegimeIva, f.Pais, f.Nif);
+        new(f.Id, f.Name, f.Code, f.Email, f.RmaEmail, f.Phone, f.Website, f.GarantiaB2BDiasDefault, f.Notas, f.Active, f.CreatedAt, f.IntraUe, f.RegimeIva, f.Pais, f.Nif, f.DefaultImportAction);
 }

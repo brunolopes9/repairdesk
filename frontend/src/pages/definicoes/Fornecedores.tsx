@@ -6,7 +6,7 @@ import { BackButton, Button, DetailWorkspace, EmptyState, InspectorRail, PageHea
 import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
 import { toast } from '../../lib/toast';
 import { formatCents, formatDateOnly } from '../../lib/money';
-import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor, type FornecedorWriteRequest, type RegimeIva } from '../../lib/fornecedores/api';
+import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, TIPO_FATURAS_LABEL, type Fornecedor, type TipoFaturas, type FornecedorWriteRequest, type RegimeIva } from '../../lib/fornecedores/api';
 
 const emptyForm: FornecedorWriteRequest = {
   name: '',
@@ -20,6 +20,7 @@ const emptyForm: FornecedorWriteRequest = {
   regimeIva: REGIME_IVA.Nacional,
   pais: 'PT',
   nif: null,
+  tipoFaturas: 0,
 };
 
 /** Sprint 579: "Hetzner" e "Hetzner Online GmbH" — mesma 1.ª palavra, provável repetido a juntar. */
@@ -59,6 +60,7 @@ export default function Fornecedores() {
       regimeIva: f.regimeIva,
       pais: f.pais,
       nif: f.nif,
+      tipoFaturas: f.tipoFaturas ?? 0,
     });
     setJuntar('');
     setOpen(true);
@@ -322,6 +324,16 @@ export default function Fornecedores() {
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-zinc-500">Notas</span>
             <textarea rows={3} value={form.notas ?? ''} onChange={(e) => setForm({ ...form, notas: e.target.value || null })} className={`${inputCls} resize-none`} placeholder="Pagamento por Multibanco, devoluções até 14d..." />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-zinc-500">As faturas deste fornecedor são</span>
+            <select
+              value={form.tipoFaturas ?? 0}
+              onChange={(e) => setForm({ ...form, tipoFaturas: Number(e.target.value) as TipoFaturas })}
+              className={inputCls}
+            >
+              {Object.entries(TIPO_FATURAS_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+            </select>
           </label>
           <div className="grid grid-cols-[1fr_6rem] gap-2">
             <label className="block">

@@ -506,12 +506,20 @@ function ImportRow({
   const hasItems = x.items && x.items.length > 0;
   const corr = useCorrespondencia(x.id, x.status === 'Pending');
   const podeLigar = (corr.data?.candidatos.length ?? 0) > 0;
+  // Sprint 649: o fornecedor diz o que as faturas dele são (4Phones → compra, MEO → despesa). Esse botão fica em destaque.
+  const tipo = x.fornecedorDefaultAction === 'stock' ? 'compra' : x.fornecedorDefaultAction === 'despesa' ? 'despesa' : null;
+  const btnCheio = 'flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium text-white';
+  const btnVazio = 'flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800';
   return (
     <>
       <tr className={hasItems ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900' : ''} onClick={() => hasItems && setExpanded(!expanded)}>
         <td className="px-2 py-2 font-medium">
           {hasItems && <span className="mr-1 text-zinc-400">{expanded ? '▾' : '▸'}</span>}
           {x.fornecedorName ?? <span className="text-zinc-400">(não detectado)</span>}
+          {tipo && (
+            <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ` + (tipo === 'compra' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300')}
+              title="Definido no fornecedor (Definições → Fornecedores)">{tipo}</span>
+          )}
         </td>
         <td className="px-2 py-2">{x.documentNumber ?? <span className="text-zinc-400">—</span>}</td>
         <td className="px-2 py-2">{x.documentDate ? new Date(x.documentDate).toLocaleDateString('pt-PT') : <span className="text-zinc-400">—</span>}</td>
@@ -542,7 +550,7 @@ function ImportRow({
             <button
               type="button"
               onClick={() => onCompra(x)}
-              className="flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+              className={tipo === 'despesa' ? btnVazio : `${btnCheio} bg-emerald-600 hover:bg-emerald-700`}
               title="Peças/artigos para revenda: abre a compra já preenchida para rever"
             >
               <PackagePlus size={14} /> Compra
@@ -550,7 +558,7 @@ function ImportRow({
             <button
               type="button"
               onClick={() => onDespesa(x)}
-              className="flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              className={tipo === 'despesa' ? `${btnCheio} bg-sky-600 hover:bg-sky-700` : btnVazio}
               title="Serviços, ferramentas, contas: regista como despesa"
             >
               <ReceiptText size={14} /> Despesa
