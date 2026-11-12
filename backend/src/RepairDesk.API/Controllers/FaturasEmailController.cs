@@ -8,7 +8,10 @@ using RepairDesk.DAL.Persistence;
 
 namespace RepairDesk.API.Controllers;
 
-public sealed record FaturasEmailConfigDto(bool Configurado, string? Host, int? Port, string? User, DateTime? UltimaLeitura, string? UltimoErro);
+public sealed record FaturasEmailConfigDto(bool Configurado, string? Host, int? Port, string? User, DateTime? UltimaLeitura, string? UltimoErro,
+    string? Endereco = null, bool TemSegredo = false, DateTime? UltimoEmailEm = null);
+public sealed record EnderecoCloudflareRequest(string Endereco);
+public sealed record SegredoGeradoDto(string Endereco, string Segredo, string UrlMender);
 public sealed record GuardarFaturasEmailRequest(string Host, int? Port, string User, string Password);
 
 /// <summary>
@@ -39,7 +42,8 @@ public sealed class FaturasEmailController : ControllerBase
 
     private static FaturasEmailConfigDto Dto(RepairDesk.Core.Entities.Tenant t) => new(
         t.FaturasImapHost is not null && t.FaturasImapPasswordCifrada is not null,
-        t.FaturasImapHost, t.FaturasImapPort, t.FaturasImapUser, t.FaturasImapUltimaLeitura, t.FaturasImapUltimoErro);
+        t.FaturasImapHost, t.FaturasImapPort, t.FaturasImapUser, t.FaturasImapUltimaLeitura, t.FaturasImapUltimoErro,
+        t.FaturasEmailEndereco, t.FaturasEmailSegredoHash is not null, t.FaturasEmailUltimoEm);
 
     [HttpGet]
     public async Task<ActionResult<FaturasEmailConfigDto>> Get(CancellationToken ct) => Ok(Dto(await TenantAsync(ct)));
@@ -83,6 +87,36 @@ public sealed class FaturasEmailController : ControllerBase
         t.FaturasImapUser = null;
         t.FaturasImapPasswordCifrada = null;
         t.FaturasImapUltimoErro = null;
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Sprint 632: endereço de receção na Cloudflare + segredo novo para o Email Worker. O segredo só aparece nesta
+    /// resposta (fica guardado o hash) — gerar outro invalida o anterior.
+    /// </summary>
+    [HttpPost("cloudflare")]
+    public async Task<ActionResult<SegredoGeradoDto>> GerarSegredo([FromBody] EnderecoCloudflareRequest req, CancellationToken ct)
+    {
+        var endereco = req.Endereco?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (!System.Net.Mail.MailAddress.TryCreate(endereco, out var mail) || mail.Address != endereco || endereco.Length > 120)
+            throw new ValidationException("endereco_invalido", "Indica o endereço de receção (ex.: faturas@lopestech.pt).");
+        if (await _db.Tenants.IgnoreQueryFilters().AnyAsync(x => x.FaturasEmailEndereco == endereco && x.Id != _tenant.TenantId, ct))
+            throw new ConflictException("endereco_em_uso", "Esse endereço já está ligado a outra empresa.");
+        var t = await TenantAsync(ct);
+        var segredo = FaturasEmailSegredo.Gerar();
+        t.FaturasEmailEndereco = endereco;
+        t.FaturasEmailSegredoHash = FaturasEmailSegredo.Hash(segredo);
+        await _db.SaveChangesAsync(ct);
+        return Ok(new SegredoGeradoDto(endereco, segredo, "https://app.lopestech.pt/api/external/email-ingest/mime"));
+    }
+
+    [HttpDelete("cloudflare")]
+    public async Task<IActionResult> DesligarCloudflare(CancellationToken ct)
+    {
+        var t = await TenantAsync(ct);
+        t.FaturasEmailEndereco = null;
+        t.FaturasEmailSegredoHash = null;
         await _db.SaveChangesAsync(ct);
         return NoContent();
     }

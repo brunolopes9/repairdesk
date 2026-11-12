@@ -141,6 +141,12 @@ public class Tenant : BaseEntity
     public DateTime? FaturasImapUltimaLeitura { get; set; }
     public string? FaturasImapUltimoErro { get; set; }
 
+    // Sprint 632 (Doc 98 F5): endereço de receção na Cloudflare (ex.: faturas@lopestech.pt). O Email Worker envia o
+    // email inteiro (MIME) para o Mender com um segredo; aqui só fica o hash (SHA-256) do segredo.
+    public string? FaturasEmailEndereco { get; set; }
+    public string? FaturasEmailSegredoHash { get; set; }
+    public DateTime? FaturasEmailUltimoEm { get; set; }
+
     // Sprint 354 (Doc 83 Pillar 9): slug público para widget de repair-request no website.
     // NULL = widget desactivado. Gerado on-demand em Definições.
     public string? IntakeSlug { get; set; }

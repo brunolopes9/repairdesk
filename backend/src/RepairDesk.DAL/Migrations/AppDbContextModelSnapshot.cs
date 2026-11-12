@@ -2846,6 +2846,17 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("FaturasEmailEndereco")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("FaturasEmailSegredoHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("FaturasEmailUltimoEm")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("FaturasImapHost")
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
@@ -3063,6 +3074,10 @@ namespace RepairDesk.DAL.Migrations
                         .HasColumnType("nvarchar(1000)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FaturasEmailEndereco")
+                        .IsUnique()
+                        .HasFilter("[FaturasEmailEndereco] IS NOT NULL");
 
                     b.HasIndex("Nif")
                         .IsUnique()

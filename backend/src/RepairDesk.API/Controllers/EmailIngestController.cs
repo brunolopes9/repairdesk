@@ -128,6 +128,43 @@ public class EmailIngestController : ControllerBase
     }
 
     /// <summary>Extrai "lopestech" de "faturas-lopestech@ingest.repairdesk.app".</summary>
+    /// <summary>
+    /// Sprint 632 (Doc 98 F5): o Email Worker da Cloudflare (ex.: faturas@lopestech.pt) envia o email inteiro (MIME).
+    /// A empresa é a que tem esse endereço; o segredo (X-Webhook-Secret) tem de bater com o hash guardado.
+    /// Resposta: <c>semPdf=true</c> → o Worker reencaminha o email para o Gmail do dono (ex.: código de confirmação).
+    /// </summary>
+    [HttpPost("mime")]
+    [AllowAnonymous]
+    [RequestSizeLimit(30 * 1024 * 1024)]
+    [Consumes("message/rfc822", "application/octet-stream")]
+    public async Task<IActionResult> ReceiveMime([FromServices] HostedServices.FaturasImapLeitor leitor, CancellationToken ct)
+    {
+        var para = Request.Headers["X-Para"].ToString().Trim().ToLowerInvariant();
+        var segredo = Request.Headers["X-Webhook-Secret"].ToString();
+        if (string.IsNullOrEmpty(para) || string.IsNullOrEmpty(segredo)) return Unauthorized();
+        var tenant = await _db.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.FaturasEmailEndereco == para && !t.IsDeleted, ct);
+        if (tenant?.FaturasEmailSegredoHash is not { } hash
+            || !CryptographicOperations.FixedTimeEquals(System.Text.Encoding.ASCII.GetBytes(FaturasEmailSegredo.Hash(segredo)), System.Text.Encoding.ASCII.GetBytes(hash)))
+        {
+            _logger.LogWarning("EmailIngest MIME: segredo/endereço inválido para {Para} de {Ip}", para, HttpContext.Connection.RemoteIpAddress);
+            return Unauthorized();
+        }
+        MimeKit.MimeMessage msg;
+        try { msg = await MimeKit.MimeMessage.LoadAsync(Request.Body, ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "EmailIngest MIME: email ilegível");
+            return BadRequest(new { code = "mime_invalido" });
+        }
+        var (pdfs, novos, falhas) = await leitor.ImportarEmailAsync(tenant.Id, msg, ct);
+        tenant.FaturasEmailUltimoEm = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        await leitor.AvisarNovasAsync(tenant.Id, novos, ct);
+        _logger.LogInformation("EmailIngest MIME: «{Assunto}» → {Pdfs} PDF(s), {Novos} novo(s), {Falhas} falha(s)", msg.Subject, pdfs, novos, falhas);
+        return Ok(new { pdfs, novos, falhas, semPdf = pdfs == 0 });
+    }
+
     internal static string? ExtractSlugFromEmail(string to)
     {
         if (string.IsNullOrWhiteSpace(to)) return null;
@@ -146,3 +183,10 @@ public sealed record EmailWebhookPayload(
     List<EmailAttachment>? Attachments);
 
 public sealed record EmailAttachment(string Name, string ContentType, string Content);
+
+/// <summary>Sprint 632: segredo do Email Worker — só o hash fica guardado.</summary>
+public static class FaturasEmailSegredo
+{
+    public static string Gerar() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    public static string Hash(string segredo) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(segredo))).ToLowerInvariant();
+}

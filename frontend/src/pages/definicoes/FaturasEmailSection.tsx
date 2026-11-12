@@ -5,6 +5,7 @@ import { Button } from '../../components/ui';
 import { api } from '../../lib/api';
 import { apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
+import { FaturasCloudflare } from './FaturasCloudflare';
 
 interface Config {
   configurado: boolean;
@@ -13,6 +14,9 @@ interface Config {
   user: string | null;
   ultimaLeitura: string | null;
   ultimoErro: string | null;
+  endereco?: string | null;
+  temSegredo?: boolean;
+  ultimoEmailEm?: string | null;
 }
 
 const campo = 'mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950';
@@ -55,7 +59,7 @@ export function FaturasEmailSection() {
   });
 
   const c = cfg.data;
-  const mostrarForm = editar || (c && !c.configurado);
+  const mostrarForm = editar;
 
   return (
     <section className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
@@ -67,6 +71,12 @@ export function FaturasEmailSection() {
         </p>
       </div>
 
+      {c && <FaturasCloudflare endereco={c.endereco ?? null} temSegredo={!!c.temSegredo} ultimoEmailEm={c.ultimoEmailEm ?? null} />}
+
+      <h3 className="pt-2 text-sm font-semibold">Alternativa: caixa IMAP</h3>
+      {c && !c.configurado && !editar && (
+        <Button size="sm" variant="ghost" onClick={() => setEditar(true)}>Ligar uma caixa IMAP</Button>
+      )}
       {c?.configurado && !editar && (
         <div className="rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800">
           <p><strong>{c.user}</strong> <span className="text-zinc-500">em {c.host}</span></p>

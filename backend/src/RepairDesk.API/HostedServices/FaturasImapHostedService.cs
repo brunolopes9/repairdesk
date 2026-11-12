@@ -104,6 +104,46 @@ public sealed class FaturasImapLeitor
         }
     }
 
+    /// <summary>Sprint 632: importa os PDFs de um email (vindo do IMAP ou da Cloudflare). Devolve (pdfs, novos, falhas).</summary>
+    public async Task<(int Pdfs, int Novos, int Falhas)> ImportarEmailAsync(Guid tenantId, MimeMessage msg, CancellationToken ct)
+    {
+        int pdfs = 0, novos = 0, falhas = 0;
+        foreach (var parte in msg.Attachments.OfType<MimePart>())
+        {
+            if (!FaturasEmail.EPdf(parte.ContentType.MimeType, parte.FileName)) continue;
+            pdfs++;
+            try
+            {
+                using var ms = new MemoryStream();
+                await parte.Content.DecodeToAsync(ms, ct);
+                if (ms.Length is 0 or > FaturasEmail.MaxBytes) { falhas++; continue; }
+                using var scope = _scopes.CreateScope();
+                var ingest = scope.ServiceProvider.GetRequiredService<ISupplierInvoiceImportService>();
+                var r = await ingest.IngestAsExternalAsync(tenantId, ms.ToArray(), parte.FileName ?? "fatura.pdf",
+                    new SupplierInvoiceEmailMeta(msg.MessageId, msg.Subject, msg.From?.ToString(), msg.Date.UtcDateTime), null, ct);
+                if (!r.WasDuplicate) novos++;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                falhas++;
+                _logger.LogWarning(ex, "Faturas por email: anexo {Nome} de «{Assunto}» falhou.", parte.FileName, msg.Subject);
+            }
+        }
+        return (pdfs, novos, falhas);
+    }
+
+    public async Task AvisarNovasAsync(Guid tenantId, int novos, CancellationToken ct)
+    {
+        if (novos <= 0) return;
+        using var scope = _scopes.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IStaffPushQueue>().EnqueueAsync(new StaffPushJob(
+            tenantId,
+            novos == 1 ? "📥 1 fatura nova por aprovar" : $"📥 {novos} faturas novas por aprovar",
+            "Chegaram por email. Confirma fornecedor, valores e IVA.",
+            "/importacoes",
+            "faturas-email"), ct);
+    }
+
     private async Task<int> ProcessarAsync(Tenant t, string password, CancellationToken ct)
     {
         using var imap = new ImapClient { Timeout = 60_000 };
@@ -127,43 +167,14 @@ public sealed class FaturasImapLeitor
         foreach (var uid in uids.Take(50))
         {
             var msg = await inbox.GetMessageAsync(uid, ct);
-            int pdfs = 0, falhas = 0;
-            foreach (var parte in msg.Attachments.OfType<MimePart>())
-            {
-                if (!FaturasEmail.EPdf(parte.ContentType.MimeType, parte.FileName)) continue;
-                pdfs++;
-                try
-                {
-                    using var ms = new MemoryStream();
-                    await parte.Content.DecodeToAsync(ms, ct);
-                    if (ms.Length is 0 or > FaturasEmail.MaxBytes) { falhas++; continue; }
-                    using var scope = _scopes.CreateScope();
-                    var ingest = scope.ServiceProvider.GetRequiredService<ISupplierInvoiceImportService>();
-                    var r = await ingest.IngestAsExternalAsync(t.Id, ms.ToArray(), parte.FileName ?? "fatura.pdf",
-                        new SupplierInvoiceEmailMeta(msg.MessageId, msg.Subject, msg.From?.ToString(), msg.Date.UtcDateTime), null, ct);
-                    if (!r.WasDuplicate) importados++;
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    falhas++;
-                    _logger.LogWarning(ex, "Faturas por email: anexo {Nome} de «{Assunto}» falhou.", parte.FileName, msg.Subject);
-                }
-            }
+            var (pdfs, novos, falhas) = await ImportarEmailAsync(t.Id, msg, ct);
+            importados += novos;
             await inbox.AddFlagsAsync(uid, MessageFlags.Seen, true, ct);
             await inbox.MoveToAsync(uid, await Pasta(FaturasEmail.Destino(pdfs, falhas)), ct);
         }
         await imap.DisconnectAsync(true, ct);
 
-        if (importados > 0)
-        {
-            using var scope = _scopes.CreateScope();
-            await scope.ServiceProvider.GetRequiredService<IStaffPushQueue>().EnqueueAsync(new StaffPushJob(
-                t.Id,
-                importados == 1 ? "📥 1 fatura nova por aprovar" : $"📥 {importados} faturas novas por aprovar",
-                "Chegaram por email. Confirma fornecedor, valores e IVA.",
-                "/importacoes",
-                "faturas-email"), ct);
-        }
+        await AvisarNovasAsync(t.Id, importados, ct);
         return importados;
     }
 }
