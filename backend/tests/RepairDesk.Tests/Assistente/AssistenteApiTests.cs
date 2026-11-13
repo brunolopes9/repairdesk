@@ -5,6 +5,7 @@ using FluentAssertions;
 using RepairDesk.API.Controllers;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Enums;
+using RepairDesk.Services.Clientes;
 using RepairDesk.Services.InternalTasks;
 using RepairDesk.Services.Rotina;
 using RepairDesk.Services.ServiceApiKeys;
@@ -52,6 +53,44 @@ public class AssistenteApiTests : IClassFixture<RepairDeskApiFactory>
 
         var outra = await Chave(admin, "conteudo");
         (await outra.GetAsync("/api/external/assistente/agora")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Assistente_Venda_FaturaMaisPorFora_ClienteNovo_Despesa_EDesfaz()
+    {
+        var admin = await Admin();
+        var bot = await Chave(admin, "assistente");
+
+        // «Venda para o João Teste, ecrã A52, cliente paga 100: 70 na fatura e 30 por fora, custo 60» — cliente novo com telefone.
+        var resp = await bot.PostAsJsonAsync("/api/external/assistente/vendas", new AssistenteVendaRequest(
+            "João Teste Assistente", "912345111", null, "Samsung A52", "Ecrã partido", "Ecrã Samsung A52", 100m, 70m, 60m, null, null));
+        var txt = await resp.Content.ReadAsStringAsync();
+        resp.StatusCode.Should().Be(HttpStatusCode.OK, txt);
+        var r = (await resp.Content.ReadFromJsonAsync<AssistenteResultado>())!;
+        r.Resumo.Should().Contain("70,00").And.Contain("30,00");
+
+        var vendas = await admin.GetFromJsonAsync<PagedResult<RepairDesk.Services.Vendas.VendaDto>>("/api/vendas?pageSize=200");
+        var v = vendas!.Items.Single(x => x.Cliente != null && x.Cliente.Nome == "João Teste Assistente");
+        v.Estado.Should().Be(VendaEstado.Pronta);
+        v.TotalCents.Should().Be(10000);                       // o cliente paga 100 — sem IVA por cima
+        v.Items.Should().Contain(i => i.PorFora && i.TotalCents == 3000);
+        v.Items.Should().Contain(i => !i.PorFora && i.TotalCents == 7000);
+
+        // Reparação sem cliente nenhum → erro claro, nada criado.
+        (await bot.PostAsJsonAsync("/api/external/assistente/vendas", new AssistenteVendaRequest(null, null, null, null, null, "X", 10m, null, null, null, null)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        // Desfazer cancela a venda.
+        (await bot.PostAsync($"/api/external/assistente/desfazer/{r.DesfazerId}", null)).EnsureSuccessStatusCode();
+        (await admin.GetFromJsonAsync<RepairDesk.Services.Vendas.VendaDto>($"/api/vendas/{v.Id}"))!.Estado.Should().Be(VendaEstado.Cancelada);
+
+        // Despesa + lista de faturas e tarefas.
+        var d = (await (await bot.PostAsJsonAsync("/api/external/assistente/despesas", new AssistenteDespesaRequest("Gasóleo", 40m, "Combustivel", "Galp", null, null)))
+            .Content.ReadFromJsonAsync<AssistenteResultado>())!;
+        d.Resumo.Should().Contain("Gasóleo");
+        (await bot.GetAsync("/api/external/assistente/faturas")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await bot.GetAsync("/api/external/assistente/tarefas?foco=semana")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await bot.PostAsync($"/api/external/assistente/desfazer/{d.DesfazerId}", null)).EnsureSuccessStatusCode();
     }
 
     private async Task<HttpClient> Chave(HttpClient admin, string scope)
