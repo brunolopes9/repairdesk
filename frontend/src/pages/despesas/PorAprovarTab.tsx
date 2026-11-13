@@ -20,7 +20,19 @@ type CampoFatura = 'fornecedor' | 'documento' | 'data' | 'total';
 
 const inputCls = 'mt-1 min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950';
 
-export default function PorAprovarTab() {
+/**
+ * Sprint 657: de onde se vê a caixa das faturas recebidas. Compras = fornecedores de peças (stock) e os que ainda não
+ * têm regra; Despesas = fornecedores marcados como despesa (MEO, Hetzner, Anthropic…); todas = página «Faturas recebidas».
+ */
+export type DestinoFaturas = 'todas' | 'compras' | 'despesas';
+
+export function destinoDaFatura(x: Pick<SupplierInvoiceImport, 'fornecedorDefaultAction'>): 'compras' | 'despesas' | 'classificar' {
+  if (x.fornecedorDefaultAction === 'despesa') return 'despesas';
+  if (x.fornecedorDefaultAction === 'stock') return 'compras';
+  return 'classificar';
+}
+
+export default function PorAprovarTab({ destino = 'todas' }: { destino?: DestinoFaturas }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const isAdmin = useAuth().hasRole('Admin');
@@ -199,7 +211,11 @@ export default function PorAprovarTab() {
   }
 
   const { ordem, alternar } = useOrdenacao<CampoFatura>('data');
-  const data = ordenarLista(pending.data ?? [], ordem, {
+  const doDestino = (pending.data ?? []).filter((x) => {
+    const d = destinoDaFatura(x);
+    return destino === 'todas' || (destino === 'despesas' ? d === 'despesas' : d !== 'despesas');
+  });
+  const data = ordenarLista(doDestino, ordem, {
     fornecedor: (x) => x.fornecedorName,
     documento: (x) => x.documentNumber,
     data: (x) => x.documentDate,
@@ -248,10 +264,12 @@ export default function PorAprovarTab() {
       <header className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm shadow-black/[0.02] dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Compras</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+              {destino === 'despesas' ? 'Despesas' : destino === 'compras' ? 'Compras' : 'Compras e despesas'}
+            </p>
             <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold text-zinc-950 dark:text-zinc-50">
               <Inbox size={22} strokeWidth={2} className="text-brand-600" />
-              Importações de Fornecedor
+              {destino === 'despesas' ? 'Faturas de despesas por aprovar' : destino === 'compras' ? 'Faturas de compras por aprovar' : 'Faturas recebidas'}
             </h1>
           </div>
           {/* Sprint 160c + 164: upload manual PDF / foto papel. */}

@@ -8,7 +8,7 @@ public enum EncomendaLojaEstado
     /// <summary>O Stripe confirmou o pagamento — a venda foi criada e o stock saiu.</summary>
     Paga = 1,
     EmPreparacao = 2,
-    /// <summary>Entregue à transportadora (Asfalto Largo), com nº de seguimento.</summary>
+    /// <summary>Entregue à transportadora (CTT), com nº de seguimento.</summary>
     Enviada = 3,
     Entregue = 4,
     Cancelada = 5,

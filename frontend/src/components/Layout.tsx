@@ -9,6 +9,7 @@ import {
   Users,
   Wrench,
   Receipt,
+  Inbox,
   Banknote,
   ShoppingCart,
   ChevronDown,
@@ -73,6 +74,8 @@ const nav: NavItem[] = [
   { to: '/balcao', label: 'Balcão', icon: ScanBarcode },
   { to: '/artigos', label: 'Artigos', icon: Tag },
   { to: '/compras', label: 'Compras', icon: Receipt },
+  // Sprint 657: a caixa das faturas (email/upload) — compras e despesas separadas pelo fornecedor.
+  { to: '/faturas', label: 'Faturas recebidas', icon: Inbox },
   { to: '/despesas', label: 'Despesas', icon: Banknote },
   // Sprint 573: apuramento trimestral do IVA e resultado (só o administrador).
   { to: '/apuramento', label: 'IVA e resultados', icon: Landmark, adminOnly: true },

@@ -18,7 +18,7 @@ const data = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-PT'
 
 /**
  * Sprint 656: encomendas pagas no site. Paga → a venda já existe (o stock saiu) e fica por faturar; aqui preparas,
- * envias pela Asfalto Largo (com o nº de seguimento, o cliente recebe email) e marcas entregue.
+ * envias pelos CTT (com o nº de seguimento, o cliente recebe email) e marcas entregue.
  */
 export default function Encomendas() {
   const [todas, setTodas] = useState(false);

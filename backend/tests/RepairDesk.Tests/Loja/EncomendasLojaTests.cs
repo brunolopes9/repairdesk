@@ -60,7 +60,7 @@ public class EncomendasLojaTests : IClassFixture<RepairDeskApiFactory>
         var stripe = _app.Services.GetRequiredService<StripeFalso>();
         var sessao = stripe.Pedidos.Single(p => p.Referencia == r.Referencia);
         sessao.Linhas.Should().ContainEquivalentOf(new StripeLinha(produto.Titulo, 890, 2));
-        sessao.Linhas.Should().ContainEquivalentOf(new StripeLinha("Envio Asfalto Largo (24 h)", 650, 1));
+        sessao.Linhas.Should().ContainEquivalentOf(new StripeLinha("Envio CTT (24 h)", 500, 1));
         (await Stock(admin, artigoId)).Should().Be(2, "o stock só sai quando o pagamento é confirmado");
 
         // Webhook assinado → paga, venda criada, stock sai. Repetido → nada muda.
@@ -71,13 +71,13 @@ public class EncomendasLojaTests : IClassFixture<RepairDeskApiFactory>
         var lista = (await admin.GetFromJsonAsync<List<EncomendaLojaDto>>("/api/loja/encomendas"))!;
         var enc = lista.Single(x => x.Referencia == r.Referencia);
         enc.Estado.Should().Be(EncomendaLojaEstado.Paga);
-        enc.Total.Should().Be(24.30m);
+        enc.Total.Should().Be(22.80m);
         enc.VendaId.Should().NotBeNull();
         enc.Problema.Should().BeNull();
         (await Stock(admin, artigoId)).Should().Be(0);
         var venda = (await admin.GetFromJsonAsync<VendaDto>($"/api/vendas/{enc.VendaId}"))!;
         venda.Estado.Should().Be(VendaEstado.Pronta);
-        venda.TotalCents.Should().Be(2430);
+        venda.TotalCents.Should().Be(2280);
 
         // A loja passa a mostrar esgotado.
         (await admin.GetFromJsonAsync<ProdutoLojaDto>($"/api/loja/produtos/{produto.Id}"))!.Disponibilidade.Should().Be(LojaDisponibilidade.Esgotado);
@@ -108,7 +108,7 @@ public class EncomendasLojaTests : IClassFixture<RepairDeskApiFactory>
 
         var ok = await anon.GetFromJsonAsync<EncomendaPublicaDto>($"/api/public/loja/{slug}/encomendas/{r.Referencia}?t={token}");
         ok!.Estado.Should().Be(EncomendaLojaEstado.AguardaPagamento);
-        ok.Total.Should().Be(19.40m);
+        ok.Total.Should().Be(17.90m);
         (await anon.GetAsync($"/api/public/loja/{slug}/encomendas/{r.Referencia}?t=errado")).StatusCode.Should().Be(HttpStatusCode.NotFound);
 
         // Sem assinatura válida não se marca nada como pago.

@@ -5,7 +5,7 @@ import { PageHeader } from '../../components/ui';
 import { despesasApi } from '../../lib/despesas/api';
 import { supplierInvoicesApi } from '../../lib/supplierInvoices/api';
 import AprovadasTab from './AprovadasTab';
-import PorAprovarTab from './PorAprovarTab';
+import PorAprovarTab, { destinoDaFatura } from './PorAprovarTab';
 import RecorrentesTab from './RecorrentesTab';
 
 type TabKey = 'pending' | 'approved' | 'recurring';
@@ -36,7 +36,7 @@ export default function DespesasTabs() {
   });
 
   const counts = useMemo(() => ({
-    pending: pending.data?.length ?? 0,
+    pending: (pending.data ?? []).filter((x) => destinoDaFatura(x) === 'despesas').length,
     recurring: recurring.data?.total ?? 0,
   }), [pending.data, recurring.data]);
 
@@ -70,7 +70,7 @@ export default function DespesasTabs() {
         )}
       />
 
-      {active === 'pending' && <PorAprovarTab />}
+      {active === 'pending' && <PorAprovarTab destino="despesas" />}
       {active === 'approved' && <AprovadasTab />}
       {active === 'recurring' && <RecorrentesTab />}
     </div>

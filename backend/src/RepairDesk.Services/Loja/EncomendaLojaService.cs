@@ -67,8 +67,9 @@ public interface IEncomendaLojaService
 /// </summary>
 public sealed class EncomendaLojaService : IEncomendaLojaService
 {
-    public const string Transportadora = "Asfalto Largo";
-    public const long PortesCents = 650;
+    // 13/11/2026: o Bruno passou o envio para os CTT, 5 € por encomenda.
+    public const string Transportadora = "CTT";
+    public const long PortesCents = 500;
     public const int MaxLinhas = 20;
     public const int MaxQuantidade = 10;
     private const string AlfabetoReferencia = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sem 0/O, 1/I

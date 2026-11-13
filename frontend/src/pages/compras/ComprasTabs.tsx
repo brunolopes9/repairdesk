@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader, ViewTabs } from '../../components/ui';
 import { supplierInvoicesApi } from '../../lib/supplierInvoices/api';
-import PorAprovarTab from '../despesas/PorAprovarTab';
+import PorAprovarTab, { destinoDaFatura } from '../despesas/PorAprovarTab';
 import DocumentosTab from './DocumentosTab';
 import InventarioLotesTab from './InventarioLotesTab';
 import ResumoTab from './ResumoTab';
@@ -52,7 +52,7 @@ export default function ComprasTabs() {
         tabs={TABS.map((t) => ({
           key: t.key,
           label: t.label,
-          meta: t.key === 'pending' && pending.data?.length ? pending.data.length : undefined,
+          meta: t.key === 'pending' ? (pending.data ?? []).filter((x) => destinoDaFatura(x) !== 'despesas').length || undefined : undefined,
         }))}
       />
 
@@ -60,7 +60,7 @@ export default function ComprasTabs() {
       {active === 'stock' && <InventarioLotesTab />}
       {active === 'resumo' && <ResumoTab />}
       {active === 'simulador' && <SimuladorTab />}
-      {active === 'pending' && <PorAprovarTab />}
+      {active === 'pending' && <PorAprovarTab destino="compras" />}
     </div>
   );
 }
