@@ -151,7 +151,14 @@ public class VendaService : IVendaService
         var lotes = await LoadLotesAsync(req.Linhas, venda.Items, ct);
         var consome = ConsomeStock(venda.Estado);
         if (consome) LibertarStock(venda, lotes);
+        var existentes = venda.Items.Select(i => i.Id).ToHashSet();
         ApplyLinhas(venda, req.Linhas, lotes);
+        // Linhas novas já trazem Id (BaseEntity) — sem isto o EF tenta atualizá-las e falha (concorrência).
+        foreach (var novo in venda.Items.Where(i => !existentes.Contains(i.Id)))
+        {
+            novo.VendaId = venda.Id;
+            _vendas.AddItem(novo);
+        }
         if (consome) ConsumirStock(venda, lotes);
         RecalculateTotals(venda);
 

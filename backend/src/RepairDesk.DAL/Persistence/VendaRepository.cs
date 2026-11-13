@@ -180,6 +180,8 @@ public class VendaRepository : IVendaRepository
 
     public void AddEstadoLog(VendaEstadoLog log) => _db.VendaEstadoLogs.Add(log);
 
+    public void AddItem(VendaItem item) => _db.Entry(item).State = EntityState.Added;
+
     public Task<Venda?> FindByPublicSlugAsync(string slug, CancellationToken ct = default)
         => _db.Vendas
             .IgnoreQueryFilters()

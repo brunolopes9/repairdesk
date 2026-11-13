@@ -13,6 +13,8 @@ public interface IVendaRepository
     /// <summary>Distinct FornecedorNome usados pelo tenant — para autocomplete UI Vendas.</summary>
     Task<IReadOnlyList<string>> ListDistinctFornecedoresAsync(CancellationToken ct = default);
     void AddEstadoLog(VendaEstadoLog log);
+    /// <summary>Linha nova numa venda já gravada: marca-a como nova (o Id vem preenchido e o EF julgá-la-ia existente).</summary>
+    void AddItem(VendaItem item);
     /// <summary>Portal público: sem filtro de tenant (o slug é o segredo). Inclui cliente, linhas e histórico.</summary>
     Task<Venda?> FindByPublicSlugAsync(string slug, CancellationToken ct = default);
     Task<bool> AnyAsync(CancellationToken ct = default);
