@@ -32,7 +32,10 @@ public sealed record GuardarProdutoLojaRequest(
     IReadOnlyList<SpecLoja>? Specs,
     string? Slug,
     string? SeoTitulo,
-    string? SeoDescricao);
+    string? SeoDescricao,
+    /// <summary>Sprint 654: preço riscado (promoção) e unidades em stock.</summary>
+    decimal? PrecoAnterior = null,
+    int? Unidades = null);
 
 public sealed record ImportarProdutosResultado(int Criados, int JaExistiam, IReadOnlyList<ProdutoLojaDto> Produtos);
 
@@ -45,14 +48,17 @@ public sealed record ProdutoLojaDto(
     LojaDisponibilidade Disponibilidade, decimal Preco, decimal? Custo, decimal IvaEstimado, decimal? LucroEstimado,
     string? Cor, int? RamGb, int? ArmazenamentoGb, string? Descricao, IReadOnlyList<SpecLoja> Specs,
     string? SeoTitulo, string? SeoDescricao, bool Publicado, DateTime? PublicadoEm, string UrlSite,
-    IReadOnlyList<ProdutoLojaFotoDto> Fotos, DateTime CreatedAt, DateTime? UpdatedAt);
+    IReadOnlyList<ProdutoLojaFotoDto> Fotos, DateTime CreatedAt, DateTime? UpdatedAt,
+    decimal? PrecoAnterior = null, int? Unidades = null);
 
 /// <summary>Vista pública (gerador do site) — SEM custo nem margem.</summary>
 public sealed record CatalogoProdutoDto(
     string Slug, string Categoria, string Titulo, string Marca, string? Modelo, string Estado, string? Grau,
     string CondicaoSchema, int GarantiaMeses, string Disponibilidade, decimal Preco, string? Cor, int? RamGb,
     int? ArmazenamentoGb, string? Descricao, IReadOnlyList<SpecLoja> Specs, string SeoTitulo, string SeoDescricao,
-    IReadOnlyList<CatalogoFotoDto> Fotos, DateTime AtualizadoEm);
+    IReadOnlyList<CatalogoFotoDto> Fotos, DateTime AtualizadoEm,
+    /// <summary>Sprint 654: preço riscado (só se maior que o preço) e unidades (null = não mostra).</summary>
+    decimal? PrecoAnterior = null, int? Unidades = null);
 
 public sealed record CatalogoFotoDto(string Url, string? Alt);
 
@@ -267,6 +273,9 @@ public sealed class LojaService : ILojaService
         if (marca.Length is < 1 or > 60) throw new ValidationException("marca_invalida", "Marca obrigatória (até 60 caracteres).");
         if (req.Preco <= 0 || req.Preco > 100_000) throw new ValidationException("preco_invalido", "Preço de venda obrigatório.");
         if (req.Custo is < 0) throw new ValidationException("custo_invalido", "O custo não pode ser negativo.");
+        if (req.PrecoAnterior is { } pa && pa <= req.Preco)
+            throw new ValidationException("preco_anterior_invalido", "O preço antes tem de ser maior que o preço atual (e ser o mais baixo dos últimos 30 dias).");
+        if (req.Unidades is < 0 or > 10_000) throw new ValidationException("unidades_invalidas", "Unidades entre 0 e 10 000.");
 
         // Garantia mínima legal ao consumidor (DL 84/2021, art. 12.º): bens novos e recondicionados 3 anos;
         // usados (não recondicionados) podem ir a 18 meses por acordo expresso.
@@ -313,6 +322,8 @@ public sealed class LojaService : ILojaService
         p.Disponibilidade = req.Disponibilidade ?? (req.Origem == LojaOrigem.Fornecedor ? LojaDisponibilidade.PorEncomenda : LojaDisponibilidade.EmStock);
         p.PrecoCents = (long)Math.Round(req.Preco * 100, MidpointRounding.AwayFromZero);
         p.CustoCents = req.Custo is { } c ? (long)Math.Round(c * 100, MidpointRounding.AwayFromZero) : null;
+        p.PrecoAnteriorCents = req.PrecoAnterior is { } pAnt ? (long)Math.Round(pAnt * 100, MidpointRounding.AwayFromZero) : null;
+        p.Unidades = req.Unidades;
         p.Cor = Corta(TrimOrNull(req.Cor), 40);
         p.RamGb = req.RamGb;
         p.ArmazenamentoGb = req.ArmazenamentoGb;
@@ -390,7 +401,7 @@ public sealed class LojaService : ILojaService
             p.Publicado, p.PublicadoEm, $"{SiteBase}/loja/{CategoriaSlug(p.Categoria)}/{p.Slug}",
             p.Fotos.OrderBy(f => f.Ordem).Select(f => new ProdutoLojaFotoDto(f.Id, f.Ordem, f.Alt,
                 f.Enviada ? _storage?.CreateDownloadUrl(f.StorageKey, ValidadeLeitura) : null, f.Enviada)).ToList(),
-            p.CreatedAt, p.UpdatedAt);
+            p.CreatedAt, p.UpdatedAt, p.PrecoAnteriorCents / 100m, p.Unidades);
     }
 
     private CatalogoProdutoDto ToCatalogo(ProdutoLoja p) => new(
@@ -401,7 +412,8 @@ public sealed class LojaService : ILojaService
         p.SeoDescricao ?? Corta($"{p.Titulo} por {p.PrecoCents / 100m:0.00} € — {EstadoTexto(p.Estado)}, garantia de {p.GarantiaMeses} meses. LopesTech, Viseu.", 170)!,
         p.Fotos.Where(f => f.Enviada).OrderBy(f => f.Ordem)
             .Select(f => new CatalogoFotoDto(_storage?.CreateDownloadUrl(f.StorageKey, ValidadeLeitura) ?? "", f.Alt ?? p.Titulo)).ToList(),
-        p.UpdatedAt ?? p.CreatedAt);
+        p.UpdatedAt ?? p.CreatedAt,
+        p.PrecoAnteriorCents is { } ant && ant > p.PrecoCents ? ant / 100m : null, p.Unidades);
 
     private static string EstadoTexto(LojaEstado e) => e switch
     {

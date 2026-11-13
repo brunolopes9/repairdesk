@@ -34,6 +34,10 @@ public class ProdutoLoja : BaseEntity, ITenantEntity
     public long PrecoCents { get; set; }
     /// <summary>Custo (privado — nunca vai para o site).</summary>
     public long? CustoCents { get; set; }
+    /// <summary>Sprint 654: preço riscado (promoção). Tem de ser o preço mais baixo dos últimos 30 dias (DL 109/2019, Omnibus).</summary>
+    public long? PrecoAnteriorCents { get; set; }
+    /// <summary>Sprint 654: unidades em stock (próprios). Mostra «últimas unidades» na loja quando ≤ 2. Null = não controla.</summary>
+    public int? Unidades { get; set; }
 
     // Atributos filtráveis na loja.
     public string? Cor { get; set; }

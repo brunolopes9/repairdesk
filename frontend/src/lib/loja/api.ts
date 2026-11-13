@@ -53,6 +53,9 @@ export interface ProdutoLoja {
   disponibilidade: LojaDisponibilidade;
   preco: number;
   custo: number | null;
+  /** Sprint 654: preço riscado (promoção) e unidades em stock. */
+  precoAnterior?: number | null;
+  unidades?: number | null;
   ivaEstimado: number;
   lucroEstimado: number | null;
   cor: string | null;
@@ -84,6 +87,9 @@ export interface GuardarProdutoLoja {
   disponibilidade: LojaDisponibilidade | null;
   preco: number;
   custo: number | null;
+  /** Sprint 654: preço riscado (promoção) e unidades em stock. */
+  precoAnterior?: number | null;
+  unidades?: number | null;
   cor: string | null;
   ramGb: number | null;
   armazenamentoGb: number | null;

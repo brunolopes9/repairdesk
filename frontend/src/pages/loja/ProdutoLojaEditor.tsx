@@ -27,6 +27,7 @@ const VAZIO: GuardarProdutoLoja = {
   titulo: '', marca: '', modelo: null, categoria: LojaCategoria.Smartphones, estado: LojaEstado.Recondicionado, grau: null,
   garantiaMeses: 36, regimeIva: LojaRegimeIva.Normal, origem: LojaOrigem.Proprio, fornecedorId: null, disponibilidade: null,
   preco: 0, custo: null, cor: null, ramGb: null, armazenamentoGb: null, descricao: null, specs: [], slug: null, seoTitulo: null, seoDescricao: null,
+  precoAnterior: null, unidades: null,
 };
 
 function paraForm(p: ProdutoLoja): GuardarProdutoLoja {
@@ -35,6 +36,7 @@ function paraForm(p: ProdutoLoja): GuardarProdutoLoja {
     garantiaMeses: p.garantiaMeses, regimeIva: p.regimeIva, origem: p.origem, fornecedorId: p.fornecedorId,
     disponibilidade: p.disponibilidade, preco: p.preco, custo: p.custo, cor: p.cor, ramGb: p.ramGb,
     armazenamentoGb: p.armazenamentoGb, descricao: p.descricao, specs: p.specs, slug: p.slug, seoTitulo: p.seoTitulo, seoDescricao: p.seoDescricao,
+    precoAnterior: p.precoAnterior ?? null, unidades: p.unidades ?? null,
   };
 }
 
@@ -277,6 +279,12 @@ export default function ProdutoLojaEditor() {
           </Campo>
           <Campo label="Custo (€) — só tu vês" hint={f.regimeIva === LojaRegimeIva.Margem ? 'Preço a que compraste o equipamento (sem as peças da reparação).' : undefined}>
             <input className={input} inputMode="decimal" value={f.custo ?? ''} onChange={(e) => set('custo', numOuNull(e.target.value))} />
+          </Campo>
+          <Campo label="Preço antes (€) — promoção" hint="Aparece riscado na loja. Por lei tem de ser o preço mais baixo que praticaste nos últimos 30 dias.">
+            <input className={input} inputMode="decimal" value={f.precoAnterior ?? ''} onChange={(e) => set('precoAnterior', numOuNull(e.target.value))} />
+          </Campo>
+          <Campo label="Unidades em stock" hint="Com 1 ou 2 aparece «Últimas unidades». Vazio = não mostra.">
+            <input className={input} inputMode="numeric" value={f.unidades ?? ''} onChange={(e) => { const v = numOuNull(e.target.value); set('unidades', v == null ? null : Math.max(0, Math.round(v))); }} />
           </Campo>
         </div>
         <dl className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-950">

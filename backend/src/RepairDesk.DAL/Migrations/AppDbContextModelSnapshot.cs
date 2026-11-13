@@ -2075,6 +2075,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("Origem")
                         .HasColumnType("int");
 
+                    b.Property<long?>("PrecoAnteriorCents")
+                        .HasColumnType("bigint");
+
                     b.Property<long>("PrecoCents")
                         .HasColumnType("bigint");
 
@@ -2114,6 +2117,9 @@ namespace RepairDesk.DAL.Migrations
                         .IsRequired()
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
+
+                    b.Property<int?>("Unidades")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
