@@ -21,7 +21,8 @@ const MOTIVOS_RAPIDOS = ['Foto cortada', 'Texto a mudar', 'Outra hora', 'Não go
  * vista e dois botões grandes. Rejeitar pede um motivo opcional (com atalhos) para o Claude corrigir.
  * Sprint 610: aprovar também «a outra hora» ou «Publicar já» (sai no próximo minuto).
  */
-export function FilaAprovacao({ itens }: { itens: ConteudoPublicacao[] }) {
+/** hoje (AAAA-MM-DD, Lisboa): as de dias anteriores levam a etiqueta «atrasada». */
+export function FilaAprovacao({ itens, hoje, vazio }: { itens: ConteudoPublicacao[]; hoje?: string; vazio?: string }) {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const [rejeitar, setRejeitar] = useState<ConteudoPublicacao | null>(null);
@@ -79,7 +80,7 @@ export function FilaAprovacao({ itens }: { itens: ConteudoPublicacao[] }) {
       <EmptyState
         icon={PartyPopper}
         title="Nada para aprovar"
-        description="Quando houver publicações novas recebes uma notificação no telemóvel."
+        description={vazio ?? 'Quando houver publicações novas recebes uma notificação no telemóvel.'}
       />
     );
   }
@@ -112,6 +113,9 @@ export function FilaAprovacao({ itens }: { itens: ConteudoPublicacao[] }) {
             key={p.id}
             p={p}
             tiktokEditavel={tiktokLigado}
+            etiqueta={hoje && p.agendadoPara && new Date(p.agendadoPara).toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' }) < hoje
+              ? <span className="mr-1.5 rounded-full bg-rose-100 px-1.5 py-0.5 font-semibold text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">atrasada</span>
+              : null}
             actions={
               <div className="grid grid-cols-2 gap-2">
                 <Button

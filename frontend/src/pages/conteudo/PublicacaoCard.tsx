@@ -17,7 +17,7 @@ import { TikTokPainel } from './TikTokPainel';
  * Sprint 598 (Doc 95): uma publicação tal como vai sair — media, legenda e, quando uma rede tem
  * texto próprio (ex.: Threads mais curto), essa variante à parte. As ações vêm de fora.
  */
-export function PublicacaoCard({ p, actions, tiktokEditavel = false }: { p: ConteudoPublicacao; actions?: ReactNode; tiktokEditavel?: boolean }) {
+export function PublicacaoCard({ p, actions, tiktokEditavel = false, etiqueta }: { p: ConteudoPublicacao; actions?: ReactNode; tiktokEditavel?: boolean; etiqueta?: ReactNode }) {
   const vaiParaTikTok = p.destinos.some((d) => d.rede === RedeSocial.TikTok) && p.formato === ConteudoFormato.Reel;
   const variantes = p.destinos.filter((d) => d.legendaPropria);
   const [verVariantes, setVerVariantes] = useState(false);
@@ -28,7 +28,7 @@ export function PublicacaoCard({ p, actions, tiktokEditavel = false }: { p: Cont
       <header className="flex flex-wrap items-start justify-between gap-2 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
         <div className="min-w-0">
           <p className="text-xs font-medium text-zinc-500">
-            #{p.numero} · {FORMATO_LABEL[p.formato]} · {LINHA_LABEL[p.linha]}
+            {etiqueta}#{p.numero} · {FORMATO_LABEL[p.formato]} · {LINHA_LABEL[p.linha]}
             {p.origem === ConteudoOrigem.Claude && ' · preparado pelo Claude'}
             {p.autoAprovada && ' · promo automática'}
           </p>
