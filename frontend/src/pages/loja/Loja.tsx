@@ -22,9 +22,10 @@ export default function Loja() {
     <div className="space-y-4">
       <PageHeader
         title="Loja online"
-        description="Produtos à venda em lopestech.pt/loja. Publicas aqui e o site atualiza sozinho todas as manhãs (07:30)."
+        description="Produtos à venda em lopestech.pt/loja. Publicas aqui e o site atualiza sozinho. Preço e stock vêm do artigo ligado."
         actions={(
           <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => navigate('/loja/encomendas')}>Encomendas</Button>
             <Button variant="ghost" onClick={() => setImportar(true)}>Importar</Button>
             <Button leftIcon={<Plus size={16} />} onClick={() => navigate('/loja/novo')}>Novo produto</Button>
           </div>

@@ -132,6 +132,8 @@ public interface IArtigoService
     Task<ArtigoDetalheDto> DesligarLoteAsync(Guid id, Guid loteId, CancellationToken ct = default);
     /// <summary>Venda ao balcão: tira cada artigo dos lotes mais antigos e cria a venda entregue.</summary>
     Task<VendaDto> VenderAsync(BalcaoVendaRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 656: as linhas de venda (FIFO dos lotes) destes artigos — para uma venda criada por outro canal (loja online).</summary>
+    Task<IReadOnlyList<VendaLinhaWriteRequest>> LinhasVendaAsync(IReadOnlyList<BalcaoLinhaRequest> linhas, CancellationToken ct = default);
     /// <summary>Sprint 582: as linhas que a venda ao balcão faria (texto da fatura, lotes, preços) — sem vender nem emitir.</summary>
     Task<IReadOnlyList<BalcaoLinhaPreviaDto>> PrevisualizarAsync(BalcaoVendaRequest req, CancellationToken ct = default);
     /// <summary>Sprint 569: lotes em stock ainda sem artigo, agrupados pela descrição (sugestões de artigos).</summary>
@@ -328,6 +330,12 @@ public class ArtigoService : IArtigoService
             catch (HttpRequestException) { return await _vendas.GetAsync(venda.Id, ct); }
         }
         return venda;
+    }
+
+    public async Task<IReadOnlyList<VendaLinhaWriteRequest>> LinhasVendaAsync(IReadOnlyList<BalcaoLinhaRequest> linhas, CancellationToken ct = default)
+    {
+        if (linhas is null || linhas.Count == 0) throw new ValidationException("venda_sem_linhas", "Passa pelo menos um artigo.");
+        return await LinhasBalcaoAsync(new BalcaoVendaRequest(linhas, PaymentMethod.Cartao), ct);
     }
 
     public async Task<IReadOnlyList<BalcaoLinhaPreviaDto>> PrevisualizarAsync(BalcaoVendaRequest req, CancellationToken ct = default)

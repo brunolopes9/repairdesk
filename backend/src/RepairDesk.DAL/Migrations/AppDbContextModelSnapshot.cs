@@ -1652,6 +1652,202 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("Devices");
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.EncomendaLoja", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CanceladaEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CodigoPostal")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTime?>("EntregueEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EnviadaEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Localidade")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Morada")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Nif")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Numero")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NumeroSeguimento")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime?>("PagaEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("PortesCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Problema")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Referencia")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("StripePaymentIntentId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("StripeSessionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<long>("SubtotalCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Telefone")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("TotalCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Transportadora")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("VendaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Referencia")
+                        .IsUnique();
+
+                    b.HasIndex("StripeSessionId")
+                        .IsUnique()
+                        .HasFilter("[StripeSessionId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "Estado");
+
+                    b.HasIndex("TenantId", "Numero")
+                        .IsUnique();
+
+                    b.ToTable("EncomendasLoja", (string)null);
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.EncomendaLojaLinha", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ArtigoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EncomendaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("PrecoUnitarioCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ProdutoLojaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantidade")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EncomendaId");
+
+                    b.ToTable("EncomendasLojaLinhas", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.Fornecedor", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4018,6 +4214,17 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Cliente");
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.EncomendaLojaLinha", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.EncomendaLoja", "Encomenda")
+                        .WithMany("Linhas")
+                        .HasForeignKey("EncomendaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Encomenda");
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.Garantia", b =>
                 {
                     b.HasOne("RepairDesk.Core.Entities.Venda", "Venda")
@@ -4251,6 +4458,11 @@ namespace RepairDesk.DAL.Migrations
                     b.Navigation("Destinos");
 
                     b.Navigation("Ficheiros");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.EncomendaLoja", b =>
+                {
+                    b.Navigation("Linhas");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.ProdutoLoja", b =>

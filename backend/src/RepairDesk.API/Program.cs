@@ -350,6 +350,11 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Rotina.IRotinaAvisosService, RepairDesk.Services.Rotina.RotinaAvisosService>();
     builder.Services.AddScoped<IProdutoLojaRepository, RepairDesk.DAL.Persistence.ProdutoLojaRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.ILojaService, RepairDesk.Services.Loja.LojaService>();
+    // Sprint 656: encomendas da loja online + Stripe Checkout (chaves só no servidor: Stripe__SecretKey, Stripe__WebhookSecret).
+    builder.Services.Configure<RepairDesk.Services.Loja.StripeOptions>(builder.Configuration.GetSection("Stripe"));
+    builder.Services.AddHttpClient<RepairDesk.Services.Loja.IStripeCheckout, RepairDesk.Services.Loja.StripeCheckoutClient>(c => c.Timeout = TimeSpan.FromSeconds(20));
+    builder.Services.AddScoped<IEncomendaLojaRepository, RepairDesk.DAL.Persistence.EncomendaLojaRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Loja.IEncomendaLojaService, RepairDesk.Services.Loja.EncomendaLojaService>();
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();

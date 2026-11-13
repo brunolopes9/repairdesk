@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:9f8d1d8329827181 -->
+<!-- roles-matrix-snapshot:eb94da204ec76ec4 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -114,6 +114,7 @@ Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por re
 > Nov/2026 (Sprint 633): `api/financas` — só Admin (finanças do dono, inclui despesas pessoais). Em `GET api/despesas` quem não é Admin só vê o âmbito Negócio.
 
 > Nov/2026 (Sprint 636): `POST api/loja/produtos/importar` — só Admin (rascunhos).
+> Nov/2026 (Sprint 656): `GET/PUT api/loja/encomendas` — só Admin. `api/public/loja/{slug}/checkout` e `.../encomendas/{ref}?t=` anónimos (IntakeSlug + rate limit + token do link); `api/public/loja/stripe/webhook` anónimo com assinatura Stripe obrigatória.
 
 > Nov/2026 (Sprint 637): `api/external/assistente/*` — chave com scope `assistente` (age em nome de quem a criou; sem vendas/faturas/apagar; ações auditadas e desfazíveis 5 min).
 

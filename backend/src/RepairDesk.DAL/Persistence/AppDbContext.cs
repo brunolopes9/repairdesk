@@ -49,6 +49,8 @@ public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     public DbSet<CalendarioExterno> CalendariosExternos => Set<CalendarioExterno>();
     public DbSet<RotinaRegisto> RotinaRegistos => Set<RotinaRegisto>();
     public DbSet<ProdutoLojaFoto> ProdutosLojaFotos => Set<ProdutoLojaFoto>();
+    public DbSet<EncomendaLoja> EncomendasLoja => Set<EncomendaLoja>();
+    public DbSet<EncomendaLojaLinha> EncomendasLojaLinhas => Set<EncomendaLojaLinha>();
     public DbSet<WhatsAppNotificationLog> WhatsAppNotificationLogs => Set<WhatsAppNotificationLog>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();

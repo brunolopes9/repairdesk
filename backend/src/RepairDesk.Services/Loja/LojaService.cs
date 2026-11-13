@@ -66,6 +66,10 @@ public sealed record CatalogoProdutoDto(
 
 public sealed record CatalogoFotoDto(string Url, string? Alt);
 
+/// <summary>Sprint 656: o que o checkout precisa de um produto publicado (preço do servidor, já sincronizado com o artigo).</summary>
+public sealed record ProdutoParaVenda(Guid Id, string Slug, string Titulo, long PrecoCents, Guid? ArtigoId,
+    LojaDisponibilidade Disponibilidade, int? Unidades, string Url);
+
 /// <summary>`Versao` muda sempre que algo publicado muda — o gerador só reconstrói quando muda.</summary>
 public sealed record CatalogoDto(string Versao, IReadOnlyList<CatalogoProdutoDto> Produtos);
 
@@ -87,6 +91,9 @@ public interface ILojaService
     Task<ProdutoLojaDto> ConfirmarFotoAsync(Guid produtoId, Guid fotoId, CancellationToken ct = default);
     Task<ProdutoLojaDto> OrdenarFotosAsync(Guid produtoId, IReadOnlyList<Guid> ordem, CancellationToken ct = default);
     Task<ProdutoLojaDto> ApagarFotoAsync(Guid produtoId, Guid fotoId, CancellationToken ct = default);
+
+    /// <summary>Sprint 656: produtos publicados com estes slugs (os que não existem ficam de fora).</summary>
+    Task<IReadOnlyList<ProdutoParaVenda>> ProdutosParaVendaAsync(IReadOnlyCollection<string> slugs, CancellationToken ct = default);
 
     /// <summary>Catálogo publicado da empresa da chave (gerador do lopestech.pt).</summary>
     Task<CatalogoDto> CatalogoAsync(CancellationToken ct = default);
@@ -264,6 +271,15 @@ public sealed class LojaService : ILojaService
     }
 
     // ---- Catálogo público ---------------------------------------------------------------------
+
+    public async Task<IReadOnlyList<ProdutoParaVenda>> ProdutosParaVendaAsync(IReadOnlyCollection<string> slugs, CancellationToken ct = default)
+    {
+        var pedidos = slugs.ToHashSet(StringComparer.Ordinal);
+        var produtos = (await _repo.ListAsync(true, ct)).Where(p => pedidos.Contains(p.Slug)).ToList();
+        await Sincronizar(produtos, ct);
+        return produtos.Select(p => new ProdutoParaVenda(p.Id, p.Slug, p.Titulo, p.PrecoCents, p.ArtigoId, p.Disponibilidade, p.Unidades,
+            $"{SiteBase}/loja/{CategoriaSlug(p.Categoria)}/{p.Slug}")).ToList();
+    }
 
     public async Task<CatalogoDto> CatalogoAsync(CancellationToken ct = default)
     {
