@@ -117,7 +117,8 @@ public sealed record ArtigoEmLoteItem(string Nome, IReadOnlyList<Guid> LoteIds, 
 public sealed record ArtigosEmLoteRequest(IReadOnlyList<ArtigoEmLoteItem> Itens, string? Categoria = null);
 
 /// <summary>Sprint 655: o que a loja online precisa de um artigo — preço de venda (c/ IVA), stock e custo s/ IVA.</summary>
-public sealed record ArtigoLojaResumo(Guid Id, int Numero, string Nome, int? PrecoCents, int Stock, decimal? CustoSemIva, bool Ativo);
+/// <remarks>Sprint 658: <c>Gtin</c> = EAN-13 do fabricante (o da embalagem), quando existe e é válido — vai para o Google Shopping.</remarks>
+public sealed record ArtigoLojaResumo(Guid Id, int Numero, string Nome, int? PrecoCents, int Stock, decimal? CustoSemIva, bool Ativo, string? Gtin = null);
 
 public interface IArtigoService
 {
@@ -193,7 +194,7 @@ public class ArtigoService : IArtigoService
         var pedidos = ids.ToHashSet();
         return (await _repo.ListAsync(null, true, ct)).Where(a => pedidos.Contains(a.Id))
             .ToDictionary(a => a.Id, a => new ArtigoLojaResumo(a.Id, a.Numero, a.NomeFatura ?? a.Nome, PrecoEfetivo(a), Stock(a),
-                CustoSemIva(a) is { } c ? Math.Round(c, 2) : null, a.Ativo));
+                CustoSemIva(a) is { } c ? Math.Round(c, 2) : null, a.Ativo, GtinFabricante(a)));
     }
 
     public async Task<ArtigoDetalheDto> GetAsync(Guid id, CancellationToken ct = default)
@@ -544,6 +545,14 @@ public class ArtigoService : IArtigoService
     private static IEnumerable<CompraLinha> LotesFifo(Artigo a)
         => a.Lotes.Where(l => !l.IsDeleted && l.QuantidadeEmStock > 0)
             .OrderBy(l => l.Documento?.Data ?? l.CreatedAt).ThenBy(l => l.Numero);
+
+    /// <summary>EAN-13 do fabricante: o código da embalagem ou um código de barras que não seja o interno da loja («2…»).</summary>
+    public static string? GtinFabricante(Artigo a)
+    {
+        foreach (var c in new[] { a.CodigoFabricante, a.CodigoBarras })
+            if (c is { Length: 13 } && c[0] != '2' && Ean13.Valido(c)) return c;
+        return null;
+    }
 
     private static int Stock(Artigo a) => a.Lotes.Where(l => !l.IsDeleted).Sum(l => Math.Max(0, l.QuantidadeEmStock));
 

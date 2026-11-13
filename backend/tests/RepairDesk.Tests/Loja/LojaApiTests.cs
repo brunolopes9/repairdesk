@@ -162,6 +162,23 @@ public class LojaApiTests : IClassFixture<RepairDeskApiFactory>
         ((int)mau.StatusCode).Should().BeOneOf(400, 422);
     }
 
+    [Fact]
+    public async Task Catalogo_LevaOEanDoFabricante_SoQuandoEValido()
+    {
+        var admin = await Admin();
+        var nome = "Cabo gtin teste " + Guid.NewGuid().ToString("N")[..6];
+        // 5901234123457 é um EAN-13 válido de exemplo (dígito de controlo certo).
+        var artigo = await Ok<ArtigoDetalheDto>(await admin.PostAsJsonAsync("/api/artigos",
+            new ArtigoWriteRequest(nome, "Acessórios", 890, null, "5901234123457", null, null, true, [])));
+        var p = await Criar(admin, Iphone("[LJ] " + nome) with { Estado = LojaEstado.Novo, Grau = null, RegimeIva = LojaRegimeIva.Normal, ArtigoId = artigo.Artigo.Id });
+        await PublicarComFoto(admin, p.Id);
+
+        var loja = await ApiKeyClient(admin, "loja");
+        var cat = (await (await loja.GetAsync("/api/external/loja/catalogo")).Content.ReadFromJsonAsync<CatalogoDto>())!;
+        cat.Produtos.Single(x => x.Slug == p.Slug).Gtin.Should().Be("5901234123457");
+        ArtigoService.GtinFabricante(new RepairDesk.Core.Entities.Artigo { Nome = "x", Sku = "x", CodigoBarras = "2000000001173" }).Should().BeNull("o código interno da loja não é um EAN de fabricante");
+    }
+
     // ---------- helpers ----------
 
     private static GuardarProdutoLojaRequest Portatil(string titulo) => new(

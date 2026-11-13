@@ -62,7 +62,9 @@ public sealed record CatalogoProdutoDto(
     int? ArmazenamentoGb, string? Descricao, IReadOnlyList<SpecLoja> Specs, string SeoTitulo, string SeoDescricao,
     IReadOnlyList<CatalogoFotoDto> Fotos, DateTime AtualizadoEm,
     /// <summary>Sprint 654: preço riscado (só se maior que o preço) e unidades (null = não mostra).</summary>
-    decimal? PrecoAnterior = null, int? Unidades = null);
+    decimal? PrecoAnterior = null, int? Unidades = null,
+    /// <summary>Sprint 658: EAN-13 do fabricante (null = sem identificador).</summary>
+    string? Gtin = null);
 
 public sealed record CatalogoFotoDto(string Url, string? Alt);
 
@@ -288,7 +290,7 @@ public sealed class LojaService : ILojaService
         var itens = produtos.OrderBy(p => p.Categoria).ThenByDescending(p => p.PublicadoEm).Select(ToCatalogo).ToList();
         // A versão vem do conteúdo (não dos URLs assinados, que mudam a cada pedido).
         var assinatura = string.Join("|", produtos.OrderBy(p => p.Id)
-            .Select(p => $"{p.Id}:{(p.UpdatedAt ?? p.CreatedAt).Ticks}:{p.PrecoCents}:{p.Unidades}:{p.Disponibilidade}:{string.Join(",", p.Fotos.Where(f => f.Enviada).OrderBy(f => f.Ordem).Select(f => f.Id))}"));
+            .Select(p => $"{p.Id}:{(p.UpdatedAt ?? p.CreatedAt).Ticks}:{p.PrecoCents}:{p.Unidades}:{p.Disponibilidade}:{(p.ArtigoId is { } g && _ligados.TryGetValue(g, out var rg) ? rg.Gtin : null)}:{string.Join(",", p.Fotos.Where(f => f.Enviada).OrderBy(f => f.Ordem).Select(f => f.Id))}"));
         var versao = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(assinatura)))[..16].ToLowerInvariant();
         return new CatalogoDto(versao, itens);
     }
@@ -465,7 +467,8 @@ public sealed class LojaService : ILojaService
         p.Fotos.Where(f => f.Enviada).OrderBy(f => f.Ordem)
             .Select(f => new CatalogoFotoDto(_storage?.CreateDownloadUrl(f.StorageKey, ValidadeLeitura) ?? "", f.Alt ?? p.Titulo)).ToList(),
         p.UpdatedAt ?? p.CreatedAt,
-        p.PrecoAnteriorCents is { } ant && ant > p.PrecoCents ? ant / 100m : null, p.Unidades);
+        p.PrecoAnteriorCents is { } ant && ant > p.PrecoCents ? ant / 100m : null, p.Unidades,
+        p.ArtigoId is { } aid && _ligados.TryGetValue(aid, out var r) ? r.Gtin : null);
 
     private static string EstadoTexto(LojaEstado e) => e switch
     {
