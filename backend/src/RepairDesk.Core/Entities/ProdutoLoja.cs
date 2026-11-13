@@ -27,6 +27,12 @@ public class ProdutoLoja : BaseEntity, ITenantEntity
     public LojaRegimeIva RegimeIva { get; set; }
 
     public LojaOrigem Origem { get; set; }
+    /// <summary>
+    /// Sprint 655: artigo do stock que este produto vende. Quando está ligado, o preço, o custo e as unidades vêm SEMPRE
+    /// do artigo (fonte única) — vender ao balcão tira da loja e mudar o preço do artigo muda o site.
+    /// </summary>
+    public Guid? ArtigoId { get; set; }
+    public Artigo? Artigo { get; set; }
     public Guid? FornecedorId { get; set; }
     public LojaDisponibilidade Disponibilidade { get; set; }
 

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ExternalLink, Globe, ImagePlus, Plus, Save, Trash2, X } from 'lucide-react';
 import { Button, SectionCard, SkeletonCard } from '../../components/ui';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
+import { artigosApi } from '../../lib/artigos/api';
+import type { Artigo } from '../../lib/artigos/types';
 import {
   CATEGORIA_LABEL,
   DISPONIBILIDADE_LABEL,
@@ -27,7 +29,7 @@ const VAZIO: GuardarProdutoLoja = {
   titulo: '', marca: '', modelo: null, categoria: LojaCategoria.Smartphones, estado: LojaEstado.Recondicionado, grau: null,
   garantiaMeses: 36, regimeIva: LojaRegimeIva.Normal, origem: LojaOrigem.Proprio, fornecedorId: null, disponibilidade: null,
   preco: 0, custo: null, cor: null, ramGb: null, armazenamentoGb: null, descricao: null, specs: [], slug: null, seoTitulo: null, seoDescricao: null,
-  precoAnterior: null, unidades: null,
+  precoAnterior: null, unidades: null, artigoId: null,
 };
 
 function paraForm(p: ProdutoLoja): GuardarProdutoLoja {
@@ -36,7 +38,7 @@ function paraForm(p: ProdutoLoja): GuardarProdutoLoja {
     garantiaMeses: p.garantiaMeses, regimeIva: p.regimeIva, origem: p.origem, fornecedorId: p.fornecedorId,
     disponibilidade: p.disponibilidade, preco: p.preco, custo: p.custo, cor: p.cor, ramGb: p.ramGb,
     armazenamentoGb: p.armazenamentoGb, descricao: p.descricao, specs: p.specs, slug: p.slug, seoTitulo: p.seoTitulo, seoDescricao: p.seoDescricao,
-    precoAnterior: p.precoAnterior ?? null, unidades: p.unidades ?? null,
+    precoAnterior: p.precoAnterior ?? null, unidades: p.unidades ?? null, artigoId: p.artigoId ?? null,
   };
 }
 
@@ -69,6 +71,65 @@ function Campo({ label, hint, children }: { label: string; hint?: ReactNode; chi
 
 const numOuNull = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')));
 
+/** Sprint 655: copia do artigo o que a loja mostra (o servidor faz o mesmo — isto é só para o formulário já ficar certo). */
+function doArtigo(s: GuardarProdutoLoja, a: Artigo): GuardarProdutoLoja {
+  return {
+    ...s,
+    artigoId: a.id,
+    origem: LojaOrigem.Proprio,
+    disponibilidade: null,
+    preco: (a.precoEfetivoCents ?? 0) / 100,
+    unidades: Math.max(0, a.stock),
+    custo: a.custoUnitarioSemIva ?? s.custo,
+    titulo: s.titulo || (a.nomeFatura ?? a.nome),
+  };
+}
+
+/** Sprint 655: escolher o artigo do stock que este produto vende. */
+function ArtigoDoStock({ artigoId, artigos, onEscolher, onDesligar }: {
+  artigoId: string | null | undefined;
+  artigos: Artigo[];
+  onEscolher: (a: Artigo) => void;
+  onDesligar: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const ligado = artigos.find((a) => a.id === artigoId);
+  if (artigoId) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/40">
+        <span className="font-medium text-emerald-800 dark:text-emerald-200">
+          {ligado ? `Artigo nº ${ligado.numero} · ${ligado.nomeFatura ?? ligado.nome}` : 'Artigo ligado'}
+        </span>
+        {ligado && <span className="text-emerald-700 dark:text-emerald-300">{ligado.stock} em stock · {euro((ligado.precoEfetivoCents ?? 0) / 100)}</span>}
+        <button type="button" className="ml-auto text-xs font-semibold text-zinc-600 underline dark:text-zinc-300" onClick={onDesligar}>Desligar</button>
+      </div>
+    );
+  }
+  const termo = q.trim().toLowerCase();
+  const lista = termo.length < 2 ? [] : artigos
+    .filter((a) => `${a.numero} ${a.nome} ${a.nomeFatura ?? ''} ${a.sku}`.toLowerCase().includes(termo))
+    .slice(0, 8);
+  return (
+    <div>
+      <input className={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procura o artigo (nome, nº ou SKU)…" aria-label="Procurar artigo do stock" />
+      {lista.length > 0 && (
+        <ul className="mt-1 divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white text-sm dark:divide-zinc-800 dark:border-zinc-700 dark:bg-zinc-950">
+          {lista.map((a) => (
+            <li key={a.id}>
+              <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900" onClick={() => { onEscolher(a); setQ(''); }}>
+                <span className="text-xs text-zinc-500">nº {a.numero}</span>
+                <span className="flex-1 truncate">{a.nomeFatura ?? a.nome}</span>
+                <span className="tabular-nums text-zinc-600 dark:text-zinc-400">{a.stock} un · {a.precoEfetivoCents != null ? euro(a.precoEfetivoCents / 100) : 'sem preço'}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {termo.length >= 2 && lista.length === 0 && <p className="mt-1 text-xs text-zinc-500">Nenhum artigo com «{q}».</p>}
+    </div>
+  );
+}
+
 /**
  * Sprint 614 (Doc 97): criar/editar um produto da loja. As regras legais (garantia mínima, regime da
  * margem) estão no servidor; aqui só se ajuda a escolher bem e se mostra o lucro real.
@@ -84,6 +145,19 @@ export default function ProdutoLojaEditor() {
   const [carregado, setCarregado] = useState(novo);
   const [seo, setSeo] = useState(false);
   const [envio, setEnvio] = useState<number | null>(null);
+  const [params] = useSearchParams();
+  const artigos = useQuery({ queryKey: ['artigos', 'lista-loja'], queryFn: () => artigosApi.list() });
+  const ligado = !!f.artigoId;
+
+  // «Pôr na loja» a partir de um artigo: /loja/novo?artigo=<id>
+  const artigoInicial = params.get('artigo');
+  const [prefill, setPrefill] = useState(false);
+  useEffect(() => {
+    if (!novo || prefill || !artigoInicial || !artigos.data) return;
+    const a = artigos.data.find((x) => x.id === artigoInicial);
+    if (a) setF((s) => ({ ...doArtigo(s, a), estado: LojaEstado.Novo, categoria: (a.categoria ?? '').toLowerCase().startsWith('pe') ? LojaCategoria.Pecas : LojaCategoria.Acessorios }));
+    setPrefill(true);
+  }, [novo, prefill, artigoInicial, artigos.data]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -258,9 +332,18 @@ export default function ProdutoLojaEditor() {
       </SectionCard>
 
       <SectionCard title="Origem, preço e lucro">
+        <div className="mb-3">
+          <Campo label="Artigo do stock" hint={ligado
+            ? 'O preço, o custo e as unidades vêm do artigo. Muda-os no artigo; quando vendes ao balcão, a loja atualiza sozinha.'
+            : 'Liga a um artigo para o preço e o stock serem sempre os do balcão.'}>
+            <ArtigoDoStock artigoId={f.artigoId} artigos={artigos.data ?? []}
+              onEscolher={(a) => setF((s) => doArtigo(s, a))}
+              onDesligar={() => set('artigoId', null)} />
+          </Campo>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo label="De onde vem">
-            <select className={input} value={f.origem} onChange={(e) => {
+            <select className={input} disabled={ligado} value={f.origem} onChange={(e) => {
               const origem = Number(e.target.value) as LojaOrigem;
               setF((s) => ({ ...s, origem, disponibilidade: null }));
             }}>
@@ -269,22 +352,22 @@ export default function ProdutoLojaEditor() {
             </select>
           </Campo>
           <Campo label="Disponibilidade">
-            <select className={input} value={f.disponibilidade ?? ''} onChange={(e) => set('disponibilidade', e.target.value === '' ? null : (Number(e.target.value) as LojaDisponibilidade))}>
+            <select className={input} disabled={ligado} value={f.disponibilidade ?? ''} onChange={(e) => set('disponibilidade', e.target.value === '' ? null : (Number(e.target.value) as LojaDisponibilidade))}>
               <option value="">Automática ({f.origem === LojaOrigem.Fornecedor ? 'por encomenda' : 'em stock'})</option>
               {Object.entries(DISPONIBILIDADE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Campo>
           <Campo label="Preço de venda (€, final ao cliente)">
-            <input className={input} inputMode="decimal" value={f.preco || ''} onChange={(e) => set('preco', numOuNull(e.target.value) ?? 0)} />
+            <input className={input} inputMode="decimal" disabled={ligado} value={f.preco || ''} onChange={(e) => set('preco', numOuNull(e.target.value) ?? 0)} />
           </Campo>
           <Campo label="Custo (€) — só tu vês" hint={f.regimeIva === LojaRegimeIva.Margem ? 'Preço a que compraste o equipamento (sem as peças da reparação).' : undefined}>
-            <input className={input} inputMode="decimal" value={f.custo ?? ''} onChange={(e) => set('custo', numOuNull(e.target.value))} />
+            <input className={input} inputMode="decimal" disabled={ligado} value={f.custo ?? ''} onChange={(e) => set('custo', numOuNull(e.target.value))} />
           </Campo>
           <Campo label="Preço antes (€) — promoção" hint="Aparece riscado na loja. Por lei tem de ser o preço mais baixo que praticaste nos últimos 30 dias.">
             <input className={input} inputMode="decimal" value={f.precoAnterior ?? ''} onChange={(e) => set('precoAnterior', numOuNull(e.target.value))} />
           </Campo>
           <Campo label="Unidades em stock" hint="Com 1 ou 2 aparece «Últimas unidades». Vazio = não mostra.">
-            <input className={input} inputMode="numeric" value={f.unidades ?? ''} onChange={(e) => { const v = numOuNull(e.target.value); set('unidades', v == null ? null : Math.max(0, Math.round(v))); }} />
+            <input className={input} inputMode="numeric" disabled={ligado} value={f.unidades ?? ''} onChange={(e) => { const v = numOuNull(e.target.value); set('unidades', v == null ? null : Math.max(0, Math.round(v))); }} />
           </Campo>
         </div>
         <dl className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-950">

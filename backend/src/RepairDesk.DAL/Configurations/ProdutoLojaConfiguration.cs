@@ -29,6 +29,9 @@ public class ProdutoLojaConfiguration : IEntityTypeConfiguration<ProdutoLoja>
         builder.HasIndex(x => new { x.TenantId, x.Numero }).IsUnique();
         builder.HasIndex(x => new { x.TenantId, x.Slug }).IsUnique();
         builder.HasIndex(x => new { x.TenantId, x.Publicado });
+        // Sprint 655: um artigo do stock está, no máximo, num produto da loja.
+        builder.HasIndex(x => new { x.TenantId, x.ArtigoId }).IsUnique().HasFilter("[ArtigoId] IS NOT NULL");
+        builder.HasOne(x => x.Artigo).WithMany().HasForeignKey(x => x.ArtigoId).OnDelete(DeleteBehavior.Restrict);
         builder.HasMany(x => x.Fotos).WithOne(f => f.Produto).HasForeignKey(f => f.ProdutoId).OnDelete(DeleteBehavior.Cascade);
     }
 }

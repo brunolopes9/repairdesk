@@ -116,8 +116,13 @@ public sealed record ArtigoEmLoteItem(string Nome, IReadOnlyList<Guid> LoteIds, 
 
 public sealed record ArtigosEmLoteRequest(IReadOnlyList<ArtigoEmLoteItem> Itens, string? Categoria = null);
 
+/// <summary>Sprint 655: o que a loja online precisa de um artigo — preço de venda (c/ IVA), stock e custo s/ IVA.</summary>
+public sealed record ArtigoLojaResumo(Guid Id, int Numero, string Nome, int? PrecoCents, int Stock, decimal? CustoSemIva, bool Ativo);
+
 public interface IArtigoService
 {
+    /// <summary>Sprint 655: resumo (preço efetivo, stock, custo) dos artigos pedidos que existem.</summary>
+    Task<IReadOnlyDictionary<Guid, ArtigoLojaResumo>> ResumosLojaAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
     Task<IReadOnlyList<ArtigoDto>> ListAsync(string? q, bool incluirInativos, CancellationToken ct = default);
     Task<ArtigoDetalheDto> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>O que a pistola leu (código de barras, do fabricante ou SKU) → artigo. 404 se não existir.</summary>
@@ -177,6 +182,16 @@ public class ArtigoService : IArtigoService
     {
         await PrecosCategoriaAsync(ct);
         return (await _repo.ListAsync(q, incluirInativos, ct)).Select(ToDto).ToList();
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, ArtigoLojaResumo>> ResumosLojaAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return new Dictionary<Guid, ArtigoLojaResumo>();
+        await PrecosCategoriaAsync(ct);
+        var pedidos = ids.ToHashSet();
+        return (await _repo.ListAsync(null, true, ct)).Where(a => pedidos.Contains(a.Id))
+            .ToDictionary(a => a.Id, a => new ArtigoLojaResumo(a.Id, a.Numero, a.NomeFatura ?? a.Nome, PrecoEfetivo(a), Stock(a),
+                CustoSemIva(a) is { } c ? Math.Round(c, 2) : null, a.Ativo));
     }
 
     public async Task<ArtigoDetalheDto> GetAsync(Guid id, CancellationToken ct = default)

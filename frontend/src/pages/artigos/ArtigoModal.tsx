@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Combine, Link2Off, Printer, Save } from 'lucide-react';
+import { Combine, Link2Off, Printer, Save, Store } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Modal from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
@@ -24,6 +25,7 @@ interface Props {
 
 /** Sprint 566: criar/editar um artigo da loja e ligar-lhe os lotes de compra (o stock é a soma deles). */
 export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiquetas }: Props) {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const detalhe = useQuery({ queryKey: ['artigos', artigoId], queryFn: () => artigosApi.get(artigoId!), enabled: open && !!artigoId });
   const inventario = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario, enabled: open });
@@ -134,6 +136,11 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
       wide
       title={a ? `${a.sku} · ${a.nomeFatura ?? a.nome}` : 'Novo artigo'}
       footer={<>
+        {a && a.stock > 0 && (
+          <Button type="button" variant="secondary" leftIcon={<Store size={15} />} onClick={() => { onClose(); navigate(`/loja/novo?artigo=${a.id}`); }}>
+            Pôr na loja
+          </Button>
+        )}
         {a && onEtiquetas && (
           <Button type="button" variant="secondary" leftIcon={<Printer size={15} />} onClick={() => onEtiquetas(a)}>Imprimir etiquetas</Button>
         )}

@@ -9,6 +9,8 @@ public enum LojaCategoria
     Consolas = 3,
     Acessorios = 4,
     Outros = 5,
+    /// <summary>Sprint 655: peças de substituição (ecrãs, baterias, flex, tampas) que sobraram de reparações.</summary>
+    Pecas = 6,
 }
 
 /// <summary>Estado do equipamento — define a condição no Google (New/Refurbished/Used) e a garantia mínima.</summary>

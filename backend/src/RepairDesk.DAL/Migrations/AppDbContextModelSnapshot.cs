@@ -2022,6 +2022,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int?>("ArmazenamentoGb")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("ArtigoId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("Categoria")
                         .HasColumnType("int");
 
@@ -2128,6 +2131,12 @@ namespace RepairDesk.DAL.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ArtigoId");
+
+                    b.HasIndex("TenantId", "ArtigoId")
+                        .IsUnique()
+                        .HasFilter("[ArtigoId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "Numero")
                         .IsUnique();
@@ -4041,6 +4050,16 @@ namespace RepairDesk.DAL.Migrations
                         .HasForeignKey("VendaId");
 
                     b.Navigation("Venda");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.ProdutoLoja", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.Artigo", "Artigo")
+                        .WithMany()
+                        .HasForeignKey("ArtigoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Artigo");
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.ProdutoLojaFoto", b =>

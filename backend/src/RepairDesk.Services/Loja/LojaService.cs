@@ -6,6 +6,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.Artigos;
 
 namespace RepairDesk.Services.Loja;
 
@@ -35,7 +36,9 @@ public sealed record GuardarProdutoLojaRequest(
     string? SeoDescricao,
     /// <summary>Sprint 654: preço riscado (promoção) e unidades em stock.</summary>
     decimal? PrecoAnterior = null,
-    int? Unidades = null);
+    int? Unidades = null,
+    /// <summary>Sprint 655: artigo do stock — com ele, preço, custo e unidades vêm do artigo (o que vier aqui é ignorado).</summary>
+    Guid? ArtigoId = null);
 
 public sealed record ImportarProdutosResultado(int Criados, int JaExistiam, IReadOnlyList<ProdutoLojaDto> Produtos);
 
@@ -49,7 +52,8 @@ public sealed record ProdutoLojaDto(
     string? Cor, int? RamGb, int? ArmazenamentoGb, string? Descricao, IReadOnlyList<SpecLoja> Specs,
     string? SeoTitulo, string? SeoDescricao, bool Publicado, DateTime? PublicadoEm, string UrlSite,
     IReadOnlyList<ProdutoLojaFotoDto> Fotos, DateTime CreatedAt, DateTime? UpdatedAt,
-    decimal? PrecoAnterior = null, int? Unidades = null);
+    decimal? PrecoAnterior = null, int? Unidades = null,
+    Guid? ArtigoId = null, int? ArtigoNumero = null, string? ArtigoNome = null);
 
 /// <summary>Vista pública (gerador do site) — SEM custo nem margem.</summary>
 public sealed record CatalogoProdutoDto(
@@ -109,9 +113,14 @@ public sealed class LojaService : ILojaService
     private readonly ITenantContext _tenant;
     private readonly ICurrentUser _user;
     private readonly IAuditLogger _audit;
+    private readonly IArtigoService _artigos;
+    /// <summary>Resumos dos artigos ligados já lidos neste pedido (preço, stock, custo).</summary>
+    private readonly Dictionary<Guid, ArtigoLojaResumo> _ligados = new();
 
-    public LojaService(IProdutoLojaRepository repo, IEnumerable<IDirectAccessStorage> storage, ITenantContext tenant, ICurrentUser user, IAuditLogger audit)
+    public LojaService(IProdutoLojaRepository repo, IEnumerable<IDirectAccessStorage> storage, ITenantContext tenant, ICurrentUser user,
+        IAuditLogger audit, IArtigoService artigos)
     {
+        _artigos = artigos;
         _repo = repo;
         _storage = storage.FirstOrDefault();
         _tenant = tenant;
@@ -120,7 +129,11 @@ public sealed class LojaService : ILojaService
     }
 
     public async Task<IReadOnlyList<ProdutoLojaDto>> ListAsync(CancellationToken ct = default)
-        => (await _repo.ListAsync(false, ct)).Select(ToDto).ToList();
+    {
+        var produtos = await _repo.ListAsync(false, ct);
+        await Sincronizar(produtos, ct);
+        return produtos.Select(ToDto).ToList();
+    }
 
     public async Task<ProdutoLojaDto> GetAsync(Guid id, CancellationToken ct = default) => ToDto(await Load(id, ct));
 
@@ -255,10 +268,11 @@ public sealed class LojaService : ILojaService
     public async Task<CatalogoDto> CatalogoAsync(CancellationToken ct = default)
     {
         var produtos = await _repo.ListAsync(true, ct);
+        await Sincronizar(produtos, ct);
         var itens = produtos.OrderBy(p => p.Categoria).ThenByDescending(p => p.PublicadoEm).Select(ToCatalogo).ToList();
         // A versão vem do conteúdo (não dos URLs assinados, que mudam a cada pedido).
         var assinatura = string.Join("|", produtos.OrderBy(p => p.Id)
-            .Select(p => $"{p.Id}:{(p.UpdatedAt ?? p.CreatedAt).Ticks}:{string.Join(",", p.Fotos.Where(f => f.Enviada).OrderBy(f => f.Ordem).Select(f => f.Id))}"));
+            .Select(p => $"{p.Id}:{(p.UpdatedAt ?? p.CreatedAt).Ticks}:{p.PrecoCents}:{p.Unidades}:{p.Disponibilidade}:{string.Join(",", p.Fotos.Where(f => f.Enviada).OrderBy(f => f.Ordem).Select(f => f.Id))}"));
         var versao = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(assinatura)))[..16].ToLowerInvariant();
         return new CatalogoDto(versao, itens);
     }
@@ -271,6 +285,23 @@ public sealed class LojaService : ILojaService
         if (titulo.Length is < 3 or > 160) throw new ValidationException("titulo_invalido", "Título obrigatório (3 a 160 caracteres).");
         var marca = (req.Marca ?? "").Trim();
         if (marca.Length is < 1 or > 60) throw new ValidationException("marca_invalida", "Marca obrigatória (até 60 caracteres).");
+
+        // Sprint 655: ligado a um artigo do stock → preço, custo e unidades vêm do artigo (fonte única).
+        ArtigoLojaResumo? artigo = null;
+        if (req.ArtigoId is { } artigoId)
+        {
+            if (req.Origem == LojaOrigem.Fornecedor)
+                throw new ValidationException("fornecedor_com_artigo", "Produtos do fornecedor (por encomenda) não se ligam a um artigo do stock.");
+            if (!(await _artigos.ResumosLojaAsync(new[] { artigoId }, ct)).TryGetValue(artigoId, out artigo))
+                throw new ValidationException("artigo_inexistente", "Esse artigo não existe (ou foi apagado).");
+            if (artigo.PrecoCents is not > 0)
+                throw new ValidationException("artigo_sem_preco", $"O artigo nº {artigo.Numero} ainda não tem preço de venda — põe o preço no artigo.");
+            if (await _repo.ProdutoDoArtigoAsync(artigoId, p.Id == Guid.Empty ? null : p.Id, ct) is { } outro)
+                throw new ConflictException("artigo_ja_na_loja", $"O artigo nº {artigo.Numero} já está na loja («{outro}»).");
+            _ligados[artigoId] = artigo;
+            req = req with { Preco = artigo.PrecoCents.Value / 100m, Unidades = Math.Max(0, artigo.Stock) };
+        }
+
         if (req.Preco <= 0 || req.Preco > 100_000) throw new ValidationException("preco_invalido", "Preço de venda obrigatório.");
         if (req.Custo is < 0) throw new ValidationException("custo_invalido", "O custo não pode ser negativo.");
         if (req.PrecoAnterior is { } pa && pa <= req.Preco)
@@ -324,6 +355,8 @@ public sealed class LojaService : ILojaService
         p.CustoCents = req.Custo is { } c ? (long)Math.Round(c * 100, MidpointRounding.AwayFromZero) : null;
         p.PrecoAnteriorCents = req.PrecoAnterior is { } pAnt ? (long)Math.Round(pAnt * 100, MidpointRounding.AwayFromZero) : null;
         p.Unidades = req.Unidades;
+        p.ArtigoId = artigo?.Id;
+        if (artigo is not null) CopiarDoArtigo(p, artigo);
         p.Cor = Corta(TrimOrNull(req.Cor), 40);
         p.RamGb = req.RamGb;
         p.ArmazenamentoGb = req.ArmazenamentoGb;
@@ -380,6 +413,7 @@ public sealed class LojaService : ILojaService
         LojaCategoria.Tablets => "tablets",
         LojaCategoria.Consolas => "consolas",
         LojaCategoria.Acessorios => "acessorios",
+        LojaCategoria.Pecas => "pecas",
         _ => "outros",
     };
 
@@ -401,7 +435,9 @@ public sealed class LojaService : ILojaService
             p.Publicado, p.PublicadoEm, $"{SiteBase}/loja/{CategoriaSlug(p.Categoria)}/{p.Slug}",
             p.Fotos.OrderBy(f => f.Ordem).Select(f => new ProdutoLojaFotoDto(f.Id, f.Ordem, f.Alt,
                 f.Enviada ? _storage?.CreateDownloadUrl(f.StorageKey, ValidadeLeitura) : null, f.Enviada)).ToList(),
-            p.CreatedAt, p.UpdatedAt, p.PrecoAnteriorCents / 100m, p.Unidades);
+            p.CreatedAt, p.UpdatedAt, p.PrecoAnteriorCents / 100m, p.Unidades,
+            p.ArtigoId, p.ArtigoId is { } a && _ligados.TryGetValue(a, out var r) ? r.Numero : null,
+            p.ArtigoId is { } a2 && _ligados.TryGetValue(a2, out var r2) ? r2.Nome : null);
     }
 
     private CatalogoProdutoDto ToCatalogo(ProdutoLoja p) => new(
@@ -431,7 +467,37 @@ public sealed class LojaService : ILojaService
     }
 
     private async Task<ProdutoLoja> Load(Guid id, CancellationToken ct)
-        => await _repo.FindAsync(id, ct) ?? throw new NotFoundException("ProdutoLoja", id);
+    {
+        var p = await _repo.FindAsync(id, ct) ?? throw new NotFoundException("ProdutoLoja", id);
+        await Sincronizar(new[] { p }, ct);
+        return p;
+    }
+
+    /// <summary>
+    /// Sprint 655: copia do artigo ligado o preço, o custo, as unidades e a disponibilidade — a loja nunca tem
+    /// um preço diferente do balcão e um artigo vendido ao balcão sai da loja.
+    /// </summary>
+    private async Task Sincronizar(IReadOnlyCollection<ProdutoLoja> produtos, CancellationToken ct)
+    {
+        var ids = produtos.Where(p => p.ArtigoId is { } a && !_ligados.ContainsKey(a)).Select(p => p.ArtigoId!.Value).Distinct().ToList();
+        if (ids.Count > 0)
+            foreach (var (id, r) in await _artigos.ResumosLojaAsync(ids, ct)) _ligados[id] = r;
+        foreach (var p in produtos)
+        {
+            if (p.ArtigoId is not { } aid) continue;
+            if (_ligados.TryGetValue(aid, out var r)) CopiarDoArtigo(p, r);
+            else { p.Unidades = 0; p.Disponibilidade = LojaDisponibilidade.Esgotado; } // artigo apagado ou junto a outro
+        }
+    }
+
+    public static void CopiarDoArtigo(ProdutoLoja p, ArtigoLojaResumo r)
+    {
+        if (r.PrecoCents is > 0) p.PrecoCents = r.PrecoCents.Value;
+        if (r.CustoSemIva is { } c) p.CustoCents = (long)Math.Round(c * 100, MidpointRounding.AwayFromZero);
+        p.Unidades = Math.Max(0, r.Stock);
+        p.Disponibilidade = r.Stock > 0 && r.Ativo ? LojaDisponibilidade.EmStock : LojaDisponibilidade.Esgotado;
+        if (p.PrecoAnteriorCents is { } ant && ant <= p.PrecoCents) p.PrecoAnteriorCents = null;
+    }
 
     private Task Auditar(AuditAction acao, ProdutoLoja p, object dados, CancellationToken ct)
         => _audit.LogAsync(acao, "ProdutoLoja", p.Id, dados, p.TenantId, _user.UserId, ct);

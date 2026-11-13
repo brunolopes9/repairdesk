@@ -22,6 +22,9 @@ public class ProdutoLojaRepository : IProdutoLojaRepository
     public Task<bool> SlugExisteAsync(string slug, Guid? exceptoId, CancellationToken ct = default)
         => _db.ProdutosLoja.AnyAsync(p => p.Slug == slug && p.Id != exceptoId, ct);
 
+    public Task<string?> ProdutoDoArtigoAsync(Guid artigoId, Guid? exceptoId, CancellationToken ct = default)
+        => _db.ProdutosLoja.Where(p => p.ArtigoId == artigoId && p.Id != exceptoId).Select(p => p.Titulo).FirstOrDefaultAsync(ct);
+
     public async Task AddAsync(ProdutoLoja produto, CancellationToken ct = default) => await _db.ProdutosLoja.AddAsync(produto, ct);
     public async Task AddFotoAsync(ProdutoLojaFoto foto, CancellationToken ct = default) => await _db.ProdutosLojaFotos.AddAsync(foto, ct);
     public void Remove(ProdutoLojaFoto foto) => _db.ProdutosLojaFotos.Remove(foto);

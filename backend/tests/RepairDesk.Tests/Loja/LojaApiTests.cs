@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using RepairDesk.API.Infrastructure;
 using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Enums;
+using RepairDesk.Services.Artigos;
 using RepairDesk.Services.Loja;
 using RepairDesk.Services.ServiceApiKeys;
 using RepairDesk.Tests.Auth;
@@ -122,6 +123,43 @@ public class LojaApiTests : IClassFixture<RepairDeskApiFactory>
         var r2 = (await (await admin.PostAsJsonAsync("/api/loja/produtos/importar", lista)).Content.ReadFromJsonAsync<ImportarProdutosResultado>())!;
         r2.Criados.Should().Be(0);
         r2.JaExistiam.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task LigadoAoArtigo_PrecoEStockVemSempreDoArtigo()
+    {
+        var admin = await Admin();
+        var nome = "Protetor camara teste " + Guid.NewGuid().ToString("N")[..6];
+        var artigo = await Ok<ArtigoDetalheDto>(await admin.PostAsJsonAsync("/api/artigos",
+            new ArtigoWriteRequest(nome, "Acessórios", 890, null, null, null, null, true, [])));
+        var id = artigo.Artigo.Id;
+
+        // O preço escrito à mão (15 €) é ignorado: vale o do artigo (8,90 €). Sem stock → esgotado.
+        var p = await Criar(admin, Iphone("[LJ] " + nome) with
+        {
+            Estado = LojaEstado.Novo, Grau = null, RegimeIva = LojaRegimeIva.Normal, Categoria = LojaCategoria.Pecas, Preco = 15, ArtigoId = id,
+        });
+        p.Preco.Should().Be(8.90m);
+        p.ArtigoId.Should().Be(id);
+        p.ArtigoNumero.Should().Be(artigo.Artigo.Numero);
+        p.Unidades.Should().Be(0);
+        p.Disponibilidade.Should().Be(LojaDisponibilidade.Esgotado);
+        p.UrlSite.Should().Contain("/loja/pecas/");
+
+        // Mudar o preço no artigo muda a loja, sem tocar no produto.
+        await Ok<ArtigoDetalheDto>(await admin.PutAsJsonAsync($"/api/artigos/{id}",
+            new ArtigoWriteRequest(nome, "Acessórios", 990, artigo.Artigo.CodigoBarras, null, null, null, true, [])));
+        (await admin.GetFromJsonAsync<ProdutoLojaDto>($"/api/loja/produtos/{p.Id}"))!.Preco.Should().Be(9.90m);
+
+        // O mesmo artigo não pode estar em dois produtos.
+        var dup = await admin.PostAsJsonAsync("/api/loja/produtos", Iphone("[LJ] dup " + nome) with
+            { Estado = LojaEstado.Novo, Grau = null, RegimeIva = LojaRegimeIva.Normal, ArtigoId = id });
+        dup.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        // Artigo inexistente → erro claro.
+        var mau = await admin.PostAsJsonAsync("/api/loja/produtos", Iphone("[LJ] mau " + nome) with
+            { Estado = LojaEstado.Novo, Grau = null, RegimeIva = LojaRegimeIva.Normal, ArtigoId = Guid.NewGuid() });
+        ((int)mau.StatusCode).Should().BeOneOf(400, 422);
     }
 
     // ---------- helpers ----------

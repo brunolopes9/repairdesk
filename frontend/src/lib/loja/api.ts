@@ -3,7 +3,7 @@ import { putComProgresso } from '../conteudo/api';
 
 // Sprint 614 (Doc 97): loja do lopestech.pt — produtos geridos no Mender, publicados no site.
 
-export const LojaCategoria = { Smartphones: 0, Computadores: 1, Tablets: 2, Consolas: 3, Acessorios: 4, Outros: 5 } as const;
+export const LojaCategoria = { Smartphones: 0, Computadores: 1, Tablets: 2, Consolas: 3, Acessorios: 4, Outros: 5, Pecas: 6 } as const;
 export type LojaCategoria = (typeof LojaCategoria)[keyof typeof LojaCategoria];
 export const LojaEstado = { Novo: 0, NovoCaixaAberta: 1, Recondicionado: 2, Usado: 3 } as const;
 export type LojaEstado = (typeof LojaEstado)[keyof typeof LojaEstado];
@@ -17,7 +17,7 @@ export const LojaRegimeIva = { Normal: 0, Margem: 1 } as const;
 export type LojaRegimeIva = (typeof LojaRegimeIva)[keyof typeof LojaRegimeIva];
 
 export const CATEGORIA_LABEL: Record<LojaCategoria, string> = {
-  0: 'Smartphones', 1: 'Computadores', 2: 'Tablets', 3: 'Consolas', 4: 'Acessórios', 5: 'Outros',
+  0: 'Smartphones', 1: 'Computadores', 2: 'Tablets', 3: 'Consolas', 4: 'Acessórios', 5: 'Outros', 6: 'Peças',
 };
 export const ESTADO_LABEL: Record<LojaEstado, string> = { 0: 'Novo', 1: 'Novo · caixa aberta', 2: 'Recondicionado', 3: 'Usado' };
 export const GRAU_LABEL: Record<LojaGrau, string> = { 0: 'Premium', 1: 'Excelente', 2: 'Muito bom', 3: 'Bom' };
@@ -71,6 +71,10 @@ export interface ProdutoLoja {
   fotos: ProdutoLojaFoto[];
   createdAt: string;
   updatedAt: string | null;
+  /** Sprint 655: artigo do stock ligado — preço, custo e unidades vêm dele. */
+  artigoId?: string | null;
+  artigoNumero?: number | null;
+  artigoNome?: string | null;
 }
 
 export interface GuardarProdutoLoja {
@@ -98,6 +102,8 @@ export interface GuardarProdutoLoja {
   slug: string | null;
   seoTitulo: string | null;
   seoDescricao: string | null;
+  /** Sprint 655: artigo do stock (o servidor ignora preço/unidades/custo enviados e usa os do artigo). */
+  artigoId?: string | null;
 }
 
 interface UploadFotoTicket {
