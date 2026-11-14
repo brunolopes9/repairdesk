@@ -30,6 +30,7 @@ public class EncomendaLojaConfiguration : IEntityTypeConfiguration<EncomendaLoja
         builder.HasIndex(x => x.Referencia).IsUnique();
         builder.HasIndex(x => x.StripeSessionId).IsUnique().HasFilter("[StripeSessionId] IS NOT NULL");
         builder.HasIndex(x => new { x.TenantId, x.Estado });
+        builder.HasIndex(x => x.ClienteLojaId).HasFilter("[ClienteLojaId] IS NOT NULL");
         builder.HasMany(x => x.Linhas).WithOne(l => l.Encomenda).HasForeignKey(l => l.EncomendaId).OnDelete(DeleteBehavior.Cascade);
     }
 }

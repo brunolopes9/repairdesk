@@ -355,6 +355,9 @@ try
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.IStripeCheckout, RepairDesk.Services.Loja.StripeCheckoutClient>(c => c.Timeout = TimeSpan.FromSeconds(20));
     builder.Services.AddScoped<IEncomendaLojaRepository, RepairDesk.DAL.Persistence.EncomendaLojaRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.IEncomendaLojaService, RepairDesk.Services.Loja.EncomendaLojaService>();
+    // Sprint 659: contas de cliente da loja.
+    builder.Services.AddScoped<IClienteLojaRepository, RepairDesk.DAL.Persistence.ClienteLojaRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Loja.IContaLojaService, RepairDesk.Services.Loja.ContaLojaService>();
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();
@@ -603,7 +606,9 @@ try
             "X-Requested-With",
             // Webhooks externos têm o seu próprio handler — estes só aparecem aqui se um
             // cliente integrador chamar a SPA com a sua API key. Mantém compatibilidade.
-            "X-API-Key")
+            "X-API-Key",
+            // Sprint 659: sessão das contas de cliente da loja (lopestech.pt).
+            "X-Loja-Sessao")
         .WithExposedHeaders("X-Correlation-Id")
         .AllowCredentials()
         .SetPreflightMaxAge(TimeSpan.FromMinutes(10))));

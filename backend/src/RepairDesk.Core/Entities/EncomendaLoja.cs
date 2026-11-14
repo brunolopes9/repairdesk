@@ -41,6 +41,9 @@ public class EncomendaLoja : BaseEntity, ITenantEntity
     public DateTime? CanceladaEm { get; set; }
     public string? NumeroSeguimento { get; set; }
 
+    /// <summary>Sprint 659: conta de cliente que fez a encomenda (null = compra sem conta).</summary>
+    public Guid? ClienteLojaId { get; set; }
+
     /// <summary>Venda criada quando ficou paga (stock e faturação seguem por aí).</summary>
     public Guid? VendaId { get; set; }
     /// <summary>Pago mas a venda não foi criada (ex.: vendido ao balcão entretanto) — o dono tem de resolver/reembolsar.</summary>

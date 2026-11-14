@@ -48,7 +48,7 @@ public sealed record MudarEstadoEncomendaRequest(EncomendaLojaEstado Estado, str
 public interface IEncomendaLojaService
 {
     /// <summary>Público: valida o carrinho com os preços do servidor, cria a encomenda e a página de pagamento do Stripe.</summary>
-    Task<CheckoutResultado> CheckoutAsync(CheckoutRequest req, CancellationToken ct = default);
+    Task<CheckoutResultado> CheckoutAsync(CheckoutRequest req, CancellationToken ct = default, Guid? clienteLojaId = null);
     /// <summary>Webhook: pagamento confirmado. Idempotente (o Stripe pode repetir o evento).</summary>
     Task ConfirmarPagamentoAsync(EncomendaLoja encomenda, string? paymentIntentId, CancellationToken ct = default);
     /// <summary>Webhook: a sessão expirou ou o pagamento assíncrono (Multibanco) falhou.</summary>
@@ -108,7 +108,7 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
 
     // ---- Checkout ------------------------------------------------------------------------------------
 
-    public async Task<CheckoutResultado> CheckoutAsync(CheckoutRequest req, CancellationToken ct = default)
+    public async Task<CheckoutResultado> CheckoutAsync(CheckoutRequest req, CancellationToken ct = default, Guid? clienteLojaId = null)
     {
         var tenantId = _tenant.TenantId ?? throw new ValidationException("sem_empresa", "Loja desconhecida.");
         if (!_stripe.Configurado)
@@ -154,6 +154,7 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
             Morada = dados.Morada, CodigoPostal = dados.CodigoPostal, Localidade = dados.Localidade, Notas = dados.Notas,
             Transportadora = Transportadora, PortesCents = PortesCents, SubtotalCents = subtotal, TotalCents = subtotal + PortesCents,
             Linhas = linhas,
+            ClienteLojaId = clienteLojaId,
         };
         foreach (var l in linhas) l.EncomendaId = e.Id;
         await _repo.AddAsync(e, ct);

@@ -23,13 +23,16 @@ public sealed class PublicLojaController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IEncomendaLojaService _service;
+    private readonly IContaLojaService _conta;
+    private const string HeaderSessao = "X-Loja-Sessao";
     private readonly IEncomendaLojaRepository _repo;
     private readonly StripeOptions _stripe;
     private readonly ILogger<PublicLojaController> _log;
 
     public PublicLojaController(AppDbContext db, IEncomendaLojaService service, IEncomendaLojaRepository repo,
-        IOptions<StripeOptions> stripe, ILogger<PublicLojaController> log)
+        IOptions<StripeOptions> stripe, ILogger<PublicLojaController> log, IContaLojaService conta)
     {
+        _conta = conta;
         _db = db;
         _service = service;
         _repo = repo;
@@ -44,7 +47,8 @@ public sealed class PublicLojaController : ControllerBase
         // Campo-armadilha preenchido = bot. Resposta neutra, nada criado.
         if (!string.IsNullOrWhiteSpace(req.Website)) return BadRequest();
         if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
-        return Ok(await _service.CheckoutAsync(req, ct));
+        var cliente = await _conta.ClienteDaSessaoAsync(Request.Headers[HeaderSessao], ct);
+        return Ok(await _service.CheckoutAsync(req, ct, cliente?.Id));
     }
 
     [HttpGet("{intakeSlug}/encomendas/{referencia}")]
@@ -54,6 +58,59 @@ public sealed class PublicLojaController : ControllerBase
         if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
         return Ok(await _service.EstadoPublicoAsync(referencia, t, ct));
     }
+
+    // ---- Sprint 659: contas de cliente (email + palavra-passe; sessão no cabeçalho X-Loja-Sessao) ----
+
+    [HttpPost("{intakeSlug}/conta/registar")]
+    [EnableRateLimiting("auth-strict")]
+    public async Task<ActionResult<SessaoLojaDto>> Registar(string intakeSlug, [FromBody] RegistoLojaRequest req, CancellationToken ct)
+        => await EntrarNaEmpresa(intakeSlug, ct) ? Ok(await _conta.RegistarAsync(req, ct)) : NotFound();
+
+    [HttpPost("{intakeSlug}/conta/entrar")]
+    [EnableRateLimiting("auth-strict")]
+    public async Task<ActionResult<SessaoLojaDto>> Entrar(string intakeSlug, [FromBody] EntrarLojaRequest req, CancellationToken ct)
+        => await EntrarNaEmpresa(intakeSlug, ct) ? Ok(await _conta.EntrarAsync(req, ct)) : NotFound();
+
+    [HttpPost("{intakeSlug}/conta/sair")]
+    [EnableRateLimiting("public-portal")]
+    public async Task<IActionResult> Sair(string intakeSlug, CancellationToken ct)
+    {
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        await _conta.SairAsync(Request.Headers[HeaderSessao], ct);
+        return NoContent();
+    }
+
+    [HttpGet("{intakeSlug}/conta/eu")]
+    [EnableRateLimiting("public-portal")]
+    public async Task<ActionResult<ClienteLojaDto>> Eu(string intakeSlug, CancellationToken ct)
+    {
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        var c = await _conta.ClienteDaSessaoAsync(Request.Headers[HeaderSessao], ct);
+        return c is null ? Unauthorized() : Ok(new ClienteLojaDto(c.Nome, c.Email, c.Telefone));
+    }
+
+    [HttpGet("{intakeSlug}/conta/encomendas")]
+    [EnableRateLimiting("public-portal")]
+    public async Task<ActionResult<IReadOnlyList<EncomendaPublicaDto>>> MinhasEncomendas(string intakeSlug, CancellationToken ct)
+    {
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        if (await _conta.ClienteDaSessaoAsync(Request.Headers[HeaderSessao], ct) is null) return Unauthorized();
+        return Ok(await _conta.EncomendasAsync(Request.Headers[HeaderSessao], ct));
+    }
+
+    [HttpPost("{intakeSlug}/conta/recuperar")]
+    [EnableRateLimiting("auth-reset")]
+    public async Task<IActionResult> Recuperar(string intakeSlug, [FromBody] PedirResetLojaRequest req, CancellationToken ct)
+    {
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        await _conta.PedirResetAsync(req, ct);
+        return Accepted();
+    }
+
+    [HttpPost("{intakeSlug}/conta/redefinir")]
+    [EnableRateLimiting("auth-strict")]
+    public async Task<ActionResult<SessaoLojaDto>> Redefinir(string intakeSlug, [FromBody] RedefinirLojaRequest req, CancellationToken ct)
+        => await EntrarNaEmpresa(intakeSlug, ct) ? Ok(await _conta.RedefinirAsync(req, ct)) : NotFound();
 
     /// <summary>Eventos do Stripe. Assinatura obrigatória; responde 200 a eventos que não interessam (senão o Stripe repete).</summary>
     [HttpPost("stripe/webhook")]
