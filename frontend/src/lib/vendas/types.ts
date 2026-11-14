@@ -25,6 +25,26 @@ export const VENDA_ESTADO_COLOR: Record<VendaEstado, string> = {
   4: 'bg-zinc-100 text-zinc-400 line-through dark:bg-zinc-800 dark:text-zinc-500',
 };
 
+/**
+ * Estado a mostrar. Uma venda entregue e paga que não tem fatura a emitir — todas as linhas «por fora», ou marcada
+ * «sem fatura» (registo interno) — está concluída: nada fica pendente para a contabilidade.
+ */
+export function estadoVendaVisivel(v: {
+  estado: VendaEstado;
+  items?: { porFora?: boolean }[];
+  foraApuramento?: boolean;
+  porReceber?: boolean;
+}): { label: string; color: string } {
+  const tudoPorFora = !!v.items?.length && v.items.every((i) => i.porFora);
+  if (v.estado === VENDA_ESTADO.Entregue && !v.porReceber && (tudoPorFora || v.foraApuramento)) {
+    return {
+      label: tudoPorFora ? 'Concluída · por fora' : 'Concluída · sem fatura',
+      color: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200',
+    };
+  }
+  return { label: VENDA_ESTADO_LABEL[v.estado], color: VENDA_ESTADO_COLOR[v.estado] };
+}
+
 export const PAYMENT_METHOD = {
   Dinheiro: 0,
   Multibanco: 1,

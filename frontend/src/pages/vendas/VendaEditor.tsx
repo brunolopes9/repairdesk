@@ -19,7 +19,6 @@ import {
   PECA_ENCOMENDA_LABEL,
   type PecaEncomendaEstado,
   VENDA_ESTADO,
-  VENDA_ESTADO_COLOR,
   VENDA_ESTADO_LABEL,
   VENDA_FLUXO,
   VENDA_TIPO,
@@ -29,6 +28,7 @@ import {
   type VendaEstado,
   type VendaTipo,
   type VendaWrite,
+  estadoVendaVisivel,
 } from '../../lib/vendas/types';
 import ClienteSelect, { type ClienteEscolhido } from './ClienteSelect';
 import DocumentoMoloni from './DocumentoMoloni';
@@ -370,7 +370,7 @@ export default function VendaEditor() {
       <BackButton to="/vendas" label="Vendas" />
       <PageHeader
         title={isNew ? `${tipo === VENDA_TIPO.Reparacao ? 'Nova' : 'Novo'} ${VENDA_TIPO_LABEL[tipo].toLowerCase()}` : `${VENDA_TIPO_LABEL[venda!.tipo]} #${venda!.numero}`}
-        meta={venda && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VENDA_ESTADO_COLOR[venda.estado]}`}>{VENDA_ESTADO_LABEL[venda.estado]}</span>}
+        meta={venda && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${estadoVendaVisivel(venda).color}`}>{estadoVendaVisivel(venda).label}</span>}
         actions={(
           <>
           {venda?.temFaturaPdf && (

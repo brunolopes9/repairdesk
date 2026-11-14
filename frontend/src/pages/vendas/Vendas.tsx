@@ -18,12 +18,11 @@ import PecasEncomendaVista from './PecasEncomenda';
 import { BotaoImprimir } from '../../components/BotaoImprimir';
 import {
   VENDA_ESTADO,
-  VENDA_ESTADO_COLOR,
-  VENDA_ESTADO_LABEL,
   VENDA_TIPO,
   VENDA_TIPO_LABEL,
   type VendaFiltro,
   type VendaTipo,
+  estadoVendaVisivel,
 } from '../../lib/vendas/types';
 
 /** Doc 94 Fase 4: um só ecrã para Reparações, Serviços (software/websites) e Produtos. */
@@ -216,10 +215,10 @@ export default function Vendas() {
                       </span>
                       <span className="block truncate text-xs text-zinc-500">{v.equipamento ?? v.problema ?? v.items.map((i) => i.descricao).join(', ')}</span>
                       <span className="mt-1 flex flex-wrap items-center gap-1 text-xs">
-                        <span className={`rounded-full px-2 py-0.5 font-medium ${VENDA_ESTADO_COLOR[v.estado]}`}>{VENDA_ESTADO_LABEL[v.estado]}</span>
+                        <span className={`rounded-full px-2 py-0.5 font-medium ${estadoVendaVisivel(v).color}`}>{estadoVendaVisivel(v).label}</span>
                         {v.faturaPorRegistar && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Sem fatura</span>}
-                        {v.foraApuramento && <span className="rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Sem fatura</span>}
-                        {!v.foraApuramento && v.items.some((i) => i.porFora) && <span className="rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora {formatEur(v.items.filter((i) => i.porFora).reduce((s, i) => s + i.totalCents, 0) / 100)}</span>}
+                        {v.foraApuramento && v.estado !== VENDA_ESTADO.Entregue && <span className="rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Sem fatura</span>}
+                        {!v.foraApuramento && v.items.some((i) => i.porFora) && !(v.estado === VENDA_ESTADO.Entregue && v.items.every((i) => i.porFora)) && <span className="rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora {formatEur(v.items.filter((i) => i.porFora).reduce((s, i) => s + i.totalCents, 0) / 100)}</span>}
                         {v.paga === false && <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
                         <span className="ml-auto tabular-nums text-zinc-500">{formatDateOnly(v.data)}</span>
                       </span>
@@ -258,10 +257,10 @@ export default function Vendas() {
                         <div className="text-xs text-zinc-500">{v.equipamento ?? v.problema ?? v.items.map((i) => i.descricao).join(', ')}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VENDA_ESTADO_COLOR[v.estado]}`}>{VENDA_ESTADO_LABEL[v.estado]}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${estadoVendaVisivel(v).color}`}>{estadoVendaVisivel(v).label}</span>
                         {v.faturaPorRegistar && <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Sem fatura</span>}
-                        {v.foraApuramento && <span className="ml-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Sem fatura</span>}
-                        {!v.foraApuramento && v.items.some((i) => i.porFora) && <span className="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora</span>}
+                        {v.foraApuramento && v.estado !== VENDA_ESTADO.Entregue && <span className="ml-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Sem fatura</span>}
+                        {!v.foraApuramento && v.items.some((i) => i.porFora) && !(v.estado === VENDA_ESTADO.Entregue && v.items.every((i) => i.porFora)) && <span className="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora</span>}
                         {v.paga === false && <span className="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
                       </td>
                       <td className="px-4 py-3 tabular-nums">{formatDateOnly(v.data)}</td>
