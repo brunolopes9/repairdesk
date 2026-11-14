@@ -56,6 +56,9 @@ services:
       Storage__R2__AccessKey: ${Storage__R2__AccessKey:-}
       Storage__R2__Secret: ${Storage__R2__Secret:-}
       Storage__R2__Bucket: ${Storage__R2__Bucket:-}
+      # Sprint 656: pagamentos da loja online (vazio = pagamentos inativos; a loja oferece o WhatsApp).
+      Stripe__SecretKey: ${STRIPE_SECRET_KEY:-}
+      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET:-}
       Metrics__Enabled: ${Metrics__Enabled:-false}
       Metrics__AllowedIps__0: ${Metrics__AllowedIps__0:-127.0.0.1}
       Metrics__BasicAuthUsername: ${Metrics__BasicAuthUsername:-}
