@@ -40,6 +40,7 @@ const Rotina = lazy(() => import('./pages/rotina/Rotina'));
 const Financas = lazy(() => import('./pages/financas/Financas'));
 const ProdutoLojaEditor = lazy(() => import('./pages/loja/ProdutoLojaEditor'));
 const EncomendasLoja = lazy(() => import('./pages/loja/Encomendas'));
+const NewsletterLoja = lazy(() => import('./pages/loja/Newsletter'));
 const FaturasRecebidas = lazy(() => import('./pages/faturas/FaturasRecebidas'));
 const Definicoes = lazy(() => import('./pages/definicoes/Definicoes'));
 const Perfil = lazy(() => import('./pages/definicoes/Perfil'));
@@ -184,6 +185,7 @@ export default function App() {
               <Route path="/financas" element={<Financas />} />
               <Route path="/loja" element={<Loja />} />
               <Route path="/loja/encomendas" element={<EncomendasLoja />} />
+              <Route path="/loja/newsletter" element={<NewsletterLoja />} />
               <Route path="/faturas" element={<FaturasRecebidas />} />
               <Route path="/loja/:id" element={<ProdutoLojaEditor />} />
               <Route path="/auditoria" element={<Auditoria />} />

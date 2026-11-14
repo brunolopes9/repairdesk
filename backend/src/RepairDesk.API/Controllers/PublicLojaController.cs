@@ -24,15 +24,17 @@ public sealed class PublicLojaController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IEncomendaLojaService _service;
     private readonly IContaLojaService _conta;
+    private readonly INewsletterService _newsletter;
     private const string HeaderSessao = "X-Loja-Sessao";
     private readonly IEncomendaLojaRepository _repo;
     private readonly StripeOptions _stripe;
     private readonly ILogger<PublicLojaController> _log;
 
     public PublicLojaController(AppDbContext db, IEncomendaLojaService service, IEncomendaLojaRepository repo,
-        IOptions<StripeOptions> stripe, ILogger<PublicLojaController> log, IContaLojaService conta)
+        IOptions<StripeOptions> stripe, ILogger<PublicLojaController> log, IContaLojaService conta, INewsletterService newsletter)
     {
         _conta = conta;
+        _newsletter = newsletter;
         _db = db;
         _service = service;
         _repo = repo;
@@ -111,6 +113,37 @@ public sealed class PublicLojaController : ControllerBase
     [EnableRateLimiting("auth-strict")]
     public async Task<ActionResult<SessaoLojaDto>> Redefinir(string intakeSlug, [FromBody] RedefinirLojaRequest req, CancellationToken ct)
         => await EntrarNaEmpresa(intakeSlug, ct) ? Ok(await _conta.RedefinirAsync(req, ct)) : NotFound();
+
+    // ---- Sprint 661: newsletter (confirmação dupla) ----
+
+    [HttpPost("{intakeSlug}/newsletter")]
+    [EnableRateLimiting("auth-reset")]
+    public async Task<IActionResult> SubscreverNewsletter(string intakeSlug, [FromBody] SubscreverNewsletterRequest req, CancellationToken ct)
+    {
+        // Campo-armadilha preenchido = bot: mesma resposta, nada guardado nem enviado.
+        if (!string.IsNullOrWhiteSpace(req.Website)) return Accepted();
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        await _newsletter.SubscreverAsync(req, ct);
+        return Accepted();
+    }
+
+    [HttpPost("{intakeSlug}/newsletter/confirmar")]
+    [EnableRateLimiting("auth-strict")]
+    public async Task<IActionResult> ConfirmarNewsletter(string intakeSlug, [FromBody] TokenNewsletterRequest req, CancellationToken ct)
+    {
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        await _newsletter.ConfirmarAsync(req.Token, ct);
+        return NoContent();
+    }
+
+    [HttpPost("{intakeSlug}/newsletter/cancelar")]
+    [EnableRateLimiting("auth-strict")]
+    public async Task<IActionResult> CancelarNewsletter(string intakeSlug, [FromBody] TokenNewsletterRequest req, CancellationToken ct)
+    {
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        await _newsletter.CancelarAsync(req.Token, ct);
+        return NoContent();
+    }
 
     /// <summary>Eventos do Stripe. Assinatura obrigatória; responde 200 a eventos que não interessam (senão o Stripe repete).</summary>
     [HttpPost("stripe/webhook")]

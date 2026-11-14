@@ -358,6 +358,8 @@ try
     // Sprint 659: contas de cliente da loja.
     builder.Services.AddScoped<IClienteLojaRepository, RepairDesk.DAL.Persistence.ClienteLojaRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.IContaLojaService, RepairDesk.Services.Loja.ContaLojaService>();
+    builder.Services.AddScoped<ISubscritorNewsletterRepository, RepairDesk.DAL.Persistence.SubscritorNewsletterRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Loja.INewsletterService, RepairDesk.Services.Loja.NewsletterService>();
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();

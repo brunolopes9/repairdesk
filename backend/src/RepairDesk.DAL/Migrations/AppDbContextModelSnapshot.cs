@@ -3101,6 +3101,71 @@ namespace RepairDesk.DAL.Migrations
                     b.ToTable("StaffPushSubscriptions", (string)null);
                 });
 
+            modelBuilder.Entity("RepairDesk.Core.Entities.SubscritorNewsletter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CanceladoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ConfirmacaoEnviadaEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ConfirmadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Origem")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TokenCancelamento")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TokenConfirmacaoHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenCancelamento")
+                        .IsUnique();
+
+                    b.HasIndex("TokenConfirmacaoHash")
+                        .HasFilter("[TokenConfirmacaoHash] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "Email")
+                        .IsUnique();
+
+                    b.ToTable("SubscritoresNewsletter", (string)null);
+                });
+
             modelBuilder.Entity("RepairDesk.Core.Entities.SupplierInvoiceImport", b =>
                 {
                     b.Property<Guid>("Id")
