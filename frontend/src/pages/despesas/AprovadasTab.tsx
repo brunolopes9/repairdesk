@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Banknote, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2, Search, Trash2 } from 'lucide-react';
+import { Banknote, ChevronLeft, ChevronRight, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2, Search, Trash2 } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, DateRangeFilter, DetailWorkspace, EmptyState, InspectorRail, PageHeader, Paginacao, SkeletonCard } from '../../components/ui';
 import { useFiltrosUrl } from '../../lib/useFiltrosUrl';
@@ -263,10 +263,14 @@ export default function AprovadasTab({
                 className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
               />
             </div>
-            <div className="flex items-center gap-1">
-              <Button type="button" variant="secondary" size="sm" aria-label="Mês anterior" onClick={() => set(limitesMes(mesRelativo(datas.de, -1)))}>‹</Button>
-              <span className="min-w-36 text-center text-sm font-semibold capitalize">{nomeMes(datas.de)}</span>
-              <Button type="button" variant="secondary" size="sm" aria-label="Mês seguinte" onClick={() => set(limitesMes(mesRelativo(datas.de, 1)))}>›</Button>
+            <div className="flex w-full items-center justify-between gap-2 rounded-xl bg-brand-50 p-1.5 dark:bg-brand-950/30 sm:w-auto">
+              <Button type="button" variant="secondary" aria-label="Mês anterior" leftIcon={<ChevronLeft size={18} />} onClick={() => set(limitesMes(mesRelativo(datas.de, -1)))}>
+                <span className="capitalize">{nomeMesCurto(mesRelativo(datas.de, -1))}</span>
+              </Button>
+              <span className="min-w-40 text-center text-base font-bold capitalize text-brand-900 dark:text-brand-100">{nomeMes(datas.de)}</span>
+              <Button type="button" variant="secondary" aria-label="Mês seguinte" rightIcon={<ChevronRight size={18} />} onClick={() => set(limitesMes(mesRelativo(datas.de, 1)))}>
+                <span className="capitalize">{nomeMesCurto(mesRelativo(datas.de, 1))}</span>
+              </Button>
             </div>
             <DateRangeFilter value={datas} onChange={(v) => set({ de: v.de, ate: v.ate })} />
           </div>
@@ -483,4 +487,7 @@ function mesRelativo(de: string, delta: number): Date {
 function nomeMes(de: string): string {
   if (!de) return 'Todas as datas';
   return new Date(`${de}T12:00:00`).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+}
+function nomeMesCurto(d: Date): string {
+  return d.toLocaleDateString('pt-PT', { month: 'long' });
 }

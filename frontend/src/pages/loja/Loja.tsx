@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, ImageOff, Plus, Search, ShoppingBag } from 'lucide-react';
+import { ExternalLink, ImageOff, PackagePlus, Plus, Search, ShoppingBag } from 'lucide-react';
 import { Button, EmptyState, PageHeader, SkeletonTable } from '../../components/ui';
 import { apiErrorMessage } from '../../lib/errors';
 import { ImportarProdutos } from './ImportarProdutos';
+import { DoStockModal } from './DoStockModal';
 import { CATEGORIA_LABEL, DISPONIBILIDADE_LABEL, ESTADO_LABEL, euro, lojaApi } from '../../lib/loja/api';
 
 /**
@@ -14,6 +15,7 @@ import { CATEGORIA_LABEL, DISPONIBILIDADE_LABEL, ESTADO_LABEL, euro, lojaApi } f
 export default function Loja() {
   const navigate = useNavigate();
   const [importar, setImportar] = useState(false);
+  const [doStock, setDoStock] = useState(false);
   const lista = useQuery({ queryKey: ['loja', 'produtos'], queryFn: lojaApi.list });
   const todos = useMemo(() => lista.data ?? [], [lista.data]);
   const publicados = todos.filter((p) => p.publicado).length;
@@ -41,6 +43,7 @@ export default function Loja() {
             <Button variant="secondary" onClick={() => navigate('/loja/encomendas')}>Encomendas</Button>
             <Button variant="secondary" onClick={() => navigate('/loja/newsletter')}>Newsletter</Button>
             <Button variant="ghost" onClick={() => setImportar(true)}>Importar</Button>
+            <Button variant="success" leftIcon={<PackagePlus size={16} />} onClick={() => setDoStock(true)}>Do stock</Button>
             <Button leftIcon={<Plus size={16} />} onClick={() => navigate('/loja/novo')}>Novo produto</Button>
           </div>
         )}
@@ -128,6 +131,7 @@ export default function Loja() {
         </>
       )}
       {importar && <ImportarProdutos onClose={() => setImportar(false)} />}
+      {doStock && <DoStockModal jaNaLoja={new Set(todos.map((p) => p.artigoId).filter((x): x is string => !!x))} onClose={() => setDoStock(false)} />}
     </div>
   );
 }

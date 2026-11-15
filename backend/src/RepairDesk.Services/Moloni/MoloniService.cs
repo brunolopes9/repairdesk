@@ -250,7 +250,6 @@ public partial class MoloniService : IMoloniService
             ["expirationDate"] = agora.AddDays(fatura ? req.VencimentoDias : 0).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["status"] = 0,
             ["notes"] = Limpar(req.Notas, 1000),
-            ["ourReference"] = $"Venda #{venda.Numero}",
             ["products"] = produtos,
         };
         if (!fatura) dados["payments"] = new[] { Pagamento(metodo!.Value, totalVenda, agora) };
@@ -369,7 +368,6 @@ public partial class MoloniService : IMoloniService
             ["date"] = agora.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture),
             ["expirationDate"] = agora.AddDays(req.ValidadeDias).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["status"] = 0,
-            ["ourReference"] = $"Venda #{venda.Numero}",
             ["products"] = produtos,
         };
         var (documentId, totalMoloni) = await CriarRascunhoAsync(key, companyId, "estimate", "EstimateInsert", dados, ct);

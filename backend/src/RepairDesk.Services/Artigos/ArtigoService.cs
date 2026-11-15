@@ -75,7 +75,7 @@ public sealed record FundirArtigosRequest(IReadOnlyList<Guid> OrigemIds);
 /// <summary>Sprint 581: marcar/desmarcar lotes como peça de reparação (não ficam à espera de artigo).</summary>
 public sealed record PecaReparacaoRequest(IReadOnlyList<Guid> LoteIds, bool PecaReparacao = true);
 /// <summary>Sprint 663: lotes que ficam para uso da loja (expositor, colas…) — saem do stock, a compra fica igual.</summary>
-public sealed record UsoInternoRequest(IReadOnlyList<Guid> LoteIds, string? Motivo = null);
+public sealed record UsoInternoRequest(IReadOnlyList<Guid> LoteIds, string? Motivo = null, bool Reverter = false);
 
 public sealed record ArtigoWriteRequest(
     string Nome,
@@ -551,6 +551,20 @@ public class ArtigoService : IArtigoService
         if (req.LoteIds is null || req.LoteIds.Count == 0) return 0;
         var lotes = await _compras.FindLinhasAsync(req.LoteIds.Distinct().ToList(), ct);
         var n = 0;
+        if (req.Reverter)
+        {
+            // Desfaz um abate (ex.: tirado do stock por engano) — as unidades voltam a estar disponíveis.
+            foreach (var l in lotes.Where(l => l.QuantidadeAbatida > 0))
+            {
+                var qtd = l.QuantidadeAbatida;
+                l.QuantidadeAbatida = 0;
+                n++;
+                await _audit.LogAsync(AuditAction.Update, nameof(CompraLinha), l.Id,
+                    new { voltouAoStock = qtd, l.Descricao, motivo = string.IsNullOrWhiteSpace(req.Motivo) ? "abate desfeito" : req.Motivo.Trim() }, ct: ct);
+            }
+            await _compras.SaveAsync(ct);
+            return n;
+        }
         foreach (var l in lotes.Where(l => l.QuantidadeEmStock > 0))
         {
             var qtd = l.QuantidadeEmStock;
