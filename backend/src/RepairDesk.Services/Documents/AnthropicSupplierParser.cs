@@ -187,7 +187,8 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
             {
                 var body = await resp.Content.ReadAsStringAsync(cts.Token);
                 _logger.LogWarning("Anthropic API {Status}: {Body}", (int)resp.StatusCode, body.Length > 500 ? body[..500] : body);
-                outcome = "error";
+                // Sprint 663: sem crédito na conta da API — a página «Uso de IA» mostra o aviso com o que fazer.
+                outcome = body.Contains("credit balance", StringComparison.OrdinalIgnoreCase) ? "sem_credito" : "error";
                 return null;
             }
 
@@ -342,7 +343,7 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
             {
                 var body = await resp.Content.ReadAsStringAsync(cts.Token);
                 _logger.LogWarning("Anthropic Vision API {Status}: {Body}", (int)resp.StatusCode, body.Length > 500 ? body[..500] : body);
-                outcome = "error";
+                outcome = body.Contains("credit balance", StringComparison.OrdinalIgnoreCase) ? "sem_credito" : "error";
                 return null;
             }
 

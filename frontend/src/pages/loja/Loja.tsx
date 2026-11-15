@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, ImageOff, Plus, ShoppingBag } from 'lucide-react';
+import { ExternalLink, ImageOff, Plus, Search, ShoppingBag } from 'lucide-react';
 import { Button, EmptyState, PageHeader, SkeletonTable } from '../../components/ui';
 import { apiErrorMessage } from '../../lib/errors';
 import { ImportarProdutos } from './ImportarProdutos';
@@ -15,8 +15,21 @@ export default function Loja() {
   const navigate = useNavigate();
   const [importar, setImportar] = useState(false);
   const lista = useQuery({ queryKey: ['loja', 'produtos'], queryFn: lojaApi.list });
-  const itens = lista.data ?? [];
-  const publicados = itens.filter((p) => p.publicado).length;
+  const todos = useMemo(() => lista.data ?? [], [lista.data]);
+  const publicados = todos.filter((p) => p.publicado).length;
+  // Sprint 663: com dezenas de produtos, encontrar depressa — tipo (como no site), estado e pesquisa.
+  const [q, setQ] = useState('');
+  const [tipo, setTipo] = useState('');
+  const [estado, setEstado] = useState<'' | 'site' | 'rascunho' | 'esgotado'>('');
+  const tipos = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of todos) m.set(tipoDe(p.titulo, CATEGORIA_LABEL[p.categoria]), (m.get(tipoDe(p.titulo, CATEGORIA_LABEL[p.categoria])) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [todos]);
+  const itens = todos.filter((p) =>
+    (!tipo || tipoDe(p.titulo, CATEGORIA_LABEL[p.categoria]) === tipo)
+    && (!estado || (estado === 'site' ? p.publicado : estado === 'rascunho' ? !p.publicado : p.disponibilidade === 2))
+    && (!q.trim() || p.titulo.toLowerCase().includes(q.trim().toLowerCase())));
 
   return (
     <div className="space-y-4">
@@ -37,7 +50,7 @@ export default function Loja() {
         <SkeletonTable columns={4} rows={4} />
       ) : lista.isError ? (
         <p className="text-sm text-rose-600">{apiErrorMessage(lista.error)}</p>
-      ) : itens.length === 0 ? (
+      ) : todos.length === 0 ? (
         <EmptyState
           icon={ShoppingBag}
           title="Ainda não há produtos"
@@ -46,7 +59,32 @@ export default function Loja() {
         />
       ) : (
         <>
-          <p className="text-sm text-zinc-500">{itens.length} produto(s) · {publicados} no site</p>
+          <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-56 flex-1">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar produto…"
+                  className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 dark:border-zinc-700 dark:bg-zinc-950" />
+              </div>
+              {([['', 'Todos'], ['site', 'No site'], ['rascunho', 'Rascunhos'], ['esgotado', 'Sem stock']] as const).map(([v, l]) => (
+                <button key={v} type="button" onClick={() => setEstado(v)}
+                  className={`min-h-11 rounded-full px-4 text-sm font-semibold transition ${estado === v ? 'bg-brand-600 text-white' : 'bg-zinc-100 text-zinc-700 hover:bg-brand-50 dark:bg-zinc-800 dark:text-zinc-200'}`}>{l}</button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setTipo('')}
+                className={`min-h-10 rounded-full border px-3.5 text-sm font-medium ${tipo === '' ? 'border-brand-500 bg-brand-50 text-brand-800 dark:bg-brand-950/40 dark:text-brand-200' : 'border-zinc-200 text-zinc-700 hover:border-brand-300 dark:border-zinc-700 dark:text-zinc-200'}`}>
+                Tudo <span className="text-zinc-400">{todos.length}</span>
+              </button>
+              {tipos.map(([t, n]) => (
+                <button key={t} type="button" onClick={() => setTipo(t)}
+                  className={`min-h-10 rounded-full border px-3.5 text-sm font-medium ${tipo === t ? 'border-brand-500 bg-brand-50 text-brand-800 dark:bg-brand-950/40 dark:text-brand-200' : 'border-zinc-200 text-zinc-700 hover:border-brand-300 dark:border-zinc-700 dark:text-zinc-200'}`}>
+                  {t} <span className="text-zinc-400">{n}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="text-sm text-zinc-500">{itens.length} de {todos.length} produto(s) · {publicados} no site</p>
           <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {itens.map((p) => {
               const capa = p.fotos.find((f) => f.enviada && f.url);
@@ -92,4 +130,13 @@ export default function Loja() {
       {importar && <ImportarProdutos onClose={() => setImportar(false)} />}
     </div>
   );
+}
+
+/** Sprint 663: o mesmo agrupamento do site (lopestech.pt/loja) — pelo título; o resto fica na categoria. */
+const TIPOS: [string, RegExp][] = [
+  ['Powerbanks', /powerbank/i], ['Protetores de câmara', /protetor de c[âa]mara|pel[ií]cula de c[âa]mara/i], ['Películas', /pel[ií]cula|vidro temperado/i],
+  ['Capas', /capa/i], ['Carregadores', /carregador/i], ['Cabos', /cabo/i], ['Suportes de carro', /suporte/i], ['Auriculares', /auricular|buds|earbuds/i],
+];
+function tipoDe(titulo: string, categoria: string): string {
+  return TIPOS.find(([, re]) => re.test(titulo))?.[0] ?? categoria;
 }

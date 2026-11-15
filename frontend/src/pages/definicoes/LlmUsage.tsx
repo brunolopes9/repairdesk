@@ -114,6 +114,9 @@ export default function LlmUsage() {
 
   const { thisMonth, prevMonth, lifetime, quota, recent } = query.data;
   const monthDelta = thisMonth.totalCostMicrocents - prevMonth.totalCostMicrocents;
+  // Última chamada sem crédito, se depois dela não houve nenhuma OK (a lista vem da mais recente para a mais antiga).
+  const iSem = recent.findIndex((r) => r.outcome === 'sem_credito');
+  const semCredito = iSem >= 0 && !recent.slice(0, iSem).some((r) => r.outcome === 'ok') ? recent[iSem] : null;
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
@@ -124,10 +127,23 @@ export default function LlmUsage() {
           Uso de IA (Anthropic Claude)
         </h1>
         <p className="text-sm text-zinc-500">
-          Cada chamada à API Claude (parse de fatura, OCR de foto, alt text de imagem) regista-se aqui.
-          Útil para conferir custo + escolher plano SaaS correcto.
+          A leitura automática das faturas (PDF e foto) usa a API da Anthropic, paga à parte da subscrição do Claude
+          (a subscrição Pro/Max não dá acesso à API). Aqui vês quanto gastas e se a conta tem crédito.
         </p>
       </header>
+
+      {/* Sprint 663: a conta da API sem crédito parava a leitura das faturas sem ninguém saber. */}
+      {semCredito && (
+        <a href="https://console.anthropic.com/settings/billing" target="_blank" rel="noopener noreferrer"
+          className="flex items-start gap-3 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
+          <AlertCircle size={20} className="mt-0.5 shrink-0" />
+          <span>
+            <strong>A conta da API ficou sem crédito</strong> — desde {new Date(semCredito.createdAt).toLocaleDateString('pt-PT')} o Mender não consegue ler as faturas sozinho
+            (ficam «não detectado»). Carrega crédito em console.anthropic.com → Billing (5–10 € chegam para meses) e depois faz «Ler outra vez» nas faturas pendentes.
+            <span className="mt-1 block font-semibold underline">Abrir a faturação da Anthropic →</span>
+          </span>
+        </a>
+      )}
 
       {/* Sprint 172: Anthropic key BYOK opcional — central key (Mender) é o default. */}
       <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
