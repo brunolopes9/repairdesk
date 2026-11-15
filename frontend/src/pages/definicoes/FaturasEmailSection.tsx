@@ -65,15 +65,29 @@ export function FaturasEmailSection() {
     <section className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
       <div>
         <h2 className="flex items-center gap-2 text-lg font-semibold"><Inbox size={18} /> Faturas por email</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Uma caixa só para faturas. O Mender lê-a de 5 em 5 minutos e cada PDF fica «por aprovar» em Compras/Despesas (duplicados são ignorados).
-          Nada se apaga: os emails são movidos para as pastas «Mender-Processadas», «Mender-Sem-PDF» ou «Mender-Erros».
-        </p>
+        <p className="mt-1 text-sm text-zinc-500">Reencaminha uma fatura para o endereço abaixo e ela aparece em <strong>Faturas recebidas</strong> para aprovares.</p>
       </div>
+
+      {/* Sprint 668: como funciona em 3 passos — o resto (IMAP, cPanel) fica escondido. */}
+      <ol className="grid gap-2 text-sm sm:grid-cols-3">
+        {[
+          ['1', 'Reencaminhas', 'Do Gmail ou Outlook para faturas@lopestech.pt (à mão ou pela regra automática).'],
+          ['2', 'O Mender lê', 'O PDF é lido sozinho; duplicados são ignorados.'],
+          ['3', 'Tu aprovas', 'Em Faturas recebidas: Compra (stock) ou Despesa.'],
+        ].map(([n, t, d]) => (
+          <li key={n} className="rounded-xl border border-brand-100 bg-brand-50/60 p-3 dark:border-brand-900/40 dark:bg-brand-950/20">
+            <span className="mb-1 grid h-7 w-7 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white">{n}</span>
+            <strong className="block">{t}</strong>
+            <span className="text-zinc-600 dark:text-zinc-300">{d}</span>
+          </li>
+        ))}
+      </ol>
 
       {c && <FaturasCloudflare endereco={c.endereco ?? null} temSegredo={!!c.temSegredo} ultimoEmailEm={c.ultimoEmailEm ?? null} />}
 
-      <h3 className="pt-2 text-sm font-semibold">Alternativa: caixa IMAP</h3>
+      <details className="rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+      <summary className="cursor-pointer font-semibold">Alternativa avançada: ligar uma caixa IMAP (não precisas se usas o endereço acima)</summary>
+      <div className="mt-3 space-y-3">
       {c && !c.configurado && !editar && (
         <Button size="sm" variant="ghost" onClick={() => setEditar(true)}>Ligar uma caixa IMAP</Button>
       )}
@@ -111,11 +125,12 @@ export function FaturasEmailSection() {
         </form>
       )}
 
+      </div>
+      </details>
+
       <details className="rounded-xl bg-zinc-50 p-3 text-sm dark:bg-zinc-950">
-        <summary className="cursor-pointer font-medium">Como pôr as faturas a chegar sozinhas</summary>
+        <summary className="cursor-pointer font-medium">Regras automáticas no Gmail e no Outlook</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-zinc-600 dark:text-zinc-300">
-          <li>No cPanel do lopestech.pt cria a caixa <strong>faturas@lopestech.pt</strong> (Contas de email → Criar).</li>
-          <li>Liga-a aqui em cima (servidor <code>mail.lopestech.pt</code>, porta 993).</li>
           <li><strong>Gmail:</strong> Definições → Encaminhamento e POP/IMAP → «Adicionar endereço de encaminhamento» → faturas@lopestech.pt. O código de confirmação aparece no webmail, na pasta «Mender-Sem-PDF».</li>
           <li><strong>Gmail:</strong> cria um filtro por fornecedor (ex.: <code>from:(tudo4mobile OR microwire OR vodafone) has:attachment</code>) → «Reencaminhar para» faturas@lopestech.pt.</li>
           <li><strong>Outlook:</strong> Definições → Correio → Regras → nova regra «De» o fornecedor → «Reencaminhar para» faturas@lopestech.pt.</li>
