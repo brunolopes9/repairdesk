@@ -94,7 +94,7 @@ export default function LoteModal({ lote, onClose, onAbrirArtigo }: Props) {
             {lote.localizacao && <> · {lote.localizacao}</>}
           </div>
           {lote.artigoId && (
-            <button type="button" onClick={() => onAbrirArtigo(lote.artigoId!)} className="mt-1 text-xs font-medium text-brand-600 hover:underline">
+            <button type="button" onClick={() => onAbrirArtigo(lote.artigoId!)} className="mt-1 block text-left text-xs font-medium text-brand-600 hover:underline">
               Artigo {lote.artigoSku}{lote.artigoNome ? ` · ${lote.artigoNome}` : ''}
             </button>
           )}
