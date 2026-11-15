@@ -484,7 +484,7 @@ export default function CompraEditor() {
                         const t = (parseDecimal(l.taxa) ?? taxaDefeito * 100) / 100;
                         const semIva = t > 0 ? pago / (1 + t) : pago;
                         const comIva = t > 0 ? pago : pago * 1.23;
-                        return <span className="mt-1 block whitespace-nowrap text-[11px] leading-4 text-zinc-500">{formatEur(semIva)} s/ IVA<br /><strong className="text-zinc-700 dark:text-zinc-300">{formatEur(comIva)} c/ IVA</strong></span>;
+                        return <span className="mt-1 block whitespace-nowrap text-[11px] leading-4 text-zinc-500"><strong className="text-xs text-zinc-900 dark:text-zinc-100">{formatEur(comIva)} c/ IVA</strong><br />{formatEur(semIva)} s/ IVA</span>;
                       })()}
                     </td>
                     <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Taxa de IVA" inputMode="decimal" value={l.taxa} onChange={(e) => setLinha(l.key, { taxa: e.target.value })} className={inputCls} placeholder={String(taxaDefeito * 100)} /></td>
