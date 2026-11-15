@@ -36,6 +36,10 @@ export const comprasApi = {
   inventario() {
     return api.get<InventarioLinha[]>('/compras/inventario').then((r) => r.data);
   },
+  /** Sprint 671: preço de um lote (lucro por unidade s/ IVA); com atualizarArtigo o artigo passa a vender ao mesmo preço. */
+  precoLote(documentoId: string, linhaId: string, req: { lucroUnitario: number; atualizarArtigo: boolean }) {
+    return api.put<InventarioLinha>(`/compras/${documentoId}/linhas/${linhaId}/preco`, req).then((r) => r.data);
+  },
   resumo() {
     return api.get<ResumoCompras>('/compras/resumo').then((r) => r.data);
   },

@@ -100,6 +100,11 @@ public class ComprasController : ControllerBase
     [HttpGet("inventario")]
     public Task<IReadOnlyList<InventarioLinhaDto>> Inventario(CancellationToken ct) => _service.InventarioAsync(ct);
 
+    /// <summary>Sprint 671: preço de um lote (lucro por unidade) — guardado sozinho na janela do lote.</summary>
+    [HttpPut("{id:guid}/linhas/{linhaId:guid}/preco")]
+    public Task<InventarioLinhaDto> AlterarPrecoLote(Guid id, Guid linhaId, [FromBody] LotePrecoRequest req, CancellationToken ct)
+        => _service.AlterarPrecoLoteAsync(id, linhaId, req, ct);
+
     /// <summary>"Já vendido" vs "em stock", IVA das compras e resumo por fornecedor (SPEC §4).</summary>
     [HttpGet("resumo")]
     public Task<ResumoComprasDto> Resumo(CancellationToken ct) => _service.ResumoAsync(ct);

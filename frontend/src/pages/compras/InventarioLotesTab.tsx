@@ -11,17 +11,22 @@ import { correspondeTermos } from '../../lib/pesquisa';
 import { formatDateOnly } from '../../lib/money';
 import { inputCls } from '../../components/ui/formClasses';
 import ArtigoModal from '../artigos/ArtigoModal';
+import LoteModal from './LoteModal';
 
 /** Lotes com stock > 0 (SPEC compras §4.5), com preço de venda sugerido e IVA a entregar ao Estado. */
 export default function InventarioLotesTab() {
   // Sprint 592: pesquisa, datas e ordem no URL — ao voltar de um lote/compra fica tudo como estava.
-  const { f, set } = useFiltrosUrl({ q: '', de: '', ate: '', sort: 'numero', dir: 'asc' });
+  const { f, set } = useFiltrosUrl({ q: '', de: '', ate: '', sort: 'numero', dir: 'asc', lote: '' });
   const q = f.q;
   const datas = useMemo(() => ({ de: f.de, ate: f.ate }), [f.de, f.ate]);
   const { ordem, alternar } = useOrdenacaoUrl<'numero' | 'artigo' | 'data' | 'stock' | 'pago' | 'venda' | 'lucro' | 'iva'>('numero', { sort: f.sort, dir: f.dir }, set);
   const inv = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario });
   // Sprint 566: criar/abrir o artigo da loja a partir de um lote.
   const [artigoAberto, setArtigoAberto] = useState<{ id: string | null; sugestao: { loteIds: string[]; nome: string } | null } | null>(null);
+
+  // Sprint 671: clicar num lote abre a ficha (preço/lucro, grava sozinho). Fica no URL (?lote=250) — dá para partilhar.
+  const loteAberto = useMemo(() => (f.lote ? (inv.data ?? []).find((l) => String(l.numero) === f.lote) ?? null : null), [inv.data, f.lote]);
+  const abrirLote = (numero: number) => set({ lote: String(numero) });
 
   const linhas = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -83,18 +88,20 @@ export default function InventarioLotesTab() {
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {inv.isLoading && Array.from({ length: 5 }).map((_, i) => <tr key={i}><td colSpan={8}><SkeletonRow columns={8} /></td></tr>)}
               {linhas.map((l) => (
-                <tr key={l.linhaId}>
+                <tr key={l.linhaId} tabIndex={0} onClick={() => abrirLote(l.numero)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) abrirLote(l.numero); }}
+                  className="cursor-pointer hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none dark:hover:bg-zinc-800/50 dark:focus:bg-zinc-800/50" title="Abrir o lote — mudar preço e lucro">
                   <td className="px-4 py-3 tabular-nums text-zinc-500">{l.numero}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium">{l.descricao}</div>
                     {l.localizacao && <div className="text-xs text-zinc-500">{l.localizacao}</div>}
                     {l.artigoId
-                      ? <button type="button" className="text-xs font-mono text-brand-600 hover:underline" onClick={() => setArtigoAberto({ id: l.artigoId, sugestao: null })}>{l.artigoSku}</button>
+                      ? <button type="button" className="text-xs font-mono text-brand-600 hover:underline" onClick={(e) => { e.stopPropagation(); setArtigoAberto({ id: l.artigoId, sugestao: null }); }}>{l.artigoSku}</button>
                       : <button type="button" className="text-xs text-zinc-500 hover:text-brand-600 hover:underline"
-                          onClick={() => setArtigoAberto({ id: null, sugestao: { loteIds: [l.linhaId], nome: l.descricao } })}>+ Criar artigo (etiqueta)</button>}
+                          onClick={(e) => { e.stopPropagation(); setArtigoAberto({ id: null, sugestao: { loteIds: [l.linhaId], nome: l.descricao } }); }}>+ Criar artigo (etiqueta)</button>}
                   </td>
                   <td className="px-4 py-3 text-xs text-zinc-500">
-                    <Link to={`/compras/${l.documentoId}`} className="hover:underline">{l.fornecedor} · {l.referencia}</Link>
+                    <Link to={`/compras/${l.documentoId}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{l.fornecedor} · {l.referencia}</Link>
                     <div>{formatDateOnly(l.data)}{l.faturaEmFalta && <span className="ml-1 text-amber-700 dark:text-amber-400">· fatura em falta</span>}</div>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{l.quantidadeEmStock}</td>
@@ -108,6 +115,7 @@ export default function InventarioLotesTab() {
           </table>
         </div>
       )}
+      <LoteModal lote={loteAberto} onClose={() => set({ lote: '' })} onAbrirArtigo={(id) => setArtigoAberto({ id, sugestao: null })} />
       <ArtigoModal open={artigoAberto !== null} artigoId={artigoAberto?.id ?? null} sugestao={artigoAberto?.sugestao ?? null} onClose={() => setArtigoAberto(null)} />
     </SectionCard>
   );

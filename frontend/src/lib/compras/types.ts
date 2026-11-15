@@ -146,6 +146,10 @@ export interface InventarioLinha {
   precoVendaArtigo: number | null;
   /** Sprint 585: texto proposto para a fatura ao cliente, em português ("Ecrã iPhone 14 Pro Max"). */
   textoVenda?: string | null;
+  /** Sprint 671: lucro por unidade (s/ IVA) gravado no lote; IVA da compra autoliquidado (UE); nome do artigo. */
+  lucroUnitario: number;
+  autoliquidacaoUe: boolean;
+  artigoNome?: string | null;
 }
 
 export interface ResumoColuna {

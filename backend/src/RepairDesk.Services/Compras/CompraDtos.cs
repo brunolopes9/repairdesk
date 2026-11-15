@@ -125,7 +125,17 @@ public sealed record InventarioLinhaDto(
     /// <summary>Sprint 570: preço de venda do artigo (próprio ou da categoria) — o editor de vendas propõe este.</summary>
     decimal? PrecoVendaArtigo = null,
     /// <summary>Sprint 585: texto proposto para a linha da venda/fatura, em português ("Ecrã iPhone 14 Pro Max").</summary>
-    string? TextoVenda = null);
+    string? TextoVenda = null,
+    /// <summary>Sprint 671: lucro por unidade (s/ IVA) gravado no lote e se o IVA da compra foi autoliquidado (UE).</summary>
+    decimal LucroUnitario = 0m,
+    bool AutoliquidacaoUe = false,
+    string? ArtigoNome = null);
+
+/// <summary>
+/// Sprint 671: muda só o preço de um lote (lucro por unidade, s/ IVA). Não é dado da fatura — muda sempre.
+/// <paramref name="AtualizarArtigo"/>: o artigo ligado passa a vender ao mesmo preço final (loja e balcão).
+/// </summary>
+public sealed record LotePrecoRequest(decimal LucroUnitario, bool AtualizarArtigo = false);
 
 public sealed record ResumoColunaDto(
     int Unidades,

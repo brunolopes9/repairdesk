@@ -173,6 +173,28 @@ public class ComprasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task PrecoDoLote_MudaSoOLucro_ENaoDeixaAbaixoDoCusto()
+    {
+        var client = await AuthedClient();
+        var ue = await CriarFornecedor(client, RegimeIvaFornecedor.UeAutoliquidacao);
+        var doc = (await (await client.PostAsJsonAsync("/api/compras", Doc(ue, "P-" + Guid.NewGuid().ToString("N")[..6],
+            new CompraLinhaWriteRequest(null, "Ecrã Samsung A52 com frame", 1, 51.90m, null, null, null)))).Content.ReadFromJsonAsync<CompraDocumentoDto>())!;
+        var l = doc.Linhas.Single();
+
+        // Quer vender a 90 € ao cliente: lucro = 90 ÷ 1,23 − 51,90.
+        var lucro = 90m / 1.23m - 51.90m;
+        var resp = await client.PutAsJsonAsync($"/api/compras/{doc.Id}/linhas/{l.Id}/preco", new LotePrecoRequest(lucro));
+        resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync());
+        var lote = (await resp.Content.ReadFromJsonAsync<InventarioLinhaDto>())!;
+        Math.Round(lote.PrecoFinalComIva, 2).Should().Be(90m);
+        lote.AutoliquidacaoUe.Should().BeTrue();
+        Math.Round(lote.LucroUnitario, 2).Should().Be(Math.Round(lucro, 2));
+
+        (await client.PutAsJsonAsync($"/api/compras/{doc.Id}/linhas/{l.Id}/preco", new LotePrecoRequest(-1m)))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
     public async Task Inventario_E_Resumo_RefletemOsLotes()
     {
         var client = await AuthedClient();

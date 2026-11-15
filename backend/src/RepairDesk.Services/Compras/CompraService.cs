@@ -17,6 +17,8 @@ public interface ICompraService
     Task<CompraDocumentoDto> UpdateAsync(Guid id, CompraDocumentoWriteRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<InventarioLinhaDto>> InventarioAsync(CancellationToken ct = default);
+    /// <summary>Sprint 671: muda o lucro de um lote (e, se pedido, o preço do artigo ligado).</summary>
+    Task<InventarioLinhaDto> AlterarPrecoLoteAsync(Guid documentoId, Guid linhaId, LotePrecoRequest req, CancellationToken ct = default);
     Task<ResumoComprasDto> ResumoAsync(CancellationToken ct = default);
     SimuladorResponse Simular(SimuladorRequest req);
 }
@@ -244,8 +246,33 @@ public class CompraService : ICompraService
             return new InventarioLinhaDto(
                 l.Id, l.Numero, doc.Id, doc.Fornecedor?.Name ?? "—", doc.Data, Referencia(doc), doc.FaturaEmFalta,
                 l.Descricao, l.Localizacao, q, l.PrecoUnitarioPago,
-                q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado, l.TaxaIvaCompra, l.ArtigoId, l.Artigo?.Sku, PrecoArtigo(l) is { } pa ? pa / 100m : null, TextoVenda(l));
+                q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado, l.TaxaIvaCompra, l.ArtigoId, l.Artigo?.Sku, PrecoArtigo(l) is { } pa ? pa / 100m : null, TextoVenda(l),
+                l.LucroUnitario, doc.Fornecedor?.RegimeIva == RegimeIvaFornecedor.UeAutoliquidacao, l.Artigo?.Nome);
         }).ToList();
+    }
+
+    public async Task<InventarioLinhaDto> AlterarPrecoLoteAsync(Guid documentoId, Guid linhaId, LotePrecoRequest req, CancellationToken ct = default)
+    {
+        if (req.LucroUnitario < 0)
+            throw new ValidationException("lucro_invalido", "O preço não pode ficar abaixo do custo (lucro negativo).");
+        if (req.LucroUnitario > 100_000)
+            throw new ValidationException("lucro_invalido", "Lucro demasiado alto.");
+        var doc = await _repo.FindByIdAsync(documentoId, ct) ?? throw new NotFoundException("CompraDocumento", documentoId);
+        var linha = doc.Linhas.FirstOrDefault(x => x.Id == linhaId) ?? throw new NotFoundException("CompraLinha", linhaId);
+        var antes = linha.LucroUnitario;
+        linha.LucroUnitario = Math.Round(req.LucroUnitario, 4, MidpointRounding.AwayFromZero);
+        int? precoArtigoAntes = null;
+        if (req.AtualizarArtigo && linha.Artigo is { } artigo)
+        {
+            precoArtigoAntes = artigo.PrecoVendaCents;
+            artigo.PrecoVendaCents = (int)Math.Round(Calc(linha).PrecoFinalComIva * 100m, MidpointRounding.AwayFromZero);
+        }
+        await _repo.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(CompraLinha), linha.Id,
+            new { operation = "preco_lote", lote = linha.Numero, lucroAntes = antes, lucro = linha.LucroUnitario,
+                  artigo = req.AtualizarArtigo ? linha.Artigo?.Sku : null, precoArtigoAntes, precoArtigo = linha.Artigo?.PrecoVendaCents }, ct: ct);
+        return (await InventarioAsync(ct)).FirstOrDefault(x => x.LinhaId == linhaId)
+            ?? throw new NotFoundException("CompraLinha", linhaId);
     }
 
     public async Task<ResumoComprasDto> ResumoAsync(CancellationToken ct = default)
