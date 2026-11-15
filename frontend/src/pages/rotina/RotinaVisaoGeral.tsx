@@ -49,15 +49,25 @@ export default function RotinaVisaoGeral() {
       </div>
       <div>
         <h3 className="mb-2 text-sm font-semibold">Hábitos</h3>
-        <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
-          {d.habitos.map((x) => (
-            <li key={x.itemId} className="flex items-center gap-3 py-1.5">
-              <span className="min-w-0 flex-1 truncate">{TIPO_INFO[x.tipo].icone} {x.titulo}</span>
-              <span className="tabular-nums" title="Sequência atual">🔥 {x.sequenciaAtual}</span>
-              <span className="w-20 text-right tabular-nums text-zinc-500" title="Melhor sequência">máx. {x.melhorSequencia}</span>
-              <span className="w-20 text-right tabular-nums text-zinc-500" title="Últimos 30 dias">{x.previstos30 ? Math.round((100 * x.feitos30) / x.previstos30) : 0}% (30d)</span>
-            </li>
-          ))}
+        {/* Sprint 663: o mesmo hábito em dias diferentes (semana/fim de semana) aparece uma vez só. */}
+        <ul className="grid gap-2 text-sm sm:grid-cols-2">
+          {habitosUnicos(d.habitos).map((x) => {
+            const pct = x.previstos30 ? Math.round((100 * x.feitos30) / x.previstos30) : 0;
+            return (
+              <li key={x.titulo} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate font-medium">{TIPO_INFO[x.tipo].icone} {x.titulo}</span>
+                  <span className="tabular-nums font-semibold" title="Sequência atual (máx.)">🔥 {x.sequenciaAtual}<span className="text-xs font-normal text-zinc-500"> / {x.melhorSequencia}</span></span>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                    <div className={`h-full rounded-full ${pct >= 80 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: `${Math.max(pct, 3)}%` }} />
+                  </div>
+                  <span className="w-16 text-right text-xs tabular-nums text-zinc-500">{pct}% · 30d</span>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </section>
@@ -71,4 +81,16 @@ function Kpi({ label, valor }: { label: string; valor: string }) {
       <p className="text-xl font-bold tabular-nums">{valor}</p>
     </div>
   );
+}
+
+/** Junta hábitos com o mesmo título (versões de dias diferentes): soma os 30 dias, fica a melhor sequência. */
+function habitosUnicos<T extends { titulo: string; tipo: keyof typeof TIPO_INFO; sequenciaAtual: number; melhorSequencia: number; feitos30: number; previstos30: number }>(lista: T[]): T[] {
+  const m = new Map<string, T>();
+  for (const h of lista) {
+    const k = h.titulo.trim().toLowerCase();
+    const a = m.get(k);
+    m.set(k, a ? { ...a, sequenciaAtual: Math.max(a.sequenciaAtual, h.sequenciaAtual), melhorSequencia: Math.max(a.melhorSequencia, h.melhorSequencia),
+      feitos30: a.feitos30 + h.feitos30, previstos30: a.previstos30 + h.previstos30 } : h);
+  }
+  return [...m.values()];
 }

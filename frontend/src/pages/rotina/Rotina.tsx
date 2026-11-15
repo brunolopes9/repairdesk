@@ -122,8 +122,8 @@ export default function Rotina() {
             <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
               <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Hoje</p>
               <p className="mt-1 text-3xl font-bold text-zinc-950 dark:text-zinc-50">
-                {d.feitos}/{d.itens.length}
-                {percent != null && <span className="ml-2 text-base font-medium text-zinc-500">{percent}%</span>}
+                {d.feitos} <span className="text-lg font-semibold text-zinc-500">de {d.itens.length} feitos</span>
+                {percent != null && <span className="ml-2 rounded-full bg-brand-100 px-2 py-0.5 align-middle text-sm font-bold text-brand-800 dark:bg-brand-900/50 dark:text-brand-200">{percent}%</span>}
               </p>
               <p className="text-sm text-zinc-500">
                 {d.feitos >= d.itens.length ? 'Dia cumprido 💪' : 'Fora de horas também conta — vai fazendo e marcando.'}

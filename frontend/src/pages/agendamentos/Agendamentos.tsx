@@ -35,9 +35,6 @@ const NEXT_STATUS: Partial<Record<AppointmentStatus, AppointmentStatus[]>> = {
   Confirmado: ['Concluido', 'NaoCompareceu', 'Cancelado'],
 };
 
-function dayKey(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' });
-}
 function hhmm(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 }
@@ -93,7 +90,7 @@ export default function Agendamentos() {
     queryFn: () => calendarioApi.eventos(range.from, range.to),
     staleTime: 5 * 60_000,
   });
-  const eventosExternos = externos.data?.eventos ?? [];
+  const eventosExternos = useMemo(() => externos.data?.eventos ?? [], [externos.data]);
 
   // Sprint 443 (Doc 91 ponto 3): subscrição calendar feed. Lazy — só lê quando user abre a secção.
   const [feedOpen, setFeedOpen] = useState(false);
@@ -163,14 +160,41 @@ export default function Agendamentos() {
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Erro ao exportar calendario.'),
   });
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, Appointment[]>();
-    for (const a of list.data ?? []) {
-      const k = dayKey(a.scheduledAt);
-      (map.get(k) ?? map.set(k, []).get(k)!).push(a);
+
+  // Sprint 663: lista única por dia — clientes (cartões) e calendário (linhas discretas), sem duplicados.
+  const [mostrarRotina, setMostrarRotina] = useState(false);
+  const dias = useMemo(() => {
+    type Linha = { tipo: 'cliente'; a: Appointment; t: number } | { tipo: 'externo'; e: (typeof eventosExternos)[number]; t: number; chave: string };
+    const porDia = new Map<string, Linha[]>();
+    const add = (iso: string, l: Linha) => {
+      const k = new Date(iso).toDateString();
+      (porDia.get(k) ?? porDia.set(k, []).get(k)!).push(l);
+    };
+    for (const a of list.data ?? []) add(a.scheduledAt, { tipo: 'cliente', a, t: new Date(a.scheduledAt).getTime() });
+    const vistos = new Set<string>();
+    for (const e of eventosExternos) {
+      if (!mostrarRotina && /almo[cç]o|jantar|pequeno-almo|lanche/i.test(e.titulo)) continue;
+      // O mesmo evento em dois calendários (ex.: «Dentista» e «Dentista · Sátão») aparece uma vez só.
+      const chave = `${e.inicioUtc}|${e.titulo.split(/[·\-–]/)[0].trim().toLowerCase()}`;
+      if (vistos.has(chave)) continue;
+      vistos.add(chave);
+      add(e.inicioUtc, { tipo: 'externo', e, t: e.diaInteiro ? 0 : new Date(e.inicioUtc).getTime(), chave });
     }
-    return [...map.entries()];
-  }, [list.data]);
+    const hoje = new Date().toDateString();
+    const amanha = new Date(Date.now() + 86_400_000).toDateString();
+    return [...porDia.entries()]
+      .map(([k, linhas]) => {
+        const d = new Date(k);
+        const data = d.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+        return {
+          chave: k, hoje: k === hoje, ordem: d.getTime(),
+          rotulo: k === hoje ? `Hoje · ${data}` : k === amanha ? `Amanhã · ${data}` : data,
+          linhas: linhas.sort((x, y) => x.t - y.t),
+          marcacoes: linhas.filter((l) => l.tipo === 'cliente'),
+        };
+      })
+      .sort((x, y) => x.ordem - y.ordem);
+  }, [list.data, eventosExternos, mostrarRotina]);
 
   const appointments = list.data ?? [];
   const todayLabel = new Date().toDateString();
@@ -304,69 +328,61 @@ export default function Agendamentos() {
       )}
 
       {view === 'list' && list.isLoading && <p className="text-sm text-zinc-500">A carregar…</p>}
-      {view === 'list' && !list.isLoading && grouped.length === 0 && (
-        <div className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          <CalendarClock className="mx-auto mb-2 text-zinc-400" size={28} />
-          Sem agendamentos nos próximos 30 dias.
+      {view === 'list' && !list.isLoading && (
+        <div className="space-y-4">
+          <label className="flex w-fit cursor-pointer items-center gap-2 rounded-full bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-800 dark:bg-violet-950/40 dark:text-violet-200">
+            <input type="checkbox" checked={mostrarRotina} onChange={(e) => setMostrarRotina(e.target.checked)} />
+            Mostrar almoços e rotina do calendário
+          </label>
+          {dias.length === 0 && (
+            <div className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
+              <CalendarClock className="mx-auto mb-2 text-zinc-400" size={28} />
+              Sem nada marcado nos próximos 30 dias.
+            </div>
+          )}
+          {dias.map((d) => (
+            <section key={d.chave} className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+              <h2 className={`flex items-center justify-between px-4 py-2.5 text-sm font-bold capitalize ${d.hoje ? 'bg-brand-600 text-white' : 'bg-zinc-50 text-zinc-800 dark:bg-zinc-800/60 dark:text-zinc-100'}`}>
+                <span>{d.rotulo}</span>
+                {d.marcacoes.length > 0 && <span className={`rounded-full px-2 py-0.5 text-xs ${d.hoje ? 'bg-white/20' : 'bg-brand-100 text-brand-800 dark:bg-brand-900/50 dark:text-brand-200'}`}>{d.marcacoes.length} cliente{d.marcacoes.length === 1 ? '' : 's'}</span>}
+              </h2>
+              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {d.linhas.map((l) => l.tipo === 'cliente' ? (
+                  <li key={l.a.id} className="flex flex-wrap items-center gap-3 border-l-4 border-brand-500 px-4 py-3">
+                    <div className="w-16 flex-none">
+                      <div className="text-xl font-bold tabular-nums text-brand-700 dark:text-brand-300">{hhmm(l.a.scheduledAt)}</div>
+                      <div className="text-xs text-zinc-500">{l.a.durationMin} min</div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-base font-semibold">{l.a.nome}</span>
+                        {l.a.source === 'Online' && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">online</span>}
+                      </div>
+                      <div className="truncate text-sm text-zinc-600 dark:text-zinc-400">{[l.a.equipamento, l.a.notas].filter(Boolean).join(' · ') || '—'}</div>
+                      {l.a.telefone && <a href={`tel:${l.a.telefone}`} className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">{l.a.telefone}</a>}
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[l.a.status]}`}>{APPOINTMENT_STATUS_LABEL[l.a.status]}</span>
+                    <div className="flex gap-2">
+                      {(NEXT_STATUS[l.a.status] ?? []).map((st) => (
+                        <Button key={st} type="button" size="sm" variant={st === 'Cancelado' ? 'dangerSoft' : st === 'Confirmado' ? 'success' : 'secondary'}
+                          onClick={() => statusMut.mutate({ id: l.a.id, status: st })} disabled={statusMut.isPending}>
+                          {APPOINTMENT_STATUS_LABEL[st]}
+                        </Button>
+                      ))}
+                    </div>
+                  </li>
+                ) : (
+                  <li key={l.chave} className="flex items-center gap-3 border-l-4 border-violet-300 px-4 py-2 text-sm text-zinc-600 dark:border-violet-700 dark:text-zinc-400">
+                    <span className="w-16 flex-none tabular-nums text-violet-700 dark:text-violet-300">{l.e.diaInteiro ? 'dia todo' : hhmm(l.e.inicioUtc)}</span>
+                    <span className="min-w-0 flex-1 truncate">{l.e.titulo}{l.e.local && <span className="text-zinc-400"> · {l.e.local}</span>}</span>
+                    <span className="hidden text-xs text-violet-500 sm:inline">Google</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
         </div>
       )}
-
-      {view === 'list' && eventosExternos.length > 0 && (
-        <div>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-violet-500">Do teu calendário (Google)</h2>
-          <ul className="space-y-1">
-            {eventosExternos.map((e, i) => (
-              <li key={`${e.calendarioId}-${e.inicioUtc}-${i}`} className="flex items-center gap-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm dark:border-violet-900/50 dark:bg-violet-950/30">
-                <span className="w-28 flex-none text-xs tabular-nums text-violet-700 dark:text-violet-300">
-                  {new Date(e.inicioUtc).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit' })} {e.diaInteiro ? 'dia todo' : hhmm(e.inicioUtc)}
-                </span>
-                <span className="min-w-0 flex-1 truncate">{e.titulo}{e.local && <span className="text-zinc-500"> · {e.local}</span>}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {view === 'list' && grouped.map(([day, items]) => (
-        <div key={day}>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">{day}</h2>
-          <div className="space-y-2">
-            {items.map((a) => (
-              <div key={a.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="w-14 flex-none text-center">
-                  <div className="text-lg font-semibold tabular-nums">{hhmm(a.scheduledAt)}</div>
-                  <div className="text-[11px] text-zinc-400">{a.durationMin}min</div>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{a.nome}</span>
-                    {a.source === 'Online' && <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] text-brand-600 dark:bg-zinc-800">online</span>}
-                  </div>
-                  <div className="truncate text-xs text-zinc-500">
-                    {[a.equipamento, a.telefone, a.notas].filter(Boolean).join(' · ') || '—'}
-                  </div>
-                </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[a.status]}`}>
-                  {APPOINTMENT_STATUS_LABEL[a.status]}
-                </span>
-                <div className="flex gap-1">
-                  {(NEXT_STATUS[a.status] ?? []).map((st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => statusMut.mutate({ id: a.id, status: st })}
-                      disabled={statusMut.isPending}
-                      className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                    >
-                      {APPOINTMENT_STATUS_LABEL[st]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
 
       </DetailWorkspace>
 
