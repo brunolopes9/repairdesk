@@ -54,6 +54,10 @@ export const artigosApi = {
     return api.post<ArtigoDetalhe>(`/artigos/fusoes/${fusaoId}/desfazer`, {}).then((r) => r.data);
   },
   /** Sprint 581: lotes que são peças de reparação (saem da lista "por ligar"). */
+  /** Sprint 663: uso interno (expositor, colas…) — sai do stock, a compra fica igual. */
+  usoInterno(loteIds: string[], motivo?: string) {
+    return api.put<number>('/artigos/lotes/uso-interno', { loteIds, motivo: motivo ?? null }).then((r) => r.data);
+  },
   marcarPecaReparacao(loteIds: string[], pecaReparacao = true) {
     return api.put<number>('/artigos/lotes/peca-reparacao', { loteIds, pecaReparacao }).then((r) => r.data);
   },

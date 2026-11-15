@@ -1,6 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'icon';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'dangerSoft' | 'success' | 'icon';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -12,21 +12,25 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900 disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900 disabled:cursor-not-allowed disabled:opacity-60';
 
 const variants: Record<ButtonVariant, string> = {
   primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800',
   secondary:
-    'border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800',
+    'border border-zinc-200 bg-white text-zinc-800 shadow-sm hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800',
   ghost: 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
   danger: 'bg-rose-600 text-white shadow-sm hover:bg-rose-700 active:bg-rose-800',
+  // Sprint 663: apagar sem gritar — vermelho em contorno; o vermelho cheio fica para a confirmação.
+  dangerSoft: 'border border-rose-200 bg-white text-rose-700 shadow-sm hover:bg-rose-50 hover:border-rose-300 dark:border-rose-900/60 dark:bg-zinc-900 dark:text-rose-300 dark:hover:bg-rose-950/40',
+  // Sprint 663: ações que fecham/emitem (fatura, entregue & paga) — verde.
+  success: 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800',
   icon: 'h-10 w-10 rounded-md p-0 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300',
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'min-h-11 px-3 text-xs',
+  sm: 'min-h-11 px-3.5 text-sm',
   md: 'min-h-11 px-3 text-sm',
-  lg: 'min-h-11 px-4 text-sm',
+  lg: 'min-h-12 px-5 text-base',
 };
 
 export const Button = forwardRef<HTMLButtonElement, Props>(function Button(

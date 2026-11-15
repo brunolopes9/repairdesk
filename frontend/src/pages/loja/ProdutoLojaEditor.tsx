@@ -449,7 +449,7 @@ export default function ProdutoLojaEditor() {
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-zinc-200 bg-white/95 p-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95 lg:pl-64">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-2">
           {p && !p.publicado ? (
-            <Button variant="ghost" leftIcon={<Trash2 size={15} />} onClick={async () => {
+            <Button variant="dangerSoft" leftIcon={<Trash2 size={15} />} onClick={async () => {
               if (await confirm({ title: `Apagar #${p.numero}?`, description: 'Apaga o produto e as fotos. Não volta atrás.', confirmLabel: 'Apagar', destructive: true })) apagar.mutate();
             }}>Apagar</Button>
           ) : <span />}

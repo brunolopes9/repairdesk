@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link2, PackagePlus, Search, Wrench } from 'lucide-react';
+import { Link2, PackagePlus, Search, Store, Wrench } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
@@ -81,6 +81,13 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
     onError: (err) => toast.fromError(err, 'Não foi possível marcar.'),
   });
 
+  // Sprint 663: coisas da loja (expositor, colas…) — saem do stock sem mexer na compra.
+  const usoInterno = useMutation({
+    mutationFn: () => artigosApi.usoInterno(loteIdsEscolhidos()),
+    onSuccess: (n) => depois(`${n} lote(s) para uso da loja — saíram do stock`),
+    onError: (err) => toast.fromError(err, 'Não foi possível tirar do stock.'),
+  });
+
   const lista = useMemo(() => (sugestoes.data ?? []).map((s, i) => ({ ...s, i }))
     .filter((s) => !q.trim() || correspondeTermos(s.nome, q.trim().toLowerCase())), [sugestoes.data, q]);
 
@@ -120,6 +127,10 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
         <Button type="button" variant="secondary" leftIcon={<Wrench size={15} />} loading={peca.isPending} disabled={n === 0} onClick={() => peca.mutate()}>
           Peça de reparação
         </Button>
+        <Button type="button" variant="secondary" leftIcon={<Store size={15} />} loading={usoInterno.isPending} disabled={n === 0} onClick={() => usoInterno.mutate()}
+          title="Expositor, colas, material da loja: sai do stock e não vai para venda (a compra fica igual)">
+          Uso da loja
+        </Button>
         <Button type="button" leftIcon={<PackagePlus size={15} />} loading={criar.isPending}
           disabled={n === 0 || Object.values(escolhidos).some((nome) => !nome.trim())} onClick={() => criar.mutate()}>
           Criar {n} artigo(s)
@@ -127,7 +138,7 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
       </div>}>
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
         Lotes em stock ainda sem artigo, juntos pela descrição (tal como veio na fatura). Marca-os e escolhe: <strong>ligar</strong> a um artigo que já existe
-        (ex.: «Película vidro»), <strong>criar</strong> um artigo para cada um, ou <strong>peça de reparação</strong> (ecrãs, baterias… — não levam etiqueta).
+        (ex.: «Película vidro»), <strong>criar</strong> um artigo para cada um, ou <strong>peça de reparação</strong> (ecrãs, baterias… — não levam etiqueta). Expositores e colas: <strong>uso da loja</strong> (saem do stock).
         Com o SKU do fornecedor, as próximas compras do mesmo produto ligam-se sozinhas.
       </p>
       <div className="mb-3 grid gap-3 sm:grid-cols-2">

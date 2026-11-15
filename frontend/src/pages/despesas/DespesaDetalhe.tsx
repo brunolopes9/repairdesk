@@ -59,7 +59,7 @@ export default function DespesaDetalhe() {
         actions={
           <>
             <FaturaDespesa despesa={d} onAnexada={form.setComFatura} />
-            <Button type="button" variant="ghost" leftIcon={<Trash2 size={15} />} loading={remove.isPending}
+            <Button type="button" variant="dangerSoft" leftIcon={<Trash2 size={15} />} loading={remove.isPending}
               onClick={async () => {
                 if (await confirm({ title: 'Apagar esta despesa?', description: `${d.descricao} (${formatCents(d.valorCents)})`, destructive: true })) remove.mutate();
               }}>

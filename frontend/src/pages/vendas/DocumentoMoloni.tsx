@@ -190,7 +190,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
             {opcoesIsencao}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaRecibo'} disabled={ocupado || !!problema}
+            <Button type="button" variant="success" leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaRecibo'} disabled={ocupado || !!problema}
               onClick={() => emitir.mutate('FaturaRecibo')}>
               Emitir fatura-recibo (pago)
             </Button>

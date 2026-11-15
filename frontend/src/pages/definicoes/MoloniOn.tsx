@@ -104,7 +104,7 @@ export default function MoloniOn() {
               {e?.configurado ? 'Guardar' : 'Ligar ao Moloni ON'}
             </Button>
             {e?.configurado && (
-              <Button type="button" variant="ghost" leftIcon={<Trash2 size={15} />} loading={remover.isPending}
+              <Button type="button" variant="dangerSoft" leftIcon={<Trash2 size={15} />} loading={remover.isPending}
                 onClick={async () => { if (await confirm({ title: 'Desligar o Moloni ON?', description: 'Os documentos já emitidos ficam no Moloni. Deixas de poder emitir pelo Mender até voltares a ligar.', confirmLabel: 'Desligar', destructive: true })) remover.mutate(); }}>
                 Desligar
               </Button>

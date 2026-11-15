@@ -725,7 +725,7 @@ export default function VendaEditor() {
             <select aria-label="Método de pagamento" value={pagamento} onChange={(e) => setPagamento(Number(e.target.value) as PaymentMethod)} className={`${inputCls} w-auto`}>
               {Object.entries(PAYMENT_METHOD_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
             </select>
-            <Button type="button" leftIcon={<CheckCircle2 size={15} />} disabled={busy || !podeGravar || linhas.length === 0} loading={mudarEstado.isPending && mudarEstado.variables === VENDA_ESTADO.Entregue} onClick={() => mudarEstado.mutate(VENDA_ESTADO.Entregue)}>
+            <Button type="button" variant="success" leftIcon={<CheckCircle2 size={15} />} disabled={busy || !podeGravar || linhas.length === 0} loading={mudarEstado.isPending && mudarEstado.variables === VENDA_ESTADO.Entregue} onClick={() => mudarEstado.mutate(VENDA_ESTADO.Entregue)}>
               Entregue & paga
             </Button>
             <Button type="button" variant="secondary" disabled={busy || !podeGravar || linhas.length === 0} loading={entregarPorReceber.isPending} onClick={() => entregarPorReceber.mutate()}
@@ -743,15 +743,16 @@ export default function VendaEditor() {
         </SectionCard>
       )}
 
-      {venda && (
+      {/* Sprint 663: venda toda por fora (ou sem fatura) não tem documento fiscal — o bloco só confunde. */}
+      {venda && !venda.foraApuramento && !(venda.items.length > 0 && venda.items.every((i) => i.porFora)) && (
         <DocumentoMoloni venda={venda} isAdmin={isAdmin} onChange={(v) => {
           qc.invalidateQueries({ queryKey: ['vendas'] });
           qc.setQueryData(['venda', v.id], v);
         }} />
       )}
 
-      {venda && venda.estado === VENDA_ESTADO.Entregue && !venda.moloniDocumentoTipo && (
-        <SectionCard title="Nº da fatura (registo manual, se emitida fora do Mender)">
+      {venda && venda.estado === VENDA_ESTADO.Entregue && !venda.moloniDocumentoTipo && !venda.foraApuramento && !venda.items.every((i) => i.porFora) && (
+        <SectionCard title="Nº da fatura (registo manual, se emitida fora do Mender)" collapsible defaultOpen={false}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <label className="block flex-1">
               <span className={labelCls}>Nº da fatura (Moloni)</span>

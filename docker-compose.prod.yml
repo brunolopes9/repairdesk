@@ -59,6 +59,8 @@ services:
       # Sprint 656: pagamentos da loja online (vazio = pagamentos inativos; a loja oferece o WhatsApp).
       Stripe__SecretKey: ${STRIPE_SECRET_KEY:-}
       Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET:-}
+      # Sprint 663: links públicos (pedido/marcação online, QR dos PDFs e etiquetas) — antes caía em http://localhost.
+      Frontend__PortalBaseUrl: ${PORTAL_BASE_URL:-https://app.lopestech.pt}
       Metrics__Enabled: ${Metrics__Enabled:-false}
       Metrics__AllowedIps__0: ${Metrics__AllowedIps__0:-127.0.0.1}
       Metrics__BasicAuthUsername: ${Metrics__BasicAuthUsername:-}

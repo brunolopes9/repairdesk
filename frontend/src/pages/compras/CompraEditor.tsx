@@ -315,7 +315,7 @@ export default function CompraEditor() {
               </Button>
             )}
             {!isNew && isAdmin && (
-              <Button type="button" variant="ghost" leftIcon={<Trash2 size={15} />} onClick={() => setConfirmDelete(true)}>Apagar</Button>
+              <Button type="button" variant="dangerSoft" leftIcon={<Trash2 size={15} />} onClick={() => setConfirmDelete(true)}>Apagar</Button>
             )}
             {paraVender.length > 0 && (
               <Button type="button" variant="secondary" leftIcon={<ShoppingCart size={15} />}

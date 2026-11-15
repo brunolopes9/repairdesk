@@ -60,6 +60,10 @@ public class ArtigosController : ControllerBase
     [HttpPut("lotes/peca-reparacao")]
     public Task<int> PecaReparacao([FromBody] PecaReparacaoRequest req, CancellationToken ct) => _service.MarcarPecaReparacaoAsync(req, ct);
 
+    /// <summary>Sprint 663: expositor, colas… — ficam para a loja, saem do stock (a compra não muda).</summary>
+    [HttpPut("lotes/uso-interno")]
+    public Task<int> UsoInterno([FromBody] UsoInternoRequest req, CancellationToken ct) => _service.UsoInternoAsync(req, ct);
+
     [HttpDelete("{id:guid}/lotes/{loteId:guid}")]
     public Task<ArtigoDetalheDto> DesligarLote(Guid id, Guid loteId, CancellationToken ct) => _service.DesligarLoteAsync(id, loteId, ct);
 

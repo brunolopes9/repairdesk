@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Banknote, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2, Search, Trash2, TrendingDown } from 'lucide-react';
+import { Banknote, CalendarClock, FileText, Layers3, Plus, ReceiptText, Repeat2, Search, Trash2 } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button, DateRangeFilter, DetailWorkspace, EmptyState, InspectorRail, PageHeader, Paginacao, SkeletonCard } from '../../components/ui';
 import { useFiltrosUrl } from '../../lib/useFiltrosUrl';
@@ -53,7 +53,8 @@ export default function AprovadasTab({
   // Links antigos (/despesas?edit=…) abrem agora a página da despesa.
   const editId = params.get('edit');
   // Sprint 592: filtros e página no URL — ao voltar de uma despesa, a lista está como se deixou.
-  const { f, set, page, setPage } = useFiltrosUrl({ tab: '', categoria: '', q: '', recorrentes: '', de: '', ate: '', page: '1' });
+  // Sprint 663: abre no mês atual (gestão mês a mês); setas para o mês anterior/seguinte.
+  const { f, set, page, setPage } = useFiltrosUrl({ tab: '', categoria: '', q: '', recorrentes: '', de: limitesMes(new Date()).de, ate: limitesMes(new Date()).ate, page: '1' });
   const categoria = f.categoria === '' ? null : (Number(f.categoria) as DespesaCategoria);
   const search = f.q;
   const onlyRecurring = f.recorrentes === '1';
@@ -198,16 +199,6 @@ export default function AprovadasTab({
         </button>
       )}
 
-      <div className="rounded-lg bg-zinc-950 p-3 text-sm text-white dark:bg-zinc-50 dark:text-zinc-950">
-        <div className="flex items-start gap-2">
-          <TrendingDown size={16} className="mt-0.5 shrink-0 text-emerald-300 dark:text-emerald-600" />
-          <p>
-            {workspaceMode === 'compras'
-              ? 'Mantem compras de stock separadas do OpEx para margem real por reparacao.'
-              : 'Mantem renda, software e custos fixos fora do stock para uma operacao mais legivel.'}
-          </p>
-        </div>
-      </div>
     </InspectorRail>
   );
 
@@ -271,6 +262,11 @@ export default function AprovadasTab({
                 onChange={(e) => set({ q: e.target.value })}
                 className="min-h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 focus-visible:ring-2 focus-visible:ring-brand-400 dark:border-zinc-700 dark:bg-zinc-950"
               />
+            </div>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="secondary" size="sm" aria-label="Mês anterior" onClick={() => set(limitesMes(mesRelativo(datas.de, -1)))}>‹</Button>
+              <span className="min-w-36 text-center text-sm font-semibold capitalize">{nomeMes(datas.de)}</span>
+              <Button type="button" variant="secondary" size="sm" aria-label="Mês seguinte" onClick={() => set(limitesMes(mesRelativo(datas.de, 1)))}>›</Button>
             </div>
             <DateRangeFilter value={datas} onChange={(v) => set({ de: v.de, ate: v.ate })} />
           </div>
@@ -472,4 +468,19 @@ function ExpenseMetric({
       {caption && <p className="mt-1 text-xs text-zinc-500">{caption}</p>}
     </div>
   );
+}
+
+/** Sprint 663: primeiro e último dia do mês (AAAA-MM-DD). */
+function limitesMes(d: Date): { de: string; ate: string } {
+  const p = (n: number) => String(n).padStart(2, '0');
+  const fim = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return { de: `${d.getFullYear()}-${p(d.getMonth() + 1)}-01`, ate: `${fim.getFullYear()}-${p(fim.getMonth() + 1)}-${p(fim.getDate())}` };
+}
+function mesRelativo(de: string, delta: number): Date {
+  const base = de ? new Date(`${de}T12:00:00`) : new Date();
+  return new Date(base.getFullYear(), base.getMonth() + delta, 1);
+}
+function nomeMes(de: string): string {
+  if (!de) return 'Todas as datas';
+  return new Date(`${de}T12:00:00`).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
 }

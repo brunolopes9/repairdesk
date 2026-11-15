@@ -24,6 +24,8 @@ public sealed class MoloniConfig
     public int CategoriaId { get; set; }
     public int? ProdutoServicoId { get; set; }
     public int? ProdutoArtigoId { get; set; }
+    /// <summary>Sprint 663: genéricos já recriados sem «Mender» na referência/nome.</summary>
+    public bool GenericosSemMarca { get; set; }
     /// <summary>Taxa de IVA em % (ex.: "23") → taxId.</summary>
     public Dictionary<string, int> Impostos { get; set; } = new();
     /// <summary>Nome do método de pagamento (minúsculas) → paymentMethodId.</summary>
@@ -248,7 +250,7 @@ public partial class MoloniService : IMoloniService
             ["expirationDate"] = agora.AddDays(fatura ? req.VencimentoDias : 0).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["status"] = 0,
             ["notes"] = Limpar(req.Notas, 1000),
-            ["ourReference"] = $"Mender venda #{venda.Numero}",
+            ["ourReference"] = $"Venda #{venda.Numero}",
             ["products"] = produtos,
         };
         if (!fatura) dados["payments"] = new[] { Pagamento(metodo!.Value, totalVenda, agora) };
@@ -367,7 +369,7 @@ public partial class MoloniService : IMoloniService
             ["date"] = agora.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture),
             ["expirationDate"] = agora.AddDays(req.ValidadeDias).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["status"] = 0,
-            ["ourReference"] = $"Mender venda #{venda.Numero}",
+            ["ourReference"] = $"Venda #{venda.Numero}",
             ["products"] = produtos,
         };
         var (documentId, totalMoloni) = await CriarRascunhoAsync(key, companyId, "estimate", "EstimateInsert", dados, ct);
@@ -671,15 +673,22 @@ public partial class MoloniService : IMoloniService
             await _artigos.SaveAsync(ct);
             return artigo.MoloniProductId.Value;
         }
+        // Sprint 663: os genéricos não levam o nome do software (o cliente não tem de o ver na fatura).
+        if (!cfg.GenericosSemMarca)
+        {
+            cfg.ProdutoArtigoId = null;
+            cfg.ProdutoServicoId = null;
+            cfg.GenericosSemMarca = true;
+        }
         if (item.CompraLinhaId is not null)
         {
             if (cfg.ProdutoArtigoId is { } a) return a;
-            cfg.ProdutoArtigoId = await GarantirProdutoAsync(key, companyId, cfg, "MENDER-ARTIGO", "Artigo (Mender)", 1, 0m, ct);
+            cfg.ProdutoArtigoId = await GarantirProdutoAsync(key, companyId, cfg, "ARTIGO", "Artigo", 1, 0m, ct);
             await GuardarConfigAsync(t, cfg, ct);
             return cfg.ProdutoArtigoId.Value;
         }
         if (cfg.ProdutoServicoId is { } s) return s;
-        cfg.ProdutoServicoId = await GarantirProdutoAsync(key, companyId, cfg, "MENDER-SERVICO", "Serviço (Mender)", 2, 0m, ct);
+        cfg.ProdutoServicoId = await GarantirProdutoAsync(key, companyId, cfg, "SERVICO", "Serviço", 2, 0m, ct);
         await GuardarConfigAsync(t, cfg, ct);
         return cfg.ProdutoServicoId.Value;
     }

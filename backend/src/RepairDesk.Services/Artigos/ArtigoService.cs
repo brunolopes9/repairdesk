@@ -74,6 +74,8 @@ public sealed record FundirArtigosRequest(IReadOnlyList<Guid> OrigemIds);
 
 /// <summary>Sprint 581: marcar/desmarcar lotes como peça de reparação (não ficam à espera de artigo).</summary>
 public sealed record PecaReparacaoRequest(IReadOnlyList<Guid> LoteIds, bool PecaReparacao = true);
+/// <summary>Sprint 663: lotes que ficam para uso da loja (expositor, colas…) — saem do stock, a compra fica igual.</summary>
+public sealed record UsoInternoRequest(IReadOnlyList<Guid> LoteIds, string? Motivo = null);
 
 public sealed record ArtigoWriteRequest(
     string Nome,
@@ -148,6 +150,8 @@ public interface IArtigoService
     Task<ArtigoDetalheDto> FundirAsync(Guid destinoId, FundirArtigosRequest req, CancellationToken ct = default);
     /// <summary>Sprint 581: lotes que são peças de reparação (não aparecem como "por ligar").</summary>
     Task<int> MarcarPecaReparacaoAsync(PecaReparacaoRequest req, CancellationToken ct = default);
+    /// <summary>Sprint 663: abate o que resta dos lotes (uso interno) — deixam de contar como stock para venda.</summary>
+    Task<int> UsoInternoAsync(UsoInternoRequest req, CancellationToken ct = default);
     /// <summary>Sprint 581: desfaz uma junção — a origem volta com os seus lotes e códigos.</summary>
     Task<ArtigoDetalheDto> DesfazerFusaoAsync(Guid fusaoId, CancellationToken ct = default);
 }
@@ -540,6 +544,24 @@ public class ArtigoService : IArtigoService
         }
         await _compras.SaveAsync(ct);
         return lotes.Count;
+    }
+
+    public async Task<int> UsoInternoAsync(UsoInternoRequest req, CancellationToken ct = default)
+    {
+        if (req.LoteIds is null || req.LoteIds.Count == 0) return 0;
+        var lotes = await _compras.FindLinhasAsync(req.LoteIds.Distinct().ToList(), ct);
+        var n = 0;
+        foreach (var l in lotes.Where(l => l.QuantidadeEmStock > 0))
+        {
+            var qtd = l.QuantidadeEmStock;
+            l.QuantidadeAbatida += qtd;
+            l.ArtigoId = null;
+            n++;
+            await _audit.LogAsync(AuditAction.Update, nameof(CompraLinha), l.Id,
+                new { usoInterno = qtd, l.Descricao, motivo = string.IsNullOrWhiteSpace(req.Motivo) ? "uso interno da loja" : req.Motivo.Trim() }, ct: ct);
+        }
+        await _compras.SaveAsync(ct);
+        return n;
     }
 
     private static IEnumerable<CompraLinha> LotesFifo(Artigo a)

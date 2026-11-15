@@ -150,6 +150,22 @@ public class ArtigosAgrupadosTests : IClassFixture<RepairDeskApiFactory>
         (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!.Should().NotContain(s => s.Nome == desc);
     }
 
+    [Fact]
+    public async Task UsoDaLoja_SaiDoStockEDosLotesPorLigar_ACompraFicaIgual()
+    {
+        var client = await AuthedClient();
+        var forn = await CriarFornecedor(client);
+        var desc = "Expositor Rixus " + Guid.NewGuid().ToString("N")[..6];
+        var compra = await Compra(client, forn, new CompraLinhaWriteRequest(null, desc, 2, 49.95m, null, null, null));
+
+        (await client.PutAsJsonAsync("/api/artigos/lotes/uso-interno", new UsoInternoRequest([compra.Linhas.Single().Id]))).EnsureSuccessStatusCode();
+
+        (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!.Should().NotContain(s => s.Nome == desc);
+        var depois = (await client.GetFromJsonAsync<CompraDocumentoDto>($"/api/compras/{compra.Id}"))!;
+        depois.Linhas.Single().QuantidadeEmStock.Should().Be(0);
+        depois.Linhas.Single().Quantidade.Should().Be(2, "a compra (e a fatura) não muda");
+    }
+
     // ---------- helpers ----------
 
     private static async Task<Guid> CriarFornecedor(HttpClient client)
