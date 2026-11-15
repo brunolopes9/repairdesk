@@ -115,7 +115,17 @@ interface UploadFotoTicket {
 
 const base = '/loja/produtos';
 
+/** Sprint 672: o que a IA propõe (descrição, especificações e textos do Google). */
+export interface TextoProdutoGerado {
+  descricao: string;
+  specs: SpecLoja[];
+  seoTitulo: string;
+  seoDescricao: string;
+}
+
 export const lojaApi = {
+  /** Sprint 672: a IA (subscrição do Claude) escreve a partir do formulário — demora até ~1 min. */
+  gerarTexto: (b: GuardarProdutoLoja) => api.post<TextoProdutoGerado>(`${base}/gerar-texto`, b, { timeout: 170_000 }).then((r) => r.data),
   list: () => api.get<ProdutoLoja[]>(base).then((r) => r.data),
   get: (id: string) => api.get<ProdutoLoja>(`${base}/${id}`).then((r) => r.data),
   create: (b: GuardarProdutoLoja) => api.post<ProdutoLoja>(base, b).then((r) => r.data),

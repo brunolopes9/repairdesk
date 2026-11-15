@@ -350,6 +350,7 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Rotina.IRotinaAvisosService, RepairDesk.Services.Rotina.RotinaAvisosService>();
     builder.Services.AddScoped<IProdutoLojaRepository, RepairDesk.DAL.Persistence.ProdutoLojaRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.ILojaService, RepairDesk.Services.Loja.LojaService>();
+    builder.Services.AddHttpClient<RepairDesk.Services.Loja.ITextoProdutoIa, RepairDesk.Services.Loja.TextoProdutoIa>(c => c.Timeout = TimeSpan.FromSeconds(160));
     // Sprint 656: encomendas da loja online + Stripe Checkout (chaves só no servidor: Stripe__SecretKey, Stripe__WebhookSecret).
     builder.Services.Configure<RepairDesk.Services.Loja.StripeOptions>(builder.Configuration.GetSection("Stripe"));
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.IStripeCheckout, RepairDesk.Services.Loja.StripeCheckoutClient>(c => c.Timeout = TimeSpan.FromSeconds(20));

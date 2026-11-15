@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ExternalLink, Globe, ImagePlus, Plus, Save, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Globe, ImagePlus, Loader2, Plus, Save, Sparkles, Trash2, X } from 'lucide-react';
 import { Button, SectionCard, SkeletonCard } from '../../components/ui';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { apiErrorMessage } from '../../lib/errors';
@@ -168,6 +168,23 @@ export default function ProdutoLojaEditor() {
   }, [produto.data, carregado]);
 
   const set = <K extends keyof GuardarProdutoLoja>(k: K, v: GuardarProdutoLoja[K]) => setF((s) => ({ ...s, [k]: v }));
+
+  // Sprint 672: a IA escreve descrição, especificações e textos do Google a partir do que já está no formulário.
+  const gerar = useMutation({
+    mutationFn: () => lojaApi.gerarTexto(f),
+    onSuccess: (t) => {
+      setF((s) => ({
+        ...s,
+        descricao: t.descricao,
+        specs: t.specs.length ? t.specs : s.specs,
+        seoTitulo: s.seoTitulo || t.seoTitulo || null,
+        seoDescricao: s.seoDescricao || t.seoDescricao || null,
+      }));
+      if (t.seoTitulo || t.seoDescricao) setSeo(true);
+      toast.success('Texto gerado', 'Revê e ajusta o que quiseres.');
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
   const refrescar = (p: ProdutoLoja) => {
     qc.setQueryData(['loja', 'produto', p.id], p);
     qc.invalidateQueries({ queryKey: ['loja', 'produtos'] });
@@ -377,7 +394,14 @@ export default function ProdutoLojaEditor() {
         </dl>
       </SectionCard>
 
-      <SectionCard title="Descrição e especificações">
+      <SectionCard title="Descrição e especificações"
+        action={
+          <Button variant="secondary" size="sm" disabled={gerar.isPending || !f.titulo.trim()} onClick={() => gerar.mutate()}
+            leftIcon={gerar.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            title={f.titulo.trim() ? 'A IA escreve a descrição, as especificações e os textos do Google com os dados acima' : 'Escreve primeiro o título'}>
+            {gerar.isPending ? 'A escrever… (até 1 min)' : f.descricao ? 'Reescrever com IA' : 'Gerar com IA'}
+          </Button>
+        }>
         <Campo label="Descrição">
           <textarea className={`${input} min-h-28 py-2`} value={f.descricao ?? ''} onChange={(e) => set('descricao', e.target.value || null)}
             placeholder="O que é, para quem é, estado real (riscos, bateria…), o que inclui." />

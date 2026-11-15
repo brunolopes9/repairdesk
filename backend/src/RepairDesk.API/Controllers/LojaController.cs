@@ -13,7 +13,17 @@ namespace RepairDesk.API.Controllers;
 public sealed class LojaController : ControllerBase
 {
     private readonly ILojaService _service;
-    public LojaController(ILojaService service) => _service = service;
+    private readonly ITextoProdutoIa _ia;
+    public LojaController(ILojaService service, ITextoProdutoIa ia)
+    {
+        _service = service;
+        _ia = ia;
+    }
+
+    /// <summary>Sprint 672: a IA (subscrição) escreve descrição, especificações e textos do Google a partir do formulário.</summary>
+    [HttpPost("gerar-texto")]
+    public async Task<ActionResult<TextoProdutoGerado>> GerarTexto([FromBody] GuardarProdutoLojaRequest req, CancellationToken ct)
+        => Ok(await _ia.GerarAsync(req, ct));
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ProdutoLojaDto>>> List(CancellationToken ct) => Ok(await _service.ListAsync(ct));
