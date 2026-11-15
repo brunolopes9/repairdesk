@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 
+/** Sprint 666: cabeçalho das secções com um toque da cor da marca (o Mender estava «sem cor»). */
+const HDR = 'bg-gradient-to-r from-brand-50/80 via-white to-white dark:from-brand-950/30 dark:via-zinc-900 dark:to-zinc-900 rounded-t-xl';
+
 /**
  * Sprint 372: superfície base do sistema de design. Card branco (zinc-900 dark) com borda
  * subtil + raio xl + sombra leve, sobre a superfície cinza da página. Base de TODAS as páginas.
@@ -39,7 +42,7 @@ export function SectionCard({
   if (collapsible) {
     return (
       <Card className={className}>
-        <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 ${aberto ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 ${HDR} ${aberto ? 'border-b border-brand-100/70 dark:border-zinc-800' : 'rounded-b-xl'}`}>
           <button type="button" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}
             className="flex min-h-9 flex-1 items-center gap-2 text-left text-sm font-semibold tracking-tight">
             <ChevronRight size={16} className={`shrink-0 text-zinc-400 transition-transform ${aberto ? 'rotate-90' : ''}`} aria-hidden />
@@ -55,9 +58,9 @@ export function SectionCard({
     <Card className={className}>
       {(title || action) && (
         // flex-wrap: no telemóvel as ações descem para a linha seguinte em vez de saírem do ecrã.
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
+        <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-brand-100/70 px-4 py-3 dark:border-zinc-800 ${HDR}`}>
           {typeof title === 'string'
-            ? <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+            ? <h2 className="flex items-center gap-2 text-sm font-bold tracking-tight text-zinc-900 dark:text-zinc-50"><span aria-hidden className="h-4 w-1 rounded-full bg-brand-500" />{title}</h2>
             : title}
           {action}
         </div>
