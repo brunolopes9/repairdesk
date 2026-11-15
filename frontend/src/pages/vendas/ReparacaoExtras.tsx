@@ -33,7 +33,7 @@ export default function ReparacaoExtras({ venda }: { venda: Venda }) {
   return (
     <>
       <FichaReparacao venda={venda} />
-      <SectionCard title="Cliente e documentos">
+      <SectionCard title="Cliente e documentos" collapsible defaultOpen={false}>
         <div className="space-y-4">
           {portalUrl && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -79,11 +79,13 @@ export default function ReparacaoExtras({ venda }: { venda: Venda }) {
         </div>
       </SectionCard>
 
-      <SectionCard title="Fotos do equipamento">
+      <SectionCard title="Fotos do equipamento" collapsible defaultOpen={false}>
         <FotosReparacao vendaId={venda.id} />
       </SectionCard>
 
+      <SectionCard title="Comunicações com o cliente" collapsible defaultOpen={false}>
       <ComunicacoesVenda
+        semMoldura
         vendaId={venda.id}
         reparacaoNumero={venda.numero}
         reparacaoEstado={venda.estado}
@@ -92,6 +94,7 @@ export default function ReparacaoExtras({ venda }: { venda: Venda }) {
         clienteTelefone={venda.cliente?.telefone ?? null}
         publicSlug={venda.publicSlug}
       />
+      </SectionCard>
 
       {venda.estado === VENDA_ESTADO.Entregue && <GarantiaCard vendaId={venda.id} />}
     </>

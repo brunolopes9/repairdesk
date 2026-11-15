@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
 
 /**
  * Sprint 372: superfície base do sistema de design. Card branco (zinc-900 dark) com borda
@@ -22,13 +23,34 @@ export function SectionCard({
   bodyClassName = 'p-4',
   className = '',
   children,
+  collapsible = false,
+  defaultOpen = true,
 }: {
   title?: ReactNode;
   action?: ReactNode;
   bodyClassName?: string;
   className?: string;
   children: ReactNode;
+  /** Sprint 662: o título abre/fecha o bloco (para secções que raramente se usam e alongam a página). */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }) {
+  const [aberto, setAberto] = useState(defaultOpen);
+  if (collapsible) {
+    return (
+      <Card className={className}>
+        <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 ${aberto ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}>
+          <button type="button" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}
+            className="flex min-h-9 flex-1 items-center gap-2 text-left text-sm font-semibold tracking-tight">
+            <ChevronRight size={16} className={`shrink-0 text-zinc-400 transition-transform ${aberto ? 'rotate-90' : ''}`} aria-hidden />
+            {title}
+          </button>
+          {aberto && action}
+        </div>
+        {aberto && <div className={bodyClassName}>{children}</div>}
+      </Card>
+    );
+  }
   return (
     <Card className={className}>
       {(title || action) && (

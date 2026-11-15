@@ -45,7 +45,7 @@ export default function FichaReparacao({ venda }: { venda: Venda }) {
     onError: (err) => toast.fromError(err),
   });
 
-  if (!form) return <SectionCard title="Ordem de reparação"><div className="h-24 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" /></SectionCard>;
+  if (!form) return <SectionCard title="Ordem de reparação" collapsible defaultOpen={false}><div className="h-24 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" /></SectionCard>;
 
   const fechada = venda.estado === VENDA_ESTADO.Entregue || venda.estado === VENDA_ESTADO.Cancelada;
   const set = (patch: Partial<Ficha>) => setForm((f) => (f ? { ...f, ...patch } : f));
@@ -59,6 +59,8 @@ export default function FichaReparacao({ venda }: { venda: Venda }) {
 
   return (
     <SectionCard
+      collapsible
+      defaultOpen={false}
       title={<span className="flex items-center gap-2"><ClipboardList size={16} /> Ordem de reparação</span>}
       action={
         <div className="flex flex-wrap gap-2">

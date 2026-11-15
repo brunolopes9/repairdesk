@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Boxes, CheckCircle2, FileText, PackageSearch, Plus, Save, Trash2, Wrench, XCircle } from 'lucide-react';
+import { AlertTriangle, Banknote, Boxes, CheckCircle2, FileText, PackageSearch, Plus, Save, Trash2, Wrench, XCircle } from 'lucide-react';
 import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { apiErrorMessage } from '../../lib/errors';
@@ -235,6 +236,17 @@ export default function VendaEditor() {
     onError: (err) => toast.fromError(err),
   });
 
+  const confirm = useConfirm();
+  /** Sprint 662: passar a Pronta/Em curso sem nada a cobrar quase sempre é engano — pergunta antes. */
+  async function mudarComAviso(e: VendaEstado) {
+    if (e !== VENDA_ESTADO.Orcamento && e !== VENDA_ESTADO.Cancelada && contas.total <= 0 && !(await confirm({
+      title: `Passar a «${VENDA_ESTADO_LABEL[e]}» com 0 €?`,
+      description: 'Ainda não há nada a cobrar nesta venda. Junta primeiro o valor (ex.: botão «Por fora» ou «Mão de obra»). Pronta não fecha nem cobra nada — só Entregue fecha.',
+      confirmLabel: 'Mudar mesmo assim',
+    }))) return;
+    mudarEstado.mutate(e);
+  }
+
   const mudarEstado = useMutation({
     mutationFn: async (estado: VendaEstado) => {
       // Grava alterações pendentes antes de mudar de estado (exceto ao cancelar).
@@ -326,6 +338,16 @@ export default function VendaEditor() {
       descricao: tipo === VENDA_TIPO.Reparacao ? 'Mão de obra' : '',
       quantidade: '1', preco: '', iva: String(IVA_NORMAL), custoUnit: 0, taxaCompra: 0, maxStock: null,
       encomenda: null, custo: '', nota: '', porFora: false, custoSemFatura: '',
+    }]);
+  }
+
+  /** Sprint 662: valor cobrado por fora (sem fatura, sem IVA) — numa linha só, para «tudo por fora». */
+  function addPorFora() {
+    setLinhas((ls) => [...ls, {
+      key: crypto.randomUUID(), id: null, compraLinhaId: null,
+      descricao: tipo === VENDA_TIPO.Reparacao ? 'Reparação' : tipo === VENDA_TIPO.Servico ? 'Serviço' : '',
+      quantidade: '1', preco: '', iva: '0', custoUnit: 0, taxaCompra: 0, maxStock: null,
+      encomenda: null, custo: '', nota: '', porFora: true, custoSemFatura: '',
     }]);
   }
 
@@ -515,6 +537,10 @@ export default function VendaEditor() {
                 Peça a encomendar
               </Button>
             )}
+            <Button type="button" size="sm" variant="secondary" leftIcon={<Banknote size={15} />} onClick={addPorFora}
+              title="Valor cobrado sem fatura: sem IVA, conta inteiro no lucro">
+              Por fora
+            </Button>
             <Button type="button" size="sm" variant="secondary" leftIcon={<Plus size={15} />} onClick={addCustoExtra}
               title="Custo sem fatura (transporte, quem fez o trabalho…) — desconta no lucro, não mexe no IVA">
               Custo extra
@@ -691,7 +717,7 @@ export default function VendaEditor() {
         <SectionCard title="Estado">
           <div className="flex flex-wrap items-center gap-2">
             {proximos.filter((e) => e !== VENDA_ESTADO.Entregue).map((e) => (
-              <Button key={e} type="button" variant="secondary" disabled={busy || !podeGravar} onClick={() => mudarEstado.mutate(e)}>
+              <Button key={e} type="button" variant="secondary" disabled={busy || !podeGravar} onClick={() => mudarComAviso(e)}>
                 {VENDA_ESTADO_LABEL[e]}
               </Button>
             ))}

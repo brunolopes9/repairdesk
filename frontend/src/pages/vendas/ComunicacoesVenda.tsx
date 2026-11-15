@@ -58,7 +58,10 @@ export function ComunicacoesVenda({
   clienteNaoContactar,
   clienteContactoPreferido,
   publicSlug,
+  semMoldura = false,
 }: {
+  /** Sprint 662: dentro de um bloco que abre/fecha — sem a borda própria. */
+  semMoldura?: boolean;
   vendaId: string;
   reparacaoNumero?: number;
   /** VendaEstado: 2 = Pronta. Quando Pronta, mostra CTA "Avisar pronto" (S456). */
@@ -191,7 +194,7 @@ export function ComunicacoesVenda({
   });
 
   return (
-    <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+    <section className={semMoldura ? 'space-y-3' : 'space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900'}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <MessageCircle size={16} /> Comunicações

@@ -190,7 +190,9 @@ public class CompraService : ICompraService
         if (doc.FornecedorId != fornecedor.Id) return "o fornecedor";
         if (doc.Data.Date != req.Data.Date) return "a data";
         if (!string.Equals(doc.NumeroFatura, numeroFatura, StringComparison.Ordinal)) return "o nº da fatura";
-        var antes = doc.NumerosEncomenda is null ? [] : doc.NumerosEncomenda.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        // Sprint 662: o valor gravado passa pela mesma normalização que o pedido — compras antigas guardaram
+        // «MWPT, 11404» (prefixo sem dígitos e espaço) e qualquer gravação dava «o nº da encomenda não se altera».
+        var antes = NormalizarEncomendas([doc.NumerosEncomenda ?? string.Empty]);
         if (!antes.OrderBy(x => x).SequenceEqual(encomendas.OrderBy(x => x))) return "o nº da encomenda";
         if (doc.PortesPagos != req.PortesPagos || doc.PortesIva != req.PortesIva) return "os portes";
         if (doc.TotalDocumento != req.TotalDocumento) return "o total do documento";
@@ -200,7 +202,7 @@ public class CompraService : ICompraService
             var linha = doc.Linhas.FirstOrDefault(x => x.Id == l.Id);
             if (linha is null) return "a lista de linhas";
             var taxa = l.TaxaIvaCompra ?? fornecedor.TaxaIvaCompraPorDefeito(TaxaVenda);
-            if (linha.Descricao != l.Descricao.Trim() || linha.Quantidade != l.Quantidade
+            if (linha.Descricao.Trim() != l.Descricao.Trim() || linha.Quantidade != l.Quantidade
                 || linha.PrecoUnitarioPago != l.PrecoUnitarioPago || linha.TaxaIvaCompra != taxa)
                 return $"a linha \"{linha.Descricao}\"";
         }

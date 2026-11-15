@@ -32,6 +32,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   const [vencimento, setVencimento] = useState(30);
   const [motivo, setMotivo] = useState<string>('');
   const [anular, setAnular] = useState<string | null>(null);
+  const [mudarSerie, setMudarSerie] = useState(false);
 
   // Sprint 587: uma série que não está ativa na AT não emite — começa numa que emite.
   const serieInicial = e?.series.some((s) => s.id === serieDefault && s.ativaNaAt === false)
@@ -80,7 +81,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   if (venda.estado === VENDA_ESTADO.Cancelada) return null;
   if (!e?.configurado) {
     return (
-      <SectionCard title="Documento fiscal">
+      <SectionCard title="Documento fiscal" collapsible defaultOpen={false}>
         <p className="text-sm text-zinc-500">
           Para emitir faturas e orçamentos daqui, liga o Moloni ON {isAdmin ? <Link to="/definicoes/moloni" className="text-brand-600 underline">em Definições → Moloni ON</Link> : 'nas Definições (administrador)'}.
         </p>
@@ -90,7 +91,13 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
 
   const entregue = venda.estado === VENDA_ESTADO.Entregue;
   const comMoloni = venda.moloniDocumentoTipo != null;
-  const opcoesSerie = (
+  const serieDoTipo = e.series.find((s) => s.id === serieDefault && s.ativaNaAt !== false);
+  const opcoesSerie = serieDoTipo && !mudarSerie ? (
+    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      Série <strong>{serieDoTipo.nome}</strong> (pelo tipo da venda) ·{' '}
+      <button type="button" className="text-brand-600 underline" onClick={() => setMudarSerie(true)}>mudar</button>
+    </p>
+  ) : (
     <label className="block">
       <span className={labelCls}>Série</span>
       <select value={serie} onChange={(ev) => setSerie(ev.target.value ? Number(ev.target.value) : '')} className={inputCls}>
@@ -113,7 +120,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   );
 
   return (
-    <SectionCard title="Documento fiscal (Moloni ON)">
+    <SectionCard title={comMoloni ? `Documento fiscal · ${venda.invoiceNumber ?? 'emitido'}` : 'Documento fiscal (Moloni ON)'} collapsible defaultOpen={comMoloni}>
       {comMoloni ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">

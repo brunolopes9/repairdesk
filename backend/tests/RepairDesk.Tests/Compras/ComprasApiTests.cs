@@ -101,6 +101,32 @@ public class ComprasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Update_SoNotas_NaoBloqueiaComEncomendasGravadasComEspacos()
+    {
+        // Sprint 662: compras do Excel guardaram «MWPT, 11404»; mudar só as notas dava «o nº da encomenda não se altera».
+        var client = await AuthedClient();
+        var nac = await CriarFornecedor(client, RegimeIvaFornecedor.Nacional);
+        var req = Doc(nac, "X-" + Guid.NewGuid().ToString("N")[..6], new CompraLinhaWriteRequest(null, "Câmara A15 ", 1, 5.53m, null, null, null))
+            with { NumerosEncomenda = ["MWPT", "11404"] };
+        var doc = (await (await client.PostAsJsonAsync("/api/compras", req)).Content.ReadFromJsonAsync<CompraDocumentoDto>())!;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var e = await db.Set<CompraDocumento>().IgnoreQueryFilters().SingleAsync(x => x.Id == doc.Id);
+            e.NumerosEncomenda = "MWPT, 11404";
+            await db.SaveChangesAsync();
+        }
+
+        var update = req with
+        {
+            Notas = "só mudei as notas",
+            Linhas = [new CompraLinhaWriteRequest(doc.Linhas.Single().Id, "Câmara A15", 1, 5.53m, null, 2m, null)],
+        };
+        var resp = await client.PutAsJsonAsync($"/api/compras/{doc.Id}", update);
+        resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Update_AtualizaRemoveEAcrescentaLinhas()
     {
         var client = await AuthedClient();
