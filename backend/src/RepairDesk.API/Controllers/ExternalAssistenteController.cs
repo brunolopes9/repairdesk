@@ -49,6 +49,8 @@ public sealed record AssistenteAgoraDto(RotinaDiaDto Rotina, IReadOnlyList<Inter
 [ApiScope("assistente")]
 public sealed class ExternalAssistenteController : ControllerBase
 {
+    private static readonly System.Globalization.CultureInfo PtPt = System.Globalization.CultureInfo.GetCultureInfo("pt-PT");
+
     public static readonly TimeSpan JanelaDesfazer = TimeSpan.FromMinutes(5);
 
     private readonly IRotinaService _rotina;
@@ -215,9 +217,10 @@ public sealed class ExternalAssistenteController : ControllerBase
         if (estado.StartsWith("pront"))
             venda = await _vendas.MudarEstadoAsync(venda.Id, new MudarEstadoVendaRequest(VendaEstado.Pronta), ct);
 
-        var resumo = $"Venda #{venda.Numero} criada ({venda.Estado}): {req.Descricao.Trim()} — {req.Total:0.00} €"
-                     + (porFora > 0 ? $" ({fatura:0.00} na fatura + {porFora:0.00} por fora)" : " (tudo na fatura)")
-                     + (req.Custo is { } cu ? $", custo {cu:0.00} €" : "");
+        // Valores sempre em PT-PT («70,00»), seja qual for a cultura do servidor.
+        var resumo = string.Create(PtPt, $"Venda #{venda.Numero} criada ({venda.Estado}): {req.Descricao.Trim()} — {req.Total:0.00} €")
+                     + (porFora > 0 ? string.Create(PtPt, $" ({fatura:0.00} na fatura + {porFora:0.00} por fora)") : " (tudo na fatura)")
+                     + (req.Custo is { } cu ? string.Create(PtPt, $", custo {cu:0.00} €") : "");
         var acao = await Registar("venda", venda.Id, null, null, resumo, ct);
         return Ok(new AssistenteResultado(acao.Resumo, acao.Id, new { venda.Id, venda.Numero, venda.Estado, venda.TotalCents, venda.Lucro }));
     }
@@ -243,7 +246,7 @@ public sealed class ExternalAssistenteController : ControllerBase
         var d = await _despesas.CreateAsync(new CreateDespesaRequest(req.Descricao.Trim(), categoria,
             (int)Math.Round(req.Valor * 100m, MidpointRounding.AwayFromZero), req.Data ?? DateTime.UtcNow, req.Fornecedor, null,
             string.Join(" ", new[] { req.Notas?.Trim(), "Registada pelo assistente (Telegram)." }.Where(s => !string.IsNullOrWhiteSpace(s)))), ct);
-        var acao = await Registar("despesa", d.Id, null, null, $"Despesa #{d.Numero}: {d.Descricao} — {req.Valor:0.00} € ({categoria})", ct);
+        var acao = await Registar("despesa", d.Id, null, null, string.Create(PtPt, $"Despesa #{d.Numero}: {d.Descricao} — {req.Valor:0.00} € ({categoria})"), ct);
         return Ok(new AssistenteResultado(acao.Resumo, acao.Id, d));
     }
 
