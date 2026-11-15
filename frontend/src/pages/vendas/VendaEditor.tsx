@@ -296,6 +296,24 @@ export default function VendaEditor() {
     setSemIva(novoSemIva);
   }
 
+  // Sprint 669: «combinei 75 € com o cliente» — escreve o total e o Mender acerta a linha principal
+  // (a mão de obra, ou a última linha) para dar esse total; o lucro sai sozinho do custo real das peças.
+  const [totalAlvo, setTotalAlvo] = useState('');
+  function aplicarTotal() {
+    const alvo = parseDecimal(totalAlvo);
+    if (alvo == null || linhas.length === 0) return;
+    const diff = Math.round((alvo - contas.total) * 100) / 100;
+    if (Math.abs(diff) < 0.005) { setTotalAlvo(''); return; }
+    const candidatas = linhas.filter((l) => !l.descricao.startsWith('Custo extra'));
+    const alvoLinha = [...candidatas].reverse().find((l) => !l.compraLinhaId && l.encomenda == null) ?? candidatas[candidatas.length - 1] ?? linhas[linhas.length - 1];
+    const qtd = Number(alvoLinha.quantidade) || 1;
+    const atual = alvoLinha.porFora ? parseDecimal(alvoLinha.preco) ?? 0 : precoComIva(alvoLinha.preco, alvoLinha.iva, semIva);
+    const novoComIva = Math.max(0, atual + diff / qtd);
+    const taxa = (parseDecimal(alvoLinha.iva) ?? IVA_NORMAL) / 100;
+    setLinha(alvoLinha.key, { preco: fmt2(semIva && !alvoLinha.porFora ? novoComIva / (1 + taxa) : novoComIva) });
+    setTotalAlvo('');
+  }
+
   function setLinha(key: string, patch: Partial<LinhaForm>) {
     setLinhas((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
@@ -681,6 +699,18 @@ export default function VendaEditor() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+        {!fechada && linhas.length > 0 && (
+          <div className="mt-3 ml-auto flex max-w-xs flex-wrap items-end gap-2 rounded-xl bg-brand-50 p-3 dark:bg-brand-950/30">
+            <label className="min-w-0 flex-1 text-xs font-semibold text-brand-900 dark:text-brand-100">
+              Preço final combinado (€)
+              <input inputMode="decimal" value={totalAlvo} onChange={(e) => setTotalAlvo(e.target.value)} placeholder={formatEur(contas.total)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); aplicarTotal(); } }}
+                className={`${inputCls} mt-1`} aria-label="Preço final combinado com o cliente" />
+            </label>
+            <Button type="button" size="sm" onClick={aplicarTotal} disabled={!totalAlvo.trim()}>Aplicar</Button>
+            <p className="w-full text-[11px] text-brand-800/80 dark:text-brand-200/80">Escreves o total que vais cobrar; o lucro calcula-se sozinho pelo custo real das peças.</p>
           </div>
         )}
         <dl className="mt-3 ml-auto grid max-w-xs grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm tabular-nums">
