@@ -299,7 +299,12 @@ export default function VendaEditor() {
   // Sprint 669: «combinei 75 € com o cliente» — escreve o total e o Mender acerta a linha principal
   // (a mão de obra, ou a última linha) para dar esse total; o lucro sai sozinho do custo real das peças.
   const [totalAlvo, setTotalAlvo] = useState('');
+  // Sprint 673: «30 € ao todo, 10 € por fora» — a parte por fora vai para uma linha «Por fora» e as linhas com
+  // fatura descem na mesma proporção até darem o resto (o lucro e o IVA recalculam-se sozinhos).
+  const [porForaAlvo, setPorForaAlvo] = useState('');
   function aplicarTotal() {
+    const pf = parseDecimal(porForaAlvo);
+    if (pf != null) { aplicarComPorFora(pf); return; }
     const alvo = parseDecimal(totalAlvo);
     if (alvo == null || linhas.length === 0) return;
     const diff = Math.round((alvo - contas.total) * 100) / 100;
@@ -312,6 +317,37 @@ export default function VendaEditor() {
     const taxa = (parseDecimal(alvoLinha.iva) ?? IVA_NORMAL) / 100;
     setLinha(alvoLinha.key, { preco: fmt2(semIva && !alvoLinha.porFora ? novoComIva / (1 + taxa) : novoComIva) });
     setTotalAlvo('');
+  }
+
+  function aplicarComPorFora(pf: number) {
+    const alvo = parseDecimal(totalAlvo) ?? contas.total;
+    if (pf < 0 || pf > alvo) return;
+    const extra = (l: LinhaForm) => l.descricao.startsWith('Custo extra');
+    const linhaPf = linhas.find((l) => l.porFora && !extra(l));
+    const comFatura = linhas.filter((l) => !l.porFora && !extra(l));
+    const totalLinha = (l: LinhaForm) => (Number(l.quantidade) || 1) * precoComIva(l.preco, l.iva, semIva);
+    const atualFatura = comFatura.reduce((s, l) => s + totalLinha(l), 0);
+    const fatura = Math.round((alvo - pf) * 100) / 100;
+    const fator = atualFatura > 0 ? fatura / atualFatura : 0;
+    setLinhas((ls) => {
+      const novas = ls.map((l) => {
+        if (l === linhaPf) return { ...l, quantidade: '1', preco: fmt2(pf) };
+        if (l.porFora && !extra(l)) return { ...l, preco: '0' };
+        if (!comFatura.includes(l)) return l;
+        const qtd = Number(l.quantidade) || 1;
+        const novoComIva = (totalLinha(l) * fator) / qtd;
+        const taxa = (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
+        return { ...l, preco: fmt2(semIva ? novoComIva / (1 + taxa) : novoComIva) };
+      });
+      if (!linhaPf && pf > 0) novas.push({
+        key: crypto.randomUUID(), id: null, compraLinhaId: null, descricao: 'Por fora',
+        quantidade: '1', preco: fmt2(pf), iva: '0', custoUnit: 0, taxaCompra: 0, maxStock: null,
+        encomenda: null, custo: '', nota: '', porFora: true, custoSemFatura: '',
+      });
+      return novas;
+    });
+    setTotalAlvo('');
+    setPorForaAlvo('');
   }
 
   function setLinha(key: string, patch: Partial<LinhaForm>) {
@@ -702,15 +738,21 @@ export default function VendaEditor() {
           </div>
         )}
         {!fechada && linhas.length > 0 && (
-          <div className="mt-3 ml-auto flex max-w-xs flex-wrap items-end gap-2 rounded-xl bg-brand-50 p-3 dark:bg-brand-950/30">
+          <div className="mt-3 ml-auto flex max-w-sm flex-wrap items-end gap-2 rounded-xl bg-brand-50 p-3 dark:bg-brand-950/30">
             <label className="min-w-0 flex-1 text-xs font-semibold text-brand-900 dark:text-brand-100">
               Preço final combinado (€)
               <input inputMode="decimal" value={totalAlvo} onChange={(e) => setTotalAlvo(e.target.value)} placeholder={formatEur(contas.total)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); aplicarTotal(); } }}
                 className={`${inputCls} mt-1`} aria-label="Preço final combinado com o cliente" />
             </label>
-            <Button type="button" size="sm" onClick={aplicarTotal} disabled={!totalAlvo.trim()}>Aplicar</Button>
-            <p className="w-full text-[11px] text-brand-800/80 dark:text-brand-200/80">Escreves o total que vais cobrar; o lucro calcula-se sozinho pelo custo real das peças.</p>
+            <label className="w-24 text-xs font-semibold text-violet-800 dark:text-violet-200">
+              dos quais por fora
+              <input inputMode="decimal" value={porForaAlvo} onChange={(e) => setPorForaAlvo(e.target.value)} placeholder={contas.porFora > 0 ? formatEur(contas.porFora) : '0,00'}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); aplicarTotal(); } }}
+                className={`${inputCls} mt-1`} aria-label="Parte do total paga por fora, sem fatura" />
+            </label>
+            <Button type="button" size="sm" onClick={aplicarTotal} disabled={!totalAlvo.trim() && !porForaAlvo.trim()}>Aplicar</Button>
+            <p className="w-full text-[11px] text-brand-800/80 dark:text-brand-200/80">Escreves o total que vais cobrar e, se quiseres, quanto vai por fora (sem fatura). O resto fica na fatura e o lucro calcula-se sozinho.</p>
           </div>
         )}
         <dl className="mt-3 ml-auto grid max-w-xs grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm tabular-nums">
