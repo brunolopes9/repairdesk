@@ -56,7 +56,8 @@ export default function LotePicker({
                   </span>
                   <span className="text-right tabular-nums">
                     <span className="block font-medium">{formatEur(l.precoVendaArtigo ?? l.precoFinalComIva)}</span>
-                    <span className="block text-xs text-zinc-500">pago {formatEur(l.precoUnitarioPago)}</span>
+                    {/* Sprint 669: custo sempre com e sem IVA (UE autoliquidada ou nacional) — para decidir o preço ao cliente. */}
+                    <span className="block text-xs text-zinc-500">custo {formatEur(custos(l).semIva)} s/ IVA · <strong className="text-zinc-700 dark:text-zinc-300">{formatEur(custos(l).comIva)} c/ IVA</strong></span>
                   </span>
                 </button>
               </li>
@@ -66,4 +67,12 @@ export default function LotePicker({
       </div>
     </Modal>
   );
+}
+
+/** Custo de um lote com e sem IVA: nacional paga-se com IVA; UE (0%, autoliquidação) soma-se 23% só para referência. */
+function custos(l: { precoUnitarioPago: number; taxaIvaCompra: number }): { semIva: number; comIva: number } {
+  const taxa = l.taxaIvaCompra ?? 0;
+  return taxa > 0
+    ? { semIva: l.precoUnitarioPago / (1 + taxa), comIva: l.precoUnitarioPago }
+    : { semIva: l.precoUnitarioPago, comIva: l.precoUnitarioPago * 1.23 };
 }

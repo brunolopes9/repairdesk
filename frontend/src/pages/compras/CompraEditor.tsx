@@ -476,7 +476,17 @@ export default function CompraEditor() {
                       ))}
                     </td>
                     <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} /></td>
-                    <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Preço unitário pago" inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" /></td>
+                    <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Preço unitário pago" inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" />
+                      {/* Sprint 669: custo sempre com e sem IVA — nacional (pago com IVA) ou UE (0%, autoliquidação → +23% só de referência). */}
+                      {(() => {
+                        const pago = parseDecimal(l.preco);
+                        if (pago == null || pago <= 0) return null;
+                        const t = (parseDecimal(l.taxa) ?? taxaDefeito * 100) / 100;
+                        const semIva = t > 0 ? pago / (1 + t) : pago;
+                        const comIva = t > 0 ? pago : pago * 1.23;
+                        return <span className="mt-1 block whitespace-nowrap text-[11px] leading-4 text-zinc-500">{formatEur(semIva)} s/ IVA<br /><strong className="text-zinc-700 dark:text-zinc-300">{formatEur(comIva)} c/ IVA</strong></span>;
+                      })()}
+                    </td>
                     <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Taxa de IVA" inputMode="decimal" value={l.taxa} onChange={(e) => setLinha(l.key, { taxa: e.target.value })} className={inputCls} placeholder={String(taxaDefeito * 100)} /></td>
                     <td className="py-2 pr-2"><input aria-label="Lucro unitário" inputMode="decimal" value={l.lucro} onChange={(e) => setLinha(l.key, { lucro: e.target.value })} className={inputCls} placeholder={String(lucroPorDefeito(l.descricao))} /></td>
                     <td className="py-2 pr-2"><input aria-label="Localização" value={l.localizacao} onChange={(e) => setLinha(l.key, { localizacao: e.target.value })} className={inputCls} maxLength={100} /></td>
