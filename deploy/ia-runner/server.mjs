@@ -1,0 +1,42 @@
+// Sprint 667: serviço interno (só na rede do docker) que corre um pedido no Claude pela subscrição.
+// POST /v1/texto  { system, prompt, model? }  →  { text }      cabeçalho X-Ia-Secret obrigatório.
+import http from 'node:http';
+import { spawn } from 'node:child_process';
+
+const SECRET = process.env.IA_RUNNER_SECRET || '';
+const TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN || '';
+let fila = Promise.resolve(); // um pedido de cada vez (a subscrição tem limites por janela)
+
+function correr({ system, prompt, model }) {
+  return new Promise((resolve, reject) => {
+    const args = ['-p', '--model', model || 'haiku', '--output-format', 'text', '--max-turns', '1'];
+    if (system) args.push('--append-system-prompt', system);
+    const env = { ...process.env, CLAUDE_CODE_OAUTH_TOKEN: TOKEN };
+    delete env.ANTHROPIC_API_KEY; // nunca créditos da API
+    const p = spawn('claude', args, { env, cwd: '/tmp' });
+    let out = '', err = '';
+    const t = setTimeout(() => { p.kill('SIGKILL'); reject(new Error('timeout')); }, 120_000);
+    p.stdout.on('data', (d) => { out += d; });
+    p.stderr.on('data', (d) => { err += d; });
+    p.on('close', (code) => { clearTimeout(t); code === 0 ? resolve(out.trim()) : reject(new Error(`claude saiu com ${code}: ${err.slice(0, 400)}`)); });
+    p.stdin.end(prompt);
+  });
+}
+
+http.createServer((req, res) => {
+  const json = (s, o) => { res.writeHead(s, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
+  if (req.method === 'GET' && req.url === '/health') return json(200, { ok: true, token: !!TOKEN });
+  if (req.method !== 'POST' || req.url !== '/v1/texto') return json(404, { erro: 'nao_existe' });
+  if (!SECRET || req.headers['x-ia-secret'] !== SECRET) return json(401, { erro: 'sem_autorizacao' });
+  if (!TOKEN) return json(503, { erro: 'sem_token', detalhe: 'Falta CLAUDE_CODE_OAUTH_TOKEN (claude setup-token).' });
+  let corpo = '';
+  req.on('data', (d) => { corpo += d; if (corpo.length > 2_000_000) req.destroy(); });
+  req.on('end', () => {
+    let pedido;
+    try { pedido = JSON.parse(corpo); } catch { return json(400, { erro: 'json_invalido' }); }
+    if (!pedido.prompt) return json(400, { erro: 'sem_prompt' });
+    const tarefa = fila.then(() => correr(pedido));
+    fila = tarefa.catch(() => {});
+    tarefa.then((text) => json(200, { text })).catch((e) => json(502, { erro: 'claude_falhou', detalhe: String(e.message || e) }));
+  });
+}).listen(8090, () => console.log('ia-runner na porta 8090'));

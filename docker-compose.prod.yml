@@ -61,6 +61,9 @@ services:
       Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET:-}
       # Sprint 663: links públicos (pedido/marcação online, QR dos PDFs e etiquetas) — antes caía em http://localhost.
       Frontend__PortalBaseUrl: ${PORTAL_BASE_URL:-https://app.lopestech.pt}
+      # Sprint 667: leitura de faturas pela subscrição (serviço «ia»); vazio = usa a API (se houver chave).
+      Ia__RunnerUrl: ${IA_RUNNER_URL:-http://ia:8090}
+      Ia__RunnerSecret: ${IA_RUNNER_SECRET:-}
       Metrics__Enabled: ${Metrics__Enabled:-false}
       Metrics__AllowedIps__0: ${Metrics__AllowedIps__0:-127.0.0.1}
       Metrics__BasicAuthUsername: ${Metrics__BasicAuthUsername:-}
@@ -122,6 +125,17 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+
+  # Sprint 667: IA pela subscrição Claude (sem créditos da API). Só na rede interna; sem token não faz nada.
+  ia:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/repairdesk-ia:${IMAGE_TAG:?IMAGE_TAG is required}
+    restart: unless-stopped
+    environment:
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      IA_RUNNER_SECRET: ${IA_RUNNER_SECRET:-}
+    mem_limit: 768m
+    networks:
+      - repairdesk-private
 
   web:
     image: ${REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/repairdesk-web:${IMAGE_TAG:?IMAGE_TAG is required}

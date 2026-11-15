@@ -85,6 +85,18 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-web:${{ steps.meta.outputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-web:${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}
 
+      # Sprint 667: IA pela subscrição Claude (claude -p) — usada na leitura das faturas em vez da API paga.
+      - name: Build and push IA runner
+        uses: docker/build-push-action@v7
+        with:
+          context: deploy/ia-runner
+          file: deploy/ia-runner/Dockerfile
+          push: true
+          cache-from: type=gha,scope=ia
+          cache-to: type=gha,mode=max,scope=ia
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/repairdesk-ia:${{ steps.meta.outputs.version }}
+
   check-prod-config:
     name: Check production secrets configured
     runs-on: ubuntu-latest

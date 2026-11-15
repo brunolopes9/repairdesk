@@ -71,6 +71,9 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
     private readonly ISecretProtector _secrets;
     private readonly string? _centralApiKey;
     private readonly string _model;
+    // Sprint 667: serviço «ia» (claude -p pela subscrição) — quando existe, a leitura de faturas não usa a API paga.
+    private readonly string? _runnerUrl;
+    private readonly string? _runnerSecret;
 
     /// <summary>
     /// Sprint 172: hybrid model — IA disponível sempre que houver central key OU tenant BYOK.
@@ -97,6 +100,8 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         _logger = logger;
         _centralApiKey = config["ANTHROPIC_API_KEY"];
         _model = config["ANTHROPIC_MODEL"] ?? "claude-haiku-4-5-20251001";
+        _runnerUrl = config["Ia:RunnerUrl"]?.TrimEnd('/');
+        _runnerSecret = config["Ia:RunnerSecret"];
         if (string.IsNullOrWhiteSpace(_centralApiKey))
             _logger.LogWarning("ANTHROPIC_API_KEY (central) não configurada — só tenants BYOK terão IA.");
     }
@@ -126,6 +131,8 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
     public async Task<LlmParseResult?> ParseAsync(string pdfText, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(pdfText)) return null;
+        if (!string.IsNullOrWhiteSpace(_runnerUrl) && !string.IsNullOrWhiteSpace(_runnerSecret))
+            return await ParseViaSubscricaoAsync(pdfText, ct);
         var (apiKey, isByok) = await ResolveApiKeyAsync(ct);
         if (apiKey is null)
         {
@@ -197,30 +204,9 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
             var text = payload?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
             if (string.IsNullOrWhiteSpace(text)) { outcome = "error"; return null; }
 
-            // Extrai JSON puro da resposta (Claude às vezes envolve em markdown ```json).
-            var jsonStart = text.IndexOf('{');
-            var jsonEnd = text.LastIndexOf('}');
-            if (jsonStart < 0 || jsonEnd <= jsonStart) { outcome = "error"; return null; }
-            var json = text[jsonStart..(jsonEnd + 1)];
-
-            var parsed = JsonSerializer.Deserialize<LlmRawResponse>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            });
-            if (parsed is null) { outcome = "error"; return null; }
-
-            return new LlmParseResult(
-                SupplierName: parsed.SupplierName,
-                OrderId: parsed.OrderId,
-                DocumentDate: parsed.DocumentDate,
-                TotalCents: parsed.TotalCents,
-                Items: parsed.Items?.Select(i => new LlmParseItem(
-                    i.Description ?? "",
-                    i.Quantity,
-                    i.LineTotalCents,
-                    i.SupplierSku)).ToList() ?? new(),
-                Confidence: Math.Clamp(parsed.Confidence, 0, 1),
-                SupplierVatId: parsed.SupplierVatId);
+            var resultado = ResultadoDoTexto(text);
+            if (resultado is null) outcome = "error";
+            return resultado;
         }
         catch (Exception ex) when (ex is not OperationCanceledException || ex is TaskCanceledException)
         {
@@ -240,6 +226,79 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
                 (int)startTs.ElapsedMilliseconds, outcome, ct);
             // O try/return foi acima — finally apenas faz tracking, não muda return.
             // Mas o catch acima tem return — finally corre antes do return ser retornado? Sim em C#.
+        }
+    }
+
+    /// <summary>Sprint 667: o JSON da resposta (o Claude às vezes envolve em ```json) → resultado; null se não der.</summary>
+    internal static LlmParseResult? ResultadoDoTexto(string text)
+    {
+        var jsonStart = text.IndexOf('{');
+        var jsonEnd = text.LastIndexOf('}');
+        if (jsonStart < 0 || jsonEnd <= jsonStart) return null;
+        LlmRawResponse? parsed;
+        try
+        {
+            parsed = JsonSerializer.Deserialize<LlmRawResponse>(text[jsonStart..(jsonEnd + 1)], new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException) { return null; }
+        if (parsed is null) return null;
+        return new LlmParseResult(
+            SupplierName: parsed.SupplierName,
+            OrderId: parsed.OrderId,
+            DocumentDate: parsed.DocumentDate,
+            TotalCents: parsed.TotalCents,
+            Items: parsed.Items?.Select(i => new LlmParseItem(i.Description ?? "", i.Quantity, i.LineTotalCents, i.SupplierSku)).ToList() ?? new(),
+            Confidence: Math.Clamp(parsed.Confidence, 0, 1),
+            SupplierVatId: parsed.SupplierVatId);
+    }
+
+    /// <summary>
+    /// Sprint 667: a mesma leitura, mas pelo serviço «ia» (Claude Code com a subscrição do dono) — sem custo de API.
+    /// Fica no «Uso de IA» com modelo «subscricao» e 0 tokens (a subscrição não os conta à parte).
+    /// </summary>
+    private async Task<LlmParseResult?> ParseViaSubscricaoAsync(string pdfText, CancellationToken ct)
+    {
+        var redacted = RedactPii(pdfText);
+        if (redacted.Length > 12_000) redacted = redacted[..12_000];
+        var relogio = System.Diagnostics.Stopwatch.StartNew();
+        var outcome = "ok";
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(150));
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{_runnerUrl}/v1/texto")
+            {
+                Content = JsonContent.Create(new
+                {
+                    system = SystemPrompt,
+                    prompt = $"Fatura de fornecedor (texto extraído do PDF):\n\n{redacted}\n\nDevolve só o JSON conforme o schema, sem mais nada.",
+                    model = "haiku",
+                }),
+            };
+            req.Headers.Add("X-Ia-Secret", _runnerSecret);
+            using var resp = await _http.SendAsync(req, cts.Token);
+            var corpo = await resp.Content.ReadAsStringAsync(cts.Token);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Serviço ia {Status}: {Body}", (int)resp.StatusCode, corpo.Length > 400 ? corpo[..400] : corpo);
+                outcome = corpo.Contains("sem_token", StringComparison.Ordinal) ? "sem_token" : "error";
+                return null;
+            }
+            var text = JsonDocument.Parse(corpo).RootElement.GetProperty("text").GetString() ?? "";
+            var resultado = ResultadoDoTexto(text);
+            if (resultado is null) outcome = "error";
+            return resultado;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            _logger.LogWarning(ex, "Leitura pela subscrição falhou — continua sem dados da IA.");
+            outcome = ex is TaskCanceledException ? "timeout" : "error";
+            return null;
+        }
+        finally
+        {
+            relogio.Stop();
+            await _tracker.RecordAsync("subscricao", "parse-pdf", new LlmUsageTokens(0, 0, 0, 0), (int)relogio.ElapsedMilliseconds, outcome, ct);
         }
     }
 

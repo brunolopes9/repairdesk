@@ -117,6 +117,8 @@ export default function LlmUsage() {
   // Última chamada sem crédito, se depois dela não houve nenhuma OK (a lista vem da mais recente para a mais antiga).
   const iSem = recent.findIndex((r) => r.outcome === 'sem_credito');
   const semCredito = iSem >= 0 && !recent.slice(0, iSem).some((r) => r.outcome === 'ok') ? recent[iSem] : null;
+  const iTok = recent.findIndex((r) => r.outcome === 'sem_token');
+  const semToken = iTok >= 0 && !recent.slice(0, iTok).some((r) => r.outcome === 'ok') ? recent[iTok] : null;
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
@@ -127,13 +129,19 @@ export default function LlmUsage() {
           Uso de IA (Anthropic Claude)
         </h1>
         <p className="text-sm text-zinc-500">
-          A leitura automática das faturas (PDF e foto) usa a API da Anthropic, paga à parte da subscrição do Claude
-          (a subscrição Pro/Max não dá acesso à API). Aqui vês quanto gastas e se a conta tem crédito.
+          A leitura automática das faturas usa a tua <strong>subscrição Claude (Max)</strong> através do serviço «ia» do servidor —
+          sem créditos da API. As leituras pela subscrição aparecem com o modelo «subscricao» e custo 0 €.
         </p>
       </header>
 
       {/* Sprint 663: a conta da API sem crédito parava a leitura das faturas sem ninguém saber. */}
-      {semCredito && (
+      {semToken && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          <AlertCircle size={20} className="mt-0.5 shrink-0" />
+          <span><strong>Falta ligar a subscrição ao serviço «ia».</strong> No servidor: <code>claude setup-token</code> e pôr o token em CLAUDE_CODE_OAUTH_TOKEN no .env.production (o Claude faz isto por ti).</span>
+        </div>
+      )}
+      {semCredito && !semToken && (
         <a href="https://console.anthropic.com/settings/billing" target="_blank" rel="noopener noreferrer"
           className="flex items-start gap-3 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
           <AlertCircle size={20} className="mt-0.5 shrink-0" />
