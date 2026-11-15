@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Banknote, Boxes, CheckCircle2, FileText, PackageSearch, Plus, Save, Trash2, Wrench, XCircle } from 'lucide-react';
-import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
+import { AutosaveStatus, BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
+import { useAutosave } from '../../lib/useAutosave';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -129,8 +130,17 @@ export default function VendaEditor() {
   const [faturaData, setFaturaData] = useState(new Date().toISOString().slice(0, 10));
   const [confirmCancel, setConfirmCancel] = useState(false);
 
+  // Sprint 675: a venda grava sozinha. `ignorarSync` evita que a resposta do autosave reescreva o que se está a
+  // escrever; `rebase` marca o que veio do servidor como «já gravado» depois de o formulário o mostrar.
+  const ignorarSync = useRef(false);
+  const [rebase, setRebase] = useState(0);
+  const idsPorKey = useRef(new Map<string, string>());
+
   useEffect(() => {
     if (!venda) return;
+    if (ignorarSync.current) { ignorarSync.current = false; return; }
+    idsPorKey.current = new Map(venda.items.map((i) => [i.id, i.id]));
+    setRebase((n) => n + 1);
     setTipo(venda.tipo);
     const modoSemIva = semIvaPorDefeito(venda.tipo);
     setSemIva(modoSemIva);
@@ -230,6 +240,30 @@ export default function VendaEditor() {
     if (isNew) navigate(`/vendas/${v.id}`, { replace: true });
   }
 
+  // Sprint 675: autosave da venda já criada. Leva as chaves das linhas para dar o id certo às linhas novas,
+  // mesmo que uma gravação fique em espera enquanto outra corre (sem linhas repetidas).
+  const valida = !(tipo === VENDA_TIPO.Reparacao && !cliente)
+    && linhas.every((l) => (l.compraLinhaId || l.descricao.trim()) && Number(l.quantidade) >= 1 && parseDecimal(l.preco) != null);
+  const pedidoAuto = { req: isNew ? null : buildRequest(), keys: linhas.map((l) => l.key) };
+  const auto = useAutosave(pedidoAuto, async ({ req, keys }) => {
+    if (!req || !id) return;
+    const linhasReq = req.linhas.map((l, i) => ({ ...l, id: l.id ?? idsPorKey.current.get(keys[i]) ?? null }));
+    const v = await vendasApi.update(id, { ...req, linhas: linhasReq });
+    const conhecidos = new Set(linhasReq.map((l) => l.id).filter(Boolean));
+    const novos = v.items.filter((i) => !conhecidos.has(i.id));
+    let k = 0;
+    linhasReq.forEach((l, i) => { if (!l.id && novos[k]) idsPorKey.current.set(keys[i], novos[k++].id); });
+    setLinhas((ls) => ls.map((l) => (l.id ? l : { ...l, id: idsPorKey.current.get(l.key) ?? null })));
+    ignorarSync.current = true;
+    qc.setQueryData(['venda', v.id], v);
+    void qc.invalidateQueries({ queryKey: ['vendas'] });
+    void qc.invalidateQueries({ queryKey: ['compras'] });
+  }, { ativo: !isNew && rebase > 0 && !fechada && valida, atraso: 900 });
+  useEffect(() => {
+    if (rebase > 0) auto.reiniciar({ req: buildRequest(), keys: linhas.map((l) => l.key) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rebase]);
+
   const guardar = useMutation({
     mutationFn: (estado?: VendaEstado) => (isNew ? vendasApi.create(buildRequest(estado)) : vendasApi.update(id!, buildRequest())),
     onSuccess: (v) => onSaved(v, isNew ? 'Venda criada' : 'Venda guardada'),
@@ -250,7 +284,7 @@ export default function VendaEditor() {
   const mudarEstado = useMutation({
     mutationFn: async (estado: VendaEstado) => {
       // Grava alterações pendentes antes de mudar de estado (exceto ao cancelar).
-      if (!fechada && estado !== VENDA_ESTADO.Cancelada) await vendasApi.update(id!, buildRequest());
+      if (!fechada && estado !== VENDA_ESTADO.Cancelada) await auto.gravarJa();
       return vendasApi.mudarEstado(id!, estado, estado === VENDA_ESTADO.Entregue ? pagamento : undefined);
     },
     onSuccess: (v) => { setConfirmCancel(false); onSaved(v, VENDA_ESTADO_LABEL[v.estado]); },
@@ -260,7 +294,7 @@ export default function VendaEditor() {
   // Sprint 650: entregar sem receber já (o cliente paga depois) — fica nas cobranças até ser paga.
   const entregarPorReceber = useMutation({
     mutationFn: async () => {
-      if (!fechada) await vendasApi.update(id!, buildRequest());
+      if (!fechada) await auto.gravarJa();
       return vendasApi.mudarEstado(id!, VENDA_ESTADO.Entregue, pagamento, true);
     },
     onSuccess: (v) => onSaved(v, 'Entregue — fica por receber'),
@@ -268,19 +302,19 @@ export default function VendaEditor() {
   });
 
   const marcarPagamento = useMutation({
-    mutationFn: (porReceber: boolean) => vendasApi.pagamento(id!, porReceber),
+    mutationFn: async (porReceber: boolean) => { await auto.gravarJa(); return vendasApi.pagamento(id!, porReceber); },
     onSuccess: (v) => onSaved(v, v.porReceber ? 'Marcada como por receber' : 'Marcada como paga'),
     onError: (err) => toast.fromError(err),
   });
 
   const semFatura = useMutation({
-    mutationFn: (ativo: boolean) => vendasApi.foraApuramento(id!, ativo),
+    mutationFn: async (ativo: boolean) => { await auto.gravarJa(); return vendasApi.foraApuramento(id!, ativo); },
     onSuccess: (v) => onSaved(v, v.foraApuramento ? 'Marcada como sem fatura' : 'Voltou a precisar de fatura'),
     onError: (err) => toast.fromError(err),
   });
 
   const registarFatura = useMutation({
-    mutationFn: () => vendasApi.registarFatura(id!, fatura.trim() || null, faturaData),
+    mutationFn: async () => { await auto.gravarJa(); return vendasApi.registarFatura(id!, fatura.trim() || null, faturaData); },
     onSuccess: (v) => onSaved(v, v.invoiceNumber ? 'Fatura registada' : 'Fatura removida'),
     onError: (err) => toast.fromError(err),
   });
@@ -425,7 +459,8 @@ export default function VendaEditor() {
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    guardar.mutate(isNew ? VENDA_ESTADO.Orcamento : undefined);
+    if (isNew) guardar.mutate(VENDA_ESTADO.Orcamento);
+    else void auto.gravarJa(); // Enter numa venda existente: grava já o que está pendente
   }
 
   const precisaCliente = tipo === VENDA_TIPO.Reparacao && !cliente;
@@ -464,10 +499,14 @@ export default function VendaEditor() {
               Orçamento PDF
             </Button>
           )}
-          {!fechada && (
-          <Button type="submit" variant={isNew ? 'secondary' : 'primary'} loading={guardar.isPending && guardar.variables !== VENDA_ESTADO.Entregue} disabled={!podeGravar} leftIcon={<Save size={15} />}>
-            {isNew ? 'Guardar orçamento' : 'Guardar'}
+          {!fechada && isNew && (
+          <Button type="submit" variant="secondary" loading={guardar.isPending && guardar.variables !== VENDA_ESTADO.Entregue} disabled={!podeGravar} leftIcon={<Save size={15} />}>
+            Guardar orçamento
           </Button>
+          )}
+          {!fechada && !isNew && (
+            <AutosaveStatus estado={valida ? auto.estado : 'erro'} onTentar={valida ? auto.tentarDeNovo : undefined}
+              erro={valida ? auto.erro : precisaCliente ? 'Falta o cliente — não guardei' : 'Há uma linha incompleta — não guardei'} />
           )}
           </>
         )}
