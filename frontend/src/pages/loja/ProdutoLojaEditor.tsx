@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ExternalLink, Globe, ImagePlus, Loader2, Plus, Save, Sparkles, Trash2, X } from 'lucide-react';
-import { Button, SectionCard, SkeletonCard } from '../../components/ui';
+import { AutosaveStatus, Button, SectionCard, SkeletonCard } from '../../components/ui';
+import { useAutosave } from '../../lib/useAutosave';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
@@ -160,12 +161,21 @@ export default function ProdutoLojaEditor() {
   }, [novo, prefill, artigoInicial, artigos.data]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Sprint 672: um produto que já existe grava sozinho (sem botão «Guardar»). Um novo cria-se com «Criar produto».
+  const auto = useAutosave(f, async (v) => {
+    const r = await lojaApi.update(id!, v);
+    qc.setQueryData(['loja', 'produto', r.id], r);
+    void qc.invalidateQueries({ queryKey: ['loja', 'produtos'] });
+  }, { ativo: !novo && carregado && !!f.titulo.trim() });
+
   useEffect(() => {
     if (produto.data && !carregado) {
-      setF(paraForm(produto.data));
+      const inicial = paraForm(produto.data);
+      setF(inicial);
+      auto.reiniciar(inicial);
       setCarregado(true);
     }
-  }, [produto.data, carregado]);
+  }, [produto.data, carregado, auto]);
 
   const set = <K extends keyof GuardarProdutoLoja>(k: K, v: GuardarProdutoLoja[K]) => setF((s) => ({ ...s, [k]: v }));
 
@@ -202,10 +212,10 @@ export default function ProdutoLojaEditor() {
   });
 
   const publicar = useMutation({
-    mutationFn: (sim: boolean) => lojaApi.publicar(id!, sim),
+    mutationFn: async (sim: boolean) => { await auto.gravarJa(); return lojaApi.publicar(id!, sim); },
     onSuccess: (p) => {
       refrescar(p);
-      toast.success(p.publicado ? 'Publicado — aparece no site amanhã às 07:30.' : 'Sai do site amanhã às 07:30.');
+      toast.success(p.publicado ? 'Publicado — aparece no site dentro de 1 a 2 minutos.' : 'Sai do site dentro de 1 a 2 minutos.');
     },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
@@ -477,9 +487,11 @@ export default function ProdutoLojaEditor() {
               if (await confirm({ title: `Apagar #${p.numero}?`, description: 'Apaga o produto e as fotos. Não volta atrás.', confirmLabel: 'Apagar', destructive: true })) apagar.mutate();
             }}>Apagar</Button>
           ) : <span />}
-          <Button size="lg" leftIcon={<Save size={16} />} loading={guardar.isPending} onClick={() => guardar.mutate()}>
-            {novo ? 'Criar produto' : 'Guardar'}
-          </Button>
+          {novo ? (
+            <Button size="lg" leftIcon={<Save size={16} />} loading={guardar.isPending} onClick={() => guardar.mutate()}>Criar produto</Button>
+          ) : (
+            <AutosaveStatus estado={f.titulo.trim() ? auto.estado : 'erro'} erro={f.titulo.trim() ? auto.erro : 'Falta o título — não guardei'} onTentar={f.titulo.trim() ? auto.tentarDeNovo : undefined} />
+          )}
         </div>
       </div>
     </div>
