@@ -51,7 +51,8 @@ public class RepairDeskApiFactory : WebApplicationFactory<Program>
             var dbCtx = services.SingleOrDefault(d => d.ServiceType == typeof(AppDbContext));
             if (dbCtx is not null) services.Remove(dbCtx);
 
-            services.AddDbContext<AppDbContext>(opt => opt.UseInMemoryDatabase(_dbName));
+            services.AddDbContext<AppDbContext>((sp, opt) => opt.UseInMemoryDatabase(_dbName)
+                .AddInterceptors(sp.GetRequiredService<RepairDesk.DAL.Persistence.LojaMudancasInterceptor>()));
         });
 
         var host = base.CreateHost(builder);

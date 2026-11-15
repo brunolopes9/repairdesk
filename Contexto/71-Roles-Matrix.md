@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:7239d40c7c71cc07 -->
+<!-- roles-matrix-snapshot:873682d5296f8162 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -114,6 +114,9 @@ Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por re
 > Nov/2026 (Sprint 633): `api/financas` — só Admin (finanças do dono, inclui despesas pessoais). Em `GET api/despesas` quem não é Admin só vê o âmbito Negócio.
 
 > Nov/2026 (Sprint 636): `POST api/loja/produtos/importar` — só Admin (rascunhos).
+> Nov/2026 (Sprint 671): `PUT api/compras/{id}/linhas/{linhaId}/preco` (preço/lucro de um lote) — `Authenticated`, como o resto das compras.
+> Nov/2026 (Sprint 672): `POST api/loja/produtos/gerar-texto` (texto do produto pela IA da subscrição) — só Admin.
+> Nov/2026 (Sprint 674): `GET api/external/loja/aguardar` — API key com scope «loja» (o gerador do site espera aqui por mudanças).
 > Nov/2026 (Sprint 656): `GET/PUT api/loja/encomendas` — só Admin. `api/public/loja/{slug}/checkout` e `.../encomendas/{ref}?t=` anónimos (IntakeSlug + rate limit + token do link); `api/public/loja/stripe/webhook` anónimo com assinatura Stripe obrigatória.
 > Nov/2026 (Sprint 659): `api/public/loja/{slug}/conta/*` anónimos (registar, entrar, sair, eu, encomendas, recuperar, redefinir) — sessão de cliente da loja no cabeçalho X-Loja-Sessao (token aleatório, hash na BD), rate limit auth-strict/auth-reset. Sem acesso ao Mender.
 > Nov/2026 (Sprint 661): `GET api/loja/newsletter` — só Admin. `api/public/loja/{slug}/newsletter` (+ `/confirmar`, `/cancelar`) anónimos: confirmação dupla por email, token de confirmação em hash, campo-armadilha anti-bot, rate limit auth-reset/auth-strict.

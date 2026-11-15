@@ -102,9 +102,11 @@ try
         var connStr = builder.Configuration.GetConnectionString("Default")
             ?? throw new InvalidOperationException("ConnectionStrings:Default not configured.");
 
-        builder.Services.AddDbContext<AppDbContext>(opt =>
+        // Sprint 674: o interceptor acorda a loja do site quando muda algo que ela mostra.
+        builder.Services.AddDbContext<AppDbContext>((sp, opt) =>
             opt.UseSqlServer(connStr, sql =>
-                sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
+                sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
+               .AddInterceptors(sp.GetRequiredService<RepairDesk.DAL.Persistence.LojaMudancasInterceptor>()));
     }
 
     // Identity
@@ -350,6 +352,8 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Rotina.IRotinaAvisosService, RepairDesk.Services.Rotina.RotinaAvisosService>();
     builder.Services.AddScoped<IProdutoLojaRepository, RepairDesk.DAL.Persistence.ProdutoLojaRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.ILojaService, RepairDesk.Services.Loja.LojaService>();
+    builder.Services.AddSingleton<RepairDesk.Core.Abstractions.ILojaMudancas, RepairDesk.Services.Loja.LojaMudancas>();
+    builder.Services.AddScoped<RepairDesk.DAL.Persistence.LojaMudancasInterceptor>();
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.ITextoProdutoIa, RepairDesk.Services.Loja.TextoProdutoIa>(c => c.Timeout = TimeSpan.FromSeconds(160));
     // Sprint 656: encomendas da loja online + Stripe Checkout (chaves só no servidor: Stripe__SecretKey, Stripe__WebhookSecret).
     builder.Services.Configure<RepairDesk.Services.Loja.StripeOptions>(builder.Configuration.GetSection("Stripe"));

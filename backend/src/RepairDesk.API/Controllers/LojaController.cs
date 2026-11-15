@@ -89,8 +89,36 @@ public sealed class LojaController : ControllerBase
 public sealed class ExternalLojaController : ControllerBase
 {
     private readonly ILojaService _service;
-    public ExternalLojaController(ILojaService service) => _service = service;
+    private readonly RepairDesk.Core.Abstractions.ILojaMudancas _mudancas;
+    public ExternalLojaController(ILojaService service, RepairDesk.Core.Abstractions.ILojaMudancas mudancas)
+    {
+        _service = service;
+        _mudancas = mudancas;
+    }
 
     [HttpGet("catalogo")]
     public async Task<ActionResult<CatalogoDto>> Catalogo(CancellationToken ct) => Ok(await _service.CatalogoAsync(ct));
+
+    /// <summary>
+    /// Sprint 674: o gerador do site deixa este pedido aberto com a versão que tem. Responde logo se o catálogo já é
+    /// outro; senão fica à espera e responde no instante em que algo da loja muda (ou ao fim de <paramref name="segundos"/>).
+    /// </summary>
+    [HttpGet("aguardar")]
+    public async Task<ActionResult<object>> Aguardar([FromQuery] string? versao, [FromQuery] int segundos = 50, CancellationToken ct = default)
+    {
+        var limite = TimeSpan.FromSeconds(Math.Clamp(segundos, 1, 55));
+        var inicio = DateTime.UtcNow;
+        while (true)
+        {
+            var marca = _mudancas.Atual;
+            var atual = (await _service.CatalogoAsync(ct)).Versao;
+            if (!string.Equals(atual, versao, StringComparison.Ordinal)) return Ok(new { versao = atual, mudou = true });
+            var falta = limite - (DateTime.UtcNow - inicio);
+            if (falta <= TimeSpan.Zero) return Ok(new { versao = atual, mudou = false });
+            await _mudancas.EsperarAsync(marca, falta, ct);
+            if (ct.IsCancellationRequested) return Ok(new { versao = atual, mudou = false });
+            // Várias gravações seguidas (ex.: produto + fotos): espera um instante para publicar tudo de uma vez.
+            if (_mudancas.Atual != marca) await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        }
+    }
 }
