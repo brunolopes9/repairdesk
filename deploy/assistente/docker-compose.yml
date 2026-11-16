@@ -1,0 +1,13 @@
+services:
+  assistente:
+    build: .
+    container_name: mender-assistente
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+      - ../estudio/data/alertas.json:/alertas/estudio.json          # limite-<DATA> partilhado com o estúdio
+      - /opt/lopestech-diario/alertas.json:/alertas/lopestech.json  # e com a rotina diária da LopesTech
+    mem_limit: 1500m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
