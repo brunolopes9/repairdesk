@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:880721fffaa67d52 -->
+<!-- roles-matrix-snapshot:4506d5b5b823e339 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -131,3 +131,4 @@ Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por re
 > Nov/2026 (Sprint 682): `POST api/public/loja/{intakeSlug}/alertas-stock` — anónimo (rate limit), regista «avisa-me quando houver»; os avisos seguem quando o site lê `api/external/loja/catalogo`.
 > 16/11/2026: removido `PUT api/vendas/{id}/fora-apuramento` — as vendas são todas faturadas pelo valor total.
 > Nov/2026 (Sprint 687): `api/lista-encomendas` (GET/POST/PUT/DELETE, staff autenticado) e `api/external/assistente/lista-encomendas` (GET/POST, chave «assistente»).
+> Nov/2026 (Sprint 688): `GET api/compras/{id}/despesas` (autenticado), `POST api/compras/{id}/passar-a-despesa` e `PUT api/despesas/{id}/compra` (Admin) — fatura mista.

@@ -15,6 +15,7 @@ import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor } from '
 import { supplierInvoicesApi, type SupplierInvoiceImport } from '../../lib/supplierInvoices/api';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { VENDA_TIPO } from '../../lib/vendas/types';
+import { FaturaMistaCard } from './FaturaMistaCard';
 
 /** Taxa normal de IVA nas vendas (o servidor usa FiscalDefaults.TaxaIvaNormal). */
 const TAXA_VENDA = 0.23;
@@ -574,6 +575,8 @@ export default function CompraEditor() {
           </dl>
         </div>
       </SectionCard>
+
+      {!isNew && existente.data && <FaturaMistaCard compra={existente.data} isAdmin={isAdmin} />}
     </form>
   );
 }

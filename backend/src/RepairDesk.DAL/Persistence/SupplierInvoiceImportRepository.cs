@@ -23,6 +23,16 @@ public class SupplierInvoiceImportRepository : ISupplierInvoiceImportRepository
     public Task<SupplierInvoiceImport?> FindByDespesaIdAsync(Guid despesaId, CancellationToken ct = default)
         => _db.SupplierInvoiceImports.FirstOrDefaultAsync(x => x.DespesaId == despesaId, ct);
 
+    public async Task<IReadOnlySet<Guid>> ImportsMistosAsync(IReadOnlyCollection<Guid> importIds, CancellationToken ct = default)
+    {
+        if (importIds.Count == 0) return new HashSet<Guid>();
+        var ids = await (from c in _db.ComprasDocumentos.AsNoTracking()
+                         where c.SupplierInvoiceImportId != null && importIds.Contains(c.SupplierInvoiceImportId.Value)
+                               && _db.Despesas.Any(d => d.CompraDocumentoId == c.Id)
+                         select c.SupplierInvoiceImportId!.Value).ToListAsync(ct);
+        return ids.ToHashSet();
+    }
+
     public async Task<IReadOnlyDictionary<Guid, Guid>> ImportIdsPorDespesaAsync(IReadOnlyCollection<Guid> despesaIds, CancellationToken ct = default)
     {
         if (despesaIds.Count == 0) return new Dictionary<Guid, Guid>();

@@ -1657,6 +1657,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("Categoria")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("CompraDocumentoId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1729,7 +1732,11 @@ namespace RepairDesk.DAL.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CompraDocumentoId");
+
                     b.HasIndex("TenantId", "Categoria");
+
+                    b.HasIndex("TenantId", "CompraDocumentoId");
 
                     b.HasIndex("TenantId", "Data");
 
@@ -4508,6 +4515,14 @@ namespace RepairDesk.DAL.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Publicacao");
+                });
+
+            modelBuilder.Entity("RepairDesk.Core.Entities.Despesa", b =>
+                {
+                    b.HasOne("RepairDesk.Core.Entities.CompraDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("CompraDocumentoId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("RepairDesk.Core.Entities.Device", b =>

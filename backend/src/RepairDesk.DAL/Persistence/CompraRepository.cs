@@ -67,6 +67,9 @@ public class CompraRepository : ICompraRepository
             .ToListAsync(ct);
     }
 
+    public Task<CompraDocumento?> FindByNumeroAsync(int numero, CancellationToken ct = default)
+        => _db.ComprasDocumentos.FirstOrDefaultAsync(d => d.Numero == numero, ct);
+
     public Task<CompraDocumento?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.ComprasDocumentos
             .Include(d => d.Fornecedor)

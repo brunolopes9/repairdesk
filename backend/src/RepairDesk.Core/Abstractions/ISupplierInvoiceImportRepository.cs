@@ -9,6 +9,8 @@ public interface ISupplierInvoiceImportRepository
     /// <summary>Sprint 580: a fatura importada que deu origem a uma despesa (null se a despesa foi criada à mão).</summary>
     Task<SupplierInvoiceImport?> FindByDespesaIdAsync(Guid despesaId, CancellationToken ct = default);
     /// <summary>Sprint 586: despesa → fatura importada (PDF), para as despesas pedidas que têm uma.</summary>
+    /// <summary>Sprint 688: dos imports dados, os que são de uma compra com despesas ligadas (fatura mista).</summary>
+    Task<IReadOnlySet<Guid>> ImportsMistosAsync(IReadOnlyCollection<Guid> importIds, CancellationToken ct = default);
     Task<IReadOnlyDictionary<Guid, Guid>> ImportIdsPorDespesaAsync(IReadOnlyCollection<Guid> despesaIds, CancellationToken ct = default);
     Task<IReadOnlyList<SupplierInvoiceImport>> ListPendingAsync(Guid tenantId, int take, CancellationToken ct = default);
     /// <summary>Sprint 163b: importações não-pending (Approved/Rejected/Failed) para tab "Histórico".</summary>

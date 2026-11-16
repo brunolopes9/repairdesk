@@ -14,6 +14,19 @@ public class DespesaRepository : IDespesaRepository
         => await _db.Despesas.AsNoTracking().Where(d => !d.IsCogs && d.Data >= from && d.Data < to)
             .OrderBy(d => d.Data).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Despesa>> ListByCompraAsync(Guid compraId, CancellationToken ct = default)
+        => await _db.Despesas.AsNoTracking().Where(d => d.CompraDocumentoId == compraId).OrderBy(d => d.Numero).ToListAsync(ct);
+
+    public async Task<IReadOnlyDictionary<Guid, CompraLigada>> ComprasLigadasAsync(IReadOnlyCollection<Guid> despesaIds, CancellationToken ct = default)
+    {
+        if (despesaIds.Count == 0) return new Dictionary<Guid, CompraLigada>();
+        var pares = await (from d in _db.Despesas.AsNoTracking()
+                           where d.CompraDocumentoId != null && despesaIds.Contains(d.Id)
+                           join c in _db.ComprasDocumentos.AsNoTracking() on d.CompraDocumentoId equals c.Id
+                           select new { d.Id, CompraId = c.Id, c.Numero, c.SupplierInvoiceImportId }).ToListAsync(ct);
+        return pares.ToDictionary(p => p.Id, p => new CompraLigada(p.CompraId, p.Numero, p.SupplierInvoiceImportId));
+    }
+
     public Task<Despesa?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.Despesas.FirstOrDefaultAsync(d => d.Id == id, ct);
 

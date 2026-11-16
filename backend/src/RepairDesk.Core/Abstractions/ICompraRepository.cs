@@ -11,6 +11,8 @@ public interface ICompraRepository
 
     /// <summary>Documento com fornecedor e linhas (tracked, para edição).</summary>
     Task<CompraDocumento?> FindByIdAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Sprint 688: pelo nº visível (C#64).</summary>
+    Task<CompraDocumento?> FindByNumeroAsync(int numero, CancellationToken ct = default);
 
     /// <summary>Documentos do fornecedor com o mesmo nº de fatura ou alguma encomenda em comum (anti-duplicados).</summary>
     Task<IReadOnlyList<CompraDocumento>> FindPossiveisDuplicadosAsync(Guid fornecedorId, string? numeroFatura, IReadOnlyCollection<string> encomendas, Guid? excluirId, CancellationToken ct = default);

@@ -81,6 +81,12 @@ public sealed record DespesaDto(
     DespesaAmbito Ambito = DespesaAmbito.Negocio,
     DespesaNatureza Natureza = DespesaNatureza.Gasto,
     /// <summary>Sprint 644: sem fatura com o NIF da empresa — só gestão, fora do fiscal.</summary>
-    bool SemFaturaValida = false);
+    bool SemFaturaValida = false,
+    /// <summary>Sprint 688: fatura mista — a compra de onde esta despesa saiu (o PDF é o dela).</summary>
+    Guid? CompraDocumentoId = null,
+    int? CompraNumero = null);
+
+/// <summary>Sprint 688: liga (ou desliga, com null) uma despesa à compra da mesma fatura.</summary>
+public sealed record LigarCompraRequest(int? CompraNumero);
 
 

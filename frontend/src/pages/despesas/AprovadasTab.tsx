@@ -354,6 +354,12 @@ export default function AprovadasTab({
                       recorrente
                     </span>
                   )}
+                  {d.compraNumero != null && (
+                    <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-medium text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                      title="Fatura mista: o resto desta fatura é stock (compra). O PDF é o da compra — um só ficheiro.">
+                      mista · C#{d.compraNumero}
+                    </span>
+                  )}
                   {d.semFaturaValida ? (
                     <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium text-violet-800 dark:bg-violet-950/40 dark:text-violet-300"
                       title="Sem fatura com o NIF da empresa: conta nas Finanças, fica fora do IVA e do IRS">

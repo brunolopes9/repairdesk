@@ -45,8 +45,10 @@ public class DespesaService : IDespesaService
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
         var (items, total) = await _repo.SearchAsync(query, categoria, categoriaIn, includeSupplierInvoiceImports, excludeSupplierInvoiceImports, from, to, isRecorrente, page, pageSize, ct, ambito);
-        var pdfs = _imports is null ? null : await _imports.ImportIdsPorDespesaAsync(items.Select(d => d.Id).ToList(), ct);
-        return new PagedResult<DespesaDto>(items.Select(d => ToDto(d, pdfs?.GetValueOrDefault(d.Id))).ToList(), page, pageSize, total);
+        var ids = items.Select(d => d.Id).ToList();
+        var pdfs = _imports is null ? null : await _imports.ImportIdsPorDespesaAsync(ids, ct);
+        var compras = await _repo.ComprasLigadasAsync(ids, ct);
+        return new PagedResult<DespesaDto>(items.Select(d => ToDto(d, pdfs?.GetValueOrDefault(d.Id), compras.GetValueOrDefault(d.Id))).ToList(), page, pageSize, total);
     }
 
     public async Task<DespesasResumoDto> ResumoAsync(
@@ -63,7 +65,7 @@ public class DespesaService : IDespesaService
     public async Task<DespesaDto> GetAsync(Guid id, CancellationToken ct = default)
     {
         var d = await _repo.FindByIdAsync(id, ct) ?? throw new NotFoundException("Despesa", id);
-        return ToDto(d, _imports is null ? null : (await _imports.FindByDespesaIdAsync(id, ct))?.Id);
+        return await DtoAsync(d, ct);
     }
 
     public async Task<DespesaDto> CreateAsync(CreateDespesaRequest req, CancellationToken ct = default)
@@ -148,7 +150,7 @@ public class DespesaService : IDespesaService
         d.SemFaturaValida = req.SemFaturaValida;
 
         await _repo.SaveAsync(ct);
-        return ToDto(d, _imports is null ? null : (await _imports.FindByDespesaIdAsync(id, ct))?.Id);
+        return await DtoAsync(d, ct);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
@@ -167,9 +169,19 @@ public class DespesaService : IDespesaService
     }
 
 
-    private static DespesaDto ToDto(Despesa d) => ToDto(d, null);
+    private static DespesaDto ToDto(Despesa d) => ToDto(d, null, null);
 
-    private static DespesaDto ToDto(Despesa d, Guid? importId) =>
+    private async Task<DespesaDto> DtoAsync(Despesa d, CancellationToken ct)
+    {
+        var importId = _imports is null ? null : (await _imports.FindByDespesaIdAsync(d.Id, ct))?.Id;
+        var compra = d.CompraDocumentoId is null ? null : (await _repo.ComprasLigadasAsync([d.Id], ct)).GetValueOrDefault(d.Id);
+        return ToDto(d, importId, compra);
+    }
+
+    /// <summary>Sprint 688: numa fatura mista o PDF é o da compra — a despesa abre esse (um só ficheiro).</summary>
+    public static DespesaDto ToDto(Despesa d, Guid? importId, CompraLigada? compra) =>
         new(d.Id, d.Descricao, d.Categoria, d.ValorCents, d.Data, d.Fornecedor, d.NumeroEncomenda, d.Notas,
-            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero, importId, d.Afetacao, d.Ambito, d.Natureza, d.SemFaturaValida);
+            d.CreatedAt, d.IsCogs, d.IsRecorrente, d.PeriodicidadeMeses, d.IvaCents, d.DeducaoPercent, d.ReverseCharge, d.Numero,
+            importId ?? compra?.SupplierInvoiceImportId, d.Afetacao, d.Ambito, d.Natureza, d.SemFaturaValida,
+            compra?.CompraId, compra?.Numero);
 }

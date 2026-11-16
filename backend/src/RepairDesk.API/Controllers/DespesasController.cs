@@ -83,6 +83,13 @@ public class DespesasController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Sprint 688: liga a despesa à compra da mesma fatura (fatura mista); null desliga.</summary>
+    [HttpPut("{id:guid}/compra")]
+    [Authorize(Roles = "Admin")]
+    public Task<DespesaDto> LigarCompra(Guid id, [FromBody] LigarCompraRequest req,
+        [FromServices] RepairDesk.Services.Compras.IFaturaMistaService mista, CancellationToken ct)
+        => mista.LigarDespesaAsync(id, req, ct);
+
     /// <summary>
     /// Sprint 586: anexa o PDF (ou a foto) da fatura a uma despesa criada à mão, para a abrir e imprimir como nas
     /// compras. Sem leitura por IA — os dados ficam os da despesa.

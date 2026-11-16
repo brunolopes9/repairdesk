@@ -73,4 +73,10 @@ public class Despesa : BaseEntity, ITenantEntity
     /// loja» e da regra dos 15% do IRS. «Promover a fiscal» = voltar a false quando chegar a fatura certa.
     /// </summary>
     public bool SemFaturaValida { get; set; }
+
+    /// <summary>
+    /// Sprint 688 (fatura mista): a despesa vem da mesma fatura de uma compra de stock — o fornecedor não separa
+    /// faturas, separa-se no Mender. O PDF é o da compra (um só ficheiro, nunca duplicado).
+    /// </summary>
+    public Guid? CompraDocumentoId { get; set; }
 }

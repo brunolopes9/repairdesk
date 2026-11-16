@@ -123,6 +123,9 @@ export interface Despesa {
   numero?: number;
   /** Sprint 586: fatura (PDF ou foto) desta despesa — abre em supplierInvoicesApi.pdfPath; null = por anexar. */
   supplierInvoiceImportId?: string | null;
+  /** Sprint 688: fatura mista — a compra de onde esta despesa saiu (o PDF é o dessa compra). */
+  compraDocumentoId?: string | null;
+  compraNumero?: number | null;
 }
 
 export interface CreateDespesaForm {

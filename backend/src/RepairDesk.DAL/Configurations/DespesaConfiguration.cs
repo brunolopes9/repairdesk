@@ -24,5 +24,7 @@ public class DespesaConfiguration : IEntityTypeConfiguration<Despesa>
         builder.HasIndex(x => new { x.TenantId, x.Numero }).IsUnique();
         builder.HasIndex(x => new { x.TenantId, x.Categoria });
         builder.HasIndex(x => new { x.TenantId, x.IsRecorrente });
+        builder.HasIndex(x => new { x.TenantId, x.CompraDocumentoId });
+        builder.HasOne<CompraDocumento>().WithMany().HasForeignKey(x => x.CompraDocumentoId).OnDelete(DeleteBehavior.SetNull);
     }
 }

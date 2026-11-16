@@ -901,11 +901,14 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // Sprint 564: export de um só fornecedor (pedido do Bruno: por mês, trimestre e fornecedor).
         if (fornecedorId is { } fid) entities = entities.Where(e => e.FornecedorId == fid).ToList();
         // Sprint 564b: aprovada sem despesa = compra de stock (CompraDocumento); com despesa = custo do negócio.
+        // Sprint 688: fatura mista (compra com despesas ligadas) — um só PDF, que entra nos dois exports e
+        // aparece uma vez no «Todas», marcado «Mista» no índice.
+        var mistas = await _repo.ImportsMistosAsync(entities.Select(e => e.Id).ToList(), ct);
         if (tipo == FaturaExportTipo.Compras) entities = entities.Where(e => e.DespesaId is null).ToList();
-        else if (tipo == FaturaExportTipo.Despesas) entities = entities.Where(e => e.DespesaId is not null).ToList();
+        else if (tipo == FaturaExportTipo.Despesas) entities = entities.Where(e => e.DespesaId is not null || mistas.Contains(e.Id)).ToList();
         var ficheiros = NomesNoZip(entities);
         var zip = await _storage.CreateZipAsync(tenantId, entities.Select(e => (e.PdfRelativePath, ficheiros[e.Id])), ct);
-        zip = JuntarIndice(zip, entities, ficheiros);
+        zip = JuntarIndice(zip, entities, ficheiros, mistas);
         var sufixo = (tipo == FaturaExportTipo.Todas ? "" : "_" + tipo.ToString().ToLowerInvariant())
             + (fornecedorId is null ? "" : "_" + NomeSeguro(entities.FirstOrDefault()?.Fornecedor?.Name ?? "fornecedor"));
         var filename = $"Faturas-fornecedor_{inicio:yyyy-MM-dd}_a_{to.Date:yyyy-MM-dd}{sufixo}.zip";
@@ -942,7 +945,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
     }
 
     /// <summary>Sprint 563: "indice.csv" no ZIP — uma linha por fatura (fornecedor, nº, data, total, compra/despesa).</summary>
-    private static byte[] JuntarIndice(byte[] zip, IReadOnlyList<SupplierInvoiceImport> faturas, IReadOnlyDictionary<Guid, string> ficheiros)
+    private static byte[] JuntarIndice(byte[] zip, IReadOnlyList<SupplierInvoiceImport> faturas, IReadOnlyDictionary<Guid, string> ficheiros, IReadOnlySet<Guid> mistas)
     {
         static string Csv(string? v) => v is null ? "" : v.Contains(';') || v.Contains('"') ? $"\"{v.Replace("\"", "\"\"")}\"" : v;
         var sb = new System.Text.StringBuilder("ficheiro;fornecedor;documento;data;total;destino\r\n");
@@ -953,7 +956,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                 Csv(f.ParsedDocumentNumber),
                 (f.ParsedDocumentDate ?? f.CreatedAt).ToString("yyyy-MM-dd"),
                 f.ParsedTotalCents is { } c ? (c / 100m).ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")) : "",
-                f.DespesaId is null ? "Compra" : "Despesa")).Append("\r\n");
+                mistas.Contains(f.Id) ? "Mista (compra + despesa)" : f.DespesaId is null ? "Compra" : "Despesa")).Append("\r\n");
 
         using var ms = new MemoryStream();
         ms.Write(zip);

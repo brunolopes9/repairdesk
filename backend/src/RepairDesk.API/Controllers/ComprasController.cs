@@ -54,6 +54,18 @@ public class ComprasController : ControllerBase
     }
 
     /// <summary>Aprova uma fatura recebida (lida por IA) como compra — cria os lotes e fecha a importação.</summary>
+    /// <summary>Sprint 688: despesas que saíram da fatura desta compra (fatura mista).</summary>
+    [HttpGet("{id:guid}/despesas")]
+    public Task<IReadOnlyList<DespesaLigadaDto>> DespesasLigadas(Guid id, [FromServices] IFaturaMistaService mista, CancellationToken ct)
+        => mista.DespesasDaCompraAsync(id, ct);
+
+    /// <summary>Sprint 688: fatura mista — as linhas escolhidas saem do stock e passam a uma despesa ligada.</summary>
+    [HttpPost("{id:guid}/passar-a-despesa")]
+    [Authorize(Roles = "Admin")]
+    public Task<PassarParaDespesaResultado> PassarParaDespesa(Guid id, [FromBody] PassarParaDespesaRequest req,
+        [FromServices] IFaturaMistaService mista, CancellationToken ct)
+        => mista.PassarParaDespesaAsync(id, req, ct);
+
     [HttpPost("de-fatura/{importId:guid}")]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<CompraDocumentoDto>> CreateFromImport(Guid importId, [FromBody] CompraDocumentoWriteRequest req, CancellationToken ct)

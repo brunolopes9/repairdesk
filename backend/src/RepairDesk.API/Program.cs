@@ -368,6 +368,7 @@ try
     builder.Services.AddScoped<IAlertaStockRepository, RepairDesk.DAL.Persistence.AlertaStockRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.IAlertaStockService, RepairDesk.Services.Loja.AlertaStockService>();
     builder.Services.AddScoped<RepairDesk.API.Encomendas.IListaEncomendasService, RepairDesk.API.Encomendas.ListaEncomendasService>();
+    builder.Services.AddScoped<RepairDesk.Services.Compras.IFaturaMistaService, RepairDesk.Services.Compras.FaturaMistaService>();
     // Sprint 421 (Doc 90 Tier 1 #3): inventário físico.
     // Sprint 422 (Doc 90 Tier 2 #7): tarefas internas.
     builder.Services.AddScoped<IInternalTaskRepository, RepairDesk.DAL.Persistence.InternalTaskRepository>();

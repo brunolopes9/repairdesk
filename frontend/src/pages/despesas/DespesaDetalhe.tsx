@@ -1,6 +1,6 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2 } from 'lucide-react';
+import { Split, Trash2 } from 'lucide-react';
 import { AutosaveStatus, BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { DespesaCampos, useDespesaForm } from '../../components/DespesaFormModal';
 import { PdfPreview } from '../../components/PdfPreview';
@@ -71,13 +71,23 @@ export default function DespesaDetalhe() {
           </>
         }
       />
+      {d.compraDocumentoId && (
+        <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
+          <Split size={16} className="mt-0.5 shrink-0" />
+          <span>
+            <strong>Fatura mista.</strong> Esta despesa vem da mesma fatura da{' '}
+            <Link to={`/compras/${d.compraDocumentoId}`} className="font-semibold underline">compra nº {d.compraNumero}</Link>
+            {' '}— o resto da fatura é stock. O PDF abaixo é o dessa compra (um só ficheiro, não se imprime duas vezes).
+          </span>
+        </div>
+      )}
       <div className={`grid gap-4 ${d.supplierInvoiceImportId ? 'lg:grid-cols-[minmax(0,26rem)_1fr]' : ''}`}>
         <SectionCard title="Dados da despesa">
           <DespesaCampos form={form} mostrarFatura={false} />
         </SectionCard>
         {d.supplierInvoiceImportId ? (
           <SectionCard title="Fatura">
-            <PdfPreview path={supplierInvoicesApi.pdfPath(d.supplierInvoiceImportId)} title={`Fatura da despesa nº ${d.numero ?? ''}`} />
+            <PdfPreview path={supplierInvoicesApi.pdfPath(d.supplierInvoiceImportId)} title={d.compraDocumentoId ? `Fatura da compra nº ${d.compraNumero ?? ''} (mista)` : `Fatura da despesa nº ${d.numero ?? ''}`} />
           </SectionCard>
         ) : (
           <p className="rounded-lg border border-dashed border-zinc-300 p-4 text-sm text-zinc-500 dark:border-zinc-700">
