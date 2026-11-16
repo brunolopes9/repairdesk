@@ -904,7 +904,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // Sprint 688: fatura mista (compra com despesas ligadas) — um só PDF, que entra nos dois exports e
         // aparece uma vez no «Todas», marcado «Mista» no índice.
         var mistas = await _repo.ImportsMistosAsync(entities.Select(e => e.Id).ToList(), ct);
-        if (tipo == FaturaExportTipo.Compras) entities = entities.Where(e => e.DespesaId is null).ToList();
+        if (tipo == FaturaExportTipo.Compras) entities = entities.Where(e => e.DespesaId is null || mistas.Contains(e.Id)).ToList();
         else if (tipo == FaturaExportTipo.Despesas) entities = entities.Where(e => e.DespesaId is not null || mistas.Contains(e.Id)).ToList();
         var ficheiros = NomesNoZip(entities);
         var zip = await _storage.CreateZipAsync(tenantId, entities.Select(e => (e.PdfRelativePath, ficheiros[e.Id])), ct);

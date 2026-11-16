@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Receipt, Split } from 'lucide-react';
+import { FileText, Receipt, Split } from 'lucide-react';
 import { Button, SectionCard } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { api } from '../../lib/api';
 import { formatEur } from '../../lib/compras/format';
 import { formatDateOnly } from '../../lib/money';
 import { toast } from '../../lib/toast';
+import { openPdfInNewTab } from '../../lib/downloadPdf';
+import { supplierInvoicesApi } from '../../lib/supplierInvoices/api';
 import type { CompraDocumento } from '../../lib/compras/types';
 
 /** Sprint 688: despesa que saiu da fatura desta compra (fatura mista). */
@@ -19,6 +21,8 @@ interface DespesaLigada {
   iva: number | null;
   natureza: 0 | 1;
   data: string;
+  /** A fatura anexada à própria despesa (quando o PDF ficou do lado da despesa). */
+  pdfImportId: string | null;
 }
 
 interface Resultado { despesa: DespesaLigada; valorLinhas: number; portesDaDespesa: number; totalQueFicaNaCompra: number | null }
@@ -89,6 +93,12 @@ export function FaturaMistaCard({ compra, isAdmin }: { compra: CompraDocumento; 
                 <span className="flex-1 text-zinc-700 dark:text-zinc-300">{d.descricao}</span>
                 <span className="text-xs text-zinc-500">{d.natureza === 1 ? 'Investimento' : 'Gasto'} · {formatDateOnly(d.data)}</span>
                 <strong className="tabular-nums">{formatEur(d.valor)}</strong>
+                {!compra.supplierInvoiceImportId && d.pdfImportId && (
+                  <Button type="button" size="sm" variant="secondary" leftIcon={<FileText size={13} />}
+                    onClick={() => openPdfInNewTab(supplierInvoicesApi.pdfPath(d.pdfImportId!)).catch((e) => toast.fromError(e, 'Não foi possível abrir o PDF.'))}>
+                    PDF da fatura
+                  </Button>
+                )}
               </li>
             ))}
           </ul>

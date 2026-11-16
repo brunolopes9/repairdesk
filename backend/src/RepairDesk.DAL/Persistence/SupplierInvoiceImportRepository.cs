@@ -30,7 +30,12 @@ public class SupplierInvoiceImportRepository : ISupplierInvoiceImportRepository
                          where c.SupplierInvoiceImportId != null && importIds.Contains(c.SupplierInvoiceImportId.Value)
                                && _db.Despesas.Any(d => d.CompraDocumentoId == c.Id)
                          select c.SupplierInvoiceImportId!.Value).ToListAsync(ct);
-        return ids.ToHashSet();
+        // …e o caso inverso: o PDF ficou na despesa, que está ligada a uma compra.
+        var pelaDespesa = await (from i in _db.SupplierInvoiceImports.AsNoTracking()
+                                 where importIds.Contains(i.Id) && i.DespesaId != null
+                                       && _db.Despesas.Any(d => d.Id == i.DespesaId && d.CompraDocumentoId != null)
+                                 select i.Id).ToListAsync(ct);
+        return ids.Concat(pelaDespesa).ToHashSet();
     }
 
     public async Task<IReadOnlyDictionary<Guid, Guid>> ImportIdsPorDespesaAsync(IReadOnlyCollection<Guid> despesaIds, CancellationToken ct = default)

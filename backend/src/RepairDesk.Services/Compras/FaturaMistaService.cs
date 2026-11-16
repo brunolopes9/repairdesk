@@ -13,7 +13,9 @@ public sealed record PassarParaDespesaRequest(
     DespesaCategoria Categoria = DespesaCategoria.Material,
     DespesaNatureza Natureza = DespesaNatureza.Gasto);
 
-public sealed record DespesaLigadaDto(Guid Id, int Numero, string Descricao, decimal Valor, decimal? Iva, DespesaNatureza Natureza, DateTime Data);
+/// <summary><c>PdfImportId</c>: a fatura anexada à própria despesa (quando o PDF ficou do lado da despesa e não da compra).</summary>
+public sealed record DespesaLigadaDto(Guid Id, int Numero, string Descricao, decimal Valor, decimal? Iva, DespesaNatureza Natureza, DateTime Data,
+    Guid? PdfImportId = null);
 
 public sealed record PassarParaDespesaResultado(DespesaLigadaDto Despesa, decimal ValorLinhas, decimal PortesDaDespesa, decimal? TotalQueFicaNaCompra);
 
@@ -35,16 +37,22 @@ public sealed class FaturaMistaService : IFaturaMistaService
     private readonly ICompraRepository _compras;
     private readonly IDespesaRepository _despesas;
     private readonly IAuditLogger _audit;
+    private readonly ISupplierInvoiceImportRepository? _imports;
 
-    public FaturaMistaService(ICompraRepository compras, IDespesaRepository despesas, IAuditLogger audit)
+    public FaturaMistaService(ICompraRepository compras, IDespesaRepository despesas, IAuditLogger audit, ISupplierInvoiceImportRepository? imports = null)
     {
+        _imports = imports;
         _compras = compras;
         _despesas = despesas;
         _audit = audit;
     }
 
     public async Task<IReadOnlyList<DespesaLigadaDto>> DespesasDaCompraAsync(Guid compraId, CancellationToken ct = default)
-        => (await _despesas.ListByCompraAsync(compraId, ct)).Select(Dto).ToList();
+    {
+        var lista = await _despesas.ListByCompraAsync(compraId, ct);
+        var pdfs = _imports is null ? null : await _imports.ImportIdsPorDespesaAsync(lista.Select(d => d.Id).ToList(), ct);
+        return lista.Select(d => Dto(d) with { PdfImportId = pdfs?.GetValueOrDefault(d.Id) is { } g && g != Guid.Empty ? g : null }).ToList();
+    }
 
     public async Task<PassarParaDespesaResultado> PassarParaDespesaAsync(Guid compraId, PassarParaDespesaRequest req, CancellationToken ct = default)
     {

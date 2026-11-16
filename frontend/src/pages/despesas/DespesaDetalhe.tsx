@@ -77,7 +77,7 @@ export default function DespesaDetalhe() {
           <span>
             <strong>Fatura mista.</strong> Esta despesa vem da mesma fatura da{' '}
             <Link to={`/compras/${d.compraDocumentoId}`} className="font-semibold underline">compra nº {d.compraNumero}</Link>
-            {' '}— o resto da fatura é stock. O PDF abaixo é o dessa compra (um só ficheiro, não se imprime duas vezes).
+            {' '}— o resto da fatura é stock. A fatura é um só PDF: na exportação para a contabilidade vai uma vez, marcada «Mista».
           </span>
         </div>
       )}
@@ -87,7 +87,7 @@ export default function DespesaDetalhe() {
         </SectionCard>
         {d.supplierInvoiceImportId ? (
           <SectionCard title="Fatura">
-            <PdfPreview path={supplierInvoicesApi.pdfPath(d.supplierInvoiceImportId)} title={d.compraDocumentoId ? `Fatura da compra nº ${d.compraNumero ?? ''} (mista)` : `Fatura da despesa nº ${d.numero ?? ''}`} />
+            <PdfPreview path={supplierInvoicesApi.pdfPath(d.supplierInvoiceImportId)} title={d.compraDocumentoId ? `Fatura mista (compra nº ${d.compraNumero ?? ''} + despesa nº ${d.numero ?? ''})` : `Fatura da despesa nº ${d.numero ?? ''}`} />
           </SectionCard>
         ) : (
           <p className="rounded-lg border border-dashed border-zinc-300 p-4 text-sm text-zinc-500 dark:border-zinc-700">
