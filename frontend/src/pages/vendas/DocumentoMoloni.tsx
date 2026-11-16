@@ -1,3 +1,4 @@
+import { PagamentoPicker } from '../../components/PagamentoPicker';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -8,7 +9,7 @@ import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { moloniApi, MOTIVOS_ISENCAO, type MoloniDocumento } from '../../lib/moloni/api';
 import { toast } from '../../lib/toast';
 import { vendasApi } from '../../lib/vendas/api';
-import { PAYMENT_METHOD_LABEL, VENDA_ESTADO, VENDA_TIPO, type PaymentMethod, type Venda } from '../../lib/vendas/types';
+import { VENDA_ESTADO, VENDA_TIPO, type PaymentMethod, type Venda } from '../../lib/vendas/types';
 import DadosFatura, { escolhaInicial, pedidoFatura, problemaFatura, type EscolhaFatura } from './DadosFatura';
 
 interface Props {
@@ -144,9 +145,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
             <div className="flex flex-wrap items-end gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
               <label className="block">
                 <span className={labelCls}>Pago por</span>
-                <select value={pagamento} onChange={(ev) => setPagamento(Number(ev.target.value) as PaymentMethod)} className={`${inputCls} w-auto`}>
-                  {Object.entries(PAYMENT_METHOD_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
+                <PagamentoPicker compacto value={pagamento} onChange={setPagamento} />
               </label>
               <Button type="button" leftIcon={<Receipt size={15} />} loading={recibo.isPending} disabled={ocupado} onClick={() => recibo.mutate()}>
                 Registar pagamento (recibo)
@@ -173,12 +172,10 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
           <DadosFatura value={fatura} onChange={setFatura} nomeInterno={venda.cliente?.nome} />
           <div className="grid gap-3 sm:grid-cols-3">
             {opcoesSerie}
-            <label className="block">
-              <span className={labelCls}>Pago por (fatura-recibo)</span>
-              <select value={pagamento} onChange={(ev) => setPagamento(Number(ev.target.value) as PaymentMethod)} className={inputCls}>
-                {Object.entries(PAYMENT_METHOD_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-            </label>
+            <div className="sm:col-span-3">
+              <span className={labelCls}>Pago com (fatura-recibo)</span>
+              <PagamentoPicker compacto value={pagamento} onChange={setPagamento} />
+            </div>
             <label className="block">
               <span className={labelCls}>Vencimento (fatura)</span>
               <select value={vencimento} onChange={(ev) => setVencimento(Number(ev.target.value))} className={inputCls}>

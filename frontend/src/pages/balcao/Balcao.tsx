@@ -1,3 +1,4 @@
+import { PagamentoPicker } from '../../components/PagamentoPicker';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +13,7 @@ import type { Artigo, ArtigoLote } from '../../lib/artigos/types';
 import EscolherModelo from './EscolherModelo';
 import { formatEur, parseDecimal } from '../../lib/compras/format';
 import { toast } from '../../lib/toast';
-import { PAYMENT_METHOD, PAYMENT_METHOD_LABEL, type PaymentMethod } from '../../lib/vendas/types';
+import { PAYMENT_METHOD, type PaymentMethod } from '../../lib/vendas/types';
 import DadosFatura, { escolhaInicial, pedidoFatura, problemaFatura, type EscolhaFatura } from '../vendas/DadosFatura';
 
 interface LinhaCarrinho {
@@ -247,13 +248,8 @@ export default function Balcao() {
             <span className="text-2xl font-bold tabular-nums">{formatEur(total / 100)}</span>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {PAGAMENTOS.map((p) => (
-              <button key={p} type="button" onClick={() => setPagamento(p)}
-                className={`rounded-lg border px-2 py-2 text-xs font-medium ${pagamento === p ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300' : 'border-zinc-200 dark:border-zinc-700'}`}>
-                {PAYMENT_METHOD_LABEL[p]}
-              </button>
-            ))}
+          <div className="mt-3">
+            <PagamentoPicker compacto value={pagamento} onChange={setPagamento} metodos={PAGAMENTOS} />
           </div>
 
           <div className="mt-4"><DadosFatura value={fatura} onChange={setFatura} /></div>

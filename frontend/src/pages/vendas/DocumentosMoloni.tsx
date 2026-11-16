@@ -1,3 +1,4 @@
+import { PagamentoPicker } from '../../components/PagamentoPicker';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,7 +10,7 @@ import { formatEur } from '../../lib/compras/format';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { moloniApi, type MoloniDocumentoLista, type MoloniTipoDocumento } from '../../lib/moloni/api';
 import { toast } from '../../lib/toast';
-import { PAYMENT_METHOD, PAYMENT_METHOD_LABEL, type PaymentMethod } from '../../lib/vendas/types';
+import { PAYMENT_METHOD, type PaymentMethod } from '../../lib/vendas/types';
 
 const TIPOS: { key: MoloniTipoDocumento; label: string }[] = [
   { key: 'Fatura', label: 'Faturas' },
@@ -131,11 +132,9 @@ function DocumentosMoloni({ tipo, isAdmin }: { tipo: MoloniTipoDocumento; isAdmi
       <Modal open={pagar !== null} onClose={() => setPagar(null)} title={`Registar pagamento — ${pagar?.numero ?? ''}`}
         footer={<Button type="button" leftIcon={<Receipt size={15} />} loading={recibo.isPending} onClick={() => recibo.mutate()}>Emitir recibo</Button>}>
         <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">Emite no Moloni ON o recibo do valor em falta ({pagar ? formatEur(pagar.total) : ''}) — a fatura fica paga.</p>
-        <label className="block"><span className={labelCls}>Pago por</span>
-          <select value={metodo} onChange={(e) => setMetodo(Number(e.target.value) as PaymentMethod)} className={inputCls}>
-            {Object.entries(PAYMENT_METHOD_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </label>
+        <div><span className={labelCls}>Pago com</span>
+          <PagamentoPicker compacto value={metodo} onChange={setMetodo} />
+        </div>
       </Modal>
 
       <Modal open={anular !== null} onClose={() => setAnular(null)} title={`Anular ${anular?.numero ?? ''}`}

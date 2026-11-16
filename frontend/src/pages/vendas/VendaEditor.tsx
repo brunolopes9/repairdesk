@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Banknote, Boxes, CheckCircle2, FileText, PackageSearch, Plus, Save, Trash2, Wrench, XCircle } from 'lucide-react';
 import { AutosaveStatus, BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { useAutosave } from '../../lib/useAutosave';
+import { PagamentoPicker } from '../../components/PagamentoPicker';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -925,15 +926,11 @@ export default function VendaEditor() {
         )}
         <dl className="mt-3 ml-auto grid max-w-xs grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm tabular-nums">
           <dt className="font-medium">Total a cobrar</dt><dd className="text-right text-lg font-semibold">{formatEur(contas.total)}</dd>
-          {contas.porFora > 0 && (
-            <>
-              <dt className="text-zinc-500">Na fatura</dt><dd className="text-right">{formatEur(contas.total - contas.porFora)}</dd>
-              <dt className="text-violet-700 dark:text-violet-300" title="Recebido fora da fatura — sem IVA, conta no lucro">Por fora</dt><dd className="text-right text-violet-700 dark:text-violet-300">{formatEur(contas.porFora)}</dd>
-            </>
-          )}
+          <dt className="text-zinc-500" title="O que vai à fatura (Moloni) — o IVA é só sobre isto">Faturado</dt><dd className="text-right">{formatEur(contas.total - contas.porFora)}</dd>
           <dt className="text-zinc-500">IVA na fatura</dt><dd className="text-right">{formatEur(contas.ivaVenda)}</dd>
           <dt className="text-zinc-500" title="IVA da venda − IVA já pago ao fornecedor das peças">IVA a entregar ao Estado</dt><dd className="text-right">{formatEur(contas.ivaAPagar)}</dd>
-          <dt className="text-zinc-500" title="Total − custo das peças − IVA a entregar">Lucro que sobra</dt><dd className={`text-right font-medium ${contas.lucro < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatEur(contas.lucro)}</dd>
+          <dt className="font-medium" title="Total (faturado + por fora) − custo das peças − IVA a entregar">Lucro total</dt><dd className={`text-right font-semibold ${contas.lucro < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatEur(contas.lucro)}</dd>
+          <dt className="text-violet-700 dark:text-violet-300" title="Recebido fora da fatura — sem IVA, já está dentro do lucro">Por fora</dt><dd className="text-right font-medium text-violet-700 dark:text-violet-300">{formatEur(contas.porFora)}</dd>
         </dl>
       </SectionCard>
 
@@ -941,10 +938,8 @@ export default function VendaEditor() {
         <SectionCard title="Concluir">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <p className="text-sm text-zinc-500">"Guardar orçamento" não mexe no stock. Venda feita na hora? Escolhe o pagamento e regista como entregue.</p>
-            <div className="flex gap-2">
-              <select aria-label="Método de pagamento" value={pagamento} onChange={(e) => setPagamento(Number(e.target.value) as PaymentMethod)} className={`${inputCls} w-auto`}>
-                {Object.entries(PAYMENT_METHOD_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-              </select>
+            <div className="flex flex-col gap-2">
+              <PagamentoPicker value={pagamento} onChange={setPagamento} />
               <Button type="button" leftIcon={<CheckCircle2 size={15} />} disabled={!podeGravar || linhas.length === 0} loading={guardar.isPending && guardar.variables === VENDA_ESTADO.Entregue} onClick={() => guardar.mutate(VENDA_ESTADO.Entregue)}>
                 Entregue & paga
               </Button>
@@ -961,10 +956,12 @@ export default function VendaEditor() {
                 {VENDA_ESTADO_LABEL[e]}
               </Button>
             ))}
-            <span className="mx-1 hidden h-6 w-px bg-zinc-200 sm:block dark:bg-zinc-700" />
-            <select aria-label="Método de pagamento" value={pagamento} onChange={(e) => setPagamento(Number(e.target.value) as PaymentMethod)} className={`${inputCls} w-auto`}>
-              {Object.entries(PAYMENT_METHOD_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-            </select>
+          </div>
+          <div className="mt-4 space-y-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+            <span className={labelCls}>Pago com</span>
+            <PagamentoPicker value={pagamento} onChange={setPagamento} disabled={busy} />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button type="button" variant="success" leftIcon={<CheckCircle2 size={15} />} disabled={busy || !podeGravar || linhas.length === 0} loading={mudarEstado.isPending && mudarEstado.variables === VENDA_ESTADO.Entregue} onClick={() => mudarEstado.mutate(VENDA_ESTADO.Entregue)}>
               Entregue & paga
             </Button>
