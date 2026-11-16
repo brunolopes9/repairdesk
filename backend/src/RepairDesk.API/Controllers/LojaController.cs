@@ -96,8 +96,18 @@ public sealed class ExternalLojaController : ControllerBase
         _mudancas = mudancas;
     }
 
+    /// <summary>
+    /// Catálogo publicado. Sprint 682: o site lê-o no instante em que a loja muda (Sprint 674) — é aqui que seguem os
+    /// avisos «voltou a haver» (idempotente: cada pedido é apagado depois de enviado).
+    /// </summary>
     [HttpGet("catalogo")]
-    public async Task<ActionResult<CatalogoDto>> Catalogo(CancellationToken ct) => Ok(await _service.CatalogoAsync(ct));
+    public async Task<ActionResult<CatalogoDto>> Catalogo([FromServices] IAlertaStockService alertas, [FromServices] ILogger<ExternalLojaController> log, CancellationToken ct)
+    {
+        var cat = await _service.CatalogoAsync(ct);
+        try { await alertas.EnviarAsync(cat, ct); }
+        catch (Exception ex) { log.LogWarning(ex, "Avisos de stock falharam — tenta na próxima leitura do catálogo"); }
+        return Ok(cat);
+    }
 
     /// <summary>
     /// Sprint 674: o gerador do site deixa este pedido aberto com a versão que tem. Responde logo se o catálogo já é

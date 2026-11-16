@@ -145,6 +145,19 @@ public sealed class PublicLojaController : ControllerBase
         return NoContent();
     }
 
+    // ---- Sprint 682: «Avisa-me quando houver» ----
+
+    [HttpPost("{intakeSlug}/alertas-stock")]
+    [EnableRateLimiting("auth-reset")]
+    public async Task<IActionResult> AlertaStock(string intakeSlug, [FromBody] AlertaStockRequest req,
+        [FromServices] IAlertaStockService alertas, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(req.Website)) return Accepted(); // armadilha para bots
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        await alertas.RegistarAsync(req, ct);
+        return Accepted();
+    }
+
     /// <summary>Eventos do Stripe. Assinatura obrigatória; responde 200 a eventos que não interessam (senão o Stripe repete).</summary>
     [HttpPost("stripe/webhook")]
     public async Task<IActionResult> StripeWebhook(CancellationToken ct)
