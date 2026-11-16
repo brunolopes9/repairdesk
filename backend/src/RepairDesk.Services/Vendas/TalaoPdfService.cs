@@ -64,7 +64,7 @@ public class TalaoPdfService : ITalaoPdfService
                     col.Item().Row(r =>
                     {
                         r.RelativeItem().Text($"{i.Quantidade} × {Eur(i.PrecoUnitarioCents)}  (IVA {i.IvaRate.ToString("0.#", pt)}%)").FontSize(7);
-                        r.AutoItem().Text(Eur(i.TotalCents));
+                        r.AutoItem().Text(Eur(i.TotalCents + i.PorForaCents));
                     });
                 }
                 col.Item().PaddingVertical(2).LineHorizontal(0.5f);

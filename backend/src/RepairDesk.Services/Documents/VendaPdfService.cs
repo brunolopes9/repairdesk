@@ -119,8 +119,8 @@ public class VendaPdfService : IVendaPdfService
                             });
                             table.Cell().Padding(5).AlignRight().Text(item.Quantidade.ToString(PtPt));
                             table.Cell().Padding(5).AlignRight().Text($"{item.IvaRate:0.##}%");
-                            table.Cell().Padding(5).AlignRight().Text(Money(item.PrecoUnitarioCents));
-                            table.Cell().Padding(5).AlignRight().Text(Money(item.TotalCents));
+                            table.Cell().Padding(5).AlignRight().Text(Money(item.CobradoCents / Math.Max(1, item.Quantidade)));
+                            table.Cell().Padding(5).AlignRight().Text(Money(item.CobradoCents));
                         }
                     });
 

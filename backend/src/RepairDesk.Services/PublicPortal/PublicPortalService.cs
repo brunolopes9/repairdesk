@@ -84,7 +84,7 @@ public class PublicPortalService : IPublicPortalService
             : v?.Items.FirstOrDefault()?.Descricao ?? "Artigos vendidos";
         var items = !reparacao && v is not null
             ? v.Items.Select(i => new PublicGarantiaItemDto(
-                    i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.TotalCents,
+                    i.Descricao, i.Quantidade, i.CobradoCents / Math.Max(1, i.Quantidade), i.CobradoCents,
                     string.IsNullOrEmpty(i.Imei) ? null : ImeiValidator.Mask(i.Imei)))
                 .ToList()
             : null;

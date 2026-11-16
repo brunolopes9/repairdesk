@@ -108,6 +108,8 @@ export interface VendaItem {
   encomendaNota?: string | null;
   /** Sprint 642: parte recebida por fora da fatura (sem IVA, não vai ao Moloni, conta no lucro). */
   porFora?: boolean;
+  /** Sprint 680: parte desta linha por fora (cêntimos); precoUnitarioCents/totalCents são o faturado. */
+  porForaCents?: number;
 }
 
 /** Sprint 594: peça de uma reparação que ainda não há em stock. */
@@ -208,6 +210,8 @@ export interface VendaLinhaWrite {
   /** Sprint 642: por fora da fatura; custo sem fatura (total da linha, cêntimos). */
   porFora?: boolean;
   custoSemFaturaCents?: number | null;
+  /** Sprint 680: parte da linha por fora (total, cêntimos); o preço unitário é o faturado. */
+  porForaCents?: number | null;
 }
 
 export interface VendaWrite {

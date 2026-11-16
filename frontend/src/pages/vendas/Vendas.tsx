@@ -218,7 +218,7 @@ export default function Vendas() {
                         <span className={`rounded-full px-2 py-0.5 font-medium ${estadoVendaVisivel(v).color}`}>{estadoVendaVisivel(v).label}</span>
                         {v.faturaPorRegistar && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Sem fatura</span>}
                         {v.foraApuramento && v.estado !== VENDA_ESTADO.Entregue && <span className="rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Sem fatura</span>}
-                        {!v.foraApuramento && v.items.some((i) => i.porFora) && !(v.estado === VENDA_ESTADO.Entregue && v.items.every((i) => i.porFora)) && <span className="rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora {formatEur(v.items.filter((i) => i.porFora).reduce((s, i) => s + i.totalCents, 0) / 100)}</span>}
+                        {!v.foraApuramento && (v.items.some((i) => i.porFora) || v.items.some((i) => (i.porForaCents ?? 0) > 0)) && !(v.estado === VENDA_ESTADO.Entregue && v.items.every((i) => i.porFora)) && <span className="rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora {formatEur(v.items.reduce((s, i) => s + (i.porFora ? i.totalCents : i.porForaCents ?? 0), 0) / 100)}</span>}
                         {v.paga === false && <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
                         <span className="ml-auto tabular-nums text-zinc-500">{formatDateOnly(v.data)}</span>
                       </span>

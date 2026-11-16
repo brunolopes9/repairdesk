@@ -55,7 +55,7 @@ public sealed class EntregaPdfService : IEntregaPdfService
 
         var linhas = v.Items
             .OrderBy(i => i.Ordem).ThenBy(i => i.CreatedAt)
-            .Select(i => new OrcamentoLinha(i.Quantidade > 1 ? $"{i.Descricao} (×{i.Quantidade})" : i.Descricao, i.TotalCents))
+            .Select(i => new OrcamentoLinha(i.Quantidade > 1 ? $"{i.Descricao} (×{i.Quantidade})" : i.Descricao, i.CobradoCents))
             .ToList();
 
         var data = new EntregaEquipamentoData(

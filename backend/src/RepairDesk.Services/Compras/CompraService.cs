@@ -70,7 +70,7 @@ public class CompraService : ICompraService
         if (itens.Count == 0) return dto;
         var porLote = itens.GroupBy(i => i.CompraLinhaId!.Value).ToDictionary(g => g.Key, g => (IReadOnlyList<CompraLinhaVendaDto>)g
             .OrderBy(i => i.Venda!.Data)
-            .Select(i => new CompraLinhaVendaDto(i.VendaId, i.Venda!.Numero, i.Venda.Data, i.Quantidade, i.TotalCents / 100m,
+            .Select(i => new CompraLinhaVendaDto(i.VendaId, i.Venda!.Numero, i.Venda.Data, i.Quantidade, i.CobradoCents / 100m,
                 IvaEngine.Euros(Vendas.VendaService.Calcular(i, i.Venda.ForaApuramento).Lucro), i.Venda.InvoiceNumber, i.Venda.Estado == VendaEstado.Entregue))
             .ToList());
         return dto with { Linhas = dto.Linhas.Select(l => porLote.TryGetValue(l.Id, out var v) ? l with { Vendas = v } : l).ToList() };

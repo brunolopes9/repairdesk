@@ -256,7 +256,7 @@ public sealed partial class FichaReparacaoService : IFichaReparacaoService
             PrimeiroNome(venda.Cliente?.Nome), venda.Equipamento ?? "Equipamento", ficha?.Imei, venda.Problema ?? "—",
             ficha?.SenhaTipo ?? SenhaTipo.Nenhuma, ficha?.PermiteTestes, ficha?.EstadoFisico, ficha?.Acessorios,
             Checklist(ficha).Where(c => c.Entrada is not null).ToList(),
-            venda.Items.OrderBy(i => i.Ordem).ThenBy(i => i.CreatedAt).Select(i => new PublicFichaLinha(i.Descricao, i.TotalCents)).ToList(),
+            venda.Items.OrderBy(i => i.Ordem).ThenBy(i => i.CreatedAt).Select(i => new PublicFichaLinha(i.Descricao, i.CobradoCents)).ToList(),
             venda.TotalCents, venda.CreatedAt, venda.PrevistoPara, tenant?.TermosCondicoes, AvisoLevantamento,
             assinatura?.AssinadaEm,
             assinatura is null && venda.Estado is not (VendaEstado.Entregue or VendaEstado.Cancelada));

@@ -489,6 +489,7 @@ public class VendaService : IVendaService
             item.DescontoCents = l.DescontoCents;
             item.Ordem = ordem++;
             item.PorFora = l.PorFora;
+            item.PorForaCents = l.PorFora ? 0 : Math.Max(0, l.PorForaCents ?? 0);
             item.IvaRate = l.PorFora ? 0m : l.IvaRate ?? TaxaVendaNormalPct;
             item.Imei = NormalizeImei(l.Imei);
         }
@@ -590,13 +591,19 @@ public class VendaService : IVendaService
 
     /// <summary>Sprint 616: numa venda tratada fora do Mender não há IVA — lucro = cobrado − custo das peças.</summary>
     public static CalculoVenda Calcular(VendaItem i, bool foraApuramento)
-        => foraApuramento || i.PorFora
-            ? IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, 0m, 0m)
-            : IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, i.TaxaIvaCompra ?? 0m, i.IvaRate / 100m);
+    {
+        if (foraApuramento || i.PorFora)
+            return IvaEngine.VendaPorTotal(i.Quantidade, i.CobradoCents / 100m, i.CustoUnitarioPago ?? 0m, 0m, 0m);
+        var c = IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, i.TaxaIvaCompra ?? 0m, i.IvaRate / 100m);
+        if (i.PorForaCents <= 0) return c;
+        // Sprint 680: a parte por fora não tem IVA — entra inteira no cobrado e no lucro (o custo já está no faturado).
+        var pf = i.PorForaCents / 100m;
+        return c with { ValorCobradoComIva = c.ValorCobradoComIva + pf, ValorCobradoSemIva = c.ValorCobradoSemIva + pf, Lucro = c.Lucro + pf };
+    }
 
     private static void RecalculateTotals(Venda venda)
     {
-        venda.TotalCents = venda.Items.Sum(i => i.TotalCents);
+        venda.TotalCents = venda.Items.Sum(i => i.CobradoCents);
         venda.IvaCents = venda.Items.Sum(i => CalculateIvaCents(i, venda.ForaApuramento));
     }
 
@@ -720,7 +727,7 @@ public class VendaService : IVendaService
             var c = Calcular(i, venda.ForaApuramento);
             return new VendaItemDto(i.Id, i.CompraLinhaId, i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents,
                 i.IvaRate, i.TotalCents, CalculateIvaCents(i, venda.ForaApuramento), i.Imei, i.CustoUnitarioPago, i.TaxaIvaCompra,
-                c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro, i.Encomenda, i.EncomendaNota, i.PorFora);
+                c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro, i.Encomenda, i.EncomendaNota, i.PorFora, i.PorForaCents);
         }).ToList();
 
         return new VendaDto(

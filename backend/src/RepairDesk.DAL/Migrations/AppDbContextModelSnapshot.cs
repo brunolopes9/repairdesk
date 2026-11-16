@@ -4134,6 +4134,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<bool>("PorFora")
                         .HasColumnType("bit");
 
+                    b.Property<int>("PorForaCents")
+                        .HasColumnType("int");
+
                     b.Property<int>("PrecoUnitarioCents")
                         .HasColumnType("int");
 

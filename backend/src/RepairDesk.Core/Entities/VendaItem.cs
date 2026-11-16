@@ -61,5 +61,16 @@ public class VendaItem : BaseEntity, ITenantEntity
     /// </summary>
     public DateTime? GarantiaFornecedorAteAo { get; set; }
 
+    /// <summary>
+    /// Sprint 680: parte desta linha recebida por fora da fatura (total da linha, cêntimos, sem IVA). O preço
+    /// unitário passa a ser o FATURADO; o cliente paga <see cref="CobradoCents"/>. Ex.: carregador cobrado a 16,90 €,
+    /// faturado a 12 € → PrecoUnitario 1200, PorForaCents 490.
+    /// </summary>
+    public int PorForaCents { get; set; }
+
+    /// <summary>Valor faturado da linha (o que vai à fatura e ao IVA).</summary>
     public int TotalCents => Math.Max(0, Quantidade * PrecoUnitarioCents - DescontoCents);
+
+    /// <summary>Sprint 680: o que o cliente paga por esta linha (faturado + parte por fora).</summary>
+    public int CobradoCents => TotalCents + PorForaCents;
 }
