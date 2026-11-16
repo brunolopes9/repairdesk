@@ -307,6 +307,22 @@ export default function VendaEditor() {
   const adiantRecebido = !!venda?.adiantamentoRecebidoEm;
   const eur2 = (n: number) => n.toFixed(2).replace('.', ',');
 
+  // Botão vermelho, bem visível no cartão Estado; pede confirmação antes de cancelar.
+  const cancelarUi = !confirmCancel ? (
+    <Button type="button" variant="danger" leftIcon={<XCircle size={16} />} onClick={() => setConfirmCancel(true)}>Cancelar venda</Button>
+  ) : (
+    <div role="alert" className="flex flex-col gap-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200 sm:flex-row sm:items-center">
+      <span className="flex-1">
+        Cancelar esta venda? As peças voltam ao stock.
+        {venda?.estado === VENDA_ESTADO.Entregue && ' Se a fatura já foi emitida, emite a nota de crédito no Moloni.'}
+      </span>
+      <div className="flex gap-2">
+        <Button type="button" size="sm" variant="secondary" onClick={() => setConfirmCancel(false)}>Não</Button>
+        <Button type="button" size="sm" variant="danger" loading={mudarEstado.isPending} onClick={() => mudarEstado.mutate(VENDA_ESTADO.Cancelada)}>Sim, cancelar</Button>
+      </div>
+    </div>
+  );
+
   // Sprint 650: entregar sem receber já (o cliente paga depois) — fica nas cobranças até ser paga.
   const entregarPorReceber = useMutation({
     mutationFn: async () => {
@@ -917,6 +933,7 @@ export default function VendaEditor() {
             </p>
           )}
           <p className="mt-2 text-xs text-zinc-500">Ao sair de Orçamento as peças saem do stock. Entregue fecha a venda (as linhas deixam de se poder editar).</p>
+          {isAdmin && <div className="mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">{cancelarUi}</div>}
         </SectionCard>
       )}
 
@@ -947,23 +964,9 @@ export default function VendaEditor() {
         </SectionCard>
       )}
 
-      {venda && venda.estado !== VENDA_ESTADO.Cancelada && isAdmin && (
-        <div className="flex justify-end">
-          {!confirmCancel ? (
-            <Button type="button" variant="ghost" leftIcon={<XCircle size={15} />} onClick={() => setConfirmCancel(true)}>Cancelar venda</Button>
-          ) : (
-            <div role="alert" className="flex flex-col gap-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200 sm:flex-row sm:items-center">
-              <span>
-                Cancelar devolve as peças ao stock.
-                {venda.estado === VENDA_ESTADO.Entregue && ' Se a fatura já foi emitida, emite a nota de crédito no Moloni.'}
-              </span>
-              <div className="flex gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setConfirmCancel(false)}>Não</Button>
-                <Button type="button" size="sm" variant="danger" loading={mudarEstado.isPending} onClick={() => mudarEstado.mutate(VENDA_ESTADO.Cancelada)}>Cancelar venda</Button>
-              </div>
-            </div>
-          )}
-        </div>
+      {/* Venda entregue: cancelar continua possível (nota de crédito no Moloni), em vermelho e à vista. */}
+      {venda && fechada && venda.estado !== VENDA_ESTADO.Cancelada && isAdmin && (
+        <SectionCard title="Cancelar">{cancelarUi}</SectionCard>
       )}
 
       {venda && venda.tipo === VENDA_TIPO.Reparacao && <ReparacaoExtras venda={venda} />}
