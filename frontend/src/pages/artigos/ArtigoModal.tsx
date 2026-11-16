@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Combine, Link2Off, Printer, Save, Store } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Modal from '../../components/Modal';
-import { Button } from '../../components/ui';
+import { AutosaveStatus, Button } from '../../components/ui';
+import { useAutosave } from '../../lib/useAutosave';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { artigosApi } from '../../lib/artigos/api';
 import type { Artigo, ArtigoDetalhe } from '../../lib/artigos/types';
@@ -43,9 +44,17 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
   const [juntar, setJuntar] = useState('');
   const [novosLotes, setNovosLotes] = useState<string[]>([]);
   const [qLote, setQLote] = useState('');
+  const [pronto, setPronto] = useState(0);
 
+  // Sprint 678: o formulário preenche-se uma vez por artigo aberto — o autosave não o reescreve a meio da escrita.
+  const iniciado = useRef<string | null>(null);
+  useEffect(() => { if (!open) iniciado.current = null; }, [open]);
   useEffect(() => {
     if (!open) return;
+    const chave = artigoId ?? 'novo';
+    if (artigoId && !detalhe.data) return;
+    if (iniciado.current === chave) return;
+    iniciado.current = chave;
     const a = detalhe.data?.artigo;
     setNome(a?.nome ?? sugestao?.nome ?? '');
     setCategoria(a?.categoria ?? '');
@@ -60,7 +69,8 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
     setJuntar('');
     setNovosLotes(sugestao?.loteIds ?? []);
     setQLote('');
-  }, [open, detalhe.data, sugestao]);
+    setPronto((n) => n + 1);
+  }, [open, detalhe.data, sugestao, artigoId]);
 
   // Lotes com stock que ainda não pertencem a nenhum artigo.
   const lotesLivres = useMemo(() => {
@@ -71,24 +81,41 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
       .slice(0, 50);
   }, [inventario.data, qLote]);
 
+  const centsPreco = preco.trim() ? Math.round((parseDecimal(preco) ?? NaN) * 100) : null;
+  const precoValido = centsPreco == null || (!Number.isNaN(centsPreco) && centsPreco > 0);
+  const pedido = {
+    nome: nome.trim(),
+    categoria: categoria.trim() || null,
+    precoVendaCents: precoValido ? centsPreco : null,
+    codigoBarras: barras.trim() || null,
+    codigoFabricante: fabricante.trim() || null,
+    localizacao: localizacao.trim() || null,
+    notas: detalhe.data?.artigo.notas ?? null,
+    ativo,
+    loteIds: novosLotes,
+    agrupado,
+    nomeFatura: nomeFatura.trim(),
+  };
+
+  // Sprint 678: um artigo que já existe grava sozinho (lotes novos ligam-se logo); um novo cria-se com «Criar».
+  const auto = useAutosave(pedido, async (req) => {
+    if (!artigoId) return;
+    const d = await artigosApi.update(artigoId, req);
+    if (req.loteIds.length) setNovosLotes((ls) => ls.filter((x) => !req.loteIds.includes(x)));
+    void qc.invalidateQueries({ queryKey: ['artigos'] });
+    void qc.invalidateQueries({ queryKey: ['compras', 'inventario'] });
+    for (const aviso of d.avisos ?? []) toast.error('Atenção', aviso);
+  }, { ativo: open && !!artigoId && pronto > 0 && !!nome.trim() && precoValido, atraso: 800 });
+  useEffect(() => {
+    if (pronto > 0) auto.reiniciar(pedido);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pronto]);
+  const fechar = () => { void auto.gravarJa(); onClose(); };
+
   const guardar = useMutation({
     mutationFn: () => {
-      const cents = preco.trim() ? Math.round((parseDecimal(preco) ?? NaN) * 100) : null;
-      if (cents != null && (Number.isNaN(cents) || cents <= 0)) throw new Error('Preço inválido.');
-      const req = {
-        nome: nome.trim(),
-        categoria: categoria.trim() || null,
-        precoVendaCents: cents,
-        codigoBarras: barras.trim() || null,
-        codigoFabricante: fabricante.trim() || null,
-        localizacao: localizacao.trim() || null,
-        notas: detalhe.data?.artigo.notas ?? null,
-        ativo,
-        loteIds: novosLotes,
-        agrupado,
-        nomeFatura: nomeFatura.trim(),
-      };
-      return artigoId ? artigosApi.update(artigoId, req) : artigosApi.create(req);
+      if (!precoValido) throw new Error('Preço inválido.');
+      return artigoId ? artigosApi.update(artigoId, pedido) : artigosApi.create(pedido);
     },
     onSuccess: (d: ArtigoDetalhe) => {
       qc.invalidateQueries({ queryKey: ['artigos'] });
@@ -132,21 +159,26 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={fechar}
       wide
       title={a ? `${a.sku} · ${a.nomeFatura ?? a.nome}` : 'Novo artigo'}
       footer={<>
         {a && a.stock > 0 && (
-          <Button type="button" variant="secondary" leftIcon={<Store size={15} />} onClick={() => { onClose(); navigate(`/loja/novo?artigo=${a.id}`); }}>
+          <Button type="button" variant="secondary" leftIcon={<Store size={15} />} onClick={() => { fechar(); navigate(`/loja/novo?artigo=${a.id}`); }}>
             Pôr na loja
           </Button>
         )}
         {a && onEtiquetas && (
           <Button type="button" variant="secondary" leftIcon={<Printer size={15} />} onClick={() => onEtiquetas(a)}>Imprimir etiquetas</Button>
         )}
-        <Button type="button" leftIcon={<Save size={15} />} loading={guardar.isPending} disabled={!nome.trim()} onClick={() => guardar.mutate()}>
-          Guardar
-        </Button>
+        {artigoId ? (
+          <span className="mr-auto order-first"><AutosaveStatus estado={!nome.trim() || !precoValido ? 'erro' : auto.estado} onTentar={auto.tentarDeNovo}
+            erro={!nome.trim() ? 'Falta o nome — não guardei' : !precoValido ? 'Preço inválido — não guardei' : auto.erro} /></span>
+        ) : (
+          <Button type="button" leftIcon={<Save size={15} />} loading={guardar.isPending} disabled={!nome.trim()} onClick={() => guardar.mutate()}>
+            Criar artigo
+          </Button>
+        )}
       </>}
     >
       <div className="grid gap-3 sm:grid-cols-2">

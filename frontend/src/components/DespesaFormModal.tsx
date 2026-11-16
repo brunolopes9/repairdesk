@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import Modal from './Modal';
+import { useAutosave } from '../lib/useAutosave';
 import { despesasApi } from '../lib/despesas/api';
 import {
   DESPESA_CATEGORIA,
@@ -31,12 +32,16 @@ export function useDespesaForm({
   initialRecorrente = false,
   initialCategoria = DESPESA_CATEGORIA.Outro,
   onSaved,
+  autosave = false,
 }: {
   open?: boolean;
   editing?: Despesa | null;
   initialRecorrente?: boolean;
   initialCategoria?: DespesaCategoria;
-  onSaved: (d: Despesa) => void;
+  /** `auto` = gravado pelo autosave (sem toast). */
+  onSaved: (d: Despesa, auto?: boolean) => void;
+  /** Sprint 678: a despesa já existente grava sozinha (página da despesa). */
+  autosave?: boolean;
 }) {
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState<DespesaCategoria>(DESPESA_CATEGORIA.Pecas);
@@ -61,8 +66,14 @@ export function useDespesaForm({
   const [comFatura, setComFatura] = useState<Despesa | null>(null);
   useEffect(() => setComFatura(editing ?? null), [editing]);
 
+  // Sprint 678: com autosave, o formulário preenche-se uma vez por despesa (a resposta não reescreve o que se escreve).
+  const iniciada = useRef<string | null>(null);
+  const [rebase, setRebase] = useState(0);
   useEffect(() => {
+    if (editing && autosave && iniciada.current === editing.id) return;
     if (editing) {
+      iniciada.current = editing.id;
+      setRebase((n) => n + 1);
       setDescricao(editing.descricao);
       setCategoria(editing.categoria);
       setValor((editing.valorCents / 100).toFixed(2));
@@ -98,12 +109,11 @@ export function useDespesaForm({
       setSemFaturaValida(false);
     }
     setError(null);
-  }, [editing, initialCategoria, open]);
+  }, [editing, initialCategoria, open, autosave]);
 
-  const save = useMutation({
-    mutationFn: () => {
+  function montar() {
       const valorCents = parseEuros(valor) ?? 0;
-      const payload = {
+      return {
         descricao: descricao.trim(),
         categoria,
         valorCents,
@@ -123,6 +133,23 @@ export function useDespesaForm({
         natureza,
         semFaturaValida,
       };
+  }
+
+  const pedido = montar();
+  const valido = !!descricao.trim() && !!parseEuros(valor);
+  const auto = useAutosave(pedido, async (v) => {
+    if (!editing) return;
+    const d = await despesasApi.update(editing.id, { ...v, data: v.data ?? new Date().toISOString() });
+    onSaved(d, true);
+  }, { ativo: autosave && !!editing && rebase > 0 && valido, atraso: 800 });
+  useEffect(() => {
+    if (rebase > 0) auto.reiniciar(montar());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rebase]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const payload = montar();
       if (editing) {
         return despesasApi.update(editing.id, {
           ...payload,
@@ -131,7 +158,7 @@ export function useDespesaForm({
       }
       return despesasApi.create(payload);
     },
-    onSuccess: onSaved,
+    onSuccess: (d) => onSaved(d),
     onError: (err) => {
       if (isAxiosError(err)) {
         const data = err.response?.data as { detail?: string; errors?: Record<string, string[]> } | undefined;
@@ -147,7 +174,7 @@ export function useDespesaForm({
     numeroEncomenda, setNumeroEncomenda, data, setData, notas, setNotas, isRecorrente, setIsRecorrente,
     periodicidadeMeses, setPeriodicidadeMeses, iva, setIva, deducao, setDeducao, reverseCharge, setReverseCharge,
     afetacao, setAfetacao, ambito, setAmbito, natureza, setNatureza, semFaturaValida, setSemFaturaValida,
-    error, comFatura, setComFatura, save, valorCents, podeGravar: !!descricao && !!valorCents && !save.isPending,
+    error, comFatura, setComFatura, save, valorCents, podeGravar: !!descricao && !!valorCents && !save.isPending, auto, valido,
   };
 }
 

@@ -64,7 +64,11 @@ export function useAutosave<T>(valor: T, guardar: (v: T) => Promise<unknown>, { 
     timer.current = window.setTimeout(() => { void correr(); }, atraso);
   }, [valor, ativo, atraso, correr]);
 
-  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  // Ao fechar a janela ou sair da página com algo por gravar: grava já (não se perde o que se escreveu).
+  useEffect(() => () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    if (pendente.current !== null) void correr();
+  }, [correr]);
 
   const reiniciar = useCallback((v: T) => {
     if (timer.current) { window.clearTimeout(timer.current); timer.current = null; }

@@ -4,11 +4,15 @@ import { AlertTriangle, Ban, Building2, CheckCircle2, Loader2, Mail, MessageCirc
 import { clientesApi } from '../../lib/clientes/api';
 import type { AtNifLookup, Cliente, ClienteForm } from '../../lib/clientes/types';
 import { validateNif } from '../../lib/nif/validator';
+import { useAutosave } from '../../lib/useAutosave';
+import { AutosaveStatus } from '../../components/ui';
 import { formatPhonePT } from '../../lib/phone/formatter';
 
 interface Props {
   initial?: Cliente | null;
   onSubmit: (form: ClienteForm) => Promise<void>;
+  /** Sprint 678: cliente já existente — grava sozinho (sem «Guardar»). */
+  autosave?: (form: ClienteForm) => Promise<void>;
   onCancel: () => void;
   submitting: boolean;
 }
@@ -28,7 +32,7 @@ type AtLookupState =
   | { status: 'offline' }
   | { status: 'error' };
 
-export default function ClienteFormView({ initial, onSubmit, onCancel, submitting }: Props) {
+export default function ClienteFormView({ initial, onSubmit, onCancel, submitting, autosave }: Props) {
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
@@ -45,6 +49,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [generic, setGeneric] = useState<string | null>(null);
   const [atLookup, setAtLookup] = useState<AtLookupState>({ status: 'idle' });
+  const [rebase, setRebase] = useState(0);
 
   useEffect(() => {
     setNome(initial?.nome ?? '');
@@ -63,7 +68,10 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
     setErrors({});
     setGeneric(null);
     setAtLookup({ status: 'idle' });
-  }, [initial]);
+    setRebase((n) => n + 1);
+    // Com autosave preenche só ao abrir outro cliente (a resposta do servidor não reescreve o que se escreve).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autosave ? initial?.id : initial]);
 
   useEffect(() => {
     const validation = validateNif(nif);
@@ -96,12 +104,7 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
     };
   }, [nif]);
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErrors({});
-    setGeneric(null);
-    try {
-      await onSubmit({
+  const montar = (): ClienteForm => ({
         nome: nome.trim(),
         telefone: telefone.trim(),
         email: email.trim() || null,
@@ -115,7 +118,22 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
         codigoPostal: codigoPostal.trim() || null,
         localidade: localidade.trim() || null,
         nomeFaturacao: nomeFaturacao.trim() || null,
-      });
+  });
+  const atual = montar();
+  const valido = !!atual.nome && !!atual.telefone && (!atual.nif || validateNif(atual.nif).isValid);
+  const auto = useAutosave(atual, async (v) => { if (autosave) await autosave(v); }, { ativo: !!autosave && rebase > 0 && valido, atraso: 900 });
+  useEffect(() => {
+    if (rebase > 0) auto.reiniciar(montar());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rebase]);
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (autosave) { void auto.gravarJa(); return; }
+    setErrors({});
+    setGeneric(null);
+    try {
+      await onSubmit(atual);
     } catch (err) {
       if (isAxiosError(err)) {
         const data = err.response?.data as ProblemDetails | undefined;
@@ -129,6 +147,12 @@ export default function ClienteFormView({ initial, onSubmit, onCancel, submittin
 
   return (
     <form id="cliente-form" onSubmit={handleSubmit} className="space-y-3">
+      {autosave && (
+        <div className="flex justify-end">
+          <AutosaveStatus estado={valido ? auto.estado : 'erro'} onTentar={auto.tentarDeNovo}
+            erro={valido ? auto.erro : !atual.nome || !atual.telefone ? 'Falta o nome ou o telefone — não guardei' : 'NIF inválido — não guardei'} />
+        </div>
+      )}
       {generic && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           {generic}

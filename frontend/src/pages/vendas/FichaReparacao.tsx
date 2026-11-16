@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, ClipboardList, Copy, Eye, EyeOff, FileText, MessageCircle, Save } from 'lucide-react';
-import { Button, SectionCard } from '../../components/ui';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { CheckCircle2, ClipboardList, Copy, Eye, EyeOff, FileText, MessageCircle } from 'lucide-react';
+import { AutosaveStatus, Button, SectionCard } from '../../components/ui';
+import { useAutosave } from '../../lib/useAutosave';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { PadraoDesbloqueio } from '../../components/PadraoDesbloqueio';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
@@ -34,16 +35,28 @@ export default function FichaReparacao({ venda }: { venda: Venda }) {
   const ficha = useQuery({ queryKey: ['venda-ficha', venda.id], queryFn: () => fichaApi.get(venda.id) });
   const [form, setForm] = useState<Ficha | null>(null);
   const [verSenha, setVerSenha] = useState(false);
-  useEffect(() => { if (ficha.data) setForm(ficha.data); }, [ficha.data]);
-
-  const guardar = useMutation({
-    mutationFn: (f: Ficha) => fichaApi.guardar(venda.id, {
-      imei: f.imei, senhaTipo: f.senhaTipo, senha: f.senha, permiteTestes: f.permiteTestes,
-      estadoFisico: f.estadoFisico, acessorios: f.acessorios, checklist: f.checklist,
-    }),
-    onSuccess: (f) => { qc.setQueryData(['venda-ficha', venda.id], f); toast.success('Ordem de reparação guardada'); },
-    onError: (err) => toast.fromError(err),
+  // Sprint 678: preenche uma vez; depois grava sozinha (a resposta não reescreve o que se está a escrever).
+  const [rebase, setRebase] = useState(0);
+  useEffect(() => {
+    if (ficha.data && !form) { setForm(ficha.data); setRebase((n) => n + 1); }
+  }, [ficha.data, form]);
+  const corpo = (f: Ficha) => ({
+    imei: f.imei, senhaTipo: f.senhaTipo, senha: f.senha, permiteTestes: f.permiteTestes,
+    estadoFisico: f.estadoFisico, acessorios: f.acessorios, checklist: f.checklist,
   });
+  const fechadaJa = venda.estado === VENDA_ESTADO.Entregue || venda.estado === VENDA_ESTADO.Cancelada;
+  const auto = useAutosave(form ? corpo(form) : null, async (b) => {
+    if (!b) return;
+    const f = await fichaApi.guardar(venda.id, b);
+    qc.setQueryData(['venda-ficha', venda.id], f);
+    // o link de assinatura e a data da assinatura vêm do servidor
+    setForm((x) => (x ? { ...x, linkAssinatura: f.linkAssinatura, clienteAssinouEm: f.clienteAssinouEm } : x));
+  }, { ativo: !!form && rebase > 0 && !fechadaJa, atraso: 900 });
+  useEffect(() => {
+    if (rebase > 0 && form) auto.reiniciar(corpo(form));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rebase]);
+
 
   if (!form) return <SectionCard title="Ordem de reparação" collapsible defaultOpen={false}><div className="h-24 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" /></SectionCard>;
 
@@ -70,7 +83,7 @@ export default function FichaReparacao({ venda }: { venda: Venda }) {
             Imprimir (2 vias)
           </Button>
           {!fechada && (
-            <Button type="button" size="sm" leftIcon={<Save size={14} />} loading={guardar.isPending} onClick={() => guardar.mutate(form)}>Guardar</Button>
+            <AutosaveStatus estado={auto.estado} erro={auto.erro} onTentar={auto.tentarDeNovo} />
           )}
         </div>
       }

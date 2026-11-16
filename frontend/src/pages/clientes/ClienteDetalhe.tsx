@@ -474,11 +474,7 @@ export default function ClienteDetalhe() {
         title="Editar cliente"
         onClose={() => setEditOpen(false)}
         footer={<>
-          <button type="button" onClick={() => setEditOpen(false)} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
-          <button type="submit" form="cliente-form" disabled={update.isPending}
-            className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
-            {update.isPending ? 'A guardar…' : 'Guardar'}
-          </button>
+          <button type="button" onClick={() => setEditOpen(false)} className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white">Fechar</button>
         </>}
       >
         <ClienteFormView
@@ -486,6 +482,11 @@ export default function ClienteDetalhe() {
           submitting={update.isPending}
           onCancel={() => setEditOpen(false)}
           onSubmit={async (form) => { await update.mutateAsync(form); }}
+          autosave={async (form) => {
+            await clientesApi.update(id!, form);
+            void qc.invalidateQueries({ queryKey: ['cliente', id] });
+            void qc.invalidateQueries({ queryKey: ['clientes'] });
+          }}
         />
       </Modal>
 

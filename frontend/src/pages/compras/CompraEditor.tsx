@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, FileText, Lock, Plus, Save, ShoppingCart, Trash2 } from 'lucide-react';
-import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
+import { AutosaveStatus, BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
+import { useAutosave } from '../../lib/useAutosave';
 import { apiErrorCode, apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
@@ -157,11 +158,18 @@ export default function CompraEditor() {
   const [duplicado, setDuplicado] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Sprint 678: a resposta do autosave não reescreve o formulário (ignorarSync); `rebase` marca o carregado como gravado.
+  const ignorarSync = useRef(false);
+  const [rebase, setRebase] = useState(0);
+  const idsPorKey = useRef(new Map<string, string>());
   useEffect(() => {
     if (!existente.data) return;
+    if (ignorarSync.current) { ignorarSync.current = false; return; }
     const s = fromDoc(existente.data);
     setForm(s.form);
     setLinhas(s.linhas.length ? s.linhas : [novaLinha()]);
+    idsPorKey.current = new Map();
+    setRebase((n) => n + 1);
   }, [existente.data]);
 
   useEffect(() => {
@@ -204,11 +212,8 @@ export default function CompraEditor() {
   const lucroVendido = linhas.some((l) => l.vendas.length) ? linhas.reduce((t, l) => t + l.vendas.reduce((s2, v) => s2 + v.lucro, 0), 0) : null;
   // Sprint 590: o lucro que se está a experimentar na linha é o que segue para a venda — o preço c/ IVA que se vê
   // em "Venda c/ IVA" vai no link (ganha ao preço do artigo) e, se o lucro mudou, a compra grava-se antes de sair.
-  const lucroGravado = (l: LinhaForm) => num(existente.data?.linhas.find((x) => x.id === l.id)?.lucroUnitario);
   async function vender(lotes: [LinhaForm, number][]) {
-    if (!isNew && linhas.some((l) => l.id && l.lucro !== lucroGravado(l))) {
-      try { await save.mutateAsync(false); } catch { return; }
-    }
+    if (!isNew) await auto.gravarJa();
     const parte = ([l, q]: [LinhaForm, number]) => {
       const c = calc.porLinha[linhas.indexOf(l)];
       return l.lucro !== '' && c ? `${l.id}:${q}:${Math.round(c.precoFinalComIva * 100)}` : `${l.id}:${q}`;
@@ -243,6 +248,30 @@ export default function CompraEditor() {
         })),
     };
   }
+
+  // Sprint 678: compra já registada grava sozinha (lucro, localização, pagamento, notas, linhas de uma fatura em falta).
+  // «Corrigir dados da fatura» continua com botão (é uma correção do administrador, fica na auditoria).
+  const linhasEnviadas = linhas.filter((l) => l.descricao.trim() || l.preco.trim());
+  const validaAuto = !!form.fornecedorId && !!form.data
+    && linhasEnviadas.every((l) => l.descricao.trim() && parseDecimal(l.preco) != null && Number(l.quantidade) >= 1) && linhasEnviadas.length > 0;
+  const pedidoAuto = { req: isNew || corrigir ? null : buildRequest(false), keys: linhasEnviadas.map((l) => l.key) };
+  const auto = useAutosave(pedidoAuto, async ({ req, keys }) => {
+    if (!req || !id) return;
+    const linhasReq = req.linhas.map((l, i) => ({ ...l, id: l.id ?? idsPorKey.current.get(keys[i]) ?? null }));
+    const doc = await comprasApi.update(id, { ...req, linhas: linhasReq });
+    const conhecidos = new Set(linhasReq.map((l) => l.id).filter(Boolean));
+    const novos = doc.linhas.filter((x) => !conhecidos.has(x.id));
+    let k = 0;
+    linhasReq.forEach((l, i) => { if (!l.id && novos[k]) idsPorKey.current.set(keys[i], novos[k++].id); });
+    setLinhas((ls) => ls.map((l) => (l.id ? l : { ...l, id: idsPorKey.current.get(l.key) ?? null })));
+    ignorarSync.current = true;
+    qc.setQueryData(['compra', doc.id], doc);
+    void qc.invalidateQueries({ queryKey: ['compras'] });
+  }, { ativo: !isNew && !corrigir && rebase > 0 && validaAuto, atraso: 900 });
+  useEffect(() => {
+    if (rebase > 0) auto.reiniciar({ req: buildRequest(false), keys: linhas.filter((l) => l.descricao.trim() || l.preco.trim()).map((l) => l.key) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rebase]);
 
   const save = useMutation({
     mutationFn: (ignorarDuplicado: boolean) => {
@@ -282,6 +311,7 @@ export default function CompraEditor() {
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     setDuplicado(null);
+    if (!isNew && !corrigir) { void auto.gravarJa(); return; }
     save.mutate(false);
   }
 
@@ -324,9 +354,14 @@ export default function CompraEditor() {
                 {paraVender.length > 1 || paraVender[0].emStock > 1 ? 'Vender tudo' : 'Vender'}
               </Button>
             )}
-            <Button type="submit" loading={save.isPending} disabled={!podeGravar} leftIcon={<Save size={15} />}>
-              {isNew ? 'Registar compra' : 'Guardar'}
-            </Button>
+            {isNew || corrigir ? (
+              <Button type="submit" loading={save.isPending} disabled={!podeGravar} leftIcon={<Save size={15} />}>
+                {isNew ? 'Registar compra' : 'Guardar correção'}
+              </Button>
+            ) : (
+              <AutosaveStatus estado={validaAuto ? auto.estado : 'erro'} onTentar={auto.tentarDeNovo}
+                erro={validaAuto ? auto.erro : 'Há uma linha incompleta — não guardei'} />
+            )}
           </>
         }
       />

@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Save, Trash2 } from 'lucide-react';
-import { BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
+import { Trash2 } from 'lucide-react';
+import { AutosaveStatus, BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { DespesaCampos, useDespesaForm } from '../../components/DespesaFormModal';
 import { PdfPreview } from '../../components/PdfPreview';
 import { useConfirm } from '../../components/ConfirmDialog';
@@ -26,12 +26,13 @@ export default function DespesaDetalhe() {
 
   const form = useDespesaForm({
     editing: despesa.data ?? null,
-    onSaved: (d) => {
+    autosave: true,
+    onSaved: (d, auto) => {
       qc.setQueryData(['despesa', d.id], d);
       qc.invalidateQueries({ queryKey: ['despesas'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['apuramento'] });
-      toast.success('Despesa guardada', `Nº ${d.numero ?? ''} · ${formatCents(d.valorCents)}`);
+      if (!auto) toast.success('Despesa guardada', `Nº ${d.numero ?? ''} · ${formatCents(d.valorCents)}`);
     },
   });
 
@@ -51,7 +52,7 @@ export default function DespesaDetalhe() {
   const d = form.comFatura ?? despesa.data;
 
   return (
-    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (form.podeGravar) form.save.mutate(); }}>
+    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void form.auto.gravarJa(); }}>
       <BackButton to="/despesas" label="Despesas" />
       <PageHeader
         title={`Despesa nº ${d.numero ?? ''}${d.numeroEncomenda ? ` · ${d.numeroEncomenda}` : ''}`}
@@ -65,7 +66,8 @@ export default function DespesaDetalhe() {
               }}>
               Apagar
             </Button>
-            <Button type="submit" leftIcon={<Save size={15} />} disabled={!form.podeGravar} loading={form.save.isPending}>Guardar</Button>
+            <AutosaveStatus estado={form.valido ? form.auto.estado : 'erro'} onTentar={form.auto.tentarDeNovo}
+              erro={form.valido ? form.auto.erro : 'Falta a descrição ou o valor — não guardei'} />
           </>
         }
       />
