@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarClock, CheckCircle2, Flag, Inbox, Mail, MessageCircle, Phone, Plus, Save, Search, StickyNote, Wrench, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CheckCircle2, Flag, Inbox, Mail, MessageCircle, Phone, Plus, Search, StickyNote, Wrench, X } from 'lucide-react';
 import {
   repairRequestsApi,
   REPAIR_REQUEST_ESTADO,
@@ -14,6 +14,8 @@ import {
   type RepairRequestOrigem,
 } from '../../lib/repairRequests/api';
 import { toast } from '../../lib/toast';
+import { useAutosave } from '../../lib/useAutosave';
+import { AutosaveStatus } from '../../components/ui';
 import Modal from '../../components/Modal';
 import { formatDate } from '../../lib/money';
 import { liveListOptions } from '../../lib/queryOptions';
@@ -66,15 +68,6 @@ export default function PedidosOnline() {
     onError: (err) => toast.fromError(err, 'Erro a rejeitar pedido.'),
   });
 
-  const triagemMut = useMutation({
-    mutationFn: (vars: { id: string; notasInternas: string | null; prioridade: RepairRequestPrioridade; followUpAt: string | null }) =>
-      repairRequestsApi.updateTriagem(vars.id, { notasInternas: vars.notasInternas, prioridade: vars.prioridade, followUpAt: vars.followUpAt }),
-    onSuccess: () => {
-      toast.success('Triagem guardada.');
-      qc.invalidateQueries({ queryKey: ['repair-requests'] });
-    },
-    onError: (err) => toast.fromError(err, 'Erro a guardar triagem.'),
-  });
 
   // Sprint 439: criar pedido manual para leads offline.
   const [showNovo, setShowNovo] = useState(false);
@@ -402,12 +395,12 @@ export default function PedidosOnline() {
             key={r.id}
             request={r}
             isConverting={converterMut.isPending}
-            isSavingTriagem={triagemMut.isPending}
             onConverterReparacao={() => converterMut.mutate(r.id)}
             onRejeitar={() => askRejeitar(r)}
-            onSaveTriagem={(notas, prioridade, followUpAt) =>
-              triagemMut.mutate({ id: r.id, notasInternas: notas, prioridade, followUpAt })
-            }
+            onSaveTriagem={async (notas, prioridade, followUpAt) => {
+              await repairRequestsApi.updateTriagem(r.id, { notasInternas: notas, prioridade, followUpAt });
+              void qc.invalidateQueries({ queryKey: ['repair-requests'] });
+            }}
             onAbrirTrabalho={(vendaId) => navigate(`/vendas/${vendaId}`)}
           />
         ))}
@@ -424,7 +417,6 @@ export default function PedidosOnline() {
 function PedidoCard({
   request,
   isConverting,
-  isSavingTriagem,
   onConverterReparacao,
   onRejeitar,
   onSaveTriagem,
@@ -432,20 +424,22 @@ function PedidoCard({
 }: {
   request: RepairRequestDto;
   isConverting: boolean;
-  isSavingTriagem: boolean;
   onConverterReparacao: () => void;
   onRejeitar: () => void;
-  onSaveTriagem: (notas: string | null, prioridade: RepairRequestPrioridade, followUpAt: string | null) => void;
+  onSaveTriagem: (notas: string | null, prioridade: RepairRequestPrioridade, followUpAt: string | null) => Promise<void>;
   onAbrirTrabalho: (trabId: string) => void;
 }) {
   const [notas, setNotas] = useState(request.notasInternas ?? '');
   const [prioridade, setPrioridade] = useState<RepairRequestPrioridade>(request.prioridade);
   const [followUpLocal, setFollowUpLocal] = useState(toDateTimeLocalValue(request.followUpAt));
   const isPendente = request.estado === REPAIR_REQUEST_ESTADO.Pendente;
-  const dirty =
-    (notas.trim() || null) !== (request.notasInternas ?? null) ||
-    prioridade !== request.prioridade ||
-    followUpLocal !== toDateTimeLocalValue(request.followUpAt);
+  // Sprint 678: a triagem grava sozinha.
+  const triagem = { notas: notas.trim() || null, prioridade, followUp: fromDateTimeLocalValue(followUpLocal) };
+  const auto = useAutosave(triagem, (v) => onSaveTriagem(v.notas, v.prioridade, v.followUp), { atraso: 1000 });
+  useEffect(() => {
+    auto.reiniciar({ notas: request.notasInternas ?? null, prioridade: request.prioridade, followUp: fromDateTimeLocalValue(toDateTimeLocalValue(request.followUpAt)) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const borderTone = prioridadeBorder(request.prioridade);
 
@@ -545,14 +539,7 @@ function PedidoCard({
             maxLength={2000}
             className="w-full rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
-          <button
-            type="button"
-            disabled={!dirty || isSavingTriagem}
-            onClick={() => onSaveTriagem(notas.trim() ? notas.trim() : null, prioridade, fromDateTimeLocalValue(followUpLocal))}
-            className="inline-flex items-center justify-center gap-1 self-start rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-40 dark:border-brand-900/60 dark:bg-brand-950/30 dark:text-brand-300"
-          >
-            <Save size={12} /> Guardar
-          </button>
+          <span className="self-start"><AutosaveStatus estado={auto.estado} erro={auto.erro} onTentar={auto.tentarDeNovo} /></span>
         </div>
       )}
     </div>

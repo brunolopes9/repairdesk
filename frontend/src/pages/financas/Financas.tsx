@@ -108,8 +108,9 @@ export default function Financas() {
             <form className="mt-3 flex flex-wrap items-center gap-2 text-xs" onSubmit={(e) => { e.preventDefault(); const v = Number(objetivo.replace(',', '.')); if (v >= 0) guardarObjetivo.mutate(v); }}>
               <span className="text-zinc-500">Mudar objetivo mensal:</span>
               <input value={objetivo} onChange={(e) => setObjetivo(e.target.value)} inputMode="decimal" placeholder={String(d.objetivo)} aria-label="Objetivo mensal"
-                className="w-24 rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900" />
-              <Button type="submit" size="sm" variant="secondary" disabled={!objetivo.trim()} loading={guardarObjetivo.isPending}>Guardar</Button>
+                onBlur={() => { const v = Number(objetivo.replace(',', '.')); if (objetivo.trim() && v >= 0 && v !== d.objetivo) guardarObjetivo.mutate(v); }}
+                className="w-24 rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900" title="Grava sozinho ao sair do campo" />
+              <span className="text-zinc-500">{guardarObjetivo.isPending ? 'A guardar…' : 'grava sozinho'}</span>
             </form>
           </section>
 

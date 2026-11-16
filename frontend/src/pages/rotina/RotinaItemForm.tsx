@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2, X } from 'lucide-react';
-import { Button } from '../../components/ui';
+import { AutosaveStatus, Button } from '../../components/ui';
+import { useAutosave } from '../../lib/useAutosave';
 import { apiErrorMessage } from '../../lib/errors';
 import { toast } from '../../lib/toast';
 import { DIAS, RotinaTipo, TIPO_INFO, TODOS_OS_DIAS, rotinaApi, type GuardarRotinaItem, type RotinaAlimento, type RotinaItem } from '../../lib/rotina/api';
@@ -24,6 +25,18 @@ export default function RotinaItemForm({ item, onClose }: { item: RotinaItem | n
   const [alimentos, setAlimentos] = useState<RotinaAlimento[]>(() => item?.alimentos ?? []);
   const set = <K extends keyof GuardarRotinaItem>(k: K, v: GuardarRotinaItem[K]) => setF((x) => ({ ...x, [k]: v }));
   const repetir = f.intervaloDias ? 'intervalo' : 'semana';
+
+  // Sprint 678: um item que já existe grava sozinho (avisos seguem a configuração a partir de agora).
+  const auto = useAutosave({ f, alimentos }, async (v) => {
+    if (!item) return;
+    await rotinaApi.atualizar(item.id, v.f);
+    if (v.f.tipo === RotinaTipo.Refeicao) await rotinaApi.alimentos(item.id, v.alimentos.filter((a) => a.nome.trim()));
+    void qc.invalidateQueries({ queryKey: ['rotina'] });
+  }, { ativo: !!item && !!f.titulo?.trim(), atraso: 900 });
+  useEffect(() => {
+    if (item) auto.reiniciar({ f, alimentos });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const guardar = useMutation({
     mutationFn: async () => {
@@ -57,7 +70,7 @@ export default function RotinaItemForm({ item, onClose }: { item: RotinaItem | n
           <Button variant="ghost" size="sm" aria-label="Fechar" onClick={onClose}><X size={16} /></Button>
         </div>
 
-        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); guardar.mutate(); }}>
+        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (item) { void auto.gravarJa(); onClose(); } else guardar.mutate(); }}>
           <label className="block text-sm">Título
             <input required maxLength={80} value={f.titulo} onChange={(e) => set('titulo', e.target.value)} className={campo} placeholder="ex.: Almoço" />
           </label>
@@ -159,8 +172,17 @@ export default function RotinaItemForm({ item, onClose }: { item: RotinaItem | n
               <Button type="button" variant="danger" size="sm" leftIcon={<Trash2 size={14} />} disabled={apagar.isPending} onClick={() => apagar.mutate()}>Apagar</Button>
             ) : <span />}
             <div className="flex gap-2">
-              <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-              <Button type="submit" loading={guardar.isPending}>Guardar</Button>
+              {item ? (
+                <>
+                  <span className="self-center"><AutosaveStatus estado={auto.estado} erro={auto.erro} onTentar={auto.tentarDeNovo} /></span>
+                  <Button type="button" onClick={() => { void auto.gravarJa(); onClose(); }}>Fechar</Button>
+                </>
+              ) : (
+                <>
+                  <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+                  <Button type="submit" loading={guardar.isPending}>Criar</Button>
+                </>
+              )}
             </div>
           </div>
         </form>

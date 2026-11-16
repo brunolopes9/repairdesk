@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Save } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
@@ -49,9 +49,10 @@ export default function CategoriasModal({ open, onClose }: { open: boolean; onCl
           <li key={c.nome} className="flex items-center gap-2 px-3 py-2">
             <span className="flex-1">{c.nome} <span className="text-xs text-zinc-500">· {c.artigos} artigo(s)</span></span>
             <input value={precos[c.nome] ?? ''} onChange={(e) => setPrecos((p) => ({ ...p, [c.nome]: e.target.value }))}
-              className={`${inputCls} w-28`} inputMode="decimal" placeholder="sem preço" aria-label={`Preço de ${c.nome}`} />
-            <Button type="button" variant="secondary" leftIcon={<Save size={14} />} loading={guardar.isPending && guardar.variables?.nome === c.nome}
-              onClick={() => guardar.mutate({ nome: c.nome, preco: precos[c.nome] ?? '' })}>Guardar</Button>
+              onBlur={() => { if ((precos[c.nome] ?? '') !== (c.precoVendaCents != null ? (c.precoVendaCents / 100).toFixed(2).replace('.', ',') : '')) guardar.mutate({ nome: c.nome, preco: precos[c.nome] ?? '' }); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              className={`${inputCls} w-28`} inputMode="decimal" placeholder="sem preço" aria-label={`Preço de ${c.nome}`} title="Grava sozinho ao sair do campo" />
+            <span className="w-16 text-xs text-zinc-500">{guardar.isPending && guardar.variables?.nome === c.nome ? 'A guardar…' : ''}</span>
           </li>
         ))}
       </ul>

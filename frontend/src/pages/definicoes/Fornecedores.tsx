@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, CheckCircle2, History, Mail, Phone, Plus, Trash2, XCircle } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { BackButton, Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonRow, SortableTh } from '../../components/ui';
+import { AutosaveStatus, BackButton, Button, DetailWorkspace, EmptyState, InspectorRail, PageHeader, SkeletonRow, SortableTh } from '../../components/ui';
 import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
 import { toast } from '../../lib/toast';
+import { useAutosave } from '../../lib/useAutosave';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, TIPO_FATURAS_LABEL, type Fornecedor, type TipoFaturas, type FornecedorWriteRequest, type RegimeIva } from '../../lib/fornecedores/api';
 
@@ -64,7 +65,20 @@ export default function Fornecedores() {
     });
     setJuntar('');
     setOpen(true);
+    setRebase((n) => n + 1);
   }
+
+  // Sprint 678: editar um fornecedor grava sozinho; criar continua com «Criar».
+  const [rebase, setRebase] = useState(0);
+  const auto = useAutosave(form, async (v) => {
+    if (!editing) return;
+    await fornecedoresApi.update(editing.id, { ...v, nif: v.nif ?? '' });
+    void qc.invalidateQueries({ queryKey: ['fornecedores'] });
+  }, { ativo: open && !!editing && rebase > 0 && !!form.name.trim(), atraso: 900 });
+  useEffect(() => {
+    if (rebase > 0) auto.reiniciar(form);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rebase]);
 
   const save = useMutation({
     // Na edição o NIF vai sempre ("" apaga); null no backend significaria "não mexer".
@@ -274,7 +288,7 @@ export default function Fornecedores() {
       </DetailWorkspace>
 
       <Modal open={open} title={editing ? 'Editar fornecedor' : 'Novo fornecedor'} onClose={() => setOpen(false)}>
-        <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="space-y-3">
+        <form onSubmit={(e) => { e.preventDefault(); if (editing) void auto.gravarJa(); else save.mutate(); }} className="space-y-3">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-zinc-500">Nome *</span>
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="Tudo4Mobile" required />
@@ -396,8 +410,17 @@ export default function Fornecedores() {
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button type="submit" disabled={!form.name.trim() || save.isPending}>{editing ? 'Guardar' : 'Criar'}</Button>
+            {editing ? (
+              <>
+                <span className="mr-auto self-center"><AutosaveStatus estado={form.name.trim() ? auto.estado : 'erro'} erro={form.name.trim() ? auto.erro : 'Falta o nome — não guardei'} onTentar={auto.tentarDeNovo} /></span>
+                <Button type="button" onClick={() => { void auto.gravarJa(); setOpen(false); }}>Fechar</Button>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+                <Button type="submit" disabled={!form.name.trim() || save.isPending}>Criar</Button>
+              </>
+            )}
           </div>
         </form>
       </Modal>

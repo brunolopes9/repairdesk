@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Calculator } from 'lucide-react';
-import { Button, SectionCard } from '../../components/ui';
+import { AutosaveStatus, SectionCard } from '../../components/ui';
+import { useAutosave } from '../../lib/useAutosave';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { apuramentoApi, type ApuramentoEstimativas } from '../../lib/apuramento/api';
 import { formatEur, parseDecimal } from '../../lib/compras/format';
-import { toast } from '../../lib/toast';
 
 const dataPt = (d: string) => new Date(d).toLocaleDateString('pt-PT');
 const pct = (v: number) => `${(v * 100).toLocaleString('pt-PT', { maximumFractionDigits: 1 })}%`;
@@ -20,7 +20,14 @@ const txt = (v: number | null | undefined) => (v ? v.toFixed(2).replace('.', ','
 export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEstimativas; ano: number; trimestre: number }) {
   const qc = useQueryClient();
   const [f, setF] = useState({ inicio: '', ss: '', jovem: '', deducoes: '', servicosTabela: false, tradingTabela: true, proRata: '', proRataInicio: '', tradingAte: '' });
+  // Sprint 678: preenche uma vez por trimestre; depois grava sozinho (as estimativas recalculam-se no servidor).
+  const iniciado = useRef('');
+  const [rebase, setRebase] = useState(0);
   useEffect(() => {
+    const chave = `${ano}-${trimestre}`;
+    if (iniciado.current === chave) return;
+    iniciado.current = chave;
+    setRebase((n) => n + 1);
     setF({
       inicio: e.inicioAtividade?.slice(0, 10) ?? '',
       ss: txt(e.ssContribuicaoAtual),
@@ -32,10 +39,9 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
       proRataInicio: e.proRataInicio?.slice(0, 10) ?? '',
       tradingAte: e.tradingTabela151Ate?.slice(0, 10) ?? '',
     });
-  }, [e]);
+  }, [e, ano, trimestre]);
   const num = (s: string) => parseDecimal(s) ?? 0;
-  const guardar = useMutation({
-    mutationFn: () => apuramentoApi.definirPressupostos({
+  const montar = () => ({
       inicioAtividade: f.inicio || null,
       ssContribuicaoAtual: f.ss.trim() ? num(f.ss) : null,
       irsJovemAno: f.jovem ? Number(f.jovem) : null,
@@ -48,10 +54,15 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
       semProRata: !f.proRata.trim(),
       tradingTabela151Ate: f.tradingAte || null,
       semTradingTabela151Ate: !f.tradingAte,
-    }),
-    onSuccess: () => { toast.success('Pressupostos guardados'); qc.invalidateQueries({ queryKey: ['apuramento'] }); },
-    onError: (err) => toast.fromError(err, 'Não foi possível guardar.'),
   });
+  const auto = useAutosave(montar(), async (v) => {
+    await apuramentoApi.definirPressupostos(v);
+    void qc.invalidateQueries({ queryKey: ['apuramento'] });
+  }, { ativo: rebase > 0, atraso: 1000 });
+  useEffect(() => {
+    if (rebase > 0) auto.reiniciar(montar());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rebase]);
   const reducao = e.fatorInicio < 1 ? ` (reduzido a ${pct(e.fatorInicio)} — ${e.fatorInicio === 0.5 ? '1.º' : '2.º'} ano de atividade)` : '';
   const campo = (k: 'ss' | 'deducoes', label: string, extra?: string) => (
     <label className="block">
@@ -162,7 +173,7 @@ export default function EstimativasCard({ e, ano, trimestre }: { e: ApuramentoEs
           </label>
         </div>
         <div className="mt-3 flex justify-end">
-          <Button type="button" loading={guardar.isPending} onClick={() => guardar.mutate()}>Guardar pressupostos</Button>
+          <AutosaveStatus estado={auto.estado} erro={auto.erro} onTentar={auto.tentarDeNovo} />
         </div>
       </details>
       <p className="mt-4 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-800">
