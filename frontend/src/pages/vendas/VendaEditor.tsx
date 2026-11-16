@@ -408,33 +408,41 @@ export default function VendaEditor() {
     setTotalAlvo('');
   }
 
+  // Sprint 681: «dos quais por fora» reparte-se pelas linhas («Faturar a»), sem linha «Por fora» à parte —
+  // 2 cartões a 20 € e 10 € por fora = cada um cobrado a 20 € e faturado a 15 € (IVA só dos 15 €).
   function aplicarComPorFora(pf: number) {
     const alvo = parseDecimal(totalAlvo) ?? contas.total;
     if (pf < 0 || pf > alvo) return;
     const extra = (l: LinhaForm) => l.descricao.startsWith('Custo extra');
-    const linhaPf = linhas.find((l) => l.porFora && !extra(l));
+    const antigasPf = linhas.filter((l) => l.porFora && !extra(l));       // linha «Por fora» antiga: o valor volta às linhas
+    const custosExtra = linhas.filter((l) => l.porFora && extra(l));
     const comFatura = linhas.filter((l) => !l.porFora && !extra(l));
-    const totalLinha = (l: LinhaForm) => (Number(l.quantidade) || 1) * precoComIva(l.preco, l.iva, semIva);
-    const atualFatura = comFatura.reduce((s, l) => s + totalLinha(l), 0);
-    const fatura = Math.round((alvo - pf) * 100) / 100;
-    const fator = atualFatura > 0 ? fatura / atualFatura : 0;
-    setLinhas((ls) => {
-      const novas = ls.map((l) => {
-        if (l === linhaPf) return { ...l, quantidade: '1', preco: fmt2(pf) };
-        if (l.porFora && !extra(l)) return { ...l, preco: '0' };
-        if (!comFatura.includes(l)) return l;
-        const qtd = Number(l.quantidade) || 1;
-        const novoComIva = (totalLinha(l) * fator) / qtd;
-        const taxa = (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
-        return { ...l, faturar: '', preco: fmt2(semIva ? novoComIva / (1 + taxa) : novoComIva) };
-      });
-      if (!linhaPf && pf > 0) novas.push({
-        key: crypto.randomUUID(), id: null, compraLinhaId: null, descricao: 'Por fora',
-        quantidade: '1', preco: fmt2(pf), iva: '0', custoUnit: 0, taxaCompra: 0, maxStock: null,
-        encomenda: null, custo: '', nota: '', porFora: true, custoSemFatura: '',
-      });
-      return novas;
+    if (comFatura.length === 0) return;
+    const cobradoUnit = (l: LinhaForm) => partesLinha(l, semIva).cobrado;
+    const totalLinha = (l: LinhaForm) => (Number(l.quantidade) || 1) * cobradoUnit(l);
+    const fixos = custosExtra.reduce((s2, l) => s2 + totalLinha(l), 0);
+    const atual = comFatura.reduce((s2, l) => s2 + totalLinha(l), 0);
+    const paraLinhas = Math.max(0, alvo - fixos);
+    const fator = atual > 0 ? paraLinhas / atual : 0;
+    const somaAlvo = comFatura.reduce((s2, l) => s2 + totalLinha(l) * fator, 0);
+    let resto = Math.round(pf * 100);
+    const novasPorKey = new Map<string, Partial<LinhaForm>>();
+    comFatura.forEach((l, idx) => {
+      const qtd = Number(l.quantidade) || 1;
+      const taxa = (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
+      const novoCobrado = Math.round(cobradoUnit(l) * fator * 100) / 100;
+      const ultima = idx === comFatura.length - 1;
+      const parte = ultima ? resto : Math.round((somaAlvo > 0 ? pf * (totalLinha(l) * fator) / somaAlvo : 0) * 100);
+      const porUnidade = Math.min(Math.round(novoCobrado * 100), Math.round(parte / qtd));
+      resto -= porUnidade * qtd;
+      const faturarComIva = (Math.round(novoCobrado * 100) - porUnidade) / 100;
+      const emModo = (v: number) => fmt2(semIva ? v / (1 + taxa) : v);
+      novasPorKey.set(l.key, { preco: emModo(novoCobrado), faturar: porUnidade > 0 ? emModo(faturarComIva) : '' });
     });
+    setLinhas((ls) => ls
+      .filter((l) => !antigasPf.includes(l))
+      .map((l) => (novasPorKey.has(l.key) ? { ...l, ...novasPorKey.get(l.key) } : l)));
+    if (Math.abs(resto) > 0) toast.info(`Ficaram ${formatEur(Math.abs(resto) / 100)} por repartir (arredondamento) — acerta no «Faturar a» de uma linha.`);
     setTotalAlvo('');
     setPorForaAlvo('');
   }
@@ -912,7 +920,7 @@ export default function VendaEditor() {
                 className={`${inputCls} mt-1`} aria-label="Parte do total paga por fora, sem fatura" />
             </label>
             <Button type="button" size="sm" onClick={aplicarTotal} disabled={!totalAlvo.trim() && !porForaAlvo.trim()}>Aplicar</Button>
-            <p className="w-full text-[11px] text-brand-800/80 dark:text-brand-200/80">Escreves o total que vais cobrar e, se quiseres, quanto vai por fora (sem fatura). O resto fica na fatura e o lucro calcula-se sozinho.</p>
+            <p className="w-full text-[11px] text-brand-800/80 dark:text-brand-200/80">Escreves o total que vais cobrar e, se quiseres, quanto vai por fora (sem fatura). O por fora reparte-se pelas linhas («Faturar a») — o IVA é só do faturado e o lucro calcula-se sozinho.</p>
           </div>
         )}
         <dl className="mt-3 ml-auto grid max-w-xs grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm tabular-nums">
