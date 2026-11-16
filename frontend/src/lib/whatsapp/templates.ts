@@ -17,6 +17,16 @@ export interface WhatsAppVars {
   peca_nome?: string;
   prazo_estimado?: string;
   data_pronto?: string;
+  /** Sprint 679: adiantamento pedido no orçamento (ex.: «57,50 €») e o que fica para a entrega. */
+  adiantamento?: string;
+  restante?: string;
+}
+
+/** Sprint 679: frase do adiantamento acrescentada ao orçamento (vazia se não houver adiantamento). */
+function fraseAdiantamento(v: WhatsAppVars): string {
+  if (!v.adiantamento) return '';
+  const resto = v.restante ? ` e o resto (${v.restante}) paga-se na entrega` : '';
+  return ` Para encomendar a peça peço um adiantamento de ${v.adiantamento}${resto}. Se desistires depois de a peça estar encomendada, o adiantamento não é devolvido. Passo fatura do adiantamento no dia em que pagares.`;
 }
 
 /** Chaves iguais aos estados da Venda no backend (TenantPreferencesDefaults). */
@@ -64,7 +74,7 @@ export const TEMPLATES: Record<TemplateKey, TemplateMeta> = {
     build: (v) => {
       const valor = v.valor ?? '[valor]';
       const link = v.link_aprovacao ? ` ou usa ${v.link_aprovacao} para avançarmos` : '';
-      return `Olá ${v.cliente_nome}, já temos o orçamento para o teu ${v.equipamento}: ${valor}. Se estiver tudo bem para ti, responde a esta mensagem com "Aprovo"${link}.`;
+      return `Olá ${v.cliente_nome}, já temos o orçamento para o teu ${v.equipamento}: ${valor}.${fraseAdiantamento(v)} Se estiver tudo bem para ti, responde a esta mensagem com "Aprovo"${link}.`;
     },
   },
 
@@ -160,6 +170,8 @@ export function renderPreferenceTemplate(texto: string, vars: WhatsAppVars): str
     peca_nome: vars.peca_nome ?? 'a peça encomendada',
     prazo_estimado: vars.prazo_estimado ?? 'os próximos dias',
     data_pronto: vars.data_pronto ?? '',
+    adiantamento: vars.adiantamento ?? '',
+    restante: vars.restante ?? '',
   };
 
   return texto.replace(/{{\s*([\w_]+)\s*}}/g, (_, key: string) => {
@@ -179,7 +191,11 @@ export function templatesFromPreferences(preferences?: TenantPreferencesRoot | n
     const fallback = TEMPLATES[key];
     merged[key] = {
       ...fallback,
-      build: (v) => renderPreferenceTemplate(custom.texto || fallback.build(v), v),
+      build: (v) => {
+        const texto = renderPreferenceTemplate(custom.texto || fallback.build(v), v);
+        // Sprint 679: um orçamento personalizado sem {{adiantamento}} também leva a frase do adiantamento.
+        return key === 'Orcamento' && custom.texto && !/{{\s*adiantamento\s*}}/.test(custom.texto) ? texto + fraseAdiantamento(v) : texto;
+      },
     };
   }
   return merged;

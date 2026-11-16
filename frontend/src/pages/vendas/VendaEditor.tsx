@@ -122,6 +122,9 @@ export default function VendaEditor() {
   const [problema, setProblema] = useState('');
   const [notas, setNotas] = useState('');
   const [previsto, setPrevisto] = useState('');
+  // Sprint 679: adiantamento para encomendar a peça (€, texto do campo).
+  const [adiant, setAdiant] = useState('');
+  const [adiantFatura, setAdiantFatura] = useState('');
   const [linhas, setLinhas] = useState<LinhaForm[]>([]);
   const [semIva, setSemIva] = useState(() => semIvaPorDefeito(tipoInicial));
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -149,6 +152,7 @@ export default function VendaEditor() {
     setProblema(venda.problema ?? '');
     setNotas(venda.notas ?? '');
     setPrevisto(venda.previstoPara ? venda.previstoPara.slice(0, 10) : '');
+    setAdiant(venda.adiantamentoCents ? (venda.adiantamentoCents / 100).toFixed(2).replace('.', ',') : '');
     setLinhas(linhasNoModo(venda, modoSemIva));
     setFatura(venda.invoiceNumber ?? '');
     if (venda.invoiceEmittedAt) setFaturaData(venda.invoiceEmittedAt.slice(0, 10));
@@ -190,11 +194,12 @@ export default function VendaEditor() {
       const [custo, taxa] = l.encomenda != null ? [parseDecimal(l.custo) ?? 0, IVA_NORMAL / 100]
         : servico ? [(parseDecimal(l.custoSemFatura) ?? 0) / Math.max(1, qtd), 0] : [l.custoUnit, l.taxaCompra];
       const ivaVenda = l.porFora || venda?.foraApuramento ? 0 : (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
-      return { total, porFora: l.porFora, ...previewVenda(qtd, total, custo, l.porFora ? 0 : taxa, ivaVenda) };
+      return { total, porFora: l.porFora, peca: !servico, ...previewVenda(qtd, total, custo, l.porFora ? 0 : taxa, ivaVenda) };
     });
     const soma = (k: 'total' | 'ivaVenda' | 'ivaAPagar' | 'lucro') => porLinha.reduce((s, c) => s + c[k], 0);
     const porFora = porLinha.filter((c) => c.porFora).reduce((s, c) => s + c.total, 0);
-    return { porLinha, total: soma('total'), porFora, ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
+    const custoPecas = porLinha.filter((c) => c.peca).reduce((s, c) => s + c.custo, 0);
+    return { porLinha, custoPecas, total: soma('total'), porFora, ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
   }, [linhas, semIva, venda?.foraApuramento]);
 
   const reservado = useMemo(() => {
@@ -212,6 +217,7 @@ export default function VendaEditor() {
       problema: problema.trim() || null,
       notas: notas.trim() || null,
       previstoPara: previsto ? new Date(`${previsto}T18:00:00`).toISOString() : null,
+      adiantamentoCents: adiant.trim() ? Math.max(0, Math.round((parseDecimal(adiant) ?? 0) * 100)) : 0,
       linhas: linhas.map((l) => ({
         id: l.id,
         compraLinhaId: l.compraLinhaId,
@@ -290,6 +296,16 @@ export default function VendaEditor() {
     onSuccess: (v) => { setConfirmCancel(false); onSaved(v, VENDA_ESTADO_LABEL[v.estado]); },
     onError: (err) => toast.fromError(err),
   });
+
+  // Sprint 679: o cliente pagou o adiantamento (grava primeiro o valor pendente).
+  const adiantamentoRecebido = useMutation({
+    mutationFn: async (recebido: boolean) => { await auto.gravarJa(); return vendasApi.adiantamento(id!, recebido, adiantFatura.trim() || null); },
+    onSuccess: (v) => onSaved(v, v.adiantamentoRecebidoEm ? 'Adiantamento recebido' : 'Adiantamento marcado como não pago'),
+    onError: (err) => toast.fromError(err),
+  });
+  const adiantValor = parseDecimal(adiant) ?? 0;
+  const adiantRecebido = !!venda?.adiantamentoRecebidoEm;
+  const eur2 = (n: number) => n.toFixed(2).replace('.', ',');
 
   // Sprint 650: entregar sem receber já (o cliente paga depois) — fica nas cobranças até ser paga.
   const entregarPorReceber = useMutation({
@@ -615,6 +631,56 @@ export default function VendaEditor() {
           </label>
         </div>
       </SectionCard>
+
+      {tipo !== VENDA_TIPO.Produto && (!fechada || (venda?.adiantamentoCents ?? 0) > 0) && (
+        <SectionCard title="Adiantamento">
+          <div className="space-y-3 text-sm">
+            <p className="text-zinc-500">Para encomendar a peça a quem não conheces. Sai no <strong>Orçamento PDF</strong> com o que falta pagar na entrega e a regra se o cliente desistir (sinal — art. 441.º do Código Civil).</p>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="block">
+                <span className={labelCls}>Valor (€)</span>
+                <input value={adiant} onChange={(e) => setAdiant(e.target.value)} inputMode="decimal" placeholder="sem adiantamento"
+                  className={`${inputCls} w-36`} disabled={fechada || adiantRecebido} aria-label="Valor do adiantamento" />
+              </label>
+              {!fechada && !adiantRecebido && contas.total > 0 && (
+                <>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setAdiant(eur2(Math.ceil(contas.total * 0.25)))}>25% ({formatEur(Math.ceil(contas.total * 0.25))})</Button>
+                  {contas.custoPecas > 0 && (
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setAdiant(eur2(Math.ceil(contas.custoPecas)))}>Custo das peças ({formatEur(Math.ceil(contas.custoPecas))})</Button>
+                  )}
+                  {adiant && <Button type="button" size="sm" variant="ghost" onClick={() => setAdiant('')}>Sem adiantamento</Button>}
+                </>
+              )}
+            </div>
+            {adiantValor > 0 && (
+              <>
+                {adiantValor > contas.total && contas.total > 0 && (
+                  <p className="text-amber-700 dark:text-amber-300">O adiantamento é maior do que o total da reparação.</p>
+                )}
+                <p>Falta receber na entrega: <strong>{formatEur(Math.max(0, contas.total - adiantValor))}</strong></p>
+                {!isNew && venda && (adiantRecebido ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+                    <CheckCircle2 size={15} />
+                    <span className="flex-1">Pago a {new Date(venda.adiantamentoRecebidoEm!).toLocaleDateString('pt-PT')}{venda.adiantamentoFatura ? ` · fatura ${venda.adiantamentoFatura}` : ' · sem nº de fatura registado'}</span>
+                    {!fechada && <Button type="button" size="sm" variant="ghost" loading={adiantamentoRecebido.isPending} onClick={() => adiantamentoRecebido.mutate(false)}>Desfazer</Button>}
+                  </div>
+                ) : !fechada && (
+                  <div className="flex flex-wrap items-end gap-2 rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
+                    <label className="block">
+                      <span className={labelCls}>Nº da fatura do adiantamento (opcional)</span>
+                      <input value={adiantFatura} onChange={(e) => setAdiantFatura(e.target.value)} className={`${inputCls} w-48`} maxLength={60} placeholder="FT 2026/123" />
+                    </label>
+                    <Button type="button" size="sm" leftIcon={<Banknote size={15} />} loading={adiantamentoRecebido.isPending} onClick={() => adiantamentoRecebido.mutate(true)}>
+                      Recebi o adiantamento
+                    </Button>
+                    <p className="w-full text-xs text-zinc-500">Passa a fatura do adiantamento no dia em que recebes (o IVA é devido nesse dia — CIVA art. 8.º n.º 2). Na fatura final desconta-se o adiantamento.</p>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </SectionCard>
+      )}
 
       <SectionCard
         title="Linhas"

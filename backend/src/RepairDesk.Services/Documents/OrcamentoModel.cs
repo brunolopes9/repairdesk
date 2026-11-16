@@ -43,4 +43,7 @@ public sealed record OrcamentoData(
     int TotalCents,
     string? Observacoes,
     IReadOnlyList<OrcamentoCampoEquipamento>? CamposEquipamento = null,
-    string? PortalUrl = null);
+    string? PortalUrl = null,
+    /// <summary>Sprint 679: adiantamento pedido para encomendar a peça (cêntimos) e se já foi pago.</summary>
+    int? AdiantamentoCents = null,
+    DateTime? AdiantamentoRecebidoEm = null);

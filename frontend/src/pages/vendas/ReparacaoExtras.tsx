@@ -70,6 +70,8 @@ export default function ReparacaoExtras({ venda }: { venda: Venda }) {
                   numero_reparacao: venda.numero,
                   valor: venda.totalCents > 0 ? formatEur(venda.totalCents / 100) : undefined,
                   link_aprovacao: portalUrl ?? undefined,
+                  adiantamento: venda.adiantamentoCents && !venda.adiantamentoRecebidoEm ? formatEur(venda.adiantamentoCents / 100) : undefined,
+                  restante: venda.adiantamentoCents && venda.totalCents > venda.adiantamentoCents ? formatEur((venda.totalCents - venda.adiantamentoCents) / 100) : undefined,
                 }}
               />
             )}

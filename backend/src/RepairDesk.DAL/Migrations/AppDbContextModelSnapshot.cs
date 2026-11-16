@@ -3648,6 +3648,15 @@ namespace RepairDesk.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("AdiantamentoCents")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AdiantamentoFatura")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("AdiantamentoRecebidoEm")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("Atividade")
                         .HasColumnType("int");
 

@@ -44,7 +44,9 @@ public class OrcamentoPdfService : IOrcamentoPdfService
             Descricao: v.Equipamento is not null ? v.Problema : null,
             Linhas: linhas,
             TotalCents: v.TotalCents,
-            Observacoes: v.Notas);
+            Observacoes: v.Notas,
+            AdiantamentoCents: v.AdiantamentoCents is > 0 ? v.AdiantamentoCents : null,
+            AdiantamentoRecebidoEm: v.AdiantamentoRecebidoEm);
 
         var pdf = OrcamentoPdfRenderer.Render(data);
         return (pdf, $"Orcamento_V-{v.Numero:D5}.pdf");

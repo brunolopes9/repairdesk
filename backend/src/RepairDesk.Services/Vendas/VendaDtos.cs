@@ -37,7 +37,12 @@ public sealed record VendaWriteRequest(
     VendaEstado? Estado = null,
     PaymentMethod? PaymentMethod = null,
     /// <summary>Previsão de entrega mostrada ao cliente no portal.</summary>
-    DateTime? PrevistoPara = null);
+    DateTime? PrevistoPara = null,
+    /// <summary>Sprint 679: adiantamento pedido (cêntimos). null = não mexe; 0 = sem adiantamento.</summary>
+    int? AdiantamentoCents = null);
+
+/// <summary>Sprint 679: o cliente pagou (ou afinal não) o adiantamento; nº da fatura do adiantamento opcional.</summary>
+public sealed record AdiantamentoRecebidoRequest(bool Recebido, string? Fatura = null);
 
 public sealed record MudarEstadoVendaRequest(VendaEstado Estado, PaymentMethod? PaymentMethod = null, bool PorReceber = false);
 
@@ -128,7 +133,10 @@ public sealed record VendaDto(
     string? ForaApuramentoMotivo = null,
     /// <summary>Sprint 650: entregue mas ainda não paga.</summary>
     bool PorReceber = false,
-    DateTime? RecebidoEm = null);
+    DateTime? RecebidoEm = null,
+    int? AdiantamentoCents = null,
+    DateTime? AdiantamentoRecebidoEm = null,
+    string? AdiantamentoFatura = null);
 
 public sealed record VendaImeiLookupDto(
     Guid VendaId,

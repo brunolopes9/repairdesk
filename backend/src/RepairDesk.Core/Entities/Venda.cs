@@ -64,6 +64,16 @@ public class Venda : BaseEntity, ITenantEntity
     /// <summary>Quando uma venda que estava por receber foi paga (para as cobranças do mês certo).</summary>
     public DateTime? RecebidoEm { get; set; }
 
+    /// <summary>
+    /// Sprint 679: adiantamento pedido ao cliente para encomendar a peça (cêntimos, c/ IVA). Sai no orçamento com a
+    /// cláusula de sinal (CC art. 441.º/442.º). Null = sem adiantamento.
+    /// </summary>
+    public int? AdiantamentoCents { get; set; }
+    /// <summary>Quando o cliente pagou o adiantamento (o IVA é exigível nesse dia — CIVA art. 8.º n.º 2).</summary>
+    public DateTime? AdiantamentoRecebidoEm { get; set; }
+    /// <summary>Nº da fatura do adiantamento (emitida fora do Mender, na data do recebimento — CIVA art. 36.º n.º 1 c)).</summary>
+    public string? AdiantamentoFatura { get; set; }
+
     public string? Notas { get; set; }
     public List<VendaItem> Items { get; set; } = new();
 }

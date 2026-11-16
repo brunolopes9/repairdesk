@@ -22,6 +22,7 @@ public interface IVendaService
     Task<VendaDto> ForaApuramentoAsync(Guid id, ForaApuramentoRequest req, CancellationToken ct = default);
     /// <summary>Sprint 650: venda entregue paga / ainda por receber (cobranças).</summary>
     Task<VendaDto> PagamentoAsync(Guid id, PagamentoVendaRequest req, CancellationToken ct = default);
+    Task<VendaDto> AdiantamentoRecebidoAsync(Guid id, AdiantamentoRecebidoRequest req, CancellationToken ct = default);
     /// <summary>Sprint 594: peças por encomendar/encomendadas das reparações em curso.</summary>
     Task<IReadOnlyList<PecaEncomendaDto>> PecasEncomendaAsync(CancellationToken ct = default);
     /// <summary>Sprint 594: "já encomendei" / "afinal ainda não" numa peça em falta, sem abrir a venda.</summary>
@@ -296,6 +297,42 @@ public class VendaService : IVendaService
         return ToDto(venda);
     }
 
+    /// <summary>
+    /// Sprint 679: regista que o cliente pagou o adiantamento (ou desfaz). Auditado — é dinheiro recebido e o IVA
+    /// do adiantamento é exigível nesse dia (a fatura do adiantamento é passada fora do Mender).
+    /// </summary>
+    public async Task<VendaDto> AdiantamentoRecebidoAsync(Guid id, AdiantamentoRecebidoRequest req, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
+        if (venda.AdiantamentoCents is null)
+            throw new ConflictException("sem_adiantamento", "Esta venda não tem adiantamento pedido.");
+        if (venda.Estado == VendaEstado.Cancelada && req.Recebido)
+            throw new ConflictException("venda_cancelada", "A venda está cancelada.");
+        var fatura = Clean(req.Fatura, 60);
+        var antes = new { venda.AdiantamentoRecebidoEm, venda.AdiantamentoFatura };
+        if (req.Recebido)
+        {
+            venda.AdiantamentoRecebidoEm ??= DateTime.UtcNow;
+            venda.AdiantamentoFatura = fatura ?? venda.AdiantamentoFatura;
+        }
+        else
+        {
+            venda.AdiantamentoRecebidoEm = null;
+            venda.AdiantamentoFatura = null;
+        }
+        await _vendas.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new
+        {
+            operation = "adiantamento",
+            venda.Numero,
+            venda.AdiantamentoCents,
+            recebido = req.Recebido,
+            venda.AdiantamentoFatura,
+            antes,
+        }, ct: ct);
+        return ToDto(venda);
+    }
+
     public async Task<VendaDto> RegistarFaturaAsync(Guid id, RegistarFaturaRequest req, CancellationToken ct = default)
     {
         var venda = await _vendas.FindByIdWithItemsAsync(id, ct) ?? throw new NotFoundException("Venda", id);
@@ -374,6 +411,13 @@ public class VendaService : IVendaService
         venda.Problema = Clean(req.Problema, 2000);
         venda.Notas = Clean(req.Notas, 2000);
         venda.PrevistoPara = req.PrevistoPara is { } p ? DateTime.SpecifyKind(p, DateTimeKind.Utc) : null;
+        if (req.AdiantamentoCents is { } ad)
+        {
+            if (ad < 0) throw new ValidationException("adiantamento_invalido", "O adiantamento não pode ser negativo.");
+            if (ad == 0 && venda.AdiantamentoRecebidoEm is not null)
+                throw new ConflictException("adiantamento_recebido", "O adiantamento já foi recebido — desmarca «Recebido» antes de o tirar.");
+            venda.AdiantamentoCents = ad == 0 ? null : ad;
+        }
         if (venda.Tipo == VendaTipo.Reparacao && venda.PublicSlug is null && venda.Id != Guid.Empty)
             venda.PublicSlug = PublicSlugGenerator.New();
     }
@@ -692,7 +736,10 @@ public class VendaService : IVendaService
             venda.ForaApuramento,
             venda.ForaApuramentoMotivo,
             venda.PorReceber,
-            venda.RecebidoEm);
+            venda.RecebidoEm,
+            venda.AdiantamentoCents,
+            venda.AdiantamentoRecebidoEm,
+            venda.AdiantamentoFatura);
     }
 
     private static string? Clean(string? s, int max)

@@ -25,6 +25,10 @@ export const vendasApi = {
     return api.post<Venda>(`/vendas/${id}/estado`, { estado, paymentMethod, porReceber }).then((r) => r.data);
   },
   /** Sprint 650: venda entregue paga (false) ou ainda por receber (true). */
+  /** Sprint 679: o cliente pagou (ou não) o adiantamento. */
+  adiantamento(id: string, recebido: boolean, fatura?: string | null) {
+    return api.put<Venda>(`/vendas/${id}/adiantamento`, { recebido, fatura: fatura ?? null }).then((r) => r.data);
+  },
   pagamento(id: string, porReceber: boolean) {
     return api.put<Venda>(`/vendas/${id}/pagamento`, { porReceber }).then((r) => r.data);
   },

@@ -177,6 +177,10 @@ export interface Venda {
   /** Sprint 650: entregue mas o cliente ainda não pagou (cobranças). */
   porReceber?: boolean;
   recebidoEm?: string | null;
+  /** Sprint 679: adiantamento pedido para encomendar a peça (cêntimos), quando foi pago e nº da fatura dele. */
+  adiantamentoCents?: number | null;
+  adiantamentoRecebidoEm?: string | null;
+  adiantamentoFatura?: string | null;
 }
 
 /** Sprint 565: resultado de importar o PDF de uma fatura de venda. */
@@ -217,6 +221,8 @@ export interface VendaWrite {
   estado?: VendaEstado;
   paymentMethod?: PaymentMethod | null;
   previstoPara?: string | null;
+  /** Sprint 679: null/omisso = não mexe; 0 = sem adiantamento. */
+  adiantamentoCents?: number | null;
 }
 
 export interface VendaFiltro {

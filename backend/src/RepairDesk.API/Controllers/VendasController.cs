@@ -102,6 +102,11 @@ public class VendasController : ControllerBase
     public Task<VendaDto> Pagamento(Guid id, [FromBody] PagamentoVendaRequest req, CancellationToken ct)
         => _service.PagamentoAsync(id, req, ct);
 
+    /// <summary>Sprint 679: o cliente pagou (ou não) o adiantamento pedido no orçamento. Auditado.</summary>
+    [HttpPut("{id:guid}/adiantamento")]
+    public Task<VendaDto> Adiantamento(Guid id, [FromBody] AdiantamentoRecebidoRequest req, CancellationToken ct)
+        => _service.AdiantamentoRecebidoAsync(id, req, ct);
+
     /// <summary>Sprint 563: corrige preços/IVA de uma venda entregue (erro de lançamento). Só Admin; auditado.</summary>
     [HttpPut("{id:guid}/corrigir-precos")]
     [Authorize(Roles = "Admin")]

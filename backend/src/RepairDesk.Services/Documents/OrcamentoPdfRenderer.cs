@@ -117,6 +117,33 @@ public static class OrcamentoPdfRenderer
             // Tabela de linhas
             col.Item().Element(c => LinhasTable(c, o, brand));
 
+            // Sprint 679: adiantamento para encomendar a peça — valor, restante e a regra se o cliente desistir.
+            if (o.AdiantamentoCents is { } ad and > 0)
+            {
+                var restante = Math.Max(0, o.TotalCents - ad);
+                col.Item().PaddingTop(10).Border(0.75f).BorderColor(Colors.Grey.Lighten1).Background(Colors.Grey.Lighten5).Padding(8).Column(c =>
+                {
+                    c.Item().Text("ADIANTAMENTO").FontSize(8).Bold().LetterSpacing(0.1f).FontColor(Colors.Grey.Darken1);
+                    c.Item().PaddingTop(2).Row(r =>
+                    {
+                        r.RelativeItem().Text(o.AdiantamentoRecebidoEm is { } em
+                            ? $"Adiantamento pago a {em.ToLocalTime():dd/MM/yyyy}"
+                            : "Adiantamento para encomendar a peça").FontSize(10);
+                        r.ConstantItem(90).AlignRight().Text(FormatMoney(ad)).FontSize(10).Bold();
+                    });
+                    c.Item().Row(r =>
+                    {
+                        r.RelativeItem().Text("A pagar na entrega").FontSize(10);
+                        r.ConstantItem(90).AlignRight().Text(FormatMoney(restante)).FontSize(10).Bold();
+                    });
+                    c.Item().PaddingTop(4).Text(
+                        "A peça só é encomendada depois de pago o adiantamento, que é descontado no total. O adiantamento vale como sinal " +
+                        "(art. 441.º do Código Civil): se desistir depois de a peça estar encomendada, o valor não é devolvido; se não fizermos a reparação " +
+                        "por motivo nosso, o adiantamento é devolvido nos termos da lei (art. 442.º). É emitida fatura do adiantamento no dia do pagamento.")
+                        .FontSize(8).FontColor(Colors.Grey.Darken2);
+                });
+            }
+
             // Observações
             if (!string.IsNullOrWhiteSpace(o.Observacoes))
             {
