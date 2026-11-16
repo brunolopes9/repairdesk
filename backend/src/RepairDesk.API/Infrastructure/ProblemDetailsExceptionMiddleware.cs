@@ -67,6 +67,7 @@ public class ProblemDetailsExceptionMiddleware
             Instance = ctx.Request.Path
         };
         if (errors is not null) problem.Extensions["errors"] = errors;
+        if (ex is DomainException { Detalhes: { } detalhes }) problem.Extensions["detalhes"] = detalhes;
         if (ex is not null && (_env.IsDevelopment() || _env.IsEnvironment("Testing")))
         {
             problem.Extensions["exception"] = ex.GetType().FullName;

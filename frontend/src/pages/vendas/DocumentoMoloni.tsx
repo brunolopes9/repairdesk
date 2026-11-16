@@ -9,7 +9,7 @@ import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { moloniApi, MOTIVOS_ISENCAO, type MoloniDocumento } from '../../lib/moloni/api';
 import { toast } from '../../lib/toast';
 import { vendasApi } from '../../lib/vendas/api';
-import { VENDA_ESTADO, VENDA_TIPO, type PaymentMethod, type Venda } from '../../lib/vendas/types';
+import { PAYMENT_METHOD_LABEL, VENDA_ESTADO, VENDA_TIPO, type PaymentMethod, type Venda } from '../../lib/vendas/types';
 import DadosFatura, { escolhaInicial, pedidoFatura, problemaFatura, type EscolhaFatura } from './DadosFatura';
 
 interface Props {
@@ -30,6 +30,10 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
 
   const [serie, setSerie] = useState<number | ''>('');
   const [pagamento, setPagamento] = useState<PaymentMethod>(venda.paymentMethod);
+  // Sprint 683: o pagamento escolhido em «Entregue & paga» já vem daqui — não se escolhe duas vezes.
+  const [mudarPagamento, setMudarPagamento] = useState(false);
+  useEffect(() => { setPagamento(venda.paymentMethod); }, [venda.paymentMethod]);
+  const pagamentoDaVenda = venda.estado === VENDA_ESTADO.Entregue && !venda.porReceber;
   const [vencimento, setVencimento] = useState(30);
   const [motivo, setMotivo] = useState<string>('');
   const [anular, setAnular] = useState<string | null>(null);
@@ -174,7 +178,14 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
             {opcoesSerie}
             <div className="sm:col-span-3">
               <span className={labelCls}>Pago com (fatura-recibo)</span>
-              <PagamentoPicker compacto value={pagamento} onChange={setPagamento} />
+              {pagamentoDaVenda && !mudarPagamento ? (
+                <p className="text-sm">
+                  <strong>{PAYMENT_METHOD_LABEL[pagamento]}</strong> <span className="text-zinc-500">— o que escolheste ao entregar.</span>{' '}
+                  <button type="button" className="text-xs text-brand-700 underline dark:text-brand-300" onClick={() => setMudarPagamento(true)}>mudar</button>
+                </p>
+              ) : (
+                <PagamentoPicker compacto value={pagamento} onChange={setPagamento} />
+              )}
             </div>
             <label className="block">
               <span className={labelCls}>Vencimento (fatura)</span>

@@ -528,8 +528,20 @@ public class VendaService : IVendaService
             var lote = lotes[grupo.Key];
             var qtd = grupo.Sum(i => i.Quantidade);
             if (lote.QuantidadeEmStock < qtd)
+            {
+                // Sprint 683: diz com o nome que está na venda e o nº do lote, e a UI pinta a linha a vermelho.
+                var nome = grupo.First().Descricao;
+                var linhas = grupo.Count() > 1 ? $" ({grupo.Count()} linhas com a mesma peça)" : "";
                 throw new ValidationException("stock_insuficiente",
-                    $"\"{lote.Descricao}\": só há {lote.QuantidadeEmStock} em stock (pedido {qtd}).");
+                    $"«{nome}» (lote {lote.Numero}): só há {lote.QuantidadeEmStock} em stock e esta venda pede {qtd}{linhas}. " +
+                    "Tira as unidades a mais ou troca por outro lote em «Do stock».")
+                {
+                    Detalhes = new Dictionary<string, object?>
+                    {
+                        ["compraLinhaId"] = lote.Id, ["lote"] = lote.Numero, ["disponivel"] = lote.QuantidadeEmStock, ["pedido"] = qtd,
+                    },
+                };
+            }
             lote.QuantidadeVendida += qtd;
         }
     }

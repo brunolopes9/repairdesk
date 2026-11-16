@@ -4,6 +4,9 @@ public class DomainException : Exception
 {
     public string Code { get; }
 
+    /// <summary>Sprint 683: dados para a UI mostrar o erro no sítio certo (ex.: a linha da venda sem stock).</summary>
+    public IReadOnlyDictionary<string, object?>? Detalhes { get; init; }
+
     public DomainException(string code, string message) : base(message)
     {
         Code = code;

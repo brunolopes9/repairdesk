@@ -29,6 +29,13 @@ const STATUS_MESSAGES: Record<number, string> = {
   504: 'Servidor demorou demasiado a responder.',
 };
 
+/** Sprint 683: código e detalhes estruturados do erro (para o mostrar no sítio certo da página). */
+export function apiErrorInfo(err: unknown): { code?: string; detalhes?: Record<string, unknown> } {
+  if (!isAxiosError(err)) return {};
+  const data = err.response?.data as { title?: string; detalhes?: Record<string, unknown> } | undefined;
+  return { code: data?.title, detalhes: data?.detalhes };
+}
+
 /**
  * Mensagem amigável para mostrar ao utilizador. Não usar para logging — perde
  * contexto. Para logging usa o erro inteiro com Sentry.

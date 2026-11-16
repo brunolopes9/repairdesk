@@ -8,7 +8,7 @@ import { PagamentoPicker } from '../../components/PagamentoPicker';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { apiErrorMessage } from '../../lib/errors';
+import { apiErrorInfo, apiErrorMessage } from '../../lib/errors';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { toast } from '../../lib/toast';
 import { formatEur, parseDecimal, previewVenda } from '../../lib/compras/format';
@@ -149,6 +149,27 @@ export default function VendaEditor() {
   const [fatura, setFatura] = useState('');
   const [faturaData, setFaturaData] = useState(new Date().toISOString().slice(0, 10));
   const [confirmCancel, setConfirmCancel] = useState(false);
+  // Sprint 685: o total c/ IVA de cada linha também se escreve (o preço unitário acerta-se sozinho).
+  const [totEdit, setTotEdit] = useState<Record<string, string>>({});
+  function escreverTotal(l: LinhaForm, txt: string) {
+    setTotEdit((t) => ({ ...t, [l.key]: txt }));
+    const v = parseDecimal(txt);
+    if (v == null || v < 0) return;
+    const unit = v / Math.max(1, Number(l.quantidade) || 1);
+    const taxa = (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
+    setLinha(l.key, { preco: fmt2(l.porFora || !semIva ? unit : unit / (1 + taxa)) });
+  }
+  // Sprint 683: o erro de uma ação aparece a vermelho no sítio (cartão Estado e linha com o problema), não só num aviso.
+  const [erroAcao, setErroAcao] = useState<{ msg: string; loteId?: string; disponivel?: number } | null>(null);
+  function mostrarErro(err: unknown) {
+    const msg = apiErrorMessage(err);
+    const { code, detalhes } = apiErrorInfo(err);
+    const loteId = code === 'stock_insuficiente' && typeof detalhes?.compraLinhaId === 'string' ? detalhes.compraLinhaId : undefined;
+    setErroAcao({ msg, loteId, disponivel: typeof detalhes?.disponivel === 'number' ? detalhes.disponivel : undefined });
+    toast.error(msg);
+    // leva o olhar até à linha com o problema (ou ao cartão Estado)
+    setTimeout(() => document.querySelector(loteId ? `[data-lote-erro="${loteId}"]` : '#venda-erro-acao')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+  }
 
   // Sprint 675: a venda grava sozinha. `ignorarSync` evita que a resposta do autosave reescreva o que se está a
   // escrever; `rebase` marca o que veio do servidor como «já gravado» depois de o formulário o mostrar.
@@ -295,8 +316,8 @@ export default function VendaEditor() {
 
   const guardar = useMutation({
     mutationFn: (estado?: VendaEstado) => (isNew ? vendasApi.create(buildRequest(estado)) : vendasApi.update(id!, buildRequest())),
-    onSuccess: (v) => onSaved(v, isNew ? 'Venda criada' : 'Venda guardada'),
-    onError: (err) => toast.fromError(err),
+    onSuccess: (v) => { setErroAcao(null); onSaved(v, isNew ? 'Venda criada' : 'Venda guardada'); },
+    onError: (err) => mostrarErro(err),
   });
 
   const confirm = useConfirm();
@@ -316,8 +337,8 @@ export default function VendaEditor() {
       if (!fechada && estado !== VENDA_ESTADO.Cancelada) await auto.gravarJa();
       return vendasApi.mudarEstado(id!, estado, estado === VENDA_ESTADO.Entregue ? pagamento : undefined);
     },
-    onSuccess: (v) => { setConfirmCancel(false); onSaved(v, VENDA_ESTADO_LABEL[v.estado]); },
-    onError: (err) => toast.fromError(err),
+    onSuccess: (v) => { setConfirmCancel(false); setErroAcao(null); onSaved(v, VENDA_ESTADO_LABEL[v.estado]); },
+    onError: (err) => mostrarErro(err),
   });
 
   // Sprint 679: o cliente pagou o adiantamento (grava primeiro o valor pendente).
@@ -352,8 +373,8 @@ export default function VendaEditor() {
       if (!fechada) await auto.gravarJa();
       return vendasApi.mudarEstado(id!, VENDA_ESTADO.Entregue, pagamento, true);
     },
-    onSuccess: (v) => onSaved(v, 'Entregue — fica por receber'),
-    onError: (err) => toast.fromError(err),
+    onSuccess: (v) => { setErroAcao(null); onSaved(v, 'Entregue — fica por receber'); },
+    onError: (err) => mostrarErro(err),
   });
 
   const marcarPagamento = useMutation({
@@ -412,38 +433,53 @@ export default function VendaEditor() {
   // Sprint 681: «dos quais por fora» reparte-se pelas linhas («Faturar a»), sem linha «Por fora» à parte —
   // 2 cartões a 20 € e 10 € por fora = cada um cobrado a 20 € e faturado a 15 € (IVA só dos 15 €).
   function aplicarComPorFora(pf: number) {
+    // Sprint 684: 1) o total combinado acerta-se na linha de serviço/mão de obra — as peças do stock mantêm o
+    // preço de venda (ex.: película 14,90 + limpeza = 40 € → a limpeza fica 25,10 €); 2) o por fora: se for o
+    // total todo, as linhas passam a «Por fora» inteiras; senão reparte-se pelo «Faturar a» das linhas com fatura.
     const alvo = parseDecimal(totalAlvo) ?? contas.total;
-    if (pf < 0 || pf > alvo) return;
+    if (pf < 0 || pf > alvo + 0.005) { toast.error('O por fora não pode ser maior que o total.'); return; }
     const extra = (l: LinhaForm) => l.descricao.startsWith('Custo extra');
-    const antigasPf = linhas.filter((l) => l.porFora && !extra(l));       // linha «Por fora» antiga: o valor volta às linhas
-    const custosExtra = linhas.filter((l) => l.porFora && extra(l));
-    const comFatura = linhas.filter((l) => !l.porFora && !extra(l));
-    if (comFatura.length === 0) return;
-    const cobradoUnit = (l: LinhaForm) => partesLinha(l, semIva).cobrado;
-    const totalLinha = (l: LinhaForm) => (Number(l.quantidade) || 1) * cobradoUnit(l);
-    const fixos = custosExtra.reduce((s2, l) => s2 + totalLinha(l), 0);
-    const atual = comFatura.reduce((s2, l) => s2 + totalLinha(l), 0);
-    const paraLinhas = Math.max(0, alvo - fixos);
-    const fator = atual > 0 ? paraLinhas / atual : 0;
-    const somaAlvo = comFatura.reduce((s2, l) => s2 + totalLinha(l) * fator, 0);
-    let resto = Math.round(pf * 100);
-    const novasPorKey = new Map<string, Partial<LinhaForm>>();
-    comFatura.forEach((l, idx) => {
-      const qtd = Number(l.quantidade) || 1;
-      const taxa = (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
-      const novoCobrado = Math.round(cobradoUnit(l) * fator * 100) / 100;
-      const ultima = idx === comFatura.length - 1;
-      const parte = ultima ? resto : Math.round((somaAlvo > 0 ? pf * (totalLinha(l) * fator) / somaAlvo : 0) * 100);
-      const porUnidade = Math.min(Math.round(novoCobrado * 100), Math.round(parte / qtd));
-      resto -= porUnidade * qtd;
-      const faturarComIva = (Math.round(novoCobrado * 100) - porUnidade) / 100;
-      const emModo = (v: number) => fmt2(semIva ? v / (1 + taxa) : v);
-      novasPorKey.set(l.key, { preco: emModo(novoCobrado), faturar: porUnidade > 0 ? emModo(faturarComIva) : '' });
-    });
-    setLinhas((ls) => ls
-      .filter((l) => !antigasPf.includes(l))
-      .map((l) => (novasPorKey.has(l.key) ? { ...l, ...novasPorKey.get(l.key) } : l)));
-    if (Math.abs(resto) > 0) toast.info(`Ficaram ${formatEur(Math.abs(resto) / 100)} por repartir (arredondamento) — acerta no «Faturar a» de uma linha.`);
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+    const cob = (l: LinhaForm) => partesLinha(l, semIva).cobrado;
+    const qt = (l: LinhaForm) => Number(l.quantidade) || 1;
+    const tot = (l: LinhaForm) => qt(l) * cob(l);
+    const taxa = (l: LinhaForm) => (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
+    const emModo = (l: LinhaForm, comIva: number) => fmt2(l.porFora || !semIva ? comIva : comIva / (1 + taxa(l)));
+    let ls = linhas.map((l) => ({ ...l }));
+
+    // 1) total
+    const diff = r2(alvo - ls.reduce((s2, l) => s2 + tot(l), 0));
+    if (Math.abs(diff) >= 0.005) {
+      const serv = [...ls].reverse().find((l) => !l.compraLinhaId && l.encomenda == null && !extra(l));
+      if (serv && cob(serv) + diff / qt(serv) >= 0) {
+        serv.preco = emModo(serv, cob(serv) + diff / qt(serv));
+      } else {
+        const base = ls.filter((l) => !extra(l)).reduce((s2, l) => s2 + tot(l), 0);
+        const fator = base > 0 ? (base + diff) / base : 0;
+        ls = ls.map((l) => (extra(l) ? l : { ...l, preco: emModo(l, cob(l) * fator) }));
+      }
+    }
+
+    // 2) por fora
+    const total = ls.reduce((s2, l) => s2 + tot(l), 0);
+    if (pf >= total - 0.005) {
+      ls = ls.map((l) => (extra(l) || l.porFora ? l : { ...l, porFora: true, faturar: '', iva: '0', preco: fmt2(cob(l)) }));
+    } else {
+      const jaPorFora = ls.filter((l) => l.porFora && !extra(l)).reduce((s2, l) => s2 + tot(l), 0);
+      let resto = Math.round((pf - jaPorFora) * 100);
+      if (resto < 0) { toast.error(`Já há ${formatEur(jaPorFora)} em linhas «Por fora» — mais do que ${formatEur(pf)}. Tira o «Por fora» de alguma linha.`); return; }
+      const comFatura = ls.filter((l) => !l.porFora && !extra(l));
+      const soma = comFatura.reduce((s2, l) => s2 + tot(l), 0);
+      comFatura.forEach((l, idx) => {
+        const ultima = idx === comFatura.length - 1;
+        const parte = ultima ? resto : Math.round((soma > 0 ? (pf - jaPorFora) * tot(l) / soma : 0) * 100);
+        const porUnidade = Math.min(Math.round(cob(l) * 100), Math.round(parte / qt(l)));
+        resto -= porUnidade * qt(l);
+        l.faturar = porUnidade > 0 ? emModo(l, (Math.round(cob(l) * 100) - porUnidade) / 100) : '';
+      });
+      if (Math.abs(resto) > 0) toast.info(`Ficaram ${formatEur(Math.abs(resto) / 100)} por repartir (arredondamento) — acerta no «Faturar a» de uma linha.`);
+    }
+    setLinhas(ls);
     setTotalAlvo('');
     setPorForaAlvo('');
   }
@@ -680,55 +716,6 @@ export default function VendaEditor() {
         </div>
       </SectionCard>
 
-      {tipo !== VENDA_TIPO.Produto && (!fechada || (venda?.adiantamentoCents ?? 0) > 0) && (
-        <SectionCard title="Adiantamento">
-          <div className="space-y-3 text-sm">
-            <p className="text-zinc-500">Para encomendar a peça a quem não conheces. Sai no <strong>Orçamento PDF</strong> com o que falta pagar na entrega e a regra se o cliente desistir (sinal — art. 441.º do Código Civil).</p>
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="block">
-                <span className={labelCls}>Valor (€)</span>
-                <input value={adiant} onChange={(e) => setAdiant(e.target.value)} inputMode="decimal" placeholder="sem adiantamento"
-                  className={`${inputCls} w-36`} disabled={fechada || adiantRecebido} aria-label="Valor do adiantamento" />
-              </label>
-              {!fechada && !adiantRecebido && contas.total > 0 && (
-                <>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setAdiant(eur2(Math.ceil(contas.total * 0.25)))}>25% ({formatEur(Math.ceil(contas.total * 0.25))})</Button>
-                  {contas.custoPecas > 0 && (
-                    <Button type="button" size="sm" variant="secondary" onClick={() => setAdiant(eur2(Math.ceil(contas.custoPecas)))}>Custo das peças ({formatEur(Math.ceil(contas.custoPecas))})</Button>
-                  )}
-                  {adiant && <Button type="button" size="sm" variant="ghost" onClick={() => setAdiant('')}>Sem adiantamento</Button>}
-                </>
-              )}
-            </div>
-            {adiantValor > 0 && (
-              <>
-                {adiantValor > contas.total && contas.total > 0 && (
-                  <p className="text-amber-700 dark:text-amber-300">O adiantamento é maior do que o total da reparação.</p>
-                )}
-                <p>Falta receber na entrega: <strong>{formatEur(Math.max(0, contas.total - adiantValor))}</strong></p>
-                {!isNew && venda && (adiantRecebido ? (
-                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
-                    <CheckCircle2 size={15} />
-                    <span className="flex-1">Pago a {new Date(venda.adiantamentoRecebidoEm!).toLocaleDateString('pt-PT')}{venda.adiantamentoFatura ? ` · fatura ${venda.adiantamentoFatura}` : ' · sem nº de fatura registado'}</span>
-                    {!fechada && <Button type="button" size="sm" variant="ghost" loading={adiantamentoRecebido.isPending} onClick={() => adiantamentoRecebido.mutate(false)}>Desfazer</Button>}
-                  </div>
-                ) : !fechada && (
-                  <div className="flex flex-wrap items-end gap-2 rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
-                    <label className="block">
-                      <span className={labelCls}>Nº da fatura do adiantamento (opcional)</span>
-                      <input value={adiantFatura} onChange={(e) => setAdiantFatura(e.target.value)} className={`${inputCls} w-48`} maxLength={60} placeholder="FT 2026/123" />
-                    </label>
-                    <Button type="button" size="sm" leftIcon={<Banknote size={15} />} loading={adiantamentoRecebido.isPending} onClick={() => adiantamentoRecebido.mutate(true)}>
-                      Recebi o adiantamento
-                    </Button>
-                    <p className="w-full text-xs text-zinc-500">Passa a fatura do adiantamento no dia em que recebes (o IVA é devido nesse dia — CIVA art. 8.º n.º 2). Na fatura final desconta-se o adiantamento.</p>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </SectionCard>
-      )}
 
       <SectionCard
         title="Linhas"
@@ -794,7 +781,7 @@ export default function VendaEditor() {
                   <th className="w-16 py-2 pr-2 font-medium">Qtd</th>
                   <th className="w-28 py-2 pr-2 font-medium">Preço un. {semIva ? 's/ IVA' : 'c/ IVA'}</th>
                   <th className="w-20 py-2 pr-2 font-medium">IVA %</th>
-                  <th className="w-24 py-2 pr-2 text-right font-medium">Total c/ IVA</th>
+                  <th className="w-28 py-2 pr-2 text-right font-medium" title="Escreve aqui o total que queres cobrar por esta linha">Total c/ IVA ✎</th>
                   <th className="w-28 py-2 pr-2 text-right font-medium">IVA ao Estado</th>
                   <th className="w-24 py-2 pr-2 text-right font-medium">Lucro</th>
                   <th className="w-10" />
@@ -804,9 +791,15 @@ export default function VendaEditor() {
                 {linhas.map((l, i) => {
                   const c = contas.porLinha[i];
                   return (
-                    <tr key={l.key} className="grid grid-cols-3 gap-x-2 py-2 align-top sm:table-row sm:py-0">
+                    <tr key={l.key} data-lote-erro={l.compraLinhaId ?? undefined}
+                      className={`grid grid-cols-3 gap-x-2 py-2 align-top sm:table-row sm:py-0 ${erroAcao?.loteId && l.compraLinhaId === erroAcao.loteId ? 'bg-rose-50 outline outline-2 outline-rose-400 dark:bg-rose-950/30' : ''}`}>
                       <td className="col-span-3 py-1 sm:py-2 sm:pr-2">
                         <input aria-label="Descrição" value={l.descricao} onChange={(e) => setLinha(l.key, { descricao: e.target.value })} className={inputCls} disabled={fechada} maxLength={300} />
+                        {erroAcao?.loteId && l.compraLinhaId === erroAcao.loteId && (
+                          <p role="alert" className="mt-1 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                            ⚠ Sem stock suficiente: só há {erroAcao.disponivel ?? 0} deste lote. Baixa a quantidade, tira uma das linhas iguais ou troca por outro lote em «Do stock».
+                          </p>
+                        )}
                         {l.encomenda != null && !l.compraLinhaId ? (
                           // Sprint 594: peça que falta — custo estimado, estado da encomenda, nota e "Chegou".
                           <div className="mt-1 space-y-1.5 rounded-lg border border-amber-200 bg-amber-50/60 p-2 dark:border-amber-900/50 dark:bg-amber-950/20">
@@ -889,7 +882,19 @@ export default function VendaEditor() {
                           {['23', '13', '6', '0'].map((t) => <option key={t} value={t}>{t}%</option>)}
                         </select>
                       </td>
-                      <td className="py-1 font-medium tabular-nums sm:py-2 sm:pr-2 sm:pt-4 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Total</span>{formatEur(c.total)}</td>
+                      <td className="py-1 font-medium tabular-nums sm:py-2 sm:pr-2 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Total c/ IVA</span>
+                        <input aria-label="Total da linha com IVA" inputMode="decimal" disabled={fechada}
+                          value={totEdit[l.key] ?? fmt2(c.total)}
+                          onChange={(e) => escreverTotal(l, e.target.value)}
+                          onBlur={() => setTotEdit((t) => { const n = { ...t }; delete n[l.key]; return n; })}
+                          className={`${inputCls} text-right font-semibold`} />
+                        {(() => {
+                          const q = Math.max(1, Number(l.quantidade) || 1);
+                          const unitCom = c.total / q;
+                          const unitSem = l.porFora ? unitCom : unitCom / (1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100);
+                          return <span className="mt-1 block text-[11px] font-normal text-zinc-500">un. {fmt2(unitCom)} c/ IVA · {fmt2(unitSem)} s/ IVA</span>;
+                        })()}
+                      </td>
                       <td className="py-1 tabular-nums sm:py-2 sm:pr-2 sm:pt-4 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">IVA ao Estado</span>{formatEur(c.ivaAPagar)}</td>
                       <td className={`py-1 tabular-nums sm:py-2 sm:pr-2 sm:pt-4 sm:text-right ${c.lucro < 0 ? 'text-rose-600' : ''}`}><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Lucro</span>{formatEur(c.lucro)}</td>
                       <td className="col-span-3 flex justify-end sm:table-cell sm:py-2">
@@ -976,8 +981,65 @@ export default function VendaEditor() {
               (o custo certo entra no lucro e a peça sai do stock).
             </p>
           )}
+          {erroAcao && (
+            <div id="venda-erro-acao" role="alert" className="mt-3 flex items-start gap-2 rounded-lg border-2 border-rose-400 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-200">
+              <XCircle size={18} className="mt-0.5 shrink-0" />
+              <span className="flex-1">{erroAcao.msg}</span>
+              <button type="button" className="text-xs underline" onClick={() => setErroAcao(null)}>Fechar</button>
+            </div>
+          )}
           <p className="mt-2 text-xs text-zinc-500">Ao sair de Orçamento as peças saem do stock. Entregue fecha a venda (as linhas deixam de se poder editar).</p>
           {isAdmin && <div className="mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">{cancelarUi}</div>}
+        </SectionCard>
+      )}
+
+      {tipo !== VENDA_TIPO.Produto && (!fechada || (venda?.adiantamentoCents ?? 0) > 0) && (
+        <SectionCard title="Adiantamento (para encomendar peças)" collapsible defaultOpen={(venda?.adiantamentoCents ?? 0) > 0}>
+          <div className="space-y-3 text-sm">
+            <p className="text-zinc-500">Para encomendar a peça a quem não conheces. Sai no <strong>Orçamento PDF</strong> com o que falta pagar na entrega e a regra se o cliente desistir (sinal — art. 441.º do Código Civil).</p>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="block">
+                <span className={labelCls}>Valor (€)</span>
+                <input value={adiant} onChange={(e) => setAdiant(e.target.value)} inputMode="decimal" placeholder="sem adiantamento"
+                  className={`${inputCls} w-36`} disabled={fechada || adiantRecebido} aria-label="Valor do adiantamento" />
+              </label>
+              {!fechada && !adiantRecebido && contas.total > 0 && (
+                <>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setAdiant(eur2(Math.ceil(contas.total * 0.25)))}>25% ({formatEur(Math.ceil(contas.total * 0.25))})</Button>
+                  {contas.custoPecas > 0 && (
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setAdiant(eur2(Math.ceil(contas.custoPecas)))}>Custo das peças ({formatEur(Math.ceil(contas.custoPecas))})</Button>
+                  )}
+                  {adiant && <Button type="button" size="sm" variant="ghost" onClick={() => setAdiant('')}>Sem adiantamento</Button>}
+                </>
+              )}
+            </div>
+            {adiantValor > 0 && (
+              <>
+                {adiantValor > contas.total && contas.total > 0 && (
+                  <p className="text-amber-700 dark:text-amber-300">O adiantamento é maior do que o total da reparação.</p>
+                )}
+                <p>Falta receber na entrega: <strong>{formatEur(Math.max(0, contas.total - adiantValor))}</strong></p>
+                {!isNew && venda && (adiantRecebido ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+                    <CheckCircle2 size={15} />
+                    <span className="flex-1">Pago a {new Date(venda.adiantamentoRecebidoEm!).toLocaleDateString('pt-PT')}{venda.adiantamentoFatura ? ` · fatura ${venda.adiantamentoFatura}` : ' · sem nº de fatura registado'}</span>
+                    {!fechada && <Button type="button" size="sm" variant="ghost" loading={adiantamentoRecebido.isPending} onClick={() => adiantamentoRecebido.mutate(false)}>Desfazer</Button>}
+                  </div>
+                ) : !fechada && (
+                  <div className="flex flex-wrap items-end gap-2 rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
+                    <label className="block">
+                      <span className={labelCls}>Nº da fatura do adiantamento (opcional)</span>
+                      <input value={adiantFatura} onChange={(e) => setAdiantFatura(e.target.value)} className={`${inputCls} w-48`} maxLength={60} placeholder="FT 2026/123" />
+                    </label>
+                    <Button type="button" size="sm" leftIcon={<Banknote size={15} />} loading={adiantamentoRecebido.isPending} onClick={() => adiantamentoRecebido.mutate(true)}>
+                      Recebi o adiantamento
+                    </Button>
+                    <p className="w-full text-xs text-zinc-500">Passa a fatura do adiantamento no dia em que recebes (o IVA é devido nesse dia — CIVA art. 8.º n.º 2). Na fatura final desconta-se o adiantamento.</p>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
         </SectionCard>
       )}
 
