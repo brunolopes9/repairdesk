@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Smartphone, Plus, Edit2, Archive, ArchiveRestore, Trash2, Shield, ShieldOff, Wrench } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { Button } from '../../components/ui/Button';
+import { AutosaveStatus } from '../../components/ui';
+import { useAutosave } from '../../lib/useAutosave';
 import { toast } from '../../lib/toast';
 import { apiErrorMessage } from '../../lib/errors';
 import { devicesApi, type Device, type CreateDeviceForm, type UpdateDeviceForm } from '../../lib/devices/api';
@@ -105,6 +107,7 @@ export function ClienteDevicesSection({ clienteId }: { clienteId: string }) {
         }}
       />
       <DeviceFormModal
+        key={editing?.id ?? 'nenhum'}
         open={editing !== null}
         clienteId={clienteId}
         device={editing}
@@ -113,6 +116,7 @@ export function ClienteDevicesSection({ clienteId }: { clienteId: string }) {
           qc.invalidateQueries({ queryKey: ['cliente-devices', clienteId] });
           setEditing(null);
         }}
+        onAutosaved={() => qc.invalidateQueries({ queryKey: ['cliente-devices', clienteId] })}
       />
 
       <Modal
@@ -251,12 +255,14 @@ function DeviceFormModal({
   device,
   onClose,
   onSaved,
+  onAutosaved,
 }: {
   open: boolean;
   clienteId: string;
   device: Device | null;
   onClose: () => void;
   onSaved: () => void;
+  onAutosaved?: () => void;
 }) {
   const isEdit = device !== null;
   const [form, setForm] = useState<CreateDeviceForm | UpdateDeviceForm>(() =>
@@ -303,6 +309,18 @@ function DeviceFormModal({
     onError: (err) => toast.error(apiErrorMessage(err) || 'Erro a guardar.'),
   });
 
+  // Sprint 679: editar um equipamento grava sozinho; adicionar continua com «Adicionar».
+  const valido = !!form.tipo && form.tipo.trim().length >= 2;
+  const auto = useAutosave(form, async (v) => {
+    if (!device) return;
+    await devicesApi.update(device.id, v as UpdateDeviceForm);
+    onAutosaved?.();
+  }, { ativo: isEdit && open && valido, atraso: 900 });
+  useEffect(() => {
+    if (device) auto.reiniciar(form);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const input = 'w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400 dark:border-zinc-700 dark:bg-zinc-950';
 
   return (
@@ -311,10 +329,17 @@ function DeviceFormModal({
       title={isEdit ? 'Editar equipamento' : 'Adicionar equipamento'}
       onClose={onClose}
       footer={<>
-        <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
-        <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!form.tipo || form.tipo.trim().length < 2}>
-          {isEdit ? 'Guardar' : 'Adicionar'}
-        </Button>
+        {isEdit ? (
+          <>
+            <span className="mr-auto self-center"><AutosaveStatus estado={auto.estado} erro={auto.erro} onTentar={auto.tentarDeNovo} /></span>
+            <Button onClick={() => { void auto.gravarJa(); onClose(); }}>Fechar</Button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300">Cancelar</button>
+            <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!valido}>Adicionar</Button>
+          </>
+        )}
       </>}
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

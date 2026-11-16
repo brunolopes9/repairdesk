@@ -426,6 +426,13 @@ export default function Clientes() {
         title={editing ? 'Editar cliente' : 'Novo cliente'}
         onClose={closeClienteModal}
         footer={
+          editing ? (
+            // Sprint 679: editar um cliente grava sozinho (o estado aparece no topo do formulário).
+            <button type="button" onClick={closeClienteModal}
+              className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-700">
+              Fechar
+            </button>
+          ) : (
           <>
             <button
               type="button"
@@ -440,9 +447,10 @@ export default function Clientes() {
               disabled={upsert.isPending}
               className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
             >
-              {upsert.isPending ? 'A guardar…' : 'Guardar'}
+              {upsert.isPending ? 'A criar…' : 'Criar'}
             </button>
           </>
+          )
         }
       >
         <ClienteFormView
@@ -452,6 +460,11 @@ export default function Clientes() {
           onSubmit={async (form) => {
             await upsert.mutateAsync(form);
           }}
+          autosave={editing ? async (form) => {
+            await clientesApi.update(editing.id, form);
+            void qc.invalidateQueries({ queryKey: ['clientes'] });
+            void qc.invalidateQueries({ queryKey: ['cliente', editing.id] });
+          } : undefined}
         />
       </Modal>
 
