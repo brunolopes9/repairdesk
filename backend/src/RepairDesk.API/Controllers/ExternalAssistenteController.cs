@@ -25,7 +25,7 @@ public sealed record AssistenteResultado(string Resumo, Guid? DesfazerId, object
 
 /// <summary>
 /// Sprint 653: venda pelo assistente. <c>Total</c> = o que o cliente paga (valor final, nunca IVA por cima).
-/// <c>Fatura</c> = quanto vai na fatura (com IVA); o resto até ao total fica «por fora». Sem <c>Fatura</c> → tudo faturado.
+/// A venda é faturada pelo total (com IVA incluído). <c>Fatura</c> é ignorado (campo antigo, mantido por compatibilidade).
 /// <c>Tipo</c>: «reparacao» (omissão) | «produto» | «servico». <c>Estado</c>: «orcamento» | «pronta» (omissão) | «entregue».
 /// </summary>
 public sealed record AssistenteVendaRequest(
@@ -41,7 +41,7 @@ public sealed record AssistenteAgoraDto(RotinaDiaDto Rotina, IReadOnlyList<Inter
 /// <summary>
 /// Sprint 637 (Doc 98 F8): API do assistente por voz/chat do dono (serviço lateral «mender-assistente»).
 /// Chave com scope «assistente» — age em nome de quem a criou. Escritas de baixo risco executam já e devolvem um
-/// <c>desfazerId</c> válido 5 minutos; tudo fica registado em AssistenteAcoes. Sprint 653: também vendas (fatura + por fora), despesas, tarefas e faturas recebidas (só ler).
+/// <c>desfazerId</c> válido 5 minutos; tudo fica registado em AssistenteAcoes. Sprint 653: também vendas, despesas, tarefas e faturas recebidas (só ler).
 /// </summary>
 [ApiController]
 [Route("api/external/assistente")]
@@ -180,8 +180,8 @@ public sealed class ExternalAssistenteController : ControllerBase
 
     /// <summary>
     /// Sprint 653: cria uma venda. Cliente por nome (aproximado) ou telefone; se não existir e vier telefone, cria-o.
-    /// Preço = valor final ao cliente: linha faturada (com IVA 23 %) + linha «por fora» com o resto. Custo vai como
-    /// «custo s/ fatura» da linha faturada. Desfazer = cancelar a venda.
+    /// Preço = valor final ao cliente, todo faturado (IVA 23 % incluído). O custo vai como custo da linha.
+    /// Desfazer = cancelar a venda.
     /// </summary>
     [HttpPost("vendas")]
     public async Task<ActionResult<AssistenteResultado>> CriarVenda([FromBody] AssistenteVendaRequest req, CancellationToken ct)
@@ -189,8 +189,6 @@ public sealed class ExternalAssistenteController : ControllerBase
         _ = Dono;
         if (string.IsNullOrWhiteSpace(req.Descricao)) throw new ValidationException("descricao_obrigatoria", "Diz o que foi feito ou vendido.");
         if (req.Total is <= 0 or > 100_000) throw new ValidationException("total_invalido", "O total tem de ser entre 0 e 100 000 €.");
-        var fatura = req.Fatura ?? req.Total;
-        if (fatura < 0 || fatura > req.Total) throw new ValidationException("fatura_invalida", "O valor da fatura tem de estar entre 0 e o total.");
         var tipo = (req.Tipo ?? "reparacao").Trim().ToLowerInvariant() switch
         {
             "produto" => VendaTipo.Produto, "servico" or "serviço" => VendaTipo.Servico, _ => VendaTipo.Reparacao,
@@ -201,14 +199,10 @@ public sealed class ExternalAssistenteController : ControllerBase
             throw new ValidationException("cliente_obrigatorio", "Uma reparação precisa de cliente: diz o nome (e o telefone, se for novo).");
 
         static int C(decimal v) => (int)Math.Round(v * 100m, MidpointRounding.AwayFromZero);
-        var linhas = new List<VendaLinhaWriteRequest>();
-        if (fatura > 0)
-            linhas.Add(new VendaLinhaWriteRequest(null, null, req.Descricao.Trim(), 1, C(fatura), IvaRate: 23m,
-                CustoSemFaturaCents: req.Custo is { } c ? C(c) : null));
-        var porFora = req.Total - fatura;
-        if (porFora > 0)
-            linhas.Add(new VendaLinhaWriteRequest(null, null, fatura > 0 ? "Por fora" : req.Descricao.Trim(), 1, C(porFora), IvaRate: 0m, PorFora: true,
-                CustoSemFaturaCents: fatura > 0 || req.Custo is null ? null : C(req.Custo.Value)));
+        var linhas = new List<VendaLinhaWriteRequest>
+        {
+            new(null, null, req.Descricao.Trim(), 1, C(req.Total), IvaRate: 23m, CustoSemFaturaCents: req.Custo is { } c ? C(c) : null),
+        };
 
         var estado = (req.Estado ?? "pronta").Trim().ToLowerInvariant();
         var notas = string.Join(" ", new[] { req.Notas?.Trim(), "Criada pelo assistente (Telegram)." }.Where(s => !string.IsNullOrWhiteSpace(s)));
@@ -219,7 +213,6 @@ public sealed class ExternalAssistenteController : ControllerBase
 
         // Valores sempre em PT-PT («70,00»), seja qual for a cultura do servidor.
         var resumo = string.Create(PtPt, $"Venda #{venda.Numero} criada ({venda.Estado}): {req.Descricao.Trim()} — {req.Total:0.00} €")
-                     + (porFora > 0 ? string.Create(PtPt, $" ({fatura:0.00} na fatura + {porFora:0.00} por fora)") : " (tudo na fatura)")
                      + (req.Custo is { } cu ? string.Create(PtPt, $", custo {cu:0.00} €") : "");
         var acao = await Registar("venda", venda.Id, null, null, resumo, ct);
         return Ok(new AssistenteResultado(acao.Resumo, acao.Id, new { venda.Id, venda.Numero, venda.Estado, venda.TotalCents, venda.Lucro }));

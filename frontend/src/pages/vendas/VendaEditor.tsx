@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Banknote, Boxes, CheckCircle2, FileText, PackageSearch, Plus, Save, Trash2, Wrench, XCircle } from 'lucide-react';
+import { AlertTriangle, Banknote, Boxes, CheckCircle2, FileText, PackageSearch, Save, Trash2, Wrench, XCircle } from 'lucide-react';
 import { AutosaveStatus, BackButton, Button, PageHeader, SectionCard, SkeletonCard } from '../../components/ui';
 import { useAutosave } from '../../lib/useAutosave';
 import { PagamentoPicker } from '../../components/PagamentoPicker';
@@ -56,21 +56,17 @@ interface LinhaForm {
   encomenda: PecaEncomendaEstado | null;
   custo: string;
   nota: string;
-  /** Sprint 642: recebido por fora da fatura (sem IVA) e custo sem fatura (transporte, quem fez o trabalho…). */
+  /** Linhas antigas (histórico): só leitura. As vendas novas faturam sempre o valor total. */
   porFora: boolean;
+  /** Custo desta linha de serviço (desconta no lucro). */
   custoSemFatura: string;
-  /** Sprint 680: preço unitário a FATURAR (vazio = fatura o preço todo); a diferença vai por fora sozinha. */
-  faturar?: string;
 }
 
-/** Sprint 680: preço cobrado e faturado por unidade (c/ IVA) e quanto fica por fora na linha. */
+/** Preço por unidade com IVA (o que vai à fatura). */
 function partesLinha(l: LinhaForm, semIva: boolean) {
   const qtd = Number(l.quantidade) || 0;
   const cobrado = l.porFora ? parseDecimal(l.preco) ?? 0 : precoComIva(l.preco, l.iva, semIva);
-  const fat = !l.porFora && (l.faturar ?? '').trim() ? precoComIva(l.faturar!, l.iva, semIva) : cobrado;
-  const faturado = Math.min(fat, cobrado);
-  const porForaCents = l.porFora ? 0 : Math.max(0, Math.round(cobrado * 100) * qtd - Math.round(faturado * 100) * qtd);
-  return { qtd, cobrado, faturado, porForaCents, faturarInvalido: fat > cobrado + 0.0001 };
+  return { qtd, cobrado };
 }
 
 const num = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
@@ -90,7 +86,7 @@ function linhasNoModo(v: Venda, semIva: boolean): LinhaForm[] {
   return linhasFrom(v).map((l) => {
     if (!semIva || l.porFora) return l;
     const f = 1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
-    return { ...l, preco: fmt2((parseDecimal(l.preco) ?? 0) / f), faturar: l.faturar ? fmt2((parseDecimal(l.faturar) ?? 0) / f) : '' };
+    return { ...l, preco: fmt2((parseDecimal(l.preco) ?? 0) / f) };
   });
 }
 
@@ -104,9 +100,7 @@ function linhasFrom(v: Venda): LinhaForm[] {
     compraLinhaId: i.compraLinhaId,
     descricao: i.descricao,
     quantidade: String(i.quantidade),
-    // Sprint 680: o preço mostrado é o cobrado; o faturado aparece em «Faturar a».
-    preco: num(i.precoUnitarioCents + Math.round((i.porForaCents ?? 0) / Math.max(1, i.quantidade))),
-    faturar: (i.porForaCents ?? 0) > 0 ? num(i.precoUnitarioCents) : '',
+    preco: num(i.precoUnitarioCents),
     iva: String(i.ivaRate),
     custoUnit: i.custoUnitarioPago ?? 0,
     taxaCompra: i.taxaIvaCompra ?? 0,
@@ -224,26 +218,22 @@ export default function VendaEditor() {
 
   const contas = useMemo(() => {
     const porLinha = linhas.map((l) => {
-      // Sprint 642: por fora não tem IVA — o valor escrito é o que se recebe.
-      // Sprint 680: «Faturar a» — o IVA e o custo vão no faturado; a diferença entra inteira no lucro.
       const p = partesLinha(l, semIva);
       const qtd = p.qtd;
       const total = qtd * p.cobrado;
-      const faturadoTotal = qtd * p.faturado;
-      const pfLinha = p.porForaCents / 100;
       // Linha de serviço: o único custo é o «custo s/ fatura» (vazio = 0) — apagar o campo tem de se ver logo no lucro.
       const servico = !l.compraLinhaId && l.encomenda == null;
       const [custo, taxa] = l.encomenda != null ? [parseDecimal(l.custo) ?? 0, IVA_NORMAL / 100]
         : servico ? [(parseDecimal(l.custoSemFatura) ?? 0) / Math.max(1, qtd), 0] : [l.custoUnit, l.taxaCompra];
-      const ivaVenda = l.porFora || venda?.foraApuramento ? 0 : (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
-      const pv = previewVenda(qtd, l.porFora ? total : faturadoTotal, custo, l.porFora ? 0 : taxa, ivaVenda);
-      return { total, porFora: l.porFora, pfLinha, peca: !servico, ...pv, lucro: pv.lucro + pfLinha };
+      const ivaVenda = l.porFora ? 0 : (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
+      const pv = previewVenda(qtd, total, custo, l.porFora ? 0 : taxa, ivaVenda);
+      return { total, peca: !servico, ...pv };
     });
     const soma = (k: 'total' | 'ivaVenda' | 'ivaAPagar' | 'lucro') => porLinha.reduce((s, c) => s + c[k], 0);
-    const porFora = porLinha.filter((c) => c.porFora).reduce((s, c) => s + c.total, 0) + porLinha.reduce((s, c) => s + c.pfLinha, 0);
     const custoPecas = porLinha.filter((c) => c.peca).reduce((s, c) => s + c.custo, 0);
-    return { porLinha, custoPecas, total: soma('total'), porFora, ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
-  }, [linhas, semIva, venda?.foraApuramento]);
+    const custoComIva = porLinha.reduce((s, c) => s + c.custo, 0);
+    return { porLinha, custoPecas, custoComIva, total: soma('total'), ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
+  }, [linhas, semIva]);
 
   const reservado = useMemo(() => {
     const r: Record<string, number> = {};
@@ -266,10 +256,8 @@ export default function VendaEditor() {
         compraLinhaId: l.compraLinhaId,
         descricao: l.descricao.trim() || null,
         quantidade: Number(l.quantidade) || 0,
-        precoUnitarioCents: Math.round(partesLinha(l, semIva).faturado * 100),
-        porForaCents: partesLinha(l, semIva).porForaCents,
+        precoUnitarioCents: Math.round(partesLinha(l, semIva).cobrado * 100),
         ivaRate: l.porFora ? 0 : parseDecimal(l.iva) ?? IVA_NORMAL,
-        porFora: l.porFora,
         custoSemFaturaCents: !l.compraLinhaId && l.encomenda == null && l.custoSemFatura.trim() !== ''
           ? Math.round((parseDecimal(l.custoSemFatura) ?? 0) * 100) : null,
         ...(l.encomenda != null && !l.compraLinhaId ? {
@@ -325,7 +313,7 @@ export default function VendaEditor() {
   async function mudarComAviso(e: VendaEstado) {
     if (e !== VENDA_ESTADO.Orcamento && e !== VENDA_ESTADO.Cancelada && contas.total <= 0 && !(await confirm({
       title: `Passar a «${VENDA_ESTADO_LABEL[e]}» com 0 €?`,
-      description: 'Ainda não há nada a cobrar nesta venda. Junta primeiro o valor (ex.: botão «Por fora» ou «Mão de obra»). Pronta não fecha nem cobra nada — só Entregue fecha.',
+      description: 'Ainda não há nada a cobrar nesta venda. Junta primeiro o valor (ex.: botão «Mão de obra»). Pronta não fecha nem cobra nada — só Entregue fecha.',
       confirmLabel: 'Mudar mesmo assim',
     }))) return;
     mudarEstado.mutate(e);
@@ -383,11 +371,6 @@ export default function VendaEditor() {
     onError: (err) => toast.fromError(err),
   });
 
-  const semFatura = useMutation({
-    mutationFn: async (ativo: boolean) => { await auto.gravarJa(); return vendasApi.foraApuramento(id!, ativo); },
-    onSuccess: (v) => onSaved(v, v.foraApuramento ? 'Marcada como sem fatura' : 'Voltou a precisar de fatura'),
-    onError: (err) => toast.fromError(err),
-  });
 
   const registarFatura = useMutation({
     mutationFn: async () => { await auto.gravarJa(); return vendasApi.registarFatura(id!, fatura.trim() || null, faturaData); },
@@ -401,8 +384,7 @@ export default function VendaEditor() {
       const v = parseDecimal(l.preco);
       if (v == null) return l;
       const f = 1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
-      const fat = parseDecimal(l.faturar ?? '');
-      return { ...l, preco: fmt2(novoSemIva ? v / f : v * f), faturar: fat == null ? '' : fmt2(novoSemIva ? fat / f : fat * f) };
+      return { ...l, preco: fmt2(novoSemIva ? v / f : v * f) };
     }));
     setSemIva(novoSemIva);
   }
@@ -410,12 +392,7 @@ export default function VendaEditor() {
   // Sprint 669: «combinei 75 € com o cliente» — escreve o total e o Mender acerta a linha principal
   // (a mão de obra, ou a última linha) para dar esse total; o lucro sai sozinho do custo real das peças.
   const [totalAlvo, setTotalAlvo] = useState('');
-  // Sprint 673: «30 € ao todo, 10 € por fora» — a parte por fora vai para uma linha «Por fora» e as linhas com
-  // fatura descem na mesma proporção até darem o resto (o lucro e o IVA recalculam-se sozinhos).
-  const [porForaAlvo, setPorForaAlvo] = useState('');
   function aplicarTotal() {
-    const pf = parseDecimal(porForaAlvo);
-    if (pf != null) { aplicarComPorFora(pf); return; }
     const alvo = parseDecimal(totalAlvo);
     if (alvo == null || linhas.length === 0) return;
     const diff = Math.round((alvo - contas.total) * 100) / 100;
@@ -428,60 +405,6 @@ export default function VendaEditor() {
     const taxa = (parseDecimal(alvoLinha.iva) ?? IVA_NORMAL) / 100;
     setLinha(alvoLinha.key, { preco: fmt2(semIva && !alvoLinha.porFora ? novoComIva / (1 + taxa) : novoComIva) });
     setTotalAlvo('');
-  }
-
-  // Sprint 681: «dos quais por fora» reparte-se pelas linhas («Faturar a»), sem linha «Por fora» à parte —
-  // 2 cartões a 20 € e 10 € por fora = cada um cobrado a 20 € e faturado a 15 € (IVA só dos 15 €).
-  function aplicarComPorFora(pf: number) {
-    // Sprint 684: 1) o total combinado acerta-se na linha de serviço/mão de obra — as peças do stock mantêm o
-    // preço de venda (ex.: película 14,90 + limpeza = 40 € → a limpeza fica 25,10 €); 2) o por fora: se for o
-    // total todo, as linhas passam a «Por fora» inteiras; senão reparte-se pelo «Faturar a» das linhas com fatura.
-    const alvo = parseDecimal(totalAlvo) ?? contas.total;
-    if (pf < 0 || pf > alvo + 0.005) { toast.error('O por fora não pode ser maior que o total.'); return; }
-    const extra = (l: LinhaForm) => l.descricao.startsWith('Custo extra');
-    const r2 = (v: number) => Math.round(v * 100) / 100;
-    const cob = (l: LinhaForm) => partesLinha(l, semIva).cobrado;
-    const qt = (l: LinhaForm) => Number(l.quantidade) || 1;
-    const tot = (l: LinhaForm) => qt(l) * cob(l);
-    const taxa = (l: LinhaForm) => (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
-    const emModo = (l: LinhaForm, comIva: number) => fmt2(l.porFora || !semIva ? comIva : comIva / (1 + taxa(l)));
-    let ls = linhas.map((l) => ({ ...l }));
-
-    // 1) total
-    const diff = r2(alvo - ls.reduce((s2, l) => s2 + tot(l), 0));
-    if (Math.abs(diff) >= 0.005) {
-      const serv = [...ls].reverse().find((l) => !l.compraLinhaId && l.encomenda == null && !extra(l));
-      if (serv && cob(serv) + diff / qt(serv) >= 0) {
-        serv.preco = emModo(serv, cob(serv) + diff / qt(serv));
-      } else {
-        const base = ls.filter((l) => !extra(l)).reduce((s2, l) => s2 + tot(l), 0);
-        const fator = base > 0 ? (base + diff) / base : 0;
-        ls = ls.map((l) => (extra(l) ? l : { ...l, preco: emModo(l, cob(l) * fator) }));
-      }
-    }
-
-    // 2) por fora
-    const total = ls.reduce((s2, l) => s2 + tot(l), 0);
-    if (pf >= total - 0.005) {
-      ls = ls.map((l) => (extra(l) || l.porFora ? l : { ...l, porFora: true, faturar: '', iva: '0', preco: fmt2(cob(l)) }));
-    } else {
-      const jaPorFora = ls.filter((l) => l.porFora && !extra(l)).reduce((s2, l) => s2 + tot(l), 0);
-      let resto = Math.round((pf - jaPorFora) * 100);
-      if (resto < 0) { toast.error(`Já há ${formatEur(jaPorFora)} em linhas «Por fora» — mais do que ${formatEur(pf)}. Tira o «Por fora» de alguma linha.`); return; }
-      const comFatura = ls.filter((l) => !l.porFora && !extra(l));
-      const soma = comFatura.reduce((s2, l) => s2 + tot(l), 0);
-      comFatura.forEach((l, idx) => {
-        const ultima = idx === comFatura.length - 1;
-        const parte = ultima ? resto : Math.round((soma > 0 ? (pf - jaPorFora) * tot(l) / soma : 0) * 100);
-        const porUnidade = Math.min(Math.round(cob(l) * 100), Math.round(parte / qt(l)));
-        resto -= porUnidade * qt(l);
-        l.faturar = porUnidade > 0 ? emModo(l, (Math.round(cob(l) * 100) - porUnidade) / 100) : '';
-      });
-      if (Math.abs(resto) > 0) toast.info(`Ficaram ${formatEur(Math.abs(resto) / 100)} por repartir (arredondamento) — acerta no «Faturar a» de uma linha.`);
-    }
-    setLinhas(ls);
-    setTotalAlvo('');
-    setPorForaAlvo('');
   }
 
   function setLinha(key: string, patch: Partial<LinhaForm>) {
@@ -526,25 +449,6 @@ export default function VendaEditor() {
       descricao: tipo === VENDA_TIPO.Reparacao ? 'Mão de obra' : '',
       quantidade: '1', preco: '', iva: String(IVA_NORMAL), custoUnit: 0, taxaCompra: 0, maxStock: null,
       encomenda: null, custo: '', nota: '', porFora: false, custoSemFatura: '',
-    }]);
-  }
-
-  /** Sprint 662: valor cobrado por fora (sem fatura, sem IVA) — numa linha só, para «tudo por fora». */
-  function addPorFora() {
-    setLinhas((ls) => [...ls, {
-      key: crypto.randomUUID(), id: null, compraLinhaId: null,
-      descricao: tipo === VENDA_TIPO.Reparacao ? 'Reparação' : tipo === VENDA_TIPO.Servico ? 'Serviço' : '',
-      quantidade: '1', preco: '', iva: '0', custoUnit: 0, taxaCompra: 0, maxStock: null,
-      encomenda: null, custo: '', nota: '', porFora: true, custoSemFatura: '',
-    }]);
-  }
-
-  /** Sprint 642: custo sem fatura (transporte, quem fez o trabalho) — linha a 0 € por fora, só desconta no lucro. */
-  function addCustoExtra() {
-    setLinhas((ls) => [...ls, {
-      key: crypto.randomUUID(), id: null, compraLinhaId: null, descricao: 'Custo extra: ',
-      quantidade: '1', preco: '0', iva: '0', custoUnit: 0, taxaCompra: 0, maxStock: null,
-      encomenda: null, custo: '', nota: '', porFora: true, custoSemFatura: '',
     }]);
   }
 
@@ -616,23 +520,6 @@ export default function VendaEditor() {
         <div role="alert" className="flex flex-wrap items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span className="flex-1">Esta venda ainda não tem fatura — emite-a no Moloni ON abaixo (ou regista o nº se já a emitiste).</span>
-          {isAdmin && (
-            <Button type="button" size="sm" variant="secondary" loading={semFatura.isPending} onClick={() => semFatura.mutate(true)}>
-              Registar sem fatura
-            </Button>
-          )}
-        </div>
-      )}
-
-      {venda?.foraApuramento && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">Sem fatura</span>
-          <span className="flex-1">{venda.foraApuramentoMotivo ?? 'Registo interno'} — não conta no IVA; o lucro conta o valor inteiro.</span>
-          {isAdmin && (
-            <Button type="button" size="sm" variant="ghost" loading={semFatura.isPending} onClick={() => semFatura.mutate(false)}>
-              Desfazer
-            </Button>
-          )}
         </div>
       )}
 
@@ -731,14 +618,6 @@ export default function VendaEditor() {
                 Peça a encomendar
               </Button>
             )}
-            <Button type="button" size="sm" variant="secondary" leftIcon={<Banknote size={15} />} onClick={addPorFora}
-              title="Valor cobrado sem fatura: sem IVA, conta inteiro no lucro">
-              Por fora
-            </Button>
-            <Button type="button" size="sm" variant="secondary" leftIcon={<Plus size={15} />} onClick={addCustoExtra}
-              title="Custo sem fatura (transporte, quem fez o trabalho…) — desconta no lucro, não mexe no IVA">
-              Custo extra
-            </Button>
           </div>
         )}
       >
@@ -830,23 +709,15 @@ export default function VendaEditor() {
                           </div>
                         ) : (
                           <span className="mt-1 block text-xs text-zinc-500">
-                            {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : l.porFora ? 'Por fora · sem IVA, fora da fatura' : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
+                            {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
                           </span>
                         )}
-                        {/* Sprint 642: parte recebida por fora da fatura e custos sem fatura. */}
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                          <label className="inline-flex min-h-8 items-center gap-1.5 text-zinc-600 dark:text-zinc-300"
-                            title="Recebido fora da fatura (tratado à parte com a contabilista): sem IVA e não vai ao Moloni, mas conta no lucro">
-                            <input type="checkbox" checked={l.porFora} disabled={fechada}
-                              onChange={(e) => setLinha(l.key, { porFora: e.target.checked })} />
-                            Por fora
-                          </label>
-                          {l.porFora && <span className="rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora</span>}
                           {!l.compraLinhaId && l.encomenda == null && (
                             <label className="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-300"
-                              title="Custo sem fatura desta linha (transporte, quem fez o trabalho, média do material) — desconta no lucro">
-                              custo s/ fatura
-                              <input aria-label="Custo sem fatura" inputMode="decimal" value={l.custoSemFatura} disabled={fechada} placeholder="0,00"
+                              title="Quanto te custou esta linha (material, transporte…) — desconta no lucro">
+                              custo
+                              <input aria-label="Custo da linha" inputMode="decimal" value={l.custoSemFatura} disabled={fechada} placeholder="0,00"
                                 onChange={(e) => setLinha(l.key, { custoSemFatura: e.target.value })}
                                 className="min-h-8 w-20 rounded-md border border-zinc-300 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
                               €
@@ -860,21 +731,6 @@ export default function VendaEditor() {
                         {l.maxStock != null && Number(l.quantidade) > l.maxStock && <span className="mt-1 block text-xs text-rose-600">só {l.maxStock}</span>}
                       </td>
                       <td className="py-1 sm:py-2 sm:pr-2"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">{semIva ? 'Preço s/ IVA' : 'Preço c/ IVA'}</span><input aria-label={semIva ? 'Preço unitário sem IVA' : 'Preço unitário com IVA'} inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" disabled={fechada} />
-                        {/* Sprint 680: faturar abaixo do preço — a diferença vai por fora sozinha (IVA e lucro recalculam). */}
-                        {!l.porFora && (() => {
-                          const pt = partesLinha(l, semIva);
-                          return (
-                            <label className="mt-1 block text-[11px] text-zinc-500" title="Quanto faturas por unidade. O resto do preço fica por fora (sem IVA) e entra no lucro.">
-                              Faturar a
-                              <input aria-label="Preço a faturar por unidade" inputMode="decimal" value={l.faturar ?? ''} disabled={fechada}
-                                onChange={(e) => setLinha(l.key, { faturar: e.target.value })} placeholder="tudo"
-                                className={`mt-0.5 min-h-8 w-full rounded-md border bg-white px-2 text-xs dark:bg-zinc-950 ${pt.faturarInvalido ? 'border-rose-400' : 'border-zinc-300 dark:border-zinc-700'}`} />
-                              {pt.faturarInvalido
-                                ? <span className="text-rose-600">maior que o preço</span>
-                                : pt.porForaCents > 0 && <span className="font-medium text-violet-700 dark:text-violet-300">{formatEur(pt.porForaCents / 100)} por fora</span>}
-                            </label>
-                          );
-                        })()}
                       </td>
                       <td className="py-1 sm:py-2 sm:pr-2">
                         <span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">IVA</span>
@@ -891,7 +747,7 @@ export default function VendaEditor() {
                         {(() => {
                           const q = Math.max(1, Number(l.quantidade) || 1);
                           const unitCom = c.total / q;
-                          const unitSem = l.porFora ? unitCom : unitCom / (1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100);
+                          const unitSem = unitCom / (1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100);
                           return <span className="mt-1 block text-[11px] font-normal text-zinc-500">un. {fmt2(unitCom)} c/ IVA · {fmt2(unitSem)} s/ IVA</span>;
                         })()}
                       </td>
@@ -919,23 +775,18 @@ export default function VendaEditor() {
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); aplicarTotal(); } }}
                 className={`${inputCls} mt-1`} aria-label="Preço final combinado com o cliente" />
             </label>
-            <label className="w-24 text-xs font-semibold text-violet-800 dark:text-violet-200">
-              dos quais por fora
-              <input inputMode="decimal" value={porForaAlvo} onChange={(e) => setPorForaAlvo(e.target.value)} placeholder={contas.porFora > 0 ? formatEur(contas.porFora) : '0,00'}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); aplicarTotal(); } }}
-                className={`${inputCls} mt-1`} aria-label="Parte do total paga por fora, sem fatura" />
-            </label>
-            <Button type="button" size="sm" onClick={aplicarTotal} disabled={!totalAlvo.trim() && !porForaAlvo.trim()}>Aplicar</Button>
-            <p className="w-full text-[11px] text-brand-800/80 dark:text-brand-200/80">Escreves o total que vais cobrar e, se quiseres, quanto vai por fora (sem fatura). O por fora reparte-se pelas linhas («Faturar a») — o IVA é só do faturado e o lucro calcula-se sozinho.</p>
+            <Button type="button" size="sm" onClick={aplicarTotal} disabled={!totalAlvo.trim()}>Aplicar</Button>
+            <p className="w-full text-[11px] text-brand-800/80 dark:text-brand-200/80">Escreves o total que combinaste com o cliente (com IVA): a mão de obra acerta-se sozinha, as peças do stock mantêm o preço, e o IVA e o lucro recalculam-se.</p>
           </div>
         )}
         <dl className="mt-3 ml-auto grid max-w-xs grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm tabular-nums">
-          <dt className="font-medium">Total a cobrar</dt><dd className="text-right text-lg font-semibold">{formatEur(contas.total)}</dd>
-          <dt className="text-zinc-500" title="O que vai à fatura (Moloni) — o IVA é só sobre isto">Faturado</dt><dd className="text-right">{formatEur(contas.total - contas.porFora)}</dd>
+          <dt className="font-medium">Total a cobrar (c/ IVA)</dt><dd className="text-right text-lg font-semibold">{formatEur(contas.total)}</dd>
+          <dt className="text-zinc-500">Total sem IVA</dt><dd className="text-right">{formatEur(contas.total - contas.ivaVenda)}</dd>
           <dt className="text-zinc-500">IVA na fatura</dt><dd className="text-right">{formatEur(contas.ivaVenda)}</dd>
-          <dt className="text-zinc-500" title="IVA da venda − IVA já pago ao fornecedor das peças">IVA a entregar ao Estado</dt><dd className="text-right">{formatEur(contas.ivaAPagar)}</dd>
-          <dt className="font-medium" title="Total (faturado + por fora) − custo das peças − IVA a entregar">Lucro total</dt><dd className={`text-right font-semibold ${contas.lucro < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatEur(contas.lucro)}</dd>
-          <dt className="text-violet-700 dark:text-violet-300" title="Recebido fora da fatura — sem IVA, já está dentro do lucro">Por fora</dt><dd className="text-right font-medium text-violet-700 dark:text-violet-300">{formatEur(contas.porFora)}</dd>
+          <dt className="text-zinc-500" title="IVA da venda − IVA já pago ao fornecedor das peças (estimativa; o saldo real depende de todo o trimestre)">IVA a entregar (estimativa)</dt><dd className="text-right">{formatEur(contas.ivaAPagar)}</dd>
+          <dt className="text-zinc-500" title="O que pagaste pelas peças e custos desta venda">Custo das peças</dt><dd className="text-right">{formatEur(contas.custoComIva)}</dd>
+          <dt className="font-medium" title="Total − custo das peças − IVA a entregar">Lucro</dt><dd className={`text-right font-semibold ${contas.lucro < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatEur(contas.lucro)}</dd>
+          <dt className="text-zinc-500">Margem</dt><dd className="text-right">{contas.total - contas.ivaVenda > 0 ? `${Math.round((contas.lucro / (contas.total - contas.ivaVenda)) * 100)} %` : '—'}</dd>
         </dl>
       </SectionCard>
 
@@ -1043,15 +894,14 @@ export default function VendaEditor() {
         </SectionCard>
       )}
 
-      {/* Sprint 663: venda toda por fora (ou sem fatura) não tem documento fiscal — o bloco só confunde. */}
-      {venda && !venda.foraApuramento && !(venda.items.length > 0 && venda.items.every((i) => i.porFora)) && (
+      {venda && (
         <DocumentoMoloni venda={venda} isAdmin={isAdmin} onChange={(v) => {
           qc.invalidateQueries({ queryKey: ['vendas'] });
           qc.setQueryData(['venda', v.id], v);
         }} />
       )}
 
-      {venda && venda.estado === VENDA_ESTADO.Entregue && !venda.moloniDocumentoTipo && !venda.foraApuramento && !venda.items.every((i) => i.porFora) && (
+      {venda && venda.estado === VENDA_ESTADO.Entregue && !venda.moloniDocumentoTipo && (
         <SectionCard title="Nº da fatura (registo manual, se emitida fora do Mender)" collapsible defaultOpen={false}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <label className="block flex-1">

@@ -488,8 +488,9 @@ public class VendaService : IVendaService
             item.PrecoUnitarioCents = l.PrecoUnitarioCents;
             item.DescontoCents = l.DescontoCents;
             item.Ordem = ordem++;
-            item.PorFora = l.PorFora;
-            item.PorForaCents = l.PorFora ? 0 : Math.Max(0, l.PorForaCents ?? 0);
+            // 16/11/2026: o Mender regista as vendas pelo valor total, todo faturado (campos antigos ignorados).
+            item.PorFora = false;
+            item.PorForaCents = 0;
             item.IvaRate = l.PorFora ? 0m : l.IvaRate ?? TaxaVendaNormalPct;
             item.Imei = NormalizeImei(l.Imei);
         }

@@ -134,7 +134,6 @@ export default function Financas() {
                 ['Informática (LopesTech)', d.lucroInformatica],
                 ['Trading (payouts)', d.payoutsTrading],
               ]} total={['Total de lucros', d.totalLucros]} />
-              {d.vendasSemFatura > 0 && <p className="mt-2 text-xs text-zinc-500">Inclui {d.vendasSemFatura} venda(s) sem fatura (registo interno).</p>}
             </Bloco>
             <Bloco titulo="Despesas do mês">
               <Linhas linhas={[

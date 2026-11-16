@@ -20,7 +20,6 @@ import {
   VENDA_ESTADO,
   VENDA_TIPO,
   VENDA_TIPO_LABEL,
-  type Venda,
   type VendaFiltro,
   type VendaTipo,
   estadoVendaVisivel,
@@ -45,12 +44,6 @@ type Vista = (typeof VISTAS)[number]['key'];
 const TIPO_ICON = { 0: Package, 1: Wrench, 2: Code2 } as const;
 const PAGE_SIZE = 50;
 
-/** Faturado vs por fora de uma venda (linhas «Por fora», parte por fora de cada linha, ou venda toda «sem fatura»). */
-function partesVenda(v: Venda) {
-  const porFora = v.foraApuramento ? v.totalCents
-    : v.items.reduce((s, i) => s + (i.porFora ? i.totalCents : i.porForaCents ?? 0), 0);
-  return { porFora, faturado: v.totalCents - porFora };
-}
 /** Evita «-0,00 €» por arredondamento. */
 const eur = (v: number) => formatEur(Math.abs(v) < 0.005 ? 0 : v);
 
@@ -224,14 +217,10 @@ export default function Vendas() {
                         <span className="flex-none font-semibold tabular-nums">{formatEur(v.totalCents / 100)}</span>
                       </span>
                       <span className="block truncate text-xs text-zinc-500">{v.equipamento ?? v.problema ?? v.items.map((i) => i.descricao).join(', ')}</span>
-                      <span className="mt-0.5 block text-xs tabular-nums text-zinc-600 dark:text-zinc-300">
-                        Faturado {formatEur(partesVenda(v).faturado / 100)} · <span className="text-violet-700 dark:text-violet-300">por fora {formatEur(partesVenda(v).porFora / 100)}</span> · lucro {eur(v.lucro)}
-                      </span>
+                      <span className="mt-0.5 block text-xs tabular-nums text-zinc-600 dark:text-zinc-300">lucro {eur(v.lucro)}</span>
                       <span className="mt-1 flex flex-wrap items-center gap-1 text-xs">
                         <span className={`rounded-full px-2 py-0.5 font-medium ${estadoVendaVisivel(v).color}`}>{estadoVendaVisivel(v).label}</span>
                         {v.faturaPorRegistar && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Sem fatura</span>}
-                        {v.foraApuramento && v.estado !== VENDA_ESTADO.Entregue && <span className="rounded-full bg-zinc-100 px-2 py-0.5 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Sem fatura</span>}
-                        {!v.foraApuramento && (v.items.some((i) => i.porFora) || v.items.some((i) => (i.porForaCents ?? 0) > 0)) && !(v.estado === VENDA_ESTADO.Entregue && v.items.every((i) => i.porFora)) && <span className="rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora {formatEur(v.items.reduce((s, i) => s + (i.porFora ? i.totalCents : i.porForaCents ?? 0), 0) / 100)}</span>}
                         {v.paga === false && <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
                         <span className="ml-auto tabular-nums text-zinc-500">{formatDateOnly(v.data)}</span>
                       </span>
@@ -251,13 +240,11 @@ export default function Vendas() {
                   <SortableTh className="px-4 py-2" label="Estado" campo="estado" ordem={ordem} onOrdenar={ordenar} />
                   <SortableTh className="px-4 py-2" label="Data" campo="data" ordem={ordem} onOrdenar={ordenar} />
                   <SortableTh className="px-4 py-2" label="Total" campo="total" ordem={ordem} onOrdenar={ordenar} align="right" />
-                  <th className="px-4 py-2 text-right font-medium" title="O que vai à fatura (Moloni) — o IVA é só sobre isto">Faturado</th>
-                  <th className="px-4 py-2 text-right font-medium text-violet-700 dark:text-violet-300" title="Recebido fora da fatura, sem IVA">Por fora</th>
                   <th className="px-4 py-2 text-right font-medium">Lucro</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {list.isLoading && Array.from({ length: 5 }).map((_, i) => <tr key={i}><td colSpan={8}><SkeletonRow columns={8} /></td></tr>)}
+                {list.isLoading && Array.from({ length: 5 }).map((_, i) => <tr key={i}><td colSpan={6}><SkeletonRow columns={6} /></td></tr>)}
                 {items.map((v) => {
                   const Icon = TIPO_ICON[v.tipo];
                   return (
@@ -274,16 +261,10 @@ export default function Vendas() {
                       <td className="px-4 py-3">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${estadoVendaVisivel(v).color}`}>{estadoVendaVisivel(v).label}</span>
                         {v.faturaPorRegistar && <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Sem fatura</span>}
-                        {v.foraApuramento && v.estado !== VENDA_ESTADO.Entregue && <span className="ml-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Sem fatura</span>}
-                        {!v.foraApuramento && v.items.some((i) => i.porFora) && !(v.estado === VENDA_ESTADO.Entregue && v.items.every((i) => i.porFora)) && <span className="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">por fora</span>}
                         {v.paga === false && <span className="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
                       </td>
                       <td className="px-4 py-3 tabular-nums">{formatDateOnly(v.data)}</td>
                       <td className="px-4 py-3 text-right font-medium tabular-nums">{formatEur(v.totalCents / 100)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{partesVenda(v).faturado > 0 ? formatEur(partesVenda(v).faturado / 100) : <span className="text-zinc-400">—</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-violet-700 dark:text-violet-300">
-                        {partesVenda(v).porFora > 0 ? <>{formatEur(partesVenda(v).porFora / 100)}{partesVenda(v).faturado <= 0 && <span className="block text-[10px] font-medium uppercase">tudo por fora</span>}</> : <span className="text-zinc-400">—</span>}
-                      </td>
                       <td className={`px-4 py-3 text-right tabular-nums ${v.estado !== VENDA_ESTADO.Entregue ? 'italic text-zinc-400' : v.lucro < 0 ? 'text-rose-600' : ''}`}
                         title={v.estado !== VENDA_ESTADO.Entregue ? 'Previsto — só conta como lucro quando a venda for entregue' : undefined}>
                         {eur(v.lucro)}{v.estado !== VENDA_ESTADO.Entregue && v.estado !== VENDA_ESTADO.Cancelada ? ' (previsto)' : ''}</td>

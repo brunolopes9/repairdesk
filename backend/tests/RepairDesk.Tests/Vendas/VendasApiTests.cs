@@ -158,65 +158,6 @@ public class VendasApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
-    public async Task PorFora_ParteFaturadaComIva_ParteSemIva_ECustoExtraSemFatura()
-    {
-        // João Filipe: fatura 20 € (IVA 23%), mais 50 € por fora; custos sem fatura 5 € de transporte e 30 € de quem fez o trabalho.
-        var client = await AuthedClient();
-        var venda = await Criar(client, new VendaWriteRequest(VendaTipo.Reparacao, (await CriarCliente(client)), "AirPods", null, null,
-            [
-                new VendaLinhaWriteRequest(null, null, "Baterias AirPods", 1, 2000, IvaRate: 23m),
-                new VendaLinhaWriteRequest(null, null, "Resto do valor", 1, 5000, IvaRate: 23m, PorFora: true),
-                new VendaLinhaWriteRequest(null, null, "Transporte", 1, 0, PorFora: true, CustoSemFaturaCents: 500),
-                new VendaLinhaWriteRequest(null, null, "Profissional", 1, 0, PorFora: true, CustoSemFaturaCents: 3000),
-            ], VendaEstado.Entregue, PaymentMethod.MBWay));
-
-        venda.TotalCents.Should().Be(7000);                       // dinheiro recebido
-        venda.IvaCents.Should().Be(374);                          // só da parte faturada (20 − 20/1,23)
-        venda.Lucro.Should().BeApproximately(20m / 1.23m + 50m - 35m, 0.01m, "lucro real = faturado s/ IVA + por fora − custos");
-        venda.Items.Count(i => i.PorFora).Should().Be(3);
-        venda.Items.Single(i => i.Descricao == "Resto do valor").IvaRate.Should().Be(0m);
-        venda.FaturaPorRegistar.Should().BeTrue();                // a parte faturada ainda precisa de fatura
-
-        // Tudo por fora (limpeza PS5: 40 € com custo médio de 5 €) → não fica «por faturar» e não tem IVA.
-        var ps5 = await Criar(client, new VendaWriteRequest(VendaTipo.Produto, null, "PS5", null, null,
-            [new VendaLinhaWriteRequest(null, null, "Limpeza + metal líquido", 1, 4000, PorFora: true, CustoSemFaturaCents: 500)],
-            VendaEstado.Entregue, PaymentMethod.Dinheiro));
-        ps5.IvaCents.Should().Be(0);
-        ps5.Lucro.Should().Be(35m);
-        ps5.FaturaPorRegistar.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task SemFatura_RegistoInterno_LucroInteiro_SemIva_ENaoFicaPorFaturar()
-    {
-        var client = await AuthedClient();
-        var venda = await Criar(client, new VendaWriteRequest(VendaTipo.Produto, null, null, null, null,
-            [new VendaLinhaWriteRequest(null, null, "Limpeza PS5", 1, 4000)], VendaEstado.Entregue));
-        venda.Lucro.Should().BeLessThan(40m); // por omissão o IVA é descontado
-
-        var resp = await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/fora-apuramento", new ForaApuramentoRequest(true, null));
-        resp.StatusCode.Should().Be(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync());
-        var marcada = (await resp.Content.ReadFromJsonAsync<VendaDto>())!;
-        marcada.ForaApuramento.Should().BeTrue();
-        marcada.ForaApuramentoMotivo.Should().Be("Sem fatura (registo interno)");
-        marcada.Lucro.Should().Be(40m);
-        marcada.IvaCents.Should().Be(0);
-        marcada.IvaAPagarEstado.Should().Be(0m);
-        marcada.FaturaPorRegistar.Should().BeFalse();
-
-        var porFaturar = await client.GetFromJsonAsync<PagedResult<VendaDto>>("/api/vendas?faturaPorRegistar=true&pageSize=100");
-        porFaturar!.Items.Should().NotContain(v => v.Id == venda.Id);
-
-        // Se depois tiver fatura, volta a contar no IVA.
-        var faturada = (await (await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/fatura", new RegistarFaturaRequest("FR 2026/999", null)))
-            .Content.ReadFromJsonAsync<VendaDto>())!;
-        faturada.ForaApuramento.Should().BeFalse();
-        faturada.IvaCents.Should().BeGreaterThan(0);
-        (await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/fora-apuramento", new ForaApuramentoRequest(true, null)))
-            .StatusCode.Should().Be(HttpStatusCode.Conflict);
-    }
-
-    [Fact]
     public async Task EditarQuantidade_EmPronta_AjustaOStock()
     {
         var client = await AuthedClient();

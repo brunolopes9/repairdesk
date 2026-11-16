@@ -126,15 +126,15 @@ def criar_lembrete(titulo: str, quando: str, avisos_min: str = "30", notas: str 
 
 @mcp.tool()
 def registar_venda(cliente: str, descricao: str, total: float, telefone: str = "", tipo: str = "", equipamento: str = "",
-                   avaria: str = "", fatura: float = 0, custo: float = 0, estado: str = "", notas: str = "") -> str:
+                   avaria: str = "", custo: float = 0, estado: str = "", notas: str = "") -> str:
     """Regista uma venda/reparação. REGRA DO BRUNO: total = valor FINAL que o cliente paga (nunca somar IVA);
-    fatura = quanto vai na fatura (já com IVA); o resto fica por fora; custo = quanto custou a peça/produto.
-    Ex.: "A52, 100 €, 70 fatura, custo 60" -> total 100, fatura 70, custo 60.
+    a venda é toda faturada pelo total (IVA incluído); custo = quanto custou a peça/produto.
+    Ex.: "A52, 100 €, custo 60" -> total 100, custo 60.
     tipo: reparacao | produto | servico. estado: orcamento | pronta (omissão) | entregue.
     cliente: nome (aproximado) ou telefone; se houver vários com o mesmo nome a API devolve 409 e é preciso o telefone;
     cliente novo precisa de nome + telefone."""
     return _pedir("POST", "/vendas", {"cliente": cliente, "telefone": telefone, "tipo": tipo, "equipamento": equipamento, "avaria": avaria,
-                                       "descricao": descricao, "total": total, "fatura": fatura or None, "custo": custo or None,
+                                       "descricao": descricao, "total": total, "custo": custo or None,
                                        "estado": estado, "notas": notas})
 
 

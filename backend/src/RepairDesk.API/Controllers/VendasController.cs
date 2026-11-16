@@ -91,12 +91,6 @@ public class VendasController : ControllerBase
     public Task<VendaDto> RegistarFatura(Guid id, [FromBody] RegistarFaturaRequest req, CancellationToken ct)
         => _service.RegistarFaturaAsync(id, req, ct);
 
-    /// <summary>Sprint 616: marca a venda como tratada fora do Mender (sem IVA no Mender, lucro pelo valor inteiro). Só Admin; auditado.</summary>
-    [HttpPut("{id:guid}/fora-apuramento")]
-    [Authorize(Roles = "Admin")]
-    public Task<VendaDto> ForaApuramento(Guid id, [FromBody] ForaApuramentoRequest req, CancellationToken ct)
-        => _service.ForaApuramentoAsync(id, req, ct);
-
     /// <summary>Sprint 650: venda entregue paga ou ainda por receber (cobranças). Auditado.</summary>
     [HttpPut("{id:guid}/pagamento")]
     public Task<VendaDto> Pagamento(Guid id, [FromBody] PagamentoVendaRequest req, CancellationToken ct)

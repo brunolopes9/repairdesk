@@ -32,10 +32,6 @@ export const vendasApi = {
   pagamento(id: string, porReceber: boolean) {
     return api.put<Venda>(`/vendas/${id}/pagamento`, { porReceber }).then((r) => r.data);
   },
-  /** Sprint 616: marca/desmarca a venda como «sem fatura» (registo interno, fora do IVA do Mender). */
-  foraApuramento(id: string, ativo: boolean, motivo?: string | null) {
-    return api.put<Venda>(`/vendas/${id}/fora-apuramento`, { ativo, motivo: motivo ?? null }).then((r) => r.data);
-  },
   registarFatura(id: string, invoiceNumber: string | null, invoiceEmittedAt: string | null) {
     return api.put<Venda>(`/vendas/${id}/fatura`, { invoiceNumber, invoiceEmittedAt }).then((r) => r.data);
   },

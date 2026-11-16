@@ -56,7 +56,7 @@ public class AssistenteApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
-    public async Task Assistente_Venda_FaturaMaisPorFora_ClienteNovo_Despesa_EDesfaz()
+    public async Task Assistente_Venda_TudoFaturado_ClienteNovo_Despesa_EDesfaz()
     {
         var admin = await Admin();
         var bot = await Chave(admin, "assistente");
@@ -67,14 +67,13 @@ public class AssistenteApiTests : IClassFixture<RepairDeskApiFactory>
         var txt = await resp.Content.ReadAsStringAsync();
         resp.StatusCode.Should().Be(HttpStatusCode.OK, txt);
         var r = (await resp.Content.ReadFromJsonAsync<AssistenteResultado>())!;
-        r.Resumo.Should().Contain("70,00").And.Contain("30,00");
+        r.Resumo.Should().Contain("100,00");
 
         var vendas = await admin.GetFromJsonAsync<PagedResult<RepairDesk.Services.Vendas.VendaDto>>("/api/vendas?pageSize=200");
         var v = vendas!.Items.Single(x => x.Cliente != null && x.Cliente.Nome == "João Teste Assistente");
         v.Estado.Should().Be(VendaEstado.Pronta);
         v.TotalCents.Should().Be(10000);                       // o cliente paga 100 — sem IVA por cima
-        v.Items.Should().Contain(i => i.PorFora && i.TotalCents == 3000);
-        v.Items.Should().Contain(i => !i.PorFora && i.TotalCents == 7000);
+        v.Items.Should().ContainSingle(i => !i.PorFora && i.TotalCents == 10000); // tudo faturado
 
         // Reparação sem cliente nenhum → erro claro, nada criado.
         (await bot.PostAsJsonAsync("/api/external/assistente/vendas", new AssistenteVendaRequest(null, null, null, null, null, "X", 10m, null, null, null, null)))

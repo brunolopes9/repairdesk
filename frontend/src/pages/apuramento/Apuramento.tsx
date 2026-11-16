@@ -132,11 +132,6 @@ export default function Apuramento() {
             </div>
           </div>
 
-          {(r.foraApuramentoVendas ?? 0) > 0 && (
-            <p className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-              {r.foraApuramentoVendas} venda(s) sem fatura (registo interno), {formatEur(r.foraApuramentoTotal ?? 0)} — não entram neste apuramento.
-            </p>
-          )}
 
           {/* O que falta tratar */}
           {r.pendentes.length === 0 ? (

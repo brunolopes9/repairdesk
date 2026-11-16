@@ -28,7 +28,7 @@ public class FinancasTests : IClassFixture<RepairDeskApiFactory>
         var agora = DateTime.UtcNow;
         var venda = await (await c.PostAsJsonAsync("/api/vendas", new VendaWriteRequest(VendaTipo.Produto, null, null, null, null,
             [new VendaLinhaWriteRequest(null, null, "Limpeza PS5", 1, 4000)], VendaEstado.Entregue))).Content.ReadFromJsonAsync<VendaDto>();
-        (await c.PutAsJsonAsync($"/api/vendas/{venda!.Id}/fora-apuramento", new ForaApuramentoRequest(true, null))).EnsureSuccessStatusCode();
+        venda.Should().NotBeNull();
 
         async Task Despesa(string desc, DespesaCategoria cat, int cents, DespesaAmbito ambito, AfetacaoIva afet = AfetacaoIva.LopesTech, DespesaNatureza nat = DespesaNatureza.Gasto)
             => (await c.PostAsJsonAsync("/api/despesas", new CreateDespesaRequest(desc, cat, cents, agora, null, null, null,
@@ -39,12 +39,12 @@ public class FinancasTests : IClassFixture<RepairDeskApiFactory>
         await Despesa("IVA 3.º trimestre", DespesaCategoria.PagamentoIva, 24000, DespesaAmbito.Obrigacao);
 
         var m = (await c.GetFromJsonAsync<FinancasMesDto>($"/api/financas/mes?ano={agora.Year}&mes={agora.Month}"))!;
-        m.LucroInformatica.Should().Be(40m);
+        m.LucroInformatica.Should().Be(32.52m); // 40 € faturados (IVA 23 % incluído) − 7,48 € de IVA
         m.DespesasTrading.Should().Be(45m);
         m.DespesasPessoais.Should().Be(20m);
         m.Obrigacoes.Should().Be(117.94m);
         m.ImpostosPagos.Should().Be(240m);
-        m.Saldo.Should().Be(40m - 45m - 20m - 117.94m);
+        m.Saldo.Should().Be(32.52m - 45m - 20m - 117.94m);
         m.Investimento.Should().Be(45m);
         m.VendasSemFatura.Should().Be(1);
         m.Objetivo.Should().Be(1500m);
