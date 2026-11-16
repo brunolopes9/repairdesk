@@ -50,6 +50,10 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- só volta a propor quando muda o cliente (não a cada refetch)
   useEffect(() => { setFatura(escolhaInicial(venda.cliente)); }, [chaveCliente]);
   const problema = problemaFatura(fatura);
+  // Sprint 686: fatura simplificada (preços c/ IVA) — CIVA art. 40.º: bens até 1000 € s/ IVA; com serviços até 100 €.
+  const faturaveis = venda.items.filter((i) => !i.porFora);
+  const baseSemIva = faturaveis.reduce((s, i) => s + i.totalCents / 100 / (1 + i.ivaRate / 100), 0);
+  const fsPossivel = faturaveis.length > 0 && baseSemIva <= (faturaveis.some((i) => !i.compraLinhaId) ? 100 : 1000);
 
   const ok = (titulo: string) => (v: Venda) => { onChange(v); toast.success(titulo, v.invoiceNumber ?? v.moloniOrcamentoNumero ?? undefined); };
   const erro = (msg: string) => (err: unknown) => toast.fromError(err, msg);
@@ -58,7 +62,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
     mutationFn: (tipo: MoloniDocumento) => moloniApi.emitir(venda.id, {
       tipo,
       serieId: serie === '' ? null : serie,
-      paymentMethod: tipo === 'FaturaRecibo' ? pagamento : null,
+      paymentMethod: tipo === 'FaturaRecibo' || tipo === 'FaturaSimplificada' ? pagamento : null,
       vencimentoDias: tipo === 'Fatura' ? vencimento : 0,
       motivoIsencao: motivo || null,
       ...pedidoFatura(fatura),
@@ -198,7 +202,14 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
             {opcoesIsencao}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="success" leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaRecibo'} disabled={ocupado || !!problema}
+            {/* Sprint 686: consumidor final → fatura simplificada, com os preços COM IVA em cada linha (como no comércio). */}
+            {fsPossivel && (
+              <Button type="button" variant="success" leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaSimplificada'} disabled={ocupado || !!problema}
+                onClick={() => emitir.mutate('FaturaSimplificada')} title="Fatura simplificada: cada linha aparece com o IVA incluído (ex.: 7,00 €), paga na hora">
+                Emitir fatura simplificada (preços c/ IVA)
+              </Button>
+            )}
+            <Button type="button" variant={fsPossivel ? 'secondary' : 'success'} leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaRecibo'} disabled={ocupado || !!problema}
               onClick={() => emitir.mutate('FaturaRecibo')}>
               Emitir fatura-recibo (pago)
             </Button>

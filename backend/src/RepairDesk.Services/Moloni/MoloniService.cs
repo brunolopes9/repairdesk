@@ -53,6 +53,11 @@ public enum MoloniDocumento
     Fatura,
     /// <summary>Fatura-recibo: paga na hora.</summary>
     FaturaRecibo,
+    /// <summary>
+    /// Sprint 686: fatura simplificada (FS) — paga na hora e com os preços das linhas COM IVA incluído (CIVA art. 40.º
+    /// n.º 2 c)). Só para consumidor final: bens a retalho até 1000 € (sem IVA) ou, havendo serviços, até 100 €.
+    /// </summary>
+    FaturaSimplificada,
 }
 
 /// <summary>Sprint 571: dados da fatura "com NIF" — o que o cliente pede no momento (nome e morada fiscais).</summary>
@@ -239,7 +244,18 @@ public partial class MoloniService : IMoloniService
         var agora = DateTime.UtcNow;
         var totalVenda = venda.Items.Where(i => !i.PorFora).Sum(i => i.TotalCents) / 100m; // Sprint 642: só o faturado
         var fatura = req.Tipo == MoloniDocumento.Fatura;
-        var apiCode = fatura ? "invoice" : "invoiceReceipt";
+        var simplificada = req.Tipo == MoloniDocumento.FaturaSimplificada;
+        if (simplificada)
+        {
+            // CIVA art. 40.º n.º 1: retalhista a não sujeitos passivos até 1000 €; outras (serviços) até 100 € — sem IVA.
+            var baseSemIva = venda.Items.Where(i => !i.PorFora).Sum(i => i.TotalCents / 100m / (1 + i.IvaRate / 100m));
+            var temServicos = venda.Items.Any(i => !i.PorFora && i.CompraLinhaId is null);
+            var limite = temServicos ? 100m : 1000m;
+            if (baseSemIva > limite)
+                throw new ValidationException("fs_limite",
+                    $"A fatura simplificada só pode ir até {limite:0} € sem IVA ({(temServicos ? "há serviços na venda" : "venda de bens a retalho")}). Esta tem {baseSemIva:0.00} €: emite fatura-recibo.");
+        }
+        var apiCode = fatura ? "invoice" : simplificada ? "simplifiedInvoice" : "invoiceReceipt";
         var metodo = fatura ? (int?)null : await MetodoPagamentoAsync(key, companyId, cfg, t, req.PaymentMethod ?? venda.PaymentMethod, ct);
 
         var dados = new Dictionary<string, object?>
@@ -254,18 +270,19 @@ public partial class MoloniService : IMoloniService
         };
         if (!fatura) dados["payments"] = new[] { Pagamento(metodo!.Value, totalVenda, agora) };
 
-        var (documentId, totalMoloni) = await CriarRascunhoAsync(key, companyId, apiCode, fatura ? "InvoiceInsert" : "InvoiceReceiptInsert", dados, ct);
+        var tipoBase = fatura ? "Invoice" : simplificada ? "SimplifiedInvoice" : "InvoiceReceipt";
+        var (documentId, totalMoloni) = await CriarRascunhoAsync(key, companyId, apiCode, tipoBase + "Insert", dados, ct);
         await GarantirTotalAsync(key, companyId, apiCode, documentId, totalMoloni, totalVenda, ct);
 
         var final = new Dictionary<string, object?> { ["documentId"] = documentId, ["status"] = 1 };
         if (!fatura) final["payments"] = new[] { Pagamento(metodo!.Value, totalMoloni, agora) };
-        var (numero, serieNome) = await FinalizarAsync(key, companyId, apiCode, fatura ? "InvoiceUpdate" : "InvoiceReceiptUpdate", final, ct);
+        var (numero, serieNome) = await FinalizarAsync(key, companyId, apiCode, tipoBase + "Update", final, ct);
 
         venda.MoloniDocumentoTipo = apiCode;
         venda.MoloniDocumentoId = documentId;
         if (!fatura && req.PaymentMethod is { } pm) venda.PaymentMethod = pm;
         await _vendas.SaveAsync(ct);
-        var invoiceNumber = $"{(fatura ? "FT" : "FR")} {serieNome}/{numero}";
+        var invoiceNumber = $"{(fatura ? "FT" : simplificada ? "FS" : "FR")} {serieNome}/{numero}";
         await _vendaService.RegistarFaturaAsync(venda.Id, new RegistarFaturaRequest(invoiceNumber, agora), ct);
         await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id,
             new { operation = "moloni_emitir", documento = apiCode, invoiceNumber, documentId, totalMoloni }, ct: ct);

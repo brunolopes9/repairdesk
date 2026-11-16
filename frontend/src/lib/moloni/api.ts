@@ -19,7 +19,7 @@ export interface MoloniEstado {
   serieProduto: number | null;
 }
 
-export type MoloniDocumento = 'Fatura' | 'FaturaRecibo';
+export type MoloniDocumento = 'Fatura' | 'FaturaRecibo' | 'FaturaSimplificada';
 
 /** Sprint 571: dados da fatura com NIF (pedidos no momento de emitir). */
 export interface MoloniDadosFiscais {

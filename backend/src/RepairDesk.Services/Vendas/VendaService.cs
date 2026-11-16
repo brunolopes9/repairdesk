@@ -750,7 +750,7 @@ public class VendaService : IVendaService
             venda.Estado == VendaEstado.Entregue && venda.InvoiceNumber is null && !venda.ForaApuramento && venda.Items.Any(i => !i.PorFora),
             venda.Notas, items, venda.PublicSlug, venda.PrevistoPara, garantiaSlug, venda.FaturaPdfPath is not null,
             venda.MoloniDocumentoTipo, venda.MoloniReciboNumero, venda.MoloniOrcamentoNumero,
-            venda.MoloniDocumentoTipo is null ? null : venda.MoloniDocumentoTipo == "invoiceReceipt" || venda.MoloniReciboId is not null,
+            venda.MoloniDocumentoTipo is null ? null : venda.MoloniDocumentoTipo is "invoiceReceipt" or "simplifiedInvoice" || venda.MoloniReciboId is not null,
             venda.Atividade,
             venda.ForaApuramento,
             venda.ForaApuramentoMotivo,
