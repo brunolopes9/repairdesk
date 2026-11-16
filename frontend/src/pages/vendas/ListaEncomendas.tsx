@@ -4,6 +4,7 @@ import { ClipboardList, PackageCheck, Plus, Trash2, Truck, Undo2 } from 'lucide-
 import { Button, SectionCard } from '../../components/ui';
 import { inputCls } from '../../components/ui/formClasses';
 import { api } from '../../lib/api';
+import { fornecedoresApi } from '../../lib/fornecedores/api';
 import { toast } from '../../lib/toast';
 
 /** Sprint 687: lista de compras da oficina (o que é preciso encomendar, fora das reparações). */
@@ -29,6 +30,7 @@ const listaApi = {
 export default function ListaEncomendas() {
   const qc = useQueryClient();
   const lista = useQuery({ queryKey: ['lista-encomendas'], queryFn: listaApi.listar });
+  const fornecedores = useQuery({ queryKey: ['fornecedores', false], queryFn: () => fornecedoresApi.list(false), staleTime: 300_000 });
   const [desc, setDesc] = useState('');
   const [qtd, setQtd] = useState('1');
   const [forn, setForn] = useState('');
@@ -65,7 +67,10 @@ export default function ListaEncomendas() {
         <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="O que precisas? Ex.: película Redmi 15C" aria-label="Artigo"
           className={`${inputCls} min-w-[16rem] flex-1`} maxLength={200} />
         <input value={qtd} onChange={(e) => setQtd(e.target.value.replace(/\D/g, ''))} inputMode="numeric" aria-label="Quantidade" className={`${inputCls} w-20`} />
-        <input value={forn} onChange={(e) => setForn(e.target.value)} placeholder="Fornecedor (opcional)" aria-label="Fornecedor" className={`${inputCls} w-44`} maxLength={120} />
+        <input value={forn} onChange={(e) => setForn(e.target.value)} placeholder="Fornecedor (opcional)" aria-label="Fornecedor" className={`${inputCls} w-44`} maxLength={120} list="lista-encomendas-fornecedores" />
+        <datalist id="lista-encomendas-fornecedores">
+          {(fornecedores.data ?? []).map((f) => <option key={f.id} value={f.name} />)}
+        </datalist>
         <Button type="submit" leftIcon={<Plus size={15} />} loading={criar.isPending} disabled={!desc.trim()}>Juntar</Button>
       </form>
       <p className="mt-1 text-xs text-zinc-500">Também podes dizer ao assistente do Telegram: «junta à lista: película Redmi 15C, 5».</p>
