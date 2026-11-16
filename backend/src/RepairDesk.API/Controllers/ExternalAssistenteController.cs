@@ -218,6 +218,26 @@ public sealed class ExternalAssistenteController : ControllerBase
         return Ok(new AssistenteResultado(acao.Resumo, acao.Id, new { venda.Id, venda.Numero, venda.Estado, venda.TotalCents, venda.Lucro }));
     }
 
+    /// <summary>Sprint 687: lista de compras da oficina (o que é preciso encomendar).</summary>
+    [HttpGet("lista-encomendas")]
+    public async Task<ActionResult<IReadOnlyList<RepairDesk.API.Encomendas.ItemParaEncomendarDto>>> ListaEncomendas(
+        [FromServices] RepairDesk.API.Encomendas.IListaEncomendasService lista, CancellationToken ct)
+    {
+        _ = Dono;
+        return Ok((await lista.ListarAsync(ct)).Where(i => i.Estado < 2).ToList());
+    }
+
+    /// <summary>Sprint 687: junta à lista de compras («película Redmi 15C ×5»).</summary>
+    [HttpPost("lista-encomendas")]
+    public async Task<ActionResult<AssistenteResultado>> JuntarEncomenda([FromBody] RepairDesk.API.Encomendas.ItemParaEncomendarRequest req,
+        [FromServices] RepairDesk.API.Encomendas.IListaEncomendasService lista, CancellationToken ct)
+    {
+        _ = Dono;
+        var item = await lista.CriarAsync(req, ct);
+        var resumo = $"Juntei à lista de encomendas: {item.Quantidade} × {item.Descricao}" + (item.Fornecedor is { } f ? $" ({f})" : "");
+        return Ok(new AssistenteResultado(resumo, null, new { item.Id }));
+    }
+
     /// <summary>Sprint 653: faturas de fornecedor que chegaram e estão por tratar (compra ou despesa — decide o Bruno).</summary>
     [HttpGet("faturas")]
     public async Task<ActionResult<IReadOnlyList<AssistenteFaturaResumo>>> Faturas(CancellationToken ct)

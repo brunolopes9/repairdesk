@@ -139,6 +139,19 @@ def registar_venda(cliente: str, descricao: str, total: float, telefone: str = "
 
 
 @mcp.tool()
+def ver_lista_encomendas() -> str:
+    """Lista de compras da oficina: o que falta encomendar (estado 0) e o que já vem a caminho (estado 1)."""
+    return _pedir("GET", "/lista-encomendas")
+
+
+@mcp.tool()
+def juntar_lista_encomendas(descricao: str, quantidade: int = 1, fornecedor: str = "", nota: str = "") -> str:
+    """Junta um artigo à lista do que é preciso encomendar (ex.: "película Redmi 15C", 5, "LCPhones")."""
+    return _pedir("POST", "/lista-encomendas", {"descricao": descricao, "quantidade": quantidade,
+                                                 "fornecedor": fornecedor or None, "nota": nota or None})
+
+
+@mcp.tool()
 def ver_faturas() -> str:
     """Faturas de fornecedor pendentes de classificar (só listar; quem classifica compra/despesa é o Bruno no Mender)."""
     return _pedir("GET", "/faturas")

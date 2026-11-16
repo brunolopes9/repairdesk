@@ -15,6 +15,7 @@ import { formatDateOnly } from '../../lib/money';
 import { vendasApi } from '../../lib/vendas/api';
 import DocumentosMoloniVista from './DocumentosMoloni';
 import PecasEncomendaVista from './PecasEncomenda';
+import ListaEncomendas from './ListaEncomendas';
 import { BotaoImprimir } from '../../components/BotaoImprimir';
 import {
   VENDA_ESTADO,
@@ -29,7 +30,7 @@ import {
 const VISTAS = [
   { key: 'curso', label: 'Em curso' },
   // Sprint 594: as peças que faltam nas reparações em curso (o que encomendar / o que está a chegar).
-  { key: 'pecas', label: 'Peças a encomendar' },
+  { key: 'pecas', label: 'Encomendas e peças' },
   { key: 'entregues', label: 'Entregues' },
   { key: 'fatura', label: 'Fatura por registar' },
   { key: 'porpagar', label: 'Por pagar' },
@@ -159,7 +160,7 @@ export default function Vendas() {
         }))}
       />
 
-      {vista === 'documentos' ? <DocumentosMoloniVista isAdmin={isAdmin} /> : vista === 'pecas' ? <PecasEncomendaVista /> : (
+      {vista === 'documentos' ? <DocumentosMoloniVista isAdmin={isAdmin} /> : vista === 'pecas' ? <div className="space-y-4"><ListaEncomendas /><PecasEncomendaVista /></div> : (
       <SectionCard
         bodyClassName="p-0"
         action={
