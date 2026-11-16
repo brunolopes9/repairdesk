@@ -28,9 +28,14 @@ public sealed class TextoProdutoIa : ITextoProdutoIa
     private readonly ILogger<TextoProdutoIa> _logger;
     private readonly string? _url;
     private readonly string? _secret;
+    private readonly IFichaFornecedor? _ficha;
+    private readonly RepairDesk.Core.Abstractions.IArtigoRepository? _artigos;
 
-    public TextoProdutoIa(HttpClient http, IConfiguration config, ILlmUsageTracker tracker, ILogger<TextoProdutoIa> logger)
+    public TextoProdutoIa(HttpClient http, IConfiguration config, ILlmUsageTracker tracker, ILogger<TextoProdutoIa> logger,
+        IFichaFornecedor? ficha = null, RepairDesk.Core.Abstractions.IArtigoRepository? artigos = null)
     {
+        _ficha = ficha;
+        _artigos = artigos;
         _http = http;
         _tracker = tracker;
         _logger = logger;
@@ -46,6 +51,11 @@ public sealed class TextoProdutoIa : ITextoProdutoIa
         Regras:
         - Usa só os factos que recebes. Nunca inventes números (mAh, W, resolução, materiais, compatibilidades) que não estejam nos dados.
           Se um dado útil faltar, não o menciones.
+        - Quando vier a «Ficha técnica oficial do fornecedor» (normalmente em inglês), traduz e usa TODOS os números técnicos
+          dela nas specs: potência (W) total e por porta, entrada/saída (V/A), protocolos (PD, QC), capacidade (mAh), comprimento,
+          velocidade de dados, material, dimensões, peso, compatibilidades. Ex.: «USB-C (Power Delivery)»: «5 V 3 A · 9 V 2,22 A — até 20 W».
+          Na descrição explica o que esses números significam para o cliente (ex.: «carregamento rápido no iPhone»), sem exagerar.
+          Não afirmes compatibilidades de carregamento rápido de marcas que a ficha não indica.
         - Peças de substituição: diz para que modelo serve, o que inclui (ex.: com frame), a qualidade indicada no título
           (ex.: Service Pack = peça original da marca; Original Remaded/OEM = qualidade equivalente) e que a LopesTech pode fazer a montagem na loja.
         - Recondicionados/usados: refere o grau estético e a garantia.
@@ -55,7 +65,8 @@ public sealed class TextoProdutoIa : ITextoProdutoIa
          "specs":[{"nome":"Compatível com","valor":"..."}],
          "seoTitulo":"até 65 caracteres, com marca e modelo",
          "seoDescricao":"até 160 caracteres, com o benefício principal e «envio para todo o país»"}
-        specs: 3 a 8 linhas só com factos dos dados (marca, modelo/compatibilidade, cor, estado, garantia, o que inclui…).
+        specs: 3 a 10 linhas só com factos dos dados — primeiro os técnicos (potência, portas, capacidade, comprimento…), depois
+        compatibilidade, cor, material, o que inclui. Não repitas marca, modelo, estado nem garantia (a página já os mostra).
         """;
 
     public async Task<TextoProdutoGerado> GerarAsync(GuardarProdutoLojaRequest p, CancellationToken ct = default)
@@ -73,7 +84,7 @@ public sealed class TextoProdutoIa : ITextoProdutoIa
             cts.CancelAfter(TimeSpan.FromSeconds(150));
             using var req = new HttpRequestMessage(HttpMethod.Post, $"{_url}/v1/texto")
             {
-                Content = JsonContent.Create(new { system = Sistema, prompt = Dados(p), model = "opus" }),
+                Content = JsonContent.Create(new { system = Sistema, prompt = Dados(p, await FichaAsync(p, ct)), model = "opus" }),
             };
             req.Headers.Add("X-Ia-Secret", _secret);
             using var resp = await _http.SendAsync(req, cts.Token);
@@ -101,7 +112,18 @@ public sealed class TextoProdutoIa : ITextoProdutoIa
         }
     }
 
-    private static string Dados(GuardarProdutoLojaRequest p)
+    /// <summary>Sprint 689: ficha oficial do fornecedor pelo SKU dos lotes do artigo e pelo modelo.</summary>
+    private async Task<string?> FichaAsync(GuardarProdutoLojaRequest p, CancellationToken ct)
+    {
+        if (_ficha is null) return null;
+        var codigos = new List<string>();
+        if (p.ArtigoId is { } artigoId && _artigos is not null && await _artigos.FindByIdAsync(artigoId, ct) is { } artigo)
+            codigos.AddRange(artigo.Lotes.Select(l => l.SkuFornecedor).Where(s => !string.IsNullOrWhiteSpace(s))!);
+        if (!string.IsNullOrWhiteSpace(p.Modelo)) codigos.Add(p.Modelo);
+        return codigos.Count == 0 ? null : await _ficha.ProcurarAsync(codigos, ct);
+    }
+
+    private static string Dados(GuardarProdutoLojaRequest p, string? ficha = null)
     {
         var sb = new StringBuilder("Dados do produto:\n");
         void L(string k, object? v) { if (v is not null && !(v is string s && string.IsNullOrWhiteSpace(s))) sb.Append("- ").Append(k).Append(": ").Append(v).Append('\n'); }
@@ -124,6 +146,7 @@ public sealed class TextoProdutoIa : ITextoProdutoIa
         L("Armazenamento (GB)", p.ArmazenamentoGb);
         L("Preço (€)", p.Preco > 0 ? p.Preco.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : null);
         foreach (var s in p.Specs ?? []) L(s.Nome, s.Valor);
+        if (!string.IsNullOrWhiteSpace(ficha)) sb.Append("\nFicha técnica oficial do fornecedor:\n").Append(ficha.Trim()).Append('\n');
         if (!string.IsNullOrWhiteSpace(p.Descricao)) sb.Append("\nDescrição atual (melhora-a, mantém os factos):\n").Append(p.Descricao.Trim()).Append('\n');
         return sb.Append("\nDevolve só o JSON.").ToString();
     }
