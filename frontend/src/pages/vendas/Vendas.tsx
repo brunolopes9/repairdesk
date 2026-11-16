@@ -265,7 +265,9 @@ export default function Vendas() {
                       </td>
                       <td className="px-4 py-3 tabular-nums">{formatDateOnly(v.data)}</td>
                       <td className="px-4 py-3 text-right font-medium tabular-nums">{formatEur(v.totalCents / 100)}</td>
-                      <td className={`px-4 py-3 text-right tabular-nums ${v.lucro < 0 ? 'text-rose-600' : ''}`}>{formatEur(v.lucro)}</td>
+                      <td className={`px-4 py-3 text-right tabular-nums ${v.estado !== VENDA_ESTADO.Entregue ? 'italic text-zinc-400' : v.lucro < 0 ? 'text-rose-600' : ''}`}
+                        title={v.estado !== VENDA_ESTADO.Entregue ? 'Previsto — só conta como lucro quando a venda for entregue' : undefined}>
+                        {formatEur(v.lucro)}{v.estado !== VENDA_ESTADO.Entregue && v.estado !== VENDA_ESTADO.Cancelada ? ' (previsto)' : ''}</td>
                     </tr>
                   );
                 })}

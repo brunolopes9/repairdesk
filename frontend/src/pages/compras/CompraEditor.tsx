@@ -209,7 +209,9 @@ export default function CompraEditor() {
   // Sprint 586: "Vender" — abre uma venda nova com estes lotes (texto da fatura em português, preço sugerido).
   const paraVender = linhas.filter((l) => l.id && l.emStock > 0);
   // Sprint 589: soma do lucro das vendas deste documento (null se ainda não se vendeu nada).
-  const lucroVendido = linhas.some((l) => l.vendas.length) ? linhas.reduce((t, l) => t + l.vendas.reduce((s2, v) => s2 + v.lucro, 0), 0) : null;
+  // Só conta vendas ENTREGUES (concluídas) — um orçamento ou reparação em curso ainda não é lucro.
+  const lucroVendido = linhas.some((l) => l.vendas.some((v) => v.entregue))
+    ? linhas.reduce((t, l) => t + l.vendas.filter((v) => v.entregue).reduce((s2, v) => s2 + v.lucro, 0), 0) : null;
   // Sprint 590: o lucro que se está a experimentar na linha é o que segue para a venda — o preço c/ IVA que se vê
   // em "Venda c/ IVA" vai no link (ganha ao preço do artigo) e, se o lucro mudou, a compra grava-se antes de sair.
   async function vender(lotes: [LinhaForm, number][]) {
