@@ -57,6 +57,10 @@ public class ArtigosController : ControllerBase
     public Task<ArtigoDetalheDto> DesfazerFusao(Guid fusaoId, CancellationToken ct) => _service.DesfazerFusaoAsync(fusaoId, ct);
 
     /// <summary>Sprint 581: lotes que são peças de reparação (ecrãs, baterias…) — saem da lista "por ligar".</summary>
+    /// <summary>18/11: liga (ou cria) os artigos de todo o stock por ligar — corre também sozinho ao gravar compras.</summary>
+    [HttpPost("ligar-automatico")]
+    public Task<int> LigarAutomatico(CancellationToken ct) => _service.LigarStockAutomaticoAsync(ct);
+
     [HttpPut("lotes/peca-reparacao")]
     public Task<int> PecaReparacao([FromBody] PecaReparacaoRequest req, CancellationToken ct) => _service.MarcarPecaReparacaoAsync(req, ct);
 

@@ -143,6 +143,8 @@ public interface IArtigoService
     Task<IReadOnlyList<ArtigoSugestaoDto>> SugestoesAsync(CancellationToken ct = default);
     /// <summary>Sprint 569: cria vários artigos de uma vez, cada um já com os seus lotes.</summary>
     Task<IReadOnlyList<ArtigoDto>> CriarEmLoteAsync(ArtigosEmLoteRequest req, CancellationToken ct = default);
+    /// <summary>18/11: o «Stock por ligar» deixa de ser trabalho do Bruno — liga ou cria os artigos sozinho. Devolve quantos tratou.</summary>
+    Task<int> LigarStockAutomaticoAsync(CancellationToken ct = default);
     /// <summary>Sprint 570: categorias com preço por defeito (ex.: Películas 15 €).</summary>
     Task<IReadOnlyList<CategoriaArtigoDto>> CategoriasAsync(CancellationToken ct = default);
     Task<CategoriaArtigoDto> GuardarCategoriaAsync(CategoriaArtigoRequest req, CancellationToken ct = default);
@@ -279,6 +281,35 @@ public class ArtigoService : IArtigoService
             })
             .OrderBy(s => s.Nome)
             .ToList();
+    }
+
+    /// <summary>
+    /// 18/11 (Bruno: «o stock por ligar já não faz sentido — ou é automático»). Cada grupo de lotes sem artigo:
+    /// se já houve um lote igual ligado a um artigo, liga-se a esse; senão cria-se o artigo (nome em português quando
+    /// se reconhece a peça, categoria pela descrição). Peças marcadas «de reparação» e «uso da loja» ficam de fora.
+    /// </summary>
+    public async Task<int> LigarStockAutomaticoAsync(CancellationToken ct = default)
+    {
+        var n = 0;
+        foreach (var s in await SugestoesAsync(ct))
+        {
+            if (s.ArtigoSugeridoId is { } artigoId)
+            {
+                foreach (var l in await _compras.FindLinhasAsync(s.LoteIds, ct))
+                    if (l.ArtigoId is null) { l.ArtigoId = artigoId; l.PecaReparacao = false; }
+                await _repo.SaveAsync(ct);
+            }
+            else
+            {
+                var peca = ModeloDispositivo.NomePeca(s.Nome);
+                var nome = peca ?? s.Nome;
+                var categoria = s.Categoria ?? (EPelicula(nome) ? "Películas" : peca is not null ? "Peças" : "Acessórios");
+                await CreateAsync(new ArtigoWriteRequest(nome.Length > 200 ? nome[..200] : nome, categoria, null, null, null,
+                    s.Localizacao, null, true, s.LoteIds), ct);
+            }
+            n++;
+        }
+        return n;
     }
 
     public async Task<IReadOnlyList<ArtigoDto>> CriarEmLoteAsync(ArtigosEmLoteRequest req, CancellationToken ct = default)

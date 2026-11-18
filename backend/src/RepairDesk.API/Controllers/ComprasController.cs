@@ -19,8 +19,10 @@ public class ComprasController : ControllerBase
     private readonly IComprasExcelImporter _importer;
     private readonly ICompraFaturaService _faturas;
 
-    public ComprasController(ICompraService service, IComprasExcelImporter importer, ICompraFaturaService faturas)
+    public ComprasController(ICompraService service, IComprasExcelImporter importer, ICompraFaturaService faturas,
+        RepairDesk.Services.Artigos.IArtigoService artigos)
     {
+        _artigos = artigos;
         _service = service;
         _importer = importer;
         _faturas = faturas;
@@ -50,6 +52,7 @@ public class ComprasController : ControllerBase
     public async Task<ActionResult<CompraDocumentoDto>> Create([FromBody] CompraDocumentoWriteRequest req, CancellationToken ct)
     {
         var dto = await _service.CreateAsync(req, ct);
+        dto = await LigarArtigosAsync(dto, ct);
         return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
     }
 
@@ -97,7 +100,7 @@ public class ComprasController : ControllerBase
         // Sprint 574: corrigir dados de uma fatura já registada é só para o administrador.
         if (req.CorrigirDadosDaFatura && !User.IsInRole("Admin"))
             throw new RepairDesk.Core.Exceptions.ForbiddenException("so_admin", "Só o administrador corrige os dados de uma fatura registada.");
-        return _service.UpdateAsync(id, req, ct);
+        return LigarArtigosAsync(_service.UpdateAsync(id, req, ct), ct);
     }
 
     [HttpDelete("{id:guid}")]
@@ -142,4 +145,18 @@ public class ComprasController : ControllerBase
         buffer.Position = 0;
         return await _importer.ImportAsync(buffer, ct);
     }
+
+    private readonly RepairDesk.Services.Artigos.IArtigoService _artigos;
+
+    /// <summary>18/11: cada compra gravada liga sozinha os lotes novos a artigos (sem «Stock por ligar» manual).
+    /// Uma falha aqui nunca desfaz a compra — fica para a próxima vez.</summary>
+    private async Task<CompraDocumentoDto> LigarArtigosAsync(CompraDocumentoDto dto, CancellationToken ct)
+    {
+        try { if (await _artigos.LigarStockAutomaticoAsync(ct) > 0) return await _service.GetAsync(dto.Id, ct); }
+        catch (RepairDesk.Core.Exceptions.DomainException) { }
+        return dto;
+    }
+
+    private async Task<CompraDocumentoDto> LigarArtigosAsync(Task<CompraDocumentoDto> pendente, CancellationToken ct)
+        => await LigarArtigosAsync(await pendente, ct);
 }

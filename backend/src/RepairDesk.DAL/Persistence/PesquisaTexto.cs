@@ -25,6 +25,43 @@ public static class PesquisaTexto
                 .Select(Padrao)
                 .ToList();
 
+    /// <summary>
+    /// 18/11: como <see cref="Termos"/>, mas cada termo traz os sinónimos (<see cref="Sinonimos"/>) — «magnet» encontra
+    /// «Magnético» e «Magnetic». Cada lista interna = padrões alternativos (OU) de UM termo; os termos juntam-se com E.
+    /// </summary>
+    public static IReadOnlyList<IReadOnlyList<string>> TermosComSinonimos(string? query)
+        => string.IsNullOrWhiteSpace(query)
+            ? []
+            : query.Split(Separadores, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(t => t.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(8)
+                .Select(t => (IReadOnlyList<string>)Sinonimos.Variantes(t).Select(Padrao).ToList())
+                .ToList();
+
+    /// <summary>
+    /// Junta com OU o mesmo filtro para vários padrões: <c>x => filtro(x, p1) || filtro(x, p2) || …</c> (traduz para SQL).
+    /// </summary>
+    public static System.Linq.Expressions.Expression<Func<T, bool>> Qualquer<T>(
+        IReadOnlyList<string> padroes, System.Linq.Expressions.Expression<Func<T, string, bool>> filtro)
+    {
+        var x = filtro.Parameters[0];
+        System.Linq.Expressions.Expression? corpo = null;
+        foreach (var p in padroes)
+        {
+            var parte = new Substituir(filtro.Parameters[1], System.Linq.Expressions.Expression.Constant(p)).Visit(filtro.Body);
+            corpo = corpo is null ? parte : System.Linq.Expressions.Expression.OrElse(corpo, parte);
+        }
+        return System.Linq.Expressions.Expression.Lambda<Func<T, bool>>(corpo ?? System.Linq.Expressions.Expression.Constant(true), x);
+    }
+
+    private sealed class Substituir(System.Linq.Expressions.ParameterExpression de, System.Linq.Expressions.Expression para)
+        : System.Linq.Expressions.ExpressionVisitor
+    {
+        protected override System.Linq.Expressions.Expression VisitParameter(System.Linq.Expressions.ParameterExpression node)
+            => node == de ? para : base.VisitParameter(node);
+    }
+
     /// <summary>"%termo%" para LIKE, com os caracteres especiais (%, _, [) tratados como texto.</summary>
     public static string Padrao(string termo)
         => "%" + termo.Replace("[", "[[]").Replace("%", "[%]").Replace("_", "[_]") + "%";

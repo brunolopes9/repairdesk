@@ -38,7 +38,7 @@ public class ArtigosAgrupadosTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
-    public async Task SemSku_AMesmaDescricao_FicaComoSugestao_NaoLigaSozinha()
+    public async Task SemSku_AMesmaDescricao_LigaSozinhaAoArtigoAnterior()
     {
         var client = await AuthedClient();
         var forn = await CriarFornecedor(client);
@@ -48,10 +48,8 @@ public class ArtigosAgrupadosTests : IClassFixture<RepairDeskApiFactory>
             new ArtigoWriteRequest("Película vidro " + desc, "Películas", null, null, null, null, null, true, [primeira.Linhas.Single().Id]));
 
         var segunda = await Compra(client, forn, new CompraLinhaWriteRequest(null, "  " + desc.ToLowerInvariant() + " ", 5, 0.74m, null, null, null));
-        segunda.Linhas.Single().ArtigoId.Should().BeNull("uma descrição pode enganar — só o SKU confirmado liga sozinho");
-        var sugestao = (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!
-            .Single(x => x.LoteIds.Contains(segunda.Linhas.Single().Id));
-        sugestao.ArtigoSugeridoId.Should().Be(artigo.Artigo.Id);
+        // 18/11 (Bruno): sem «Stock por ligar» manual — a mesma descrição liga sozinha ao artigo de antes.
+        segunda.Linhas.Single().ArtigoId.Should().Be(artigo.Artigo.Id);
     }
 
     [Fact]
@@ -144,7 +142,7 @@ public class ArtigosAgrupadosTests : IClassFixture<RepairDeskApiFactory>
         var forn = await CriarFornecedor(client);
         var desc = "Touch e lcd para iph 11 preto " + Guid.NewGuid().ToString("N")[..6];
         var compra = await Compra(client, forn, new CompraLinhaWriteRequest(null, desc, 1, 14.90m, null, null, null));
-        (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!.Should().Contain(s => s.Nome == desc);
+        compra.Linhas.Single().ArtigoId.Should().NotBeNull("18/11: o stock liga-se sozinho a um artigo");
 
         (await client.PutAsJsonAsync("/api/artigos/lotes/peca-reparacao", new PecaReparacaoRequest([compra.Linhas.Single().Id]))).EnsureSuccessStatusCode();
         (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!.Should().NotContain(s => s.Nome == desc);

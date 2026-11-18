@@ -17,13 +17,14 @@ public class ArtigoRepository : IArtigoRepository
     public async Task<IReadOnlyList<Artigo>> ListAsync(string? q, bool incluirInativos, CancellationToken ct = default)
     {
         var query = ComLotes().AsNoTracking().Where(a => incluirInativos || a.Ativo);
-        foreach (var termo in PesquisaTexto.Termos(q))
+        // 18/11: cada termo procura também os sinónimos PT/EN («magnet» → «Magnético», «Magnetic»).
+        foreach (var variantes in PesquisaTexto.TermosComSinonimos(q))
         {
-            var t = termo;
-            query = query.Where(a => PesquisaTexto.Contem(a.Nome, t) || PesquisaTexto.Contem(a.NomeFatura, t) || PesquisaTexto.Contem(a.Sku, t)
+            query = query.Where(PesquisaTexto.Qualquer<Artigo>(variantes, (a, t) =>
+                PesquisaTexto.Contem(a.Nome, t) || PesquisaTexto.Contem(a.NomeFatura, t) || PesquisaTexto.Contem(a.Sku, t)
                 || PesquisaTexto.Contem(a.CodigoBarras, t) || PesquisaTexto.Contem(a.CodigoFabricante, t) || PesquisaTexto.Contem(a.Categoria, t)
-                // Sprint 581: e pelos modelos dos lotes em stock (artigos agrupados: "iphone 11" → "Película vidro").
-                || a.Lotes.Any(l => l.Quantidade - l.QuantidadeVendida - l.QuantidadeAbatida > 0 && PesquisaTexto.Contem(l.Descricao, t)));
+                // Sprint 581: e pelos modelos dos lotes (artigos agrupados: "iphone 11" → "Película vidro") — 18/11: também os que acabaram.
+                || a.Lotes.Any(l => PesquisaTexto.Contem(l.Descricao, t))));
         }
         return await query.OrderBy(a => a.Nome).ToListAsync(ct);
     }

@@ -27,14 +27,14 @@ public class CompraRepository : ICompraRepository
                     || (d.NumeroFatura != null && d.NumeroFatura.Contains(filtro.Query.Trim()))
                     || (d.NumerosEncomenda != null && d.NumerosEncomenda.Contains(filtro.Query.Trim())));
             else
-                foreach (var termo in PesquisaTexto.Termos(filtro.Query))
+                foreach (var variantes in PesquisaTexto.TermosComSinonimos(filtro.Query))
                 {
-                    var t = termo;
-                    q = q.Where(d =>
+                    // 18/11: com sinónimos PT/EN («magnet» → «Magnetic Car Mount»).
+                    q = q.Where(PesquisaTexto.Qualquer<CompraDocumento>(variantes, (d, t) =>
                         PesquisaTexto.Contem(d.NumeroFatura, t) ||
                         PesquisaTexto.Contem(d.NumerosEncomenda, t) ||
                         PesquisaTexto.Contem(d.Fornecedor!.Name, t) ||
-                        d.Linhas.Any(l => PesquisaTexto.Contem(l.Descricao, t)));
+                        d.Linhas.Any(l => PesquisaTexto.Contem(l.Descricao, t))));
                 }
         }
 

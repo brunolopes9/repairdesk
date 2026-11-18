@@ -1,3 +1,5 @@
+import { variantes } from './sinonimos';
+
 /** Minúsculas e sem acentos: "Câmara" → "camara". */
 export function normalizar(texto: string): string {
   return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -11,5 +13,6 @@ export function correspondeTermos(texto: string, query: string): boolean {
   const termos = normalizar(query).split(/[\s/,;+()|]+/).filter(Boolean);
   if (termos.length === 0) return true;
   const alvo = normalizar(texto);
-  return termos.every((t) => alvo.includes(t));
+  // 18/11: cada palavra aceita também os sinónimos PT/EN («magnet» → «magnetic», «magnetico»).
+  return termos.every((t) => variantes(t).some((v) => alvo.includes(v)));
 }

@@ -125,12 +125,8 @@ public class ArtigosApiTests : IClassFixture<RepairDeskApiFactory>
         var marca = Guid.NewGuid().ToString("N")[..6];
         var l1 = await CriarLote(client, $"Película Teste {marca} A54", 2, 1m);
         var l2 = await CriarLote(client, $"película  teste {marca} a54 ", 3, 1.2m);
-        var sug = (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!.Single(s => s.Nome.Contains(marca, StringComparison.OrdinalIgnoreCase));
-        sug.LoteIds.Should().BeEquivalentTo(new[] { l1, l2 });
-        sug.Stock.Should().Be(5);
-        sug.PrecoCalculadoCents.Should().BeGreaterThan(0);
-
-        var criados = await Post<List<ArtigoDto>>(client, "/api/artigos/em-lote", new ArtigosEmLoteRequest([new ArtigoEmLoteItem(sug.Nome, sug.LoteIds)], "Películas"));
+        // 18/11: o 1.º lote cria o artigo sozinho e o 2.º (mesma descrição) liga-se a ele.
+        var criados = (await client.GetFromJsonAsync<List<ArtigoDto>>($"/api/artigos?q={marca}"))!;
         criados.Single().Stock.Should().Be(5);
         criados.Single().Categoria.Should().Be("Películas");
         (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!.Should().NotContain(s => s.Nome.Contains(marca, StringComparison.OrdinalIgnoreCase), "já têm artigo");
@@ -183,9 +179,10 @@ public class ArtigosApiTests : IClassFixture<RepairDeskApiFactory>
         var marca = Guid.NewGuid().ToString("N")[..6];
         await CriarLote(client, $"Vidro temperado Hoco {marca}", 1, 1m);
         await CriarLote(client, $"Bateria {marca}", 1, 5m);
-        var sug = await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes");
-        sug!.Single(s => s.Nome.Contains($"Hoco {marca}")).Categoria.Should().Be("Películas");
-        sug!.Single(s => s.Nome.Contains($"Bateria {marca}")).Categoria.Should().BeNull();
+        // 18/11: os artigos criam-se sozinhos com a categoria certa.
+        var artigos = (await client.GetFromJsonAsync<List<ArtigoDto>>($"/api/artigos?q={marca}"))!;
+        artigos.Single(a => a.Nome.Contains($"Hoco {marca}")).Categoria.Should().Be("Películas");
+        artigos.Single(a => a.Nome.Contains($"Bateria {marca}")).Categoria.Should().NotBe("Películas");
     }
 
     private static async Task<T> Post<T>(HttpClient client, string url, object body)
