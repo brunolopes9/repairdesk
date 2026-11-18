@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Camera, Euro, PackagePlus, Plus, Printer, ScanBarcode, Search, Tag, X } from 'lucide-react';
+import { Camera, Euro, PackagePlus, Pencil, Plus, Printer, ScanBarcode, Search, Tag, X } from 'lucide-react';
 import LeitorCamera from '../../components/LeitorCamera';
 import { Button, EmptyState, PageHeader, SectionCard, SkeletonRow, SortableTh, ViewTabs } from '../../components/ui';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -37,6 +37,10 @@ function selecaoGuardada(): Selecao {
  * Sprint 566: artigos da loja — SKU e código de barras próprios, stock = soma dos lotes, preço de venda.
  * A caixa de pesquisa aceita a pistola: lê o código e Enter abre o artigo.
  */
+function nEscolhidosDe(c: Record<string, number>): number {
+  return Object.keys(c).length;
+}
+
 export default function Artigos() {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
@@ -90,6 +94,23 @@ export default function Artigos() {
     const a = await artigosApi.porCodigo(c);
     if (a) { setEditar(a.id); setQ(''); } else setQ(c);
   }
+
+  /** 18/11 (Bruno): marca de uma vez todos os artigos com stock (uma etiqueta por unidade), sem os escolher à mão. */
+  async function escolherTodosEmStock() {
+    try {
+      const todos = await artigosApi.list('');
+      const comStock = todos.filter((a) => a.ativo && a.stock > 0);
+      const n = { ...escolhidos };
+      for (const a of comStock) n[a.id] = a.stock;
+      setEscolhidos(n, comStock);
+      toast.success(`${comStock.length} artigo(s) em stock marcados — ${comStock.reduce((t, a) => t + a.stock, 0)} etiqueta(s).`);
+    } catch {
+      toast.error('Não consegui carregar os artigos. Tenta outra vez.');
+    }
+  }
+
+  /** Enquanto há artigos marcados, clicar em qualquer parte da linha marca/desmarca (abrir o artigo: botão do lápis). */
+  const aEscolher = nEscolhidosDe(escolhidos) > 0;
 
   function alternarEscolha(a: Artigo) {
     const n = { ...escolhidos };
@@ -176,6 +197,9 @@ export default function Artigos() {
             <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
               <input type="checkbox" checked={semStock} onChange={(e) => setSemStock(e.target.checked)} /> Só sem stock (para encomendar)
             </label>
+            <Button size="sm" variant="secondary" leftIcon={<Printer size={14} />} onClick={escolherTodosEmStock}>
+              Etiquetas de tudo em stock
+            </Button>
           </div>
         }
       >
@@ -191,7 +215,7 @@ export default function Artigos() {
             {artigos.map((a) => (
               <li key={a.id} className={`flex items-center gap-3 px-3 py-3 ${a.ativo ? '' : 'opacity-50'}`}>
                 <input type="checkbox" className="h-5 w-5 flex-none" checked={!!escolhidos[a.id]} onChange={() => alternarEscolha(a)} aria-label={`Etiquetas de ${nomeDe(a)}`} />
-                <button type="button" onClick={() => setEditar(a.id)} className="min-w-0 flex-1 text-left">
+                <button type="button" onClick={() => (aEscolher ? alternarEscolha(a) : setEditar(a.id))} className="min-w-0 flex-1 text-left">
                   <span className="block truncate font-medium">{nomeDe(a)}</span>
                   <span className="block truncate text-xs text-zinc-500">{[a.sku, a.categoria, a.localizacao].filter(Boolean).join(' · ')}</span>
                   <span className="mt-1 flex items-center gap-2 text-xs">
@@ -234,7 +258,10 @@ export default function Artigos() {
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {artigos.map((a) => (
-                  <tr key={a.id} className={`cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/40 ${a.ativo ? '' : 'opacity-50'}`} onClick={() => setEditar(a.id)}>
+                  <tr key={a.id}
+                    className={`cursor-pointer ${escolhidos[a.id] ? 'bg-brand-50/70 dark:bg-brand-900/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'} ${a.ativo ? '' : 'opacity-50'}`}
+                    onClick={() => (aEscolher ? alternarEscolha(a) : setEditar(a.id))}
+                    title={aEscolher ? 'Clica para marcar/desmarcar para etiquetas' : undefined}>
                     <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={!!escolhidos[a.id]} onChange={() => alternarEscolha(a)} aria-label={`Etiquetas de ${nomeDe(a)}`} />
                     </td>
@@ -260,7 +287,13 @@ export default function Artigos() {
                       {a.lucroUnitario != null ? formatEur(a.lucroUnitario) : '—'}
                     </td>
                     <td className="px-3 py-2 text-zinc-600 dark:text-zinc-300">{a.localizacao ?? '—'}</td>
-                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <td className="whitespace-nowrap px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      {aEscolher && (
+                        <button type="button" title={`Abrir ${a.nome}`} aria-label={`Abrir ${a.nome}`}
+                          className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-brand-700 dark:hover:bg-zinc-800" onClick={() => setEditar(a.id)}>
+                          <Pencil size={15} />
+                        </button>
+                      )}
                       <button type="button" title={`Imprimir etiquetas de ${a.nome}`} aria-label={`Imprimir etiquetas de ${a.nome}`}
                         className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-brand-700 dark:hover:bg-zinc-800" onClick={() => etiquetasDe(a)}>
                         <Printer size={15} />
@@ -290,7 +323,9 @@ export default function Artigos() {
       {nEscolhidos > 0 && !etiquetasAbertas && (
         <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 px-3 sm:bottom-4 sm:left-[15.5rem]">
           <div className="mx-auto flex max-w-2xl items-center gap-2 rounded-xl border border-zinc-200 bg-white p-2 pl-4 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-            <span className="flex-1 text-sm"><strong>{nEscolhidos}</strong> artigo(s) · <strong>{totalEtiquetas}</strong> etiqueta(s)</span>
+            <span className="flex-1 text-sm"><strong>{nEscolhidos}</strong> artigo(s) · <strong>{totalEtiquetas}</strong> etiqueta(s)
+              <span className="hidden text-xs text-zinc-500 md:inline"> · clica nas linhas para marcar</span></span>
+            <Button size="sm" variant="ghost" onClick={escolherTodosEmStock}>Tudo em stock</Button>
             <Button size="sm" variant="ghost" leftIcon={<X size={14} />} onClick={() => setEscolhidos({})}>Limpar</Button>
             <Button size="sm" leftIcon={<Printer size={14} />} onClick={() => setEtiquetasAbertas(true)}>Etiquetas</Button>
           </div>
