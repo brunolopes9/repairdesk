@@ -465,7 +465,7 @@ export default function CompraEditor() {
 
       <SectionCard title="Linhas (lotes de stock)">
         <p className="mb-3 text-xs text-zinc-500">
-          IVA na compra por defeito: {formatPct(taxaDefeito)}. Lucro por defeito: 1 € películas/vidros, 5 € resto.
+          IVA na compra por defeito: {formatPct(taxaDefeito)}. Sem lucro por defeito: escreve o lucro por unidade (ou o preço no artigo).
           Preço de venda calculado com IVA {formatPct(TAXA_VENDA)}.
         </p>
         <div className="-mx-4 overflow-x-auto px-4">
@@ -488,7 +488,8 @@ export default function CompraEditor() {
               {linhas.map((l, i) => {
                 const c = calc.porLinha[i];
                 return (
-                  <tr key={l.key} className="align-top">
+                  // 18/11 (Bruno): como no Excel — faixa de cor nas linhas vendidas (verde) e parcialmente vendidas (âmbar).
+                  <tr key={l.key} className={`align-top ${l.movimentos > 0 && l.id ? (l.emStock === 0 ? 'bg-emerald-50/80 shadow-[inset_4px_0_0_#10B981] dark:bg-emerald-950/20' : 'bg-amber-50/70 shadow-[inset_4px_0_0_#F59E0B] dark:bg-amber-950/20') : ''}`}>
                     <td className="py-2 pr-2 pt-4 tabular-nums text-xs text-zinc-500">{l.numero ?? 'novo'}</td>
                     <td className="py-2 pr-2">
                       <input disabled={bloqueada} aria-label="Descrição" value={l.descricao} onChange={(e) => setLinha(l.key, { descricao: e.target.value })} className={inputCls} placeholder="Ecrã Samsung A15" maxLength={500} />

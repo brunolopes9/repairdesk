@@ -83,7 +83,7 @@ export default function CommandPalette() {
   // Sprint 562: stock (lotes) — a lista já está em cache; filtra-se aqui com a mesma regra por palavras.
   const stockSearch = useQuery({
     queryKey: ['compras', 'inventario'],
-    queryFn: comprasApi.inventario,
+    queryFn: () => comprasApi.inventario(),
     enabled: shouldSearch,
     staleTime: 60_000,
   });

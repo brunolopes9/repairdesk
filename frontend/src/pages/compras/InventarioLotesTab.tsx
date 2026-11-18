@@ -20,7 +20,8 @@ export default function InventarioLotesTab() {
   const q = f.q;
   const datas = useMemo(() => ({ de: f.de, ate: f.ate }), [f.de, f.ate]);
   const { ordem, alternar } = useOrdenacaoUrl<'numero' | 'artigo' | 'data' | 'stock' | 'pago' | 'venda' | 'lucro' | 'iva'>('numero', { sort: f.sort, dir: f.dir }, set);
-  const inv = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario });
+  // 18/11: traz também o que acabou — sem pesquisa mostra só o que há; ao pesquisar aparece tudo (o que acabou com stock 0).
+  const inv = useQuery({ queryKey: ['compras', 'inventario', 'todos'], queryFn: () => comprasApi.inventario(true) });
   // Sprint 566: criar/abrir o artigo da loja a partir de um lote.
   const [artigoAberto, setArtigoAberto] = useState<{ id: string | null; sugestao: { loteIds: string[]; nome: string } | null } | null>(null);
 
@@ -34,7 +35,7 @@ export default function InventarioLotesTab() {
       const d = l.data.slice(0, 10);
       return (!datas.de || d >= datas.de) && (!datas.ate || d <= datas.ate);
     });
-    const filtradas = t ? all.filter((l) => correspondeTermos(`${l.numero} ${l.descricao} ${l.fornecedor} ${l.referencia} ${l.localizacao ?? ''}`, t)) : all;
+    const filtradas = t ? all.filter((l) => correspondeTermos(`${l.numero} ${l.descricao} ${l.fornecedor} ${l.referencia} ${l.localizacao ?? ''}`, t)) : all.filter((l) => l.quantidadeEmStock > 0);
     return ordenarLista(filtradas, ordem, {
       numero: (l) => l.numero,
       artigo: (l) => l.descricao,
@@ -90,7 +91,7 @@ export default function InventarioLotesTab() {
               {linhas.map((l) => (
                 <tr key={l.linhaId} tabIndex={0} onClick={() => abrirLote(l.numero)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) abrirLote(l.numero); }}
-                  className="cursor-pointer hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none dark:hover:bg-zinc-800/50 dark:focus:bg-zinc-800/50" title="Abrir o lote — mudar preço e lucro">
+                  className={`cursor-pointer focus:outline-none ${l.quantidadeEmStock <= 0 ? 'bg-rose-50/70 text-zinc-500 hover:bg-rose-100/70 dark:bg-rose-950/20' : 'hover:bg-zinc-50 focus:bg-zinc-50 dark:hover:bg-zinc-800/50 dark:focus:bg-zinc-800/50'}`} title="Abrir o lote — mudar preço e lucro">
                   <td className="px-4 py-3 tabular-nums text-zinc-500">{l.numero}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium">{l.descricao}</div>
@@ -104,7 +105,7 @@ export default function InventarioLotesTab() {
                     <Link to={`/compras/${l.documentoId}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{l.fornecedor} · {l.referencia}</Link>
                     <div>{formatDateOnly(l.data)}{l.faturaEmFalta && <span className="ml-1 text-amber-700 dark:text-amber-400">· fatura em falta</span>}</div>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{l.quantidadeEmStock}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{l.quantidadeEmStock > 0 ? l.quantidadeEmStock : <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">0 · acabou</span>}</td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     <div className="font-semibold">{formatEur(l.precoUnitarioPago)}</div>
                     <div className="text-xs text-zinc-500">{formatEur(l.precoUnitarioPago / (1 + (l.taxaIvaCompra || 0)))} s/ IVA</div>

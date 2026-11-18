@@ -30,12 +30,10 @@ export function previewUnidade(precoPago: number, taxaCompra: number, lucro: num
   return { custoSemIva, precoFinalComIva: vendaSemIva + ivaVenda, ivaAPagarEstado: ivaVenda - ivaPago };
 }
 
-const PALAVRAS_ACESSORIO = ['vidro', 'pelicula', 'película', 'temperado', 'templado', 'tempered', 'hidrogel', 'protetor', 'protector', 'capa '];
 
 /** Espelha FiscalDefaults.LucroPorDefeito (só para mostrar o valor que o servidor vai assumir). */
-export function lucroPorDefeito(descricao: string): number {
-  const d = descricao.toLowerCase();
-  return PALAVRAS_ACESSORIO.some((p) => d.includes(p)) ? 1 : 5;
+export function lucroPorDefeito(_descricao: string): number {
+  return 0; // 18/11 (Bruno): sem lucro por defeito — é ele que o define
 }
 
 /**

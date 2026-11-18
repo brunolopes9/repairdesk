@@ -29,6 +29,7 @@ public interface IVendaService
     Task<VendaDto> MarcarEncomendaAsync(Guid vendaId, Guid itemId, MarcarEncomendaRequest req, CancellationToken ct = default);
     /// <summary>Sprint 563: corrige preços/IVA de uma venda entregue (erro de lançamento). Só valores; auditado.</summary>
     Task<VendaDto> CorrigirPrecosAsync(Guid id, CorrigirPrecosRequest req, CancellationToken ct = default);
+    Task<VendaDto> TrocarLoteAsync(Guid vendaId, Guid itemId, TrocarLoteRequest req, CancellationToken ct = default);
     Task<byte[]> ExportCsvAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct = default);
 }
 
@@ -246,6 +247,47 @@ public class VendaService : IVendaService
             antes,
             depois = venda.Items.Select(i => new { i.Id, i.PrecoUnitarioCents, i.IvaRate }),
             venda.TotalCents,
+        }, ct: ct);
+        return ToDto(venda);
+    }
+
+    /// <summary>
+    /// 18/11 (Bruno): «faturei um suporte mas o que saiu foi o outro, ao mesmo preço». Troca o lote da linha:
+    /// o antigo volta a ter a unidade, o novo perde-a. A fatura não muda (descrição e preço ficam); o custo e o lucro
+    /// passam a ser os do lote certo. Funciona também em vendas entregues; auditado.
+    /// </summary>
+    public async Task<VendaDto> TrocarLoteAsync(Guid vendaId, Guid itemId, TrocarLoteRequest req, CancellationToken ct = default)
+    {
+        var venda = await _vendas.FindByIdWithItemsAsync(vendaId, ct) ?? throw new NotFoundException("Venda", vendaId);
+        if (venda.Estado == VendaEstado.Cancelada)
+            throw new ConflictException("venda_cancelada", "A venda está cancelada — já não tem stock a acertar.");
+        var item = venda.Items.FirstOrDefault(i => i.Id == itemId)
+            ?? throw new ValidationException("linha_inexistente", "Linha não pertence a esta venda.");
+        if (item.CompraLinhaId is not { } antigoId)
+            throw new ValidationException("linha_sem_lote", "Esta linha não é uma peça do stock.");
+        if (antigoId == req.CompraLinhaId)
+            throw new ValidationException("mesmo_lote", "Escolhe um lote diferente do atual.");
+        var lotes = (await _compras.FindLinhasAsync([antigoId, req.CompraLinhaId], ct)).ToDictionary(l => l.Id);
+        if (!lotes.TryGetValue(req.CompraLinhaId, out var novo)) throw new NotFoundException("CompraLinha", req.CompraLinhaId);
+        lotes.TryGetValue(antigoId, out var antigo);
+        // O stock só saiu se a venda já não está em orçamento.
+        var saiu = venda.Estado != VendaEstado.Orcamento;
+        if (saiu && novo.QuantidadeEmStock < item.Quantidade)
+            throw new ValidationException("stock_insuficiente",
+                $"O lote {novo.Numero} só tem {novo.QuantidadeEmStock} em stock e esta linha leva {item.Quantidade}.");
+        if (saiu)
+        {
+            if (antigo is not null) antigo.QuantidadeVendida = Math.Max(0, antigo.QuantidadeVendida - item.Quantidade);
+            novo.QuantidadeVendida += item.Quantidade;
+        }
+        item.CompraLinhaId = novo.Id;
+        if (venda.Estado == VendaEstado.Entregue) SnapshotLote(item, novo);
+        RecalculateTotals(venda);
+        await _vendas.SaveAsync(ct);
+        await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id, new
+        {
+            operation = "trocar_lote", venda.Numero, item = item.Id, de = antigo?.Numero, para = novo.Numero,
+            quantidade = item.Quantidade, motivo = Clean(req.Motivo, 300),
         }, ct: ct);
         return ToDto(venda);
     }

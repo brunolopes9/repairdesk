@@ -16,10 +16,9 @@ public static class FiscalDefaults
         // Sprint 563: também ES/EN ("Cristal Templado", "Tempered Glass") — fornecedores espanhóis e NL.
         ["vidro", "pelicula", "película", "temperado", "templado", "tempered", "hidrogel", "protetor", "protector", "capa "];
 
-    /// <summary>Lucro por unidade sugerido (SPEC §1): 1 € em películas/vidros, 5 € no resto. Sempre editável.</summary>
-    public static decimal LucroPorDefeito(string descricao)
-    {
-        var d = (descricao ?? string.Empty).ToLowerInvariant();
-        return PalavrasAcessorio.Any(d.Contains) ? LucroAcessorioPorDefeito : LucroPecaPorDefeito;
-    }
+    /// <summary>
+    /// 18/11/2026 (Bruno): já não há lucro por defeito (antes 1 € películas / 5 € resto) — o Bruno mete o lucro ou o
+    /// preço de venda (do artigo) à mão. Fica 0 até ele definir.
+    /// </summary>
+    public static decimal LucroPorDefeito(string descricao) => 0m;
 }

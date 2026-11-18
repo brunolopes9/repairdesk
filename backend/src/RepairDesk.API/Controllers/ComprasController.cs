@@ -108,9 +108,9 @@ public class ComprasController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Lotes com stock &gt; 0 (SPEC §4.5).</summary>
+    /// <summary>Lotes com stock &gt; 0 (SPEC §4.5). <c>?todos=true</c> inclui os que já acabaram (stock 0).</summary>
     [HttpGet("inventario")]
-    public Task<IReadOnlyList<InventarioLinhaDto>> Inventario(CancellationToken ct) => _service.InventarioAsync(ct);
+    public Task<IReadOnlyList<InventarioLinhaDto>> Inventario([FromQuery] bool todos, CancellationToken ct) => _service.InventarioAsync(ct, todos);
 
     /// <summary>Sprint 671: preço de um lote (lucro por unidade) — guardado sozinho na janela do lote.</summary>
     [HttpPut("{id:guid}/linhas/{linhaId:guid}/preco")]

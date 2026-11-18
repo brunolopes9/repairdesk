@@ -2,6 +2,9 @@ import { api } from '../api';
 import type { PaymentMethod, PecaEncomenda, PecaEncomendaEstado, Venda, VendaEstado, VendaFaturaImport, VendaFiltro, VendasPage, VendaWrite } from './types';
 
 export const vendasApi = {
+  /** 18/11: troca a peça do stock de uma linha (o stock acerta-se; a fatura não muda). Só Admin. */
+  trocarLote: (vendaId: string, itemId: string, compraLinhaId: string) =>
+    api.put<Venda>(`/vendas/${vendaId}/linhas/${itemId}/lote`, { compraLinhaId }).then((r) => r.data),
   list(params: VendaFiltro = {}) {
     return api.get<VendasPage>('/vendas', { params }).then((r) => r.data);
   },

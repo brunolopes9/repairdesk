@@ -25,7 +25,7 @@ public class ComprasApiTests : IClassFixture<RepairDeskApiFactory>
     public ComprasApiTests(RepairDeskApiFactory factory) => _factory = factory;
 
     [Fact]
-    public async Task Create_FornecedorUe_UsaTaxaZeroELucrosPorDefeito()
+    public async Task Create_FornecedorUe_UsaTaxaZeroESemLucroPorDefeito()
     {
         var client = await AuthedClient();
         var ue = await CriarFornecedor(client, RegimeIvaFornecedor.UeAutoliquidacao);
@@ -39,10 +39,10 @@ public class ComprasApiTests : IClassFixture<RepairDeskApiFactory>
         doc.RegimeIva.Should().Be(RegimeIvaFornecedor.UeAutoliquidacao);
         var s23 = doc.Linhas.Single(l => l.Descricao.Contains("S23"));
         s23.TaxaIvaCompra.Should().Be(0m);
-        s23.LucroUnitario.Should().Be(5m);
-        Math.Round(s23.PrecoFinalComIva, 2).Should().Be(119.25m);
+        s23.LucroUnitario.Should().Be(0m); // 18/11: sem lucro por defeito
+        Math.Round(s23.PrecoFinalComIva, 2).Should().Be(113.10m);
         Math.Round(s23.AutoliquidacaoUe, 2).Should().Be(21.15m);
-        doc.Linhas.Single(l => l.Descricao.Contains("Vidro")).LucroUnitario.Should().Be(1m);
+        doc.Linhas.Single(l => l.Descricao.Contains("Vidro")).LucroUnitario.Should().Be(0m);
         doc.UnidadesEmStock.Should().Be(4);
     }
 
@@ -204,8 +204,8 @@ public class ComprasApiTests : IClassFixture<RepairDeskApiFactory>
 
         var inventario = await client.GetFromJsonAsync<List<InventarioLinhaDto>>("/api/compras/inventario");
         var linha = inventario!.Single(i => i.DocumentoId == doc.Id);
-        Math.Round(linha.PrecoFinalComIva, 2).Should().Be(17.10m);
-        Math.Round(linha.IvaAPagarEstado, 2).Should().Be(1.15m);
+        Math.Round(linha.PrecoFinalComIva, 2).Should().Be(10.95m); // 18/11: sem lucro por defeito
+        Math.Round(linha.IvaAPagarEstado, 2).Should().Be(0m); // sem lucro: o IVA da venda = o IVA dedutível da compra
 
         var resumo = await client.GetFromJsonAsync<ResumoComprasDto>("/api/compras/resumo");
         resumo!.TaxaIvaVenda.Should().Be(0.23m);

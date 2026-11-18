@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:8e5666c567aad72c -->
+<!-- roles-matrix-snapshot:3193ce60f09be0f6 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -63,6 +63,7 @@ testes e esta matriz com snapshot.
 | EmpresasController (S604) | `POST /api/plataforma/empresas` — o dono da plataforma (tenant LopesTech, `Plataforma:TenantDono`) cria uma empresa com admin próprio; a password é escolhida pelo link do email | `Admin` + tenant dono |
 | RedesSociaisController (S599, Doc 95 Fase B) | `GET /api/redes`, `PUT /api/redes/apps`, `PUT /api/redes/auto-publicar`, `PUT /api/redes/threads/token` (S600, ligar Threads com token gerado na Meta), `GET /api/redes/{meta,threads,tiktok,youtube}/url-ligar` (S608 YouTube), `DELETE /api/redes/ligacoes/{rede}`, `GET /api/redes/tiktok/criador` (S603, conta e opções do TikTok para o ecrã de publicação) | `Admin` |
 | RedesSociaisController (S599) | `GET /api/redes/{meta,threads,tiktok,youtube}/callback` — regresso do OAuth | `Anonymous` + `state` HMAC (tenant+utilizador+15 min) |
+| VendasController (18/11) | `PUT /api/vendas/{id}/linhas/{itemId}/lote` — trocar a peça do stock de uma linha (o stock acerta-se; fatura igual; auditado) | `Admin` |
 | PagamentosLojaController (S690) | `GET /api/loja/pagamentos`, `PUT /api/loja/pagamentos` — chaves do ifthenpay da loja (cifradas; nunca devolvidas) | `Admin` |
 | PublicLojaController (S690) | `GET /api/public/loja/{slug}/ifthenpay/callback` — confirmação do pagamento pelo ifthenpay | `Anonymous` + chave anti-phishing (tempo constante) + valor = total |
 | **Sprint 435-439 (Doc 91) — catálogo serviços + inbox pedidos online** | | |

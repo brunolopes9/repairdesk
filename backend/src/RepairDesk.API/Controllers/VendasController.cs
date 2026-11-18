@@ -107,6 +107,12 @@ public class VendasController : ControllerBase
     public Task<VendaDto> CorrigirPrecos(Guid id, [FromBody] CorrigirPrecosRequest req, CancellationToken ct)
         => _service.CorrigirPrecosAsync(id, req, ct);
 
+    /// <summary>18/11: troca a peça do stock de uma linha (o stock acerta-se; a fatura não muda). Só Admin; auditado.</summary>
+    [HttpPut("{id:guid}/linhas/{itemId:guid}/lote")]
+    [Authorize(Roles = "Admin")]
+    public Task<VendaDto> TrocarLote(Guid id, Guid itemId, [FromBody] TrocarLoteRequest req, CancellationToken ct)
+        => _service.TrocarLoteAsync(id, itemId, req, ct);
+
     /// <summary>Orçamento em PDF para enviar ao cliente (não é documento fiscal).</summary>
     [HttpGet("{id:guid}/orcamento.pdf")]
     public async Task<IActionResult> OrcamentoPdf(Guid id, CancellationToken ct)

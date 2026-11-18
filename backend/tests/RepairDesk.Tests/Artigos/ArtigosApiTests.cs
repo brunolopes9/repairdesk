@@ -86,7 +86,7 @@ public class ArtigosApiTests : IClassFixture<RepairDeskApiFactory>
         var a = (await Post<ArtigoDetalheDto>(client, "/api/artigos",
             new ArtigoWriteRequest("Cabo USB-C 1m", null, null, null, null, null, null, true, [lote]))).Artigo;
         a.PrecoVendaCents.Should().BeNull();
-        a.PrecoEfetivoCents.Should().BeGreaterThan(200, "custo + lucro + IVA");
+        a.PrecoEfetivoCents.Should().BeGreaterThanOrEqualTo(200, "custo + IVA (sem lucro por defeito desde 18/11)");
 
         var pdf = await client.PostAsJsonAsync("/api/artigos/etiquetas.pdf",
             new EtiquetasRequest([new EtiquetaPedido(a.Id, 3)]));

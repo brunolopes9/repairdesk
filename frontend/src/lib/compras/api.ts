@@ -33,8 +33,8 @@ export const comprasApi = {
   remove(id: string) {
     return api.delete(`/compras/${id}`).then(() => undefined);
   },
-  inventario() {
-    return api.get<InventarioLinha[]>('/compras/inventario').then((r) => r.data);
+  inventario(todos = false) {
+    return api.get<InventarioLinha[]>('/compras/inventario', { params: todos ? { todos: true } : undefined }).then((r) => r.data);
   },
   /** Sprint 671: preço de um lote (lucro por unidade s/ IVA); com atualizarArtigo o artigo passa a vender ao mesmo preço. */
   precoLote(documentoId: string, linhaId: string, req: { lucroUnitario: number; atualizarArtigo: boolean }) {

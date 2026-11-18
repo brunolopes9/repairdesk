@@ -24,7 +24,7 @@ export default function LotePicker({
   reservado: Record<string, number>;
 }) {
   const [q, setQ] = useState('');
-  const inv = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario, enabled: open });
+  const inv = useQuery({ queryKey: ['compras', 'inventario'], queryFn: () => comprasApi.inventario(), enabled: open });
   // 18/11: o stock é de cada empresa — se a lista vier vazia, diz em que empresa estás e deixa trocar ali.
   const empresas = useQuery({
     queryKey: ['auth', 'empresas'],

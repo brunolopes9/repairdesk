@@ -74,6 +74,16 @@ export function FaturaMistaCard({ compra, isAdmin }: { compra: CompraDocumento; 
   const todas = sel.length > 0 && sel.length === compra.linhas.length;
 
   if (lista.length === 0 && !isAdmin) return null;
+  // 18/11 (Bruno): uma compra normal NÃO é mista — sem despesas ligadas, só uma ligação discreta (sem cartão «Fatura mista»).
+  if (lista.length === 0 && !aberto) {
+    if (compra.linhas.length < 2) return null;
+    return (
+      <p className="px-1 text-xs text-zinc-500">
+        Esta fatura traz coisas que não são para vender (colas, ferramentas…)?{' '}
+        <button type="button" className="font-medium text-brand-600 hover:underline dark:text-brand-300" onClick={() => setAberto(true)}>Separar linhas para despesa</button>
+      </p>
+    );
+  }
 
   return (
     <SectionCard title={<span className="flex items-center gap-2"><Split size={16} /> Fatura mista (compra + despesa)</span>}

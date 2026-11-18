@@ -222,7 +222,7 @@ export default function VendaEditor() {
 
   // Sprint 586: "Vender" numa compra → /vendas/nova?lotes=<linhaId>:<qtd>,… — as linhas entram já preenchidas.
   const lotesPedidos = isNew ? params.get('lotes') : null;
-  const inventario = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario, enabled: !!lotesPedidos });
+  const inventario = useQuery({ queryKey: ['compras', 'inventario'], queryFn: () => comprasApi.inventario(), enabled: !!lotesPedidos });
   const lotesCarregados = useRef(false);
   const [vindoDaCompra, setVindoDaCompra] = useState(0);
   useEffect(() => {
@@ -442,6 +442,23 @@ export default function VendaEditor() {
 
   // Sprint 594: "Chegou" numa peça por encomendar — o lote escolhido substitui-a (mantém a descrição e o preço).
   const [aSubstituir, setASubstituir] = useState<string | null>(null);
+  // 18/11: «Trocar peça» — a peça que saiu foi outra (ex.: dois suportes ao mesmo preço). O stock acerta-se; a fatura não muda.
+  const [trocarItem, setTrocarItem] = useState<string | null>(null);
+  async function trocarPara(lote: InventarioLinha) {
+    const itemId = trocarItem;
+    setTrocarItem(null);
+    setPickerOpen(false);
+    if (!itemId || !id) return;
+    try {
+      const v = await vendasApi.trocarLote(id, itemId, lote.linhaId);
+      qc.setQueryData(['venda', v.id], v);
+      void qc.invalidateQueries({ queryKey: ['compras'] });
+      void qc.invalidateQueries({ queryKey: ['artigos'] });
+      toast.success('Peça trocada', `Agora sai do lote ${lote.numero} — o stock foi acertado e a fatura fica igual.`);
+    } catch (e) {
+      toast.fromError(e, 'Não foi possível trocar a peça.');
+    }
+  }
   function addLote(lote: InventarioLinha, quantidade = 1, precoComIvaDado?: number) {
     if (aSubstituir) {
       const key = aSubstituir;
@@ -742,7 +759,14 @@ export default function VendaEditor() {
                           <span className="mt-1 block text-xs text-zinc-500">
                             {l.compraLinhaId ? (
                               <>Stock · custo <strong className="text-sm text-zinc-900 dark:text-zinc-100">{formatEur(l.custoUnit)}/un. c/ IVA</strong>
-                                {' '}· {formatEur(l.custoUnit / (1 + l.taxaCompra))} s/ IVA</>
+                                {' '}· {formatEur(l.custoUnit / (1 + l.taxaCompra))} s/ IVA
+                                {l.id && venda && venda.estado !== VENDA_ESTADO.Cancelada && isAdmin && (
+                                  <button type="button" className="ml-2 font-semibold text-brand-600 hover:underline dark:text-brand-300"
+                                    title="Saiu outra peça (ex.: outro modelo ao mesmo preço)? Escolhe o lote certo — o stock acerta-se e a fatura não muda."
+                                    onClick={() => { setTrocarItem(l.id!); setPickerOpen(true); }}>
+                                    Trocar peça
+                                  </button>
+                                )}</>
                             ) : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
                           </span>
                         )}
@@ -968,7 +992,8 @@ export default function VendaEditor() {
 
       {venda && venda.tipo === VENDA_TIPO.Reparacao && <ReparacaoExtras venda={venda} />}
 
-      <LotePicker open={pickerOpen} onClose={() => { setPickerOpen(false); setASubstituir(null); }} onPick={addLote} reservado={reservado} />
+      <LotePicker open={pickerOpen} onClose={() => { setPickerOpen(false); setASubstituir(null); setTrocarItem(null); }}
+        onPick={(lote) => (trocarItem ? void trocarPara(lote) : addLote(lote))} reservado={reservado} />
     </form>
   );
 }

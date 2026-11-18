@@ -16,7 +16,7 @@ public interface ICompraService
     Task<CompraDocumentoDto> CreateFromImportAsync(Guid importId, CompraDocumentoWriteRequest req, CancellationToken ct = default);
     Task<CompraDocumentoDto> UpdateAsync(Guid id, CompraDocumentoWriteRequest req, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<InventarioLinhaDto>> InventarioAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<InventarioLinhaDto>> InventarioAsync(CancellationToken ct = default, bool incluirSemStock = false);
     /// <summary>Sprint 671: muda o lucro de um lote (e, se pedido, o preço do artigo ligado).</summary>
     Task<InventarioLinhaDto> AlterarPrecoLoteAsync(Guid documentoId, Guid linhaId, LotePrecoRequest req, CancellationToken ct = default);
     Task<ResumoComprasDto> ResumoAsync(CancellationToken ct = default);
@@ -229,9 +229,10 @@ public class CompraService : ICompraService
         await _audit.LogAsync(AuditAction.Delete, nameof(CompraDocumento), id, new { doc.NumeroFatura }, ct: ct);
     }
 
-    public async Task<IReadOnlyList<InventarioLinhaDto>> InventarioAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<InventarioLinhaDto>> InventarioAsync(CancellationToken ct = default, bool incluirSemStock = false)
     {
-        var linhas = await _repo.ListLinhasAsync(soComStock: true, ct);
+        // 18/11 (Bruno): a pesquisa no Stock tem de encontrar também o que acabou (aparece com stock 0).
+        var linhas = await _repo.ListLinhasAsync(soComStock: !incluirSemStock, ct);
         // Sprint 570: lotes de um artigo vendem ao preço do artigo (próprio ou da categoria, ex.: películas a 15 €).
         var precosCategoria = _artigos is null ? new Dictionary<string, int>()
             : (await _artigos.ListCategoriasAsync(ct)).Where(c => c.PrecoVendaCents is not null)

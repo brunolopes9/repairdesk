@@ -60,6 +60,9 @@ public sealed record ForaApuramentoRequest(bool Ativo, string? Motivo);
 /// <summary>Sprint 563: corrigir preço/IVA de uma linha de venda já entregue (sem mexer em qtd nem stock).</summary>
 public sealed record CorrigirPrecoLinha(Guid Id, int PrecoUnitarioCents, decimal IvaRate);
 
+/// <summary>18/11: a peça que saiu foi outra (ex.: dois suportes ao mesmo preço) — troca o lote, o stock acerta-se.</summary>
+public sealed record TrocarLoteRequest(Guid CompraLinhaId, string? Motivo = null);
+
 public sealed record CorrigirPrecosRequest(IReadOnlyList<CorrigirPrecoLinha> Linhas, string? Motivo);
 
 /// <summary>Sprint 571: inclui os dados fiscais para o ecrã de emissão propor "com NIF" já preenchido.</summary>

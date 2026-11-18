@@ -29,7 +29,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
   const navigate = useNavigate();
   const qc = useQueryClient();
   const detalhe = useQuery({ queryKey: ['artigos', artigoId], queryFn: () => artigosApi.get(artigoId!), enabled: open && !!artigoId });
-  const inventario = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario, enabled: open });
+  const inventario = useQuery({ queryKey: ['compras', 'inventario'], queryFn: () => comprasApi.inventario(), enabled: open });
   const categorias = useQuery({ queryKey: ['artigos', 'categorias'], queryFn: artigosApi.categorias, enabled: open });
 
   const [nome, setNome] = useState('');
