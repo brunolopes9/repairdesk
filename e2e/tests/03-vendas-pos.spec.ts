@@ -22,5 +22,5 @@ test('venda de produto entregue tira unidades do lote de stock', async ({ api, p
   expect(await api.stockDoLote(lote)).toBe(1);
 
   await openAppPage(page, '/vendas?vista=entregues');
-  await expect(page.getByText('Cliente E2E Venda')).toBeVisible();
+  await expect(page.getByText('Cliente E2E Venda', { exact: true })).toBeVisible();
 });
