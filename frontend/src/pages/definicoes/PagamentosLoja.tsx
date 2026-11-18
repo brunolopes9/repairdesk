@@ -47,7 +47,7 @@ export default function PagamentosLoja() {
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4">
       <BackButton to="/definicoes" />
-      <PageHeader title="Pagamentos da loja" subtitle="ifthenpay — MB WAY, Multibanco, cartão, Google Pay e Apple Pay no lopestech.pt" />
+      <PageHeader title="Pagamentos da loja" description="ifthenpay — MB WAY, Multibanco, cartão, Google Pay e Apple Pay no lopestech.pt" />
 
       {estado.isError ? (
         <SectionCard title="Não foi possível carregar">
