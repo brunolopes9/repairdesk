@@ -64,11 +64,11 @@ test('loja online: conta, checkout, pagamento, stock, seguimento e envio', async
   const pedido = (extra: Record<string, unknown> = {}) => ({
     linhas: [{ slug: produto.slug, quantidade: 2 }], ...cliente, aceitaTermos: true, website: null, ...extra,
   });
-  expect((await api.publico('POST', `${base}/checkout`, pedido({ aceitaTermos: false }))).status()).toBe(400);
+  expect((await api.publico('POST', `${base}/checkout`, pedido({ aceitaTermos: false }))).status()).toBe(422); // validação → 422
   expect((await api.publico('POST', `${base}/checkout`, pedido({ website: 'http://spam' }))).status()).toBe(400);
-  expect((await api.publico('POST', `${base}/checkout`, pedido({ codigoPostal: '3505' }))).status()).toBe(400);
+  expect((await api.publico('POST', `${base}/checkout`, pedido({ codigoPostal: '3505' }))).status()).toBe(422);
   const demasiado = await api.publico('POST', `${base}/checkout`, pedido({ linhas: [{ slug: produto.slug, quantidade: 5 }] }));
-  expect(demasiado.status()).toBe(400);
+  expect(demasiado.status()).toBe(422);
   expect(await demasiado.text()).toContain('stock');
   expect((await api.publico('POST', `/public/loja/loja-que-nao-existe/checkout`, pedido())).status()).toBe(404);
 
