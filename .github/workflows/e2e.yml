@@ -1,6 +1,15 @@
 name: E2E Playwright
 
 on:
+  # 18/11: também em cada push ao main — só corria em PR e ficou meses desatualizado sem ninguém ver.
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'e2e/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/e2e.yml'
   pull_request:
     branches: [main]
     paths:
