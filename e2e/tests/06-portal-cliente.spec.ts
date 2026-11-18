@@ -21,7 +21,7 @@ test('portal publico mostra estado, fotos e garantia da reparacao', async ({ api
 
   await expect(portal.getByText(/Estado actual/i)).toBeVisible();
   await expect(portal.getByText(/Entregue/i).first()).toBeVisible();
-  await expect(portal.getByText('Samsung S24 E2E')).toBeVisible();
+  await expect(portal.getByText('Samsung S24 E2E').first()).toBeVisible();
   await expect(portal.getByText(/Fotos da repar/i)).toBeVisible();
   await expect(portal.getByRole('heading', { name: /Garantia digital/i })).toBeVisible();
 

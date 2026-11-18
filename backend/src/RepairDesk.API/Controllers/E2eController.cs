@@ -171,6 +171,8 @@ public sealed class E2eController : ControllerBase
         admin.LockoutEnd = null;
         admin.LastLoginAt = null;
         admin.LastLoginIp = null;
+        // Só em E2E: a regra «muda a password inicial» (segurança em produção) bloqueava todos os testes de UI no 1.º ecrã.
+        admin.RequireChangePasswordOnNextLogin = false;
     }
 
     private static async Task DeleteAsync<T>(
