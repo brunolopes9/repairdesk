@@ -35,7 +35,7 @@ export const VENDA_ESTADO = { Orcamento: 0, AEsperaPeca: 1, Pronta: 2, Entregue:
 export class RepairDeskApi {
   private accessToken: string | null = null;
 
-  constructor(private readonly request: APIRequestContext) {}
+  constructor(readonly request: APIRequestContext) {}
 
   async reset(): Promise<void> {
     const response = await this.request.post(`${e2eEnv.apiURL}/e2e/reset`, {
@@ -151,6 +151,20 @@ export class RepairDeskApi {
 
   private post<T = Json>(path: string, data: Json): Promise<T> {
     return this.expectJson(this.request.post(`${e2eEnv.apiURL}${path}`, { headers: this.authHeaders(), data }), `POST ${path}`);
+  }
+
+  /** Pedido autenticado como dono (área de gestão do Mender). */
+  dono<T = Json>(method: 'GET' | 'POST' | 'PUT', path: string, data?: Json): Promise<T> {
+    const url = `${e2eEnv.apiURL}${path}`;
+    const opts = { headers: this.authHeaders(), data };
+    const r = method === 'GET' ? this.request.get(url, opts) : method === 'PUT' ? this.request.put(url, opts) : this.request.post(url, opts);
+    return this.expectJson<T>(r, `${method} ${path}`);
+  }
+
+  /** Pedido anónimo (site público / loja). Devolve a resposta tal como vem — o teste decide o que esperar. */
+  publico(method: 'GET' | 'POST', path: string, data?: unknown, headers?: Record<string, string>): Promise<APIResponse> {
+    const url = `${e2eEnv.apiURL}${path}`;
+    return method === 'GET' ? this.request.get(url, { headers }) : this.request.post(url, { headers, data: data as Json });
   }
 
 

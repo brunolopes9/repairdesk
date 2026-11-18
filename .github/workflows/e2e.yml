@@ -20,6 +20,8 @@ permissions:
 
 env:
   E2E_API_KEY: repairdesk-e2e-ci
+  # Segredo SÓ de teste para assinar o webhook do Stripe a fingir (StripeCheckoutE2e) — não é o de produção.
+  STRIPE_WEBHOOK_SECRET: whsec_e2e_teste
 
 jobs:
   playwright:
