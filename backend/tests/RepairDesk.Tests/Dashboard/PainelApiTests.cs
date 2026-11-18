@@ -38,6 +38,25 @@ public class PainelApiTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
+    public async Task Painel_Ritmo_ContaVendaDeHoje_NosUltimos30Dias()
+    {
+        var client = await AuthedClient(RepairDeskApiFactory.AdminEmail);
+        var antes = (await client.GetFromJsonAsync<PainelDto>("/api/dashboard"))!;
+        antes.Ritmo.Should().NotBeNull();
+        antes.Ritmo!.Ultimos30Dias.Should().HaveCount(30);
+        antes.Ritmo.Ultimos30Dias[^1].Dia.Date.Should().Be(DateTime.UtcNow.Date);
+
+        (await client.PostAsJsonAsync("/api/vendas", new VendaWriteRequest(VendaTipo.Servico, null, null, "Ritmo", null,
+            [new VendaLinhaWriteRequest(null, null, "Software", 1, 12300)], VendaEstado.Entregue))).EnsureSuccessStatusCode();
+
+        var depois = (await client.GetFromJsonAsync<PainelDto>("/api/dashboard"))!.Ritmo!;
+        (depois.VendasHoje - antes.Ritmo.VendasHoje).Should().Be(1);
+        (depois.FaturadoHoje - antes.Ritmo.FaturadoHoje).Should().Be(123m);
+        (depois.Ultimos30Dias[^1].Faturado - antes.Ritmo.Ultimos30Dias[^1].Faturado).Should().Be(123m);
+        depois.FaturadoMesAnteriorAteHoje.Should().Be(antes.Ritmo.FaturadoMesAnteriorAteHoje);
+    }
+
+    [Fact]
     public async Task Painel_IsolaTenants()
     {
         var a = await AuthedClient(RepairDeskApiFactory.AdminEmail);

@@ -44,12 +44,29 @@ export interface PainelVendaResumo {
   totalCents: number;
 }
 
+/** Vendas entregues num dia (últimos 30 dias). */
+export interface PainelDia {
+  dia: string;
+  vendas: number;
+  faturado: number;
+}
+
+/** Dashboard novo (18/11/2026): hoje, mês anterior até ao mesmo dia, 30 dias e vendas paradas. */
+export interface PainelRitmo {
+  vendasHoje: number;
+  faturadoHoje: number;
+  faturadoMesAnteriorAteHoje: number;
+  paradas: number;
+  ultimos30Dias: PainelDia[];
+}
+
 export interface Painel {
   mes: PainelMes;
   emCurso: PainelEmCurso;
   alertas: PainelAlertas;
   stock: PainelStock;
   proximasEntregas: PainelVendaResumo[];
+  ritmo?: PainelRitmo | null;
 }
 
 export const dashboardApi = {

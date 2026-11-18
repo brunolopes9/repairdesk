@@ -37,12 +37,27 @@ public sealed record PainelVendaResumoDto(
     DateTime? PrevistoPara,
     int TotalCents);
 
+/// <summary>Vendas entregues num dia (para o gráfico dos últimos 30 dias).</summary>
+public sealed record PainelDiaDto(DateTime Dia, int Vendas, decimal Faturado);
+
+/// <summary>
+/// Dashboard novo (18/11/2026): hoje, o mês até hoje comparado com o mesmo período do mês anterior,
+/// os últimos 30 dias e as vendas em curso paradas há mais de <see cref="PainelService.DiasParada"/> dias.
+/// </summary>
+public sealed record PainelRitmoDto(
+    int VendasHoje,
+    decimal FaturadoHoje,
+    decimal FaturadoMesAnteriorAteHoje,
+    int Paradas,
+    IReadOnlyList<PainelDiaDto> Ultimos30Dias);
+
 public sealed record PainelDto(
     PainelMesDto Mes,
     PainelEmCursoDto EmCurso,
     PainelAlertasDto Alertas,
     PainelStockDto Stock,
-    IReadOnlyList<PainelVendaResumoDto> ProximasEntregas);
+    IReadOnlyList<PainelVendaResumoDto> ProximasEntregas,
+    PainelRitmoDto? Ritmo = null);
 
 public interface IPainelService
 {
@@ -57,6 +72,8 @@ public interface IPainelService
 public sealed class PainelService : IPainelService
 {
     private const int MaxVendasMes = 5000;
+    /// <summary>Uma venda em curso (que não está pronta) sem mexer há mais do que isto conta como parada.</summary>
+    public const int DiasParada = 3;
 
     private readonly IVendaRepository _vendas;
     private readonly ICompraService _compras;
@@ -92,6 +109,25 @@ public sealed class PainelService : IPainelService
         var (emCurso, _) = await _vendas.SearchAsync(new VendaFiltro(EmCurso: true), 1, 1000, ct);
         var (porFaturar, totalPorFaturar) = await _vendas.SearchAsync(new VendaFiltro(FaturaPorRegistar: true), 1, 1, ct);
 
+        // Ritmo: hoje, mês anterior até ao mesmo dia e últimos 30 dias (dias em UTC, como o resto do painel).
+        var hoje = agora.Date;
+        var inicio30 = hoje.AddDays(-29);
+        var deAnterior = de.AddMonths(-1);
+        var desde = inicio30 < deAnterior ? inicio30 : deAnterior;
+        var (recentes, _) = await _vendas.SearchAsync(new VendaFiltro(desde, hoje.AddDays(1), Estado: VendaEstado.Entregue), 1, MaxVendasMes * 2, ct);
+        var ateAnterior = deAnterior.AddDays(Math.Min(agora.Day, DateTime.DaysInMonth(deAnterior.Year, deAnterior.Month)));
+        var porDia = recentes.Where(v => v.Data >= inicio30).GroupBy(v => v.Data.Date).ToDictionary(g => g.Key, g => g.ToList());
+        var ultimos30 = Enumerable.Range(0, 30).Select(i => inicio30.AddDays(i)).Select(d => porDia.TryGetValue(d, out var l)
+            ? new PainelDiaDto(d, l.Count, l.Sum(v => v.TotalCents) / 100m)
+            : new PainelDiaDto(d, 0, 0m)).ToList();
+        var limiteParada = agora.AddDays(-DiasParada);
+        var ritmo = new PainelRitmoDto(
+            ultimos30[^1].Vendas,
+            ultimos30[^1].Faturado,
+            recentes.Where(v => v.Data >= deAnterior && v.Data < ateAnterior).Sum(v => v.TotalCents) / 100m,
+            emCurso.Count(v => v.Estado != VendaEstado.Pronta && (v.UpdatedAt ?? v.CreatedAt) < limiteParada),
+            ultimos30);
+
         var resumoCompras = await _compras.ResumoAsync(ct);
         var pendentes = _tenant.TenantId is { } tenantId ? (await _imports.ListPendingAsync(tenantId, 500, ct)).Count : 0;
 
@@ -122,6 +158,7 @@ public sealed class PainelService : IPainelService
                 emCurso.Count(v => v.Estado == VendaEstado.Pronta)),
             new PainelAlertasDto(totalPorFaturar, resumoCompras.DocumentosComFaturaEmFalta, resumoCompras.DocumentosComDiferenca, pendentes),
             new PainelStockDto(resumoCompras.EmStock.Unidades, resumoCompras.EmStock.ValorPecasPago, resumoCompras.EmStock.Lucro),
-            proximas);
+            proximas,
+            ritmo);
     }
 }
