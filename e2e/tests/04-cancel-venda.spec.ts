@@ -25,5 +25,5 @@ test('cancelar venda entregue repoe stock e marca Cancelada', async ({ api, page
 
   await openAppPage(page, '/vendas?vista=todas');
   await expect(page.getByText('Cliente E2E Cancelar Venda', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Cancelada/i).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Cancelada', exact: true })).toBeVisible();
 });
