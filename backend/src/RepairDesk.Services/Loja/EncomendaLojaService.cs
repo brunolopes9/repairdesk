@@ -113,7 +113,7 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
     public async Task<CheckoutResultado> CheckoutAsync(CheckoutRequest req, CancellationToken ct = default, Guid? clienteLojaId = null)
     {
         var tenantId = _tenant.TenantId ?? throw new ValidationException("sem_empresa", "Loja desconhecida.");
-        if (!_stripe.Configurado)
+        if (!await _stripe.ConfiguradoAsync(ct))
             throw new ValidationException("pagamentos_inativos", "Os pagamentos online ainda não estão ativos. Fala connosco pelo WhatsApp 920 182 332.");
 
         var dados = ValidarCliente(req);

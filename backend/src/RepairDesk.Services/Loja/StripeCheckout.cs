@@ -22,10 +22,14 @@ public sealed record StripeSessaoPedido(Guid EncomendaId, Guid TenantId, string 
     IReadOnlyList<StripeLinha> Linhas, string UrlSucesso, string UrlCancelar);
 public sealed record StripeSessao(string Id, string Url);
 
-/// <summary>Sprint 656: o que o Mender precisa do Stripe — criar a página de pagamento (Checkout hospedado).</summary>
+/// <summary>
+/// Sprint 656: página de pagamento da loja (Checkout hospedado). Sprint 690: o nome ficou por razões históricas — há
+/// três implementações: <see cref="StripeCheckoutClient"/>, <see cref="IfthenpayLojaCheckout"/> (a usada pela LopesTech)
+/// e <see cref="StripeCheckoutE2e"/> (testes); <see cref="PagamentoLojaRouter"/> escolhe por empresa.
+/// </summary>
 public interface IStripeCheckout
 {
-    bool Configurado { get; }
+    Task<bool> ConfiguradoAsync(CancellationToken ct = default);
     Task<StripeSessao> CriarSessaoAsync(StripeSessaoPedido pedido, CancellationToken ct = default);
 }
 
@@ -47,6 +51,7 @@ public sealed class StripeCheckoutClient : IStripeCheckout
     }
 
     public bool Configurado => !string.IsNullOrWhiteSpace(_opt.SecretKey) && !string.IsNullOrWhiteSpace(_opt.WebhookSecret);
+    public Task<bool> ConfiguradoAsync(CancellationToken ct = default) => Task.FromResult(Configurado);
 
     public async Task<StripeSessao> CriarSessaoAsync(StripeSessaoPedido p, CancellationToken ct = default)
     {

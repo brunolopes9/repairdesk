@@ -51,6 +51,7 @@ const LlmUsage = lazy(() => import('./pages/definicoes/LlmUsage'));
 const RedesSociais = lazy(() => import('./pages/definicoes/RedesSociais'));
 const UsersDefinicoes = lazy(() => import('./pages/definicoes/Users'));
 const MoloniOn = lazy(() => import('./pages/definicoes/MoloniOn'));
+const PagamentosLoja = lazy(() => import('./pages/definicoes/PagamentosLoja'));
 const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
@@ -199,6 +200,7 @@ export default function App() {
               <Route path="/definicoes/redes-sociais" element={<RedesSociais />} />
               <Route path="/definicoes/utilizadores" element={<UsersDefinicoes />} />
               <Route path="/definicoes/moloni" element={<MoloniOn />} />
+              <Route path="/definicoes/pagamentos-loja" element={<PagamentosLoja />} />
               <Route path="/faturacao" element={<Navigate to="/vendas?vista=documentos" replace />} />
               <Route path="/produtos" element={<Navigate to="/compras?tab=stock" replace />} />
               <Route path="*" element={<NotFound />} />

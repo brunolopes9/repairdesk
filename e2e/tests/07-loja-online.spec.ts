@@ -2,8 +2,8 @@ import { createHmac } from 'node:crypto';
 import { test, expect } from '../support/fixtures';
 
 /**
- * Loja online (lopestech.pt) de ponta a ponta, sem dinheiro: o Stripe é o «StripeCheckoutE2e» (E2E__Enabled) e o
- * pagamento confirma-se com o webhook assinado com o segredo de teste — exatamente como o Stripe o envia.
+ * Loja online (lopestech.pt) de ponta a ponta, sem dinheiro: o pagamento é o «StripeCheckoutE2e» (E2E__Enabled) e
+ * confirma-se com o callback do ifthenpay e a chave anti-phishing de teste — exatamente como o ifthenpay o envia.
  *
  * stock na compra → artigo → produto publicado → conta de cliente → checkout → webhook (e repetido) →
  * stock sai → página de seguimento → envio com nº de seguimento → «as minhas encomendas» → casos de erro.
@@ -45,7 +45,10 @@ test('loja online: conta, checkout, pagamento, stock, seguimento e envio', async
     armazenamentoGb: null, descricao: 'Cabo de teste E2E.', specs: [], slug: 'e2e-cabo-usb-c-60w', seoTitulo: null,
     seoDescricao: null, artigoId: artigo.id,
   });
-  await api.dono('POST', `/loja/produtos/${produto.id}/publicar`, {});
+  // Publicar exige foto; no ambiente E2E não há R2 — o controlador de testes põe uma foto fictícia.
+  const pub = await api.publico('POST', `/e2e/loja/publicar/${produto.id}`, {}, { 'X-E2E-Key': process.env.E2E_API_KEY ?? '' });
+  expect(pub.status(), await pub.text()).toBe(204);
+  await api.dono('PUT', '/loja/pagamentos', { gatewayKey: 'E2E-000000', antiPhishingKey: 'anti-phishing-e2e' });
   const { slug: loja } = await api.dono<{ slug: string }>('GET', '/automacoes/intake-widget');
   const base = `/public/loja/${loja}`;
 
@@ -88,18 +91,19 @@ test('loja online: conta, checkout, pagamento, stock, seguimento e envio', async
   const lista = Array.isArray(encomendas) ? encomendas : encomendas.items ?? [];
   const enc = lista.find((e) => e.referencia === referencia);
   expect(enc, 'a encomenda aparece na lista do dono').toBeTruthy();
-  const sessaoStripe = `cs_e2e_${enc!.id.replace(/-/g, '')}`;
+  const sessaoStripe = `ifp:${referencia}`;
   const payload = eventoPago(sessaoStripe);
 
   const falso = await api.publico('POST', '/public/loja/stripe/webhook', JSON.parse(payload), { 'Stripe-Signature': 't=1,v1=abc' });
   expect(falso.status()).toBe(400);
 
-  for (let i = 0; i < 2; i++) {
-    const wh = await api.request.post(`${process.env.E2E_API_URL ?? 'http://localhost:5080/api'}/public/loja/stripe/webhook`, {
-      headers: { 'Stripe-Signature': assinar(payload), 'Content-Type': 'application/json' }, data: payload,
-    });
-    expect(wh.status(), await wh.text()).toBe(200);
-  }
+  void assinar; // o webhook do Stripe fica coberto pelos testes de integração; a loja cobra pelo ifthenpay
+  const cb = (key: string, amount: string) =>
+    api.publico('GET', `${base}/ifthenpay/callback?key=${key}&id=${referencia}&amount=${amount}&payment_datetime=18-11-2026%2015:00:00&payment_method=MBWAY`);
+  expect((await cb('errada', estado.total.toFixed(2))).status()).toBe(403);
+  expect((await cb('anti-phishing-e2e', '0.01')).status()).toBe(200); // valor errado: recebido, NÃO pago
+  expect(((await (await seguir()).json()) as { estado: number }).estado).toBe(ESTADO.AguardaPagamento);
+  for (let i = 0; i < 2; i++) expect((await cb('anti-phishing-e2e', estado.total.toFixed(2))).status()).toBe(200);
   estado = (await (await seguir()).json()) as typeof estado;
   expect(estado.estado).toBe(ESTADO.Paga);
   expect(estado.email).toBe(cliente.email); // vai para o convite do Google Avaliações do Consumidor

@@ -36,8 +36,7 @@ import {
   ScanBarcode,
   FileCheck2,
   Landmark,
-  Tag,
-} from 'lucide-react';
+  Tag, CreditCard } from 'lucide-react';
 import { useAuth } from '../lib/auth/AuthContext';
 import PwaStatus from './PwaStatus';
 import MobileNav from './MobileNav';
@@ -111,6 +110,7 @@ const nav: NavItem[] = [
       { to: '/definicoes', label: 'Empresa', icon: Settings },
       { to: '/definicoes/preferencias', label: 'Preferências', icon: SlidersHorizontal },
       { to: '/definicoes/moloni', label: 'Moloni ON', icon: FileCheck2 },
+      { to: '/definicoes/pagamentos-loja', label: 'Pagamentos da loja', icon: CreditCard },
       { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Building2 },
       { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
       { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },

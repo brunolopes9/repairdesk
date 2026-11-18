@@ -83,6 +83,10 @@ public class Tenant : BaseEntity
     /// <summary>Privacidade escolhida pelo dono para os vídeos (PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY).</summary>
     public string? TikTokPrivacidade { get; set; }
 
+    // Sprint 690: pagamentos da loja online pelo ifthenpay (Pay by Link). Ambas cifradas; o dono cola-as em Definições.
+    public string? IfthenpayGatewayKeyCipherText { get; set; }
+    public string? IfthenpayAntiPhishingKeyCipherText { get; set; }
+
     // Sprint 608 (Doc 95 Fase B3): cliente OAuth do Google (YouTube Data API v3). Secret cifrado.
     public string? YouTubeClientId { get; set; }
     public string? YouTubeClientSecretCipherText { get; set; }

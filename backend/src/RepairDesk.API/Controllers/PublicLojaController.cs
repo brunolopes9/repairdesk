@@ -29,10 +29,13 @@ public sealed class PublicLojaController : ControllerBase
     private readonly IEncomendaLojaRepository _repo;
     private readonly StripeOptions _stripe;
     private readonly ILogger<PublicLojaController> _log;
+    private readonly ISecretProtector _secrets;
 
     public PublicLojaController(AppDbContext db, IEncomendaLojaService service, IEncomendaLojaRepository repo,
-        IOptions<StripeOptions> stripe, ILogger<PublicLojaController> log, IContaLojaService conta, INewsletterService newsletter)
+        IOptions<StripeOptions> stripe, ILogger<PublicLojaController> log, IContaLojaService conta, INewsletterService newsletter,
+        ISecretProtector secrets)
     {
+        _secrets = secrets;
         _conta = conta;
         _newsletter = newsletter;
         _db = db;
@@ -156,6 +159,42 @@ public sealed class PublicLojaController : ControllerBase
         if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
         await alertas.RegistarAsync(req, ct);
         return Accepted();
+    }
+
+    /// <summary>
+    /// Sprint 690: callback do ifthenpay (Pay by Link) — GET com <c>key</c> (anti-phishing), <c>id</c> (a referência da
+    /// encomenda), <c>amount</c>, <c>payment_datetime</c> e <c>payment_method</c>. Só um callback com a chave certa e o
+    /// valor certo confirma o pagamento. 200 = recebido (o ifthenpay deixa de repetir); a confirmação é idempotente.
+    /// </summary>
+    [HttpGet("{intakeSlug}/ifthenpay/callback")]
+    public async Task<IActionResult> IfthenpayCallback(string intakeSlug, [FromQuery] string? key, [FromQuery] string? id,
+        [FromQuery] string? amount, [FromQuery(Name = "payment_datetime")] string? quando,
+        [FromQuery(Name = "payment_method")] string? metodo, CancellationToken ct)
+    {
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.IntakeSlug == intakeSlug && t.IsActive, ct);
+        var esperada = tenant?.IfthenpayAntiPhishingKeyCipherText is { } c ? _secrets.Unprotect(c) : null;
+        if (tenant is null || !IfthenpayLojaCheckout.ChaveValida(key, esperada))
+        {
+            _log.LogWarning("Callback do ifthenpay com chave inválida (loja {Slug}, id {Id})", intakeSlug, id);
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+        Entrar(tenant.Id);
+        var e = string.IsNullOrWhiteSpace(id) ? null : await _repo.FindByStripeSessionGlobalAsync(IfthenpayLojaCheckout.SessaoDe(id.Trim()), ct);
+        if (e is null || e.TenantId != tenant.Id)
+        {
+            _log.LogWarning("Callback do ifthenpay para encomenda desconhecida {Id}", id);
+            return Ok();
+        }
+        if (!IfthenpayLojaCheckout.ValorBate(amount, e.TotalCents))
+        {
+            // Nunca confirmar um valor diferente do total — fica registado para o dono ver.
+            _log.LogError("Callback do ifthenpay com valor {Valor} diferente do total {Total} da encomenda {Ref}", amount, e.TotalCents / 100m, e.Referencia);
+            return Ok();
+        }
+        var metodoTxt = string.IsNullOrWhiteSpace(metodo) ? "ifthenpay" : $"ifthenpay {metodo.Trim()}";
+        await _service.ConfirmarPagamentoAsync(e, metodoTxt.Length > 60 ? metodoTxt[..60] : metodoTxt, ct);
+        _log.LogInformation("Encomenda {Ref} paga pelo ifthenpay ({Metodo}, {Quando})", e.Referencia, metodo, quando);
+        return Ok();
     }
 
     /// <summary>Eventos do Stripe. Assinatura obrigatória; responde 200 a eventos que não interessam (senão o Stripe repete).</summary>

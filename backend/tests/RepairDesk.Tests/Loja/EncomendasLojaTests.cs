@@ -141,11 +141,11 @@ public class EncomendasLojaTests : IClassFixture<RepairDeskApiFactory>
 
     // ---------- helpers ----------
 
-    private static CheckoutRequest Pedido(string slug, int qtd) => new(
+    internal static CheckoutRequest Pedido(string slug, int qtd) => new(
         new[] { new CheckoutLinhaRequest(slug, qtd) }, "Maria Teste Silva", "maria@example.com", "912 345 678", null,
         "Rua da Igreja 1", "3505-347", "Viseu", null, true);
 
-    private async Task<(ProdutoLojaDto Produto, Guid ArtigoId)> ProdutoComStock(HttpClient admin, int stock, int precoCents)
+    internal static async Task<(ProdutoLojaDto Produto, Guid ArtigoId)> ProdutoComStock(HttpClient admin, int stock, int precoCents)
     {
         var forn = await Ok<FornecedorDto>(await admin.PostAsJsonAsync("/api/fornecedores",
             new FornecedorWriteRequest($"Forn {Guid.NewGuid():N}", null, null, null, null, null, null, true, false, RegimeIvaFornecedor.UeAutoliquidacao, "NL")));
@@ -166,17 +166,17 @@ public class EncomendasLojaTests : IClassFixture<RepairDeskApiFactory>
         return (p, artigo.Artigo.Id);
     }
 
-    private static async Task<int> Stock(HttpClient admin, Guid artigoId)
+    internal static async Task<int> Stock(HttpClient admin, Guid artigoId)
         => (await admin.GetFromJsonAsync<ArtigoDetalheDto>($"/api/artigos/{artigoId}"))!.Artigo.Stock;
 
-    private static async Task<string> IntakeSlug(HttpClient admin)
+    internal static async Task<string> IntakeSlug(HttpClient admin)
     {
         var resp = await admin.GetAsync("/api/automacoes/intake-widget");
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<IntakeWidgetDto>())!.Slug;
     }
 
-    private sealed record IntakeWidgetDto(string Slug, string? PublicUrl);
+    internal sealed record IntakeWidgetDto(string Slug, string? PublicUrl);
 
     private static string Evento(string tipo, string sessao, string paymentStatus)
         => System.Text.Json.JsonSerializer.Serialize(new
@@ -194,7 +194,7 @@ public class EncomendasLojaTests : IClassFixture<RepairDeskApiFactory>
         return client.PostAsync("/api/public/loja/stripe/webhook", content);
     }
 
-    private static async Task<T> Ok<T>(HttpResponseMessage resp)
+    internal static async Task<T> Ok<T>(HttpResponseMessage resp)
     {
         resp.IsSuccessStatusCode.Should().BeTrue(await resp.Content.ReadAsStringAsync());
         return (await resp.Content.ReadFromJsonAsync<T>())!;
@@ -215,7 +215,7 @@ public class EncomendasLojaTests : IClassFixture<RepairDeskApiFactory>
     public sealed class StripeFalso : IStripeCheckout
     {
         public List<StripeSessaoPedido> Pedidos { get; } = new();
-        public bool Configurado => true;
+        public Task<bool> ConfiguradoAsync(CancellationToken ct = default) => Task.FromResult(true);
 
         public Task<StripeSessao> CriarSessaoAsync(StripeSessaoPedido pedido, CancellationToken ct = default)
         {
@@ -235,7 +235,7 @@ public class EncomendasLojaTests : IClassFixture<RepairDeskApiFactory>
         }
     }
 
-    private sealed class StorageFalso : IDirectAccessStorage
+    internal sealed class StorageFalso : IDirectAccessStorage
     {
         public string CreateUploadUrl(string key, string contentType, TimeSpan validFor) => $"https://r2.falso/{key}?put";
         public string CreateDownloadUrl(string key, TimeSpan validFor, string? downloadFileName = null) => $"https://r2.falso/{key}";

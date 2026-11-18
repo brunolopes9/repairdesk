@@ -358,11 +358,15 @@ try
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.ITextoProdutoIa, RepairDesk.Services.Loja.TextoProdutoIa>(c => c.Timeout = TimeSpan.FromSeconds(160));
     // Sprint 656: encomendas da loja online + Stripe Checkout (chaves só no servidor: Stripe__SecretKey, Stripe__WebhookSecret).
     builder.Services.Configure<RepairDesk.Services.Loja.StripeOptions>(builder.Configuration.GetSection("Stripe"));
-    // Testes E2E: Stripe a fingir (sem rede nem dinheiro); o teste confirma o pagamento com o webhook assinado.
+    // Sprint 690: a loja cobra pelo ifthenpay quando a empresa tem as chaves (Definições); senão Stripe.
+    // Testes E2E: pagamento a fingir (sem rede nem dinheiro); o teste confirma com o callback / webhook.
+    builder.Services.AddHttpClient<RepairDesk.Services.Loja.StripeCheckoutClient>(c => c.Timeout = TimeSpan.FromSeconds(20));
+    builder.Services.AddHttpClient<RepairDesk.Services.Loja.IfthenpayLojaCheckout>(c => c.Timeout = TimeSpan.FromSeconds(20));
+    builder.Services.AddScoped<RepairDesk.Services.Loja.IPagamentosLojaService, RepairDesk.Services.Loja.PagamentosLojaService>();
     if (builder.Configuration.GetValue("E2E:Enabled", false))
         builder.Services.AddScoped<RepairDesk.Services.Loja.IStripeCheckout, RepairDesk.Services.Loja.StripeCheckoutE2e>();
     else
-        builder.Services.AddHttpClient<RepairDesk.Services.Loja.IStripeCheckout, RepairDesk.Services.Loja.StripeCheckoutClient>(c => c.Timeout = TimeSpan.FromSeconds(20));
+        builder.Services.AddScoped<RepairDesk.Services.Loja.IStripeCheckout, RepairDesk.Services.Loja.PagamentoLojaRouter>();
     builder.Services.AddScoped<IEncomendaLojaRepository, RepairDesk.DAL.Persistence.EncomendaLojaRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.IEncomendaLojaService, RepairDesk.Services.Loja.EncomendaLojaService>();
     // Sprint 659: contas de cliente da loja.

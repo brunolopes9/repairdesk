@@ -3534,6 +3534,12 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("IfthenpayAntiPhishingKeyCipherText")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IfthenpayGatewayKeyCipherText")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("IngestEmailSlug")
                         .HasColumnType("nvarchar(max)");
 

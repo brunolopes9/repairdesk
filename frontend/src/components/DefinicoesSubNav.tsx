@@ -1,7 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
-  Building2, SlidersHorizontal, Truck, Workflow, Sparkles, Users, UserCircle, Share2,
-} from 'lucide-react';
+  Building2, SlidersHorizontal, Truck, Workflow, Sparkles, Users, UserCircle, Share2, CreditCard } from 'lucide-react';
 
 /**
  * Sprint 416 (Doc 90 Tier 1 #1): segunda sidebar para /definicoes/*, ao estilo RoApp.
@@ -15,6 +14,7 @@ const ITEMS = [
   { to: '/definicoes/fornecedores', label: 'Fornecedores', icon: Truck },
   { to: '/definicoes/automacoes', label: 'Automações', icon: Workflow },
   { to: '/definicoes/llm-usage', label: 'Uso de IA', icon: Sparkles },
+  { to: '/definicoes/pagamentos-loja', label: 'Pagamentos da loja', icon: CreditCard },
   { to: '/definicoes/redes-sociais', label: 'Redes sociais', icon: Share2 },
   { to: '/definicoes/utilizadores', label: 'Utilizadores', icon: Users },
 ];

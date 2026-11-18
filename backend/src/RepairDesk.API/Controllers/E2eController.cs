@@ -24,6 +24,32 @@ public sealed class E2eController : ControllerBase
         _normalizer = normalizer;
     }
 
+    /// <summary>
+    /// Sprint 690: só em E2E — publica um produto da loja com uma foto fictícia (o armazenamento de fotos R2 não existe
+    /// no ambiente de testes; publicar exige pelo menos uma foto).
+    /// </summary>
+    [HttpPost("loja/publicar/{produtoId:guid}")]
+    public async Task<IActionResult> PublicarProdutoLoja(Guid produtoId, CancellationToken ct)
+    {
+        if (!_configuration.GetValue("E2E:Enabled", false)) return NotFound();
+        var expectedKey = _configuration["E2E:ApiKey"];
+        if (!string.IsNullOrWhiteSpace(expectedKey)
+            && (!Request.Headers.TryGetValue("X-E2E-Key", out var suppliedKey)
+                || !string.Equals(suppliedKey.ToString(), expectedKey, StringComparison.Ordinal)))
+            return Unauthorized();
+        var p = await _db.ProdutosLoja.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == produtoId, ct);
+        if (p is null) return NotFound();
+        _db.ProdutosLojaFotos.Add(new ProdutoLojaFoto
+        {
+            TenantId = p.TenantId, ProdutoId = p.Id, Ordem = 0, StorageKey = $"e2e/{p.Id:N}.png",
+            ContentType = "image/png", Bytes = 68, Enviada = true,
+        });
+        p.Publicado = true;
+        p.PublicadoEm = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     [HttpPost("reset")]
     public async Task<ActionResult<E2eResetResponse>> Reset(CancellationToken ct)
     {
@@ -47,6 +73,14 @@ public sealed class E2eController : ControllerBase
             await DeleteAsync(deleted, "systemSettings", _db.SystemSettings.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "refreshTokens", _db.RefreshTokens.IgnoreQueryFilters(), ct);
 
+            // Sprint 690: loja online (o teste 07 cria encomendas, contas e produtos).
+            await DeleteAsync(deleted, "encomendasLojaLinhas", _db.EncomendasLojaLinhas.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "encomendasLoja", _db.EncomendasLoja.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "clientesLojaSessoes", _db.ClientesLojaSessoes.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "clientesLoja", _db.ClientesLoja.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "alertasStockLoja", _db.AlertasStockLoja.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "produtosLojaFotos", _db.ProdutosLojaFotos.IgnoreQueryFilters(), ct);
+            await DeleteAsync(deleted, "produtosLoja", _db.ProdutosLoja.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "vendaFotos", _db.VendaFotos.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "vendaAssinaturas", _db.VendaAssinaturas.IgnoreQueryFilters(), ct);
             await DeleteAsync(deleted, "vendaComunicacoes", _db.VendaComunicacoes.IgnoreQueryFilters(), ct);
