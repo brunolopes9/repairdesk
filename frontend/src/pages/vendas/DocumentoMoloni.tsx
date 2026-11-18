@@ -1,3 +1,4 @@
+import { formatEur } from '../../lib/compras/format';
 import { PagamentoPicker } from '../../components/PagamentoPicker';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -34,7 +35,8 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   const [mudarPagamento, setMudarPagamento] = useState(false);
   useEffect(() => { setPagamento(venda.paymentMethod); }, [venda.paymentMethod]);
   const pagamentoDaVenda = venda.estado === VENDA_ESTADO.Entregue && !venda.porReceber;
-  const [vencimento, setVencimento] = useState(30);
+  const [vencimento, setVencimento] = useState(0); // 18/11 (Bruno): pronto pagamento é a realidade
+  const [outras, setOutras] = useState(false);
   const [motivo, setMotivo] = useState<string>('');
   const [anular, setAnular] = useState<string | null>(null);
   const [mudarSerie, setMudarSerie] = useState(false);
@@ -53,7 +55,8 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   // Sprint 686: fatura simplificada (preços c/ IVA) — CIVA art. 40.º: bens até 1000 € s/ IVA; com serviços até 100 €.
   const faturaveis = venda.items.filter((i) => !i.porFora);
   const baseSemIva = faturaveis.reduce((s, i) => s + i.totalCents / 100 / (1 + i.ivaRate / 100), 0);
-  const fsPossivel = faturaveis.length > 0 && baseSemIva <= (faturaveis.some((i) => !i.compraLinhaId) ? 100 : 1000);
+  const limiteFs = faturaveis.some((i) => !i.compraLinhaId) ? 100 : 1000; // CIVA art. 40.º: serviços 100 €, bens a retalho 1000 € (sem IVA)
+  const fsPossivel = faturaveis.length > 0 && baseSemIva <= limiteFs;
 
   const ok = (titulo: string) => (v: Venda) => { onChange(v); toast.success(titulo, v.invoiceNumber ?? v.moloniOrcamentoNumero ?? undefined); };
   const erro = (msg: string) => (err: unknown) => toast.fromError(err, msg);
@@ -201,22 +204,36 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
             </label>
             {opcoesIsencao}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {/* Sprint 686: consumidor final → fatura simplificada, com os preços COM IVA em cada linha (como no comércio). */}
-            {fsPossivel && (
-              <Button type="button" variant="success" leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaSimplificada'} disabled={ocupado || !!problema}
-                onClick={() => emitir.mutate('FaturaSimplificada')} title="Fatura simplificada: cada linha aparece com o IVA incluído (ex.: 7,00 €), paga na hora">
-                Emitir fatura simplificada (preços c/ IVA)
-              </Button>
+          {/* 18/11 (Bruno): o Mender escolhe o documento — paga na hora → fatura simplificada até ao limite legal, acima dele fatura-recibo. */}
+          <div className="space-y-2">
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">
+              {fsPossivel
+                ? <>Recomendado: <strong>fatura simplificada</strong> — {formatEur(baseSemIva)} sem IVA está dentro do limite de {formatEur(limiteFs)} ({limiteFs === 100 ? 'há serviços na venda' : 'venda de bens'}).</>
+                : <>Recomendado: <strong>fatura-recibo</strong> — {formatEur(baseSemIva)} sem IVA passa o limite de {formatEur(limiteFs)} da fatura simplificada.</>}
+            </p>
+            <Button type="button" variant="success" leftIcon={<FileCheck2 size={15} />} disabled={ocupado || !!problema}
+              loading={emitir.isPending && emitir.variables === (fsPossivel ? 'FaturaSimplificada' : 'FaturaRecibo')}
+              onClick={() => emitir.mutate(fsPossivel ? 'FaturaSimplificada' : 'FaturaRecibo')}
+              title={fsPossivel ? 'Fatura simplificada: cada linha aparece com o IVA incluído, paga na hora' : 'Fatura-recibo: fatura e recibo num só documento, paga na hora'}>
+              {fsPossivel ? 'Emitir fatura simplificada (paga)' : 'Emitir fatura-recibo (paga)'}
+            </Button>
+            <button type="button" className="block text-xs font-medium text-brand-600 hover:underline dark:text-brand-300" onClick={() => setOutras((v) => !v)} aria-expanded={outras}>
+              {outras ? 'Esconder outros documentos' : 'Outro documento…'}
+            </button>
+            {outras && (
+              <div className="flex flex-wrap gap-2">
+                {fsPossivel && (
+                  <Button type="button" variant="secondary" leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaRecibo'} disabled={ocupado || !!problema}
+                    onClick={() => emitir.mutate('FaturaRecibo')}>
+                    Emitir fatura-recibo (paga)
+                  </Button>
+                )}
+                <Button type="button" variant="secondary" leftIcon={<FileText size={15} />} loading={emitir.isPending && emitir.variables === 'Fatura'} disabled={ocupado || !!problema}
+                  onClick={() => emitir.mutate('Fatura')}>
+                  Emitir fatura (por pagar)
+                </Button>
+              </div>
             )}
-            <Button type="button" variant={fsPossivel ? 'secondary' : 'success'} leftIcon={<FileCheck2 size={15} />} loading={emitir.isPending && emitir.variables === 'FaturaRecibo'} disabled={ocupado || !!problema}
-              onClick={() => emitir.mutate('FaturaRecibo')}>
-              Emitir fatura-recibo (pago)
-            </Button>
-            <Button type="button" variant="secondary" leftIcon={<FileText size={15} />} loading={emitir.isPending && emitir.variables === 'Fatura'} disabled={ocupado || !!problema}
-              onClick={() => emitir.mutate('Fatura')}>
-              Emitir fatura (por pagar)
-            </Button>
           </div>
           {problema && <p className="text-xs font-medium text-amber-700 dark:text-amber-400">{problema}</p>}
           <p className="text-xs text-zinc-500">O Mender cria primeiro um rascunho no Moloni e só o finaliza se o total bater certo com esta venda.</p>
