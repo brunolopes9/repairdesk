@@ -40,6 +40,8 @@ export interface CompraLinha {
   artigoId: string | null;
   artigoNome: string | null;
   pecaReparacao: boolean;
+  /** 18/11: portes da compra que cabem a uma unidade (repartidos pelo valor). */
+  portesUnidade?: number;
   /** Sprint 589: vendas que tiraram unidades deste lote, com o lucro real (depois da peça e do IVA). */
   vendas?: CompraLinhaVenda[] | null;
 }
@@ -150,6 +152,8 @@ export interface InventarioLinha {
   lucroUnitario: number;
   autoliquidacaoUe: boolean;
   artigoNome?: string | null;
+  /** 18/11: portes da compra que cabem a uma unidade (repartidos pelo valor). */
+  portesUnidade?: number;
 }
 
 export interface ResumoColuna {

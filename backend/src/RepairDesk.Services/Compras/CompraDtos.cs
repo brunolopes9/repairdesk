@@ -32,6 +32,8 @@ public sealed record CompraLinhaDto(
     Guid? ArtigoId = null,
     string? ArtigoNome = null,
     bool PecaReparacao = false,
+    /// <summary>18/11: portes da compra que cabem a uma unidade (repartidos pelo valor). Informativo.</summary>
+    decimal PortesUnidade = 0m,
     /// <summary>Sprint 589: as vendas que tiraram unidades deste lote, com o lucro real de cada uma.</summary>
     IReadOnlyList<CompraLinhaVendaDto>? Vendas = null);
 
@@ -129,7 +131,9 @@ public sealed record InventarioLinhaDto(
     /// <summary>Sprint 671: lucro por unidade (s/ IVA) gravado no lote e se o IVA da compra foi autoliquidado (UE).</summary>
     decimal LucroUnitario = 0m,
     bool AutoliquidacaoUe = false,
-    string? ArtigoNome = null);
+    string? ArtigoNome = null,
+    /// <summary>18/11: portes da compra que cabem a uma unidade (repartidos pelo valor). Informativo.</summary>
+    decimal PortesUnidade = 0m);
 
 /// <summary>
 /// Sprint 671: muda só o preço de um lote (lucro por unidade, s/ IVA). Não é dado da fatura — muda sempre.

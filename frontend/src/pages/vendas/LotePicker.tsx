@@ -75,7 +75,7 @@ export default function LotePicker({
                   <span className="text-right tabular-nums">
                     <span className="block font-medium">{formatEur(l.precoVendaArtigo ?? l.precoFinalComIva)}</span>
                     {/* Sprint 669: custo sempre com e sem IVA (UE autoliquidada ou nacional) — para decidir o preço ao cliente. */}
-                    <span className="block text-xs text-zinc-500">custo <strong className="text-sm text-zinc-900 dark:text-zinc-100">{formatEur(custos(l).comIva)} c/ IVA</strong> <span className="text-[11px]">({formatEur(custos(l).semIva)} s/ IVA)</span></span>
+                    <span className="block text-xs text-zinc-500">custo <strong className="text-sm text-zinc-900 dark:text-zinc-100">{formatEur(custos(l).comIva)} c/ IVA</strong> <span className="text-[11px]">({formatEur(custos(l).semIva)} s/ IVA)</span>{(l.portesUnidade ?? 0) > 0 && <span className="ml-1 font-semibold text-amber-700 dark:text-amber-300">+ {formatEur(l.portesUnidade!)} portes</span>}</span>
                   </span>
                 </button>
               </li>

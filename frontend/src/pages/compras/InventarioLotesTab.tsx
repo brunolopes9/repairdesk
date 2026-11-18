@@ -109,6 +109,7 @@ export default function InventarioLotesTab() {
                   <td className="px-4 py-3 text-right tabular-nums">
                     <div className="font-semibold">{formatEur(l.precoUnitarioPago)}</div>
                     <div className="text-xs text-zinc-500">{formatEur(l.precoUnitarioPago / (1 + (l.taxaIvaCompra || 0)))} s/ IVA</div>
+                    {(l.portesUnidade ?? 0) > 0 && <div className="text-xs font-semibold text-amber-700 dark:text-amber-300" title="Parte dos portes da compra que cabe a uma unidade">+ {formatEur(l.portesUnidade!)} portes</div>}
                   </td>
                   <td className="px-4 py-3 text-right font-medium tabular-nums">{formatEur(l.precoFinalComIva)}</td>
                   <td className="px-4 py-3 text-right tabular-nums">

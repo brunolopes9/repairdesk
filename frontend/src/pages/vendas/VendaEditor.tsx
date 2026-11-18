@@ -51,6 +51,8 @@ interface LinhaForm {
   /** Snapshot (linhas gravadas) ou valores do lote escolhido — só para as contas na UI. */
   custoUnit: number;
   taxaCompra: number;
+  /** 18/11: portes da compra por unidade (só lotes escolhidos agora — informativo). */
+  portesUnit?: number;
   maxStock: number | null;
   /** Sprint 594: peça que ainda não há (por encomendar/encomendada) — custo estimado c/ IVA e nota. */
   encomenda: PecaEncomendaEstado | null;
@@ -464,7 +466,7 @@ export default function VendaEditor() {
       const key = aSubstituir;
       setASubstituir(null);
       setLinhas((ls) => ls.map((l) => (l.key === key ? {
-        ...l, compraLinhaId: lote.linhaId, custoUnit: lote.precoUnitarioPago, taxaCompra: lote.taxaIvaCompra,
+        ...l, compraLinhaId: lote.linhaId, custoUnit: lote.precoUnitarioPago, taxaCompra: lote.taxaIvaCompra, portesUnit: lote.portesUnidade ?? 0,
         maxStock: lote.quantidadeEmStock, encomenda: null, custo: '', nota: '', iva: String(IVA_NORMAL),
       } : l)));
       setPickerOpen(false);
@@ -475,6 +477,7 @@ export default function VendaEditor() {
       key: crypto.randomUUID(),
       id: null,
       compraLinhaId: lote.linhaId,
+      portesUnit: lote.portesUnidade ?? 0,
       // Sprint 585: o que sai na fatura, em português ("Ecrã iPhone 14 Pro Max") — editável; o texto do fornecedor fica no lote.
       descricao: comPrefixo(lote.textoVenda ?? lote.descricao, tipo),
       quantidade: String(quantidade),
@@ -760,6 +763,11 @@ export default function VendaEditor() {
                             {l.compraLinhaId ? (
                               <>Stock · custo <strong className="text-sm text-zinc-900 dark:text-zinc-100">{formatEur(l.custoUnit)}/un. c/ IVA</strong>
                                 {' '}· {formatEur(l.custoUnit / (1 + l.taxaCompra))} s/ IVA
+                                {(l.portesUnit ?? 0) > 0 && (
+                                  <span className="ml-1 font-semibold text-amber-700 dark:text-amber-300" title="Parte dos portes da compra que cabe a esta unidade — conta com isto no preço">
+                                    + {formatEur(l.portesUnit!)} portes
+                                  </span>
+                                )}
                                 {l.id && venda && venda.estado !== VENDA_ESTADO.Cancelada && isAdmin && (
                                   <button type="button" className="ml-2 font-semibold text-brand-600 hover:underline dark:text-brand-300"
                                     title="Saiu outra peça (ex.: outro modelo ao mesmo preço)? Escolhe o lote certo — o stock acerta-se e a fatura não muda."
