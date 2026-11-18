@@ -24,7 +24,8 @@ app.lopestech.pt {
         # 1-year HSTS once you're confident the cert renewals are stable.
         # Start commented for the first week; uncomment after Bruno verifies
         # cert renewal works (Let's Encrypt renews ~60d in advance).
-        # Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        Cross-Origin-Opener-Policy "same-origin"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
