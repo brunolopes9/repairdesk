@@ -27,11 +27,13 @@ public sealed record CheckoutResultado(string Referencia, string UrlPagamento);
 
 public sealed record EncomendaPublicaLinhaDto(string Titulo, string Slug, int Quantidade, decimal PrecoUnitario);
 
-/// <summary>O que o cliente vê na página de seguimento — sem morada completa nem dados de pagamento.</summary>
+/// <summary>O que o cliente vê na página de seguimento — sem morada completa nem dados de pagamento. <c>Email</c> só vai
+/// com o link privado da encomenda (token): a página de confirmação passa-o ao convite do Google Avaliações do Consumidor.</summary>
 public sealed record EncomendaPublicaDto(
     string Referencia, EncomendaLojaEstado Estado, string EstadoTexto, DateTime CriadaEm, string Nome,
     IReadOnlyList<EncomendaPublicaLinhaDto> Linhas, decimal Subtotal, decimal Portes, decimal Total,
-    string Transportadora, string? NumeroSeguimento, DateTime? PagaEm, DateTime? EnviadaEm, DateTime? EntregueEm);
+    string Transportadora, string? NumeroSeguimento, DateTime? PagaEm, DateTime? EnviadaEm, DateTime? EntregueEm,
+    string? Email = null);
 
 public sealed record EncomendaLojaLinhaDto(Guid ProdutoLojaId, Guid? ArtigoId, string Slug, string Titulo, int Quantidade, decimal PrecoUnitario);
 
@@ -289,7 +291,7 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
         return new EncomendaPublicaDto(e.Referencia, e.Estado, EstadoTexto(e.Estado), e.CreatedAt, PrimeiroNome(e.Nome),
             e.Linhas.Select(l => new EncomendaPublicaLinhaDto(l.Titulo, l.Slug, l.Quantidade, l.PrecoUnitarioCents / 100m)).ToList(),
             e.SubtotalCents / 100m, e.PortesCents / 100m, e.TotalCents / 100m, e.Transportadora, e.NumeroSeguimento,
-            e.PagaEm, e.EnviadaEm, e.EntregueEm);
+            e.PagaEm, e.EnviadaEm, e.EntregueEm, e.Email);
     }
 
     public static string EstadoTexto(EncomendaLojaEstado e) => e switch
