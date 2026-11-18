@@ -35,7 +35,7 @@ test('loja online: conta, checkout, pagamento, stock, seguimento e envio', async
 
   // 1) Stock e produto publicado
   const loteId = await api.createLote('E2E Cabo USB-C 60W', 3, 4.5);
-  const artigo = await api.dono<{ id: string }>('POST', '/artigos', {
+  const { artigo } = await api.dono<{ artigo: { id: string } }>('POST', '/artigos', {
     nome: 'E2E Cabo USB-C 60W', categoria: null, precoVendaCents: 890, codigoBarras: null, codigoFabricante: null,
     localizacao: null, notas: null, ativo: true, loteIds: [loteId],
   });
