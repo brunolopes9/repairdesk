@@ -7,6 +7,8 @@ import { comprasApi } from '../../lib/compras/api';
 import type { InventarioLinha } from '../../lib/compras/types';
 import { formatEur } from '../../lib/compras/format';
 import { correspondeTermos } from '../../lib/pesquisa';
+import { api } from '../../lib/api';
+import { EmpresaSwitcher } from '../../components/EmpresaSwitcher';
 
 /** Escolher um lote de stock (linha de compra com stock > 0) para uma linha de venda. */
 export default function LotePicker({
@@ -23,6 +25,14 @@ export default function LotePicker({
 }) {
   const [q, setQ] = useState('');
   const inv = useQuery({ queryKey: ['compras', 'inventario'], queryFn: comprasApi.inventario, enabled: open });
+  // 18/11: o stock é de cada empresa — se a lista vier vazia, diz em que empresa estás e deixa trocar ali.
+  const empresas = useQuery({
+    queryKey: ['auth', 'empresas'],
+    queryFn: () => api.get<{ id: string; nome: string; ativa: boolean }[]>('/auth/empresas').then((r) => r.data),
+    enabled: open, staleTime: 300_000,
+  });
+  const ativa = empresas.data?.find((e) => e.ativa);
+  const varias = (empresas.data?.length ?? 0) > 1;
 
   const linhas = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -38,7 +48,15 @@ export default function LotePicker({
           <input value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} pl-9`} placeholder="Procurar peça ou artigo…" autoFocus aria-label="Procurar no stock" />
         </label>
         {inv.isLoading && <p className="text-sm text-zinc-500">A carregar o stock…</p>}
-        {!inv.isLoading && linhas.length === 0 && <p className="text-sm text-zinc-500">Nada em stock com esse nome.</p>}
+        {inv.isError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">Não foi possível carregar o stock. Verifica a ligação e tenta outra vez.</p>}
+        {!inv.isLoading && !inv.isError && (inv.data?.length ?? 0) === 0 && (
+          <div role="status" className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+            <p><strong>Não há nada em stock{ativa ? <> na empresa «{ativa.nome}»</> : ''}.</strong>
+              {varias ? ' O stock é de cada empresa — se querias vender da outra, troca aqui:' : ' O stock nasce das compras (Compras → nova compra).'}</p>
+            {varias && <EmpresaSwitcher />}
+          </div>
+        )}
+        {!inv.isLoading && (inv.data?.length ?? 0) > 0 && linhas.length === 0 && <p className="text-sm text-zinc-500">Nada em stock com «{q.trim()}».{ativa && varias ? ` (Estás na empresa «${ativa.nome}».)` : ''}</p>}
         <ul className="max-h-[50vh] divide-y divide-zinc-100 overflow-y-auto dark:divide-zinc-800">
           {linhas.map((l) => {
             const disponivel = l.quantidadeEmStock - (reservado[l.linhaId] ?? 0);
