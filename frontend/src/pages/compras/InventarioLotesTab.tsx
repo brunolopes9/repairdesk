@@ -42,7 +42,7 @@ export default function InventarioLotesTab() {
       stock: (l) => l.quantidadeEmStock,
       pago: (l) => l.precoUnitarioPago,
       venda: (l) => l.precoFinalComIva,
-      lucro: (l) => l.lucro,
+      lucro: (l) => l.lucroUnitario,
       iva: (l) => l.ivaAPagarEstado,
     });
   }, [inv.data, q, datas, ordem]);
@@ -79,9 +79,9 @@ export default function InventarioLotesTab() {
                 <SortableTh className="px-4 py-2" label="Artigo" campo="artigo" ordem={ordem} onOrdenar={alternar} />
                 <SortableTh className="px-4 py-2" label="Compra" campo="data" ordem={ordem} onOrdenar={alternar} />
                 <SortableTh className="px-4 py-2" label="Stock" campo="stock" ordem={ordem} onOrdenar={alternar} align="right" />
-                <SortableTh className="px-4 py-2" label="Pago un." campo="pago" ordem={ordem} onOrdenar={alternar} align="right" />
+                <SortableTh className="px-4 py-2" label="Custo un. c/ IVA" campo="pago" ordem={ordem} onOrdenar={alternar} align="right" />
                 <SortableTh className="px-4 py-2" label="Venda c/ IVA" campo="venda" ordem={ordem} onOrdenar={alternar} align="right" />
-                <SortableTh className="px-4 py-2" label="Lucro (lote)" campo="lucro" ordem={ordem} onOrdenar={alternar} align="right" />
+                <SortableTh className="px-4 py-2" label="Lucro un. s/ IVA" campo="lucro" ordem={ordem} onOrdenar={alternar} align="right" />
                 <SortableTh className="px-4 py-2" label="IVA ao Estado (lote)" campo="iva" ordem={ordem} onOrdenar={alternar} align="right" />
               </tr>
             </thead>
@@ -105,9 +105,15 @@ export default function InventarioLotesTab() {
                     <div>{formatDateOnly(l.data)}{l.faturaEmFalta && <span className="ml-1 text-amber-700 dark:text-amber-400">· fatura em falta</span>}</div>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{l.quantidadeEmStock}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{formatEur(l.precoUnitarioPago)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    <div className="font-semibold">{formatEur(l.precoUnitarioPago)}</div>
+                    <div className="text-xs text-zinc-500">{formatEur(l.precoUnitarioPago / (1 + (l.taxaIvaCompra || 0)))} s/ IVA</div>
+                  </td>
                   <td className="px-4 py-3 text-right font-medium tabular-nums">{formatEur(l.precoFinalComIva)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{formatEur(l.lucro)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    <div className={`font-semibold ${l.lucroUnitario < 0 ? 'text-rose-600' : 'text-emerald-700 dark:text-emerald-400'}`}>{formatEur(l.lucroUnitario)}</div>
+                    {l.quantidadeEmStock > 1 && <div className="text-xs text-zinc-500">lote {formatEur(l.lucro)}</div>}
+                  </td>
                   <td className="px-4 py-3 text-right tabular-nums">{formatEur(l.ivaAPagarEstado)}</td>
                 </tr>
               ))}

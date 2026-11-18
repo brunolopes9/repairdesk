@@ -69,6 +69,14 @@ function partesLinha(l: LinhaForm, semIva: boolean) {
   return { qtd, cobrado };
 }
 
+/** Custo de UMA unidade (c/ IVA, o que pagaste) e a taxa de IVA dessa compra. Serviço: o «custo» da linha a dividir pela qtd, sem IVA. */
+function custoDaLinha(l: LinhaForm): { custoUnit: number; taxaCompra: number } {
+  const qtd = Math.max(1, Number(l.quantidade) || 1);
+  if (l.encomenda != null && !l.compraLinhaId) return { custoUnit: parseDecimal(l.custo) ?? 0, taxaCompra: IVA_NORMAL / 100 };
+  if (!l.compraLinhaId && l.encomenda == null) return { custoUnit: (parseDecimal(l.custoSemFatura) ?? 0) / qtd, taxaCompra: 0 };
+  return { custoUnit: l.custoUnit, taxaCompra: l.taxaCompra };
+}
+
 const num = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
 const fmt2 = (v: number) => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
 
@@ -153,6 +161,18 @@ export default function VendaEditor() {
     const taxa = (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
     setLinha(l.key, { preco: fmt2(l.porFora || !semIva ? unit : unit / (1 + taxa)) });
   }
+  // Pedido do Bruno (18/11): escrever o lucro que quer por unidade (s/ IVA) e o preço acerta-se sozinho.
+  const [lucroEdit, setLucroEdit] = useState<Record<string, string>>({});
+  function escreverLucroUn(l: LinhaForm, txt: string) {
+    setLucroEdit((t) => ({ ...t, [l.key]: txt }));
+    const v = parseDecimal(txt);
+    if (v == null) return;
+    const { custoUnit, taxaCompra } = custoDaLinha(l);
+    const custoSemIva = custoUnit / (1 + (l.porFora ? 0 : taxaCompra));
+    const taxaVenda = l.porFora ? 0 : (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
+    const semIvaUn = Math.max(0, custoSemIva + v);
+    setLinha(l.key, { preco: fmt2(l.porFora || semIva ? semIvaUn : semIvaUn * (1 + taxaVenda)) });
+  }
   // Sprint 683: o erro de uma ação aparece a vermelho no sítio (cartão Estado e linha com o problema), não só num aviso.
   const [erroAcao, setErroAcao] = useState<{ msg: string; loteId?: string; disponivel?: number } | null>(null);
   function mostrarErro(err: unknown) {
@@ -223,8 +243,7 @@ export default function VendaEditor() {
       const total = qtd * p.cobrado;
       // Linha de serviço: o único custo é o «custo s/ fatura» (vazio = 0) — apagar o campo tem de se ver logo no lucro.
       const servico = !l.compraLinhaId && l.encomenda == null;
-      const [custo, taxa] = l.encomenda != null ? [parseDecimal(l.custo) ?? 0, IVA_NORMAL / 100]
-        : servico ? [(parseDecimal(l.custoSemFatura) ?? 0) / Math.max(1, qtd), 0] : [l.custoUnit, l.taxaCompra];
+      const { custoUnit: custo, taxaCompra: taxa } = custoDaLinha(l);
       const ivaVenda = l.porFora ? 0 : (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
       const pv = previewVenda(qtd, total, custo, l.porFora ? 0 : taxa, ivaVenda);
       return { total, peca: !servico, ...pv };
@@ -662,7 +681,7 @@ export default function VendaEditor() {
                   <th className="w-20 py-2 pr-2 font-medium">IVA %</th>
                   <th className="w-28 py-2 pr-2 text-right font-medium" title="Escreve aqui o total que queres cobrar por esta linha">Total c/ IVA ✎</th>
                   <th className="w-28 py-2 pr-2 text-right font-medium">IVA ao Estado</th>
-                  <th className="w-24 py-2 pr-2 text-right font-medium">Lucro</th>
+                  <th className="w-28 py-2 pr-2 text-right font-medium" title="Lucro por unidade, sem IVA — escreve o que queres ganhar e o preço acerta-se">Lucro un. ✎</th>
                   <th className="w-10" />
                 </tr>
               </thead>
@@ -709,7 +728,10 @@ export default function VendaEditor() {
                           </div>
                         ) : (
                           <span className="mt-1 block text-xs text-zinc-500">
-                            {l.compraLinhaId ? `Stock · pago ${formatEur(l.custoUnit)}/un.` : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
+                            {l.compraLinhaId ? (
+                              <>Stock · custo <strong className="text-sm text-zinc-900 dark:text-zinc-100">{formatEur(l.custoUnit)}/un. c/ IVA</strong>
+                                {' '}· {formatEur(l.custoUnit / (1 + l.taxaCompra))} s/ IVA</>
+                            ) : semIva ? 'Serviço · IVA somado ao preço' : 'Serviço · IVA incluído no preço'}
                           </span>
                         )}
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
@@ -752,7 +774,14 @@ export default function VendaEditor() {
                         })()}
                       </td>
                       <td className="py-1 tabular-nums sm:py-2 sm:pr-2 sm:pt-4 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">IVA ao Estado</span>{formatEur(c.ivaAPagar)}</td>
-                      <td className={`py-1 tabular-nums sm:py-2 sm:pr-2 sm:pt-4 sm:text-right ${c.lucro < 0 ? 'text-rose-600' : ''}`}><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Lucro</span>{formatEur(c.lucro)}</td>
+                      <td className="py-1 tabular-nums sm:py-2 sm:pr-2 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Lucro un. (s/ IVA)</span>
+                        <input aria-label="Lucro por unidade sem IVA" inputMode="decimal" disabled={fechada}
+                          value={lucroEdit[l.key] ?? fmt2(c.lucro / Math.max(1, Number(l.quantidade) || 1))}
+                          onChange={(e) => escreverLucroUn(l, e.target.value)}
+                          onBlur={() => setLucroEdit((t) => { const n = { ...t }; delete n[l.key]; return n; })}
+                          className={`${inputCls} text-right font-semibold ${c.lucro < 0 ? 'text-rose-600' : 'text-emerald-700 dark:text-emerald-400'}`} />
+                        <span className={`mt-1 block text-[11px] font-normal ${c.lucro < 0 ? 'text-rose-600' : 'text-zinc-500'}`}>linha {formatEur(c.lucro)}</span>
+                      </td>
                       <td className="col-span-3 flex justify-end sm:table-cell sm:py-2">
                         {!fechada && (
                           <Button type="button" variant="icon" aria-label="Remover linha" onClick={() => setLinhas((ls) => ls.filter((x) => x.key !== l.key))}>
