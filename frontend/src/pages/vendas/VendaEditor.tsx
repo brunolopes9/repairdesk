@@ -77,6 +77,16 @@ function custoDaLinha(l: LinhaForm): { custoUnit: number; taxaCompra: number } {
   return { custoUnit: l.custoUnit, taxaCompra: l.taxaCompra };
 }
 
+/**
+ * 18/11 (Bruno): numa Reparação ou num Serviço a peça do stock faz parte do serviço — a linha leva «Reparação — »
+ * ou «Serviço — » à frente (e vai para o Moloni como serviço). Numa venda de Produto fica só o nome do artigo.
+ */
+const PREFIXOS = /^(Reparação|Serviço)\s+[—-]\s+/;
+function comPrefixo(descricao: string, tipo: VendaTipo): string {
+  const base = descricao.replace(PREFIXOS, '');
+  return tipo === VENDA_TIPO.Reparacao ? `Reparação — ${base}` : tipo === VENDA_TIPO.Servico ? `Serviço — ${base}` : base;
+}
+
 const num = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
 const fmt2 = (v: number) => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
 
@@ -449,7 +459,7 @@ export default function VendaEditor() {
       id: null,
       compraLinhaId: lote.linhaId,
       // Sprint 585: o que sai na fatura, em português ("Ecrã iPhone 14 Pro Max") — editável; o texto do fornecedor fica no lote.
-      descricao: lote.textoVenda ?? lote.descricao,
+      descricao: comPrefixo(lote.textoVenda ?? lote.descricao, tipo),
       quantidade: String(quantidade),
       // Sprint 570: lote de um artigo → preço do artigo (próprio ou da categoria, ex.: películas a 15 €).
       preco: fmt2(semIva ? precoComIvaLote / (1 + IVA_NORMAL / 100) : precoComIvaLote),
@@ -584,6 +594,8 @@ export default function VendaEditor() {
                   onClick={() => {
                     const t = Number(v) as VendaTipo;
                     setTipo(t);
+                    // As linhas do stock acompanham o tipo («Reparação — …», «Serviço — …» ou só o artigo).
+                    setLinhas((ls) => ls.map((l) => (l.compraLinhaId ? { ...l, descricao: comPrefixo(l.descricao, t) } : l)));
                     if (isNew) mudarModoIva(semIvaPorDefeito(t));
                   }}
                   className={`min-h-9 flex-1 rounded-md px-3 text-sm font-medium transition ${tipo === Number(v) ? 'bg-white shadow-sm dark:bg-zinc-950' : 'text-zinc-500'}`}

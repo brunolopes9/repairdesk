@@ -55,7 +55,8 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   // Sprint 686: fatura simplificada (preços c/ IVA) — CIVA art. 40.º: bens até 1000 € s/ IVA; com serviços até 100 €.
   const faturaveis = venda.items.filter((i) => !i.porFora);
   const baseSemIva = faturaveis.reduce((s, i) => s + i.totalCents / 100 / (1 + i.ivaRate / 100), 0);
-  const limiteFs = faturaveis.some((i) => !i.compraLinhaId) ? 100 : 1000; // CIVA art. 40.º: serviços 100 €, bens a retalho 1000 € (sem IVA)
+  // CIVA art. 40.º: serviços 100 €, bens a retalho 1000 € (sem IVA). Reparação/Serviço = prestação de serviços.
+  const limiteFs = venda.tipo !== VENDA_TIPO.Produto || faturaveis.some((i) => !i.compraLinhaId) ? 100 : 1000;
   const fsPossivel = faturaveis.length > 0 && baseSemIva <= limiteFs;
 
   const ok = (titulo: string) => (v: Venda) => { onChange(v); toast.success(titulo, v.invoiceNumber ?? v.moloniOrcamentoNumero ?? undefined); };
@@ -208,7 +209,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
           <div className="space-y-2">
             <p className="text-xs text-zinc-600 dark:text-zinc-400">
               {fsPossivel
-                ? <>Recomendado: <strong>fatura simplificada</strong> — {formatEur(baseSemIva)} sem IVA está dentro do limite de {formatEur(limiteFs)} ({limiteFs === 100 ? 'há serviços na venda' : 'venda de bens'}).</>
+                ? <>Recomendado: <strong>fatura simplificada</strong> — {formatEur(baseSemIva)} sem IVA está dentro do limite de {formatEur(limiteFs)} ({limiteFs === 100 ? 'prestação de serviços' : 'venda de bens'}).</>
                 : <>Recomendado: <strong>fatura-recibo</strong> — {formatEur(baseSemIva)} sem IVA passa o limite de {formatEur(limiteFs)} da fatura simplificada.</>}
             </p>
             <Button type="button" variant="success" leftIcon={<FileCheck2 size={15} />} disabled={ocupado || !!problema}

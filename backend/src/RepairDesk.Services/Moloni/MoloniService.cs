@@ -249,7 +249,7 @@ public partial class MoloniService : IMoloniService
         {
             // CIVA art. 40.º n.º 1: retalhista a não sujeitos passivos até 1000 €; outras (serviços) até 100 € — sem IVA.
             var baseSemIva = venda.Items.Where(i => !i.PorFora).Sum(i => i.TotalCents / 100m / (1 + i.IvaRate / 100m));
-            var temServicos = venda.Items.Any(i => !i.PorFora && i.CompraLinhaId is null);
+            var temServicos = venda.Tipo != VendaTipo.Produto || venda.Items.Any(i => !i.PorFora && i.CompraLinhaId is null);
             var limite = temServicos ? 100m : 1000m;
             if (baseSemIva > limite)
                 throw new ValidationException("fs_limite",
@@ -663,7 +663,7 @@ public partial class MoloniService : IMoloniService
             var bruto = item.Quantidade * item.PrecoUnitarioCents;
             var linha = new Dictionary<string, object?>
             {
-                ["productId"] = await ProdutoAsync(key, companyId, cfg, t, item, ct),
+                ["productId"] = await ProdutoAsync(key, companyId, cfg, t, item, venda.Tipo, ct),
                 ["ordering"] = ++ordem,
                 ["name"] = item.Descricao.Length > 200 ? item.Descricao[..200] : item.Descricao,
                 ["qty"] = item.Quantidade,
@@ -690,10 +690,15 @@ public partial class MoloniService : IMoloniService
         return linhas;
     }
 
-    /// <summary>Artigo da loja → o seu artigo no Moloni (criado à 1.ª vez); resto → artigo genérico (serviço ou produto).</summary>
-    private async Task<int> ProdutoAsync(string key, int companyId, MoloniConfig cfg, Tenant t, VendaItem item, CancellationToken ct)
+    /// <summary>
+    /// Artigo da loja → o seu artigo no Moloni (criado à 1.ª vez); resto → artigo genérico (serviço ou produto).
+    /// 18/11 (Bruno): numa Reparação ou num Serviço a peça faz parte do serviço — TODAS as linhas vão como
+    /// serviço (tipo 2), também as do stock; só as vendas de Produto faturam produtos (tipo 1).
+    /// </summary>
+    private async Task<int> ProdutoAsync(string key, int companyId, MoloniConfig cfg, Tenant t, VendaItem item, VendaTipo tipoVenda, CancellationToken ct)
     {
-        if (item.CompraLinha?.ArtigoId is { } artigoId && await _artigos.FindByIdAsync(artigoId, ct) is { } artigo)
+        var comoServico = tipoVenda != VendaTipo.Produto;
+        if (!comoServico && item.CompraLinha?.ArtigoId is { } artigoId && await _artigos.FindByIdAsync(artigoId, ct) is { } artigo)
         {
             if (artigo.MoloniProductId is { } p) return p;
             artigo.MoloniProductId = await GarantirProdutoAsync(key, companyId, cfg, artigo.Sku, string.IsNullOrWhiteSpace(artigo.NomeFatura) ? artigo.Nome : artigo.NomeFatura, 1,
@@ -708,7 +713,7 @@ public partial class MoloniService : IMoloniService
             cfg.ProdutoServicoId = null;
             cfg.GenericosSemMarca = true;
         }
-        if (item.CompraLinhaId is not null)
+        if (item.CompraLinhaId is not null && !comoServico)
         {
             if (cfg.ProdutoArtigoId is { } a) return a;
             cfg.ProdutoArtigoId = await GarantirProdutoAsync(key, companyId, cfg, "ARTIGO", "Artigo", 1, 0m, ct);
