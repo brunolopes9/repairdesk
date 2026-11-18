@@ -528,7 +528,7 @@ function ImportRow({
   const tipo = x.fornecedorDefaultAction === 'stock' ? 'compra' : x.fornecedorDefaultAction === 'despesa' ? 'despesa' : null;
   // Faturas de despesa não têm compra para ligar — não vale a pena procurar correspondência.
   const corr = useCorrespondencia(x.id, x.status === 'Pending' && tipo !== 'despesa');
-  const podeLigar = (corr.data?.candidatos.length ?? 0) > 0;
+  const podeLigar = (corr.data?.candidatos?.length ?? 0) > 0;
   const btnCheio = 'flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium text-white';
   const btnVazio = 'flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800';
   return (
@@ -622,10 +622,10 @@ function ImportRow({
                   </div>
                   {/\b(shipping|portes?|envio|transport|chronopost|dpd|ups|fedex|dhl|frete)\b/i.test(item.description) ? (
                     <div className="mt-2 text-[11px] italic text-zinc-400">🚚 Custo de transporte — não importa para stock (skip por defeito ao aprovar).</div>
-                  ) : item.suggestions.length > 0 ? (
+                  ) : (item.suggestions?.length ?? 0) > 0 ? (
                     <div className="mt-2 space-y-1 border-t border-zinc-100 pt-2 dark:border-zinc-800">
                       <div className="text-[10px] uppercase text-zinc-500">Sugestões de match (Sprint 157 fuzzy por nome similar)</div>
-                      {item.suggestions.map((s, si) => (
+                      {(item.suggestions ?? []).map((s, si) => (
                         <div key={si} className="flex items-center justify-between rounded bg-zinc-50 px-2 py-1 text-xs dark:bg-zinc-800/50">
                           <span className="font-mono text-zinc-600 dark:text-zinc-300">{s.partSku}</span>
                           <span className="flex-1 truncate px-2">{s.partName}</span>
