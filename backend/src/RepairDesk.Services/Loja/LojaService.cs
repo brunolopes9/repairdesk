@@ -38,7 +38,9 @@ public sealed record GuardarProdutoLojaRequest(
     decimal? PrecoAnterior = null,
     int? Unidades = null,
     /// <summary>Sprint 655: artigo do stock — com ele, preço, custo e unidades vêm do artigo (o que vier aqui é ignorado).</summary>
-    Guid? ArtigoId = null);
+    Guid? ArtigoId = null,
+    /// <summary>18/11: com artigo ligado, mantém este preço em vez do do balcão (ex.: película sem aplicação).</summary>
+    bool PrecoProprio = false);
 
 public sealed record ImportarProdutosResultado(int Criados, int JaExistiam, IReadOnlyList<ProdutoLojaDto> Produtos);
 
@@ -53,7 +55,7 @@ public sealed record ProdutoLojaDto(
     string? SeoTitulo, string? SeoDescricao, bool Publicado, DateTime? PublicadoEm, string UrlSite,
     IReadOnlyList<ProdutoLojaFotoDto> Fotos, DateTime CreatedAt, DateTime? UpdatedAt,
     decimal? PrecoAnterior = null, int? Unidades = null,
-    Guid? ArtigoId = null, int? ArtigoNumero = null, string? ArtigoNome = null);
+    Guid? ArtigoId = null, int? ArtigoNumero = null, string? ArtigoNome = null, bool PrecoProprio = false);
 
 /// <summary>Vista pública (gerador do site) — SEM custo nem margem.</summary>
 public sealed record CatalogoProdutoDto(
@@ -317,7 +319,7 @@ public sealed class LojaService : ILojaService
             if (await _repo.ProdutoDoArtigoAsync(artigoId, p.Id == Guid.Empty ? null : p.Id, ct) is { } outro)
                 throw new ConflictException("artigo_ja_na_loja", $"O artigo nº {artigo.Numero} já está na loja («{outro}»).");
             _ligados[artigoId] = artigo;
-            req = req with { Preco = artigo.PrecoCents.Value / 100m, Unidades = Math.Max(0, artigo.Stock) };
+            req = req with { Preco = req.PrecoProprio && req.Preco > 0 ? req.Preco : artigo.PrecoCents.Value / 100m, Unidades = Math.Max(0, artigo.Stock) };
         }
 
         if (req.Preco <= 0 || req.Preco > 100_000) throw new ValidationException("preco_invalido", "Preço de venda obrigatório.");
@@ -374,6 +376,7 @@ public sealed class LojaService : ILojaService
         p.PrecoAnteriorCents = req.PrecoAnterior is { } pAnt ? (long)Math.Round(pAnt * 100, MidpointRounding.AwayFromZero) : null;
         p.Unidades = req.Unidades;
         p.ArtigoId = artigo?.Id;
+        p.PrecoProprio = artigo is not null && req.PrecoProprio;
         if (artigo is not null) CopiarDoArtigo(p, artigo);
         p.Cor = Corta(TrimOrNull(req.Cor), 40);
         p.RamGb = req.RamGb;
@@ -455,7 +458,7 @@ public sealed class LojaService : ILojaService
                 f.Enviada ? _storage?.CreateDownloadUrl(f.StorageKey, ValidadeLeitura) : null, f.Enviada)).ToList(),
             p.CreatedAt, p.UpdatedAt, p.PrecoAnteriorCents / 100m, p.Unidades,
             p.ArtigoId, p.ArtigoId is { } a && _ligados.TryGetValue(a, out var r) ? r.Numero : null,
-            p.ArtigoId is { } a2 && _ligados.TryGetValue(a2, out var r2) ? r2.Nome : null);
+            p.ArtigoId is { } a2 && _ligados.TryGetValue(a2, out var r2) ? r2.Nome : null, p.PrecoProprio);
     }
 
     private CatalogoProdutoDto ToCatalogo(ProdutoLoja p) => new(
@@ -493,8 +496,8 @@ public sealed class LojaService : ILojaService
     }
 
     /// <summary>
-    /// Sprint 655: copia do artigo ligado o preço, o custo, as unidades e a disponibilidade — a loja nunca tem
-    /// um preço diferente do balcão e um artigo vendido ao balcão sai da loja.
+    /// Sprint 655: copia do artigo ligado o preço, o custo, as unidades e a disponibilidade — um artigo vendido ao
+    /// balcão sai da loja. 18/11: o preço não se copia quando o produto tem preço próprio.
     /// </summary>
     private async Task Sincronizar(IReadOnlyCollection<ProdutoLoja> produtos, CancellationToken ct)
     {
@@ -511,7 +514,7 @@ public sealed class LojaService : ILojaService
 
     public static void CopiarDoArtigo(ProdutoLoja p, ArtigoLojaResumo r)
     {
-        if (r.PrecoCents is > 0) p.PrecoCents = r.PrecoCents.Value;
+        if (r.PrecoCents is > 0 && !p.PrecoProprio) p.PrecoCents = r.PrecoCents.Value;
         if (r.CustoSemIva is { } c) p.CustoCents = (long)Math.Round(c * 100, MidpointRounding.AwayFromZero);
         p.Unidades = Math.Max(0, r.Stock);
         p.Disponibilidade = r.Stock > 0 && r.Ativo ? LojaDisponibilidade.EmStock : LojaDisponibilidade.Esgotado;

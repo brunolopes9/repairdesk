@@ -75,6 +75,7 @@ export interface ProdutoLoja {
   artigoId?: string | null;
   artigoNumero?: number | null;
   artigoNome?: string | null;
+  precoProprio?: boolean;
 }
 
 export interface GuardarProdutoLoja {
@@ -104,6 +105,8 @@ export interface GuardarProdutoLoja {
   seoDescricao: string | null;
   /** Sprint 655: artigo do stock (o servidor ignora preço/unidades/custo enviados e usa os do artigo). */
   artigoId?: string | null;
+  /** 18/11: com artigo ligado, preço só da loja (ex.: película sem aplicação a 9,90 €). */
+  precoProprio?: boolean;
 }
 
 interface UploadFotoTicket {

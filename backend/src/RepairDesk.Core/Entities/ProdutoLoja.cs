@@ -38,6 +38,9 @@ public class ProdutoLoja : BaseEntity, ITenantEntity
 
     /// <summary>Preço final ao cliente (IVA incluído), em cêntimos.</summary>
     public long PrecoCents { get; set; }
+    /// <summary>18/11 (Bruno): preço só da loja, diferente do balcão (ex.: película enviada sem aplicação a 9,90 € e
+    /// aplicada na loja a 14,90 €). Com artigo ligado, o stock e o custo continuam a vir do artigo; o preço não.</summary>
+    public bool PrecoProprio { get; set; }
     /// <summary>Custo (privado — nunca vai para o site).</summary>
     public long? CustoCents { get; set; }
     /// <summary>Sprint 654: preço riscado (promoção). Tem de ser o preço mais baixo dos últimos 30 dias (DL 109/2019, Omnibus).</summary>

@@ -40,6 +40,7 @@ function paraForm(p: ProdutoLoja): GuardarProdutoLoja {
     disponibilidade: p.disponibilidade, preco: p.preco, custo: p.custo, cor: p.cor, ramGb: p.ramGb,
     armazenamentoGb: p.armazenamentoGb, descricao: p.descricao, specs: p.specs, slug: p.slug, seoTitulo: p.seoTitulo, seoDescricao: p.seoDescricao,
     precoAnterior: p.precoAnterior ?? null, unidades: p.unidades ?? null, artigoId: p.artigoId ?? null,
+    precoProprio: p.precoProprio ?? false,
   };
 }
 
@@ -384,8 +385,14 @@ export default function ProdutoLojaEditor() {
               {Object.entries(DISPONIBILIDADE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Campo>
-          <Campo label="Preço de venda (€, final ao cliente)">
-            <input className={input} inputMode="decimal" disabled={ligado} value={f.preco || ''} onChange={(e) => set('preco', numOuNull(e.target.value) ?? 0)} />
+          <Campo label="Preço de venda (€, final ao cliente)" hint={ligado ? (f.precoProprio ? 'Preço só da loja (o balcão continua com o do artigo).' : 'Vem do artigo (o mesmo do balcão).') : undefined}>
+            <input className={input} inputMode="decimal" disabled={ligado && !f.precoProprio} value={f.preco || ''} onChange={(e) => set('preco', numOuNull(e.target.value) ?? 0)} />
+            {ligado && (
+              <label className="mt-1.5 flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                <input type="checkbox" checked={!!f.precoProprio} onChange={(e) => set('precoProprio', e.target.checked)} />
+                Preço diferente na loja (ex.: película enviada sem aplicação)
+              </label>
+            )}
           </Campo>
           <Campo label="Custo (€) — só tu vês" hint={f.regimeIva === LojaRegimeIva.Margem ? 'Preço a que compraste o equipamento (sem as peças da reparação).' : undefined}>
             <input className={input} inputMode="decimal" disabled={ligado} value={f.custo ?? ''} onChange={(e) => set('custo', numOuNull(e.target.value))} />

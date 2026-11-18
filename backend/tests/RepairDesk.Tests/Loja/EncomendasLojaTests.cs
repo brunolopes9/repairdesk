@@ -141,6 +141,26 @@ public class EncomendasLojaTests : IClassFixture<RepairDeskApiFactory>
 
     // ---------- helpers ----------
 
+    [Fact]
+    public async Task PrecoProprio_ALojaVendeMaisBaratoQueOBalcao_EStockContinuaDoArtigo()
+    {
+        // 18/11 (Bruno): película a 14,90 € aplicada na loja; enviada pela loja online, sem aplicação, a 9,90 €.
+        var admin = await Admin();
+        var (produto, artigoId) = await ProdutoComStock(admin, stock: 3, precoCents: 1490);
+        produto.Preco.Should().Be(14.90m);
+        var req = new GuardarProdutoLojaRequest(produto.Titulo, produto.Marca, null, produto.Categoria, produto.Estado, null, 36,
+            produto.RegimeIva, produto.Origem, null, null, 9.90m, null, null, null, null, null, null, null, null, null,
+            ArtigoId: artigoId, PrecoProprio: true);
+        var depois = await Ok<ProdutoLojaDto>(await admin.PutAsJsonAsync($"/api/loja/produtos/{produto.Id}", req));
+        depois.Preco.Should().Be(9.90m);
+        depois.PrecoProprio.Should().BeTrue();
+        depois.Unidades.Should().Be(3);
+
+        // A lista (que volta a copiar do artigo) não repõe o preço do balcão.
+        var lista = await admin.GetFromJsonAsync<List<ProdutoLojaDto>>("/api/loja/produtos");
+        lista!.Single(x => x.Id == produto.Id).Preco.Should().Be(9.90m);
+    }
+
     internal static CheckoutRequest Pedido(string slug, int qtd) => new(
         new[] { new CheckoutLinhaRequest(slug, qtd) }, "Maria Teste Silva", "maria@example.com", "912 345 678", null,
         "Rua da Igreja 1", "3505-347", "Viseu", null, true);

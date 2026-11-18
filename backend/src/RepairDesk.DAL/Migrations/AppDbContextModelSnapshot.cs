@@ -2506,6 +2506,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<long>("PrecoCents")
                         .HasColumnType("bigint");
 
+                    b.Property<bool>("PrecoProprio")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("Publicado")
                         .HasColumnType("bit");
 
