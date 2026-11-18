@@ -238,7 +238,7 @@ public partial class MoloniService : IMoloniService
         if (req.VencimentoDias is < 0 or > 365) throw new ValidationException("vencimento_invalido", "Prazo de vencimento entre 0 e 365 dias.");
 
         var serie = req.SerieId ?? SeriePorTipo(cfg, venda.Tipo);
-        await GarantirSerieNaAtAsync(key, companyId, serie, ct);
+        var nomeSerie = await GarantirSerieNaAtAsync(key, companyId, serie, ct);
         var customerId = await ClienteDaFaturaAsync(key, companyId, cfg, venda, req, ct);
         var produtos = await LinhasAsync(key, companyId, cfg, t, venda, req.MotivoIsencao, ct);
         var agora = DateTime.UtcNow;
@@ -271,7 +271,7 @@ public partial class MoloniService : IMoloniService
         if (!fatura) dados["payments"] = new[] { Pagamento(metodo!.Value, totalVenda, agora) };
 
         var tipoBase = fatura ? "Invoice" : simplificada ? "SimplifiedInvoice" : "InvoiceReceipt";
-        var (documentId, totalMoloni) = await CriarRascunhoAsync(key, companyId, apiCode, tipoBase + "Insert", dados, ct);
+        var (documentId, totalMoloni) = await CriarRascunhoAsync(key, companyId, apiCode, tipoBase + "Insert", dados, ct, nomeSerie);
         await GarantirTotalAsync(key, companyId, apiCode, documentId, totalMoloni, totalVenda, ct);
 
         var final = new Dictionary<string, object?> { ["documentId"] = documentId, ["status"] = 1 };
@@ -460,15 +460,28 @@ public partial class MoloniService : IMoloniService
     /// Sprint 587: uma série que não está comunicada à AT não emite ("Can't use this document set because it is not
     /// setup for AT"). Avisa-se antes, em português, com a saída (outra série ou comunicá-la no Moloni ON).
     /// </summary>
-    private async Task GarantirSerieNaAtAsync(string key, int companyId, int serieId, CancellationToken ct)
+    private async Task<string?> GarantirSerieNaAtAsync(string key, int companyId, int serieId, CancellationToken ct)
     {
         var serie = (await SeriesAsync(key, companyId, ct)).FirstOrDefault(s => s.Id == serieId);
         if (serie?.AtivaNaAt == false) throw SerieSemAt(serie.Nome);
+        return serie?.Nome;
     }
 
-    private static ValidationException SerieSemAt(string? nome) => new("serie_sem_at",
-        $"A série {nome ?? "escolhida"} não está comunicada à AT no Moloni ON, por isso não pode emitir faturas. " +
-        "Escolhe outra série (ex.: REPARACAO) ou comunica esta em Moloni ON › Definições › Séries de documentos.");
+    private static ValidationException SerieSemAt(string? nome, string? tipoDoc = null) => new("serie_sem_at",
+        // 18/11: dizer QUAL série e PARA QUE documento — a mesma série pode estar comunicada para «Fatura» e não para
+        // «Fatura-recibo» ou «Fatura simplificada» (cada tipo de documento comunica-se à parte na AT).
+        $"A série {nome ?? "escolhida"} não está comunicada à AT para {tipoDoc ?? "este tipo de documento"} no Moloni ON, por isso o Moloni não a deixa emitir. " +
+        $"Comunica-a em Moloni ON › Definições › Séries de documentos › {nome ?? "a série"} › {tipoDoc ?? "o tipo de documento"} (é um minuto), " +
+        "ou carrega em «mudar» ao lado da série e escolhe uma já comunicada.");
+
+    private static string NomeDocumento(string apiCode) => apiCode switch
+    {
+        "invoice" => "Fatura",
+        "simplifiedInvoice" => "Fatura simplificada",
+        "invoiceReceipt" => "Fatura-recibo",
+        "estimate" => "Orçamento",
+        _ => apiCode,
+    };
 
     private async Task<IReadOnlyList<MoloniSerieDto>> SeriesAsync(string key, int companyId, CancellationToken ct)
     {
@@ -761,7 +774,7 @@ public partial class MoloniService : IMoloniService
         => new { paymentMethodId = metodo, value = valor, date = data.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture) };
 
     private async Task<(int DocumentId, decimal Total)> CriarRascunhoAsync(string key, int companyId, string apiCode, string tipoInput,
-        Dictionary<string, object?> dados, CancellationToken ct)
+        Dictionary<string, object?> dados, CancellationToken ct, string? nomeSerie = null)
     {
         JsonNode? d;
         try
@@ -772,7 +785,7 @@ public partial class MoloniService : IMoloniService
         }
         catch (MoloniException e) when (e.Message.Contains("for AT", StringComparison.OrdinalIgnoreCase))
         {
-            throw SerieSemAt(null); // Sprint 587: o Moloni recusou a série (não comunicada/ativa na AT)
+            throw SerieSemAt(nomeSerie, NomeDocumento(apiCode)); // Sprint 587: o Moloni recusou a série (não comunicada/ativa na AT)
         }
         return (d!["documentId"]!.GetValue<int>(), d["totalValue"]!.GetValue<decimal>());
     }
