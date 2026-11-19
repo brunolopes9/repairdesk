@@ -188,7 +188,7 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
         </label>
         <label className="sm:col-span-2">
           <span className={labelCls}>Nome na fatura ao cliente (português) — vazio = o nome acima</span>
-          <input value={nomeFatura} onChange={(e) => setNomeFatura(e.target.value)} className={inputCls} placeholder="Película de vidro temperado com borda preta" maxLength={200} />
+          <input value={nomeFatura} onChange={(e) => setNomeFatura(e.target.value)} className={inputCls} placeholder={nome.trim() ? `vazio = «${nome.trim()}»` : "Película de vidro temperado com borda preta"} maxLength={200} />
         </label>
         <label>
           <span className={labelCls}>Preço de venda c/ IVA (€)</span>

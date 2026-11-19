@@ -61,20 +61,20 @@ public class IfthenpayLojaTests : IClassFixture<RepairDeskApiFactory>
         r.UrlPagamento.Should().Be("https://gateway.ifthenpay.com/url/teste");
         _ifthenpay.UltimoUrl.Should().EndWith("/gateway/pinpay/ABC-123456");
         _ifthenpay.UltimoCorpo!.RootElement.GetProperty("id").GetString().Should().Be(r.Referencia);
-        _ifthenpay.UltimoCorpo.RootElement.GetProperty("amount").GetString().Should().Be("22.80"); // 2 × 8,90 + 5 € CTT
+        _ifthenpay.UltimoCorpo.RootElement.GetProperty("amount").GetString().Should().Be("22.70"); // 2 × 8,90 + 4,90 € CTT
         (await Stock(admin, artigoId)).Should().Be(2);
 
         string Cb(string key, string amount) =>
             $"/api/public/loja/{slug}/ifthenpay/callback?key={key}&id={r.Referencia}&amount={amount}&payment_datetime=18-11-2026%2015:00:00&payment_method=MBWAY";
 
         // Chave errada → 403, nada muda. Valor errado → recebido mas NÃO pago.
-        (await anon.GetAsync(Cb("errada", "22.80"))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await anon.GetAsync(Cb("errada", "22.70"))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await anon.GetAsync(Cb("chave-anti-phishing-teste", "1.00"))).StatusCode.Should().Be(HttpStatusCode.OK);
         (await Estado(admin, r.Referencia)).Should().Be(EncomendaLojaEstado.AguardaPagamento);
 
         // Callback certo (repetido, como o ifthenpay faz se não receber 200) → paga uma vez, stock sai uma vez.
-        (await anon.GetAsync(Cb("chave-anti-phishing-teste", "22.80"))).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await anon.GetAsync(Cb("chave-anti-phishing-teste", "22.80"))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await anon.GetAsync(Cb("chave-anti-phishing-teste", "22.70"))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await anon.GetAsync(Cb("chave-anti-phishing-teste", "22.70"))).StatusCode.Should().Be(HttpStatusCode.OK);
         (await Estado(admin, r.Referencia)).Should().Be(EncomendaLojaEstado.Paga);
         (await Stock(admin, artigoId)).Should().Be(0);
 
