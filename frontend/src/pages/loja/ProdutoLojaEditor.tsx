@@ -73,6 +73,40 @@ function Campo({ label, hint, children }: { label: string; hint?: ReactNode; chi
 
 const numOuNull = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')));
 
+/**
+ * 19/11: campo de euros que guarda o texto enquanto se escreve. Antes o valor era o número: ao escrever «14.»
+ * ficava 14 e o ponto desaparecia — «14.90» virava 1490 €. Só volta a ler o número de fora quando muda lá.
+ */
+function CampoEuros({ value, onChange, disabled, ariaLabel }: {
+  value: number | null; onChange: (v: number | null) => void; disabled?: boolean; ariaLabel?: string;
+}) {
+  const fmt = (n: number | null) => (n == null || n === 0 ? '' : String(n).replace('.', ','));
+  const [txt, setTxt] = useState(fmt(value));
+  const ultimo = useRef(value);
+  useEffect(() => {
+    if (value !== ultimo.current) { ultimo.current = value; setTxt(fmt(value)); }
+  }, [value]);
+  return (
+    <input className={input} inputMode="decimal" disabled={disabled} aria-label={ariaLabel} value={txt} placeholder="0,00"
+      onChange={(e) => {
+        const t = e.target.value.replace(/[^\d.,]/g, '');
+        setTxt(t);
+        const n = numOuNull(t);
+        const v = n == null || Number.isNaN(n) ? null : Math.round(n * 100) / 100;
+        ultimo.current = v;
+        onChange(v);
+      }} />
+  );
+}
+
+/** 19/11: a categoria do artigo (Películas, Peças…) diz a categoria da loja — antes vinha sempre a do formulário. */
+function categoriaDoArtigo(cat: string | null | undefined, atual: LojaCategoria): LojaCategoria {
+  const c = (cat ?? '').toLowerCase();
+  if (/pel[ií]cul|capa|carregador|cabo|acess|protetor|suporte|powerbank|auricular/.test(c)) return LojaCategoria.Acessorios;
+  if (/pe[cç]a|bateria|ecr[aã]|flex/.test(c)) return LojaCategoria.Pecas;
+  return atual;
+}
+
 /** Sprint 655: copia do artigo o que a loja mostra (o servidor faz o mesmo — isto é só para o formulário já ficar certo). */
 function doArtigo(s: GuardarProdutoLoja, a: Artigo): GuardarProdutoLoja {
   return {
@@ -157,7 +191,7 @@ export default function ProdutoLojaEditor() {
   useEffect(() => {
     if (!novo || prefill || !artigoInicial || !artigos.data) return;
     const a = artigos.data.find((x) => x.id === artigoInicial);
-    if (a) setF((s) => ({ ...doArtigo(s, a), estado: LojaEstado.Novo, categoria: (a.categoria ?? '').toLowerCase().startsWith('pe') ? LojaCategoria.Pecas : LojaCategoria.Acessorios }));
+    if (a) setF((s) => ({ ...doArtigo(s, a), estado: LojaEstado.Novo, categoria: categoriaDoArtigo(a.categoria, LojaCategoria.Acessorios) }));
     setPrefill(true);
   }, [novo, prefill, artigoInicial, artigos.data]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -365,7 +399,7 @@ export default function ProdutoLojaEditor() {
             ? 'O preço, o custo e as unidades vêm do artigo. Muda-os no artigo; quando vendes ao balcão, a loja atualiza sozinha.'
             : 'Liga a um artigo para o preço e o stock serem sempre os do balcão.'}>
             <ArtigoDoStock artigoId={f.artigoId} artigos={artigos.data ?? []}
-              onEscolher={(a) => setF((s) => doArtigo(s, a))}
+              onEscolher={(a) => setF((s) => ({ ...doArtigo(s, a), categoria: categoriaDoArtigo(a.categoria, s.categoria) }))}
               onDesligar={() => set('artigoId', null)} />
           </Campo>
         </div>
@@ -386,7 +420,7 @@ export default function ProdutoLojaEditor() {
             </select>
           </Campo>
           <Campo label="Preço de venda (€, final ao cliente)" hint={ligado ? (f.precoProprio ? 'Preço só da loja (o balcão continua com o do artigo).' : 'Vem do artigo (o mesmo do balcão).') : undefined}>
-            <input className={input} inputMode="decimal" disabled={ligado && !f.precoProprio} value={f.preco || ''} onChange={(e) => set('preco', numOuNull(e.target.value) ?? 0)} />
+            <CampoEuros disabled={ligado && !f.precoProprio} value={f.preco || null} onChange={(v) => set('preco', v ?? 0)} />
             {ligado && (
               <label className="mt-1.5 flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                 <input type="checkbox" checked={!!f.precoProprio} onChange={(e) => set('precoProprio', e.target.checked)} />
@@ -395,10 +429,10 @@ export default function ProdutoLojaEditor() {
             )}
           </Campo>
           <Campo label="Custo (€) — só tu vês" hint={f.regimeIva === LojaRegimeIva.Margem ? 'Preço a que compraste o equipamento (sem as peças da reparação).' : undefined}>
-            <input className={input} inputMode="decimal" disabled={ligado} value={f.custo ?? ''} onChange={(e) => set('custo', numOuNull(e.target.value))} />
+            <CampoEuros disabled={ligado} value={f.custo} onChange={(v) => set('custo', v)} />
           </Campo>
           <Campo label="Preço antes (€) — promoção" hint="Aparece riscado na loja. Por lei tem de ser o preço mais baixo que praticaste nos últimos 30 dias.">
-            <input className={input} inputMode="decimal" value={f.precoAnterior ?? ''} onChange={(e) => set('precoAnterior', numOuNull(e.target.value))} />
+            <CampoEuros value={f.precoAnterior} onChange={(v) => set('precoAnterior', v)} />
           </Campo>
           <Campo label="Unidades em stock" hint="Com 1 ou 2 aparece «Últimas unidades». Vazio = não mostra.">
             <input className={input} inputMode="numeric" disabled={ligado} value={f.unidades ?? ''} onChange={(e) => { const v = numOuNull(e.target.value); set('unidades', v == null ? null : Math.max(0, Math.round(v))); }} />
