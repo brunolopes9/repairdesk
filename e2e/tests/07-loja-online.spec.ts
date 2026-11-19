@@ -82,7 +82,7 @@ test('loja online: conta, checkout, pagamento, stock, seguimento e envio', async
   const seguir = () => api.publico('GET', `${base}/encomendas/${referencia}?t=${encodeURIComponent(t!)}`);
   let estado = (await (await seguir()).json()) as { estado: number; total: number; portes: number; email?: string };
   expect(estado.estado).toBe(ESTADO.AguardaPagamento);
-  expect(estado.total).toBeCloseTo(2 * 8.9 + 5, 2); // preço do servidor + 5 € de portes CTT
+  expect(estado.total).toBeCloseTo(2 * 8.9 + 4.9, 2); // preço do servidor + 4,90 € de portes CTT
   expect((await api.publico('GET', `${base}/encomendas/${referencia}?t=errado`)).status()).toBe(404);
   expect(await api.stockDoLote(loteId)).toBe(3); // ainda não pago: o stock não sai
 
