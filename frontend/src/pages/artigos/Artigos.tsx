@@ -314,7 +314,7 @@ export default function Artigos() {
       <CategoriasModal open={categorias} onClose={() => setCategorias(false)} />
 
       <ArtigosDoStockModal open={doStock} onClose={() => setDoStock(false)}
-        onCriados={(ids) => setEscolhidos(Object.fromEntries(ids.map((id) => [id, 1])))} />
+        onCriados={(cs) => setEscolhidos(Object.fromEntries(cs.map((c) => [c.id, Math.max(1, c.stock)])))} />
 
       <ArtigoModal open={editar !== undefined} artigoId={editar ?? null} onClose={() => setEditar(undefined)}
         onEtiquetas={(a) => { setEditar(undefined); etiquetasDe(a); }} />

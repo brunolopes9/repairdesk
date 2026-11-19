@@ -13,7 +13,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   /** Depois de criar: ids dos artigos novos (para escolher logo para etiquetas). */
-  onCriados: (ids: string[]) => void;
+  onCriados: (criados: { id: string; stock: number }[]) => void;
 }
 
 /**
@@ -23,7 +23,9 @@ interface Props {
 export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props) {
   const qc = useQueryClient();
   const sugestoes = useQuery({ queryKey: ['artigos', 'sugestoes'], queryFn: artigosApi.sugestoes, enabled: open });
-  const [escolhidos, setEscolhidos] = useState<Record<number, string>>({}); // índice → nome (editável)
+  // 19/11: chave = 1.º lote do grupo (não o índice): depois de criar/ligar a lista volta com menos grupos e um índice
+  // antigo apontava para nada (a página rebentava em «artigoSugeridoId» de undefined).
+  const [escolhidos, setEscolhidos] = useState<Record<string, string>>({}); // chave do grupo → nome (editável)
   const [q, setQ] = useState('');
   const [categoria, setCategoria] = useState('');
   const [destino, setDestino] = useState('');
@@ -37,7 +39,9 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
     setDestino('');
   }, [open]);
 
-  const loteIdsEscolhidos = () => Object.keys(escolhidos).flatMap((i) => sugestoes.data![Number(i)].loteIds);
+  const porChave = useMemo(() => new Map((sugestoes.data ?? []).map((s) => [s.loteIds[0], s])), [sugestoes.data]);
+  const gruposEscolhidos = Object.keys(escolhidos).map((k) => porChave.get(k)).filter((s): s is NonNullable<typeof s> => !!s);
+  const loteIdsEscolhidos = () => gruposEscolhidos.flatMap((s) => s.loteIds);
   const depois = (titulo: string) => {
     toast.success(titulo);
     qc.invalidateQueries({ queryKey: ['artigos'] });
@@ -58,7 +62,7 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
   });
 
   // Sprint 581: confirmar as sugestões (mesma descrição de um lote já ligado) dos grupos marcados.
-  const comSugestao = Object.keys(escolhidos).map((i) => sugestoes.data![Number(i)]).filter((s) => s.artigoSugeridoId);
+  const comSugestao = gruposEscolhidos.filter((s) => s.artigoSugeridoId);
   const confirmar = useMutation({
     mutationFn: async () => {
       const porArtigo = new Map<string, string[]>();
@@ -88,24 +92,28 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
     onError: (err) => toast.fromError(err, 'Não foi possível tirar do stock.'),
   });
 
-  const lista = useMemo(() => (sugestoes.data ?? []).map((s, i) => ({ ...s, i }))
+  const lista = useMemo(() => (sugestoes.data ?? []).map((s) => ({ ...s, i: s.loteIds[0] }))
     .filter((s) => !q.trim() || correspondeTermos(s.nome, q.trim().toLowerCase())), [sugestoes.data, q]);
 
   const criar = useMutation({
     mutationFn: () => artigosApi.criarEmLote(
-      Object.entries(escolhidos).map(([i, nome]) => ({ nome: nome.trim(), loteIds: sugestoes.data![Number(i)].loteIds, categoria: sugestoes.data![Number(i)].categoria })),
+      Object.entries(escolhidos).flatMap(([k, nome]) => {
+        const g = porChave.get(k);
+        return g ? [{ nome: nome.trim(), loteIds: g.loteIds, categoria: g.categoria }] : [];
+      }),
       categoria.trim() || null),
     onSuccess: (criados) => {
       toast.success(`${criados.length} artigo(s) criados`, 'Já com stock e código de barras — escolhe-os para imprimir as etiquetas.');
       qc.invalidateQueries({ queryKey: ['artigos'] });
       qc.invalidateQueries({ queryKey: ['compras', 'inventario'] });
-      onCriados(criados.map((a) => a.id));
+      setEscolhidos({});
+      onCriados(criados.map((a) => ({ id: a.id, stock: a.stock })));
       onClose();
     },
     onError: (err) => toast.fromError(err, 'Não foi possível criar os artigos.'),
   });
 
-  const n = Object.keys(escolhidos).length;
+  const n = gruposEscolhidos.length;
   const todosVisiveis = lista.length > 0 && lista.every((s) => escolhidos[s.i] !== undefined);
   return (
     <Modal open={open} onClose={onClose} wide title="Stock por ligar"
@@ -183,7 +191,8 @@ export default function ArtigosDoStockModal({ open, onClose, onCriados }: Props)
                       </td>
                       <td className="px-3 py-2">
                         {marcado
-                          ? <input value={escolhidos[s.i]} onChange={(e) => setEscolhidos((x) => ({ ...x, [s.i]: e.target.value }))} className={`${inputCls} min-h-9 py-1`} />
+                          ? <input value={escolhidos[s.i]} aria-label="Nome do artigo a criar" onChange={(e) => setEscolhidos((x) => ({ ...x, [s.i]: e.target.value }))}
+                              className="h-7 w-full rounded-md border border-brand-300 bg-white px-2 text-sm dark:border-brand-800 dark:bg-zinc-950" />
                           : s.nome}
                         {s.categoria && <span className="ml-1 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">{s.categoria}</span>}
                         {s.artigoSugeridoNome && <span className="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" title="Um lote igual já está neste artigo — marca e confirma">sugestão: {s.artigoSugeridoNome}</span>}
