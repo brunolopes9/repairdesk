@@ -56,12 +56,28 @@ public class IfthenpayLojaTests : IClassFixture<RepairDeskApiFactory>
         (await admin.GetStringAsync("/api/loja/pagamentos")).Should().NotContain("ABC-123456").And.NotContain("chave-anti-phishing-teste");
         (await anon.GetAsync("/api/loja/pagamentos")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
+        // Sprint 700: Gateway Key «dinâmica» — sem métodos a página do ifthenpay abria vazia. As chaves de cada
+        // método entram cifradas; só os códigos voltam. Método desconhecido ou chave com «|» → 422.
+        estado = await Ok<PagamentosLojaEstadoDto>(await admin.PutAsJsonAsync("/api/loja/pagamentos",
+            new GuardarPagamentosLojaRequest(null, null, Metodos: new() { ["MBWAY"] = "MBW-111111", ["MB"] = "MBK-222222", ["CCARD"] = "CCK-333333" })));
+        estado.MetodosDefinidos.Should().Equal("MB", "MBWAY", "CCARD");
+        (await admin.GetStringAsync("/api/loja/pagamentos")).Should().NotContain("MBW-111111").And.NotContain("CCK-333333");
+        (await admin.PutAsJsonAsync("/api/loja/pagamentos", new GuardarPagamentosLojaRequest(null, null, Metodos: new() { ["BITCOIN"] = "X-1" })))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await admin.PutAsJsonAsync("/api/loja/pagamentos", new GuardarPagamentosLojaRequest(null, null, Metodos: new() { ["MB"] = "A|B;C" })))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        // «-» tira um método; vazio não mexe.
+        estado = await Ok<PagamentosLojaEstadoDto>(await admin.PutAsJsonAsync("/api/loja/pagamentos",
+            new GuardarPagamentosLojaRequest(null, null, Metodos: new() { ["CCARD"] = "-", ["MB"] = "" })));
+        estado.MetodosDefinidos.Should().Equal("MB", "MBWAY");
+
         // Checkout → pedido ao ifthenpay com o total do servidor e a referência como id.
         var r = await Ok<CheckoutResultado>(await anon.PostAsJsonAsync($"/api/public/loja/{slug}/checkout", Pedido(produto.Slug, 2)));
         r.UrlPagamento.Should().Be("https://gateway.ifthenpay.com/url/teste");
         _ifthenpay.UltimoUrl.Should().EndWith("/gateway/pinpay/ABC-123456");
         _ifthenpay.UltimoCorpo!.RootElement.GetProperty("id").GetString().Should().Be(r.Referencia);
         _ifthenpay.UltimoCorpo.RootElement.GetProperty("amount").GetString().Should().Be("22.70"); // 2 × 8,90 + 4,90 € CTT
+        _ifthenpay.UltimoCorpo.RootElement.GetProperty("accounts").GetString().Should().Be("MB|MBK-222222;MBWAY|MBW-111111");
         (await Stock(admin, artigoId)).Should().Be(2);
 
         string Cb(string key, string amount) =>

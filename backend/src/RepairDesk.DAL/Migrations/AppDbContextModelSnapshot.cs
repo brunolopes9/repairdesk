@@ -3540,6 +3540,9 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<string>("IfthenpayAntiPhishingKeyCipherText")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("IfthenpayContasCipherText")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("IfthenpayGatewayKeyCipherText")
                         .HasColumnType("nvarchar(max)");
 

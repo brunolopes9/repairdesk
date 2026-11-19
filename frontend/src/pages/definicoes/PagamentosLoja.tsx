@@ -7,11 +7,23 @@ import { useConfirm } from '../../components/ConfirmDialog';
 import { api } from '../../lib/api';
 import { toast } from '../../lib/toast';
 
-interface EstadoPagamentos { gatewayKeyDefinida: boolean; antiPhishingDefinida: boolean; ativo: boolean; callbackUrl: string | null }
+interface EstadoPagamentos {
+  gatewayKeyDefinida: boolean; antiPhishingDefinida: boolean; ativo: boolean; callbackUrl: string | null;
+  metodosDefinidos?: string[] | null;
+}
+
+/** Sprint 700: os métodos do Pay by Link — a Gateway Key «dinâmica» precisa da chave de cada um. */
+const METODOS: { codigo: string; nome: string; ex: string }[] = [
+  { codigo: 'MB', nome: 'Multibanco', ex: 'ex.: ABC-123456 (chave MB)' },
+  { codigo: 'MBWAY', nome: 'MB WAY', ex: 'ex.: ABC-123456 (chave MB WAY)' },
+  { codigo: 'CCARD', nome: 'Cartão', ex: 'ex.: ABC-123456 (chave CCARD)' },
+  { codigo: 'GOOGLE', nome: 'Google Pay', ex: 'ex.: ABC-123456 (chave Google Pay)' },
+  { codigo: 'APPLE', nome: 'Apple Pay', ex: 'ex.: ABC-123456 (chave Apple Pay)' },
+];
 
 const pagamentosApi = {
   estado: () => api.get<EstadoPagamentos>('/loja/pagamentos').then((r) => r.data),
-  guardar: (b: { gatewayKey: string | null; antiPhishingKey: string | null; remover?: boolean }) =>
+  guardar: (b: { gatewayKey: string | null; antiPhishingKey: string | null; remover?: boolean; metodos?: Record<string, string> }) =>
     api.put<EstadoPagamentos>('/loja/pagamentos', b).then((r) => r.data),
 };
 
@@ -25,12 +37,17 @@ export default function PagamentosLoja() {
   const estado = useQuery({ queryKey: ['loja', 'pagamentos'], queryFn: pagamentosApi.estado });
   const [gateway, setGateway] = useState('');
   const [anti, setAnti] = useState('');
+  const [metodos, setMetodos] = useState<Record<string, string>>({});
+  const metodosPreenchidos = Object.fromEntries(Object.entries(metodos).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
 
   const guardar = useMutation({
-    mutationFn: (remover?: boolean) => pagamentosApi.guardar({ gatewayKey: gateway.trim() || null, antiPhishingKey: anti.trim() || null, remover }),
+    mutationFn: (remover?: boolean) => pagamentosApi.guardar({
+      gatewayKey: gateway.trim() || null, antiPhishingKey: anti.trim() || null, remover,
+      metodos: Object.keys(metodosPreenchidos).length ? metodosPreenchidos : undefined,
+    }),
     onSuccess: (e, remover) => {
       qc.setQueryData(['loja', 'pagamentos'], e);
-      setGateway(''); setAnti('');
+      setGateway(''); setAnti(''); setMetodos({});
       if (remover) toast.success('Pagamentos desligados', 'A loja deixa de aceitar pagamentos pelo ifthenpay.');
       else if (e.ativo) toast.success('Pagamentos da loja ativos', 'Os clientes já podem pagar com MB WAY, Multibanco, cartão, Google Pay e Apple Pay.');
       else toast.success('Chave guardada', 'Falta a outra chave para ativar os pagamentos.');
@@ -67,7 +84,17 @@ export default function PagamentosLoja() {
             <ul className="mt-3 space-y-1 text-sm">
               <li>Gateway Key: {e?.gatewayKeyDefinida ? <strong className="text-emerald-700 dark:text-emerald-400">definida</strong> : <span className="text-zinc-500">em falta</span>}</li>
               <li>Chave anti-phishing: {e?.antiPhishingDefinida ? <strong className="text-emerald-700 dark:text-emerald-400">definida</strong> : <span className="text-zinc-500">em falta</span>}</li>
+              <li>Métodos: {e?.metodosDefinidos?.length
+                ? <strong className="text-emerald-700 dark:text-emerald-400">{METODOS.filter((m) => e.metodosDefinidos!.includes(m.codigo)).map((m) => m.nome).join(', ')}</strong>
+                : <span className="text-zinc-500">nenhum</span>}</li>
             </ul>
+            {e?.ativo && !e.metodosDefinidos?.length && (
+              <p role="alert" className="mt-3 flex items-start gap-2 text-sm font-medium text-rose-700 dark:text-rose-300">
+                <AlertTriangle size={16} className="mt-0.5 flex-none" />
+                Sem métodos, a página do ifthenpay abre só com o valor e o cliente não tem como pagar (a tua Gateway Key é «dinâmica»).
+                Cola abaixo a chave de cada método que o ifthenpay te enviou.
+              </p>
+            )}
           </SectionCard>
 
           <SectionCard title={<span className="flex items-center gap-2"><KeyRound size={16} /> Chaves do ifthenpay</span>}>
@@ -82,9 +109,23 @@ export default function PagamentosLoja() {
                 <input className={inputCls} type="password" value={anti} onChange={(ev) => setAnti(ev.target.value)} autoComplete="new-password" spellCheck={false}
                   placeholder={e?.antiPhishingDefinida ? '•••••••• (definida — escreve só para trocar)' : 'até 50 caracteres'} maxLength={50} />
               </label>
+              <fieldset className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
+                <legend className="px-1 text-sm font-medium">Chave de cada método (vem no email do ifthenpay)</legend>
+                {METODOS.map((m) => {
+                  const definido = e?.metodosDefinidos?.includes(m.codigo);
+                  return (
+                    <label key={m.codigo} className="block">
+                      <span className={labelCls}>{m.nome} {definido && <span className="text-emerald-700 dark:text-emerald-400">· definida</span>}</span>
+                      <input className={inputCls} value={metodos[m.codigo] ?? ''} autoComplete="off" spellCheck={false} maxLength={50}
+                        onChange={(ev) => setMetodos((s) => ({ ...s, [m.codigo]: ev.target.value }))}
+                        placeholder={definido ? '•••••••• (definida — escreve «-» para tirar)' : m.ex} />
+                    </label>
+                  );
+                })}
+              </fieldset>
               <p className="text-xs text-zinc-500">As chaves ficam cifradas no servidor e não voltam a aparecer aqui.</p>
               <div className="flex flex-wrap gap-2">
-                <Button type="submit" loading={guardar.isPending} disabled={!gateway.trim() && !anti.trim()}>Guardar</Button>
+                <Button type="submit" loading={guardar.isPending} disabled={!gateway.trim() && !anti.trim() && !Object.keys(metodosPreenchidos).length}>Guardar</Button>
                 {(e?.gatewayKeyDefinida || e?.antiPhishingDefinida) && (
                   <Button type="button" variant="danger" leftIcon={<Trash2 size={14} />} disabled={guardar.isPending}
                     onClick={async () => {

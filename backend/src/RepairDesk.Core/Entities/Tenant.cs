@@ -86,6 +86,11 @@ public class Tenant : BaseEntity
     // Sprint 690: pagamentos da loja online pelo ifthenpay (Pay by Link). Ambas cifradas; o dono cola-as em Definições.
     public string? IfthenpayGatewayKeyCipherText { get; set; }
     public string? IfthenpayAntiPhishingKeyCipherText { get; set; }
+    /// <summary>
+    /// Sprint 700: chaves de cada método («MB|XXX-000000;MBWAY|…;CCARD|…;GOOGLE|…;APPLE|…»), cifradas.
+    /// Uma Gateway Key «dinâmica» não tem métodos associados no ifthenpay — sem isto a página de pagamento abre vazia.
+    /// </summary>
+    public string? IfthenpayContasCipherText { get; set; }
 
     // Sprint 608 (Doc 95 Fase B3): cliente OAuth do Google (YouTube Data API v3). Secret cifrado.
     public string? YouTubeClientId { get; set; }
