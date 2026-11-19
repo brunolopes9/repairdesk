@@ -53,6 +53,8 @@ interface LinhaForm {
   taxaCompra: number;
   /** 18/11: portes da compra por unidade (só lotes escolhidos agora — informativo). */
   portesUnit?: number;
+  /** 19/11: lote de fornecedor da UE (autoliquidação) — a fatura não traz IVA, o custo é o mesmo com e sem IVA. */
+  autoliqUe?: boolean;
   maxStock: number | null;
   /** Sprint 594: peça que ainda não há (por encomendar/encomendada) — custo estimado c/ IVA e nota. */
   encomenda: PecaEncomendaEstado | null;
@@ -466,7 +468,7 @@ export default function VendaEditor() {
       const key = aSubstituir;
       setASubstituir(null);
       setLinhas((ls) => ls.map((l) => (l.key === key ? {
-        ...l, compraLinhaId: lote.linhaId, custoUnit: lote.precoUnitarioPago, taxaCompra: lote.taxaIvaCompra, portesUnit: lote.portesUnidade ?? 0,
+        ...l, compraLinhaId: lote.linhaId, custoUnit: lote.precoUnitarioPago, taxaCompra: lote.taxaIvaCompra, portesUnit: lote.portesUnidade ?? 0, autoliqUe: lote.autoliquidacaoUe,
         maxStock: lote.quantidadeEmStock, encomenda: null, custo: '', nota: '', iva: String(IVA_NORMAL),
       } : l)));
       setPickerOpen(false);
@@ -478,6 +480,7 @@ export default function VendaEditor() {
       id: null,
       compraLinhaId: lote.linhaId,
       portesUnit: lote.portesUnidade ?? 0,
+      autoliqUe: lote.autoliquidacaoUe,
       // Sprint 585: o que sai na fatura, em português ("Ecrã iPhone 14 Pro Max") — editável; o texto do fornecedor fica no lote.
       descricao: comPrefixo(lote.textoVenda ?? lote.descricao, tipo),
       quantidade: String(quantidade),
@@ -709,9 +712,9 @@ export default function VendaEditor() {
                 <tr>
                   <th className="py-2 pr-2 font-medium">Descrição</th>
                   <th className="w-16 py-2 pr-2 font-medium">Qtd</th>
-                  <th className="w-28 py-2 pr-2 font-medium">Preço un. {semIva ? 's/ IVA' : 'c/ IVA'}</th>
+                  <th className="w-28 py-2 pr-2 font-medium" title="Peças do stock: o teu custo (fixo, já pago ao fornecedor). Mão de obra/serviço: o preço por unidade.">Custo / preço un.</th>
                   <th className="w-20 py-2 pr-2 font-medium">IVA %</th>
-                  <th className="w-28 py-2 pr-2 text-right font-medium" title="Escreve aqui o total que queres cobrar por esta linha">Total c/ IVA ✎</th>
+                  <th className="w-28 py-2 pr-2 text-right font-medium" title="O teu preço de venda desta linha (com IVA) — escreve aqui; o lucro é a diferença para o custo">Venda c/ IVA ✎</th>
                   <th className="w-28 py-2 pr-2 text-right font-medium">IVA ao Estado</th>
                   <th className="w-28 py-2 pr-2 text-right font-medium" title="Lucro por unidade, sem IVA — escreve o que queres ganhar e o preço acerta-se">Lucro un. ✎</th>
                   <th className="w-10" />
@@ -761,8 +764,10 @@ export default function VendaEditor() {
                         ) : (
                           <span className="mt-1 block text-xs text-zinc-500">
                             {l.compraLinhaId ? (
-                              <>Stock · custo <strong className="text-sm text-zinc-900 dark:text-zinc-100">{formatEur(l.custoUnit)}/un. c/ IVA</strong>
-                                {' '}· {formatEur(l.custoUnit / (1 + l.taxaCompra))} s/ IVA
+                              <>Stock · pagaste <strong className="text-sm text-zinc-900 dark:text-zinc-100">{formatEur(l.custoUnit)}/un.</strong>
+                                {l.autoliqUe || l.taxaCompra === 0
+                                  ? <span title="Fornecedor da UE: a fatura vem sem IVA (autoliquidação — o IVA declara-se e deduz-se na mesma declaração, não te custa nada). O teu custo é este valor."> · fornecedor UE, sem IVA na fatura</span>
+                                  : <> (c/ IVA) · {formatEur(l.custoUnit / (1 + l.taxaCompra))} s/ IVA</>}
                                 {(l.portesUnit ?? 0) > 0 && (
                                   <span className="ml-1 font-semibold text-amber-700 dark:text-amber-300" title="Parte dos portes da compra que cabe a esta unidade — conta com isto no preço">
                                     + {formatEur(l.portesUnit!)} portes
@@ -793,10 +798,29 @@ export default function VendaEditor() {
                       </td>
                       <td className="py-1 sm:py-2 sm:pr-2">
                         <span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Qtd</span>
-                        <input aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} disabled={fechada} />
+                        {l.compraLinhaId && l.maxStock != null && l.maxStock <= 1 && Number(l.quantidade) <= 1 ? (
+                          // 19/11 (Bruno): só há 1 no stock → a quantidade não se escreve, é fixa.
+                          <span className="flex min-h-10 items-center px-1 font-semibold tabular-nums" title="Só há 1 unidade deste lote no stock">1</span>
+                        ) : (
+                          <input aria-label="Quantidade" inputMode="numeric" value={l.quantidade} onChange={(e) => setLinha(l.key, { quantidade: e.target.value.replace(/\D/g, '') })} className={inputCls} disabled={fechada} />
+                        )}
                         {l.maxStock != null && Number(l.quantidade) > l.maxStock && <span className="mt-1 block text-xs text-rose-600">só {l.maxStock}</span>}
                       </td>
-                      <td className="py-1 sm:py-2 sm:pr-2"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">{semIva ? 'Preço s/ IVA' : 'Preço c/ IVA'}</span><input aria-label={semIva ? 'Preço unitário sem IVA' : 'Preço unitário com IVA'} inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" disabled={fechada} />
+                      <td className="py-1 sm:py-2 sm:pr-2">
+                        {l.compraLinhaId ? (
+                          // 19/11 (Bruno): numa peça do stock o valor por unidade é o que pagaste ao fornecedor — fixo.
+                          // O preço de venda escreve-se em «Venda c/ IVA»; o lucro é a diferença.
+                          <>
+                            <span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Custo un. (fixo)</span>
+                            <span className="flex min-h-10 items-center rounded-lg bg-zinc-100 px-2 font-semibold tabular-nums text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                              title="O que pagaste ao fornecedor por unidade — não muda com o preço de venda">
+                              {fmt2(l.custoUnit)}
+                            </span>
+                            <span className="mt-1 block text-[11px] text-zinc-500">custo fixo</span>
+                          </>
+                        ) : (
+                          <><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">{semIva ? 'Preço s/ IVA' : 'Preço c/ IVA'}</span><input aria-label={semIva ? 'Preço unitário sem IVA' : 'Preço unitário com IVA'} inputMode="decimal" value={l.preco} onChange={(e) => setLinha(l.key, { preco: e.target.value })} className={inputCls} placeholder="0,00" disabled={fechada} /></>
+                        )}
                       </td>
                       <td className="py-1 sm:py-2 sm:pr-2">
                         <span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">IVA</span>
@@ -804,7 +828,7 @@ export default function VendaEditor() {
                           {['23', '13', '6', '0'].map((t) => <option key={t} value={t}>{t}%</option>)}
                         </select>
                       </td>
-                      <td className="py-1 font-medium tabular-nums sm:py-2 sm:pr-2 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Total c/ IVA</span>
+                      <td className="py-1 font-medium tabular-nums sm:py-2 sm:pr-2 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">Venda c/ IVA</span>
                         <input aria-label="Total da linha com IVA" inputMode="decimal" disabled={fechada}
                           value={totEdit[l.key] ?? fmt2(c.total)}
                           onChange={(e) => escreverTotal(l, e.target.value)}
@@ -814,7 +838,7 @@ export default function VendaEditor() {
                           const q = Math.max(1, Number(l.quantidade) || 1);
                           const unitCom = c.total / q;
                           const unitSem = unitCom / (1 + (parseDecimal(l.iva) ?? IVA_NORMAL) / 100);
-                          return <span className="mt-1 block text-[11px] font-normal text-zinc-500">un. {fmt2(unitCom)} c/ IVA · {fmt2(unitSem)} s/ IVA</span>;
+                          return <span className="mt-1 block text-[11px] font-normal text-zinc-500">{q > 1 ? `venda un. ${fmt2(unitCom)} · ` : ''}{fmt2(unitSem)} s/ IVA</span>;
                         })()}
                       </td>
                       <td className="py-1 tabular-nums sm:py-2 sm:pr-2 sm:pt-4 sm:text-right"><span className="mb-1 block text-[11px] text-zinc-500 sm:hidden">IVA ao Estado</span>{formatEur(c.ivaAPagar)}</td>

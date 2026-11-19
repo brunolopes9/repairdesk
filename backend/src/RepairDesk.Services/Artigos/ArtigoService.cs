@@ -274,7 +274,7 @@ public class ArtigoService : IArtigoService
                 var nome = g.GroupBy(l => l.Descricao.Trim()).OrderByDescending(x => x.Count()).ThenBy(x => x.Key.Length).First().Key;
                 var maisAntigo = ordenados.First();
                 return new ArtigoSugestaoDto(nome.Length > 200 ? nome[..200] : nome, ordenados.Select(l => l.Id).ToList(), ordenados.Select(l => l.Numero).ToList(),
-                    g.Sum(l => l.QuantidadeEmStock), (int)Math.Round(PrecoCalculado(maisAntigo) * 100m, MidpointRounding.AwayFromZero),
+                    g.Sum(l => l.QuantidadeEmStock), PrecoRedondo((int)Math.Round(PrecoCalculado(maisAntigo) * 100m, MidpointRounding.AwayFromZero)),
                     ordenados.Select(l => l.Localizacao).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
                     EPelicula(nome) ? "Películas" : null,
                     ligados.TryGetValue(g.Key, out var sugerido) ? sugerido.Id : null, sugerido?.Nome);
@@ -682,7 +682,19 @@ public class ArtigoService : IArtigoService
         if (PrecoCategoria(a) is { } pc) return pc;
         var lote = LotesFifo(a).FirstOrDefault()
             ?? a.Lotes.Where(l => !l.IsDeleted).OrderByDescending(l => l.Documento?.Data ?? l.CreatedAt).FirstOrDefault();
-        return lote is null ? null : (int)Math.Round(PrecoCalculado(lote) * 100m, MidpointRounding.AwayFromZero);
+        return lote is null ? null : PrecoRedondo((int)Math.Round(PrecoCalculado(lote) * 100m, MidpointRounding.AwayFromZero));
+    }
+
+    /// <summary>
+    /// 19/11 (Bruno: «4,24 € não dá para ganhar dinheiro… mete números redondos, 18,90, 79,90»): o preço calculado
+    /// (custo + lucro do lote) nunca vai assim para a etiqueta/balcão/loja — sobe para o ,90 seguinte (4,24 → 4,90;
+    /// 18,33 → 18,90; 76,14 → 76,90). Preço definido no artigo ou na categoria não é tocado.
+    /// </summary>
+    public static int PrecoRedondo(int cents)
+    {
+        if (cents <= 0) return cents;
+        var euros = cents / 100;
+        return cents % 100 <= 90 ? euros * 100 + 90 : euros * 100 + 190;
     }
 
     private ArtigoDto ToDto(Artigo a)
