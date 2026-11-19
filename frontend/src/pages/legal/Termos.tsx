@@ -11,7 +11,7 @@ export default function Termos() {
       <Section title="1. Quem presta o serviço">
         <p>O Mender é prestado pela LopesTech, projecto de Bruno Lopes, em Portugal.</p>
         <p>
-          Contacto geral: <a href="mailto:geral@lopestech.pt" className="text-brand-600 hover:underline dark:text-brand-400">geral@lopestech.pt</a><br />
+          Contacto geral: <a href="mailto:contacto@lopestech.pt" className="text-brand-600 hover:underline dark:text-brand-400">contacto@lopestech.pt</a><br />
           Contacto privacidade: <a href="mailto:privacidade@lopestech.pt" className="text-brand-600 hover:underline dark:text-brand-400">privacidade@lopestech.pt</a>
         </p>
       </Section>

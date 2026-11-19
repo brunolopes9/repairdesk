@@ -19,7 +19,7 @@ export default function NotFound() {
         </p>
         <p className="mt-1 text-xs text-zinc-400">
           Se chegaste aqui através de um link interno, avisa-nos —{' '}
-          <a href="mailto:geral@lopestech.pt" className="hover:underline">geral@lopestech.pt</a>.
+          <a href="mailto:contacto@lopestech.pt" className="hover:underline">contacto@lopestech.pt</a>.
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <Button variant="secondary" leftIcon={<ArrowLeft size={15} />} onClick={() => navigate(-1)}>
