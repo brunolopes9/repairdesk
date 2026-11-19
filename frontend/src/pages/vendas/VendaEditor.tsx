@@ -38,6 +38,14 @@ import DocumentoMoloni from './DocumentoMoloni';
 import LotePicker from './LotePicker';
 import ReparacaoExtras from './ReparacaoExtras';
 
+/** 19/11 (Bruno: «números redondos»): 4,24 → 4,90; 50,37 → 50,90; 18,95 → 19,90. Igual a ArtigoService.PrecoRedondo. */
+function precoRedondo(eur: number): number {
+  if (eur <= 0) return eur;
+  const c = Math.round(eur * 100);
+  const e = Math.floor(c / 100);
+  return (c % 100 <= 90 ? e * 100 + 90 : e * 100 + 190) / 100;
+}
+
 const IVA_NORMAL = 23;
 
 interface LinhaForm {
@@ -474,7 +482,8 @@ export default function VendaEditor() {
       setPickerOpen(false);
       return;
     }
-    const precoComIvaLote = precoComIvaDado ?? lote.precoVendaArtigo ?? lote.precoFinalComIva;
+    // 19/11: sem preço no artigo, a proposta (custo + lucro do lote) sobe para o ,90 seguinte — igual às etiquetas.
+    const precoComIvaLote = precoComIvaDado ?? lote.precoVendaArtigo ?? precoRedondo(lote.precoFinalComIva);
     setLinhas((ls) => [...ls, {
       key: crypto.randomUUID(),
       id: null,
