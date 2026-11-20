@@ -176,6 +176,15 @@ jobs:
               echo "$GHCR_TOKEN" | docker login "$REGISTRY" -u "$GHCR_USERNAME" --password-stdin
             fi
             export IMAGE_NAMESPACE IMAGE_TAG REGISTRY
+            # 20/11: o disco encheu (587 imagens antigas, 100%) e o backup antes da migração falhou → limpar ANTES de puxar,
+            # guardando as 6 versões mais recentes de cada imagem do Mender (para voltar atrás) + a nova.
+            for repo in "$REGISTRY/$IMAGE_NAMESPACE/repairdesk-api" "$REGISTRY/$IMAGE_NAMESPACE/repairdesk-web" "$REGISTRY/$IMAGE_NAMESPACE/repairdesk-ia"; do
+              docker images "$repo" --format '{{.CreatedAt}}|{{.Tag}}' | sort -r | tail -n +7 | cut -d'|' -f2 | while read -r t; do
+                [ "$t" = "$IMAGE_TAG" ] || docker rmi "$repo:$t" >/dev/null 2>&1 || true
+              done
+            done
+            docker builder prune -af >/dev/null 2>&1 || true
+            df -h / | tail -1
             docker compose --env-file .env.production -f docker-compose.prod.yml pull
             docker compose --env-file .env.production -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
