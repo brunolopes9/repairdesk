@@ -328,6 +328,8 @@ public partial class MoloniService : IMoloniService
         venda.MoloniReciboId = recibo!["documentId"]!.GetValue<int>();
         venda.MoloniReciboNumero = $"RC {recibo["documentSetName"]!.GetValue<string>()}/{recibo["number"]!.GetValue<int>()}";
         if (req.PaymentMethod is { } pm) venda.PaymentMethod = pm;
+        // 20/11: o recibo é o pagamento — sai das cobranças (antes ficava «por receber» com a fatura já paga).
+        if (venda.PorReceber) { venda.PorReceber = false; venda.RecebidoEm = DateTime.UtcNow; }
         await _vendas.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(Venda), venda.Id,
             new { operation = "moloni_recibo", venda.MoloniReciboNumero, valor }, ct: ct);

@@ -98,7 +98,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   if (venda.estado === VENDA_ESTADO.Cancelada) return null;
   if (!e?.configurado) {
     return (
-      <SectionCard title="Documento fiscal" collapsible defaultOpen={false}>
+      <SectionCard key="sem-moloni" title="Documento fiscal" collapsible defaultOpen={false}>
         <p className="text-sm text-zinc-500">
           Para emitir faturas e orçamentos daqui, liga o Moloni ON {isAdmin ? <Link to="/definicoes/moloni" className="text-brand-600 underline">em Definições → Moloni ON</Link> : 'nas Definições (administrador)'}.
         </p>
@@ -137,7 +137,9 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   );
 
   return (
-    <SectionCard title={comMoloni ? `Documento fiscal · ${venda.invoiceNumber ?? 'emitido'}` : 'Documento fiscal (Moloni ON)'} collapsible defaultOpen={comMoloni}>
+    // 20/11: key — sem ela, o cartão herdava o «fechado» do cartão de carregamento e o «Registar pagamento (recibo)» ficava escondido.
+    <SectionCard key={comMoloni ? 'com-doc' : 'sem-doc'} title={comMoloni ? `Documento fiscal · ${venda.invoiceNumber ?? 'emitido'}` : 'Documento fiscal (Moloni ON)'} collapsible
+      defaultOpen={comMoloni || (entregue && !venda.invoiceNumber)}>
       {comMoloni ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">

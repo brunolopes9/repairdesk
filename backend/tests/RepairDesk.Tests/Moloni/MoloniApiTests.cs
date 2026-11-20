@@ -25,6 +25,8 @@ public class MoloniApiTests : IClassFixture<MoloniApiFactory>
     {
         var client = await ClienteMoloniAsync();
         var venda = await VendaServicoAsync(client, comCliente: true, precoCents: 36900, iva: 23m);
+        // 20/11: empresa que paga depois (Junta) — entregue «por receber»; o recibo tem de a tirar das cobranças.
+        (await client.PutAsJsonAsync($"/api/vendas/{venda.Id}/pagamento", new PagamentoVendaRequest(true))).EnsureSuccessStatusCode();
 
         var fatura = await Post<VendaDto>(client, $"/api/vendas/{venda.Id}/moloni/emitir", new MoloniEmitirRequest(MoloniDocumento.Fatura, VencimentoDias: 30));
         fatura.InvoiceNumber.Should().Be("FT SOFTWARE/7");
@@ -44,6 +46,7 @@ public class MoloniApiTests : IClassFixture<MoloniApiFactory>
         var paga = await Post<VendaDto>(client, $"/api/vendas/{venda.Id}/moloni/recibo", new MoloniReciboRequest(PaymentMethod.TransferenciaBancaria));
         paga.Paga.Should().BeTrue();
         paga.MoloniReciboNumero.Should().Be("RC SOFTWARE/5");
+        paga.PorReceber.Should().BeFalse("o recibo é o pagamento");
         (await client.GetFromJsonAsync<PagedResult<VendaDto>>("/api/vendas?porPagar=true&pageSize=100"))!.Items.Should().NotContain(v => v.Id == venda.Id);
         (await client.PostAsJsonAsync($"/api/vendas/{venda.Id}/moloni/recibo", new MoloniReciboRequest()))
             .StatusCode.Should().Be(HttpStatusCode.Conflict, "não se paga duas vezes");

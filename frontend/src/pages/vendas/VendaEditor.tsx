@@ -600,9 +600,16 @@ export default function VendaEditor() {
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
             <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">Por receber</span>
             <span className="flex-1">Entregue — o cliente ainda não pagou.</span>
-            <Button type="button" size="sm" loading={marcarPagamento.isPending} onClick={() => marcarPagamento.mutate(false)}>
-              Marcar como paga
-            </Button>
+            {venda.moloniDocumentoTipo != null && !venda.moloniReciboNumero ? (
+              // 20/11: com fatura do Moloni, «paga» = passar o recibo (senão a fatura fica por pagar no Moloni).
+              <Button type="button" size="sm" onClick={() => document.getElementById('documento-fiscal')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                Pagaram? Passar recibo ↓
+              </Button>
+            ) : (
+              <Button type="button" size="sm" loading={marcarPagamento.isPending} onClick={() => marcarPagamento.mutate(false)}>
+                Marcar como paga
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex justify-end">
@@ -1016,10 +1023,10 @@ export default function VendaEditor() {
       )}
 
       {venda && (
-        <DocumentoMoloni venda={venda} isAdmin={isAdmin} onChange={(v) => {
+        <div id="documento-fiscal"><DocumentoMoloni venda={venda} isAdmin={isAdmin} onChange={(v) => {
           qc.invalidateQueries({ queryKey: ['vendas'] });
           qc.setQueryData(['venda', v.id], v);
-        }} />
+        }} /></div>
       )}
 
       {venda && venda.estado === VENDA_ESTADO.Entregue && !venda.moloniDocumentoTipo && (
