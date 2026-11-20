@@ -17,5 +17,10 @@ public interface IRotinaRepository
     Task<IReadOnlyList<RotinaItem>> TodosItensAtivosAsync(CancellationToken ct = default);
     /// <summary>Registos de um dia de todas as empresas, com tracking (os avisos atualizam-nos).</summary>
     Task<IReadOnlyList<RotinaRegisto>> TodosRegistosDoDiaAsync(DateOnly dia, CancellationToken ct = default);
+    /// <summary>20/11: «silenciar avisos» do utilizador (null = não silenciado).</summary>
+    Task<DateTime?> SilenciadoAteAsync(Guid userId, CancellationToken ct = default);
+    Task DefinirSilencioAsync(Guid userId, DateTime? ate, CancellationToken ct = default);
+    /// <summary>Utilizadores com avisos silenciados agora.</summary>
+    Task<IReadOnlySet<Guid>> SilenciadosAsync(DateTime agoraUtc, CancellationToken ct = default);
     Task SaveAsync(CancellationToken ct = default);
 }

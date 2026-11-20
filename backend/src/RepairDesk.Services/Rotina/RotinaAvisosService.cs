@@ -46,8 +46,12 @@ public sealed class RotinaAvisosService : IRotinaAvisosService
         if (itens.Count == 0) return 0;
         var registos = (await _repo.TodosRegistosDoDiaAsync(hoje, ct)).ToDictionary(r => r.RotinaItemId);
         var porUser = itens.GroupBy(i => i.UserId).ToDictionary(g => g.Key, g => g.OrderBy(i => i.Hora).ToList());
+        // 20/11: «silenciar avisos» — os devidos ficam marcados como enviados (sem push), para não chegarem
+        // todos de uma vez quando o silêncio acabar.
+        var silenciados = await _repo.SilenciadosAsync(agoraUtc, ct);
 
         var envios = new List<StaffPushJob>();
+        var mudou = false;
         foreach (var item in itens)
         {
             registos.TryGetValue(item.Id, out var reg);
@@ -68,10 +72,15 @@ public sealed class RotinaAvisosService : IRotinaAvisosService
             reg.Avisos = string.Join('|', jaEnviados.Concat(devidos.Select(a => a.Chave)));
             if (reg.Avisos.Length > 400) reg.Avisos = reg.Avisos[^400..];
 
+            if (silenciados.Contains(item.UserId)) { mudou = true; continue; }
             var aviso = devidos.MaxBy(a => a.Quando)!;
             envios.Add(Job(item, hoje, aviso));
         }
-        if (envios.Count == 0) return 0;
+        if (envios.Count == 0)
+        {
+            if (mudou) await _repo.SaveAsync(ct);
+            return 0;
+        }
 
         // Marca primeiro, envia depois: se a gravação falhar, nada sai (e tenta no minuto seguinte).
         await _repo.SaveAsync(ct);

@@ -56,7 +56,14 @@ public interface IRotinaService
     /// <summary>Sprint 635: alimentos para várias refeições pelo título (ex.: plano alimentar). Devolve as refeições atualizadas.</summary>
     Task<int> ImportarAlimentosAsync(IReadOnlyList<ImportarAlimentosRequest> planos, CancellationToken ct = default);
     Task<IReadOnlyList<RotinaItemDto>> ImportarAsync(IReadOnlyList<GuardarRotinaItemRequest> itens, CancellationToken ct = default);
+    /// <summary>20/11: até quando os avisos da rotina estão silenciados (null = não estão).</summary>
+    Task<RotinaSilencioDto> SilencioAsync(CancellationToken ct = default);
+    /// <summary>20/11: silencia até <paramref name="ate"/> (UTC, no futuro, máx. 7 dias) ou retoma (null).</summary>
+    Task<RotinaSilencioDto> SilenciarAsync(DateTime? ate, CancellationToken ct = default);
 }
+
+public sealed record RotinaSilencioDto(DateTime? Ate);
+public sealed record SilenciarRotinaRequest(DateTime? Ate);
 
 /// <summary>
 /// Sprint 615 (Doc 98): a rotina pessoal do utilizador (blocos, hábitos e limites) e o registo do dia.
@@ -80,6 +87,26 @@ public sealed class RotinaService : IRotinaService
 
     private Guid UserId => _user.UserId ?? throw new ForbiddenException("user_required", "Sem utilizador autenticado.");
     private static DateTime Agora => DateTime.UtcNow;
+
+    public async Task<RotinaSilencioDto> SilencioAsync(CancellationToken ct = default)
+    {
+        var ate = await _repo.SilenciadoAteAsync(UserId, ct);
+        return new RotinaSilencioDto(ate is { } a && a > Agora ? a : null);
+    }
+
+    public async Task<RotinaSilencioDto> SilenciarAsync(DateTime? ate, CancellationToken ct = default)
+    {
+        if (ate is { } a)
+        {
+            a = a.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(a, DateTimeKind.Utc) : a.ToUniversalTime();
+            if (a <= Agora) throw new ValidationException("silencio_passado", "Escolhe uma hora no futuro.");
+            if (a > Agora.AddDays(7)) throw new ValidationException("silencio_longo", "No máximo 7 dias — para mais tempo desliga os itens.");
+            ate = a;
+        }
+        await _repo.DefinirSilencioAsync(UserId, ate, ct);
+        await _repo.SaveAsync(ct);
+        return new RotinaSilencioDto(ate);
+    }
 
     public async Task<IReadOnlyList<RotinaItemDto>> ItensAsync(CancellationToken ct = default)
         => (await _repo.ItensDoUtilizadorAsync(UserId, ct)).Select(Dto).ToList();

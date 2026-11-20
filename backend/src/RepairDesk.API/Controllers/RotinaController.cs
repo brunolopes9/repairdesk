@@ -13,6 +13,14 @@ public sealed class RotinaController : ControllerBase
     private readonly IRotinaService _service;
     public RotinaController(IRotinaService service) => _service = service;
 
+    /// <summary>20/11: silenciar os avisos da rotina (ex.: até ao fim do dia) — os alertas importantes passam na mesma.</summary>
+    [HttpGet("silencio")]
+    public async Task<ActionResult<RotinaSilencioDto>> Silencio(CancellationToken ct) => Ok(await _service.SilencioAsync(ct));
+
+    [HttpPut("silencio")]
+    public async Task<ActionResult<RotinaSilencioDto>> Silenciar([FromBody] SilenciarRotinaRequest req, CancellationToken ct)
+        => Ok(await _service.SilenciarAsync(req.Ate, ct));
+
     [HttpGet("itens")]
     public async Task<ActionResult<IReadOnlyList<RotinaItemDto>>> Itens(CancellationToken ct) => Ok(await _service.ItensAsync(ct));
 

@@ -81,6 +81,48 @@ public class RotinaTests : IClassFixture<RepairDeskApiFactory>
         (await Processar(new DateTime(2031, 3, 13, 13, 30, 30, DateTimeKind.Utc))).Should().Be(0);
     }
 
+    /// <summary>20/11 (Bruno): «silenciar avisos» — durante o silêncio não sai push e, quando acaba,
+    /// os avisos que ficaram para trás não chegam todos de uma vez. A API só aceita horas no futuro (≤ 7 dias).</summary>
+    [Fact]
+    public async Task Silenciar_NaoEnviaENaoAcumula_ApiValida()
+    {
+        var client = await Admin();
+        var item = await Criar(client, new GuardarRotinaItemRequest("Ginásio teste", null, RotinaTipo.Exercicio, "19:00", 60, Todos,
+            null, null, "5", true, false));
+        await Jobs();
+        Guid userId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<IRotinaRepository>();
+            userId = (await repo.FindItemAsync(item.Id))!.UserId;
+            await repo.DefinirSilencioAsync(userId, new DateTime(2031, 3, 14, 23, 59, 0, DateTimeKind.Utc));
+            await repo.SaveAsync();
+        }
+
+        (await Processar(new DateTime(2031, 3, 14, 18, 55, 10, DateTimeKind.Utc))).Should().Be(0);
+        (await Processar(new DateTime(2031, 3, 14, 19, 0, 10, DateTimeKind.Utc))).Should().Be(0);
+        (await Jobs()).Where(j => j.Title.Contains("Ginásio teste")).Should().BeEmpty();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<IRotinaRepository>();
+            await repo.DefinirSilencioAsync(userId, null);
+            await repo.SaveAsync();
+        }
+        // Já sem silêncio, ainda dentro da janela do aviso das 19:00: não volta a sair (ficou tratado).
+        (await Processar(new DateTime(2031, 3, 14, 19, 1, 10, DateTimeKind.Utc))).Should().Be(0);
+
+        // API: passado → 422; daqui a 1 h → fica; null → retoma.
+        (await client.PutAsJsonAsync("/api/rotina/silencio", new SilenciarRotinaRequest(DateTime.UtcNow.AddMinutes(-5))))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var s = await (await client.PutAsJsonAsync("/api/rotina/silencio", new SilenciarRotinaRequest(DateTime.UtcNow.AddHours(1))))
+            .Content.ReadFromJsonAsync<RotinaSilencioDto>();
+        s!.Ate.Should().NotBeNull();
+        (await client.GetFromJsonAsync<RotinaSilencioDto>("/api/rotina/silencio"))!.Ate.Should().NotBeNull();
+        (await (await client.PutAsJsonAsync("/api/rotina/silencio", new SilenciarRotinaRequest(null)))
+            .Content.ReadFromJsonAsync<RotinaSilencioDto>())!.Ate.Should().BeNull();
+    }
+
     [Fact]
     public async Task Registo_LimiteExigeMotivo_PesoExigeValor_EODiaConta()
     {

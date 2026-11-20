@@ -296,6 +296,9 @@ try
         // Sprint 611: lembretes da agenda (1 h antes) e resumos do dia/semana no telemóvel.
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.AgendaAvisosHostedService>();
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.RotinaAvisosHostedService>();
+        // 20/11: alertas externos (ntfy, ex.: vigia de stock PS5) → push. Sem Alertas:Ntfy:Topicos não faz nada.
+        builder.Services.AddHttpClient("ntfy");
+        builder.Services.AddHostedService<RepairDesk.API.HostedServices.NtfyAlertasHostedService>();
         builder.Services.AddHostedService<RepairDesk.API.HostedServices.FaturasImapHostedService>();
     }
 

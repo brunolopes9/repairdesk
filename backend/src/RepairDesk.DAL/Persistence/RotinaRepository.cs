@@ -40,5 +40,18 @@ public class RotinaRepository : IRotinaRepository
     public async Task<IReadOnlyList<RotinaRegisto>> TodosRegistosDoDiaAsync(DateOnly dia, CancellationToken ct = default)
         => await _db.RotinaRegistos.IgnoreQueryFilters().Where(r => !r.IsDeleted && r.Dia == dia).ToListAsync(ct);
 
+    public Task<DateTime?> SilenciadoAteAsync(Guid userId, CancellationToken ct = default)
+        => _db.Users.IgnoreQueryFilters().Where(u => u.Id == userId).Select(u => u.AvisosSilenciadosAte).FirstOrDefaultAsync(ct);
+
+    public async Task DefinirSilencioAsync(Guid userId, DateTime? ate, CancellationToken ct = default)
+    {
+        var u = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == userId, ct);
+        if (u is not null) u.AvisosSilenciadosAte = ate;
+    }
+
+    public async Task<IReadOnlySet<Guid>> SilenciadosAsync(DateTime agoraUtc, CancellationToken ct = default)
+        => (await _db.Users.IgnoreQueryFilters().AsNoTracking()
+            .Where(u => u.AvisosSilenciadosAte != null && u.AvisosSilenciadosAte > agoraUtc).Select(u => u.Id).ToListAsync(ct)).ToHashSet();
+
     public Task SaveAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

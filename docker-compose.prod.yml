@@ -56,6 +56,9 @@ services:
       Storage__R2__AccessKey: ${Storage__R2__AccessKey:-}
       Storage__R2__Secret: ${Storage__R2__Secret:-}
       Storage__R2__Bucket: ${Storage__R2__Bucket:-}
+      # 20/11: alertas externos ntfy (vigia de stock PS5) → push do Mender. Vazio = desligado.
+      Alertas__Ntfy__Topicos: ${ALERTAS_NTFY_TOPICOS:-}
+      Alertas__Ntfy__Empresa: ${ALERTAS_NTFY_EMPRESA:-}
       # Sprint 656: pagamentos da loja online (vazio = pagamentos inativos; a loja oferece o WhatsApp).
       Stripe__SecretKey: ${STRIPE_SECRET_KEY:-}
       Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET:-}

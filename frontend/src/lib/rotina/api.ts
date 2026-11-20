@@ -126,6 +126,9 @@ export interface RotinaValor {
 }
 
 export const rotinaApi = {
+  /** 20/11: avisos silenciados até (ISO UTC) ou null. Os alertas importantes (ex.: stock PS5) passam na mesma. */
+  silencio: () => api.get<{ ate: string | null }>('/rotina/silencio').then((r) => r.data),
+  silenciar: (ate: string | null) => api.put<{ ate: string | null }>('/rotina/silencio', { ate }).then((r) => r.data),
   itens: () => api.get<RotinaItem[]>('/rotina/itens').then((r) => r.data),
   criar: (req: GuardarRotinaItem) => api.post<RotinaItem>('/rotina/itens', req).then((r) => r.data),
   atualizar: (id: string, req: GuardarRotinaItem) => api.put<RotinaItem>(`/rotina/itens/${id}`, req).then((r) => r.data),

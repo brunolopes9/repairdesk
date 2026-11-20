@@ -15,6 +15,7 @@ import ImportarRotina from './ImportarRotina';
 import PesoHistorico from './PesoHistorico';
 import PrioridadesHoje from './PrioridadesHoje';
 import RotinaVisaoGeral from './RotinaVisaoGeral';
+import SilenciarAvisos from './SilenciarAvisos';
 
 /**
  * Sprint 615 (Doc 98): «Agora» — o que é suposto estares a fazer, o que vem a seguir e o plano de hoje.
@@ -90,6 +91,7 @@ export default function Rotina() {
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <StaffPushToggle />
+            <SilenciarAvisos />
             <Button variant="ghost" onClick={() => setImportar(true)}>Importar</Button>
             <Button variant="secondary" leftIcon={<Plus size={16} />} onClick={() => setEditar('novo')}>Novo item</Button>
           </div>
