@@ -429,10 +429,10 @@ export default function ProdutoLojaEditor() {
             )}
           </Campo>
           <Campo label="Custo (€) — só tu vês" hint={f.regimeIva === LojaRegimeIva.Margem ? 'Preço a que compraste o equipamento (sem as peças da reparação).' : undefined}>
-            <CampoEuros disabled={ligado} value={f.custo} onChange={(v) => set('custo', v)} />
+            <CampoEuros disabled={ligado} value={f.custo ?? null} onChange={(v) => set('custo', v)} />
           </Campo>
           <Campo label="Preço antes (€) — promoção" hint="Aparece riscado na loja. Por lei tem de ser o preço mais baixo que praticaste nos últimos 30 dias.">
-            <CampoEuros value={f.precoAnterior} onChange={(v) => set('precoAnterior', v)} />
+            <CampoEuros value={f.precoAnterior ?? null} onChange={(v) => set('precoAnterior', v)} />
           </Campo>
           <Campo label="Unidades em stock" hint="Com 1 ou 2 aparece «Últimas unidades». Vazio = não mostra.">
             <input className={input} inputMode="numeric" disabled={ligado} value={f.unidades ?? ''} onChange={(e) => { const v = numOuNull(e.target.value); set('unidades', v == null ? null : Math.max(0, Math.round(v))); }} />
