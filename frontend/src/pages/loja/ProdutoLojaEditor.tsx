@@ -80,7 +80,7 @@ const numOuNull = (v: string) => (v.trim() === '' ? null : Number(v.replace(',',
 function CampoEuros({ value, onChange, disabled, ariaLabel }: {
   value: number | null; onChange: (v: number | null) => void; disabled?: boolean; ariaLabel?: string;
 }) {
-  const fmt = (n: number | null) => (n == null || n === 0 ? '' : String(n).replace('.', ','));
+  const fmt = (n: number | null) => (n == null || n === 0 ? '' : n.toFixed(2).replace('.', ','));
   const [txt, setTxt] = useState(fmt(value));
   const ultimo = useRef(value);
   useEffect(() => {
