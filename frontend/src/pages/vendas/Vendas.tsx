@@ -222,7 +222,7 @@ export default function Vendas() {
                       <span className="mt-1 flex flex-wrap items-center gap-1 text-xs">
                         <span className={`rounded-full px-2 py-0.5 font-medium ${estadoVendaVisivel(v).color}`}>{estadoVendaVisivel(v).label}</span>
                         {v.faturaPorRegistar && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Sem fatura</span>}
-                        {v.paga === false && <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
+                        {v.paga === false && v.estado !== VENDA_ESTADO.Entregue && <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
                         <span className="ml-auto tabular-nums text-zinc-500">{formatDateOnly(v.data)}</span>
                       </span>
                     </span>
@@ -262,7 +262,7 @@ export default function Vendas() {
                       <td className="px-4 py-3">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${estadoVendaVisivel(v).color}`}>{estadoVendaVisivel(v).label}</span>
                         {v.faturaPorRegistar && <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Sem fatura</span>}
-                        {v.paga === false && <span className="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
+                        {v.paga === false && v.estado !== VENDA_ESTADO.Entregue && <span className="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">Por pagar</span>}
                       </td>
                       <td className="px-4 py-3 tabular-nums">{formatDateOnly(v.data)}</td>
                       <td className="px-4 py-3 text-right font-medium tabular-nums">{formatEur(v.totalCents / 100)}</td>

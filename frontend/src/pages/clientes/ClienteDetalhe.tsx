@@ -11,7 +11,7 @@ import { devicesApi } from '../../lib/devices/api';
 import { ClienteComunicacoesSection } from './ClienteComunicacoesSection';
 import { ClienteDevicesSection } from './ClienteDevicesSection';
 import { vendasApi } from '../../lib/vendas/api';
-import { VENDA_ESTADO, VENDA_ESTADO_COLOR, VENDA_ESTADO_LABEL, VENDA_TIPO, type Venda } from '../../lib/vendas/types';
+import { estadoVendaVisivel, VENDA_ESTADO, VENDA_TIPO, type Venda } from '../../lib/vendas/types';
 import { formatCents, formatDateOnly } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import ClienteFormView from './ClienteForm';
@@ -652,8 +652,7 @@ function EquipamentoCard({ eq }: { eq: ClienteEquipamento }) {
 }
 
 function VendaRow({ v }: { v: Venda }) {
-  const statusLabel = VENDA_ESTADO_LABEL[v.estado];
-  const statusColor = VENDA_ESTADO_COLOR[v.estado];
+  const { label: statusLabel, color: statusColor } = estadoVendaVisivel(v);
   return (
     <li>
       <Link to={`/vendas/${v.id}`} className="flex min-h-14 items-center justify-between gap-3 px-2 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">

@@ -33,7 +33,11 @@ export function estadoVendaVisivel(v: {
   items?: { porFora?: boolean }[];
   foraApuramento?: boolean;
   porReceber?: boolean;
+  paga?: boolean | null;
 }): { label: string; color: string } {
+  // 20/11 (Bruno): entregue mas ainda não paga não pode dizer «Entregue & paga».
+  if (v.estado === 3 && (v.porReceber || v.paga === false))
+    return { label: 'Entregue · por pagar', color: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300' };
   return { label: VENDA_ESTADO_LABEL[v.estado], color: VENDA_ESTADO_COLOR[v.estado] };
 }
 
