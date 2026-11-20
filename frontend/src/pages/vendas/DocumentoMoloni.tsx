@@ -35,7 +35,11 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
   const [mudarPagamento, setMudarPagamento] = useState(false);
   useEffect(() => { setPagamento(venda.paymentMethod); }, [venda.paymentMethod]);
   const pagamentoDaVenda = venda.estado === VENDA_ESTADO.Entregue && !venda.porReceber;
-  const [vencimento, setVencimento] = useState(0); // 18/11 (Bruno): pronto pagamento é a realidade
+  // 18/11 (Bruno): pronto pagamento é a realidade ao balcão. 20/11: empresa que paga depois → fatura a 30 dias.
+  const [vencimento, setVencimento] = useState(venda.porReceber ? 30 : 0);
+  useEffect(() => { if (venda.porReceber) setVencimento((v) => (v === 0 ? 30 : v)); }, [venda.porReceber]);
+  /** 20/11: entregue mas «paga depois» (ex.: Junta/empresa) — fatura agora, recibo quando pagarem. */
+  const porReceber = venda.estado === VENDA_ESTADO.Entregue && !!venda.porReceber;
   const [outras, setOutras] = useState(false);
   const [motivo, setMotivo] = useState<string>('');
   const [anular, setAnular] = useState<string | null>(null);
@@ -182,6 +186,32 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
       ) : entregue && !venda.invoiceNumber ? (
         <div className="space-y-3">
           <DadosFatura value={fatura} onChange={setFatura} nomeInterno={venda.cliente?.nome} />
+          {porReceber && (
+            <div className="space-y-2 rounded-lg border border-brand-200 bg-brand-50 p-3 dark:border-brand-900/50 dark:bg-brand-950/30">
+              <p className="text-sm text-brand-900 dark:text-brand-100">
+                <strong>Paga depois:</strong> emites agora a <strong>fatura</strong> (fica «por pagar») e, quando o cliente pagar,
+                carregas em <strong>Registar pagamento (recibo)</strong> — o recibo sai sozinho no Moloni.
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="block">
+                  <span className={labelCls}>Vencimento</span>
+                  <select value={vencimento} onChange={(ev) => setVencimento(Number(ev.target.value))} className={inputCls}>
+                    <option value={0}>Pronto pagamento</option>
+                    <option value={15}>15 dias</option>
+                    <option value={30}>30 dias</option>
+                    <option value={60}>60 dias</option>
+                  </select>
+                </label>
+                {opcoesSerie}
+                <Button type="button" variant="success" leftIcon={<FileText size={15} />} disabled={ocupado || !!problema}
+                  loading={emitir.isPending && emitir.variables === 'Fatura'} onClick={() => emitir.mutate('Fatura')}>
+                  Emitir fatura (por pagar)
+                </Button>
+              </div>
+              {opcoesIsencao}
+            </div>
+          )}
+          {!porReceber && (<>
           <div className="grid gap-3 sm:grid-cols-3">
             {opcoesSerie}
             <div className="sm:col-span-3">
@@ -236,6 +266,7 @@ export default function DocumentoMoloni({ venda, isAdmin, onChange }: Props) {
               </div>
             )}
           </div>
+          </>)}
           {problema && <p className="text-xs font-medium text-amber-700 dark:text-amber-400">{problema}</p>}
           <p className="text-xs text-zinc-500">O Mender cria primeiro um rascunho no Moloni e só o finaliza se o total bater certo com esta venda.</p>
         </div>

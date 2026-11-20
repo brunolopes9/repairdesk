@@ -406,6 +406,17 @@ export default function VendaEditor() {
     onError: (err) => mostrarErro(err),
   });
 
+  /** 20/11 (Bruno, Junta de Freguesia): venda nova a uma empresa que paga depois — cria e fica «entregue, por receber»,
+   *  para emitir já a fatura (por pagar) e o recibo quando pagarem. Antes era preciso guardar orçamento primeiro. */
+  const criarPorReceber = useMutation({
+    mutationFn: async () => {
+      const v = await vendasApi.create(buildRequest(VENDA_ESTADO.Orcamento));
+      return vendasApi.mudarEstado(v.id, VENDA_ESTADO.Entregue, pagamento, true);
+    },
+    onSuccess: (v) => { setErroAcao(null); onSaved(v, 'Entregue — fica por receber. Emite a fatura (por pagar) em baixo.'); },
+    onError: (err) => mostrarErro(err),
+  });
+
   const marcarPagamento = useMutation({
     mutationFn: async (porReceber: boolean) => { await auto.gravarJa(); return vendasApi.pagamento(id!, porReceber); },
     onSuccess: (v) => onSaved(v, v.porReceber ? 'Marcada como por receber' : 'Marcada como paga'),
@@ -902,8 +913,12 @@ export default function VendaEditor() {
             <p className="text-sm text-zinc-500">"Guardar orçamento" não mexe no stock. Venda feita na hora? Escolhe o pagamento e regista como entregue.</p>
             <div className="flex flex-col gap-2">
               <PagamentoPicker value={pagamento} onChange={setPagamento} />
-              <Button type="button" leftIcon={<CheckCircle2 size={15} />} disabled={!podeGravar || linhas.length === 0} loading={guardar.isPending && guardar.variables === VENDA_ESTADO.Entregue} onClick={() => guardar.mutate(VENDA_ESTADO.Entregue)}>
+              <Button type="button" leftIcon={<CheckCircle2 size={15} />} disabled={!podeGravar || linhas.length === 0 || criarPorReceber.isPending} loading={guardar.isPending && guardar.variables === VENDA_ESTADO.Entregue} onClick={() => guardar.mutate(VENDA_ESTADO.Entregue)}>
                 Entregue & paga
+              </Button>
+              <Button type="button" variant="secondary" disabled={!podeGravar || linhas.length === 0 || guardar.isPending} loading={criarPorReceber.isPending} onClick={() => criarPorReceber.mutate()}
+                title="Empresa/Junta: emites a fatura agora e o recibo quando pagarem">
+                Entregue, paga depois (fatura agora)
               </Button>
             </div>
           </div>
