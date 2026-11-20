@@ -267,7 +267,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         }
         if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
         {
-            var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
+            var existingForn = await PorNomeAsync(fornecedorNameRaw, ct);
             fornecedorId = existingForn?.Id;
         }
 
@@ -302,7 +302,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                     fornecedorNameRaw = llm.SupplierName;
                 if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
                 {
-                    var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
+                    var existingForn = await PorNomeAsync(fornecedorNameRaw, ct);
                     fornecedorId = existingForn?.Id;
                 }
             }
@@ -436,7 +436,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         }
         if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
         {
-            var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
+            var existingForn = await PorNomeAsync(fornecedorNameRaw, ct);
             fornecedorId = existingForn?.Id;
         }
         await AprenderNifAsync(fornecedorId, llm?.SupplierVatId, nifProprio, ct);
@@ -803,7 +803,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         }
         if (fornecedorId is null && !string.IsNullOrWhiteSpace(fornecedorNameRaw))
         {
-            var existingForn = await _fornecedores.FindByNameAsync(fornecedorNameRaw, ct);
+            var existingForn = await PorNomeAsync(fornecedorNameRaw, ct);
             fornecedorId = existingForn?.Id;
         }
 
@@ -1059,6 +1059,29 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
     /// Sprint 579: fornecedor conhecido identificado pelo NIF — o lido pelo LLM (foto) ou, num PDF, o que
     /// aparece no texto. Null se nenhum ou ambíguo (aí decide o nome, como antes).
     /// </summary>
+    /// <summary>
+    /// 20/11: nome lido na fatura → fornecedor. Primeiro igual; senão o nome da fatura começa pelo do fornecedor
+    /// (só letras/dígitos, ≥ 5): «TUDO4MOBILE - Import. Export. Unip. Lda.» → «Tudo4Mobile». Se dois servirem, fica o mais longo.
+    /// </summary>
+    private async Task<Fornecedor?> PorNomeAsync(string nome, CancellationToken ct)
+    {
+        if (await _fornecedores.FindByNameAsync(nome, ct) is { } igual) return igual;
+        return FornecedorPorPrefixo(await _fornecedores.ListByTenantAsync(includeInactive: false, ct), nome);
+    }
+
+    public static Fornecedor? FornecedorPorPrefixo(IEnumerable<Fornecedor> fornecedores, string nome)
+    {
+        static string Norm(string? s) => new string((s ?? "").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+        var alvo = Norm(nome);
+        if (alvo.Length < 5) return null;
+        return fornecedores
+            .Select(f => (f, n: Norm(f.Name)))
+            .Where(x => x.n.Length >= 5 && alvo.StartsWith(x.n, StringComparison.Ordinal))
+            .OrderByDescending(x => x.n.Length)
+            .Select(x => x.f)
+            .FirstOrDefault();
+    }
+
     private async Task<Fornecedor?> PorNifAsync(string? texto, string? nifEmitente, string? nifProprio, CancellationToken ct)
     {
         var conhecidos = (await _fornecedores.ListByTenantAsync(includeInactive: true, ct)).Where(f => f.Nif is not null).ToList();
@@ -1097,7 +1120,7 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         if (string.IsNullOrWhiteSpace(nameRaw)) return null;
 
         var nome = nameRaw.Trim();
-        var existing = await _fornecedores.FindByNameAsync(nome, ct);
+        var existing = await PorNomeAsync(nome, ct); // 20/11: não cria «TUDO4MOBILE - Import…» ao lado de «Tudo4Mobile»
         if (existing is not null)
         {
             // Sprint 543: fornecedor já existia mas ainda sem regra de categoria → bootstrap da
