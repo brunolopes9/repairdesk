@@ -410,7 +410,9 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         // SHA256 dedup tal como PDFs — sintetiza ".jpg" ou ".png" para storage path.
         var sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(imageBytes)).ToLowerInvariant();
         var existing = await _repo.FindBySha256Async(tenantId, sha256, ct);
-        if (existing is not null)
+        // 20/11: a mesma foto enviada outra vez depois de a leitura ter falhado (ex.: IA sem crédito) volta a ser lida.
+        var releitura = existing is { Status: SupplierInvoiceImportStatus.Failed, EmailFrom: FotoPapelOrigem } ? existing : null;
+        if (existing is not null && releitura is null)
         {
             _logger.LogInformation("SupplierInvoice (photo) duplicate ignored: {Sha}", sha256);
             return new SupplierInvoiceImportResult(
@@ -446,9 +448,10 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             : contentType.Contains("gif", StringComparison.OrdinalIgnoreCase) ? ".gif"
             : ".jpg";
         var filename = $"foto-{docDate:yyyy-MM-dd}_{sha256[..8]}{ext}";
-        var relativePath = await _storage.SaveAsync(tenantId, supplierSlug, docDate, filename, imageBytes, ct);
+        var relativePath = releitura?.PdfRelativePath ?? await _storage.SaveAsync(tenantId, supplierSlug, docDate, filename, imageBytes, ct);
 
-        var entity = new SupplierInvoiceImport
+        var entity = releitura ?? new SupplierInvoiceImport { TenantId = tenantId, PdfSha256 = sha256, PdfRelativePath = relativePath };
+        PreencherFoto(entity, new SupplierInvoiceImport
         {
             TenantId = tenantId,
             FornecedorId = fornecedorId,
@@ -468,11 +471,11 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
                 ? SupplierInvoiceImportStatus.Failed
                 : SupplierInvoiceImportStatus.Pending,
             EmailSubject = $"Foto papel: {fileName}",
-            EmailFrom = "manual-upload-photo@repairdesk",
+            EmailFrom = FotoPapelOrigem,
             EmailReceivedAt = DateTime.UtcNow,
-        };
+        });
 
-        await _repo.AddAsync(entity, ct);
+        if (releitura is null) await _repo.AddAsync(entity, ct);
         await _repo.SaveAsync(ct);
 
         await _audit.LogAsync(AuditAction.Create, nameof(SupplierInvoiceImport), entity.Id, new
@@ -489,6 +492,25 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         return new SupplierInvoiceImportResult(
             entity.Id, entity.Status, fornecedorNameRaw, fornecedorId,
             llm?.TotalCents, llm?.OrderId, relativePath, WasDuplicate: false);
+    }
+
+    private const string FotoPapelOrigem = "manual-upload-photo@repairdesk";
+
+    /// <summary>Copia os dados lidos de uma foto (nova ou releitura) para a importação.</summary>
+    private static void PreencherFoto(SupplierInvoiceImport alvo, SupplierInvoiceImport lido)
+    {
+        alvo.FornecedorId = lido.FornecedorId;
+        alvo.FornecedorNameRaw = lido.FornecedorNameRaw;
+        alvo.PdfRelativePath = lido.PdfRelativePath;
+        alvo.ParsedTotalCents = lido.ParsedTotalCents;
+        alvo.ParsedDocumentNumber = lido.ParsedDocumentNumber;
+        alvo.ParsedDocumentDate = lido.ParsedDocumentDate;
+        alvo.ParsedItemsJson = lido.ParsedItemsJson;
+        alvo.ParseConfidence = lido.ParseConfidence;
+        alvo.Status = lido.Status;
+        alvo.EmailSubject = lido.EmailSubject;
+        alvo.EmailFrom = lido.EmailFrom;
+        alvo.EmailReceivedAt = lido.EmailReceivedAt;
     }
 
     public async Task<IReadOnlyList<SupplierInvoiceImportDto>> ListPendingAsync(int take, CancellationToken ct = default)

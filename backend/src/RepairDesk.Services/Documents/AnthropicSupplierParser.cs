@@ -302,12 +302,78 @@ public sealed class AnthropicSupplierParser : IAnthropicSupplierParser
         }
     }
 
+    /// <summary>20/11: foto de fatura em papel lida pela subscrição (serviço «ia», POST /v1/imagem). Opus — fotos tortas,
+    /// sombras e letra pequena (Tudo4Mobile) precisam do melhor modelo; o tempo não importa tanto como acertar.</summary>
+    private async Task<LlmParseResult?> ParseImagemViaSubscricaoAsync(byte[] imageBytes, string? mimeType, CancellationToken ct)
+    {
+        if (imageBytes.Length > 8 * 1024 * 1024)
+        {
+            _logger.LogWarning("Foto da fatura com {Size} bytes — acima de 8 MB, não vai para a IA.", imageBytes.Length);
+            return null;
+        }
+        var mime = mimeType?.ToLowerInvariant() switch
+        {
+            "image/png" => "image/png",
+            "image/webp" => "image/webp",
+            "image/gif" => "image/gif",
+            _ => "image/jpeg",
+        };
+        var relogio = System.Diagnostics.Stopwatch.StartNew();
+        var outcome = "ok";
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(260));
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{_runnerUrl}/v1/imagem")
+            {
+                Content = JsonContent.Create(new
+                {
+                    system = SystemPrompt,
+                    prompt = "Foto de uma fatura de fornecedor em papel (pode estar torta, com sombras ou dobrada). "
+                        + "Extrai os dados conforme o schema JSON. Cada linha de artigo é um item (os portes também). "
+                        + "Os valores da linha são o «Total da Linha» impresso, em cêntimos, com IVA se a coluna disser c/IVA. "
+                        + "Se estiver ilegível, devolve confidence baixa. Devolve só o JSON, sem mais nada.",
+                    imagem = Convert.ToBase64String(imageBytes),
+                    mime,
+                    model = "opus",
+                }),
+            };
+            req.Headers.Add("X-Ia-Secret", _runnerSecret);
+            using var resp = await _http.SendAsync(req, cts.Token);
+            var corpo = await resp.Content.ReadAsStringAsync(cts.Token);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Serviço ia (imagem) {Status}: {Body}", (int)resp.StatusCode, corpo.Length > 400 ? corpo[..400] : corpo);
+                outcome = corpo.Contains("sem_token", StringComparison.Ordinal) ? "sem_token" : "error";
+                return null;
+            }
+            var text = JsonDocument.Parse(corpo).RootElement.GetProperty("text").GetString() ?? "";
+            var resultado = ResultadoDoTexto(text);
+            if (resultado is null) outcome = "error";
+            return resultado;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            _logger.LogWarning(ex, "Leitura da foto pela subscrição falhou — continua sem dados da IA.");
+            outcome = ex is TaskCanceledException ? "timeout" : "error";
+            return null;
+        }
+        finally
+        {
+            relogio.Stop();
+            await _tracker.RecordAsync("subscricao", "parse-foto", new LlmUsageTokens(0, 0, 0, 0), (int)relogio.ElapsedMilliseconds, outcome, ct);
+        }
+    }
+
     /// <summary>
     /// Sprint 164: parseia foto papel via Claude Vision. Mesmo schema JSON.
     /// </summary>
     public async Task<LlmParseResult?> ParseImageAsync(byte[] imageBytes, string mimeType, CancellationToken ct = default)
     {
         if (imageBytes is null || imageBytes.Length == 0) return null;
+        // 20/11 (Bruno): só a subscrição mensal, nunca créditos da API — a foto vai para o serviço «ia».
+        if (!string.IsNullOrWhiteSpace(_runnerUrl) && !string.IsNullOrWhiteSpace(_runnerSecret))
+            return await ParseImagemViaSubscricaoAsync(imageBytes, mimeType, ct);
         var (apiKey, isByok) = await ResolveApiKeyAsync(ct);
         if (apiKey is null)
         {

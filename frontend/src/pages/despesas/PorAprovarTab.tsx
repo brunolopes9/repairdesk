@@ -145,19 +145,35 @@ export default function PorAprovarTab({ destino = 'todas' }: { destino?: Destino
   }
 
   // Sprint 164: upload foto papel via Claude Vision.
+  // 20/11: várias fotos de uma vez (ex.: 2 faturas da Tudo4Mobile), uma de cada vez — a IA lê cada uma em 1–3 min.
+  const [fotos, setFotos] = useState<{ feitas: number; total: number } | null>(null);
   const uploadPhoto = useMutation({
-    mutationFn: (file: File) => supplierInvoicesApi.uploadPhoto(file),
-    onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
-      qc.invalidateQueries({ queryKey: ['supplier-invoices-history'] });
-      if (result.wasDuplicate) {
-        toast.warning('Esta foto já tinha sido processada', 'Verifica o separador "Histórico".');
-      } else {
-        toast.success('Foto processada por Claude Vision — vê a importação na lista pendente.');
+    mutationFn: async (files: File[]) => {
+      const res: { nome: string; ok: boolean; dup: boolean; lida: boolean }[] = [];
+      setFotos({ feitas: 0, total: files.length });
+      for (const [i, f] of files.entries()) {
+        try {
+          const r = await supplierInvoicesApi.uploadPhoto(f);
+          res.push({ nome: f.name, ok: true, dup: r.wasDuplicate, lida: r.status !== 'Failed' });
+        } catch (err) {
+          toast.fromError(err, `Não foi possível enviar ${f.name}.`);
+          res.push({ nome: f.name, ok: false, dup: false, lida: false });
+        }
+        setFotos({ feitas: i + 1, total: files.length });
+        qc.invalidateQueries({ queryKey: ['supplier-invoices-pending'] });
       }
-      if (photoInputRef.current) photoInputRef.current.value = '';
+      return res;
     },
-    onError: (err) => toast.fromError(err, 'Falhou OCR da foto.'),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['supplier-invoices-history'] });
+      const lidas = res.filter((r) => r.ok && r.lida && !r.dup).length;
+      const porLer = res.filter((r) => r.ok && !r.lida && !r.dup).length;
+      const dups = res.filter((r) => r.dup).length;
+      if (lidas) toast.success(`${lidas} fatura${lidas === 1 ? '' : 's'} lida${lidas === 1 ? '' : 's'}`, 'Confere as linhas e aprova na lista em baixo.');
+      if (porLer) toast.warning(`${porLer} foto${porLer === 1 ? '' : 's'} guardada${porLer === 1 ? '' : 's'} mas não lida${porLer === 1 ? '' : 's'}`, 'Tira outra foto mais direita e com luz, ou preenche à mão.');
+      if (dups) toast.warning(`${dups} foto${dups === 1 ? ' já tinha' : 's já tinham'} sido enviada${dups === 1 ? '' : 's'}`, 'Vê o separador «Histórico».');
+    },
+    onSettled: () => { setFotos(null); if (photoInputRef.current) photoInputRef.current.value = ''; },
   });
 
   // Sprint 163b: re-corre pipeline parser+fingerprint+LLM numa importação.
@@ -292,11 +308,11 @@ export default function PorAprovarTab({ destino = 'todas' }: { destino?: Destino
               ref={photoInputRef}
               type="file"
               accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
-              capture="environment"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) uploadPhoto.mutate(file);
+                const files = Array.from(e.target.files ?? []);
+                if (files.length) uploadPhoto.mutate(files);
               }}
             />
             <Button
@@ -328,9 +344,9 @@ export default function PorAprovarTab({ destino = 'todas' }: { destino?: Destino
               loading={uploadPhoto.isPending}
               variant="primary"
               leftIcon={<Camera size={15} />}
-              title="Foto papel — Claude Vision faz OCR (mobile: usa câmara directamente)"
+              title="Fotos de faturas em papel (podes escolher várias). A IA lê cada uma em 1 a 3 minutos — não feches a página."
             >
-              Foto papel
+              {fotos ? `A ler a foto ${Math.min(fotos.feitas + 1, fotos.total)}/${fotos.total}… (1–3 min cada)` : 'Foto papel'}
             </Button>
           </div>
         </div>

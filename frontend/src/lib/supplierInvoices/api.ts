@@ -78,6 +78,7 @@ export const supplierInvoicesApi = {
     if (fornecedorHint) form.append('fornecedorHint', fornecedorHint);
     return api.post<{ id: string; wasDuplicate: boolean; status: string }>('/supplier-invoices/upload-photo', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300_000, // 20/11: a IA (subscrição) lê a foto em 1–3 min
     }).then((r) => r.data);
   },
   // Sprint 163b: histórico (Approved/Rejected).

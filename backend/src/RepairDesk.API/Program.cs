@@ -328,7 +328,7 @@ try
     // Sprint 162: supplier fingerprinting (detect fornecedor antes do parser).
     builder.Services.AddScoped<RepairDesk.Services.Documents.ISupplierFingerprintingService, RepairDesk.Services.Documents.SupplierFingerprintingService>();
     // Sprint 163: LLM fallback parser (Claude Haiku) com PII redaction. Configured via ANTHROPIC_API_KEY env.
-    builder.Services.AddHttpClient<RepairDesk.Services.Documents.IAnthropicSupplierParser, RepairDesk.Services.Documents.AnthropicSupplierParser>();
+    builder.Services.AddHttpClient<RepairDesk.Services.Documents.IAnthropicSupplierParser, RepairDesk.Services.Documents.AnthropicSupplierParser>(c => c.Timeout = TimeSpan.FromMinutes(5)); // 20/11: fotos pela subscrição demoram até ~4 min
     // Sprint 167a: tracking de uso LLM per-tenant (DB → UI /definicoes/llm-usage).
     builder.Services.AddScoped<ILlmUsageRepository, RepairDesk.DAL.Persistence.LlmUsageRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Documents.ILlmUsageTracker, RepairDesk.Services.Documents.LlmUsageTracker>();
