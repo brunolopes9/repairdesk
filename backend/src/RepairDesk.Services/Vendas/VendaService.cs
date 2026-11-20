@@ -4,6 +4,7 @@ using RepairDesk.Core.Abstractions;
 using RepairDesk.Core.Entities;
 using RepairDesk.Core.Enums;
 using RepairDesk.Core.Exceptions;
+using RepairDesk.Services.Compras;
 using RepairDesk.Services.Clientes;
 using RepairDesk.Services.Fiscal;
 using RepairDesk.Services.TenantPreferences;
@@ -562,6 +563,11 @@ public class VendaService : IVendaService
     {
         item.CustoUnitarioPago = lote?.PrecoUnitarioPago;
         item.TaxaIvaCompra = lote?.TaxaIvaCompra;
+        // 20/11 (Bruno): os portes da compra entram no custo de cada unidade (divididos por igual).
+        var doc = lote?.Documento;
+        var unidades = doc?.Linhas?.Sum(x => x.Quantidade) ?? 0;
+        item.PortesUnitario = doc is null || unidades == 0 ? null : CompraService.PortesPorUnidade(doc.PortesPagos, unidades);
+        item.PortesUnitarioSemIva = doc is null || unidades == 0 ? null : CompraService.PortesSemIvaPorUnidade(doc.PortesPagos, doc.PortesIva, unidades);
     }
 
     private static void ConsumirStock(Venda venda, Dictionary<Guid, CompraLinha> lotes)
@@ -650,6 +656,7 @@ public class VendaService : IVendaService
         if (foraApuramento || i.PorFora)
             return IvaEngine.VendaPorTotal(i.Quantidade, i.CobradoCents / 100m, i.CustoUnitarioPago ?? 0m, 0m, 0m);
         var c = IvaEngine.VendaPorTotal(i.Quantidade, i.TotalCents / 100m, i.CustoUnitarioPago ?? 0m, i.TaxaIvaCompra ?? 0m, i.IvaRate / 100m);
+        if (i.PortesUnitarioSemIva is > 0 and var pu) c = c with { Lucro = c.Lucro - Math.Round(i.Quantidade * pu, 2) };
         if (i.PorForaCents <= 0) return c;
         // Sprint 680: a parte por fora não tem IVA — entra inteira no cobrado e no lucro (o custo já está no faturado).
         var pf = i.PorForaCents / 100m;
@@ -782,7 +789,7 @@ public class VendaService : IVendaService
             var c = Calcular(i, venda.ForaApuramento);
             return new VendaItemDto(i.Id, i.CompraLinhaId, i.Descricao, i.Quantidade, i.PrecoUnitarioCents, i.DescontoCents,
                 i.IvaRate, i.TotalCents, CalculateIvaCents(i, venda.ForaApuramento), i.Imei, i.CustoUnitarioPago, i.TaxaIvaCompra,
-                c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro, i.Encomenda, i.EncomendaNota, i.PorFora, i.PorForaCents);
+                c.CustoDasPecas, c.IvaAPagarEstado, c.Lucro, i.Encomenda, i.EncomendaNota, i.PorFora, i.PorForaCents, i.PortesUnitario);
         }).ToList();
 
         return new VendaDto(

@@ -4257,6 +4257,14 @@ namespace RepairDesk.DAL.Migrations
                     b.Property<int>("PorForaCents")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("PortesUnitario")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("decimal(12,4)");
+
+                    b.Property<decimal?>("PortesUnitarioSemIva")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("decimal(12,4)");
+
                     b.Property<int>("PrecoUnitarioCents")
                         .HasColumnType("int");
 

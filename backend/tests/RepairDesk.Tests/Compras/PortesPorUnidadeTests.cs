@@ -4,20 +4,22 @@ using Xunit;
 
 namespace RepairDesk.Tests.Compras;
 
-/// <summary>18/11 (Bruno): os portes da compra repartem-se pelas unidades, pelo valor de cada uma.</summary>
+/// <summary>20/11 (Bruno): os portes da compra dividem-se por igual pelas unidades (antes era pelo valor).</summary>
 public class PortesPorUnidadeTests
 {
     [Fact]
-    public void UmaSoUnidade_LevaOsPortesTodos() => CompraService.PortesPorUnidade(27m, 5m, 27m).Should().Be(5m);
+    public void UmaSoUnidade_LevaOsPortesTodos() => CompraService.PortesPorUnidade(5m, 1).Should().Be(5m);
 
     [Fact]
-    public void RepartePeloValor()
+    public void DivideIgual_MobileSentrix() => CompraService.PortesPorUnidade(6.95m, 2).Should().Be(3.475m);
+
+    [Fact]
+    public void SemPortes_Zero() => CompraService.PortesPorUnidade(0m, 3).Should().Be(0m);
+
+    [Fact]
+    public void SemIva_TiraOIvaDedutivel()
     {
-        // 1 × 30 € + 2 × 10 € = 50 €; portes 5 € → 3 € para a de 30 € e 1 € para cada uma de 10 €.
-        CompraService.PortesPorUnidade(30m, 5m, 50m).Should().Be(3m);
-        CompraService.PortesPorUnidade(10m, 5m, 50m).Should().Be(1m);
+        CompraService.PortesSemIvaPorUnidade(5.95m, 1.11m, 2).Should().Be(2.42m);
+        CompraService.PortesSemIvaPorUnidade(6.95m, 0m, 2).Should().Be(3.475m);
     }
-
-    [Fact]
-    public void SemPortes_Zero() => CompraService.PortesPorUnidade(10m, 0m, 10m).Should().Be(0m);
 }

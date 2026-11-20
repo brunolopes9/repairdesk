@@ -198,7 +198,16 @@ export default function CompraEditor() {
     const portes = parseDecimal(form.portes) ?? 0;
     const totalDoc = parseDecimal(form.total);
     const diferenca = totalDoc == null ? null : Math.round((totalDoc - totalLinhas - portes) * 100) / 100;
-    return { porLinha, totalLinhas, calculado: totalLinhas + portes, diferenca };
+    // 20/11 (Bruno): portes divididos por igual pelas unidades; custo total c/ IVA = peças c/ IVA + portes.
+    const unidades = porLinha.reduce((s, c) => s + (c?.qtd ?? 0), 0);
+    const portesUn = unidades > 0 ? portes / unidades : 0;
+    const custoTotalComIva = linhas.reduce((s, l) => {
+      const pago = parseDecimal(l.preco); const qtd = Number(l.quantidade) || 0;
+      if (pago == null || qtd <= 0) return s;
+      const t = (parseDecimal(l.taxa) ?? taxaDefeito * 100) / 100;
+      return s + qtd * (t > 0 ? pago : pago * 1.23);
+    }, 0) + portes;
+    return { porLinha, totalLinhas, calculado: totalLinhas + portes, diferenca, portesUn, custoTotalComIva };
   }, [linhas, form.portes, form.total, taxaDefeito]);
 
   // Sprint 574: com a fatura registada, o que vem da fatura (fornecedor, data, nºs, portes, total e as linhas)
@@ -523,7 +532,8 @@ export default function CompraEditor() {
                         const t = (parseDecimal(l.taxa) ?? taxaDefeito * 100) / 100;
                         const semIva = t > 0 ? pago / (1 + t) : pago;
                         const comIva = t > 0 ? pago : pago * 1.23;
-                        return <span className="mt-1 block whitespace-nowrap text-[11px] leading-4 text-zinc-500"><strong className="text-xs text-zinc-900 dark:text-zinc-100">{formatEur(comIva)} c/ IVA</strong><br />{formatEur(semIva)} s/ IVA</span>;
+                        return <span className="mt-1 block whitespace-nowrap text-[11px] leading-4 text-zinc-500"><strong className="text-xs text-zinc-900 dark:text-zinc-100">{formatEur(comIva)} c/ IVA</strong><br />{formatEur(semIva)} s/ IVA
+                          {calc.portesUn > 0 && <><br /><span className="font-semibold text-amber-700 dark:text-amber-300" title="Portes da compra divididos por igual pelas unidades">+ {formatEur(calc.portesUn)} portes = {formatEur(comIva + calc.portesUn)}</span></>}</span>;
                       })()}
                     </td>
                     <td className="py-2 pr-2"><input disabled={bloqueada} aria-label="Taxa de IVA" inputMode="decimal" value={l.taxa} onChange={(e) => setLinha(l.key, { taxa: e.target.value })} className={inputCls} placeholder={String(taxaDefeito * 100)} /></td>
@@ -564,6 +574,7 @@ export default function CompraEditor() {
             <dt className="text-zinc-500">Artigos</dt><dd className="text-right">{formatEur(calc.totalLinhas)}</dd>
             <dt className="text-zinc-500">+ Portes</dt><dd className="text-right">{formatEur(parseDecimal(form.portes) ?? 0)}</dd>
             <dt className="font-medium">Total calculado</dt><dd className="text-right font-medium">{formatEur(calc.calculado)}</dd>
+            <dt className="font-medium" title="Peças com IVA (nas compras UE, +23% de referência) mais os portes">Custo total c/ IVA</dt><dd className="text-right font-semibold">{formatEur(calc.custoTotalComIva)}</dd>
             {lucroVendido != null && <><dt className="text-emerald-700 dark:text-emerald-400">Lucro real do que já vendeste</dt><dd className="text-right font-semibold text-emerald-700 dark:text-emerald-400">{formatEur(lucroVendido)}</dd></>}
             {calc.diferenca != null && (
               <>

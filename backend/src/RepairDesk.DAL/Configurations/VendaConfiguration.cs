@@ -78,6 +78,8 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>, IEntityTypeCo
         builder.Property(x => x.Condicao).HasConversion<int>().HasDefaultValue(CondicaoArtigo.NaoAplicavel);
         builder.Property(x => x.CustoUnitarioPago).HasPrecision(12, 4);
         builder.Property(x => x.TaxaIvaCompra).HasPrecision(5, 4);
+        builder.Property(x => x.PortesUnitario).HasPrecision(12, 4);
+        builder.Property(x => x.PortesUnitarioSemIva).HasPrecision(12, 4);
         builder.Ignore(x => x.TotalCents);
 
         builder.HasOne(x => x.CompraLinha)

@@ -94,8 +94,24 @@ function custoDaLinha(l: LinhaForm): { custoUnit: number; taxaCompra: number } {
  * ou «Serviço — » à frente (e vai para o Moloni como serviço). Numa venda de Produto fica só o nome do artigo.
  */
 const PREFIXOS = /^(Reparação|Serviço)\s+[—-]\s+/;
+
+/**
+ * 20/11 (Bruno): o nome do fornecedor não vai assim para a fatura do cliente — «Ecrã Motorola Moto G05 XT2523 / 2025
+ * Refurbished) All Colors)» → «Ecrã Motorola Moto G05 XT2523». Tira anos, «Refurbished», «All Colors» e parênteses soltos.
+ */
+function limparNomeFatura(nome: string): string {
+  let t = nome
+    .replace(/\b(refurbished|all colou?rs?|original|remaded|oem|service pack)\b\)?/gi, ' ')
+    .replace(/[/(]\s*20\d{2}\s*\)?/g, ' ');
+  // parênteses sem par
+  let abertos = 0;
+  t = [...t].filter((c) => { if (c === '(') { abertos++; return true; } if (c === ')') { if (abertos === 0) return false; abertos--; } return true; }).join('');
+  while (abertos-- > 0) t = t.replace(/\((?![^(]*\))/, ' ');
+  return t.replace(/\(\s*\)/g, ' ').replace(/\s+([/,])\s*$/g, '').replace(/\s{2,}/g, ' ').replace(/[\s/–—-]+$/, '').trim();
+}
+
 function comPrefixo(descricao: string, tipo: VendaTipo): string {
-  const base = descricao.replace(PREFIXOS, '');
+  const base = limparNomeFatura(descricao.replace(PREFIXOS, ''));
   return tipo === VENDA_TIPO.Reparacao ? `Reparação — ${base}` : tipo === VENDA_TIPO.Servico ? `Serviço — ${base}` : base;
 }
 
@@ -134,6 +150,7 @@ function linhasFrom(v: Venda): LinhaForm[] {
     iva: String(i.ivaRate),
     custoUnit: i.custoUnitarioPago ?? 0,
     taxaCompra: i.taxaIvaCompra ?? 0,
+    portesUnit: i.portesUnitario ?? 0,
     maxStock: null,
     encomenda: i.encomenda ?? null,
     custo: i.encomenda != null && i.custoUnitarioPago != null ? fmt2(i.custoUnitarioPago) : '',
@@ -268,12 +285,16 @@ export default function VendaEditor() {
       const { custoUnit: custo, taxaCompra: taxa } = custoDaLinha(l);
       const ivaVenda = l.porFora ? 0 : (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
       const pv = previewVenda(qtd, total, custo, l.porFora ? 0 : taxa, ivaVenda);
-      return { total, peca: !servico, ...pv };
+      // 20/11 (Bruno): os portes da compra (divididos por igual) contam no custo; no lucro sai a parte sem IVA dedutível.
+      const portes = l.compraLinhaId ? qtd * (l.portesUnit ?? 0) : 0;
+      const portesSemIva = portes / (1 + (l.porFora ? 0 : taxa));
+      return { total, peca: !servico, ...pv, custo: pv.custo + portes, lucro: pv.lucro - portesSemIva, portes };
     });
     const soma = (k: 'total' | 'ivaVenda' | 'ivaAPagar' | 'lucro') => porLinha.reduce((s, c) => s + c[k], 0);
     const custoPecas = porLinha.filter((c) => c.peca).reduce((s, c) => s + c.custo, 0);
     const custoComIva = porLinha.reduce((s, c) => s + c.custo, 0);
-    return { porLinha, custoPecas, custoComIva, total: soma('total'), ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
+    const portes = porLinha.reduce((s, c) => s + c.portes, 0);
+    return { porLinha, custoPecas, custoComIva, portes, total: soma('total'), ivaVenda: soma('ivaVenda'), ivaAPagar: soma('ivaAPagar'), lucro: soma('lucro') };
   }, [linhas, semIva]);
 
   const reservado = useMemo(() => {
@@ -338,13 +359,31 @@ export default function VendaEditor() {
     void qc.invalidateQueries({ queryKey: ['vendas'] });
     void qc.invalidateQueries({ queryKey: ['compras'] });
   }, { ativo: !isNew && rebase > 0 && !fechada && valida, atraso: 900 });
+  // 20/11 (Bruno): venda nova também grava sozinha — com cliente ou a 1.ª linha cria-se como orçamento (não mexe no
+  // stock) e passa a ser uma venda normal com autosave. Antes, voltar atrás perdia tudo.
+  const rascunhoCriado = useRef(false);
+  const temConteudo = !!cliente || linhas.some((l) => l.compraLinhaId || l.descricao.trim());
+  const chaveRascunho = isNew && valida && temConteudo ? JSON.stringify(buildRequest(VENDA_ESTADO.Orcamento)) : '';
+  useEffect(() => {
+    if (!chaveRascunho || rascunhoCriado.current || guardar.isPending) return;
+    const t = window.setTimeout(() => {
+      if (rascunhoCriado.current) return;
+      rascunhoCriado.current = true;
+      vendasApi.create(buildRequest(VENDA_ESTADO.Orcamento))
+        .then((v) => { qc.setQueryData(['venda', v.id], v); void qc.invalidateQueries({ queryKey: ['vendas'] }); navigate(`/vendas/${v.id}`, { replace: true }); })
+        .catch(() => { rascunhoCriado.current = false; });
+    }, 1500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o conteúdo muda
+  }, [chaveRascunho]);
+
   useEffect(() => {
     if (rebase > 0) auto.reiniciar({ req: buildRequest(), keys: linhas.map((l) => l.key) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rebase]);
 
   const guardar = useMutation({
-    mutationFn: (estado?: VendaEstado) => (isNew ? vendasApi.create(buildRequest(estado)) : vendasApi.update(id!, buildRequest())),
+    mutationFn: (estado?: VendaEstado) => { if (isNew) rascunhoCriado.current = true; return isNew ? vendasApi.create(buildRequest(estado)) : vendasApi.update(id!, buildRequest()); },
     onSuccess: (v) => { setErroAcao(null); onSaved(v, isNew ? 'Venda criada' : 'Venda guardada'); },
     onError: (err) => mostrarErro(err),
   });
@@ -410,6 +449,7 @@ export default function VendaEditor() {
    *  para emitir já a fatura (por pagar) e o recibo quando pagarem. Antes era preciso guardar orçamento primeiro. */
   const criarPorReceber = useMutation({
     mutationFn: async () => {
+      rascunhoCriado.current = true;
       const v = await vendasApi.create(buildRequest(VENDA_ESTADO.Orcamento));
       return vendasApi.mudarEstado(v.id, VENDA_ESTADO.Entregue, pagamento, true);
     },
@@ -906,9 +946,17 @@ export default function VendaEditor() {
         <dl className="mt-3 ml-auto grid max-w-xs grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm tabular-nums">
           <dt className="font-medium">Total a cobrar (c/ IVA)</dt><dd className="text-right text-lg font-semibold">{formatEur(contas.total)}</dd>
           <dt className="text-zinc-500">Total sem IVA</dt><dd className="text-right">{formatEur(contas.total - contas.ivaVenda)}</dd>
-          <dt className="text-zinc-500">IVA na fatura</dt><dd className="text-right">{formatEur(contas.ivaVenda)}</dd>
-          <dt className="text-zinc-500" title="IVA da venda − IVA já pago ao fornecedor das peças (estimativa; o saldo real depende de todo o trimestre)">IVA a entregar (estimativa)</dt><dd className="text-right">{formatEur(contas.ivaAPagar)}</dd>
-          <dt className="text-zinc-500" title="O que pagaste pelas peças e custos desta venda">Custo das peças</dt><dd className="text-right">{formatEur(contas.custoComIva)}</dd>
+          {/* 20/11 (Bruno): quando são iguais (peças sem IVA dedutível, ex.: UE) mostra-se uma linha só. */}
+          {Math.abs(contas.ivaVenda - contas.ivaAPagar) < 0.005 ? (
+            <><dt className="text-zinc-500" title="IVA que vai na fatura e que entregas ao Estado (as peças não têm IVA a deduzir)">IVA</dt><dd className="text-right">{formatEur(contas.ivaVenda)}</dd></>
+          ) : (
+            <>
+              <dt className="text-zinc-500">IVA na fatura</dt><dd className="text-right">{formatEur(contas.ivaVenda)}</dd>
+              <dt className="text-zinc-500" title="IVA da venda − IVA já pago ao fornecedor das peças (estimativa; o saldo real depende de todo o trimestre)">IVA a entregar (estimativa)</dt><dd className="text-right">{formatEur(contas.ivaAPagar)}</dd>
+            </>
+          )}
+          <dt className="text-zinc-500" title="O que pagaste pelas peças (c/ IVA) mais a parte dos portes da compra">Custo total c/ IVA{contas.portes > 0 ? ' (com portes)' : ''}</dt><dd className="text-right">{formatEur(contas.custoComIva)}</dd>
+          {contas.portes > 0 && <><dt className="pl-3 text-xs text-zinc-400">dos quais portes</dt><dd className="text-right text-xs text-zinc-400">{formatEur(contas.portes)}</dd></>}
           <dt className="font-medium" title="Total − custo das peças − IVA a entregar">Lucro</dt><dd className={`text-right font-semibold ${contas.lucro < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatEur(contas.lucro)}</dd>
           <dt className="text-zinc-500">Margem</dt><dd className="text-right">{contas.total - contas.ivaVenda > 0 ? `${Math.round((contas.lucro / (contas.total - contas.ivaVenda)) * 100)} %` : '—'}</dd>
         </dl>

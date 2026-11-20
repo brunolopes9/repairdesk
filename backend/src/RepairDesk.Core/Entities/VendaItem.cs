@@ -17,6 +17,10 @@ public class VendaItem : BaseEntity, ITenantEntity
     public decimal? CustoUnitarioPago { get; set; }
     /// <summary>Snapshot do lote: taxa de IVA da compra (fração, 0.23 / 0).</summary>
     public decimal? TaxaIvaCompra { get; set; }
+    /// <summary>20/11: parte dos portes da compra por unidade, sem o IVA dedutível — conta no custo e no lucro.</summary>
+    public decimal? PortesUnitarioSemIva { get; set; }
+    /// <summary>20/11: o mesmo, como foi pago (com IVA) — para mostrar o custo total c/ IVA.</summary>
+    public decimal? PortesUnitario { get; set; }
     public required string Descricao { get; set; }
     public int Quantidade { get; set; }
     public int PrecoUnitarioCents { get; set; }

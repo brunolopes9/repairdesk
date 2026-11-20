@@ -95,6 +95,8 @@ export interface VendaItem {
   ivaCents: number;
   imei: string | null;
   custoUnitarioPago: number | null;
+  /** 20/11: portes da compra por unidade (c/ IVA) — já descontados no lucro. */
+  portesUnitario?: number | null;
   taxaIvaCompra: number | null;
   custoDasPecas: number;
   ivaAPagarEstado: number;

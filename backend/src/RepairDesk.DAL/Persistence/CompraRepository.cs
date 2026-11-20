@@ -136,7 +136,7 @@ public class CompraRepository : ICompraRepository
     public Task AddAsync(CompraDocumento doc, CancellationToken ct = default) => _db.ComprasDocumentos.AddAsync(doc, ct).AsTask();
     public void Remove(CompraDocumento doc) => _db.ComprasDocumentos.Remove(doc);
     public async Task<IReadOnlyList<CompraLinha>> FindLinhasAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
-        => await _db.ComprasLinhas.Include(l => l.Documento).ThenInclude(d => d!.Fornecedor)
+        => await _db.ComprasLinhas.Include(l => l.Documento).ThenInclude(d => d!.Fornecedor).Include(l => l.Documento).ThenInclude(d => d!.Linhas)
             .Where(l => ids.Contains(l.Id)).ToListAsync(ct);
 
     public void AddLinha(CompraLinha linha) => _db.ComprasLinhas.Add(linha);

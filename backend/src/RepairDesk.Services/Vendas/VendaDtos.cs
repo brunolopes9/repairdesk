@@ -91,7 +91,9 @@ public sealed record VendaItemDto(
     string? EncomendaNota = null,
     bool PorFora = false,
     /// <summary>Sprint 680: parte por fora desta linha (cêntimos); TotalCents é o faturado.</summary>
-    int PorForaCents = 0);
+    int PorForaCents = 0,
+    /// <summary>20/11: portes da compra por unidade (como pagos, c/ IVA) — já descontados no Lucro.</summary>
+    decimal? PortesUnitario = null);
 
 /// <summary>Sprint 594: uma peça em falta numa reparação — para saber o que encomendar e o que está a chegar.</summary>
 public sealed record PecaEncomendaDto(
