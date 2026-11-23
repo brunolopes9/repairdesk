@@ -160,3 +160,15 @@ public class Tudo4MobileNomeTests
         a37.Should().Be(0);
     }
 }
+
+public class Tudo4MobilePeliculasTests
+{
+    [Theory]
+    [InlineData("Película de vidro Hoco – Samsung A16 5G", "Vidro Temperado HD de Tela cheia Hoco G5 para Samsung Galaxy A16 5G Preto", true)]
+    [InlineData("Película de vidro Apokin – Samsung A37 / A57 / A36 / A56 / S24 FE / S25 FE", "Película de Vidro Temperado Flue Glue 11D Apokin para Samsung Galaxy A37/A57/A36/A56/S24 FE/S25 FE Transparente", true)]
+    [InlineData("Vidro temperado iph 15", "Protetor de Vidro da Câmera Traseira para Apple iPhone 15/15 Plus Preto", false)]
+    [InlineData("Vidro temperado iph 15", "Protetor de Vidro de Tela Temperado Privacy Hoco G15 para Apple iPhone 15 Pro Preto", false)]
+    [InlineData("Película de vidro Hoco – Samsung A16 5G", "Vidro Temperado HD de Tela cheia Hoco G5 para Samsung Galaxy A15 5G Preto", false)]
+    public void Aceita(string nome, string titulo, bool esperado)
+        => (RepairDesk.Services.Loja.FichaFornecedor.SemelhancaCor(nome, titulo) >= 0.2).Should().Be(esperado);
+}

@@ -87,11 +87,29 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
         return modelo.Count == 0 ? null : $"{tipo} {string.Join(' ', modelo)}";
     }
 
-    /// <summary>Semelhança com as cores no masculino («preta» = «Preto») — os títulos da Tudo4Mobile usam o masculino.</summary>
+    /// <summary>
+    /// Semelhança com as cores no masculino («preta» = «Preto») — os títulos da Tudo4Mobile usam o masculino.
+    /// Ao contrário do 4Phones, o título pode servir mais modelos (película «A17/A16/A26») — basta ter os nossos —
+    /// e as séries/especificações («Hoco G5», «11D», «9H») não contam como modelo. Protetor de câmara ≠ película de ecrã.
+    /// </summary>
     public static double SemelhancaCor(string nome, string titulo)
     {
-        static string N(string x) => Regex.Replace(x.ToLowerInvariant(), @"\b(pret|branc|vermelh|rox|amarel)a\b", "$1o");
-        return Semelhanca(N(nome), N(titulo));
+        static List<string> T(string x) => Regex.Matches(
+                Regex.Replace(x.ToLowerInvariant(), @"\b(pret|branc|vermelh|rox|amarel)a\b", "$1o"), @"[a-z0-9]+")
+            .Select(m => m.Value).Where(t => !Vazias.Contains(t)).ToList();
+        static bool Modelo(string t) => (Variantes.Contains(t) || t.Any(char.IsDigit)) && !Regex.IsMatch(t, @"^\d+[dh]$|^g\d{1,2}$");
+        var a = T(nome);
+        var b = T(titulo);
+        if (a.Count == 0 || b.Count == 0) return 0;
+        var ma = a.Where(Modelo).ToHashSet();
+        if (ma.Count == 0 || !ma.IsSubsetOf(b)) return 0;
+        // «iPhone 15» não aceita «15 Plus»/«15 Pro» (variante a mais no título).
+        if (b.Any(t => Variantes.Contains(t) && !ma.Contains(t))) return 0;
+        var camara = new Regex(@"c.?mera|c.?mara|lente");
+        if (camara.IsMatch(titulo.ToLowerInvariant()) != camara.IsMatch(nome.ToLowerInvariant())) return 0;
+        var sa = a.ToHashSet();
+        var sb = b.ToHashSet();
+        return (double)sa.Intersect(sb).Count() / sa.Union(sb).Count();
     }
 
     private async Task<FichaProduto?> TentarTudo4MobileNome(string q, IReadOnlyList<string> nomes, CancellationToken ct)
@@ -107,7 +125,7 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
                 var nota = nomes.Max(n => SemelhancaCor(n, titulo));
                 if (nota > melhor.Nota) melhor = (WebUtility.HtmlDecode(m.Groups[1].Value), nota);
             }
-            if (melhor.Url is null || melhor.Nota < 0.3) return null;
+            if (melhor.Url is null || melhor.Nota < 0.2) return null;
             var pagina = await GetTexto(melhor.Url, ct);
             return pagina is null ? null : LerPaginaTudo4Mobile(pagina, out _);
         }
