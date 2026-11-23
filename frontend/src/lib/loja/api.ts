@@ -126,7 +126,21 @@ export interface TextoProdutoGerado {
   seoDescricao: string;
 }
 
+/** 23/11: o que o «Pôr na loja» automático fez — o ecrã mostra o aviso quando falta algo. */
+export interface ProdutoAutomatico {
+  produto: ProdutoLoja;
+  fotosImportadas: number;
+  textoGerado: boolean;
+  aviso: string | null;
+}
+
 export const lojaApi = {
+  /** 23/11: cria o produto do artigo com fotos do fornecedor e texto da IA (rascunho) — até ~2 min. */
+  doArtigo: (artigoId: string) =>
+    api.post<ProdutoAutomatico>(`${base}/do-artigo/${artigoId}`, null, { timeout: 240_000 }).then((r) => r.data),
+  /** 23/11: fotos oficiais do fornecedor para um produto que já existe. */
+  fotosFornecedor: (id: string) =>
+    api.post<ProdutoAutomatico>(`${base}/${id}/fotos/fornecedor`, null, { timeout: 120_000 }).then((r) => r.data),
   /** Sprint 672: a IA (subscrição do Claude) escreve a partir do formulário — demora até ~1 min. */
   gerarTexto: (b: GuardarProdutoLoja) => api.post<TextoProdutoGerado>(`${base}/gerar-texto`, b, { timeout: 170_000 }).then((r) => r.data),
   list: () => api.get<ProdutoLoja[]>(base).then((r) => r.data),

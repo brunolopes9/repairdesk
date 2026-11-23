@@ -14,11 +14,23 @@ public sealed class LojaController : ControllerBase
 {
     private readonly ILojaService _service;
     private readonly ITextoProdutoIa _ia;
-    public LojaController(ILojaService service, ITextoProdutoIa ia)
+    private readonly IProdutoAutomatico _auto;
+    public LojaController(ILojaService service, ITextoProdutoIa ia, IProdutoAutomatico auto)
     {
         _service = service;
         _ia = ia;
+        _auto = auto;
     }
+
+    /// <summary>23/11: «Pôr na loja» num clique — cria o produto do artigo com fotos do fornecedor e texto da IA (rascunho).</summary>
+    [HttpPost("do-artigo/{artigoId:guid}")]
+    public async Task<ActionResult<ProdutoAutomaticoResultado>> DoArtigo(Guid artigoId, CancellationToken ct)
+        => Ok(await _auto.CriarDoArtigoAsync(artigoId, ct));
+
+    /// <summary>23/11: fotos oficiais do fornecedor para um produto que já existe.</summary>
+    [HttpPost("{id:guid}/fotos/fornecedor")]
+    public async Task<ActionResult<ProdutoAutomaticoResultado>> FotosFornecedor(Guid id, CancellationToken ct)
+        => Ok(await _auto.FotosDoFornecedorAsync(id, ct));
 
     /// <summary>Sprint 672: a IA (subscrição) escreve descrição, especificações e textos do Google a partir do formulário.</summary>
     [HttpPost("gerar-texto")]

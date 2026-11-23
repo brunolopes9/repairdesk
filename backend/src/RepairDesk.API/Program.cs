@@ -359,6 +359,7 @@ try
     builder.Services.AddScoped<RepairDesk.DAL.Persistence.LojaMudancasInterceptor>();
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.IFichaFornecedor, RepairDesk.Services.Loja.FichaFornecedor>(c => c.Timeout = TimeSpan.FromSeconds(10));
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.ITextoProdutoIa, RepairDesk.Services.Loja.TextoProdutoIa>(c => c.Timeout = TimeSpan.FromSeconds(160));
+    builder.Services.AddHttpClient<RepairDesk.Services.Loja.IProdutoAutomatico, RepairDesk.Services.Loja.ProdutoAutomatico>(c => c.Timeout = TimeSpan.FromSeconds(30));
     // Sprint 656: encomendas da loja online + Stripe Checkout (chaves só no servidor: Stripe__SecretKey, Stripe__WebhookSecret).
     builder.Services.Configure<RepairDesk.Services.Loja.StripeOptions>(builder.Configuration.GetSection("Stripe"));
     // Sprint 690: a loja cobra pelo ifthenpay quando a empresa tem as chaves (Definições); senão Stripe.

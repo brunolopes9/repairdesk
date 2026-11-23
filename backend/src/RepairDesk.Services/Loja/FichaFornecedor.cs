@@ -12,6 +12,15 @@ public interface IFichaFornecedor
     /// (SKU do lote, modelo). Null quando não encontra ou o site não responde — nunca falha o pedido.
     /// </summary>
     Task<string?> ProcurarAsync(IEnumerable<string> codigos, CancellationToken ct = default);
+
+    /// <summary>23/11: a ficha completa — texto, marca (vendor) e as fotos oficiais do produto. Null quando não encontra.</summary>
+    Task<FichaProduto?> ProcurarProdutoAsync(IEnumerable<string> codigos, CancellationToken ct = default);
+}
+
+/// <summary>Produto encontrado no site do fornecedor. <see cref="Imagens"/> são URLs https absolutos, pela ordem do fornecedor.</summary>
+public sealed record FichaProduto(string Titulo, string Texto, string? Marca, IReadOnlyList<string> Imagens)
+{
+    public string TextoCompleto => (Titulo + "\n" + Texto).Trim();
 }
 
 /// <summary>
@@ -32,6 +41,9 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
     }
 
     public async Task<string?> ProcurarAsync(IEnumerable<string> codigos, CancellationToken ct = default)
+        => (await ProcurarProdutoAsync(codigos, ct))?.TextoCompleto;
+
+    public async Task<FichaProduto?> ProcurarProdutoAsync(IEnumerable<string> codigos, CancellationToken ct = default)
     {
         var lista = codigos.Select(c => c?.Trim() ?? "").Where(c => c.Length is >= 4 and <= 40 && CodigoValido().IsMatch(c))
             .Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToList();
@@ -48,10 +60,7 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
                     if (string.IsNullOrWhiteSpace(handle)) continue;
                     var produto = await GetJson($"{loja}/products/{Uri.EscapeDataString(handle)}.js", ct);
                     if (produto is null) continue;
-                    var titulo = produto.Value.TryGetProperty("title", out var t) ? t.GetString() : null;
-                    var html = produto.Value.TryGetProperty("description", out var d) ? d.GetString() : null;
-                    var texto = Limpar(html);
-                    return $"{titulo}\n{texto}".Trim();
+                    return LerProduto(produto.Value);
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
                 {
@@ -59,6 +68,25 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
                 }
             }
         return null;
+    }
+
+    /// <summary>Produto Shopify (/products/{handle}.js) → ficha. As imagens vêm como «//cdn…» — passam a https.</summary>
+    public static FichaProduto LerProduto(JsonElement produto)
+    {
+        var titulo = produto.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
+        var html = produto.TryGetProperty("description", out var d) ? d.GetString() : null;
+        var marca = produto.TryGetProperty("vendor", out var v) ? v.GetString()?.Trim() : null;
+        var imagens = new List<string>();
+        if (produto.TryGetProperty("images", out var im) && im.ValueKind == JsonValueKind.Array)
+            foreach (var i in im.EnumerateArray())
+            {
+                var url = i.ValueKind == JsonValueKind.String ? i.GetString()
+                    : i.ValueKind == JsonValueKind.Object && i.TryGetProperty("src", out var src) ? src.GetString() : null;
+                if (string.IsNullOrWhiteSpace(url)) continue;
+                if (url.StartsWith("//")) url = "https:" + url;
+                if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) && !imagens.Contains(url)) imagens.Add(url);
+            }
+        return new FichaProduto(titulo, Limpar(html), string.IsNullOrWhiteSpace(marca) ? null : marca, imagens);
     }
 
     private async Task<JsonElement?> GetJson(string url, CancellationToken ct)

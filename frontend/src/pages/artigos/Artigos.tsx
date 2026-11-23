@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Camera, Euro, PackagePlus, Pencil, Plus, Printer, ScanBarcode, Search, Tag, X } from 'lucide-react';
+import { Camera, Euro, ImageOff, Loader2, PackagePlus, Pencil, Plus, Printer, ScanBarcode, Search, ShoppingBag, Tag, X } from 'lucide-react';
+import { lojaApi } from '../../lib/loja/api';
+import { usePorNaLoja } from '../loja/usePorNaLoja';
 import LeitorCamera from '../../components/LeitorCamera';
 import { Button, EmptyState, PageHeader, SectionCard, SkeletonRow, SortableTh, ViewTabs } from '../../components/ui';
 import { useAuth } from '../../lib/auth/AuthContext';
@@ -21,6 +23,15 @@ type Campo = 'sku' | 'nome' | 'stock' | 'preco' | 'custo' | 'lucro' | 'local';
 
 /** Sprint 597: o nome que o cliente lê (português); o do fornecedor fica por baixo. */
 const nomeDe = (a: Artigo) => a.nomeFatura ?? a.nome;
+
+/** 23/11: miniatura do artigo — a foto principal do produto da loja ligado. */
+function Miniatura({ url, tam }: { url: string | null | undefined; tam: string }) {
+  return (
+    <span className={`${tam} grid flex-none place-items-center overflow-hidden rounded-md border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950`}>
+      {url ? <img src={url} alt="" loading="lazy" className="h-full w-full object-contain" /> : <ImageOff size={16} className="text-zinc-300" />}
+    </span>
+  );
+}
 
 /** Sprint 597: a seleção de etiquetas sobrevive a pesquisas e a sair da página (sessionStorage — conveniência). */
 interface Selecao { copias: Record<string, number>; nomes: Record<string, string> }
@@ -67,6 +78,14 @@ export default function Artigos() {
   const [vista, setVista] = useState<'loja' | 'moloni'>('loja');
   const [camara, setCamara] = useState(false);
   const isAdmin = useAuth().hasRole('Admin');
+  // 23/11: miniatura (1.ª foto do produto da loja ligado) e «Pôr na loja» num clique — só o dono vê a loja.
+  const loja = useQuery({ queryKey: ['loja', 'produtos'], queryFn: lojaApi.list, enabled: isAdmin, staleTime: 60_000 });
+  const naLoja = useMemo(() => {
+    const m = new Map<string, { id: string; foto: string | null; publicado: boolean }>();
+    for (const p of loja.data ?? []) if (p.artigoId) m.set(p.artigoId, { id: p.id, foto: p.fotos.find((x) => x.enviada && x.url)?.url ?? null, publicado: p.publicado });
+    return m;
+  }, [loja.data]);
+  const porNaLoja = usePorNaLoja();
 
   const list = useQuery({ queryKey: ['artigos', 'lista', q], queryFn: () => artigosApi.list(q), placeholderData: keepPreviousData });
   // Sprint 581: o que entrou em stock e ainda não tem artigo nem é peça de reparação — nada fica escondido.
@@ -215,6 +234,7 @@ export default function Artigos() {
             {artigos.map((a) => (
               <li key={a.id} className={`flex items-center gap-3 px-3 py-3 ${a.ativo ? '' : 'opacity-50'}`}>
                 <input type="checkbox" className="h-5 w-5 flex-none" checked={!!escolhidos[a.id]} onChange={() => alternarEscolha(a)} aria-label={`Etiquetas de ${nomeDe(a)}`} />
+                {isAdmin && <Miniatura url={naLoja.get(a.id)?.foto} tam="h-12 w-12" />}
                 <button type="button" onClick={() => (aEscolher ? alternarEscolha(a) : setEditar(a.id))} className="min-w-0 flex-1 text-left">
                   <span className="block truncate font-medium">{nomeDe(a)}</span>
                   <span className="block truncate text-xs text-zinc-500">{[a.sku, a.categoria, a.localizacao].filter(Boolean).join(' · ')}</span>
@@ -267,8 +287,13 @@ export default function Artigos() {
                     </td>
                     <td className="px-3 py-2 font-mono text-xs">{a.sku}</td>
                     <td className="px-3 py-2">
-                      <div className="font-medium">{nomeDe(a)}</div>
-                      <div className="text-xs text-zinc-500">{[a.nomeFatura && a.nomeFatura !== a.nome ? a.nome : null, a.categoria, a.codigoBarras].filter(Boolean).join(' · ')}</div>
+                      <div className="flex items-center gap-3">
+                        {isAdmin && <Miniatura url={naLoja.get(a.id)?.foto} tam="h-10 w-10" />}
+                        <div className="min-w-0">
+                          <div className="font-medium">{nomeDe(a)}</div>
+                          <div className="text-xs text-zinc-500">{[a.nomeFatura && a.nomeFatura !== a.nome ? a.nome : null, a.categoria, a.codigoBarras].filter(Boolean).join(' · ')}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-right">
                       {a.stock > 0
@@ -294,6 +319,19 @@ export default function Artigos() {
                           <Pencil size={15} />
                         </button>
                       )}
+                      {isAdmin && (naLoja.has(a.id) ? (
+                        <button type="button" title={naLoja.get(a.id)!.publicado ? 'Na loja online — abrir' : 'Rascunho na loja — abrir'}
+                          aria-label={`Abrir ${a.nome} na loja`} onClick={() => navigate(`/loja/${naLoja.get(a.id)!.id}`)}
+                          className={`rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${naLoja.get(a.id)!.publicado ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          <ShoppingBag size={15} />
+                        </button>
+                      ) : a.stock > 0 && (
+                        <button type="button" title="Pôr na loja online (fotos do fornecedor + descrição automáticas)" aria-label={`Pôr ${a.nome} na loja`}
+                          disabled={porNaLoja.isPending} onClick={() => porNaLoja.mutate(a.id)}
+                          className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-brand-700 disabled:opacity-40 dark:hover:bg-zinc-800">
+                          {porNaLoja.isPending && porNaLoja.variables === a.id ? <Loader2 size={15} className="animate-spin" /> : <PackagePlus size={15} />}
+                        </button>
+                      ))}
                       <button type="button" title={`Imprimir etiquetas de ${a.nome}`} aria-label={`Imprimir etiquetas de ${a.nome}`}
                         className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-brand-700 dark:hover:bg-zinc-800" onClick={() => etiquetasDe(a)}>
                         <Printer size={15} />

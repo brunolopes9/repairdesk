@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ExternalLink, Globe, ImagePlus, Loader2, Plus, Save, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Globe, ImagePlus, Loader2, Plus, Save, Sparkles, Trash2, X } from 'lucide-react';
 import { AutosaveStatus, Button, SectionCard, SkeletonCard } from '../../components/ui';
 import { useAutosave } from '../../lib/useAutosave';
 import { useConfirm } from '../../components/ConfirmDialog';
@@ -273,6 +273,16 @@ export default function ProdutoLojaEditor() {
     onSuccess: refrescar,
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
+  // 23/11: fotos oficiais do fornecedor (pelo código da fatura do artigo ligado) — sem ir ao site delas à mão.
+  const fotosFornecedor = useMutation({
+    mutationFn: () => lojaApi.fotosFornecedor(id!),
+    onSuccess: (r) => {
+      refrescar(r.produto);
+      if (r.fotosImportadas) toast.success(`${r.fotosImportadas} foto(s) do fornecedor adicionadas`, r.aviso ?? undefined);
+      else toast.error(r.aviso ?? 'Não encontrei fotos novas.');
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
   const apagarFoto = useMutation({
     mutationFn: (fotoId: string) => lojaApi.apagarFoto(id!, fotoId),
     onSuccess: refrescar,
@@ -489,7 +499,13 @@ export default function ProdutoLojaEditor() {
       </SectionCard>
 
       {p && (
-        <SectionCard title={`Fotos (${fotos.length})`}>
+        <SectionCard title={`Fotos (${fotos.length})`} action={(
+          <Button variant="secondary" size="sm" disabled={fotosFornecedor.isPending || fotos.length >= 6} onClick={() => fotosFornecedor.mutate()}
+            leftIcon={fotosFornecedor.isPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            title={ligado ? 'Vai buscar as fotos oficiais ao site do fornecedor pelo código da fatura' : 'Liga primeiro o produto a um artigo do stock'}>
+            {fotosFornecedor.isPending ? 'A buscar…' : 'Fotos do fornecedor'}
+          </Button>
+        )}>
           <p className="mb-3 text-sm text-zinc-500">A 1.ª é a principal. Nos teus recondicionados usa fotos reais (frente, trás, lados e riscos).</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {fotos.map((x, i) => (

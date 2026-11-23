@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { PackagePlus, Search } from 'lucide-react';
+import { Loader2, PackagePlus, Search } from 'lucide-react';
+import { usePorNaLoja } from './usePorNaLoja';
 import Modal from '../../components/Modal';
 import { EmptyState } from '../../components/ui';
 import { artigosApi } from '../../lib/artigos/api';
@@ -13,7 +13,7 @@ import { formatCents } from '../../lib/money';
  * (preço, custo e unidades vêm do artigo) — só falta título, fotos e publicar.
  */
 export function DoStockModal({ jaNaLoja, onClose }: { jaNaLoja: Set<string>; onClose: () => void }) {
-  const navigate = useNavigate();
+  const porNaLoja = usePorNaLoja();
   const [q, setQ] = useState('');
   const artigos = useQuery({ queryKey: ['artigos', 'para-loja'], queryFn: () => artigosApi.list() });
   const lista = useMemo(() => (artigos.data ?? [])
@@ -24,7 +24,8 @@ export function DoStockModal({ jaNaLoja, onClose }: { jaNaLoja: Set<string>; onC
   return (
     <Modal open onClose={onClose} wide title="Pôr na loja um artigo do stock">
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
-        Escolhe o artigo. Abre o produto da loja já ligado a ele — o preço e as unidades vêm do artigo e, quando o vendes ao balcão, o site fica sem stock sozinho.
+        Escolhe o artigo e eu faço o resto: título, marca, preço do artigo, fotos oficiais do fornecedor e descrição com especificações (IA).
+        Fica em rascunho — revês e carregas em Publicar. Quando o vendes ao balcão, o site fica sem stock sozinho.
       </p>
       <div className="relative mb-3">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
@@ -37,14 +38,16 @@ export function DoStockModal({ jaNaLoja, onClose }: { jaNaLoja: Set<string>; onC
         <ul className="max-h-[60vh] divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
           {lista.map((a) => (
             <li key={a.id}>
-              <button type="button" onClick={() => navigate(`/loja/novo?artigo=${a.id}`)}
-                className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left hover:bg-brand-50 dark:hover:bg-brand-950/30">
+              <button type="button" disabled={porNaLoja.isPending} onClick={() => porNaLoja.mutate(a.id)}
+                className="flex min-h-14 disabled:cursor-wait disabled:opacity-60 w-full items-center gap-3 px-4 py-2 text-left hover:bg-brand-50 dark:hover:bg-brand-950/30">
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold">{a.nome}</span>
                   <span className="block text-xs text-zinc-500">#{a.numero} · {a.categoria ?? 'Sem categoria'} · {a.stock} em stock</span>
                 </span>
                 <span className="text-sm font-semibold tabular-nums">{a.precoEfetivoCents != null ? formatCents(a.precoEfetivoCents) : 'sem preço'}</span>
-                <PackagePlus size={18} className="text-brand-600" />
+                {porNaLoja.isPending && porNaLoja.variables === a.id
+                  ? <span className="flex items-center gap-1 text-xs text-brand-700"><Loader2 size={16} className="animate-spin" /> fotos + texto… (até 2 min)</span>
+                  : <PackagePlus size={18} className="text-brand-600" />}
               </button>
             </li>
           ))}
