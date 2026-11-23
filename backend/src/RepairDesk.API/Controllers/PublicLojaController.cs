@@ -85,6 +85,18 @@ public sealed class PublicLojaController : ControllerBase
     public async Task<ActionResult<SessaoLojaDto>> Entrar(string intakeSlug, [FromBody] EntrarLojaRequest req, CancellationToken ct)
         => await EntrarNaEmpresa(intakeSlug, ct) ? Ok(await _conta.EntrarAsync(req, ct)) : NotFound();
 
+    /// <summary>23/11: que botões «Continuar com…» o site mostra (só ids públicos).</summary>
+    [HttpGet("{intakeSlug}/conta/provedores")]
+    [EnableRateLimiting("public-portal")]
+    public async Task<ActionResult<ProvedoresLoginDto>> Provedores(string intakeSlug, [FromServices] ILoginSocialLoja social, CancellationToken ct)
+        => await EntrarNaEmpresa(intakeSlug, ct) ? Ok(await social.ProvedoresAsync(ct)) : NotFound();
+
+    /// <summary>23/11: entrar com Google (ID token) ou Facebook (access token) — confirmado no próprio fornecedor.</summary>
+    [HttpPost("{intakeSlug}/conta/social")]
+    [EnableRateLimiting("auth-strict")]
+    public async Task<ActionResult<SessaoLojaDto>> Social(string intakeSlug, [FromBody] EntrarSocialRequest req, [FromServices] ILoginSocialLoja social, CancellationToken ct)
+        => await EntrarNaEmpresa(intakeSlug, ct) ? Ok(await social.EntrarAsync(req, ct)) : NotFound();
+
     [HttpPost("{intakeSlug}/conta/sair")]
     [EnableRateLimiting("public-portal")]
     public async Task<IActionResult> Sair(string intakeSlug, CancellationToken ct)

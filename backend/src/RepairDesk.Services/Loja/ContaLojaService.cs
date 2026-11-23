@@ -29,6 +29,9 @@ public interface IContaLojaService
     /// <summary>Envia o link por email se a conta existir. Responde sempre igual (não revela se o email tem conta).</summary>
     Task PedirResetAsync(PedirResetLojaRequest req, CancellationToken ct = default);
     Task<SessaoLojaDto> RedefinirAsync(RedefinirLojaRequest req, CancellationToken ct = default);
+    /// <summary>23/11: entrar com Google/Facebook — o email JÁ foi confirmado pelo fornecedor. Conta existente → entra;
+    /// senão cria-a (sem palavra-passe utilizável; pode definir uma depois em «Recuperar palavra-passe»).</summary>
+    Task<SessaoLojaDto> EntrarComEmailConfirmadoAsync(string email, string nome, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -181,6 +184,27 @@ public sealed class ContaLojaService : IContaLojaService
     }
 
     // ---- auxiliares ----
+
+    public async Task<SessaoLojaDto> EntrarComEmailConfirmadoAsync(string email, string nome, CancellationToken ct = default)
+    {
+        var tenantId = _tenant.TenantId ?? throw new ValidationException("sem_empresa", "Loja desconhecida.");
+        var em = NormEmail(email);
+        var c = await _repo.FindByEmailAsync(em, ct);
+        if (c is null)
+        {
+            var n = (nome ?? "").Trim();
+            c = new ClienteLoja { TenantId = tenantId, Nome = n.Length is >= 2 and <= 120 ? n : em.Split('@')[0], Email = em, PasswordHash = "-" };
+            c.PasswordHash = Hasher.HashPassword(c, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
+            await _repo.AddAsync(c, ct);
+            await _audit.LogAsync(AuditAction.Create, nameof(ClienteLoja), c.Id, new { c.Email, social = true }, tenantId, null, ct);
+        }
+        c.FalhasLogin = 0;
+        c.BloqueadoAte = null;
+        c.UltimoLoginEm = DateTime.UtcNow;
+        var sessao = await NovaSessaoAsync(c, ct);
+        await _repo.SaveAsync(ct);
+        return sessao;
+    }
 
     private async Task<SessaoLojaDto> NovaSessaoAsync(ClienteLoja c, CancellationToken ct)
     {

@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Copy, CreditCard, KeyRound, ShieldCheck, T
 import { BackButton, Button, PageHeader, SectionCard } from '../../components/ui';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { useConfirm } from '../../components/ConfirmDialog';
+import { LoginSocialLojaCard } from './LoginSocialLojaCard';
 import { api } from '../../lib/api';
 import { toast } from '../../lib/toast';
 
@@ -152,6 +153,7 @@ export default function PagamentosLoja() {
           </SectionCard>
         </>
       )}
+      <LoginSocialLojaCard />
     </div>
   );
 }

@@ -66,6 +66,8 @@ public class Tenant : BaseEntity
     // Sprint 599 (Doc 95 Fase B): app Meta (Facebook+Instagram) e app Threads do tenant — o dono
     // escreve-as em Definições → Redes sociais; o secret fica cifrado (como o BYOK Anthropic).
     public string? MetaAppId { get; set; }
+    /// <summary>23/11: «Continuar com Google» na loja — Client ID (público) da app OAuth do Google.</summary>
+    public string? LojaGoogleClientId { get; set; }
     public string? MetaAppSecretCipherText { get; set; }
     /// <summary>Configuração do «Facebook Login for Business» (config_id) — define as permissões pedidas no login.</summary>
     public string? MetaLoginConfigId { get; set; }

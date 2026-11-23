@@ -379,6 +379,8 @@ try
     // Sprint 659: contas de cliente da loja.
     builder.Services.AddScoped<IClienteLojaRepository, RepairDesk.DAL.Persistence.ClienteLojaRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.IContaLojaService, RepairDesk.Services.Loja.ContaLojaService>();
+    // 23/11: entrar na loja com Google/Facebook (o token é confirmado no próprio fornecedor).
+    builder.Services.AddHttpClient<RepairDesk.Services.Loja.ILoginSocialLoja, RepairDesk.Services.Loja.LoginSocialLoja>(c => c.Timeout = TimeSpan.FromSeconds(15));
     builder.Services.AddScoped<ISubscritorNewsletterRepository, RepairDesk.DAL.Persistence.SubscritorNewsletterRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.INewsletterService, RepairDesk.Services.Loja.NewsletterService>();
     builder.Services.AddScoped<IAlertaStockRepository, RepairDesk.DAL.Persistence.AlertaStockRepository>();

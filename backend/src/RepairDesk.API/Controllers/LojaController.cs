@@ -40,6 +40,15 @@ public sealed class LojaController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ProdutoLojaDto>>> List(CancellationToken ct) => Ok(await _service.ListAsync(ct));
 
+    /// <summary>23/11: contas de cliente — Client ID do Google (o Facebook usa a app Meta das Redes sociais).</summary>
+    [HttpGet("login-social")]
+    public async Task<ActionResult<LoginSocialConfigDto>> LoginSocial([FromServices] ILoginSocialLoja social, CancellationToken ct)
+        => Ok(await social.ConfigAsync(ct));
+
+    [HttpPut("login-social")]
+    public async Task<ActionResult<LoginSocialConfigDto>> GuardarLoginSocial([FromBody] GuardarLoginSocialRequest req, [FromServices] ILoginSocialLoja social, CancellationToken ct)
+        => Ok(await social.GuardarAsync(req, ct));
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ProdutoLojaDto>> Get(Guid id, CancellationToken ct) => Ok(await _service.GetAsync(id, ct));
 
