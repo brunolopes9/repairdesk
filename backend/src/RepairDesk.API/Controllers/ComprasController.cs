@@ -74,6 +74,8 @@ public class ComprasController : ControllerBase
     public async Task<ActionResult<CompraDocumentoDto>> CreateFromImport(Guid importId, [FromBody] CompraDocumentoWriteRequest req, CancellationToken ct)
     {
         var dto = await _service.CreateFromImportAsync(importId, req, ct);
+        // 22/11 (Bruno): a compra que vem de uma fatura recebida também liga sozinha ao stock (faltava aqui).
+        dto = await LigarArtigosAsync(dto, ct);
         return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
     }
 

@@ -236,6 +236,16 @@ public class CompraService : ICompraService
         var linhas = incluirSemStock ? todas : todas.Where(l => l.QuantidadeEmStock > 0).ToList();
         // 18/11 (Bruno): portes da compra repartidos pelas unidades (pelo valor) — para os ver ao vender.
         var unidadesPorDoc = todas.GroupBy(l => l.CompraDocumentoId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantidade));
+        // 22/11: o mesmo envio (fornecedor + dia) divide os portes de todas as faturas pelas unidades de todas.
+        var envioPorDoc = new Dictionary<Guid, (decimal Portes, decimal Iva, int Unidades)>();
+        foreach (var envio in todas.Select(l => l.Documento!).DistinctBy(d => d.Id).GroupBy(d => (d.FornecedorId, d.Data.Date)))
+        {
+            var e = (envio.Sum(d => d.PortesPagos), envio.Sum(d => d.PortesIva ?? 0m), envio.Sum(d => unidadesPorDoc.GetValueOrDefault(d.Id)));
+            foreach (var d in envio) envioPorDoc[d.Id] = e;
+        }
+        // AsNoTracking: cada linha pode ter a sua instância do documento — preenche todas.
+        foreach (var l in todas)
+            if (l.Documento is { } d && envioPorDoc.TryGetValue(d.Id, out var e)) { d.EnvioPortes = e.Portes; d.EnvioPortesIva = e.Iva; d.EnvioUnidades = e.Unidades; }
         // Sprint 570: lotes de um artigo vendem ao preço do artigo (próprio ou da categoria, ex.: películas a 15 €).
         var precosCategoria = _artigos is null ? new Dictionary<string, int>()
             : (await _artigos.ListCategoriasAsync(ct)).Where(c => c.PrecoVendaCents is not null)
@@ -252,7 +262,7 @@ public class CompraService : ICompraService
                 l.Descricao, l.Localizacao, q, l.PrecoUnitarioPago,
                 q * l.PrecoUnitarioPago, q * u.CustoSemIva, u.PrecoFinalComIva, q * u.LucroQueSobra, q * u.IvaAPagarEstado, l.TaxaIvaCompra, l.ArtigoId, l.Artigo?.Sku, PrecoArtigo(l) is { } pa ? pa / 100m : null, TextoVenda(l),
                 l.LucroUnitario, doc.Fornecedor?.RegimeIva == RegimeIvaFornecedor.UeAutoliquidacao, l.Artigo?.Nome,
-                PortesPorUnidade(doc.PortesPagos, unidadesPorDoc.GetValueOrDefault(doc.Id)));
+                PortesDoDocumento(doc, unidadesPorDoc.GetValueOrDefault(doc.Id)));
         }).ToList();
     }
 
@@ -470,6 +480,13 @@ public class CompraService : ICompraService
     public static decimal PortesPorUnidade(decimal portes, int unidadesDoDocumento)
         => portes <= 0 || unidadesDoDocumento <= 0 ? 0m : Math.Round(portes / unidadesDoDocumento, 4, MidpointRounding.AwayFromZero);
 
+    /// <summary>22/11: portes por unidade do envio inteiro (faturas do mesmo fornecedor no mesmo dia) ou, sem envio, do documento.</summary>
+    public static decimal PortesDoDocumento(CompraDocumento d, int unidadesDoc)
+        => d.EnvioUnidades is > 0 and var u ? PortesPorUnidade(d.EnvioPortes ?? 0m, u) : PortesPorUnidade(d.PortesPagos, unidadesDoc);
+
+    public static decimal PortesSemIvaDoDocumento(CompraDocumento d, int unidadesDoc)
+        => d.EnvioUnidades is > 0 and var u ? PortesSemIvaPorUnidade(d.EnvioPortes ?? 0m, d.EnvioPortesIva, u) : PortesSemIvaPorUnidade(d.PortesPagos, d.PortesIva, unidadesDoc);
+
     /// <summary>Parte dos portes por unidade sem o IVA dedutível (o que pesa mesmo no lucro). UE/sem IVA = tudo.</summary>
     public static decimal PortesSemIvaPorUnidade(decimal portes, decimal? portesIva, int unidadesDoDocumento)
         => PortesPorUnidade(portes - Math.Clamp(portesIva ?? 0m, 0m, Math.Max(0m, portes)), unidadesDoDocumento);
@@ -520,7 +537,7 @@ public class CompraService : ICompraService
                 u.IvaDaVenda, u.PrecoFinalComIva, u.IvaAPagarEstado,
                 l.Quantidade * l.PrecoUnitarioPago, l.Quantidade * u.CustoSemIva,
                 l.SkuFornecedor, l.ArtigoId, l.Artigo?.Nome, l.PecaReparacao,
-                PortesPorUnidade(d.PortesPagos, unidadesDoc));
+                PortesDoDocumento(d, unidadesDoc));
         }).ToList();
 
         var totalLinhas = linhas.Sum(l => l.TotalPago);

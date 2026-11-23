@@ -209,7 +209,9 @@ export default function VendaEditor() {
     const { custoUnit, taxaCompra } = custoDaLinha(l);
     const custoSemIva = custoUnit / (1 + (l.porFora ? 0 : taxaCompra));
     const taxaVenda = l.porFora ? 0 : (parseDecimal(l.iva) ?? IVA_NORMAL) / 100;
-    const semIvaUn = Math.max(0, custoSemIva + v);
+    // 22/11 (Bruno): os portes da compra fazem parte do custo — lucro 0 = vender exatamente ao custo (com portes).
+    const portesSemIva = l.compraLinhaId ? (l.portesUnit ?? 0) / (1 + (l.porFora ? 0 : taxaCompra)) : 0;
+    const semIvaUn = Math.max(0, custoSemIva + portesSemIva + v);
     setLinha(l.key, { preco: fmt2(l.porFora || semIva ? semIvaUn : semIvaUn * (1 + taxaVenda)) });
   }
   // Sprint 683: o erro de uma ação aparece a vermelho no sítio (cartão Estado e linha com o problema), não só num aviso.
@@ -946,17 +948,10 @@ export default function VendaEditor() {
         <dl className="mt-3 ml-auto grid max-w-xs grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm tabular-nums">
           <dt className="font-medium">Total a cobrar (c/ IVA)</dt><dd className="text-right text-lg font-semibold">{formatEur(contas.total)}</dd>
           <dt className="text-zinc-500">Total sem IVA</dt><dd className="text-right">{formatEur(contas.total - contas.ivaVenda)}</dd>
-          {/* 20/11 (Bruno): quando são iguais (peças sem IVA dedutível, ex.: UE) mostra-se uma linha só. */}
-          {Math.abs(contas.ivaVenda - contas.ivaAPagar) < 0.005 ? (
-            <><dt className="text-zinc-500" title="IVA que vai na fatura e que entregas ao Estado (as peças não têm IVA a deduzir)">IVA</dt><dd className="text-right">{formatEur(contas.ivaVenda)}</dd></>
-          ) : (
-            <>
-              <dt className="text-zinc-500">IVA na fatura</dt><dd className="text-right">{formatEur(contas.ivaVenda)}</dd>
-              <dt className="text-zinc-500" title="IVA da venda − IVA já pago ao fornecedor das peças (estimativa; o saldo real depende de todo o trimestre)">IVA a entregar (estimativa)</dt><dd className="text-right">{formatEur(contas.ivaAPagar)}</dd>
-            </>
-          )}
-          <dt className="text-zinc-500" title="O que pagaste pelas peças (c/ IVA) mais a parte dos portes da compra">Custo total c/ IVA{contas.portes > 0 ? ' (com portes)' : ''}</dt><dd className="text-right">{formatEur(contas.custoComIva)}</dd>
-          {contas.portes > 0 && <><dt className="pl-3 text-xs text-zinc-400">dos quais portes</dt><dd className="text-right text-xs text-zinc-400">{formatEur(contas.portes)}</dd></>}
+          {/* 22/11 (Bruno): IVA e IVA a entregar sempre os dois; o custo já leva os portes repartidos pelos produtos. */}
+          <dt className="text-zinc-500">IVA</dt><dd className="text-right">{formatEur(contas.ivaVenda)}</dd>
+          <dt className="text-zinc-500" title="IVA da venda − IVA já pago ao fornecedor (fornecedor UE/sem IVA: igual ao IVA)">IVA a entregar</dt><dd className="text-right">{formatEur(contas.ivaAPagar)}</dd>
+          <dt className="text-zinc-500" title="O que pagaste pelos produtos (c/ IVA), já com a parte dos portes da compra">Custo dos produtos c/ IVA</dt><dd className="text-right">{formatEur(contas.custoComIva)}</dd>
           <dt className="font-medium" title="Total − custo das peças − IVA a entregar">Lucro</dt><dd className={`text-right font-semibold ${contas.lucro < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatEur(contas.lucro)}</dd>
           <dt className="text-zinc-500">Margem</dt><dd className="text-right">{contas.total - contas.ivaVenda > 0 ? `${Math.round((contas.lucro / (contas.total - contas.ivaVenda)) * 100)} %` : '—'}</dd>
         </dl>

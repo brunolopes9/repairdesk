@@ -70,11 +70,30 @@ public class CompraRepository : ICompraRepository
     public Task<CompraDocumento?> FindByNumeroAsync(int numero, CancellationToken ct = default)
         => _db.ComprasDocumentos.FirstOrDefaultAsync(d => d.Numero == numero, ct);
 
-    public Task<CompraDocumento?> FindByIdAsync(Guid id, CancellationToken ct = default)
-        => _db.ComprasDocumentos
+    public async Task<CompraDocumento?> FindByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        var d = await _db.ComprasDocumentos
             .Include(d => d.Fornecedor)
             .Include(d => d.Linhas).ThenInclude(l => l.Artigo)
             .FirstOrDefaultAsync(d => d.Id == id, ct);
+        if (d is not null) await PreencherEnvioAsync([d], ct);
+        return d;
+    }
+
+    /// <summary>22/11: soma portes e unidades de todas as compras do mesmo fornecedor no mesmo dia (o mesmo envio).</summary>
+    private async Task PreencherEnvioAsync(IEnumerable<CompraDocumento> docs, CancellationToken ct)
+    {
+        foreach (var g in docs.GroupBy(d => (d.FornecedorId, d.Data.Date)))
+        {
+            var dia = g.Key.Date;
+            var irmaos = await _db.ComprasDocumentos.AsNoTracking().Include(d => d.Linhas)
+                .Where(d => d.FornecedorId == g.Key.FornecedorId && d.Data >= dia && d.Data < dia.AddDays(1)).ToListAsync(ct);
+            var portes = irmaos.Sum(d => d.PortesPagos);
+            var iva = irmaos.Sum(d => d.PortesIva ?? 0m);
+            var unidades = irmaos.Sum(d => d.Linhas.Sum(l => l.Quantidade));
+            foreach (var d in g) { d.EnvioPortes = portes; d.EnvioPortesIva = iva; d.EnvioUnidades = unidades; }
+        }
+    }
 
     public async Task<IReadOnlyList<CompraDocumento>> FindPossiveisDuplicadosAsync(
         Guid fornecedorId, string? numeroFatura, IReadOnlyCollection<string> encomendas, Guid? excluirId, CancellationToken ct = default)
@@ -136,8 +155,12 @@ public class CompraRepository : ICompraRepository
     public Task AddAsync(CompraDocumento doc, CancellationToken ct = default) => _db.ComprasDocumentos.AddAsync(doc, ct).AsTask();
     public void Remove(CompraDocumento doc) => _db.ComprasDocumentos.Remove(doc);
     public async Task<IReadOnlyList<CompraLinha>> FindLinhasAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
-        => await _db.ComprasLinhas.Include(l => l.Documento).ThenInclude(d => d!.Fornecedor).Include(l => l.Documento).ThenInclude(d => d!.Linhas)
+    {
+        var linhas = await _db.ComprasLinhas.Include(l => l.Documento).ThenInclude(d => d!.Fornecedor).Include(l => l.Documento).ThenInclude(d => d!.Linhas)
             .Where(l => ids.Contains(l.Id)).ToListAsync(ct);
+        await PreencherEnvioAsync(linhas.Select(l => l.Documento!).Where(d => d is not null).Distinct(), ct);
+        return linhas;
+    }
 
     public void AddLinha(CompraLinha linha) => _db.ComprasLinhas.Add(linha);
     public void RemoveLinha(CompraLinha linha) => _db.ComprasLinhas.Remove(linha);

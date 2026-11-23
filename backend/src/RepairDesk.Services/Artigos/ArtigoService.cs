@@ -292,6 +292,7 @@ public class ArtigoService : IArtigoService
     {
         var n = 0;
         foreach (var s in await SugestoesAsync(ct))
+        try
         {
             if (s.ArtigoSugeridoId is { } artigoId)
             {
@@ -302,14 +303,27 @@ public class ArtigoService : IArtigoService
             else
             {
                 var peca = ModeloDispositivo.NomePeca(s.Nome);
-                var nome = peca ?? s.Nome;
+                var nome = peca ?? NomeLegivel(s.Nome);
                 var categoria = s.Categoria ?? (EPelicula(nome) ? "Películas" : peca is not null ? "Peças" : "Acessórios");
                 await CreateAsync(new ArtigoWriteRequest(nome.Length > 200 ? nome[..200] : nome, categoria, null, null, null,
                     s.Localizacao, null, true, s.LoteIds), ct);
             }
             n++;
         }
+        catch (DomainException) { /* 22/11: um artigo com problema não impede os outros de ligar */ }
         return n;
+    }
+
+    /// <summary>22/11: «SUPORTE PARA CARRO HOCO CA86 PRETO» (fatura em maiúsculas) → «Suporte para carro hoco ca86 preto»;
+    /// códigos com dígitos (CA86, N83, 40W) ficam em maiúsculas.</summary>
+    public static string NomeLegivel(string nome)
+    {
+        var letras = nome.Where(char.IsLetter).ToList();
+        if (letras.Count == 0 || letras.Count(char.IsUpper) < letras.Count * 0.7) return nome.Trim();
+        var palavras = nome.Trim().ToLower(System.Globalization.CultureInfo.GetCultureInfo("pt-PT")).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => w.Any(char.IsDigit) ? w.ToUpperInvariant() : w).ToList();
+        if (palavras.Count > 0) palavras[0] = char.ToUpper(palavras[0][0]) + palavras[0][1..];
+        return string.Join(' ', palavras);
     }
 
     public async Task<IReadOnlyList<ArtigoDto>> CriarEmLoteAsync(ArtigosEmLoteRequest req, CancellationToken ct = default)

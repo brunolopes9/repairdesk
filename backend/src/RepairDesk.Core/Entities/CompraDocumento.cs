@@ -20,6 +20,14 @@ public class CompraDocumento : BaseEntity, ITenantEntity
     /// <summary>Data da fatura (ou da encomenda, se ainda não há fatura).</summary>
     public DateTime Data { get; set; }
 
+    /// <summary>
+    /// 22/11 (Bruno): faturas do mesmo fornecedor no mesmo dia vieram no mesmo envio — os portes de todas dividem-se
+    /// pelas unidades de todas (ex.: Tudo4Mobile, 2 faturas, portes só numa). Preenchido pelo repositório; não é gravado.
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped] public decimal? EnvioPortes { get; set; }
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped] public decimal? EnvioPortesIva { get; set; }
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped] public int? EnvioUnidades { get; set; }
+
     /// <summary>Nº da fatura do fornecedor. Null = fatura em falta (só há encomenda/resumo).</summary>
     public string? NumeroFatura { get; set; }
 

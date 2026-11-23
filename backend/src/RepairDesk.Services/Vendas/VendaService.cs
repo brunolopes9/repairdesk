@@ -566,8 +566,8 @@ public class VendaService : IVendaService
         // 20/11 (Bruno): os portes da compra entram no custo de cada unidade (divididos por igual).
         var doc = lote?.Documento;
         var unidades = doc?.Linhas?.Sum(x => x.Quantidade) ?? 0;
-        item.PortesUnitario = doc is null || unidades == 0 ? null : CompraService.PortesPorUnidade(doc.PortesPagos, unidades);
-        item.PortesUnitarioSemIva = doc is null || unidades == 0 ? null : CompraService.PortesSemIvaPorUnidade(doc.PortesPagos, doc.PortesIva, unidades);
+        item.PortesUnitario = doc is null || unidades == 0 ? null : CompraService.PortesDoDocumento(doc, unidades);
+        item.PortesUnitarioSemIva = doc is null || unidades == 0 ? null : CompraService.PortesSemIvaDoDocumento(doc, unidades);
     }
 
     private static void ConsumirStock(Venda venda, Dictionary<Guid, CompraLinha> lotes)
