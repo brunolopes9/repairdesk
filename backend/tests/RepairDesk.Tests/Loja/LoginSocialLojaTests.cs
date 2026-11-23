@@ -29,11 +29,10 @@ public class LoginSocialLojaTests
             .Should().BeNull();
 
     [Fact]
-    public void Facebook_SoTokenValidoDaNossaApp()
+    public void Facebook_SoTokenDaNossaApp()
     {
-        LoginSocialLoja.TokenFacebookValido(J("""{"data":{"is_valid":true,"app_id":"968767452975125"}}"""), "968767452975125").Should().BeTrue();
-        LoginSocialLoja.TokenFacebookValido(J("""{"data":{"is_valid":true,"app_id":"111"}}"""), "968767452975125").Should().BeFalse("token de outra app");
-        LoginSocialLoja.TokenFacebookValido(J("""{"data":{"is_valid":false,"app_id":"968767452975125"}}"""), "968767452975125").Should().BeFalse();
-        LoginSocialLoja.TokenFacebookValido(J("""{"error":{"message":"x"}}"""), "968767452975125").Should().BeFalse();
+        LoginSocialLoja.TokenDaNossaApp(J("""{"id":"1234567890","name":"LopesTech Loja"}"""), "1234567890").Should().BeTrue();
+        LoginSocialLoja.TokenDaNossaApp(J("""{"id":"999","name":"Outra app"}"""), "1234567890").Should().BeFalse("token de outra app");
+        LoginSocialLoja.TokenDaNossaApp(J("""{"error":{"message":"x"}}"""), "1234567890").Should().BeFalse();
     }
 }

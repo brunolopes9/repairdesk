@@ -3601,6 +3601,9 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("LojaFacebookAppId")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("LojaGoogleClientId")
                         .HasColumnType("nvarchar(max)");
 

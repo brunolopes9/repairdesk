@@ -68,6 +68,9 @@ public class Tenant : BaseEntity
     public string? MetaAppId { get; set; }
     /// <summary>23/11: «Continuar com Google» na loja — Client ID (público) da app OAuth do Google.</summary>
     public string? LojaGoogleClientId { get; set; }
+    /// <summary>23/11: «Continuar com Facebook» na loja — App ID (público) da app de consumidor «LopesTech Loja».
+    /// A app das Redes sociais é do tipo Empresa e não faz login de clientes.</summary>
+    public string? LojaFacebookAppId { get; set; }
     public string? MetaAppSecretCipherText { get; set; }
     /// <summary>Configuração do «Facebook Login for Business» (config_id) — define as permissões pedidas no login.</summary>
     public string? MetaLoginConfigId { get; set; }

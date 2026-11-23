@@ -8,8 +8,8 @@ namespace RepairDesk.Services.Loja;
 /// <summary>O que o site precisa para mostrar os botões (só ids públicos — nunca segredos).</summary>
 public sealed record ProvedoresLoginDto(string? GoogleClientId, string? FacebookAppId);
 public sealed record EntrarSocialRequest(string Provedor, string Token);
-public sealed record LoginSocialConfigDto(string? GoogleClientId, bool FacebookPronto, string? FacebookAppId);
-public sealed record GuardarLoginSocialRequest(string? GoogleClientId);
+public sealed record LoginSocialConfigDto(string? GoogleClientId, string? FacebookAppId);
+public sealed record GuardarLoginSocialRequest(string? GoogleClientId, string? FacebookAppId = null);
 
 /// <summary>Identidade confirmada pelo Google/Facebook.</summary>
 public sealed record IdentidadeSocial(string Email, string Nome);
@@ -56,14 +56,13 @@ public sealed class LoginSocialLoja : ILoginSocialLoja
     public async Task<ProvedoresLoginDto> ProvedoresAsync(CancellationToken ct = default)
     {
         var t = await Empresa(ct);
-        return new ProvedoresLoginDto(Vazio(t.LojaGoogleClientId),
-            t.MetaAppSecretCipherText is not null ? Vazio(t.MetaAppId) : null);
+        return new ProvedoresLoginDto(Vazio(t.LojaGoogleClientId), Vazio(t.LojaFacebookAppId));
     }
 
     public async Task<LoginSocialConfigDto> ConfigAsync(CancellationToken ct = default)
     {
         var t = await Empresa(ct);
-        return new LoginSocialConfigDto(t.LojaGoogleClientId, t.MetaAppId is not null && t.MetaAppSecretCipherText is not null, t.MetaAppId);
+        return new LoginSocialConfigDto(t.LojaGoogleClientId, t.LojaFacebookAppId);
     }
 
     public async Task<LoginSocialConfigDto> GuardarAsync(GuardarLoginSocialRequest req, CancellationToken ct = default)
@@ -73,6 +72,10 @@ public sealed class LoginSocialLoja : ILoginSocialLoja
         if (id is not null && !id.EndsWith(".apps.googleusercontent.com", StringComparison.Ordinal))
             throw new ValidationException("google_client_id", "O Client ID do Google termina em «.apps.googleusercontent.com».");
         t.LojaGoogleClientId = id;
+        var fb = Vazio(req.FacebookAppId);
+        if (fb is not null && (fb.Length is < 5 or > 25 || !fb.All(char.IsDigit)))
+            throw new ValidationException("facebook_app_id", "O App ID do Facebook é só números (ex.: 1234567890123456).");
+        t.LojaFacebookAppId = fb;
         await _tenants.SaveAsync(ct);
         return await ConfigAsync(ct);
     }
@@ -85,8 +88,7 @@ public sealed class LoginSocialLoja : ILoginSocialLoja
         var id = (req.Provedor ?? "").Trim().ToLowerInvariant() switch
         {
             "google" => await Google(token, Vazio(t.LojaGoogleClientId) ?? throw Indisponivel("Google"), ct),
-            "facebook" => await Facebook(token, Vazio(t.MetaAppId) ?? throw Indisponivel("Facebook"),
-                t.MetaAppSecretCipherText is { } c ? _secrets.Unprotect(c) : throw Indisponivel("Facebook"), ct),
+            "facebook" => await Facebook(token, Vazio(t.LojaFacebookAppId) ?? throw Indisponivel("Facebook"), ct),
             _ => throw new ValidationException("provedor_invalido", "Forma de entrar desconhecida."),
         };
         return await _contas.EntrarComEmailConfirmadoAsync(id.Email, id.Nome, ct);
@@ -115,10 +117,11 @@ public sealed class LoginSocialLoja : ILoginSocialLoja
         return new IdentidadeSocial(email.Trim().ToLowerInvariant(), string.IsNullOrWhiteSpace(nome) ? email.Split('@')[0] : nome.Trim());
     }
 
-    private async Task<IdentidadeSocial> Facebook(string accessToken, string appId, string appSecret, CancellationToken ct)
+    /// <summary>Sem segredo da app: <c>/app?access_token=</c> diz a que app pertence o token do cliente — tem de ser a nossa.</summary>
+    private async Task<IdentidadeSocial> Facebook(string accessToken, string appId, CancellationToken ct)
     {
-        var dbg = await Get($"https://graph.facebook.com/debug_token?input_token={Uri.EscapeDataString(accessToken)}&access_token={Uri.EscapeDataString(appId + "|" + appSecret)}", "Facebook", ct);
-        if (!TokenFacebookValido(dbg, appId))
+        var app = await Get($"https://graph.facebook.com/app?access_token={Uri.EscapeDataString(accessToken)}", "Facebook", ct);
+        if (!TokenDaNossaApp(app, appId))
             throw new ValidationException("facebook_invalido", "O Facebook não confirmou a conta. Tenta outra vez.");
         var me = await Get($"https://graph.facebook.com/me?fields=name,email&access_token={Uri.EscapeDataString(accessToken)}", "Facebook", ct);
         var email = me.TryGetProperty("email", out var e) ? e.GetString() : null;
@@ -128,11 +131,9 @@ public sealed class LoginSocialLoja : ILoginSocialLoja
         return new IdentidadeSocial(email.Trim().ToLowerInvariant(), string.IsNullOrWhiteSpace(nome) ? email.Split('@')[0] : nome.Trim());
     }
 
-    /// <summary>debug_token: válido e emitido para a NOSSA app (um token de outra app não entra).</summary>
-    public static bool TokenFacebookValido(JsonElement dbg, string appId)
-        => dbg.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Object
-           && d.TryGetProperty("is_valid", out var v) && v.ValueKind == JsonValueKind.True
-           && d.TryGetProperty("app_id", out var a) && a.ToString() == appId;
+    /// <summary>Resposta de <c>/app</c> com o token do cliente: o id tem de ser o da nossa app (token de outra app não entra).</summary>
+    public static bool TokenDaNossaApp(JsonElement app, string appId)
+        => app.ValueKind == JsonValueKind.Object && app.TryGetProperty("id", out var id) && id.ToString() == appId;
 
     private async Task<JsonElement> Get(string url, string quem, CancellationToken ct)
     {
