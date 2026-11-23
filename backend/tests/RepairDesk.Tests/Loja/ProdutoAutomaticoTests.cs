@@ -137,3 +137,26 @@ public class ConsultaInglesaTests
     public void MesmaPeca(string nome, string titulo, bool esperado)
         => RepairDesk.Services.Loja.FichaFornecedor.MesmaPeca(RepairDesk.Services.Loja.FichaFornecedor.ConsultaInglesa(nome)!, titulo).Should().Be(esperado);
 }
+
+/// <summary>23/11: Tudo4Mobile sem código na fatura — pesquisa por tipo + modelo e escolhe pela semelhança (cor incluída).</summary>
+public class Tudo4MobileNomeTests
+{
+    [Theory]
+    [InlineData("Capa rígida com glitter Samsung A57 preta", "Capa A57")]
+    [InlineData("Película de vidro Hoco – Samsung A16 5G", "Vidro A16 5G")]
+    [InlineData("Suporte de carro Foneng CP100 gravidade (ventilação) preto", "Suporte CP100")]
+    [InlineData("Capa preta", null)]
+    public void Consulta(string nome, string? esperado)
+        => RepairDesk.Services.Loja.FichaFornecedor.ConsultaTudo4Mobile(nome).Should().Be(esperado);
+
+    [Fact]
+    public void EscolheACorCerta()
+    {
+        const string nome = "Capa rígida com glitter Samsung A57 preta";
+        var preto = RepairDesk.Services.Loja.FichaFornecedor.SemelhancaCor(nome, "Capa Duro Designer com Glitter para Samsung Galaxy A57 Preto");
+        var rosa = RepairDesk.Services.Loja.FichaFornecedor.SemelhancaCor(nome, "Capa Duro Designer com Glitter para Samsung Galaxy A57 Rosa");
+        var a37 = RepairDesk.Services.Loja.FichaFornecedor.SemelhancaCor(nome, "Capa Duro Designer com Glitter para Samsung Galaxy A37 Preto");
+        preto.Should().BeGreaterThan(rosa).And.BeGreaterThanOrEqualTo(0.3);
+        a37.Should().Be(0);
+    }
+}

@@ -70,8 +70,56 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
         // 23/11: Tudo4Mobile (faturas em papel) — o site pesquisa pelo código da fatura.
         foreach (var codigo in lista)
             if (await TentarTudo4Mobile(codigo, porNome, ct) is { } f) return f;
+        // 23/11: as faturas em papel da Tudo4Mobile não trazem código — procura pelo nome (tipo + modelo) e escolhe
+        // o título mais parecido do mesmo modelo (cor incluída: a capa preta não fica com a foto da rosa).
+        foreach (var q in porNome.Select(ConsultaTudo4Mobile).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).Take(2))
+            if (await TentarTudo4MobileNome(q, porNome, ct) is { } f) return f;
         return null;
     }
+
+    /// <summary>«Capa rígida com glitter Samsung A57 preta» → «Capa A57»; «Película de vidro … A16» → «Vidro A16». Null sem modelo.</summary>
+    public static string? ConsultaTudo4Mobile(string nome)
+    {
+        var palavras = Regex.Matches(nome, @"[\p{L}0-9]+").Select(m => m.Value).ToList();
+        if (palavras.Count < 2) return null;
+        var tipo = palavras[0].StartsWith("pel", StringComparison.OrdinalIgnoreCase) ? "Vidro" : palavras[0];
+        var modelo = palavras.Skip(1).Where(w => w.Any(char.IsDigit) && w.Length <= 8).Take(2).ToList();
+        return modelo.Count == 0 ? null : $"{tipo} {string.Join(' ', modelo)}";
+    }
+
+    /// <summary>Semelhança com as cores no masculino («preta» = «Preto») — os títulos da Tudo4Mobile usam o masculino.</summary>
+    public static double SemelhancaCor(string nome, string titulo)
+    {
+        static string N(string x) => Regex.Replace(x.ToLowerInvariant(), @"\b(pret|branc|vermelh|rox|amarel)a\b", "$1o");
+        return Semelhanca(N(nome), N(titulo));
+    }
+
+    private async Task<FichaProduto?> TentarTudo4MobileNome(string q, IReadOnlyList<string> nomes, CancellationToken ct)
+    {
+        try
+        {
+            var pesquisa = await GetTexto($"{Tudo4Mobile}/index.php?route=product/search&search={Uri.EscapeDataString(q)}&limit=100", ct);
+            if (pesquisa is null) return null;
+            var melhor = (Url: (string?)null, Nota: 0.0);
+            foreach (Match m in NomeT4m().Matches(pesquisa))
+            {
+                var titulo = WebUtility.HtmlDecode(m.Groups[2].Value).Trim();
+                var nota = nomes.Max(n => SemelhancaCor(n, titulo));
+                if (nota > melhor.Nota) melhor = (WebUtility.HtmlDecode(m.Groups[1].Value), nota);
+            }
+            if (melhor.Url is null || melhor.Nota < 0.3) return null;
+            var pagina = await GetTexto(melhor.Url, ct);
+            return pagina is null ? null : LerPaginaTudo4Mobile(pagina, out _);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogInformation(ex, "Tudo4Mobile indisponível para {Q}.", q);
+            return null;
+        }
+    }
+
+    [GeneratedRegex(@"<div class=""name""><a href=""(https://www\.tudo4mobile\.pt/[^""]+)""[^>]*>([^<]+)</a>")]
+    private static partial Regex NomeT4m();
 
     private const string Tudo4Mobile = "https://www.tudo4mobile.pt";
 
