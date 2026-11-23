@@ -10,6 +10,15 @@ public class ArtigoRepository : IArtigoRepository
     private readonly AppDbContext _db;
     public ArtigoRepository(AppDbContext db) => _db = db;
 
+    public async Task<bool> MoverProdutoLojaAsync(Guid origemId, Guid destinoId, CancellationToken ct = default)
+    {
+        var daOrigem = await _db.ProdutosLoja.FirstOrDefaultAsync(p => p.ArtigoId == origemId, ct);
+        if (daOrigem is null) return true;
+        if (await _db.ProdutosLoja.AnyAsync(p => p.ArtigoId == destinoId, ct)) return false;
+        daOrigem.ArtigoId = destinoId;
+        return true;
+    }
+
     private IQueryable<Artigo> ComLotes() => _db.Artigos
         .Include(a => a.Codigos)
         .Include(a => a.Lotes).ThenInclude(l => l.Documento).ThenInclude(d => d!.Fornecedor);

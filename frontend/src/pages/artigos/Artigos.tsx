@@ -89,10 +89,10 @@ export default function Artigos() {
   // 23/11 (Bruno: «sempre que há compras, isso são artigos»): já não há «stock por ligar». Se alguma linha de compra
   // ainda não tiver artigo (ex.: compras antigas), liga-se aqui sozinha — o mesmo que acontece ao gravar cada compra.
   const qc = useQueryClient();
-  const porLigar = useQuery({ queryKey: ['artigos', 'sugestoes'], queryFn: artigosApi.sugestoes, staleTime: 60_000 });
+  // Também junta artigos repetidos (mesmo nome) e corrige peças que ficaram em «Acessórios» — uma vez por visita.
   const ligando = useRef(false);
   useEffect(() => {
-    if (ligando.current || !porLigar.data?.length) return;
+    if (ligando.current || !isAdmin) return;
     ligando.current = true;
     artigosApi.ligarAutomatico()
       .then((n) => {
@@ -100,7 +100,7 @@ export default function Artigos() {
         void qc.invalidateQueries({ queryKey: ['artigos'] });
       })
       .catch(() => { /* tenta outra vez na próxima visita */ });
-  }, [porLigar.data, qc]);
+  }, [isAdmin, qc]);
   const { ordem, alternar } = useOrdenacao<Campo>('nome', false);
   const artigos = useMemo(() => ordenarLista((list.data ?? []).filter((a) => !semStock || a.stock === 0), ordem, {
     sku: (a) => a.numero,

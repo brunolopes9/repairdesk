@@ -21,6 +21,9 @@ public interface IArtigoRepository
     /// <summary>Sprint 581: devolve true quando o SKU já apontava para OUTRO artigo (mudou — o chamador avisa).</summary>
     Task<bool> SkuApontaParaOutroAsync(Guid artigoId, Guid fornecedorId, string sku, CancellationToken ct = default);
     Task AddFusaoAsync(ArtigoFusao fusao, CancellationToken ct = default);
+
+    /// <summary>23/11: ao juntar artigos, o produto da loja passa para o que fica. False quando os dois têm produto (não junta).</summary>
+    Task<bool> MoverProdutoLojaAsync(Guid origemId, Guid destinoId, CancellationToken ct = default);
     Task<ArtigoFusao?> FindFusaoAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<ArtigoFusao>> ListFusoesAsync(Guid destinoId, CancellationToken ct = default);
     /// <summary>Artigo apagado (soft delete) do tenant atual — para desfazer uma junção.</summary>

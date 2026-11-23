@@ -306,13 +306,86 @@ public class ArtigoService : IArtigoService
             {
                 var peca = ModeloDispositivo.NomePeca(s.Nome);
                 var nome = peca ?? NomeLegivel(s.Nome);
-                var categoria = s.Categoria ?? (EPelicula(nome) ? "Películas" : peca is not null ? "Peças" : "Acessórios");
-                await CreateAsync(new ArtigoWriteRequest(nome.Length > 200 ? nome[..200] : nome, categoria, null, null, null,
-                    s.Localizacao, null, true, s.LoteIds), ct);
+                nome = nome.Length > 200 ? nome[..200] : nome;
+                // 23/11: faturas escritas de maneira diferente («Bateria iPhone 13 Pro» em 3 linhas) → o MESMO artigo.
+                var chave = ChaveNome(nome);
+                var igual = (await _repo.ListAsync(null, incluirInativos: false, ct)).FirstOrDefault(a => !a.Agrupado && ChaveNome(a.Nome) == chave);
+                if (igual is not null)
+                {
+                    foreach (var l in await _compras.FindLinhasAsync(s.LoteIds, ct))
+                        if (l.ArtigoId is null) l.ArtigoId = igual.Id;
+                    await _repo.SaveAsync(ct);
+                }
+                else
+                {
+                    var categoria = s.Categoria ?? CategoriaPeloNome(nome, peca is not null);
+                    await CreateAsync(new ArtigoWriteRequest(nome, categoria, null, null, null, s.Localizacao, null, true, s.LoteIds), ct);
+                }
             }
             n++;
         }
         catch (DomainException) { /* 22/11: um artigo com problema não impede os outros de ligar */ }
+        n += await JuntarRepetidosAsync(ct);
+        n += await CorrigirCategoriasPecasAsync(ct);
+        return n;
+    }
+
+    /// <summary>23/11: nome comparável — sem acentos, maiúsculas nem espaços a mais («Bateria iPhone 5S» = «Bateria iPhone 5s»).</summary>
+    public static string ChaveNome(string nome)
+    {
+        var d = nome.Trim().ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(d.Length);
+        foreach (var c in d)
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark) sb.Append(c);
+        return System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"\s+", " ");
+    }
+
+    /// <summary>23/11: peças de substituição vão para «Peças» (flex, IC, conector, câmara, bateria…), não para «Acessórios».</summary>
+    public static string CategoriaPeloNome(string nome, bool pecaReconhecida = false)
+    {
+        if (EPelicula(nome)) return "Películas";
+        if (System.Text.RegularExpressions.Regex.IsMatch(ChaveNome(nome), @"\b(protetor|capa|suporte|carregador|cabo|auricular|powerbank|adaptador|cartao|pen)\b"))
+            return "Acessórios";
+        if (pecaReconhecida || System.Text.RegularExpressions.Regex.IsMatch(ChaveNome(nome),
+                @"\b(ecra|display|lcd|oled|touch|bateria|flex|conector|ic|chip|camara|camera|tampa|traseira|moldura|frame|altifalante|coluna interna|microfone|vibrador|botao|lente|placa|sub ?board|antena)\b"))
+            return "Peças";
+        return "Acessórios";
+    }
+
+    /// <summary>23/11: «Flex de carga…», «IC de carga…» criados como «Acessórios» → «Peças» (o nome diz que é peça).</summary>
+    private async Task<int> CorrigirCategoriasPecasAsync(CancellationToken ct)
+    {
+        var n = 0;
+        foreach (var a in (await _repo.ListAsync(null, incluirInativos: false, ct))
+                     .Where(a => a.Categoria == "Acessórios" && CategoriaPeloNome(a.Nome) == "Peças"))
+        {
+            if (await _repo.FindByIdAsync(a.Id, ct) is not { } artigo) continue;
+            artigo.Categoria = "Peças";
+            n++;
+        }
+        if (n > 0) await _repo.SaveAsync(ct);
+        return n;
+    }
+
+    /// <summary>
+    /// 23/11: artigos com exatamente o mesmo nome (criados de faturas diferentes) juntam-se no mais antigo — lotes,
+    /// códigos e etiquetas antigas passam para ele (a mesma junção do botão «Juntar», que se pode desfazer).
+    /// </summary>
+    private async Task<int> JuntarRepetidosAsync(CancellationToken ct)
+    {
+        var n = 0;
+        var grupos = (await _repo.ListAsync(null, incluirInativos: false, ct)).Where(a => !a.Agrupado)
+            .GroupBy(a => ChaveNome(a.Nome)).Where(g => g.Count() > 1).ToList();
+        foreach (var g in grupos)
+        {
+            var ordem = g.OrderBy(a => a.Numero).ToList();
+            try
+            {
+                await FundirAsync(ordem[0].Id, new FundirArtigosRequest(ordem.Skip(1).Select(a => a.Id).ToList()), ct);
+                n += ordem.Count - 1;
+            }
+            catch (DomainException) { /* um grupo com problema não impede os outros */ }
+        }
         return n;
     }
 
@@ -513,6 +586,9 @@ public class ArtigoService : IArtigoService
         foreach (var origemId in req.OrigemIds.Distinct().Where(id => id != destinoId))
         {
             var origem = await _repo.FindByIdAsync(origemId, ct) ?? throw new NotFoundException("Artigo", origemId);
+            // 23/11: o produto da loja do artigo que desaparece passa para o que fica (antes ficava ligado a um artigo apagado).
+            if (!await _repo.MoverProdutoLojaAsync(origem.Id, destino.Id, ct))
+                throw new ConflictException("dois_na_loja", $"«{origem.Nome}» e «{destino.Nome}» estão os dois na loja online — tira um da loja antes de os juntar.");
             var lotesMovidos = origem.Lotes.Select(l => l.Id).ToList();
             foreach (var lote in origem.Lotes.ToList())
             {
