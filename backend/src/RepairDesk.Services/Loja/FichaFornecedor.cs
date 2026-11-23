@@ -14,7 +14,9 @@ public interface IFichaFornecedor
     Task<string?> ProcurarAsync(IEnumerable<string> codigos, CancellationToken ct = default);
 
     /// <summary>23/11: a ficha completa — texto, marca (vendor) e as fotos oficiais do produto. Null quando não encontra.</summary>
-    Task<FichaProduto?> ProcurarProdutoAsync(IEnumerable<string> codigos, CancellationToken ct = default);
+    /// <paramref name="nomes"/>: nomes originais das linhas da fatura (em inglês, como no site) — usados quando
+    /// os códigos não dão nada; só aceita um produto com o mesmo modelo (números e Pro/Max/Plus/… iguais).
+    Task<FichaProduto?> ProcurarProdutoAsync(IEnumerable<string> codigos, CancellationToken ct = default, IEnumerable<string>? nomes = null);
 }
 
 /// <summary>Produto encontrado no site do fornecedor. <see cref="Imagens"/> são URLs https absolutos, pela ordem do fornecedor.</summary>
@@ -43,31 +45,74 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
     public async Task<string?> ProcurarAsync(IEnumerable<string> codigos, CancellationToken ct = default)
         => (await ProcurarProdutoAsync(codigos, ct))?.TextoCompleto;
 
-    public async Task<FichaProduto?> ProcurarProdutoAsync(IEnumerable<string> codigos, CancellationToken ct = default)
+    public async Task<FichaProduto?> ProcurarProdutoAsync(IEnumerable<string> codigos, CancellationToken ct = default, IEnumerable<string>? nomes = null)
     {
         var lista = codigos.Select(c => c?.Trim() ?? "").Where(c => c.Length is >= 4 and <= 40 && CodigoValido().IsMatch(c))
             .Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToList();
+        var porNome = (nomes ?? []).Select(n => n?.Trim() ?? "").Where(n => n.Length is >= 8 and <= 200)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToList();
         foreach (var loja in Lojas)
+        {
             foreach (var codigo in lista)
-            {
-                try
-                {
-                    var sugestao = await GetJson($"{loja}/search/suggest.json?q={Uri.EscapeDataString(codigo)}&resources%5Btype%5D=product&resources%5Blimit%5D=1", ct);
-                    if (sugestao is null || !sugestao.Value.TryGetProperty("resources", out var r)
-                        || !r.TryGetProperty("results", out var res) || !res.TryGetProperty("products", out var ps)
-                        || ps.ValueKind != JsonValueKind.Array || ps.GetArrayLength() == 0) continue;
-                    var handle = ps[0].GetProperty("handle").GetString();
-                    if (string.IsNullOrWhiteSpace(handle)) continue;
-                    var produto = await GetJson($"{loja}/products/{Uri.EscapeDataString(handle)}.js", ct);
-                    if (produto is null) continue;
-                    return LerProduto(produto.Value);
-                }
-                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
-                {
-                    _logger.LogInformation(ex, "Ficha do fornecedor {Loja} para {Codigo} indisponível.", loja, codigo);
-                }
-            }
+                if (await Tentar(loja, codigo, 1, null, ct) is { } f) return f;
+            // 23/11: o 4Phones não pesquisa por SKU — procura pelo nome da fatura e confirma que é o mesmo modelo.
+            foreach (var nome in porNome)
+                if (await Tentar(loja, nome, 6, nome, ct) is { } f) return f;
+        }
         return null;
+    }
+
+    private async Task<FichaProduto?> Tentar(string loja, string q, int limite, string? confirmarNome, CancellationToken ct)
+    {
+        try
+        {
+            var sugestao = await GetJson($"{loja}/search/suggest.json?q={Uri.EscapeDataString(q)}&resources%5Btype%5D=product&resources%5Blimit%5D={limite}", ct);
+            if (sugestao is null || !sugestao.Value.TryGetProperty("resources", out var r)
+                || !r.TryGetProperty("results", out var res) || !res.TryGetProperty("products", out var ps)
+                || ps.ValueKind != JsonValueKind.Array) return null;
+            string? handle = null;
+            var melhor = 0.0;
+            foreach (var p in ps.EnumerateArray())
+            {
+                var h = p.TryGetProperty("handle", out var hh) ? hh.GetString() : null;
+                if (string.IsNullOrWhiteSpace(h)) continue;
+                if (confirmarNome is null) { handle = h; break; }
+                var titulo = p.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
+                var nota = Semelhanca(confirmarNome, titulo);
+                if (nota > melhor) { melhor = nota; handle = h; }
+            }
+            if (handle is null || (confirmarNome is not null && melhor < 0.6)) return null;
+            var produto = await GetJson($"{loja}/products/{Uri.EscapeDataString(handle)}.js", ct);
+            return produto is null ? null : LerProduto(produto.Value);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            _logger.LogInformation(ex, "Ficha do fornecedor {Loja} para {Q} indisponível.", loja, q);
+            return null;
+        }
+    }
+
+    private static readonly HashSet<string> Variantes = new(StringComparer.OrdinalIgnoreCase)
+        { "pro", "max", "plus", "ultra", "mini", "lite", "fe", "air", "neo", "prime" };
+    private static readonly HashSet<string> Vazias = new(StringComparer.OrdinalIgnoreCase)
+        { "for", "the", "with", "and", "de", "da", "do", "para", "com", "e", "a", "apple" };
+
+    /// <summary>
+    /// 0–1: quanto o título do site se parece com o nome da fatura. 0 quando o modelo não é o mesmo — os números
+    /// e as variantes (Pro, Max, Plus, Ultra…) têm de ser exatamente os mesmos, senão vinham fotos do telemóvel errado.
+    /// </summary>
+    public static double Semelhanca(string nomeFatura, string tituloSite)
+    {
+        static List<string> Tokens(string s) => Regex.Matches(s.ToLowerInvariant(), @"[a-z0-9]+").Select(m => m.Value)
+            .Where(t => !Vazias.Contains(t)).ToList();
+        var a = Tokens(nomeFatura);
+        var b = Tokens(tituloSite);
+        if (a.Count == 0 || b.Count == 0) return 0;
+        static HashSet<string> Modelo(List<string> t) => t.Where(x => Variantes.Contains(x) || x.Any(char.IsDigit)).ToHashSet();
+        if (!Modelo(a).SetEquals(Modelo(b))) return 0;
+        var sa = a.ToHashSet();
+        var sb = b.ToHashSet();
+        return (double)sa.Intersect(sb).Count() / sa.Union(sb).Count();
     }
 
     /// <summary>Produto Shopify (/products/{handle}.js) → ficha. As imagens vêm como «//cdn…» — passam a https.</summary>

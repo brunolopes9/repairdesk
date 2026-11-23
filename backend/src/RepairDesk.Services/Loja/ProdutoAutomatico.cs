@@ -54,7 +54,7 @@ public sealed partial class ProdutoAutomatico : IProdutoAutomatico
     {
         var artigo = await _artigos.FindByIdAsync(artigoId, ct) ?? throw new NotFoundException("Artigo", artigoId);
         // Artigo já na loja ou sem preço: o LojaService recusa com a mensagem certa (fonte única das regras).
-        var ficha = await _ficha.ProcurarProdutoAsync(Codigos(artigo), ct);
+        var ficha = await _ficha.ProcurarProdutoAsync(Codigos(artigo), ct, Nomes(artigo));
         var titulo = Titulo(artigo);
         var req = new GuardarProdutoLojaRequest(
             Titulo: titulo,
@@ -86,9 +86,14 @@ public sealed partial class ProdutoAutomatico : IProdutoAutomatico
     {
         var produto = await _loja.GetAsync(produtoId, ct);
         var codigos = new List<string>();
-        if (produto.ArtigoId is { } aid && await _artigos.FindByIdAsync(aid, ct) is { } artigo) codigos.AddRange(Codigos(artigo));
+        var nomes = new List<string>();
+        if (produto.ArtigoId is { } aid && await _artigos.FindByIdAsync(aid, ct) is { } artigo)
+        {
+            codigos.AddRange(Codigos(artigo));
+            nomes.AddRange(Nomes(artigo));
+        }
         if (!string.IsNullOrWhiteSpace(produto.Modelo)) codigos.Add(produto.Modelo);
-        var ficha = codigos.Count == 0 ? null : await _ficha.ProcurarProdutoAsync(codigos, ct);
+        var ficha = codigos.Count + nomes.Count == 0 ? null : await _ficha.ProcurarProdutoAsync(codigos, ct, nomes);
         if (ficha is null || ficha.Imagens.Count == 0)
             throw new ValidationException("sem_fotos_fornecedor",
                 produto.ArtigoId is null
@@ -167,6 +172,11 @@ public sealed partial class ProdutoAutomatico : IProdutoAutomatico
         c.AddRange(a.Codigos.Select(x => x.Codigo));
         return c.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
+
+    /// <summary>Nomes originais das linhas da fatura (como o fornecedor os escreve no site) — para procurar pelo nome.</summary>
+    public static IReadOnlyList<string> Nomes(Artigo a)
+        => a.Lotes.OrderByDescending(l => l.CreatedAt).Select(l => l.Descricao)
+            .Append(a.NomeFatura ?? "").Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()!;
 
     /// <summary>Nome da fatura ou do artigo, legível (sem maiúsculas a gritar) e sem «All colours». A qualidade
     /// (Service Pack, Original Remaded…) fica — a IA usa-a para explicar a peça.</summary>

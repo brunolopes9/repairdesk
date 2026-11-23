@@ -117,10 +117,14 @@ public sealed class TextoProdutoIa : ITextoProdutoIa
     {
         if (_ficha is null) return null;
         var codigos = new List<string>();
+        var nomes = new List<string>();
         if (p.ArtigoId is { } artigoId && _artigos is not null && await _artigos.FindByIdAsync(artigoId, ct) is { } artigo)
-            codigos.AddRange(artigo.Lotes.Select(l => l.SkuFornecedor).Where(s => !string.IsNullOrWhiteSpace(s))!);
+        {
+            codigos.AddRange(ProdutoAutomatico.Codigos(artigo));
+            nomes.AddRange(ProdutoAutomatico.Nomes(artigo));
+        }
         if (!string.IsNullOrWhiteSpace(p.Modelo)) codigos.Add(p.Modelo);
-        return codigos.Count == 0 ? null : await _ficha.ProcurarAsync(codigos, ct);
+        return codigos.Count + nomes.Count == 0 ? null : (await _ficha.ProcurarProdutoAsync(codigos, ct, nomes))?.TextoCompleto;
     }
 
     private static string Dados(GuardarProdutoLojaRequest p, string? ficha = null)

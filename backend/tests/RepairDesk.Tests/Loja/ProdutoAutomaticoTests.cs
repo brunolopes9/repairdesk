@@ -69,3 +69,19 @@ public class ProdutoAutomaticoTests
         f.TextoCompleto.Should().Be("Rixus 45W\nPD 45W");
     }
 }
+
+/// <summary>23/11: procurar no fornecedor pelo nome da fatura sem trazer fotos de outro modelo.</summary>
+public class SemelhancaFichaTests
+{
+    [Fact]
+    public void MesmoProduto_PontuaAlto()
+        => FichaFornecedor.Semelhanca("Rixus Ultra Clear Camera Protection For Apple iPhone 17 Pro Deep Blue",
+            "Rixus Ultra Clear Camera Protection For Apple iPhone 17 Pro Deep Blue").Should().Be(1);
+
+    [Theory]
+    [InlineData("Rixus Ultra Clear Camera Protection For Apple iPhone 17 Pro Max Deep Blue")]
+    [InlineData("Rixus Ultra Clear Camera Protection For Apple iPhone 16 Pro Deep Blue")]
+    [InlineData("Rixus Ultra Clear Camera Protection For Apple iPhone 17 Deep Blue")]
+    public void OutroModelo_DaZero(string titulo)
+        => FichaFornecedor.Semelhanca("Rixus Ultra Clear Camera Protection For Apple iPhone 17 Pro Deep Blue", titulo).Should().Be(0);
+}
