@@ -95,6 +95,8 @@ public static partial class ModeloDispositivo
         ("Tampa traseira", new Regex(@"battery\s+cover|back\s*(?:cover|glass|housing)|housing|tampa|carcasa|tapa\s+trasera|rear\s+cover", RegexOptions.IgnoreCase)),
         ("Conector de carga", new Regex(@"charging|dock|conector|charge\s+port|placa\s+de\s+carga", RegexOptions.IgnoreCase)),
         ("Ecrã", new Regex(@"display|lcd|oled|digitizer|screen|pantalla|ecr[ãa]|\btouch\b", RegexOptions.IgnoreCase)),
+        // 23/11: «Flex de bateria JCID» é um flex, não uma bateria (ia buscar fotos de baterias).
+        ("Flex de bateria", new Regex(@"flex\w*\s+(?:de\s+)?bater|battery\s+flex", RegexOptions.IgnoreCase)),
         ("Bateria", new Regex(@"battery|bater[ií]a", RegexOptions.IgnoreCase)),
         ("Câmara", new Regex(@"camera|c[aâ]mara", RegexOptions.IgnoreCase)),
         ("Altifalante", new Regex(@"speaker|altifalante|ringer|buzzer", RegexOptions.IgnoreCase)),

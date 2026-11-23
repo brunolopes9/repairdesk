@@ -357,7 +357,7 @@ try
     builder.Services.AddScoped<RepairDesk.Services.Loja.ILojaService, RepairDesk.Services.Loja.LojaService>();
     builder.Services.AddSingleton<RepairDesk.Core.Abstractions.ILojaMudancas, RepairDesk.Services.Loja.LojaMudancas>();
     builder.Services.AddScoped<RepairDesk.DAL.Persistence.LojaMudancasInterceptor>();
-    builder.Services.AddHttpClient<RepairDesk.Services.Loja.IFichaFornecedor, RepairDesk.Services.Loja.FichaFornecedor>(c => c.Timeout = TimeSpan.FromSeconds(10));
+    builder.Services.AddHttpClient<RepairDesk.Services.Loja.IFichaFornecedor, RepairDesk.Services.Loja.FichaFornecedor>(c => c.Timeout = TimeSpan.FromSeconds(70)); // 70 s: sitemap da LC Phones (16 MB); cada pedido tem o seu limite curto
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.ITextoProdutoIa, RepairDesk.Services.Loja.TextoProdutoIa>(c => c.Timeout = TimeSpan.FromSeconds(160));
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.IProdutoAutomatico, RepairDesk.Services.Loja.ProdutoAutomatico>(c => c.Timeout = TimeSpan.FromSeconds(30));
     // Sprint 656: encomendas da loja online + Stripe Checkout (chaves só no servidor: Stripe__SecretKey, Stripe__WebhookSecret).

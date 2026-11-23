@@ -55,6 +55,10 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
             .Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToList();
         _logger.LogInformation("Ficha do fornecedor: códigos {Codigos}; nomes {Nomes}; em inglês {Ingles}.", lista, porNome,
             porNome.Select(ConsultaInglesa).OfType<ConsultaPeca>().Select(c => c.Q).ToList());
+        // 23/11: LC Phones — o código da fatura É o id do produto no site (…/products/<nome>-20940). Vem primeiro porque
+        // é uma correspondência exata; antes o código ia ao 4Phones, que devolvia outro produto qualquer (flex → bateria).
+        foreach (var codigo in lista)
+            if (await TentarLcPhones(codigo, ct) is { } f) return f;
         foreach (var loja in Lojas)
         {
             foreach (var codigo in lista)
@@ -278,6 +282,96 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
         return !extras.Any();
     }
 
+    private static bool TemSku(JsonElement produto, string codigo)
+        => produto.TryGetProperty("variants", out var vs) && vs.ValueKind == JsonValueKind.Array
+           && vs.EnumerateArray().Any(v => v.TryGetProperty("sku", out var k) && string.Equals(k.GetString()?.Trim(), codigo, StringComparison.OrdinalIgnoreCase));
+
+    private const string LcPhones = "https://lcphones.com";
+    private static readonly SemaphoreSlim LcTrinco = new(1, 1);
+    private static Dictionary<string, string>? _lcMapa;
+    private static DateTime _lcMapaEm;
+
+    /// <summary>Código → URL do produto, lido do sitemap da LC Phones (16 MB, guardado 12 h em memória).</summary>
+    private async Task<IReadOnlyDictionary<string, string>?> MapaLcPhones(CancellationToken ct)
+    {
+        if (_lcMapa is not null && DateTime.UtcNow - _lcMapaEm < TimeSpan.FromHours(12)) return _lcMapa;
+        await LcTrinco.WaitAsync(ct);
+        try
+        {
+            if (_lcMapa is not null && DateTime.UtcNow - _lcMapaEm < TimeSpan.FromHours(12)) return _lcMapa;
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(60));
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{LcPhones}/sitemap-en.xml");
+            req.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+            using var resp = await _http.SendAsync(req, cts.Token);
+            if (!resp.IsSuccessStatusCode) return _lcMapa;
+            var xml = await resp.Content.ReadAsStringAsync(cts.Token);
+            _lcMapa = MapaDoSitemapLc(xml);
+            _lcMapaEm = DateTime.UtcNow;
+            return _lcMapa;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogInformation(ex, "Sitemap da LC Phones indisponível.");
+            return _lcMapa;
+        }
+        finally { LcTrinco.Release(); }
+    }
+
+    public static Dictionary<string, string> MapaDoSitemapLc(string xml)
+    {
+        var mapa = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match m in Regex.Matches(xml, @"<loc>(https://lcphones\.com/en/products/[^<]*?-(\d{3,7}))</loc>"))
+            mapa.TryAdd(m.Groups[2].Value, m.Groups[1].Value);
+        return mapa;
+    }
+
+    private async Task<FichaProduto?> TentarLcPhones(string codigo, CancellationToken ct)
+    {
+        if (!Regex.IsMatch(codigo, @"^\d{3,7}$") || await MapaLcPhones(ct) is not { } mapa || !mapa.TryGetValue(codigo, out var url)) return null;
+        try
+        {
+            var html = await GetTexto(url, ct);
+            return html is null ? null : LerPaginaLcPhones(html, codigo);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogInformation(ex, "LC Phones indisponível para {Codigo}.", codigo);
+            return null;
+        }
+    }
+
+    /// <summary>Página de produto da LC Phones → ficha (JSON-LD «Product»; fotos product_<código>_*.jpg).</summary>
+    public static FichaProduto? LerPaginaLcPhones(string html, string codigo)
+    {
+        foreach (Match m in Regex.Matches(html, @"<script[^>]*application/ld\+json[^>]*>(.*?)</script>", RegexOptions.Singleline))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(m.Groups[1].Value);
+                var r = doc.RootElement;
+                if (!r.TryGetProperty("@type", out var t) || t.GetString() != "Product") continue;
+                if (r.TryGetProperty("sku", out var k) && !string.Equals(k.GetString(), codigo, StringComparison.OrdinalIgnoreCase)) continue;
+                var nome = r.TryGetProperty("name", out var n) ? WebUtility.HtmlDecode(n.GetString() ?? "") : "";
+                if (string.IsNullOrWhiteSpace(nome)) continue;
+                var desc = r.TryGetProperty("description", out var d) ? WebUtility.HtmlDecode(d.GetString()) : null;
+                string? marca = r.TryGetProperty("brand", out var b) && b.ValueKind == JsonValueKind.Object && b.TryGetProperty("name", out var bn) ? bn.GetString() : null;
+                var imagens = new List<string>();
+                if (r.TryGetProperty("image", out var im))
+                {
+                    if (im.ValueKind == JsonValueKind.String && im.GetString() is { } u1) imagens.Add(u1);
+                    else if (im.ValueKind == JsonValueKind.Array)
+                        imagens.AddRange(im.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!));
+                }
+                imagens.AddRange(Regex.Matches(html, $@"https://lcphones\.com/storage/media/\d+/product_{codigo}[_.][^""'\s)]*").Select(x => x.Value));
+                imagens = imagens.Where(u => u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)).Distinct().Take(6).ToList();
+                return new FichaProduto(nome.Trim(), Limpar(desc), string.IsNullOrWhiteSpace(marca) ? null : marca, imagens);
+            }
+            catch (JsonException) { }
+        }
+        return null;
+    }
+
     private async Task<FichaProduto?> Tentar(string loja, string q, int limite, string? confirmarNome, CancellationToken ct, ConsultaPeca? peca = null)
     {
         try
@@ -300,7 +394,10 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
             }
             if (handle is null || (confirmarNome is not null && melhor < 0.6)) return null;
             var produto = await GetJson($"{loja}/products/{Uri.EscapeDataString(handle)}.js", ct);
-            return produto is null ? null : LerProduto(produto.Value);
+            if (produto is null) return null;
+            // 23/11: pesquisa por código sem confirmação aceitava o 1.º resultado — só vale se o SKU for mesmo esse código.
+            if (confirmarNome is null && peca is null && !TemSku(produto.Value, q)) return null;
+            return LerProduto(produto.Value);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
         {

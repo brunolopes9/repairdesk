@@ -172,3 +172,29 @@ public class Tudo4MobilePeliculasTests
     public void Aceita(string nome, string titulo, bool esperado)
         => (RepairDesk.Services.Loja.FichaFornecedor.SemelhancaCor(nome, titulo) >= 0.2).Should().Be(esperado);
 }
+
+/// <summary>23/11: LC Phones — o código da fatura é o id do produto no sitemap; flex de bateria não é bateria.</summary>
+public class LcPhonesTests
+{
+    [Fact]
+    public void Sitemap_CodigoParaUrl()
+    {
+        const string xml = "<url><loc>https://lcphones.com/en/products/jcid-copy-power-out-battery-flex-cable-for-iphone-12-pro-max-23167</loc></url>"
+            + "<url><loc>https://lcphones.com/en/categorias/parts/apple/iphone/iphone-13-pro/battery</loc></url>";
+        var m = RepairDesk.Services.Loja.FichaFornecedor.MapaDoSitemapLc(xml);
+        m.Should().ContainKey("23167").And.HaveCount(1);
+    }
+
+    [Fact]
+    public void Pagina_LeJsonLdEFotos()
+    {
+        const string html = """<script type="application/ld+json">{"@type":"Product","name":"JCID - Copy Power Out Battery Flex Cable For iPhone 12 Pro Max","sku":"23167","image":["https://lcphones.com/storage/media/33937/product_23167_1687525584.jpg"],"brand":{"@type":"Brand","name":"JC"}}</script><img src="https://lcphones.com/storage/media/1/product_9801.jpg">""";
+        var f = RepairDesk.Services.Loja.FichaFornecedor.LerPaginaLcPhones(html, "23167")!;
+        f.Titulo.Should().Contain("Copy Power Out");
+        f.Imagens.Should().ContainSingle().Which.Should().Contain("product_23167");
+    }
+
+    [Fact]
+    public void FlexDeBateria_NaoEBateria()
+        => RepairDesk.Services.Artigos.ModeloDispositivo.NomePeca("Flex de bateria JCID (Copy Power Out) iPhone 12 Pro Max").Should().NotStartWith("Bateria");
+}
