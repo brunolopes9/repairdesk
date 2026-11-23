@@ -41,6 +41,15 @@ public class EncomendaLoja : BaseEntity, ITenantEntity
     public DateTime? CanceladaEm { get; set; }
     public string? NumeroSeguimento { get; set; }
 
+    /// <summary>23/11: pagamento dentro do site — «mbway», «mb» (referência Multibanco) ou «link» (página do ifthenpay: cartão,
+    /// Apple/Google Pay). Null = encomendas antigas (Pay by Link / Stripe).</summary>
+    public string? MetodoPagamento { get; set; }
+    /// <summary>RequestId do ifthenpay (MB WAY ou Multibanco) — serve para perguntar o estado sem depender do callback.</summary>
+    public string? PagamentoPedidoId { get; set; }
+    public string? MbEntidade { get; set; }
+    public string? MbReferencia { get; set; }
+    public DateTime? MbValidade { get; set; }
+
     /// <summary>Sprint 659: conta de cliente que fez a encomenda (null = compra sem conta).</summary>
     public Guid? ClienteLojaId { get; set; }
 

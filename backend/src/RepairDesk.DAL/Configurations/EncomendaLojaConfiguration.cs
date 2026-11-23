@@ -26,6 +26,10 @@ public class EncomendaLojaConfiguration : IEntityTypeConfiguration<EncomendaLoja
         builder.Property(x => x.StripePaymentIntentId).HasMaxLength(255);
         builder.Property(x => x.NumeroSeguimento).HasMaxLength(80);
         builder.Property(x => x.Problema).HasMaxLength(300);
+        builder.Property(x => x.MetodoPagamento).HasMaxLength(10);
+        builder.Property(x => x.PagamentoPedidoId).HasMaxLength(64);
+        builder.Property(x => x.MbEntidade).HasMaxLength(10);
+        builder.Property(x => x.MbReferencia).HasMaxLength(20);
         builder.HasIndex(x => new { x.TenantId, x.Numero }).IsUnique();
         builder.HasIndex(x => x.Referencia).IsUnique();
         builder.HasIndex(x => x.StripeSessionId).IsUnique().HasFilter("[StripeSessionId] IS NOT NULL");

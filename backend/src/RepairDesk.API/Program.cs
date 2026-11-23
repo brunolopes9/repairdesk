@@ -367,6 +367,9 @@ try
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.StripeCheckoutClient>(c => c.Timeout = TimeSpan.FromSeconds(20));
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.IfthenpayLojaCheckout>(c => c.Timeout = TimeSpan.FromSeconds(20));
     builder.Services.AddScoped<RepairDesk.Services.Loja.IPagamentosLojaService, RepairDesk.Services.Loja.PagamentosLojaService>();
+    // 23/11: MB WAY e Multibanco dentro do site (APIs diretas do ifthenpay) + verificação dos pagamentos pendentes.
+    builder.Services.AddHttpClient<RepairDesk.Services.Loja.IPagamentoNoSite, RepairDesk.Services.Loja.PagamentoNoSiteIfthenpay>(c => c.Timeout = TimeSpan.FromSeconds(20));
+    builder.Services.AddHostedService<RepairDesk.API.HostedServices.PagamentosLojaPendentesHostedService>();
     if (builder.Configuration.GetValue("E2E:Enabled", false))
         builder.Services.AddScoped<RepairDesk.Services.Loja.IStripeCheckout, RepairDesk.Services.Loja.StripeCheckoutE2e>();
     else

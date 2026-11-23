@@ -1864,6 +1864,21 @@ namespace RepairDesk.DAL.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
+                    b.Property<string>("MbEntidade")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("MbReferencia")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("MbValidade")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MetodoPagamento")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
                     b.Property<string>("Morada")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1891,6 +1906,10 @@ namespace RepairDesk.DAL.Migrations
 
                     b.Property<DateTime?>("PagaEm")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("PagamentoPedidoId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<long>("PortesCents")
                         .HasColumnType("bigint");

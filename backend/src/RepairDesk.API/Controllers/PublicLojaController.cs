@@ -56,6 +56,15 @@ public sealed class PublicLojaController : ControllerBase
         return Ok(await _service.CheckoutAsync(req, ct, cliente?.Id));
     }
 
+    /// <summary>23/11: métodos de pagamento para o checkout («mbway», «mb» no site; «link» = cartão/Apple/Google Pay).</summary>
+    [HttpGet("{intakeSlug}/pagamentos")]
+    [EnableRateLimiting("public-portal")]
+    public async Task<ActionResult<IReadOnlyList<string>>> Pagamentos(string intakeSlug, CancellationToken ct)
+    {
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        return Ok(await _service.MetodosPagamentoAsync(ct));
+    }
+
     [HttpGet("{intakeSlug}/encomendas/{referencia}")]
     [EnableRateLimiting("public-portal")]
     public async Task<ActionResult<EncomendaPublicaDto>> Encomenda(string intakeSlug, string referencia, [FromQuery] string t, CancellationToken ct)
@@ -169,8 +178,9 @@ public sealed class PublicLojaController : ControllerBase
     [HttpGet("{intakeSlug}/ifthenpay/callback")]
     public async Task<IActionResult> IfthenpayCallback(string intakeSlug, [FromQuery] string? key, [FromQuery] string? id,
         [FromQuery] string? amount, [FromQuery(Name = "payment_datetime")] string? quando,
-        [FromQuery(Name = "payment_method")] string? metodo, CancellationToken ct)
+        [FromQuery(Name = "payment_method")] string? metodo, CancellationToken ct, [FromQuery] string? orderId = null)
     {
+        id ??= orderId; // 23/11: callbacks do MB WAY/Multibanco diretos trazem «orderId» em vez de «id»
         var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.IntakeSlug == intakeSlug && t.IsActive, ct);
         var esperada = tenant?.IfthenpayAntiPhishingKeyCipherText is { } c ? _secrets.Unprotect(c) : null;
         if (tenant is null || !IfthenpayLojaCheckout.ChaveValida(key, esperada))

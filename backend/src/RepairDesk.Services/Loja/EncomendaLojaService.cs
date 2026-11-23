@@ -21,9 +21,13 @@ public sealed record CheckoutLinhaRequest(string Slug, int Quantidade);
 /// <summary><c>Website</c> é o campo-armadilha (escondido) — só os bots o preenchem.</summary>
 public sealed record CheckoutRequest(
     IReadOnlyList<CheckoutLinhaRequest> Linhas, string Nome, string Email, string Telefone, string? Nif,
-    string Morada, string CodigoPostal, string Localidade, string? Notas, bool AceitaTermos, string? Website = null);
+    string Morada, string CodigoPostal, string Localidade, string? Notas, bool AceitaTermos, string? Website = null,
+    /// <summary>23/11: «mbway» ou «mb» pagam dentro do site; «link» (ou vazio) abre a página do ifthenpay (cartão, Apple/Google Pay).</summary>
+    string? Metodo = null, string? TelefoneMbWay = null);
 
-public sealed record CheckoutResultado(string Referencia, string UrlPagamento);
+/// <param name="UrlPagamento">Só no pagamento por página externa (cartão…). Null quando se paga no site (MB WAY/Multibanco).</param>
+/// <param name="Token">23/11: para o site seguir o pagamento (página da encomenda) sem sair da loja.</param>
+public sealed record CheckoutResultado(string Referencia, string? UrlPagamento, string? Token = null, PagamentoNoSiteDto? Pagamento = null);
 
 public sealed record EncomendaPublicaLinhaDto(string Titulo, string Slug, int Quantidade, decimal PrecoUnitario);
 
@@ -33,7 +37,9 @@ public sealed record EncomendaPublicaDto(
     string Referencia, EncomendaLojaEstado Estado, string EstadoTexto, DateTime CriadaEm, string Nome,
     IReadOnlyList<EncomendaPublicaLinhaDto> Linhas, decimal Subtotal, decimal Portes, decimal Total,
     string Transportadora, string? NumeroSeguimento, DateTime? PagaEm, DateTime? EnviadaEm, DateTime? EntregueEm,
-    string? Email = null);
+    string? Email = null,
+    /// <summary>23/11: pagamento no site — a referência Multibanco volta a aparecer; «recusado»/«expirado» no MB WAY.</summary>
+    PagamentoNoSiteDto? Pagamento = null, string? PagamentoEstado = null);
 
 public sealed record EncomendaLojaLinhaDto(Guid ProdutoLojaId, Guid? ArtigoId, string Slug, string Titulo, int Quantidade, decimal PrecoUnitario);
 
@@ -57,6 +63,10 @@ public interface IEncomendaLojaService
     Task ExpirarAsync(EncomendaLoja encomenda, CancellationToken ct = default);
     /// <summary>Público: estado para a página de seguimento (precisa do token do link).</summary>
     Task<EncomendaPublicaDto> EstadoPublicoAsync(string referencia, string token, CancellationToken ct = default);
+    /// <summary>23/11: métodos para o site mostrar («mbway», «mb» no site; «link» = página externa com cartão/Apple/Google Pay).</summary>
+    Task<IReadOnlyList<string>> MetodosPagamentoAsync(CancellationToken ct = default);
+    /// <summary>23/11: pergunta ao ifthenpay pelos pagamentos no site ainda pendentes (Multibanco pago mais tarde). Devolve quantos confirmou.</summary>
+    Task<int> VerificarPagamentosPendentesAsync(CancellationToken ct = default);
 
     Task<IReadOnlyList<EncomendaLojaDto>> ListAsync(CancellationToken ct = default);
     Task<EncomendaLojaDto> GetAsync(Guid id, CancellationToken ct = default);
@@ -90,11 +100,13 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
     private readonly IEmailSender _email;
     private readonly IStaffPushQueue _push;
     private readonly ILogger<EncomendaLojaService> _log;
+    private readonly IPagamentoNoSite? _noSite;
 
     public EncomendaLojaService(IEncomendaLojaRepository repo, ILojaService loja, IArtigoService artigos, IVendaService vendas,
         IStripeCheckout stripe, IOptions<StripeOptions> opt, ITenantContext tenant, IAuditLogger audit, IEmailSender email,
-        IStaffPushQueue push, ILogger<EncomendaLojaService> log)
+        IStaffPushQueue push, ILogger<EncomendaLojaService> log, IPagamentoNoSite? noSite = null)
     {
+        _noSite = noSite;
         _repo = repo;
         _loja = loja;
         _artigos = artigos;
@@ -164,6 +176,34 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
 
         var site = _opt.SiteBase.TrimEnd('/');
         var seguimento = $"{site}/loja/encomenda?ref={e.Referencia}&t={token}";
+
+        // 23/11: MB WAY e Multibanco pagam-se dentro do site — o cliente nunca sai da loja.
+        var metodo = (req.Metodo ?? "").Trim().ToLowerInvariant();
+        if (metodo is "mbway" or "mb")
+        {
+            if (_noSite is null || !(await _noSite.MetodosAsync(ct)).Contains(metodo))
+                throw new ValidationException("metodo_indisponivel", "Esse método de pagamento não está disponível. Escolhe outro.");
+            PagamentoNoSiteDto pag;
+            try { pag = await _noSite.IniciarAsync(e, metodo, req.TelefoneMbWay, ct); }
+            catch (DomainException)
+            {
+                e.Estado = EncomendaLojaEstado.Cancelada;
+                e.CanceladaEm = DateTime.UtcNow;
+                e.Problema = "O pagamento não foi aceite ao criar a encomenda.";
+                await _repo.SaveAsync(ct);
+                throw;
+            }
+            e.StripeSessionId = IfthenpayLojaCheckout.SessaoDe(e.Referencia); // o callback do ifthenpay encontra-a por aqui
+            await _repo.SaveAsync(ct);
+            await _audit.LogAsync(AuditAction.Create, nameof(EncomendaLoja), e.Id,
+                new { e.Referencia, total = e.TotalCents, linhas = linhas.Count, metodo }, tenantId, null, ct);
+            if (metodo == "mb")
+                await EmailCliente(e, $"Referência Multibanco da encomenda {e.Referencia}",
+                    $"Olá {PrimeiroNome(e.Nome)}, para pagar a encomenda {e.Referencia} usa: Entidade {pag.Entidade} · Referência {pag.Referencia} · "
+                    + $"Valor {pag.Valor:0.00} €" + (pag.Validade is { } v ? $" · até {v:dd/MM/yyyy}" : "")
+                    + $". Assim que o pagamento entrar, avisamos e preparamos o envio. Seguimento: {seguimento}", ct);
+            return new CheckoutResultado(e.Referencia, null, token, pag);
+        }
         var stripeLinhas = linhas.Select(l => new StripeLinha(l.Titulo, l.PrecoUnitarioCents, l.Quantidade)).ToList();
         stripeLinhas.Add(new StripeLinha($"Envio {Transportadora} (24 h)", PortesCents, 1));
         StripeSessao sessao;
@@ -288,10 +328,55 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
             : await _repo.FindByReferenciaAsync(referencia.Trim().ToUpperInvariant(), ct);
         if (e is null || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(e.TokenHash), Encoding.ASCII.GetBytes(Hash(token.Trim()))))
             throw new NotFoundException("EncomendaLoja", referencia);
+        var estadoPagamento = await VerificarAsync(e, ct);
         return new EncomendaPublicaDto(e.Referencia, e.Estado, EstadoTexto(e.Estado), e.CreatedAt, PrimeiroNome(e.Nome),
             e.Linhas.Select(l => new EncomendaPublicaLinhaDto(l.Titulo, l.Slug, l.Quantidade, l.PrecoUnitarioCents / 100m)).ToList(),
             e.SubtotalCents / 100m, e.PortesCents / 100m, e.TotalCents / 100m, e.Transportadora, e.NumeroSeguimento,
-            e.PagaEm, e.EnviadaEm, e.EntregueEm, e.Email);
+            e.PagaEm, e.EnviadaEm, e.EntregueEm, e.Email,
+            e.Estado == EncomendaLojaEstado.AguardaPagamento ? PagamentoNoSiteIfthenpay.Dto(e) : null, estadoPagamento);
+    }
+
+    /// <summary>Pagamento no site ainda pendente → pergunta ao ifthenpay e confirma se já entrou. Devolve «pendente»,
+    /// «recusado», «expirado» (ou null quando não há nada a verificar).</summary>
+    private async Task<string?> VerificarAsync(EncomendaLoja e, CancellationToken ct)
+    {
+        if (_noSite is null || e.Estado != EncomendaLojaEstado.AguardaPagamento || e.MetodoPagamento is not ("mb" or "mbway")) return null;
+        var estado = await _noSite.EstadoAsync(e, ct);
+        switch (estado)
+        {
+            case EstadoPagamentoNoSite.Pago:
+                await ConfirmarPagamentoAsync(e, $"ifthenpay {e.MetodoPagamento}", ct);
+                return null;
+            case EstadoPagamentoNoSite.Expirado when e.MetodoPagamento == "mb":
+                await ExpirarAsync(e, ct);
+                return "expirado";
+            default:
+                return estado.ToString().ToLowerInvariant();
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> MetodosPagamentoAsync(CancellationToken ct = default)
+    {
+        var l = new List<string>();
+        if (_noSite is not null) l.AddRange((await _noSite.MetodosAsync(ct)).OrderBy(m => m == "mbway" ? 0 : 1));
+        if (await _stripe.ConfiguradoAsync(ct)) l.Add("link");
+        return l;
+    }
+
+    public async Task<int> VerificarPagamentosPendentesAsync(CancellationToken ct = default)
+    {
+        if (_noSite is null) return 0;
+        var limite = DateTime.UtcNow.AddDays(-(PagamentoNoSiteIfthenpay.DiasMultibanco + 2));
+        var n = 0;
+        var pendentes = (await _repo.ListAsync(ct)).Where(x => x.Estado == EncomendaLojaEstado.AguardaPagamento
+            && x.MetodoPagamento is "mb" or "mbway" && x.CreatedAt > limite).Select(x => x.Id).ToList();
+        foreach (var id in pendentes)
+        {
+            if (await _repo.FindAsync(id, ct) is not { } e) continue;
+            await VerificarAsync(e, ct);
+            if (e.Estado == EncomendaLojaEstado.Paga) n++;
+        }
+        return n;
     }
 
     public static string EstadoTexto(EncomendaLojaEstado e) => e switch
