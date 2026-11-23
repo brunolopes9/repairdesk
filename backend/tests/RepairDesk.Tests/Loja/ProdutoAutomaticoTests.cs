@@ -125,7 +125,7 @@ public class ConsultaInglesaTests
     [InlineData("Bateria iPhone 13 Pro (sem placa)", null)]
     [InlineData("Capa silicone Samsung A16 4G / 5G preta", null)]
     public void Consulta(string nome, string? esperado)
-        => RepairDesk.Services.Loja.FichaFornecedor.ConsultaInglesa(nome)?.Q.Should().Be(esperado);
+        => (RepairDesk.Services.Loja.FichaFornecedor.ConsultaInglesa(nome)?.Q).Should().Be(esperado);
 
     [Theory]
     [InlineData("Ecrã Samsung A16 5G azul / preto (Service Pack)", "Samsung Galaxy A16 5G A166B Display And Digitizer With Frame Blue Black Service Pack", true)]

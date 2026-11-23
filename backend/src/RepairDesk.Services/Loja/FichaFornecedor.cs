@@ -33,6 +33,8 @@ public sealed record FichaProduto(string Titulo, string Texto, string? Marca, IR
 public sealed partial class FichaFornecedor : IFichaFornecedor
 {
     private static readonly string[] Lojas = ["https://4phones.eu"];
+    // 23/11: o 4Phones (proteção Shopify) responde 403 a «Mozilla/5.0 (compatible; …)» — um nome honesto passa.
+    private const string UserAgent = "LopesTech/1.0 (+https://lopestech.pt)";
     private readonly HttpClient _http;
     private readonly ILogger<FichaFornecedor> _logger;
 
@@ -135,7 +137,7 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(10));
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
-        req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (compatible; LopesTechLoja/1.0)");
+        req.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
         using var resp = await _http.SendAsync(req, cts.Token);
         return resp.IsSuccessStatusCode ? await resp.Content.ReadAsStringAsync(cts.Token) : null;
     }
@@ -285,10 +287,19 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(8));
-        using var req = new HttpRequestMessage(HttpMethod.Get, url);
-        req.Headers.TryAddWithoutValidation("Accept", "application/json");
-        req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (compatible; LopesTechLoja/1.0)");
-        using var resp = await _http.SendAsync(req, cts.Token);
+        HttpResponseMessage resp = null!;
+        for (var tentativa = 0; tentativa < 2; tentativa++)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.TryAddWithoutValidation("Accept", "application/json");
+            req.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+            resp = await _http.SendAsync(req, cts.Token);
+            // 23/11: o Shopify limita pedidos seguidos (429) — uma segunda tentativa 2 s depois costuma passar.
+            if (resp.StatusCode != HttpStatusCode.TooManyRequests || tentativa == 1) break;
+            resp.Dispose();
+            await Task.Delay(TimeSpan.FromSeconds(2), cts.Token);
+        }
+        using var _ = resp;
         if (!resp.IsSuccessStatusCode) return null;
         var corpo = await resp.Content.ReadAsStringAsync(cts.Token);
         return JsonDocument.Parse(corpo).RootElement.Clone();
