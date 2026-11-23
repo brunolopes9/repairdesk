@@ -53,6 +53,8 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
             .Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToList();
         var porNome = (nomes ?? []).Select(n => n?.Trim() ?? "").Where(n => n.Length is >= 8 and <= 200)
             .Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToList();
+        _logger.LogInformation("Ficha do fornecedor: códigos {Codigos}; nomes {Nomes}; em inglês {Ingles}.", lista, porNome,
+            porNome.Select(ConsultaInglesa).OfType<ConsultaPeca>().Select(c => c.Q).ToList());
         foreach (var loja in Lojas)
         {
             foreach (var codigo in lista)
