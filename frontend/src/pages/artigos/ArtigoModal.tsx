@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Combine, Link2Off, Printer, Save, Store } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+
 import Modal from '../../components/Modal';
 import { AutosaveStatus, Button } from '../../components/ui';
 import { useAutosave } from '../../lib/useAutosave';
@@ -12,6 +12,7 @@ import { comprasApi } from '../../lib/compras/api';
 import { formatEur, parseDecimal } from '../../lib/compras/format';
 import { correspondeTermos } from '../../lib/pesquisa';
 import { toast } from '../../lib/toast';
+import { usePorNaLoja } from '../loja/usePorNaLoja';
 
 interface Props {
   /** null = novo artigo. */
@@ -26,7 +27,6 @@ interface Props {
 
 /** Sprint 566: criar/editar um artigo da loja e ligar-lhe os lotes de compra (o stock é a soma deles). */
 export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiquetas }: Props) {
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const detalhe = useQuery({ queryKey: ['artigos', artigoId], queryFn: () => artigosApi.get(artigoId!), enabled: open && !!artigoId });
   const inventario = useQuery({ queryKey: ['compras', 'inventario'], queryFn: () => comprasApi.inventario(), enabled: open });
@@ -111,6 +111,8 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pronto]);
   const fechar = () => { void auto.gravarJa(); onClose(); };
+  // 23/11: o mesmo «Pôr na loja» automático da lista (fotos do fornecedor + texto da IA), depois de gravar o preço.
+  const porNaLoja = usePorNaLoja();
 
   const guardar = useMutation({
     mutationFn: () => {
@@ -164,8 +166,9 @@ export default function ArtigoModal({ artigoId, open, onClose, sugestao, onEtiqu
       title={a ? `${a.sku} · ${a.nomeFatura ?? a.nome}` : 'Novo artigo'}
       footer={<>
         {a && a.stock > 0 && (
-          <Button type="button" variant="secondary" leftIcon={<Store size={15} />} onClick={() => { fechar(); navigate(`/loja/novo?artigo=${a.id}`); }}>
-            Pôr na loja
+          <Button type="button" variant="secondary" leftIcon={<Store size={15} />} loading={porNaLoja.isPending}
+            onClick={async () => { await auto.gravarJa(); porNaLoja.mutate(a.id, { onSuccess: () => onClose() }); }}>
+            {porNaLoja.isPending ? 'Fotos + texto… (até 2 min)' : 'Pôr na loja'}
           </Button>
         )}
         {a && onEtiquetas && (
