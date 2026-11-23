@@ -85,3 +85,32 @@ public class SemelhancaFichaTests
     public void OutroModelo_DaZero(string titulo)
         => FichaFornecedor.Semelhanca("Rixus Ultra Clear Camera Protection For Apple iPhone 17 Pro Deep Blue", titulo).Should().Be(0);
 }
+
+/// <summary>23/11: página de produto da Tudo4Mobile (OpenCart) — SKU, nome e fotos 1000×1000 da galeria.</summary>
+public class Tudo4MobilePaginaTests
+{
+    private const string Html = """
+        <script type="application/ld+json">{"@context":"http://schema.org","@type":"Organization","url":"x"}</script>
+        <img src="https://www.tudo4mobile.pt/image/cache/catalog/Ivan/fav_t4m-1000x1000.png">
+        <a href="https://www.tudo4mobile.pt/image/cache/catalog/1 Karan/160436-1000x1000.jpg"><img src="https://www.tudo4mobile.pt/image/cache/catalog/1 Karan/160436-500x500.jpg"></a>
+        <a href="https://www.tudo4mobile.pt/image/cache/catalog/1 Karan/160436-2-1000x1000.jpg"></a>
+        <script type="application/ld+json">{"@context":"http://schema.org/","@type":"Product","name":"Protetor de Vidro da C&acirc;mera Traseira para Apple iPhone 17 Pro/iPhone 17 Pro Max Azul Profundo","sku":"160436","brand":{"@type":"Thing","name":"UNIVERSAL"},"description":"Compra Protetor. Ajuste perfeito."}</script>
+        """;
+
+    [Fact]
+    public void LeSkuNomeEFotosSemLogos()
+    {
+        var f = FichaFornecedor.LerPaginaTudo4Mobile(Html, out var sku)!;
+        sku.Should().Be("160436");
+        f.Titulo.Should().StartWith("Protetor de Vidro da Câmera");
+        f.Marca.Should().BeNull("«UNIVERSAL» não é marca");
+        f.Imagens.Should().Equal(
+            "https://www.tudo4mobile.pt/image/cache/catalog/1%20Karan/160436-1000x1000.jpg",
+            "https://www.tudo4mobile.pt/image/cache/catalog/1%20Karan/160436-2-1000x1000.jpg");
+    }
+
+    [Fact]
+    public void ModeloDaFaturaEmPortugues_BateComOTituloDoSite()
+        => FichaFornecedor.Semelhanca("Película de câmara traseira iPhone 17 Pro / 17 Pro Max Deep Blue",
+            "Protetor de Vidro da Câmera Traseira para Apple iPhone 17 Pro/iPhone 17 Pro Max Azul Profundo").Should().BeGreaterThan(0.2);
+}

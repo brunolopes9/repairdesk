@@ -59,8 +59,91 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
             foreach (var nome in porNome)
                 if (await Tentar(loja, nome, 6, nome, ct) is { } f) return f;
         }
+        // 23/11: Tudo4Mobile (faturas em papel) — o site pesquisa pelo código da fatura.
+        foreach (var codigo in lista)
+            if (await TentarTudo4Mobile(codigo, porNome, ct) is { } f) return f;
         return null;
     }
+
+    private const string Tudo4Mobile = "https://www.tudo4mobile.pt";
+
+    /// <summary>
+    /// Loja OpenCart da Tudo4Mobile: pesquisa pelo código, abre os 3 primeiros resultados e aceita o produto cujo
+    /// SKU (dados estruturados da página) é o código da fatura — ou, sem SKU igual, o que tem o mesmo modelo.
+    /// </summary>
+    private async Task<FichaProduto?> TentarTudo4Mobile(string codigo, IReadOnlyList<string> nomes, CancellationToken ct)
+    {
+        try
+        {
+            var pesquisa = await GetTexto($"{Tudo4Mobile}/index.php?route=product/search&search={Uri.EscapeDataString(codigo)}", ct);
+            if (pesquisa is null) return null;
+            var ids = ProdutoIdT4m().Matches(pesquisa).Select(m => m.Groups[1].Value).Distinct().Take(3).ToList();
+            foreach (var id in ids)
+            {
+                var pagina = await GetTexto($"{Tudo4Mobile}/index.php?route=product/product&product_id={id}", ct);
+                if (pagina is null) continue;
+                var ficha = LerPaginaTudo4Mobile(pagina, out var sku);
+                if (ficha is null) continue;
+                if (string.Equals(sku, codigo, StringComparison.OrdinalIgnoreCase)) return ficha;
+                if (nomes.Any(n => Semelhanca(n, ficha.Titulo) >= 0.25)) return ficha;
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogInformation(ex, "Tudo4Mobile indisponível para {Codigo}.", codigo);
+        }
+        return null;
+    }
+
+    /// <summary>Página de produto da Tudo4Mobile → ficha (JSON-LD «Product» + fotos 1000×1000 da galeria).</summary>
+    public static FichaProduto? LerPaginaTudo4Mobile(string html, out string? sku)
+    {
+        sku = null;
+        string? nome = null, descricao = null, marca = null;
+        foreach (Match m in JsonLd().Matches(html))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(m.Groups[1].Value);
+                var r = doc.RootElement;
+                if (!r.TryGetProperty("@type", out var t) || t.GetString() != "Product") continue;
+                nome ??= r.TryGetProperty("name", out var n) ? WebUtility.HtmlDecode(n.GetString()) : null;
+                sku ??= r.TryGetProperty("sku", out var k) ? k.GetString() : null;
+                if (r.TryGetProperty("description", out var d) && (d.GetString()?.Length ?? 0) > (descricao?.Length ?? 0))
+                    descricao = WebUtility.HtmlDecode(d.GetString());
+                if (marca is null && r.TryGetProperty("brand", out var b) && b.ValueKind == JsonValueKind.Object
+                    && b.TryGetProperty("name", out var bn) && bn.GetString() is { } bns && !bns.Equals("UNIVERSAL", StringComparison.OrdinalIgnoreCase))
+                    marca = bns;
+            }
+            catch (JsonException)
+            {
+            }
+        }
+        if (string.IsNullOrWhiteSpace(nome)) return null;
+        var imagens = FotoT4m().Matches(html).Select(m => m.Value.Replace(" ", "%20"))
+            .Where(u => !Regex.IsMatch(u, "logo|fav|/Ivan/|catt|banner", RegexOptions.IgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(6).ToList();
+        return new FichaProduto(nome.Trim(), Limpar(descricao), marca, imagens);
+    }
+
+    private async Task<string?> GetTexto(string url, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(10));
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (compatible; LopesTechLoja/1.0)");
+        using var resp = await _http.SendAsync(req, cts.Token);
+        return resp.IsSuccessStatusCode ? await resp.Content.ReadAsStringAsync(cts.Token) : null;
+    }
+
+    [GeneratedRegex(@"route=product/product&(?:amp;)?product_id=(\d+)")]
+    private static partial Regex ProdutoIdT4m();
+
+    [GeneratedRegex(@"<script type=""application/ld\+json"">(.*?)</script>", RegexOptions.Singleline)]
+    private static partial Regex JsonLd();
+
+    [GeneratedRegex(@"https://www\.tudo4mobile\.pt/image/cache/catalog/[^""'<>]+?-1000x1000\.(?:jpe?g|png|webp)", RegexOptions.IgnoreCase)]
+    private static partial Regex FotoT4m();
 
     private async Task<FichaProduto?> Tentar(string loja, string q, int limite, string? confirmarNome, CancellationToken ct)
     {
