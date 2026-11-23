@@ -114,3 +114,26 @@ public class Tudo4MobilePaginaTests
         => FichaFornecedor.Semelhanca("Película de câmara traseira iPhone 17 Pro / 17 Pro Max Deep Blue",
             "Protetor de Vidro da Câmera Traseira para Apple iPhone 17 Pro/iPhone 17 Pro Max Azul Profundo").Should().BeGreaterThan(0.2);
 }
+
+/// <summary>23/11: o 4Phones só pesquisa em inglês — a peça em português vira pesquisa em inglês com a mesma qualidade.</summary>
+public class ConsultaInglesaTests
+{
+    [Theory]
+    [InlineData("Ecrã Samsung A16 5G azul / preto (Service Pack)", "Galaxy A16 5G display service pack")]
+    [InlineData("Touch e lcd com frame Samsung A16 5G azul/preto (Service Pack)", "Galaxy A16 5G display service pack")]
+    [InlineData("Bateria iPhone 13 Pro (OEM)", "iPhone 13 Pro battery oem")]
+    [InlineData("Bateria iPhone 13 Pro (sem placa)", null)]
+    [InlineData("Capa silicone Samsung A16 4G / 5G preta", null)]
+    public void Consulta(string nome, string? esperado)
+        => RepairDesk.Services.Loja.FichaFornecedor.ConsultaInglesa(nome)?.Q.Should().Be(esperado);
+
+    [Theory]
+    [InlineData("Ecrã Samsung A16 5G azul / preto (Service Pack)", "Samsung Galaxy A16 5G A166B Display And Digitizer With Frame Blue Black Service Pack", true)]
+    [InlineData("Ecrã Samsung A16 5G azul / preto (Service Pack)", "Samsung Galaxy A16 5G A166B Display And Digitizer With Frame Blue Black In-Cell", false)]
+    [InlineData("Ecrã Samsung A16 5G azul / preto (Service Pack)", "Samsung Galaxy A16 4G A165F Display And Digitizer With Frame Black Service Pack", false)]
+    [InlineData("Bateria iPhone 13 Pro (OEM)", "For Apple iPhone 13 Pro Run Diagnostics Battery OEM", true)]
+    [InlineData("Bateria iPhone 13 Pro (OEM)", "For Apple iPhone 13 Pro Max Run Diagnostics Battery OEM", false)]
+    [InlineData("Bateria iPhone 13 Pro (original)", "For Apple iPhone 13 Pro Battery 661-21996 Original", true)]
+    public void MesmaPeca(string nome, string titulo, bool esperado)
+        => RepairDesk.Services.Loja.FichaFornecedor.MesmaPeca(RepairDesk.Services.Loja.FichaFornecedor.ConsultaInglesa(nome)!, titulo).Should().Be(esperado);
+}

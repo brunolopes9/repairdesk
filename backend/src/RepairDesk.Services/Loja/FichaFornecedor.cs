@@ -58,6 +58,10 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
             // 23/11: o 4Phones não pesquisa por SKU — procura pelo nome da fatura e confirma que é o mesmo modelo.
             foreach (var nome in porNome)
                 if (await Tentar(loja, nome, 6, nome, ct) is { } f) return f;
+            // 23/11: o site só pesquisa em inglês — «Ecrã Samsung A16 5G (Service Pack)» → «Galaxy A16 5G display service pack»,
+            // e só aceita um resultado do mesmo modelo, tipo e qualidade (uma bateria OEM não serve de foto a uma original).
+            foreach (var c in porNome.Select(ConsultaInglesa).OfType<ConsultaPeca>().DistinctBy(c => c.Q))
+                if (await Tentar(loja, c.Q, 10, null, ct, c) is { } f) return f;
         }
         // 23/11: Tudo4Mobile (faturas em papel) — o site pesquisa pelo código da fatura.
         foreach (var codigo in lista)
@@ -145,7 +149,66 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
     [GeneratedRegex(@"https://www\.tudo4mobile\.pt/image/cache/catalog/[^""'<>]+?-1000x1000\.(?:jpe?g|png|webp)", RegexOptions.IgnoreCase)]
     private static partial Regex FotoT4m();
 
-    private async Task<FichaProduto?> Tentar(string loja, string q, int limite, string? confirmarNome, CancellationToken ct)
+    /// <summary>Pesquisa em inglês de uma peça: o texto a pesquisar e o que o título tem de ter para ser a mesma peça.</summary>
+    public sealed record ConsultaPeca(string Q, IReadOnlyCollection<string> Modelo, string Tipo, string? Qualidade);
+
+    private static readonly (string Pt, string En)[] TiposEn =
+    [
+        ("Tampa traseira", "back cover"), ("Conector de carga", "charging"), ("Ecrã", "display"),
+        ("Bateria", "battery"), ("Câmara", "camera"), ("Altifalante", "speaker"), ("Moldura", "frame"),
+    ];
+
+    private static readonly Dictionary<string, string> QualidadesEn = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Service Pack"] = "service pack", ["OEM"] = "oem", ["original"] = "original", ["Soft-OLED"] = "soft-oled",
+        ["Hard-OLED"] = "hard-oled", ["In-Cell"] = "in-cell", ["recondicionado"] = "refurbished",
+    };
+
+    private static readonly HashSet<string> Cores = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "preto", "preta", "branco", "branca", "azul", "verde", "vermelho", "dourado", "prateado", "cinza", "grafite",
+        "lavanda", "amarelo", "rosa", "roxo", "meia-noite", "starlight", "c", "peças", "pequenas", "com", "frame",
+    };
+
+    /// <summary>
+    /// Nome de peça em português (artigo ou fatura) → pesquisa em inglês para o 4Phones. Null quando não é uma peça
+    /// reconhecida ou a qualidade não existe no site (ex.: bateria «sem placa»: melhor sem foto do que a foto errada).
+    /// </summary>
+    public static ConsultaPeca? ConsultaInglesa(string nome)
+    {
+        var peca = RepairDesk.Services.Artigos.ModeloDispositivo.NomePeca(nome) ?? nome;
+        var (pt, en) = TiposEn.FirstOrDefault(t => peca.StartsWith(t.Pt + " ", StringComparison.OrdinalIgnoreCase));
+        if (pt is null) return null;
+        var qualidade = Regex.Match(peca, @"\(([^)]+)\)\s*$") is { Success: true } m ? m.Groups[1].Value.Trim() : null;
+        string? qEn = null;
+        if (qualidade is not null && !QualidadesEn.TryGetValue(qualidade, out qEn)) return null;
+        var resto = Regex.Replace(peca[pt.Length..], @"\([^)]*\)", " ");
+        var palavras = Regex.Split(resto, @"[\s/]+").Where(p => p.Length > 0 && !Cores.Contains(p)).ToList();
+        if (palavras.Count == 0) return null;
+        if (palavras[0].Equals("Samsung", StringComparison.OrdinalIgnoreCase)) palavras[0] = "Galaxy";
+        var modelo = Regex.Matches(string.Join(' ', palavras).ToLowerInvariant(), @"[a-z0-9]+").Select(x => x.Value)
+            .Where(t => Variantes.Contains(t) || t.Any(char.IsDigit)).ToHashSet();
+        if (modelo.Count == 0) return null;
+        return new ConsultaPeca($"{string.Join(' ', palavras)} {en}{(qEn is null ? "" : " " + qEn)}", modelo, en, qEn);
+    }
+
+    /// <summary>
+    /// O título do site é a mesma peça: mesmos números/variantes do modelo (códigos como «A166B» ou «661-21996» à parte,
+    /// e nada de «Max»/«Pro» a mais), o tipo e — se a pedimos — a qualidade.
+    /// </summary>
+    public static bool MesmaPeca(ConsultaPeca c, string titulo)
+    {
+        var t = titulo.ToLowerInvariant();
+        if (!t.Contains(c.Tipo) || (c.Qualidade is not null && !t.Contains(c.Qualidade))) return false;
+        // «Battery Cover» é tampa, não bateria.
+        if (c.Tipo == "battery" && t.Contains("battery cover")) return false;
+        var tokens = Regex.Matches(t, @"[a-z0-9]+").Select(x => x.Value).ToList();
+        if (!c.Modelo.All(tokens.Contains)) return false;
+        var extras = tokens.Where(x => !c.Modelo.Contains(x) && (Variantes.Contains(x) || Regex.IsMatch(x, @"^\d{1,2}[a-z]?$|^[a-z]\d{1,2}[a-z]?$")));
+        return !extras.Any();
+    }
+
+    private async Task<FichaProduto?> Tentar(string loja, string q, int limite, string? confirmarNome, CancellationToken ct, ConsultaPeca? peca = null)
     {
         try
         {
@@ -159,8 +222,9 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
             {
                 var h = p.TryGetProperty("handle", out var hh) ? hh.GetString() : null;
                 if (string.IsNullOrWhiteSpace(h)) continue;
-                if (confirmarNome is null) { handle = h; break; }
                 var titulo = p.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
+                if (peca is not null) { if (MesmaPeca(peca, titulo)) { handle = h; break; } continue; }
+                if (confirmarNome is null) { handle = h; break; }
                 var nota = Semelhanca(confirmarNome, titulo);
                 if (nota > melhor) { melhor = nota; handle = h; }
             }

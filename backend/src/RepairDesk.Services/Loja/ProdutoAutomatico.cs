@@ -176,7 +176,7 @@ public sealed partial class ProdutoAutomatico : IProdutoAutomatico
     /// <summary>Nomes originais das linhas da fatura (como o fornecedor os escreve no site) — para procurar pelo nome.</summary>
     public static IReadOnlyList<string> Nomes(Artigo a)
         => a.Lotes.OrderByDescending(l => l.CreatedAt).Select(l => l.Descricao)
-            .Append(a.NomeFatura ?? "").Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()!;
+            .Append(a.NomeFatura ?? "").Append(a.Nome).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()!;
 
     /// <summary>Nome da fatura ou do artigo, legível (sem maiúsculas a gritar) e sem «All colours». A qualidade
     /// (Service Pack, Original Remaded…) fica — a IA usa-a para explicar a peça.</summary>
