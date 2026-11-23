@@ -61,8 +61,33 @@ public static partial class ModeloDispositivo
         if (string.IsNullOrWhiteSpace(descricao)) return null;
         var tipo = TiposPeca.FirstOrDefault(t => t.Regex.IsMatch(descricao)).Nome;
         if (tipo is null || Extrair(descricao, feminino: tipo is "Bateria" or "Tampa traseira" or "Câmara" or "Moldura") is not { } modelo) return null;
-        return $"{tipo} {modelo}";
+        return Qualidade(descricao) is { } q ? $"{tipo} {modelo} ({q})" : $"{tipo} {modelo}";
     }
+
+    /// <summary>
+    /// 23/11: a qualidade faz parte da peça — uma bateria original (46,95 €), uma OEM (10,95 €) e uma sem placa (6,90 €)
+    /// do mesmo iPhone são artigos DIFERENTES (custo, preço e garantia diferentes). Sem isto juntavam-se num só artigo.
+    /// </summary>
+    public static string? Qualidade(string descricao)
+    {
+        foreach (var (rx, nome) in Qualidades)
+            if (rx.IsMatch(descricao)) return nome;
+        return null;
+    }
+
+    // A ordem importa: «Original Remaded» é remanufaturado, não original; «Service Pack» é original da marca.
+    private static readonly (Regex Rx, string Nome)[] Qualidades =
+    [
+        (new Regex(@"without\s+board|sem\s+placa|no\s+flex|sin\s+placa", RegexOptions.IgnoreCase), "sem placa"),
+        (new Regex(@"service\s*pack|\bGH8\d", RegexOptions.IgnoreCase), "Service Pack"),
+        (new Regex(@"remade|remaded|refurbished|recondicionad", RegexOptions.IgnoreCase), "recondicionado"),
+        (new Regex(@"soft[\s-]*oled", RegexOptions.IgnoreCase), "Soft-OLED"),
+        (new Regex(@"hard[\s-]*oled", RegexOptions.IgnoreCase), "Hard-OLED"),
+        (new Regex(@"in[\s-]?cell|incell", RegexOptions.IgnoreCase), "In-Cell"),
+        (new Regex(@"\bpulled\b|desmontad", RegexOptions.IgnoreCase), "pulled"),
+        (new Regex(@"\boem\b|run\s+diagnostics|compat[ií]vel|aftermarket", RegexOptions.IgnoreCase), "OEM"),
+        (new Regex(@"\boriginal\b|\bgenuine\b|\bgenu[ií]n", RegexOptions.IgnoreCase), "original"),
+    ];
 
     // A ordem importa: "Battery Cover" é tampa, não bateria; "Charging Port Flex" é conector.
     private static readonly (string Nome, Regex Regex)[] TiposPeca =

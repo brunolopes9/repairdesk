@@ -325,6 +325,7 @@ public class ArtigoService : IArtigoService
             n++;
         }
         catch (DomainException) { /* 22/11: um artigo com problema não impede os outros de ligar */ }
+        n += await SepararQualidadesAsync(ct);
         n += await JuntarRepetidosAsync(ct);
         n += await CorrigirCategoriasPecasAsync(ct);
         return n;
@@ -350,6 +351,48 @@ public class ArtigoService : IArtigoService
                 @"\b(ecra|display|lcd|oled|touch|bateria|flex|conector|ic|chip|camara|camera|tampa|traseira|moldura|frame|altifalante|coluna interna|microfone|vibrador|botao|lente|placa|sub ?board|antena)\b"))
             return "Peças";
         return "Acessórios";
+    }
+
+    /// <summary>
+    /// 23/11: peças que ficaram no mesmo artigo com qualidades diferentes (ex.: «Bateria iPhone 13 Pro» com lotes
+    /// original, OEM e sem placa) separam-se: cada qualidade vai para o seu artigo (criado se não existir). O artigo
+    /// original fica com a qualidade com mais unidades — e o nome passa a dizê-la — para as etiquetas coladas continuarem certas.
+    /// </summary>
+    private async Task<int> SepararQualidadesAsync(CancellationToken ct)
+    {
+        var n = 0;
+        var todos = await _repo.ListAsync(null, incluirInativos: false, ct);
+        foreach (var resumo in todos.Where(a => a.Categoria == "Peças" && !a.Agrupado && a.Lotes.Count > 1))
+        {
+            var grupos = resumo.Lotes.Where(l => !l.IsDeleted)
+                .GroupBy(l => ModeloDispositivo.NomePeca(l.Descricao))
+                .Where(g => g.Key is not null).ToList();
+            if (grupos.Count < 2 || resumo.Lotes.Any(l => !l.IsDeleted && ModeloDispositivo.NomePeca(l.Descricao) is null)) continue;
+            var fica = grupos.OrderByDescending(g => g.Sum(l => l.Quantidade)).ThenBy(g => g.Key).First();
+            if (await _repo.FindByIdAsync(resumo.Id, ct) is not { } artigo) continue;
+            try
+            {
+                foreach (var g in grupos.Where(g => g.Key != fica.Key))
+                {
+                    var nome = g.Key!.Length > 200 ? g.Key[..200] : g.Key;
+                    var destino = (await _repo.ListAsync(null, incluirInativos: false, ct))
+                        .FirstOrDefault(a => a.Id != artigo.Id && !a.Agrupado && ChaveNome(a.Nome) == ChaveNome(nome));
+                    var ids = g.Select(l => l.Id).ToList();
+                    if (destino is not null)
+                    {
+                        foreach (var l in await _compras.FindLinhasAsync(ids, ct)) l.ArtigoId = destino.Id;
+                        await _repo.SaveAsync(ct);
+                    }
+                    else
+                        await CreateAsync(new ArtigoWriteRequest(nome, "Peças", null, null, null, null, null, true, ids), ct);
+                    n++;
+                }
+                artigo = await _repo.FindByIdAsync(resumo.Id, ct) ?? artigo;
+                if (ChaveNome(artigo.Nome) != ChaveNome(fica.Key!)) { artigo.Nome = fica.Key!.Length > 200 ? fica.Key[..200] : fica.Key; await _repo.SaveAsync(ct); }
+            }
+            catch (DomainException) { /* um artigo com problema não impede os outros */ }
+        }
+        return n;
     }
 
     /// <summary>23/11: «Flex de carga…», «IC de carga…» criados como «Acessórios» → «Peças» (o nome diz que é peça).</summary>

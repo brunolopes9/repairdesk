@@ -25,3 +25,27 @@ public class ArtigoUnificadoTests
     public void Categoria_PeloNome(string nome, string esperado)
         => ArtigoService.CategoriaPeloNome(nome).Should().Be(esperado);
 }
+
+/// <summary>23/11: a qualidade faz parte do artigo — original, OEM e sem placa do mesmo iPhone não se juntam.</summary>
+public class QualidadePecaTests
+{
+    [Theory]
+    [InlineData("iPhone 13 Pro - Battery without Board 3095mAh", "sem placa")]
+    [InlineData("Bateria para iph 13 Pro (OEM, run diagnostics)", "OEM")]
+    [InlineData("Bateria para iph 13 Pro (original)", "original")]
+    [InlineData("Touch e lcd com frame Samsung A16 5G azul/preto (Service Pack)", "Service Pack")]
+    [InlineData("LCD Assembly With Frame For Samsung Galaxy F13 Refurbished) All Colors)", "recondicionado")]
+    [InlineData("Ecrã iPhone 13 Pixdura Soft-OLED Premium", "Soft-OLED")]
+    [InlineData("Câmara traseira iPhone 14", null)]
+    public void Qualidade_LidaDaDescricao(string descricao, string? esperado)
+        => RepairDesk.Services.Artigos.ModeloDispositivo.Qualidade(descricao).Should().Be(esperado);
+
+    [Fact]
+    public void BateriasDeQualidadesDiferentes_TemNomesDiferentes()
+    {
+        var a = RepairDesk.Services.Artigos.ModeloDispositivo.NomePeca("Bateria para iph 13 Pro (original)");
+        var b = RepairDesk.Services.Artigos.ModeloDispositivo.NomePeca("iPhone 13 Pro - Battery without Board 3095mAh");
+        a.Should().NotBe(b);
+        ArtigoService.ChaveNome(a!).Should().NotBe(ArtigoService.ChaveNome(b!));
+    }
+}

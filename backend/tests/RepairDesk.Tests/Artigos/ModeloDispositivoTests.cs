@@ -53,11 +53,11 @@ public class ModeloDispositivoTests
     }
 
     [Theory]
-    [InlineData("PIXDURA For Apple iPhone 14 Display And Digitizer In-Cell Premium (IC Removable) (60Hz)", "Ecrã iPhone 14")]
-    [InlineData("For Apple iPhone 14 Pro Max Display And Digitizer Soft-OLED (Run Diagnostics)", "Ecrã iPhone 14 Pro Max")]
+    [InlineData("PIXDURA For Apple iPhone 14 Display And Digitizer In-Cell Premium (IC Removable) (60Hz)", "Ecrã iPhone 14 (In-Cell)")]
+    [InlineData("For Apple iPhone 14 Pro Max Display And Digitizer Soft-OLED (Run Diagnostics)", "Ecrã iPhone 14 Pro Max (Soft-OLED)")]
     [InlineData("Xiaomi Mi A3 M1906F9SH, M1906F9SI - Battery Cover with Adhesive Kind of Gray", "Tampa traseira Xiaomi Mi A3 M1906F9SH / M1906F9SI")]
-    [InlineData("Samsung Galaxy A13 (2022) A137 - Dock Charging Connector Board < Service Pack >", "Conector de carga Samsung Galaxy A13")]
-    [InlineData("iPhone 15 - Battery A3018 3349mAh 12.981Wh (NO Error, Run Diagnostics)", "Bateria iPhone 15")]
+    [InlineData("Samsung Galaxy A13 (2022) A137 - Dock Charging Connector Board < Service Pack >", "Conector de carga Samsung Galaxy A13 (Service Pack)")]
+    [InlineData("iPhone 15 - Battery A3018 3349mAh 12.981Wh (NO Error, Run Diagnostics)", "Bateria iPhone 15 (OEM)")]
     [InlineData("Touch e lcd para iph 11 preto", "Ecrã iPhone 11 preto")]
     [InlineData("Touch para apple iph 5s telemovel", "Ecrã iPhone 5s")]
     [InlineData("REALME 12X 5G 6.67 INCH REALME V60 REALME V60S PANTALLA LCD", "Ecrã Realme 12X 5G")]
