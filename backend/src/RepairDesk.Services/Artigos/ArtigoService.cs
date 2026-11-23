@@ -262,7 +262,9 @@ public class ArtigoService : IArtigoService
     public async Task<IReadOnlyList<ArtigoSugestaoDto>> SugestoesAsync(CancellationToken ct = default)
     {
         var todas = await _compras.ListLinhasAsync(soComStock: false, ct);
-        var lotes = todas.Where(l => l.ArtigoId is null && !l.PecaReparacao && l.QuantidadeEmStock > 0).ToList();
+        // 23/11 (Bruno: «sempre que há compras, isso são artigos»): TODA a linha de compra é artigo — peças de reparação,
+        // material da loja e lotes já gastos também (o histórico de custo fica no artigo). Nada fica «por ligar».
+        var lotes = todas.Where(l => l.ArtigoId is null).ToList();
         // Sprint 581: lote já ligado com a mesma descrição → sugere esse artigo (confirma-se num clique).
         var ligados = todas.Where(l => l.Artigo is { Ativo: true })
             .GroupBy(l => ChaveDescricao(l.Descricao)).ToDictionary(g => g.Key, g => g.OrderByDescending(l => l.CreatedAt).First().Artigo!);
@@ -286,7 +288,7 @@ public class ArtigoService : IArtigoService
     /// <summary>
     /// 18/11 (Bruno: «o stock por ligar já não faz sentido — ou é automático»). Cada grupo de lotes sem artigo:
     /// se já houve um lote igual ligado a um artigo, liga-se a esse; senão cria-se o artigo (nome em português quando
-    /// se reconhece a peça, categoria pela descrição). Peças marcadas «de reparação» e «uso da loja» ficam de fora.
+    /// se reconhece a peça, categoria pela descrição). 23/11: sem exceções — peças de reparação e material da loja também.
     /// </summary>
     public async Task<int> LigarStockAutomaticoAsync(CancellationToken ct = default)
     {
@@ -585,7 +587,7 @@ public class ArtigoService : IArtigoService
         foreach (var l in lotes)
         {
             l.PecaReparacao = req.PecaReparacao;
-            if (req.PecaReparacao) l.ArtigoId = null;
+            // 23/11: a marca fica só como informação — o lote continua no artigo (nada sai do stock à vista).
         }
         await _compras.SaveAsync(ct);
         return lotes.Count;
@@ -613,8 +615,7 @@ public class ArtigoService : IArtigoService
         foreach (var l in lotes.Where(l => l.QuantidadeEmStock > 0))
         {
             var qtd = l.QuantidadeEmStock;
-            l.QuantidadeAbatida += qtd;
-            l.ArtigoId = null;
+            l.QuantidadeAbatida += qtd;  // 23/11: continua no artigo (o stock sai, o artigo e o histórico ficam)
             n++;
             await _audit.LogAsync(AuditAction.Update, nameof(CompraLinha), l.Id,
                 new { usoInterno = qtd, l.Descricao, motivo = string.IsNullOrWhiteSpace(req.Motivo) ? "uso interno da loja" : req.Motivo.Trim() }, ct: ct);

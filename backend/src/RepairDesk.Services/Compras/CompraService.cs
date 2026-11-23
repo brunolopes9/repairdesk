@@ -460,7 +460,7 @@ public class CompraService : ICompraService
                 if (linha.SkuFornecedor is { } skuAprender)
                     await _artigos.AprenderSkuFornecedorAsync(artigo.Id, fornecedor.Id, skuAprender, ct);
             }
-            else if (linha.ArtigoId is null && !linha.PecaReparacao
+            else if (linha.ArtigoId is null
                 && linha.SkuFornecedor is { } sku && await _artigos.ArtigoPorSkuFornecedorAsync(fornecedor.Id, sku, ct) is { } porSku)
             {
                 linha.ArtigoId = porSku;

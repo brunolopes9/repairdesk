@@ -33,6 +33,10 @@ export const artigosApi = {
   etiquetasPdf(req: EtiquetasPedido) {
     return api.post<Blob>('/artigos/etiquetas.pdf', req, { responseType: 'blob', timeout: 60_000 }).then((r) => r.data);
   },
+  /** 23/11: liga (ou cria) o artigo de todas as linhas de compra que ainda não o têm — devolve quantos grupos tratou. */
+  ligarAutomatico() {
+    return api.post<number>('/artigos/ligar-automatico', {}, { timeout: 120_000 }).then((r) => r.data);
+  },
   sugestoes() {
     return api.get<ArtigoSugestao[]>('/artigos/sugestoes').then((r) => r.data);
   },

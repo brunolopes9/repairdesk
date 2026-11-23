@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, Euro, ImageOff, Loader2, PackagePlus, Pencil, Plus, Printer, ScanBarcode, Search, ShoppingBag, Tag, X } from 'lucide-react';
 import { lojaApi } from '../../lib/loja/api';
 import { usePorNaLoja } from '../loja/usePorNaLoja';
@@ -14,7 +14,6 @@ import { formatEur } from '../../lib/compras/format';
 import { toast } from '../../lib/toast';
 import { ordenarLista, useOrdenacao } from '../../lib/useOrdenacao';
 import ArtigoModal from './ArtigoModal';
-import ArtigosDoStockModal from './ArtigosDoStockModal';
 import CatalogoMoloni from './CatalogoMoloni';
 import CategoriasModal from './CategoriasModal';
 import EtiquetasModal from './EtiquetasModal';
@@ -73,7 +72,6 @@ export default function Artigos() {
   // Etiquetas de um só artigo (impressora da linha): não mexe na seleção.
   const [soUm, setSoUm] = useState<Artigo | null>(null);
   const [soUmCopias, setSoUmCopias] = useState<Record<string, number>>({});
-  const [doStock, setDoStock] = useState(false);
   const [categorias, setCategorias] = useState(false);
   const [vista, setVista] = useState<'loja' | 'moloni'>('loja');
   const [camara, setCamara] = useState(false);
@@ -88,10 +86,21 @@ export default function Artigos() {
   const porNaLoja = usePorNaLoja();
 
   const list = useQuery({ queryKey: ['artigos', 'lista', q], queryFn: () => artigosApi.list(q), placeholderData: keepPreviousData });
-  // Sprint 581: o que entrou em stock e ainda não tem artigo nem é peça de reparação — nada fica escondido.
+  // 23/11 (Bruno: «sempre que há compras, isso são artigos»): já não há «stock por ligar». Se alguma linha de compra
+  // ainda não tiver artigo (ex.: compras antigas), liga-se aqui sozinha — o mesmo que acontece ao gravar cada compra.
+  const qc = useQueryClient();
   const porLigar = useQuery({ queryKey: ['artigos', 'sugestoes'], queryFn: artigosApi.sugestoes, staleTime: 60_000 });
-  const nPorLigar = porLigar.data?.length ?? 0;
-  const unPorLigar = porLigar.data?.reduce((s, x) => s + x.stock, 0) ?? 0;
+  const ligando = useRef(false);
+  useEffect(() => {
+    if (ligando.current || !porLigar.data?.length) return;
+    ligando.current = true;
+    artigosApi.ligarAutomatico()
+      .then((n) => {
+        if (n > 0) toast.success(`${n} artigo(s) atualizados com as compras`);
+        void qc.invalidateQueries({ queryKey: ['artigos'] });
+      })
+      .catch(() => { /* tenta outra vez na próxima visita */ });
+  }, [porLigar.data, qc]);
   const { ordem, alternar } = useOrdenacao<Campo>('nome', false);
   const artigos = useMemo(() => ordenarLista((list.data ?? []).filter((a) => !semStock || a.stock === 0), ordem, {
     sku: (a) => a.numero,
@@ -172,9 +181,6 @@ export default function Artigos() {
             <Button variant="secondary" leftIcon={<Euro size={15} />} onClick={() => setCategorias(true)}>
               <span className="sm:hidden">Preços</span><span className="hidden sm:inline">Categorias e preços</span>
             </Button>
-            <Button variant="secondary" leftIcon={<PackagePlus size={15} />} onClick={() => setDoStock(true)}>
-              <span className="sm:hidden">Por ligar{nPorLigar ? ` (${nPorLigar})` : ''}</span><span className="hidden sm:inline">Stock por ligar{nPorLigar ? ` (${nPorLigar})` : ''}</span>
-            </Button>
             <Button leftIcon={<Plus size={15} />} onClick={() => setEditar(null)}>Novo artigo</Button>
           </>
         }
@@ -184,16 +190,6 @@ export default function Artigos() {
         tabs={[{ key: 'loja', label: 'Artigos da loja' }, { key: 'moloni', label: 'Artigos e serviços no Moloni' }]} />
 
       {vista === 'moloni' ? <CatalogoMoloni isAdmin={isAdmin} /> : (<>
-      {nPorLigar > 0 && (
-        <button type="button" onClick={() => setDoStock(true)}
-          className="flex w-full items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-left text-sm text-amber-900 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-          <PackagePlus size={16} className="mt-0.5 shrink-0" />
-          <span>
-            <strong>{nPorLigar} produto(s) em stock sem artigo ({unPorLigar} un.)</strong> — liga-os a um artigo (ex.: «Película vidro»),
-            cria um artigo novo, ou marca-os como peça de reparação (ecrãs, baterias…) se não se vendem ao balcão.
-          </span>
-        </button>
-      )}
       <p className="text-sm text-zinc-500">
         <Printer size={14} className="mr-1 inline" />
         Etiquetas com código de barras: marca os artigos na caixa à esquerda e carrega em <strong>Etiquetas</strong>, ou usa a impressora no fim de cada linha.
@@ -350,9 +346,6 @@ export default function Artigos() {
       <LeitorCamera open={camara} onClose={() => setCamara(false)} onLido={(c) => { void abrirPorCodigo(c); }} titulo="Procurar artigo pelo código" />
 
       <CategoriasModal open={categorias} onClose={() => setCategorias(false)} />
-
-      <ArtigosDoStockModal open={doStock} onClose={() => setDoStock(false)}
-        onCriados={(cs) => setEscolhidos(Object.fromEntries(cs.map((c) => [c.id, Math.max(1, c.stock)])))} />
 
       <ArtigoModal open={editar !== undefined} artigoId={editar ?? null} onClose={() => setEditar(undefined)}
         onEtiquetas={(a) => { setEditar(undefined); etiquetasDe(a); }} />

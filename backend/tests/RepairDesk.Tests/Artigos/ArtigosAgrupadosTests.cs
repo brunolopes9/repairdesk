@@ -136,7 +136,7 @@ public class ArtigosAgrupadosTests : IClassFixture<RepairDeskApiFactory>
     }
 
     [Fact]
-    public async Task PecaDeReparacao_SaiDosLotesPorLigar()
+    public async Task PecaDeReparacao_ContinuaNoArtigo()
     {
         var client = await AuthedClient();
         var forn = await CriarFornecedor(client);
@@ -146,6 +146,8 @@ public class ArtigosAgrupadosTests : IClassFixture<RepairDeskApiFactory>
 
         (await client.PutAsJsonAsync("/api/artigos/lotes/peca-reparacao", new PecaReparacaoRequest([compra.Linhas.Single().Id]))).EnsureSuccessStatusCode();
         (await client.GetFromJsonAsync<List<ArtigoSugestaoDto>>("/api/artigos/sugestoes"))!.Should().NotContain(s => s.Nome == desc);
+        // 23/11 (Bruno): toda a compra é artigo — marcar como peça de reparação já não a tira do artigo.
+        (await client.GetFromJsonAsync<CompraDocumentoDto>($"/api/compras/{compra.Id}"))!.Linhas.Single().ArtigoId.Should().Be(compra.Linhas.Single().ArtigoId);
     }
 
     [Fact]
@@ -162,6 +164,7 @@ public class ArtigosAgrupadosTests : IClassFixture<RepairDeskApiFactory>
         var depois = (await client.GetFromJsonAsync<CompraDocumentoDto>($"/api/compras/{compra.Id}"))!;
         depois.Linhas.Single().QuantidadeEmStock.Should().Be(0);
         depois.Linhas.Single().Quantidade.Should().Be(2, "a compra (e a fatura) não muda");
+        depois.Linhas.Single().ArtigoId.Should().NotBeNull("23/11: o material da loja também é artigo (o stock sai, o artigo fica)");
     }
 
     // ---------- helpers ----------
