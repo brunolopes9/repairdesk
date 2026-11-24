@@ -231,7 +231,8 @@ export default function ProdutoLojaEditor() {
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const refrescar = (p: ProdutoLoja) => {
-    qc.setQueryData(['loja', 'produto', p.id], p);
+    // 24/11: a chave é o id da rota (pode vir em maiúsculas num link colado) — com p.id o ecrã não mudava após fotos.
+    qc.setQueryData(['loja', 'produto', novo ? p.id : id], p);
     qc.invalidateQueries({ queryKey: ['loja', 'produtos'] });
   };
 
