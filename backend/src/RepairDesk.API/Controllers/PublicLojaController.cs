@@ -169,6 +169,33 @@ public sealed class PublicLojaController : ControllerBase
         return NoContent();
     }
 
+    // ---- 23/11: visitas do site (js/visitas.js) ----
+
+    /// <summary>
+    /// Lote de eventos de uma página (sendBeacon → text/plain, para não haver preflight de CORS). Nunca devolve erro
+    /// ao site: um evento perdido não pode estragar a navegação. O cliente com sessão na loja fica identificado; nas
+    /// compras sem conta, o nome vem da encomenda (pela referência).
+    /// </summary>
+    [HttpPost("{intakeSlug}/eventos")]
+    [EnableRateLimiting("public-portal")]
+    [RequestSizeLimit(40_000)]
+    public async Task<IActionResult> Eventos(string intakeSlug, [FromServices] IVisitasSiteService visitas, CancellationToken ct)
+    {
+        string corpo;
+        using (var leitor = new StreamReader(Request.Body)) corpo = await leitor.ReadToEndAsync(ct);
+        EventosSiteRequest? req;
+        try { req = JsonSerializer.Deserialize<EventosSiteRequest>(corpo, new JsonSerializerOptions(JsonSerializerDefaults.Web)); }
+        catch (JsonException) { return NoContent(); }
+        if (req?.E is not { Count: > 0 }) return NoContent();
+        if (!await EntrarNaEmpresa(intakeSlug, ct)) return NotFound();
+        string? cliente = null;
+        if (!string.IsNullOrWhiteSpace(req.Loja)) cliente = (await _conta.ClienteDaSessaoAsync(req.Loja, ct))?.Nome;
+        if (cliente is null && req.E.FirstOrDefault(e => e.T is "compra" or "pagamento" or "checkout" && !string.IsNullOrWhiteSpace(e.Rf)) is { } ev)
+            cliente = (await _repo.FindByReferenciaAsync(ev.Rf!.Trim(), ct))?.Nome;
+        await visitas.RegistarAsync(req, Request.Headers.UserAgent.ToString(), cliente, ct);
+        return NoContent();
+    }
+
     // ---- Sprint 682: «Avisa-me quando houver» ----
 
     [HttpPost("{intakeSlug}/alertas-stock")]

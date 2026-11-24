@@ -101,12 +101,14 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
     private readonly IStaffPushQueue _push;
     private readonly ILogger<EncomendaLojaService> _log;
     private readonly IPagamentoNoSite? _noSite;
+    private readonly ITenantRepository? _tenants;
 
     public EncomendaLojaService(IEncomendaLojaRepository repo, ILojaService loja, IArtigoService artigos, IVendaService vendas,
         IStripeCheckout stripe, IOptions<StripeOptions> opt, ITenantContext tenant, IAuditLogger audit, IEmailSender email,
-        IStaffPushQueue push, ILogger<EncomendaLojaService> log, IPagamentoNoSite? noSite = null)
+        IStaffPushQueue push, ILogger<EncomendaLojaService> log, IPagamentoNoSite? noSite = null, ITenantRepository? tenants = null)
     {
         _noSite = noSite;
+        _tenants = tenants;
         _repo = repo;
         _loja = loja;
         _artigos = artigos;
@@ -202,6 +204,7 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
                     $"Olá {PrimeiroNome(e.Nome)}, para pagar a encomenda {e.Referencia} usa: Entidade {pag.Entidade} · Referência {pag.Referencia} · "
                     + $"Valor {pag.Valor:0.00} €" + (pag.Validade is { } v ? $" · até {v:dd/MM/yyyy}" : "")
                     + $". Assim que o pagamento entrar, avisamos e preparamos o envio. Seguimento: {seguimento}", ct);
+            await AvisarNovaEncomenda(e, metodo == "mb" ? "Multibanco" : "MB WAY", ct);
             return new CheckoutResultado(e.Referencia, null, token, pag);
         }
         var stripeLinhas = linhas.Select(l => new StripeLinha(l.Titulo, l.PrecoUnitarioCents, l.Quantidade)).ToList();
@@ -224,6 +227,7 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Create, nameof(EncomendaLoja), e.Id,
             new { e.Referencia, total = e.TotalCents, linhas = linhas.Count }, tenantId, null, ct);
+        await AvisarNovaEncomenda(e, "cartão / Apple Pay / Google Pay", ct);
         return new CheckoutResultado(e.Referencia, sessao.Url);
     }
 
@@ -306,6 +310,9 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
         await _repo.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(EncomendaLoja), e.Id, new { e.Referencia, estado = "Paga", e.VendaId, e.Problema }, e.TenantId, null, ct);
 
+        await EmailDono(e, $"✅ Encomenda {e.Referencia} PAGA — {e.TotalCents / 100m:0.00} € ({e.Nome})",
+            $"A encomenda {e.Referencia} foi paga ({e.MetodoPagamento ?? "online"}). Prepara o envio por CTT."
+            + (e.Problema is null ? "" : $"\n\n⚠ {e.Problema}"), ct);
         await Avisar(e, $"🛒 Encomenda online {e.Referencia} paga", $"{e.Nome} · {e.TotalCents / 100m:0.00} € · {e.Linhas.Sum(l => l.Quantidade)} artigo(s)"
             + (e.Problema is null ? "" : " · ⚠ ver problema"), ct);
         await EmailCliente(e, $"Recebemos a tua encomenda {e.Referencia}",
@@ -456,6 +463,38 @@ public sealed class EncomendaLojaService : IEncomendaLojaService
     {
         try { await _push.EnqueueAsync(new StaffPushJob(e.TenantId, titulo, corpo, "/loja/encomendas", $"encomenda-{e.Id:N}"), ct); }
         catch (Exception ex) { _log.LogWarning(ex, "Aviso da encomenda {Ref} não enviado", e.Referencia); }
+    }
+
+    /// <summary>
+    /// 23/11 (Bruno: «tenho de ver e-mails quando recebo encomendas»): push + email ao dono logo que a encomenda é
+    /// criada (ainda à espera do pagamento) — assim vê também as que ficam a meio. O pagamento confirmado avisa outra vez.
+    /// </summary>
+    private async Task AvisarNovaEncomenda(EncomendaLoja e, string metodo, CancellationToken ct)
+    {
+        await Avisar(e, $"🛒 Nova encomenda {e.Referencia} — à espera de pagamento", $"{e.Nome} · {e.TotalCents / 100m:0.00} € · {metodo}", ct);
+        await EmailDono(e, $"🛒 Nova encomenda {e.Referencia} — {e.TotalCents / 100m:0.00} € ({e.Nome}) · à espera de pagamento",
+            $"Entrou uma encomenda na loja online. Pagamento escolhido: {metodo}. Ainda NÃO está paga — recebes outro email quando o pagamento entrar.", ct);
+    }
+
+    /// <summary>Email ao dono (email da empresa em Definições) com o resumo da encomenda — nunca falha a operação.</summary>
+    private async Task EmailDono(EncomendaLoja e, string assunto, string intro, CancellationToken ct)
+    {
+        if (!_email.IsConfigured || _tenants is null) return;
+        try
+        {
+            var dono = (await _tenants.FindByIdAsync(e.TenantId, ct))?.Email;
+            if (string.IsNullOrWhiteSpace(dono)) return;
+            var linhas = string.Join("\n", e.Linhas.Select(l => $"  • {l.Quantidade}× {l.Titulo} — {l.PrecoUnitarioCents * l.Quantidade / 100m:0.00} €"));
+            var texto = $"{intro}\n\nEncomenda {e.Referencia}\n{linhas}\n  • Envio {Transportadora} — {e.PortesCents / 100m:0.00} €\n"
+                + $"Total: {e.TotalCents / 100m:0.00} €\n\nCliente: {e.Nome}\nTelemóvel: {e.Telefone}\nEmail: {e.Email}"
+                + (e.Nif is null ? "" : $"\nNIF: {e.Nif}")
+                + $"\nMorada: {e.Morada}, {e.CodigoPostal} {e.Localidade}" + (e.Notas is null ? "" : $"\nNota: {e.Notas}")
+                + "\n\nVer no Mender: https://app.lopestech.pt/loja/encomendas";
+            var html = "<pre style=\"font-family:system-ui,sans-serif;font-size:14px;white-space:pre-wrap\">"
+                + System.Net.WebUtility.HtmlEncode(texto) + "</pre>";
+            await _email.SendAsync(new EmailMessage(dono, assunto, html, texto), ct);
+        }
+        catch (Exception ex) { _log.LogWarning(ex, "Email ao dono da encomenda {Ref} não enviado", e.Referencia); }
     }
 
     /// <summary>Email ao cliente — nunca falha a operação (o seguimento continua disponível no link).</summary>

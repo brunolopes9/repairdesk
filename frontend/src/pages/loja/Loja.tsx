@@ -41,6 +41,7 @@ export default function Loja() {
         actions={(
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => navigate('/loja/encomendas')}>Encomendas</Button>
+            <Button variant="secondary" onClick={() => navigate('/loja/visitas')}>Visitas</Button>
             <Button variant="secondary" onClick={() => navigate('/loja/newsletter')}>Newsletter</Button>
             <Button variant="ghost" onClick={() => setImportar(true)}>Importar</Button>
             <Button variant="success" leftIcon={<PackagePlus size={16} />} onClick={() => setDoStock(true)}>Do stock</Button>

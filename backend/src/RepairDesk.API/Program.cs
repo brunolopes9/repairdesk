@@ -370,6 +370,7 @@ try
     // 23/11: MB WAY e Multibanco dentro do site (APIs diretas do ifthenpay) + verificação dos pagamentos pendentes.
     builder.Services.AddHttpClient<RepairDesk.Services.Loja.IPagamentoNoSite, RepairDesk.Services.Loja.PagamentoNoSiteIfthenpay>(c => c.Timeout = TimeSpan.FromSeconds(20));
     builder.Services.AddHostedService<RepairDesk.API.HostedServices.PagamentosLojaPendentesHostedService>();
+    builder.Services.AddHostedService<RepairDesk.API.HostedServices.VisitasSiteLimpezaHostedService>();
     if (builder.Configuration.GetValue("E2E:Enabled", false))
         builder.Services.AddScoped<RepairDesk.Services.Loja.IStripeCheckout, RepairDesk.Services.Loja.StripeCheckoutE2e>();
     else
@@ -384,6 +385,8 @@ try
     builder.Services.AddScoped<ISubscritorNewsletterRepository, RepairDesk.DAL.Persistence.SubscritorNewsletterRepository>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.INewsletterService, RepairDesk.Services.Loja.NewsletterService>();
     builder.Services.AddScoped<IAlertaStockRepository, RepairDesk.DAL.Persistence.AlertaStockRepository>();
+    builder.Services.AddScoped<IVisitasSiteRepository, RepairDesk.DAL.Persistence.VisitasSiteRepository>();
+    builder.Services.AddScoped<RepairDesk.Services.Loja.IVisitasSiteService, RepairDesk.Services.Loja.VisitasSiteService>();
     builder.Services.AddScoped<RepairDesk.Services.Loja.IAlertaStockService, RepairDesk.Services.Loja.AlertaStockService>();
     builder.Services.AddScoped<RepairDesk.API.Encomendas.IListaEncomendasService, RepairDesk.API.Encomendas.ListaEncomendasService>();
     builder.Services.AddScoped<RepairDesk.Services.Compras.IFaturaMistaService, RepairDesk.Services.Compras.FaturaMistaService>();
