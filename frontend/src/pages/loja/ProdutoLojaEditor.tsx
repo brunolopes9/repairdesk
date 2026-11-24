@@ -501,7 +501,7 @@ export default function ProdutoLojaEditor() {
 
       {p && (
         <SectionCard title={`Fotos (${fotos.length})`} action={(
-          <Button variant="secondary" size="sm" disabled={fotosFornecedor.isPending || fotos.length >= 6} onClick={() => fotosFornecedor.mutate()}
+          <Button variant="secondary" size="sm" disabled={fotosFornecedor.isPending || fotos.length >= 8} onClick={() => fotosFornecedor.mutate()}
             leftIcon={fotosFornecedor.isPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
             title={ligado ? 'Vai buscar as fotos oficiais ao site do fornecedor pelo código da fatura' : 'Liga primeiro o produto a um artigo do stock'}>
             {fotosFornecedor.isPending ? 'A buscar…' : 'Fotos do fornecedor'}

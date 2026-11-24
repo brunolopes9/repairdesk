@@ -49,9 +49,25 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
 
     public async Task<FichaProduto?> ProcurarProdutoAsync(IEnumerable<string> codigos, CancellationToken ct = default, IEnumerable<string>? nomes = null)
     {
+        nomes = (nomes ?? []).ToList();
+        var ficha = await ProcurarNoFornecedorAsync(codigos, nomes, ct);
+        // 24/11 (Bruno: «se o fornecedor tem 5 fotos, as 5 no site»): a LC Phones e a Tudo4Mobile só têm 1 foto da maioria
+        // dos acessórios. Nos da Hoco, a galeria oficial (hocotech.com, 6–8 fotos) junta-se às do fornecedor.
+        if (ficha is null || ficha.Imagens.Count < 4)
+        {
+            var hoco = await TentarHoco(nomes.Append(ficha?.Titulo ?? ""), ct);
+            if (hoco is not null)
+                ficha = ficha is null ? hoco
+                    : ficha with { Imagens = ficha.Imagens.Concat(hoco.Imagens).Distinct(StringComparer.OrdinalIgnoreCase).Take(8).ToList() };
+        }
+        return ficha;
+    }
+
+    private async Task<FichaProduto?> ProcurarNoFornecedorAsync(IEnumerable<string> codigos, IEnumerable<string> nomes, CancellationToken ct)
+    {
         var lista = codigos.Select(c => c?.Trim() ?? "").Where(c => c.Length is >= 4 and <= 40 && CodigoValido().IsMatch(c))
             .Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToList();
-        var porNome = (nomes ?? []).Select(n => n?.Trim() ?? "").Where(n => n.Length is >= 8 and <= 200)
+        var porNome = nomes.Select(n => n?.Trim() ?? "").Where(n => n.Length is >= 8 and <= 200)
             .Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToList();
         _logger.LogInformation("Ficha do fornecedor: códigos {Codigos}; nomes {Nomes}; em inglês {Ingles}.", lista, porNome,
             porNome.Select(ConsultaInglesa).OfType<ConsultaPeca>().Select(c => c.Q).ToList());
@@ -78,6 +94,71 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
         // o título mais parecido do mesmo modelo (cor incluída: a capa preta não fica com a foto da rosa).
         foreach (var q in porNome.Select(ConsultaTudo4Mobile).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).Take(2))
             if (await TentarTudo4MobileNome(q, porNome, ct) is { } f) return f;
+        return null;
+    }
+
+    private const string Hoco = "https://hocotech.com";
+
+    /// <summary>
+    /// 24/11: modelo Hoco no nome («Suporte … Hoco H28 Rainbow» → «H28»; «CARREGADOR … HOCO N83 DE 40W» → «N83»).
+    /// Null quando o nome não é da Hoco ou não traz modelo.
+    /// </summary>
+    public static string? ModeloHoco(string nome)
+    {
+        if (!Regex.IsMatch(nome, @"\bhoco\b", RegexOptions.IgnoreCase)) return null;
+        var m = Regex.Match(nome.ToUpperInvariant(), @"\bHOCO\.?\s+([A-Z]{1,3}\d{1,3}[A-Z]?)\b");
+        return m.Success ? m.Groups[1].Value : null;
+    }
+
+    /// <summary>
+    /// 24/11: de vários produtos Hoco com o mesmo modelo (cabo X88 USB→Lightning, Type-C→Lightning, micro-USB…) escolhe
+    /// o endereço que tem o modelo e mais palavras do nome; um «type-c-to» só serve se o nome falar em Tipo-C/USB-C.
+    /// </summary>
+    public static string? EscolherProdutoHoco(IEnumerable<string> urls, string modelo, string nome)
+    {
+        var n = nome.ToLowerInvariant().Replace("tipo-c", "type-c").Replace("tipo c", "type-c").Replace("usb-c", "type-c");
+        var m = modelo.ToLowerInvariant();
+        var palavras = Regex.Matches(n, "[a-z0-9]+").Select(x => x.Value).Where(w => w.Length >= 2 && w != m).ToHashSet();
+        string? melhor = null;
+        var pontos = int.MinValue;
+        foreach (var u in urls.Distinct())
+        {
+            var slug = u.TrimEnd('/').Split('/').Last();
+            if (!Regex.IsMatch(slug, $@"(^|-){Regex.Escape(m)}(-|$)")) continue;
+            var segmentos = slug.Split('-').ToHashSet();
+            var p = palavras.Count(segmentos.Contains) + (slug.Contains("type-c") && n.Contains("type-c") ? 1 : 0);
+            if (slug.Contains("type-c-to") && !n.Contains("type-c")) p -= 2;
+            if (p > pontos) { pontos = p; melhor = u; }
+        }
+        return melhor;
+    }
+
+    private async Task<FichaProduto?> TentarHoco(IEnumerable<string> nomes, CancellationToken ct)
+    {
+        foreach (var nome in nomes.Where(n => !string.IsNullOrWhiteSpace(n)))
+        {
+            if (ModeloHoco(nome) is not { } modelo) continue;
+            try
+            {
+                var pesquisa = await GetTexto($"{Hoco}/?s={Uri.EscapeDataString(modelo)}&post_type=product", ct);
+                if (pesquisa is null) return null;
+                var urls = Regex.Matches(pesquisa, @"https://hocotech\.com/product/[a-z0-9/-]+/").Select(x => x.Value);
+                if (EscolherProdutoHoco(urls, modelo, nome) is not { } url) continue;
+                var pagina = await GetTexto(url, ct);
+                if (pagina is null) continue;
+                var imagens = Regex.Matches(pagina, @"data-large_image=""(https://hocotech\.com/wp-content/uploads/[^""]+)""")
+                    .Select(x => x.Groups[1].Value).Distinct().Take(8).ToList();
+                if (imagens.Count == 0) continue;
+                var titulo = Regex.Match(pagina, @"<h1[^>]*>([^<]+)</h1>") is { Success: true } t ? WebUtility.HtmlDecode(t.Groups[1].Value).Trim() : $"Hoco {modelo}";
+                _logger.LogInformation("Hoco: {Modelo} → {Url} ({N} fotos).", modelo, url, imagens.Count);
+                return new FichaProduto(titulo, "", "Hoco", imagens);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                _logger.LogInformation(ex, "Hoco indisponível para {Modelo}.", modelo);
+                return null;
+            }
+        }
         return null;
     }
 
@@ -200,7 +281,7 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
         if (string.IsNullOrWhiteSpace(nome)) return null;
         var imagens = FotoT4m().Matches(html).Select(m => m.Value.Replace(" ", "%20"))
             .Where(u => !Regex.IsMatch(u, "logo|fav|/Ivan/|catt|banner", RegexOptions.IgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase).Take(6).ToList();
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(8).ToList();
         return new FichaProduto(nome.Trim(), Limpar(descricao), marca, imagens);
     }
 
@@ -364,7 +445,7 @@ public sealed partial class FichaFornecedor : IFichaFornecedor
                         imagens.AddRange(im.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!));
                 }
                 imagens.AddRange(Regex.Matches(html, $@"https://lcphones\.com/storage/media/\d+/product_{codigo}[_.][^""'\s)]*").Select(x => x.Value));
-                imagens = imagens.Where(u => u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)).Distinct().Take(6).ToList();
+                imagens = imagens.Where(u => u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)).Distinct().Take(8).ToList();
                 return new FichaProduto(nome.Trim(), Limpar(desc), string.IsNullOrWhiteSpace(marca) ? null : marca, imagens);
             }
             catch (JsonException) { }

@@ -44,7 +44,8 @@ public sealed record GuardarProdutoLojaRequest(
 
 public sealed record ImportarProdutosResultado(int Criados, int JaExistiam, IReadOnlyList<ProdutoLojaDto> Produtos);
 
-public sealed record ProdutoLojaFotoDto(Guid Id, int Ordem, string? Alt, string? Url, bool Enviada);
+/// <summary><see cref="Bytes"/>: 24/11 — o «Fotos do fornecedor» não volta a importar uma foto que o produto já tem (mesmo ficheiro).</summary>
+public sealed record ProdutoLojaFotoDto(Guid Id, int Ordem, string? Alt, string? Url, bool Enviada, long Bytes = 0);
 
 /// <summary>Vista do dono — inclui custo, IVA estimado e lucro.</summary>
 public sealed record ProdutoLojaDto(
@@ -455,7 +456,7 @@ public sealed class LojaService : ILojaService
             iva, lucro, p.Cor, p.RamGb, p.ArmazenamentoGb, p.Descricao, LerSpecs(p.SpecsJson), p.SeoTitulo, p.SeoDescricao,
             p.Publicado, p.PublicadoEm, $"{SiteBase}/loja/{CategoriaSlug(p.Categoria)}/{p.Slug}",
             p.Fotos.OrderBy(f => f.Ordem).Select(f => new ProdutoLojaFotoDto(f.Id, f.Ordem, f.Alt,
-                f.Enviada ? _storage?.CreateDownloadUrl(f.StorageKey, ValidadeLeitura) : null, f.Enviada)).ToList(),
+                f.Enviada ? _storage?.CreateDownloadUrl(f.StorageKey, ValidadeLeitura) : null, f.Enviada, f.Bytes)).ToList(),
             p.CreatedAt, p.UpdatedAt, p.PrecoAnteriorCents / 100m, p.Unidades,
             p.ArtigoId, p.ArtigoId is { } a && _ligados.TryGetValue(a, out var r) ? r.Numero : null,
             p.ArtigoId is { } a2 && _ligados.TryGetValue(a2, out var r2) ? r2.Nome : null, p.PrecoProprio);

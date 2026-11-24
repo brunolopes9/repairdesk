@@ -29,7 +29,7 @@ public interface IProdutoAutomatico
 /// </summary>
 public sealed partial class ProdutoAutomatico : IProdutoAutomatico
 {
-    private const int MaxFotos = 6;
+    private const int MaxFotos = 8; // 24/11: todas as fotos do fornecedor (eram 6)
     private const long MaxBytes = 15 * 1024 * 1024;
 
     private readonly ILojaService _loja;
@@ -100,7 +100,9 @@ public sealed partial class ProdutoAutomatico : IProdutoAutomatico
                     ? "Liga o produto a um artigo do stock (com o código do fornecedor) para eu encontrar as fotos."
                     : "Não encontrei fotos deste artigo no site do fornecedor.");
         var avisos = new List<string>();
-        var n = await ImportarFotos(produtoId, ficha, produto.Titulo, avisos, ct, jaTem: produto.Fotos.Count);
+        var n = await ImportarFotos(produtoId, ficha, produto.Titulo, avisos, ct, jaTem: produto.Fotos.Count,
+            existentes: produto.Fotos.Select(f => f.Bytes).Where(b => b > 0).ToHashSet());
+        if (n == 0 && avisos.Count == 0) avisos.Add("O produto já tem todas as fotos que o fornecedor tem.");
         return new ProdutoAutomaticoResultado(await _loja.GetAsync(produtoId, ct), n, false, Juntar(avisos));
     }
 
@@ -126,11 +128,14 @@ public sealed partial class ProdutoAutomatico : IProdutoAutomatico
         }
     }
 
-    private async Task<int> ImportarFotos(Guid id, FichaProduto ficha, string titulo, List<string> avisos, CancellationToken ct, int jaTem = 0)
+    private async Task<int> ImportarFotos(Guid id, FichaProduto ficha, string titulo, List<string> avisos, CancellationToken ct, int jaTem = 0,
+        IReadOnlySet<long>? existentes = null)
     {
         var importadas = 0;
-        foreach (var url in ficha.Imagens.Take(Math.Max(0, MaxFotos - jaTem)))
+        var repetidas = 0;
+        foreach (var url in ficha.Imagens)
         {
+            if (jaTem + importadas >= MaxFotos) break;
             try
             {
                 using var resp = await _http.GetAsync(url, ct);
@@ -139,6 +144,8 @@ public sealed partial class ProdutoAutomatico : IProdutoAutomatico
                 if (tipo is not ("image/jpeg" or "image/png" or "image/webp")) continue;
                 var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
                 if (bytes.Length is 0 or > (int)MaxBytes) continue;
+                // 24/11: a foto que o produto já tem (mesmo ficheiro = mesmo tamanho) não se repete.
+                if (existentes?.Contains(bytes.Length) == true) { repetidas++; continue; }
 
                 var nome = Path.GetFileName(new Uri(url).AbsolutePath);
                 var ticket = await _loja.PedirUploadFotoAsync(id, new PedirUploadFotoRequest(nome, tipo, bytes.Length, titulo), ct);
@@ -158,7 +165,7 @@ public sealed partial class ProdutoAutomatico : IProdutoAutomatico
                 _logger.LogInformation(ex, "Foto do fornecedor {Url} indisponível.", url);
             }
         }
-        if (ficha.Imagens.Count > 0 && importadas == 0) avisos.Add("O fornecedor tem fotos mas não as consegui descarregar — tenta outra vez.");
+        if (ficha.Imagens.Count > repetidas && importadas == 0) avisos.Add("O fornecedor tem fotos mas não as consegui descarregar — tenta outra vez.");
         return importadas;
     }
 
