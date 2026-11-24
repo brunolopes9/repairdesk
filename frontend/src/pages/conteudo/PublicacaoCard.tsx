@@ -12,6 +12,7 @@ import {
 import { MediaPreview } from './MediaPreview';
 import { EstadoBadge, RedesChips, linkPartilhaFacebook, quando } from './conteudoUi';
 import { TikTokPainel } from './TikTokPainel';
+import { PartilharTikTok } from './PartilharTikTok';
 
 /**
  * Sprint 598 (Doc 95): uma publicação tal como vai sair — media, legenda e, quando uma rede tem
@@ -44,12 +45,15 @@ export function PublicacaoCard({ p, actions, tiktokEditavel = false, etiqueta }:
       <div className="space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <RedesChips destinos={p.destinos} />
+          <div className="flex flex-wrap gap-2">
+          {p.formato === ConteudoFormato.Reel && <PartilharTikTok p={p} />}
           {fbPermalink && (
             <a href={linkPartilhaFacebook(fbPermalink)} target="_blank" rel="noreferrer"
               className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#1877F2] px-3 text-sm font-medium text-white hover:bg-[#166FE5]">
               <Share2 size={15} /> Partilhar no meu perfil
             </a>
           )}
+          </div>
         </div>
 
         <MediaPreview ficheiros={p.ficheiros} formato={p.formato} />
