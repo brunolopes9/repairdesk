@@ -65,6 +65,9 @@ public class ModeloDispositivoTests
     [InlineData("TAPA TRASERA SAMSUNG GALAXY A15 4G A155 A15 5G A156 TAPA TRASERA O TAPA", "Tampa traseira Samsung Galaxy A15 4G A155 A15 5G A156")]
     [InlineData("BATERIA IPHONE 5S APN: 616-0720", "Bateria iPhone 5S")]
     [InlineData("Pantalla Lcd para Realme 12x RMX3997 Marco Negro", "Ecrã Realme 12x RMX3997")]
+    // 25/11: protetor de lente é acessório (não a câmara) e o «Refurbished)» do fornecedor não fica no nome.
+    [InlineData("Casper Camera Lens Protector For Samsung Galaxy S26 / S26 Plus Clear Rings)", "Protetor de câmara Samsung Galaxy S26 / S26 Plus transparente")]
+    [InlineData("OLED Assembly With Frame For Xiaomi 13 Lite / Civi 2 Refurbished) Black", "Ecrã Xiaomi 13 Lite / Civi 2 preto (recondicionado)")]
     [InlineData("Amaoe - BGA Reballing Stencil With CPU Position For iPhone 12", null)]
     public void NomePeca(string descricao, string? esperado) => ModeloDispositivo.NomePeca(descricao).Should().Be(esperado);
 }

@@ -23,6 +23,7 @@ public static partial class ModeloDispositivo
         // Corta o que vem depois do modelo: " - Tempered Glass", "(60Hz)", "With Fit Box"…
         resto = Cauda().Split(resto)[0];
         resto = PalavrasIngles().Replace(resto, " ");
+        resto = Lixo().Replace(resto, " ");
         resto = AppleIphone().Replace(resto, "iPhone");
         resto = Iph().Replace(resto, "iPhone ");
         resto = CodigoInterno().Replace(resto, " ");
@@ -98,6 +99,8 @@ public static partial class ModeloDispositivo
         // 23/11: «Flex de bateria JCID» é um flex, não uma bateria (ia buscar fotos de baterias).
         ("Flex de bateria", new Regex(@"flex\w*\s+(?:de\s+)?bater|battery\s+flex", RegexOptions.IgnoreCase)),
         ("Bateria", new Regex(@"battery|bater[ií]a", RegexOptions.IgnoreCase)),
+        // 25/11: «Camera Lens Protector» é um protetor (acessório), não a câmara (peça).
+        ("Protetor de câmara", new Regex(@"lens\s+protector|camera\s+(?:lens\s+)?(?:protector|glass)|protetor\s+(?:de\s+)?c[aâ]mara", RegexOptions.IgnoreCase)),
         ("Câmara", new Regex(@"camera|c[aâ]mara", RegexOptions.IgnoreCase)),
         ("Altifalante", new Regex(@"speaker|altifalante|ringer|buzzer", RegexOptions.IgnoreCase)),
         ("Moldura", new Regex(@"\bframe\b|moldura", RegexOptions.IgnoreCase)),
@@ -159,6 +162,10 @@ public static partial class ModeloDispositivo
 
     [GeneratedRegex(@"\b(?:For|Black\s+OEM|OEM)\b", RegexOptions.IgnoreCase)]
     private static partial Regex PalavrasIngles();
+
+    /// <summary>25/11: restos do texto do fornecedor que não são modelo nem cor — «Refurbished) Black», «Retail Packaging) Clear», «Rings)».</summary>
+    [GeneratedRegex(@"\b(?:Refurbished|Remade|Remaded|Retail\s+Packaging|Packaging|All\s+Colou?rs|Rings)\b\)?|\)", RegexOptions.IgnoreCase)]
+    private static partial Regex Lixo();
 
     [GeneratedRegex(@"Apple\s+iPhone", RegexOptions.IgnoreCase)]
     private static partial Regex AppleIphone();

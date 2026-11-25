@@ -113,7 +113,8 @@ public sealed class FaturaMistaService : IFaturaMistaService
         doc.Notas = string.IsNullOrWhiteSpace(doc.Notas) ? nota : $"{doc.Notas} · {nota}";
         if (doc.Notas.Length > 2000) doc.Notas = doc.Notas[..2000];
 
-        await _compras.SaveAsync(ct); // mesmo DbContext: compra e despesa gravam juntas
+        // 25/11: grava pelo repositório das despesas (mesmo DbContext) — é ele que dá o nº visível à despesa nova (antes ficava D#0).
+        await _despesas.SaveAsync(ct);
         await _audit.LogAsync(AuditAction.Update, nameof(CompraDocumento), doc.Id,
             new { operation = "fatura_mista", despesa = despesa.Numero, lotes = linhas.Select(l => l.Numero).ToList(), valor, portes }, ct: ct);
         return new PassarParaDespesaResultado(Dto(despesa), Math.Round(valorLinhas, 2), portes, doc.TotalDocumento);
