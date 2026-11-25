@@ -7,6 +7,11 @@ public class SupplierInvoiceItemClassifierTests
 {
     [Theory]
     [InlineData("Portes de envio", null, SupplierItemKind.Shipping)]
+    // 25/11: a LC Phones põe só o nome da transportadora na linha dos portes.
+    [InlineData("Asfalto", null, SupplierItemKind.Shipping)]
+    [InlineData("CTT Expresso 24h", null, SupplierItemKind.Shipping)]
+    [InlineData("DHL Express Worldwide", null, SupplierItemKind.Shipping)]
+    [InlineData("Cabo UPS para router", null, SupplierItemKind.Part)]
     [InlineData("Serviço de garantia premium", null, SupplierItemKind.Service)]
     // Telemóveis COMPLETOS (modelo + capacidade GB/TB) → revenda, não stock de peças.
     [InlineData("Samsung Galaxy A15 128GB Black", null, SupplierItemKind.Phone)]

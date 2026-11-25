@@ -99,6 +99,47 @@ public class ImportInteligenteDespesasTests
         dto.FornecedorDefaultDespesaCategoria.Should().Be((int)DespesaCategoria.Comunicacoes);
     }
 
+    [Fact]
+    public async Task Despesa_pessoal_da_fatura_fica_fora_do_negocio()
+    {
+        await using var db = NewDb();
+        db.SupplierInvoiceImports.Add(new SupplierInvoiceImport
+        {
+            TenantId = TenantId, FornecedorNameRaw = "Prozis", PdfSha256 = new string('c', 64), PdfRelativePath = "2026/11/prozis/f.pdf",
+        });
+        await db.SaveChangesAsync();
+        var importId = await db.SupplierInvoiceImports.Select(x => x.Id).SingleAsync();
+
+        await NewService(db).ApproveAsync(importId, new ApproveSupplierInvoiceRequest(
+            ValorCents: 2793, Descricao: "Prozis", Categoria: DespesaCategoria.Outras,
+            Data: null, Fornecedor: null, NumeroEncomenda: null, Notas: null, Ambito: DespesaAmbito.Pessoal));
+
+        (await db.Despesas.SingleAsync()).Ambito.Should().Be(DespesaAmbito.Pessoal);
+    }
+
+    [Fact]
+    public async Task Parentes_sao_o_mesmo_documento_do_fornecedor_ou_o_mesmo_email_e_nao_os_rejeitados()
+    {
+        await using var db = NewDb();
+        var lc = new Fornecedor { TenantId = TenantId, Name = "LC Phones" };
+        db.Fornecedores.Add(lc);
+        SupplierInvoiceImport Imp(string doc, string msg, SupplierInvoiceImportStatus st, char sha) => new()
+        {
+            TenantId = TenantId, Fornecedor = lc, ParsedDocumentNumber = doc, EmailMessageId = msg, Status = st,
+            PdfSha256 = new string(sha, 64), PdfRelativePath = $"x/{sha}.pdf",
+        };
+        db.SupplierInvoiceImports.AddRange(
+            Imp("FT LC26/986", "m1", SupplierInvoiceImportStatus.Pending, 'd'),
+            Imp("FT LC26/900", "m2", SupplierInvoiceImportStatus.Pending, 'e'),
+            Imp("FT LC26/986", "m3", SupplierInvoiceImportStatus.Rejected, 'f'));
+        await db.SaveChangesAsync();
+        var repo = new SupplierInvoiceImportRepository(db);
+
+        (await repo.ListParentesAsync(TenantId, lc.Id, "FT LC26/986", "m9")).Select(x => x.PdfSha256[0]).Should().Equal('d');
+        (await repo.ListParentesAsync(TenantId, lc.Id, null, "m2")).Select(x => x.PdfSha256[0]).Should().Equal('e');
+        (await repo.ListParentesAsync(TenantId, null, null, null)).Should().BeEmpty();
+    }
+
     private static AppDbContext NewDb() =>
         new(new DbContextOptionsBuilder<AppDbContext>()
                 .UseInMemoryDatabase($"import-intel-{Guid.NewGuid():N}")

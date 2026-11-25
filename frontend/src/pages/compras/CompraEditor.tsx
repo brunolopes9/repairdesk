@@ -9,6 +9,7 @@ import { toast } from '../../lib/toast';
 import { openPdfInNewTab } from '../../lib/downloadPdf';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { comprasApi } from '../../lib/compras/api';
+import { api } from '../../lib/api';
 import type { CompraDocumento, CompraDocumentoWrite, CompraLinhaVenda } from '../../lib/compras/types';
 import { formatEur, formatPct, lucroPorDefeito, parseDecimal, previewUnidade } from '../../lib/compras/format';
 import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor } from '../../lib/fornecedores/api';
@@ -34,6 +35,8 @@ interface LinhaForm {
   lucro: string;
   localizacao: string;
   movimentos: number;
+  /** 25/11: compra nova — a linha é despesa (fatura mista): ao registar sai do stock para uma despesa ligada. */
+  despesa: boolean;
   /** Sprint 581: SKU do fornecedor e artigo da loja (só leitura — liga-se em Artigos ou sozinho pelo SKU). */
   sku: string;
   artigoNome: string | null;
@@ -56,7 +59,7 @@ interface DocForm {
 }
 
 const novaLinha = (): LinhaForm => ({
-  key: crypto.randomUUID(), id: null, numero: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0, sku: '', artigoNome: null, emStock: 0, vendas: [],
+  key: crypto.randomUUID(), id: null, numero: null, descricao: '', quantidade: '1', preco: '', taxa: '', lucro: '', localizacao: '', movimentos: 0, sku: '', artigoNome: null, emStock: 0, vendas: [], despesa: false,
 });
 
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -90,6 +93,7 @@ function fromDoc(doc: CompraDocumento): { form: DocForm; linhas: LinhaForm[] } {
       artigoNome: l.artigoNome,
       emStock: l.quantidadeEmStock,
       vendas: l.vendas ?? [],
+      despesa: false,
     })),
   };
 }
@@ -101,10 +105,14 @@ export function unidadesPorPack(descricao: string): number {
   return n > 1 && n <= 1000 ? n : 1;
 }
 
+/** 25/11: linha que é só a transportadora (LC Phones: «Asfalto») também é portes. */
+const TRANSPORTADORA = /^\s*(asfalto(\s*largo)?|ctt(\s*expresso)?|dhl(\s*express)?|ups|gls|dpd|seur|nacex|mrw|chronopost|correos(\s*express)?|fedex|tnt|paack)\b[\s\w-]{0,25}$/i;
+const ehPortes = (i: { suggestedKind?: string | null; description: string }) => i.suggestedKind === 'Shipping' || TRANSPORTADORA.test(i.description);
+
 /** Fatura lida por IA → rascunho de compra. Linhas de portes passam para o campo Portes. */
 function fromImport(x: SupplierInvoiceImport): { form: Partial<DocForm>; linhas: LinhaForm[] } {
   const items = x.items ?? [];
-  const portes = items.filter((i) => i.suggestedKind === 'Shipping').reduce((s, i) => s + i.lineTotalCents, 0);
+  const portes = items.filter(ehPortes).reduce((s, i) => s + i.lineTotalCents, 0);
   return {
     form: {
       fornecedorId: x.fornecedorId ?? '',
@@ -115,7 +123,7 @@ function fromImport(x: SupplierInvoiceImport): { form: Partial<DocForm>; linhas:
       notas: 'Importada de fatura recebida (IA).',
     },
     linhas: items
-      .filter((i) => i.suggestedKind !== 'Shipping')
+      .filter((i) => !ehPortes(i))
       .map((i) => {
         // Sprint 581: packs ("Hydrogel Film (50pcs)", "pack de 50") entram em unidades, ao custo de cada uma —
         // 1 pack de 50 a 44,95 € = 50 películas a 0,899 €, para o stock e o lucro baterem certo.
@@ -286,10 +294,27 @@ export default function CompraEditor() {
   }, [rebase]);
 
   const save = useMutation({
-    mutationFn: (ignorarDuplicado: boolean) => {
+    mutationFn: async (ignorarDuplicado: boolean) => {
       const req = buildRequest(ignorarDuplicado);
-      if (faturaId) return comprasApi.createFromImport(faturaId, req);
-      return isNew ? comprasApi.create(req) : comprasApi.update(id!, req);
+      if (!isNew) return comprasApi.update(id!, req);
+      const doc = faturaId ? await comprasApi.createFromImport(faturaId, req) : await comprasApi.create(req);
+      // 25/11 (fatura mista na aprovação): as linhas marcadas «Despesa» passam já a uma despesa ligada.
+      // Liga cada linha marcada à criada com a mesma descrição (cada criada só serve uma vez).
+      const livres = [...doc.linhas].sort((a, b) => a.numero - b.numero);
+      const ids: string[] = [];
+      for (const l of linhas.filter((x) => x.despesa && x.descricao.trim())) {
+        const i = livres.findIndex((c) => c.descricao.trim() === l.descricao.trim());
+        if (i >= 0) ids.push(livres.splice(i, 1)[0].id);
+      }
+      if (ids.length === 0) return doc;
+      try {
+        await api.post(`/compras/${doc.id}/passar-a-despesa`, { linhaIds: ids, categoria: 1 /* Material */, natureza: 0 });
+        toast.success('Linhas passadas a despesa', `${ids.length} linha(s) ficaram como despesa desta fatura.`);
+        return await comprasApi.get(doc.id);
+      } catch (err) {
+        toast.fromError(err, 'A compra ficou registada, mas não consegui passar as linhas a despesa — usa «Separar linhas para despesa».');
+        return doc;
+      }
     },
     onSuccess: (doc) => {
       setDuplicado(null);
@@ -451,7 +476,7 @@ export default function CompraEditor() {
           </label>
           <label className="block">
             <span className={labelCls}>Nº encomenda(s)</span>
-            <input disabled={bloqueada} value={form.encomendas} onChange={(e) => setForm({ ...form, encomendas: e.target.value })} className={inputCls} placeholder="#165048, 165227" />
+            <input disabled={bloqueada} value={form.encomendas} onChange={(e) => setForm({ ...form, encomendas: e.target.value })} className={inputCls} placeholder="ex.: 12345" />
           </label>
           <label className="block">
             <span className={labelCls}>Portes pagos (c/ IVA)</span>
@@ -506,6 +531,13 @@ export default function CompraEditor() {
                         <input aria-label="SKU do fornecedor" value={l.sku} onChange={(e) => setLinha(l.key, { sku: e.target.value })}
                           className={`${inputCls} min-h-8 w-36 py-1 text-xs`} placeholder="SKU do fornecedor" maxLength={64} />
                         {l.artigoNome && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-950/40 dark:text-brand-300" title="Artigo da loja deste lote">{l.artigoNome}</span>}
+                        {isNew && (
+                          <label className={`inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs font-medium ${l.despesa ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+                            title="Não é para vender (colas, ferramentas, consumíveis) — ao registar passa a despesa ligada a esta compra">
+                            <input type="checkbox" checked={l.despesa} onChange={(e) => setLinha(l.key, { despesa: e.target.checked })} className="h-3.5 w-3.5 accent-rose-600" />
+                            Despesa
+                          </label>
+                        )}
                       </div>
                       {/* Sprint 588: vendido/saído — a linha fica (é a fatura do fornecedor), o stock é que acaba. */}
                       {l.movimentos > 0 && (l.id && l.emStock === 0

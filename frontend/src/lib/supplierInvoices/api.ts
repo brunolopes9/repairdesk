@@ -52,6 +52,8 @@ export interface ApproveSupplierInvoiceRequest {
   fornecedor: string | null;
   numeroEncomenda: string | null;
   notas: string | null;
+  /** 25/11: 0 = negócio, 1 = pessoal (fora do IVA/IRS). */
+  ambito?: 0 | 1;
 }
 
 export const supplierInvoicesApi = {

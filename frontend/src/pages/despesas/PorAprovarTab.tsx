@@ -11,8 +11,31 @@ import { CorrespondenciaBadge, CorrespondenciaModal, useCorrespondencia } from '
 import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest} from '../../lib/supplierInvoices/api';
 import { formatCents } from '../../lib/money';
 import { toast } from '../../lib/toast';
-import { DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
+import { AMBITO, DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
 import Modal from '../../components/Modal';
+
+/** 25/11: as despesas de fatura de fornecedor são quase sempre uma destas — o resto edita-se em Despesas. */
+const CATEGORIAS_FATURA: DespesaCategoria[] = [
+  DESPESA_CATEGORIA.Material,
+  DESPESA_CATEGORIA.Ferramenta,
+  DESPESA_CATEGORIA.Software,
+  DESPESA_CATEGORIA.Transporte,
+  DESPESA_CATEGORIA.Marketing,
+];
+type EscolhaDespesa = DespesaCategoria | 'pessoal';
+const PESSOAIS = new Set<number>([20, 21, 22, 23, 24, 25, 26, 27, 99]);
+
+function escolhaInicial(aprendida: number | null | undefined): EscolhaDespesa {
+  if (aprendida == null || aprendida === DESPESA_CATEGORIA.Pecas) return DESPESA_CATEGORIA.Material;
+  if (PESSOAIS.has(aprendida)) return 'pessoal';
+  return aprendida as DespesaCategoria;
+}
+
+/** As 6 escolhas + a aprendida do fornecedor, se for outra (ex.: Comunicações da MEO). */
+function opcoesDespesa(atual: EscolhaDespesa): EscolhaDespesa[] {
+  const base: EscolhaDespesa[] = [...CATEGORIAS_FATURA, 'pessoal'];
+  return base.includes(atual) ? base : [atual, ...base];
+}
 import { Button, DateRangeFilter, DetailWorkspace, InspectorRail, SortableTh, ViewTabs } from '../../components/ui';
 import { ordenarLista, useOrdenacao, type Ordem } from '../../lib/useOrdenacao';
 
@@ -806,10 +829,9 @@ function ApproveModal({
   const [descricao, setDescricao] = useState(target.fornecedorName
     ? `${target.fornecedorName}${target.documentNumber ? ` · ${target.documentNumber}` : ''}`
     : 'Compra a fornecedor');
-  // Sprint 543: pré-seleciona a categoria aprendida/conhecida do fornecedor (Anthropic→Software).
-  const [categoria, setCategoria] = useState<DespesaCategoria>(
-    (target.fornecedorDefaultDespesaCategoria as DespesaCategoria | null | undefined) ?? DESPESA_CATEGORIA.Pecas,
-  );
+  // Sprint 543: pré-seleciona a categoria aprendida do fornecedor (Anthropic→Software).
+  // 25/11: só 6 escolhas (o Bruno: «mete apenas 5 ou 6»); «Pessoal» fica fora do IVA/IRS e aprende-se como «Outras».
+  const [escolha, setEscolha] = useState<EscolhaDespesa>(() => escolhaInicial(target.fornecedorDefaultDespesaCategoria));
   const [valor, setValor] = useState((target.totalCents ?? 0) / 100);
   const [data, setData] = useState(target.documentDate ? target.documentDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
   const [fornecedor, setFornecedor] = useState(target.fornecedorName ?? '');
@@ -837,7 +859,8 @@ function ApproveModal({
           disabled={approve.isPending || valor <= 0}
           onClick={() => approve.mutate({
             descricao,
-            categoria,
+            categoria: escolha === 'pessoal' ? DESPESA_CATEGORIA.Outras : escolha,
+            ambito: escolha === 'pessoal' ? AMBITO.Pessoal : AMBITO.Negocio,
             valorCents: Math.round(valor * 100),
             data,
             fornecedor: fornecedor || null,
@@ -862,9 +885,9 @@ function ApproveModal({
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-xs">
             <span className="text-zinc-500">Categoria</span>
-            <select value={categoria} onChange={(e) => setCategoria(Number(e.target.value) as DespesaCategoria)} className={inputCls}>
-              {Object.entries(DESPESA_CATEGORIA).map(([key, value]) => (
-                <option key={key} value={value}>{DESPESA_LABEL[value as DespesaCategoria]}</option>
+            <select value={String(escolha)} onChange={(e) => setEscolha(e.target.value === 'pessoal' ? 'pessoal' : Number(e.target.value) as DespesaCategoria)} className={inputCls}>
+              {opcoesDespesa(escolha).map((o) => (
+                <option key={String(o)} value={String(o)}>{o === 'pessoal' ? 'Pessoal (fora do IVA/IRS)' : DESPESA_LABEL[o]}</option>
               ))}
             </select>
           </label>

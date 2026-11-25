@@ -15,6 +15,18 @@ public class SupplierInvoiceImportRepository : ISupplierInvoiceImportRepository
             .Where(x => x.TenantId == tenantId && x.PdfSha256 == sha256)
             .FirstOrDefaultAsync(ct);
 
+    public async Task<IReadOnlyList<SupplierInvoiceImport>> ListParentesAsync(Guid tenantId, Guid? fornecedorId, string? documentNumber, string? emailMessageId, CancellationToken ct = default)
+    {
+        var doc = string.IsNullOrWhiteSpace(documentNumber) ? null : documentNumber.Trim();
+        var msg = string.IsNullOrWhiteSpace(emailMessageId) ? null : emailMessageId;
+        if (doc is null && msg is null) return [];
+        return await _db.SupplierInvoiceImports
+            .Where(x => x.TenantId == tenantId && x.Status != SupplierInvoiceImportStatus.Rejected
+                && ((doc != null && fornecedorId != null && x.FornecedorId == fornecedorId && x.ParsedDocumentNumber == doc)
+                    || (msg != null && x.EmailMessageId == msg)))
+            .ToListAsync(ct);
+    }
+
     public Task<SupplierInvoiceImport?> FindByIdAsync(Guid id, CancellationToken ct = default)
         => _db.SupplierInvoiceImports
             .Include(x => x.Fornecedor)

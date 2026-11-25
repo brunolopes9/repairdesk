@@ -78,7 +78,9 @@ public sealed record ApproveSupplierInvoiceRequest(
     string? NumeroEncomenda,
     string? Notas,
     /// <summary>Sprint 573: IVA da fatura (cêntimos). Null = o lido do PDF (total − subtotal), se houver.</summary>
-    int? IvaCents = null);
+    int? IvaCents = null,
+    /// <summary>25/11: «Pessoal» (ex.: Prozis) fica fora do IVA e do IRS.</summary>
+    Core.Enums.DespesaAmbito Ambito = Core.Enums.DespesaAmbito.Negocio);
 
 public sealed record SupplierInvoiceEmailMeta(
     string? MessageId,
@@ -359,6 +361,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             CreatedByApiKeyId = apiKeyId,
         };
 
+        await DescartarRepetidaAsync(entity, ct);
+        status = entity.Status;
         await _repo.AddAsync(entity, ct);
         await _repo.SaveAsync(ct);
 
@@ -475,7 +479,11 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             EmailReceivedAt = DateTime.UtcNow,
         });
 
-        if (releitura is null) await _repo.AddAsync(entity, ct);
+        if (releitura is null)
+        {
+            await DescartarRepetidaAsync(entity, ct);
+            await _repo.AddAsync(entity, ct);
+        }
         await _repo.SaveAsync(ct);
 
         await _audit.LogAsync(AuditAction.Create, nameof(SupplierInvoiceImport), entity.Id, new
@@ -492,6 +500,53 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         return new SupplierInvoiceImportResult(
             entity.Id, entity.Status, fornecedorNameRaw, fornecedorId,
             llm?.TotalCents, llm?.OrderId, relativePath, WasDuplicate: false);
+    }
+
+    /// <summary>
+    /// 25/11 (o Bruno: «tu lês 2 vezes a mesma compra»): a mesma fatura não fica 2× nas pendentes.
+    /// (1) Mesmo fornecedor + mesmo nº de documento — ex.: o recibo da LC Phones chega noutro email com o nº da fatura;
+    /// (2) mesmo email com um anexo que não é fatura (sem nº nem total) ao lado da fatura — ex.: MobileSentrix.
+    /// Fica guardada como «rejeitada» com o motivo (o PDF não se perde); a mais completa é a que fica.
+    /// </summary>
+    private async Task DescartarRepetidaAsync(SupplierInvoiceImport e, CancellationToken ct)
+    {
+        var parentes = (await _repo.ListParentesAsync(e.TenantId, e.FornecedorId, e.ParsedDocumentNumber, e.EmailMessageId, ct))
+            .Where(x => x.Id != e.Id).ToList();
+        if (parentes.Count == 0) return;
+
+        static bool Completa(SupplierInvoiceImport x) => !string.IsNullOrWhiteSpace(x.ParsedDocumentNumber) && x.ParsedTotalCents is > 0;
+        void Rejeitar(SupplierInvoiceImport x, string motivo)
+        {
+            x.Status = SupplierInvoiceImportStatus.Rejected;
+            x.RejectionReason = motivo;
+            x.ProcessedAt = DateTime.UtcNow;
+            _logger.LogInformation("SupplierInvoice {Id} descartada: {Motivo}", x.Id, motivo);
+        }
+
+        var doc = e.ParsedDocumentNumber?.Trim();
+        var mesmoDoc = string.IsNullOrEmpty(doc) || e.FornecedorId is null ? null
+            : parentes.FirstOrDefault(x => x.FornecedorId == e.FornecedorId && x.ParsedDocumentNumber == doc);
+        if (mesmoDoc is not null)
+        {
+            if (Completa(mesmoDoc) || !Completa(e))
+            {
+                Rejeitar(e, $"Repetida: a fatura {doc} já entrou (este PDF é o recibo ou outra cópia).");
+                return;
+            }
+            if (mesmoDoc.Status == SupplierInvoiceImportStatus.Pending)
+                Rejeitar(mesmoDoc, $"Repetida: entrou depois a fatura {doc} completa (esta era o recibo ou outra cópia).");
+        }
+
+        if (string.IsNullOrEmpty(e.EmailMessageId)) return;
+        var doMesmoEmail = parentes.Where(x => x.EmailMessageId == e.EmailMessageId).ToList();
+        if (!Completa(e) && doMesmoEmail.Any(Completa))
+        {
+            Rejeitar(e, "Anexo extra do mesmo email — não é a fatura (sem nº nem total).");
+            return;
+        }
+        if (Completa(e))
+            foreach (var x in doMesmoEmail.Where(x => !Completa(x) && x.Status is SupplierInvoiceImportStatus.Pending or SupplierInvoiceImportStatus.Failed))
+                Rejeitar(x, "Anexo extra do mesmo email — não é a fatura (sem nº nem total).");
     }
 
     private const string FotoPapelOrigem = "manual-upload-photo@repairdesk";
@@ -576,6 +631,9 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
         if (string.IsNullOrWhiteSpace(desc)) return SupplierItemKind.Unknown;
 
         if (Regex.IsMatch(desc, @"portes|envio|shipping|transport|frete", RegexOptions.IgnoreCase))
+            return SupplierItemKind.Shipping;
+        // 25/11: a linha de portes às vezes é só o nome da transportadora (LC Phones: «Asfalto»).
+        if (Regex.IsMatch(desc, @"^\s*(asfalto(\s*largo)?|ctt(\s*expresso)?|dhl(\s*express)?|ups|gls|dpd|seur|nacex|mrw|chronopost|correos(\s*express)?|fedex|tnt|paack)\b[\s\w-]{0,25}$", RegexOptions.IgnoreCase))
             return SupplierItemKind.Shipping;
 
         // Sprint 521/522: PEÇAS PRIMEIRO — antes de "serviço" também. Uma descrição com
@@ -715,7 +773,8 @@ public sealed class SupplierInvoiceImportService : ISupplierInvoiceImportService
             Notas: notas,
             ReverseCharge: reverseCharge,
             IvaCents: reverseCharge ? 0 : req.IvaCents ?? ivaLido,
-            SemFaturaValida: semFaturaValida), ct);
+            SemFaturaValida: semFaturaValida,
+            Ambito: req.Ambito), ct);
 
         entity.Status = SupplierInvoiceImportStatus.Approved;
         entity.DespesaId = despesa.Id;
