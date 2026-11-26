@@ -667,7 +667,7 @@ public partial class MoloniService : IMoloniService
             {
                 ["productId"] = await ProdutoAsync(key, companyId, cfg, t, item, venda.Tipo, ct),
                 ["ordering"] = ++ordem,
-                ["name"] = item.Descricao.Length > 200 ? item.Descricao[..200] : item.Descricao,
+                ["name"] = TextoFatura(item.Descricao, 200),
                 ["qty"] = item.Quantidade,
                 ["price"] = Math.Round(item.PrecoUnitarioCents / 100m / fator, 4, MidpointRounding.AwayFromZero),
             };
@@ -703,10 +703,19 @@ public partial class MoloniService : IMoloniService
         if (!comoServico && item.CompraLinha?.ArtigoId is { } artigoId && await _artigos.FindByIdAsync(artigoId, ct) is { } artigo)
         {
             if (artigo.MoloniProductId is { } p) return p;
-            artigo.MoloniProductId = await GarantirProdutoAsync(key, companyId, cfg, artigo.Sku, string.IsNullOrWhiteSpace(artigo.NomeFatura) ? artigo.Nome : artigo.NomeFatura, 1,
-                (artigo.PrecoVendaCents ?? item.PrecoUnitarioCents) / 100m / 1.23m, ct);
-            await _artigos.SaveAsync(ct);
-            return artigo.MoloniProductId.Value;
+            try
+            {
+                artigo.MoloniProductId = await GarantirProdutoAsync(key, companyId, cfg, artigo.Sku, string.IsNullOrWhiteSpace(artigo.NomeFatura) ? artigo.Nome : artigo.NomeFatura, 1,
+                    (artigo.PrecoVendaCents ?? item.PrecoUnitarioCents) / 100m / 1.23m, ct);
+                await _artigos.SaveAsync(ct);
+                return artigo.MoloniProductId.Value;
+            }
+            catch (MoloniException ex) when (LimiteDoPlano(ex))
+            {
+                // 26/11: o plano do Moloni ON tem um máximo de artigos (Starter = 100). Chegado ao limite, a linha vai
+                // no artigo genérico «Artigo» — a fatura mostra na mesma a descrição da linha, só não fica um artigo por SKU.
+                _logger.LogInformation("Moloni ON no limite de artigos do plano; {Sku} faturado como artigo genérico.", artigo.Sku);
+            }
         }
         // Sprint 663: os genéricos não levam o nome do software (o cliente não tem de o ver na fatura).
         if (!cfg.GenericosSemMarca)
@@ -883,6 +892,29 @@ public partial class MoloniService : IMoloniService
     }
 
     private static string Normalizar(string s) => s.Trim().ToLowerInvariant();
+
+    public static bool LimiteDoPlano(MoloniException ex) =>
+        ex.Message.Contains("over the allowed limit", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 26/11: a letra do PDF do Moloni não tem emojis/símbolos (saíam como quadrados ▯ na fatura). Tira símbolos,
+    /// seletores de variante e caracteres de controlo; mantém letras, números, pontuação e acentos.
+    /// </summary>
+    public static string TextoFatura(string s, int max)
+    {
+        var sb = new System.Text.StringBuilder(s.Length);
+        foreach (var r in s.EnumerateRunes())
+        {
+            var cat = System.Text.Rune.GetUnicodeCategory(r);
+            if (cat is UnicodeCategory.Control) { sb.Append(' '); continue; }
+            if (cat is UnicodeCategory.OtherSymbol or UnicodeCategory.PrivateUse or UnicodeCategory.Format)
+                continue;
+            if (r.Value is >= 0xFE00 and <= 0xFE0F || r.Value > 0xFFFF) continue; // seletores de variante; emojis fora do plano básico
+            sb.Append(r.ToString());
+        }
+        var t = Regex.Replace(sb.ToString(), @"\s{2,}", " ").Trim();
+        return t.Length > max ? t[..max].TrimEnd() : t;
+    }
 
     private static string? Limpar(string? s, int max)
     {
