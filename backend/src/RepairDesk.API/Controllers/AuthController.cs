@@ -258,6 +258,7 @@ public class AuthController : ControllerBase
     private async Task<AuthResponse> BuildResponse(AppUser user, string refreshPlaintext, Guid? tenantId = null)
     {
         Response.Cookies.Append(RefreshCookieName, refreshPlaintext, BuildRefreshCookieOptions(DateTimeOffset.UtcNow.AddDays(7)));
+        DispositivoInterno.Marcar(Request, Response);
         return await BuildAccessResponse(user, tenantId);
     }
 

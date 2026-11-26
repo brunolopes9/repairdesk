@@ -181,6 +181,7 @@ public sealed class PublicLojaController : ControllerBase
     [RequestSizeLimit(40_000)]
     public async Task<IActionResult> Eventos(string intakeSlug, [FromServices] IVisitasSiteService visitas, CancellationToken ct)
     {
+        if (DispositivoInterno.Eh(Request)) return NoContent(); // navegador onde se usa o Mender = visita da casa, nunca conta
         string corpo;
         using (var leitor = new StreamReader(Request.Body)) corpo = await leitor.ReadToEndAsync(ct);
         EventosSiteRequest? req;

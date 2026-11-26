@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart3, Clock, Eye, MousePointerClick, ShoppingCart, Users } from 'lucide-react';
 import { EmptyState, KpiCard, PageHeader, SectionCard, SkeletonTable } from '../../components/ui';
 import { apiErrorMessage } from '../../lib/errors';
@@ -91,6 +91,34 @@ function Percurso({ sessao }: { sessao: string }) {
   );
 }
 
+/** 26/11: as visitas do Bruno não contam — os aparelhos com o Mender já não entram; isto limpa as que ficaram para trás. */
+function FuiEu({ sessao }: { sessao: string }) {
+  const qc = useQueryClient();
+  const [confirmar, setConfirmar] = useState(false);
+  const m = useMutation({
+    mutationFn: () => visitasApi.naoContar(sessao),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['loja', 'visitas'] }),
+  });
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+      {!confirmar ? (
+        <button type="button" onClick={() => setConfirmar(true)} className="rounded border border-zinc-300 px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+          Fui eu — não contar
+        </button>
+      ) : (
+        <>
+          <span className="text-zinc-600 dark:text-zinc-300">Apagar esta visita e as outras deste visitante?</span>
+          <button type="button" disabled={m.isPending} onClick={() => m.mutate()} className="rounded bg-rose-600 px-2 py-1 font-medium text-white hover:bg-rose-700 disabled:opacity-60">
+            {m.isPending ? 'A apagar…' : 'Apagar'}
+          </button>
+          <button type="button" onClick={() => setConfirmar(false)} className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">Cancelar</button>
+        </>
+      )}
+      {m.isError && <span className="text-rose-600">{apiErrorMessage(m.error)}</span>}
+    </div>
+  );
+}
+
 function LinhaSessao({ s }: { s: SessaoVisita }) {
   const [aberta, setAberta] = useState(false);
   const etiquetas = [
@@ -113,7 +141,7 @@ function LinhaSessao({ s }: { s: SessaoVisita }) {
         <span className="flex flex-wrap gap-1">{etiquetas.map((e) => <span key={e.t} className={`rounded px-1.5 py-0.5 text-xs font-medium ${e.c}`}>{e.t}</span>)}</span>
         <span className="w-full truncate text-xs text-zinc-500 sm:w-auto">entrou em {s.entrada ?? '—'} · saiu em {s.saida ?? '—'}</span>
       </button>
-      {aberta && <div className="px-4 pb-3"><Percurso sessao={s.sessao} /></div>}
+      {aberta && <div className="px-4 pb-3"><Percurso sessao={s.sessao} /><FuiEu sessao={s.sessao} /></div>}
     </li>
   );
 }

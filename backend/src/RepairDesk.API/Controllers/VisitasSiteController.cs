@@ -32,6 +32,11 @@ public sealed class VisitasSiteController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<EventoVisitaDto>>> Sessao(string sessao, CancellationToken ct)
         => Ok(await _visitas.SessaoAsync(sessao, ct));
 
+    /// <summary>26/11: «fui eu» — apaga a visita e todas as do mesmo visitante (as novas já não entram: cookie rd_interno).</summary>
+    [HttpDelete("sessoes/{sessao}")]
+    public async Task<IActionResult> NaoContar(string sessao, CancellationToken ct)
+        => Ok(new { apagados = await _visitas.NaoContarAsync(sessao, ct) });
+
     private static (DateOnly, DateOnly) Periodo(DateOnly? de, DateOnly? ate)
     {
         var hoje = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon")));

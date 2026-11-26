@@ -95,5 +95,7 @@ const qs = (de: string, ate: string) => `de=${encodeURIComponent(de)}&ate=${enco
 export const visitasApi = {
   resumo: (de: string, ate: string) => api.get<VisitasResumo>(`/loja/visitas/resumo?${qs(de, ate)}`).then((r) => r.data),
   sessoes: (de: string, ate: string) => api.get<SessaoVisita[]>(`/loja/visitas/sessoes?${qs(de, ate)}`).then((r) => r.data),
+  /** «Fui eu»: apaga esta visita e todas as do mesmo visitante. */
+  naoContar: (sessao: string) => api.delete<{ apagados: number }>(`/loja/visitas/sessoes/${encodeURIComponent(sessao)}`).then((r) => r.data),
   sessao: (sessao: string) => api.get<EventoVisita[]>(`/loja/visitas/sessoes/${encodeURIComponent(sessao)}`).then((r) => r.data),
 };

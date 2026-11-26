@@ -60,6 +60,7 @@ public sealed class EmpresaAtivaController : ControllerBase
         var (plaintext, _) = await _refresh.IssueParaEmpresaAsync(user, tenantId, ip, ct);
         Response.Cookies.Append(AuthController.RefreshCookieName, plaintext,
             AuthController.RefreshCookieOptions(Request, _env.IsProduction(), DateTimeOffset.UtcNow.AddDays(7)));
+        RepairDesk.API.Infrastructure.DispositivoInterno.Marcar(Request, Response);
 
         var roles = await _users.GetRolesAsync(user);
         var access = tenantId == user.TenantId ? _tokens.IssueAccessToken(user, roles) : _tokens.IssueAccessToken(user, roles, tenantId);

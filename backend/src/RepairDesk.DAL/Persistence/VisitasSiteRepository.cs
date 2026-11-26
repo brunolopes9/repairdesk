@@ -20,6 +20,9 @@ public class VisitasSiteRepository : IVisitasSiteRepository
     public async Task<IReadOnlyList<EventoSite>> DaSessaoAsync(string sessao, CancellationToken ct = default)
         => await _db.EventosSite.AsNoTracking().Where(e => e.Sessao == sessao).OrderBy(e => e.CreatedAt).Take(2000).ToListAsync(ct);
 
+    public Task<int> ApagarDoVisitanteAsync(string visitante, CancellationToken ct = default)
+        => _db.EventosSite.Where(e => e.Visitante == visitante).ExecuteDeleteAsync(ct);
+
     public Task<int> ApagarAntesDeAsync(DateTime antesUtc, CancellationToken ct = default)
         => _db.EventosSite.IgnoreQueryFilters().Where(e => e.CreatedAt < antesUtc).ExecuteDeleteAsync(ct);
 

@@ -45,6 +45,8 @@ public interface IVisitasSiteService
     Task<VisitasResumoDto> ResumoAsync(DateOnly de, DateOnly ate, CancellationToken ct = default);
     Task<IReadOnlyList<SessaoVisitaDto>> SessoesAsync(DateOnly de, DateOnly ate, CancellationToken ct = default);
     Task<IReadOnlyList<EventoVisitaDto>> SessaoAsync(string sessao, CancellationToken ct = default);
+    /// <summary>«Fui eu»: apaga esta visita e todas as outras do mesmo visitante. Devolve quantos eventos saíram.</summary>
+    Task<int> NaoContarAsync(string sessao, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -137,6 +139,13 @@ public sealed partial class VisitasSiteService : IVisitasSiteService
     public async Task<IReadOnlyList<EventoVisitaDto>> SessaoAsync(string sessao, CancellationToken ct = default)
         => (await _repo.DaSessaoAsync(sessao, ct)).Select(e => new EventoVisitaDto(e.CreatedAt, e.Tipo, e.Caminho, e.Titulo, e.Termo,
             e.Resultados, e.Produto, e.Valor, e.Duracao, e.Scroll, e.Encomenda, e.Origem, e.Referrer)).ToList();
+
+    public async Task<int> NaoContarAsync(string sessao, CancellationToken ct = default)
+    {
+        var visitante = (await _repo.DaSessaoAsync(sessao, ct)).Select(e => e.Visitante).FirstOrDefault()
+            ?? throw new NotFoundException("Visita", sessao);
+        return await _repo.ApagarDoVisitanteAsync(visitante, ct);
+    }
 
     // ---- Contas (puras, testadas) ----------------------------------------------------------------------
 
