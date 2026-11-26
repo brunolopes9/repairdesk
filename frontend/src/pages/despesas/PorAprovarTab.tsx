@@ -8,7 +8,7 @@ import { comprasApi } from '../../lib/compras/api';
 import { fornecedoresApi } from '../../lib/fornecedores/api';
 import type { AssociacaoAutomatica } from '../../lib/compras/types';
 import { CorrespondenciaBadge, CorrespondenciaModal, useCorrespondencia } from '../compras/CorrespondenciaFatura';
-import { supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest} from '../../lib/supplierInvoices/api';
+import { ehPortes, supplierInvoicesApi, type SupplierInvoiceImport, type ApproveSupplierInvoiceRequest} from '../../lib/supplierInvoices/api';
 import { formatCents } from '../../lib/money';
 import { toast } from '../../lib/toast';
 import { AMBITO, DESPESA_CATEGORIA, DESPESA_LABEL, type DespesaCategoria } from '../../lib/despesas/types';
@@ -659,7 +659,7 @@ function ImportRow({
                       </div>
                     </div>
                   </div>
-                  {/\b(shipping|portes?|envio|transport|chronopost|dpd|ups|fedex|dhl|frete)\b/i.test(item.description) ? (
+                  {ehPortes(item) ? (
                     <div className="mt-2 text-[11px] italic text-zinc-400">🚚 Custo de transporte — não importa para stock (skip por defeito ao aprovar).</div>
                   ) : (item.suggestions?.length ?? 0) > 0 ? (
                     <div className="mt-2 space-y-1 border-t border-zinc-100 pt-2 dark:border-zinc-800">
@@ -768,7 +768,7 @@ function HistoryRow({
             <div className="mb-2 text-xs font-semibold uppercase text-zinc-500">O que o parser importou desta fatura ({x.items!.length})</div>
             <ul className="space-y-1.5">
               {x.items!.map((item, i) => {
-                const isShipping = /\b(shipping|portes?|envio|transport|chronopost|dpd|ups|fedex|dhl|frete)\b/i.test(item.description);
+                const isShipping = ehPortes(item);
                 return (
                   <li key={i} className="flex items-start justify-between gap-3 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 dark:border-zinc-700 dark:bg-zinc-900">
                     <div className="flex-1">

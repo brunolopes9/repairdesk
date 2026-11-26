@@ -23,6 +23,12 @@ export interface SupplierInvoiceItem {
   sku?: string | null;
 }
 
+/** Linha de portes: classificação do backend (suggestedKind) ou só o nome da transportadora (LC Phones: «Asfalto»).
+ *  Fonte única para a inbox e para o editor de compra. */
+const TRANSPORTADORA = /^\s*(asfalto(\s*largo)?|ctt(\s*expresso)?|dhl(\s*express)?|ups|gls|dpd|seur|nacex|mrw|chronopost|correos(\s*express)?|fedex|tnt|paack)\b[\s\w-]{0,25}$/i;
+export const ehPortes = (i: { suggestedKind?: string | null; description: string }) =>
+  i.suggestedKind === 'Shipping' || TRANSPORTADORA.test(i.description);
+
 export interface SupplierInvoiceImport {
   id: string;
   fornecedorId: string | null;

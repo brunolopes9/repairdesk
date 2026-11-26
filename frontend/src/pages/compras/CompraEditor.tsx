@@ -13,7 +13,7 @@ import { api } from '../../lib/api';
 import type { CompraDocumento, CompraDocumentoWrite, CompraLinhaVenda } from '../../lib/compras/types';
 import { formatEur, formatPct, lucroPorDefeito, parseDecimal, previewUnidade } from '../../lib/compras/format';
 import { fornecedoresApi, REGIME_IVA, REGIME_IVA_LABEL, type Fornecedor } from '../../lib/fornecedores/api';
-import { supplierInvoicesApi, type SupplierInvoiceImport } from '../../lib/supplierInvoices/api';
+import { ehPortes, supplierInvoicesApi, type SupplierInvoiceImport } from '../../lib/supplierInvoices/api';
 import { inputCls, labelCls } from '../../components/ui/formClasses';
 import { VENDA_TIPO } from '../../lib/vendas/types';
 import { FaturaMistaCard } from './FaturaMistaCard';
@@ -105,9 +105,6 @@ export function unidadesPorPack(descricao: string): number {
   return n > 1 && n <= 1000 ? n : 1;
 }
 
-/** 25/11: linha que é só a transportadora (LC Phones: «Asfalto») também é portes. */
-const TRANSPORTADORA = /^\s*(asfalto(\s*largo)?|ctt(\s*expresso)?|dhl(\s*express)?|ups|gls|dpd|seur|nacex|mrw|chronopost|correos(\s*express)?|fedex|tnt|paack)\b[\s\w-]{0,25}$/i;
-const ehPortes = (i: { suggestedKind?: string | null; description: string }) => i.suggestedKind === 'Shipping' || TRANSPORTADORA.test(i.description);
 
 /** Fatura lida por IA → rascunho de compra. Linhas de portes passam para o campo Portes. */
 function fromImport(x: SupplierInvoiceImport): { form: Partial<DocForm>; linhas: LinhaForm[] } {
