@@ -1,6 +1,6 @@
 # 71 - Matriz de Roles / Authz
 
-<!-- roles-matrix-snapshot:52d43da8d7967a05 -->
+<!-- roles-matrix-snapshot:39ca0995be399201 -->
 
 Documento gerado para Sprint 239 e estendido em Sprint 243 (Doc 72 Fase A). A snapshot acima e a
 tabela abaixo devem ser actualizadas sempre que um controller, rota, verbo HTTP ou atributo
@@ -138,3 +138,4 @@ Para a matriz exaustiva, o teste `RolesMatrixDocTests` calcula a snapshot por re
 > Nov/2026 (23/11): `POST api/loja/produtos/do-artigo/{artigoId}` e `POST api/loja/produtos/{id}/fotos/fornecedor` — `Admin`, como o resto da loja («Pôr na loja» automático com fotos do fornecedor e texto da IA).
 > Nov/2026 (23/11): `GET api/public/loja/{slug}/pagamentos` — público (métodos do checkout: MB WAY e Multibanco no site, «link» para cartão/Apple/Google Pay).
 > Nov/2026 (23/11): `GET/POST api/public/loja/{slug}/conta/provedores|social` — público (entrar com Google/Facebook); `GET/PUT api/loja/produtos/login-social` — `Admin`.
+> Nov/2026 (26/11): `DELETE api/loja/visitas/sessoes/{sessao}` — só Admin («Fui eu — não contar»: apaga as visitas desse visitante).
