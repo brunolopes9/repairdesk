@@ -21,8 +21,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Mender';
   const options = {
     body: data.body || '',
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
+    icon: '/icon-192.png',
+    badge: '/badge-96.png',
     // tag agrupa notificações do mesmo assunto; renotify volta a vibrar/alertar.
     tag: data.tag || undefined,
     renotify: Boolean(data.tag),

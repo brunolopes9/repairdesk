@@ -233,7 +233,7 @@ export default function Layout() {
           {/* Sprint 606: empresa ativa e troca (LopesTech ↔ Cortex) — no lugar do antigo «Loja Principal» estático. */}
           <EmpresaSwitcher className="hidden sm:block" />
           <NavLink to="/" className="flex items-center gap-2 sm:hidden" aria-label="Início">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">M</span>
+            <img src="/logo-64.png" alt="" className="h-8 w-8 rounded-full" />
             <span className="text-base font-semibold tracking-tight">Mender</span>
           </NavLink>
           <EmpresaSwitcher className="sm:hidden" soComVarias />
@@ -354,7 +354,7 @@ export default function Layout() {
       <aside className="fixed left-0 top-0 z-30 hidden h-screen w-56 flex-col border-r border-slate-800 bg-slate-900 text-slate-300 sm:flex">
         {/* Logo */}
         <div className="flex h-14 items-center gap-2.5 border-b border-slate-800 px-4">
-          <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">M</span>
+          <img src="/logo-64.png" alt="" className="h-8 w-8 flex-none rounded-full" />
           <span className="flex-1 truncate text-base font-semibold tracking-tight text-white">Mender</span>
         </div>
 

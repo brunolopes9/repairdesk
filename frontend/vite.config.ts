@@ -12,7 +12,7 @@ export default defineConfig({
     // para quando houver clientes reais com WiFi instável.
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons.svg', 'logo-64.png', 'badge-96.png'],
       manifest: {
         name: 'Mender · LopesTech',
         short_name: 'Mender',
@@ -20,17 +20,20 @@ export default defineConfig({
         start_url: '/?source=pwa',
         scope: '/',
         display: 'standalone',
-        background_color: '#0EA5E9',
+        background_color: '#01040F',
         theme_color: '#0EA5E9',
         orientation: 'any',
         lang: 'pt-PT',
         categories: ['business', 'productivity'],
         icons: [
-          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          // 26/11: ícone da LopesTech (o mesmo do site lopestech.pt).
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         shortcuts: [
-          { name: 'Nova reparação', short_name: 'Nova', url: '/reparacoes?new=1', icons: [{ src: '/favicon.svg', sizes: 'any' }] },
-          { name: 'Dashboard', short_name: 'Dashboard', url: '/', icons: [{ src: '/favicon.svg', sizes: 'any' }] },
+          { name: 'Nova reparação', short_name: 'Nova', url: '/reparacoes?new=1', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Dashboard', short_name: 'Dashboard', url: '/', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
         ],
       },
       workbox: {
@@ -53,7 +56,7 @@ export default defineConfig({
           },
           {
             urlPattern: ({ request, url }) =>
-              request.destination === 'image' && (url.pathname === '/favicon.svg' || url.pathname.startsWith('/assets/')),
+              request.destination === 'image' && (/^\/(icon-|maskable-|badge-|logo-|apple-touch-icon)/.test(url.pathname) || url.pathname.startsWith('/assets/')),
             handler: 'CacheFirst',
             options: {
               cacheName: 'static-images',

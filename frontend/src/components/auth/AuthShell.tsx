@@ -1,5 +1,4 @@
 import type { InputHTMLAttributes, ReactNode } from 'react';
-import { Wrench } from 'lucide-react';
 
 /** Moldura comum das páginas públicas de autenticação (login, recuperar e repor palavra-passe). */
 export function AuthShell({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
@@ -7,9 +6,7 @@ export function AuthShell({ children, footer }: { children: ReactNode; footer?: 
     <div className="grid min-h-screen place-items-center bg-zinc-50 px-4 py-10 dark:bg-zinc-950">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-2 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-600 text-white shadow-sm">
-            <Wrench size={22} strokeWidth={2} />
-          </span>
+          <img src="/icon-192.png" alt="LopesTech" className="h-14 w-14 rounded-full shadow-sm" />
           <div className="text-lg font-semibold tracking-tight">Mender</div>
           <p className="text-xs text-zinc-500">Gestão de oficinas, simples e profissional.</p>
         </div>
