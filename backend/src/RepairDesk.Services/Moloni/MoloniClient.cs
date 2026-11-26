@@ -9,7 +9,13 @@ namespace RepairDesk.Services.Moloni;
 /// <summary>Erro devolvido pelo Moloni ON (validação, permissões, sessão) — a mensagem é a do Moloni (HTTP 400).</summary>
 public sealed class MoloniException : DomainException
 {
-    public MoloniException(string message) : base("moloni", "Moloni ON: " + message) { }
+    public MoloniException(string message) : base("moloni", "Moloni ON: " + message + Explicacao(message)) { }
+
+    /// <summary>26/11: mensagens do Moloni em inglês que o Bruno não percebe à primeira — junta o que fazer.</summary>
+    private static string Explicacao(string m) =>
+        m.Contains("over the allowed limit", StringComparison.OrdinalIgnoreCase)
+            ? " — o plano do Moloni ON chegou ao limite (o Starter tem 50 documentos por mês e 100 artigos). Sobe de plano no Moloni ON para continuar a faturar."
+            : "";
 }
 
 public interface IMoloniClient
